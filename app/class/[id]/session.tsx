@@ -19,7 +19,6 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { BackTitleHeader } from "../../../src/components/ui/BackTitleHeader";
 import { ScreenBackdrop } from "../../../src/components/ui/ScreenBackdrop";
 import {
     buildAutoPlanForCycleDay,
@@ -42,10 +41,24 @@ import {
     type EditableBlockItem,
 } from "../../../src/screens/session/components/BlockEditModal";
 import { SessionContextHeader } from "../../../src/screens/session/components/SessionContextHeader";
+import { SessionDateNavigator } from "../../../src/screens/session/components/SessionDateNavigator";
+import { SessionEmptyPlanCard } from "../../../src/screens/session/components/SessionEmptyPlanCard";
+import { SessionObjectiveCard } from "../../../src/screens/session/components/SessionObjectiveCard";
+import { SessionPlanFabActions } from "../../../src/screens/session/components/SessionPlanFabActions";
 import { SessionResistanceNotice } from "../../../src/screens/session/components/SessionResistanceNotice";
 import { SessionResistanceBlock } from "../../../src/screens/session/components/SessionResistanceBlock";
+import { SessionTabBar } from "../../../src/screens/session/components/SessionTabBar";
+import { SessionTopHeader } from "../../../src/screens/session/components/SessionTopHeader";
+import { SessionTrainingBlockCard } from "../../../src/screens/session/components/SessionTrainingBlockCard";
 import { SessionUnavailableState } from "../../../src/screens/session/components/SessionUnavailableState";
 import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
+import type {
+    SessionBlockKey,
+    SessionSavedPlanPreview,
+    SessionTabId,
+    SessionTabItem,
+    SessionTrainingBlockPreview,
+} from "../../../src/screens/session/components/session-training-ui-types";
 import { useSessionData } from "../../../src/screens/session/hooks/useSessionData";
 import { useSessionPlanGeneration } from "../../../src/screens/session/hooks/useSessionPlanGeneration";
 import { useSessionReport } from "../../../src/screens/session/hooks/useSessionReport";
@@ -132,9 +145,7 @@ import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { Button } from "../../../src/ui/Button";
 import { getClassPalette } from "../../../src/ui/class-colors";
-import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../../src/ui/confirm-dialog";
-import { LocationBadge } from "../../../src/ui/LocationBadge";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
@@ -143,14 +154,12 @@ import { getLessonBlockTimes } from "../../../src/utils/lesson-block-times";
 import { normalizeDisplayText } from "../../../src/utils/text-normalization";
 import { calculateAdjacentClassDate } from "../../../src/utils/whatsapp-templates";
 
-const sessionTabs = [
+const sessionTabs: readonly SessionTabItem[] = [
   { id: "treino", label: ptBR.session.tabs.training },
   { id: "relatório", label: ptBR.session.tabs.report },
   { id: "scouting", label: ptBR.session.tabs.scouting },
 ] as const;
 
-type SessionTabId = (typeof sessionTabs)[number]["id"];
-type SessionBlockKey = "warmup" | "main" | "cooldown";
 type SessionPedagogicalApproach = NonNullable<TrainingPlanPedagogy["pedagogicalApproach"]>;
 type LocalIconName =
   | "back"
@@ -2480,6 +2489,27 @@ export default function SessionScreen() {
         }
       : null;
 
+  const trainingBlockPreviews: SessionTrainingBlockPreview[] = [
+    {
+      key: "warmup",
+      label: warmupLabel,
+      previewItems: dedupeByNormalizedText(getBlockActivities("warmup")).slice(0, 2),
+      updated: lastUpdatedBlockKey === "warmup",
+    },
+    {
+      key: "main",
+      label: mainLabel,
+      previewItems: dedupeByNormalizedText(getBlockActivities("main")).slice(0, 2),
+      updated: lastUpdatedBlockKey === "main",
+    },
+    {
+      key: "cooldown",
+      label: cooldownLabel,
+      previewItems: dedupeByNormalizedText(getBlockActivities("cooldown")).slice(0, 2),
+      updated: lastUpdatedBlockKey === "cooldown",
+    },
+  ];
+
   const navigateSessionDate = (deltaDays: number) => {
     if (!cls) return;
     const classDays = normalizeClassDaysOfWeek(cls.daysOfWeek);
@@ -2550,6 +2580,24 @@ export default function SessionScreen() {
         current === savedPlan.id ? null : current
       );
     }
+  };
+
+  const savedPlanPreviews: SessionSavedPlanPreview[] = savedClassPlans.map((savedPlan) => {
+    const versionLabel = typeof savedPlan.version === "number" ? ` • v${savedPlan.version}` : "";
+    return {
+      id: savedPlan.id,
+      title: savedPlan.title || "Plano salvo",
+      meta: `${buildSavedPlanMeta(savedPlan)}${versionLabel}`,
+      preview: buildSavedPlanSummary(savedPlan),
+      applicationLabel: `Aplicação direta em ${dateLabel}.`,
+      isApplying: isApplyingSavedPlanId === savedPlan.id,
+    };
+  });
+
+  const handleApplySavedPlanById = (savedPlanId: string) => {
+    const savedPlan = savedClassPlans.find((item) => item.id === savedPlanId);
+    if (!savedPlan) return;
+    void handleApplySavedPlan(savedPlan);
   };
 
   const handleRemoveAppliedPlan = () => {
@@ -3421,162 +3469,37 @@ export default function SessionScreen() {
           keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
         >
       <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 10 }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-        }}
-      >
-        <View style={{ flex: 1, gap: 8 }}>
-          <BackTitleHeader title={title} onBack={handleBackToClass} style={{ marginBottom: 0 }} />
-          {showNoPlanNotice ? (
-            <Text style={{ color: colors.warningText, fontSize: 12 }}>
-              {ptBR.session.noPlanNotice}
-            </Text>
-          ) : null}
-        </View>
+        <SessionTopHeader
+          title={title}
+          colors={colors}
+          classAgeBand={classAgeBand}
+          classGender={classGender}
+          classPalette={classPalette}
+          location={cls?.unit || "Unidade"}
+          showNoPlanNotice={showNoPlanNotice}
+          noPlanNotice={ptBR.session.noPlanNotice}
+          onBack={handleBackToClass}
+        />
 
-        <View style={{ alignItems: "flex-end", gap: 6, minWidth: 120 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 999, backgroundColor: classPalette.bg }} />
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              Turma {classAgeBand || "-"}
-            </Text>
-            <ClassGenderBadge gender={classGender} size="md" />
-          </View>
-          <LocationBadge
-            location={cls?.unit || "Unidade"}
-            palette={classPalette}
-            size="sm"
-            showIcon={false}
-          />
-        </View>
-      </View>
+        <SessionDateNavigator
+          colors={colors}
+          dateLabel={dateLabel}
+          timeLabel={timeLabel}
+          fallbackTimeLabel="Horário não definido"
+          onPrevious={() => navigateSessionDate(-1)}
+          onNext={() => navigateSessionDate(1)}
+        />
 
-      <View
-        style={{
-          padding: 16,
-          borderRadius: 20,
-          backgroundColor: colors.card,
-          borderWidth: 1,
-          borderColor: colors.border,
-          marginBottom: 12,
-          gap: 12,
-        }}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <Pressable
-            onPress={() => navigateSessionDate(-1)}
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <LocalIcon name="back" size={18} color={colors.text} />
-          </Pressable>
-
-          <View style={{ flex: 1, alignItems: "center", gap: 2 }}>
-            <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
-              {dateLabel}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>
-              {timeLabel || "Horário não definido"}
-            </Text>
-          </View>
-
-          <Pressable
-            onPress={() => navigateSessionDate(1)}
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <LocalIcon name="next" size={18} color={colors.text} />
-          </Pressable>
-        </View>
-      </View>
-
-      <View
-        style={{
-          flexDirection: "row",
-          gap: 6,
-          backgroundColor: colors.secondaryBg,
-          padding: 6,
-          borderRadius: 999,
-          marginBottom: 12,
-        }}
-      >
-        {sessionTabs.map((tab) => {
-          const tabProgress = sessionTabAnim[tab.id];
-          const tabScale = tabProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.95, 1],
-          });
-          const tabOpacity = tabProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.68, 1],
-          });
-          const tabBackground = tabProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [colors.card, colors.primaryBg],
-          });
-          const tabTextColor = tabProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [colors.text, colors.primaryText],
-          });
-          return (
-            <Animated.View
-              key={tab.id}
-              style={{
-                flex: 1,
-                borderRadius: 999,
-                opacity: tabOpacity,
-                transform: [{ scale: tabScale }],
-                backgroundColor: tabBackground,
-              }}
-            >
-            <Pressable
-              onPress={() => {
-                closePickers();
-                setSessionTab(tab.id);
-              }}
-              style={{
-                flex: 1,
-                paddingVertical: 8,
-                borderRadius: 999,
-                alignItems: "center",
-              }}
-            >
-              <Animated.Text
-                numberOfLines={1}
-                style={{
-                  color: tabTextColor,
-                  fontWeight: "700",
-                  fontSize: 12,
-                }}
-              >
-                {tab.label}
-              </Animated.Text>
-            </Pressable>
-            </Animated.View>
-          );
-        })}
-      </View>
-
+        <SessionTabBar
+          colors={colors}
+          tabs={sessionTabs}
+          activeTab={sessionTab}
+          tabAnimations={sessionTabAnim}
+          onSelectTab={(nextTab) => {
+            closePickers();
+            setSessionTab(nextTab);
+          }}
+        />
       </View>
 
       <ScrollView
@@ -3595,110 +3518,27 @@ export default function SessionScreen() {
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
       >
         {sessionTab === "treino" && plan ? (
-          <View
-            style={{
-              padding: 14,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              gap: 6,
+          <SessionObjectiveCard
+            colors={colors}
+            label={ptBR.session.objective}
+            placeholder="Objetivo da aula"
+            objective={visibleSessionObjective}
+            fallbackObjective={block || "Conduzir treino do dia"}
+            guideline={highlightedGuideline}
+            isEditing={isEditingSessionObjective}
+            draft={sessionObjectiveDraft}
+            isSaving={isSavingSessionObjective}
+            onChangeDraft={setSessionObjectiveDraft}
+            onSave={handleSaveSessionObjective}
+            onCancel={() => {
+              setSessionObjectiveDraft(visibleSessionObjective);
+              setIsEditingSessionObjective(false);
             }}
-          >
-            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-              {ptBR.session.objective}
-            </Text>
-            {isEditingSessionObjective ? (
-              <TextInput
-                value={sessionObjectiveDraft}
-                onChangeText={setSessionObjectiveDraft}
-                placeholder="Objetivo da aula"
-                placeholderTextColor={colors.placeholder}
-                multiline
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                  padding: 10,
-                  minHeight: 72,
-                  textAlignVertical: "top",
-                  fontSize: 15,
-                  fontWeight: "700",
-                }}
-              />
-            ) : (
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                {visibleSessionObjective || block || "Conduzir treino do dia"}
-              </Text>
-            )}
-            {!isEditingSessionObjective && highlightedGuideline ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {highlightedGuideline}
-              </Text>
-            ) : null}
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              {isEditingSessionObjective ? (
-                <>
-                  <Pressable
-                    onPress={handleSaveSessionObjective}
-                    disabled={isSavingSessionObjective}
-                    style={{
-                      paddingVertical: 7,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: colors.primaryBg,
-                      opacity: isSavingSessionObjective ? 0.65 : 1,
-                    }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
-                      {isSavingSessionObjective ? "Salvando" : "Salvar objetivo"}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      setSessionObjectiveDraft(visibleSessionObjective);
-                      setIsEditingSessionObjective(false);
-                    }}
-                    disabled={isSavingSessionObjective}
-                    style={{
-                      paddingVertical: 7,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      opacity: isSavingSessionObjective ? 0.65 : 1,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                      Cancelar
-                    </Text>
-                  </Pressable>
-                </>
-              ) : (
-                <Pressable
-                  onPress={() => {
-                    setSessionObjectiveDraft(visibleSessionObjective);
-                    setIsEditingSessionObjective(true);
-                  }}
-                  style={{
-                    paddingVertical: 7,
-                    paddingHorizontal: 10,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                    Editar objetivo
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
+            onStartEdit={() => {
+              setSessionObjectiveDraft(visibleSessionObjective);
+              setIsEditingSessionObjective(true);
+            }}
+          />
         ) : null}
         {sessionTab === "treino" && isPlanGenerationBusy && plan ? (
           <View
@@ -3906,72 +3746,14 @@ export default function SessionScreen() {
                 ) : null}
               </>
             ) : null}
-            {([
-              { key: "warmup", label: warmupLabel },
-              { key: "main", label: mainLabel },
-              { key: "cooldown", label: cooldownLabel },
-            ] as const).map((section) => {
-              const previewItems = dedupeByNormalizedText(getBlockActivities(section.key)).slice(0, 2);
-              const phaseMeta =
-                section.key === "warmup"
-                  ? { tint: colors.card, border: colors.warningText }
-                  : section.key === "main"
-                    ? { tint: colors.card, border: colors.primaryBg }
-                    : { tint: colors.card, border: colors.successText };
-              return (
-                <Pressable
-                  key={section.label}
-                  onPress={() => setSelectedBlockKey(section.key)}
-                  style={{
-                    padding: 14,
-                    borderRadius: 18,
-                    backgroundColor: phaseMeta.tint,
-                    borderWidth: 1,
-                    borderColor: phaseMeta.border,
-                    shadowColor: colors.background,
-                    shadowOpacity: 0.04,
-                    shadowRadius: 10,
-                    shadowOffset: { width: 0, height: 6 },
-                    elevation: 2,
-                    gap: 10,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                    <View style={{ flex: 1, gap: 6 }}>
-                      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                        {section.label}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      {lastUpdatedBlockKey === section.key ? (
-                        <View
-                          style={{
-                            paddingHorizontal: 8,
-                            paddingVertical: 2,
-                            borderRadius: 999,
-                            backgroundColor: colors.successBg,
-                          }}
-                        >
-                          <Text style={{ color: colors.successText, fontSize: 10, fontWeight: "700" }}>
-                            Atualizado
-                          </Text>
-                        </View>
-                      ) : null}
-                      <LocalIcon name="next" size={16} color={colors.muted} />
-                    </View>
-                  </View>
-                  {previewItems.length ? (
-                    <View style={{ gap: 4 }}>
-                      {previewItems.map((item, index) => (
-                        <Text key={`${section.key}-preview-${index}`} style={{ color: colors.text, fontSize: 12 }}>
-                          • {item}
-                        </Text>
-                      ))}
-                    </View>
-                  ) : null}
-                </Pressable>
-              );
-            })}
+            {trainingBlockPreviews.map((section) => (
+              <SessionTrainingBlockCard
+                key={section.key}
+                colors={colors}
+                block={section}
+                onPress={() => setSelectedBlockKey(section.key)}
+              />
+            ))}
             <Pressable
               onPress={handleRemoveAppliedPlan}
               disabled={isRemovingAppliedPlan}
@@ -4049,156 +3831,20 @@ export default function SessionScreen() {
               </>
             ) : null}
             {!resistancePreview ? (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 18,
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.04,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 6 },
-                  elevation: 2,
-                  gap: 10,
-                }}
-              >
-                <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                  {ptBR.session.emptyPlan.title}
-                </Text>
-                <Text style={{ color: colors.muted }}>
-                  {ptBR.session.emptyPlan.description}
-                </Text>
-                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                  <Pressable
-                    onPress={() => setShowSavedClassPlans((current) => !current)}
-                    style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                      borderRadius: 999,
-                      backgroundColor: colors.primaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                      {showSavedClassPlans ? "Ocultar planos" : ptBR.session.emptyPlan.applyTraining}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleGeneratePedagogicalPlan}
-                    disabled={isGeneratingPedagogicalPlan || isSavingPedagogicalPlan}
-                    style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      opacity: isGeneratingPedagogicalPlan || isSavingPedagogicalPlan ? 0.65 : 1,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {isSavingPedagogicalPlan
-                        ? "Salvando plano..."
-                        : isGeneratingPedagogicalPlan
-                          ? "Gerando plano..."
-                          : ptBR.session.actions.generateAutomaticPlan}
-                    </Text>
-                  </Pressable>
-                </View>
-                {showSavedClassPlans ? (
-                  <View
-                    style={{
-                      gap: 10,
-                      paddingTop: 4,
-                      borderTopWidth: 1,
-                      borderTopColor: colors.border,
-                    }}
-                  >
-                    <View style={{ gap: 2 }}>
-                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                        Planos salvos desta turma
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        Escolha um plano já salvo para aplicar somente nesta aula.
-                      </Text>
-                    </View>
-                    {savedClassPlans.length ? (
-                      savedClassPlans.map((savedPlan) => {
-                        const preview = buildSavedPlanSummary(savedPlan);
-                        const isApplying = isApplyingSavedPlanId === savedPlan.id;
-                        return (
-                          <View
-                            key={savedPlan.id}
-                            style={{
-                              gap: 8,
-                              padding: 12,
-                              borderRadius: 14,
-                              backgroundColor: colors.secondaryBg,
-                              borderWidth: 1,
-                              borderColor: colors.border,
-                            }}
-                          >
-                            <View style={{ gap: 4 }}>
-                              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                                {savedPlan.title || "Plano salvo"}
-                              </Text>
-                              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                {buildSavedPlanMeta(savedPlan)}
-                                {typeof savedPlan.version === "number" ? ` • v${savedPlan.version}` : ""}
-                              </Text>
-                              {preview ? (
-                                <Text style={{ color: colors.text, fontSize: 12 }}>
-                                  {preview}
-                                </Text>
-                              ) : null}
-                            </View>
-                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                              <Text style={{ color: colors.muted, fontSize: 11, flex: 1 }}>
-                                Aplicação direta em {dateLabel}.
-                              </Text>
-                              <Pressable
-                                onPress={() => {
-                                  void handleApplySavedPlan(savedPlan);
-                                }}
-                                disabled={isApplying}
-                                style={{
-                                  paddingVertical: 8,
-                                  paddingHorizontal: 12,
-                                  borderRadius: 999,
-                                  backgroundColor: isApplying ? colors.border : colors.primaryBg,
-                                }}
-                              >
-                                <Text
-                                  style={{
-                                    color: isApplying ? colors.muted : colors.primaryText,
-                                    fontSize: 12,
-                                    fontWeight: "800",
-                                  }}
-                                >
-                                  {isApplying ? "Aplicando..." : "Aplicar neste dia"}
-                                </Text>
-                              </Pressable>
-                            </View>
-                          </View>
-                        );
-                      })
-                    ) : (
-                      <View
-                        style={{
-                          padding: 12,
-                          borderRadius: 14,
-                          backgroundColor: colors.secondaryBg,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          Esta turma ainda não tem planos finais salvos para reutilizar aqui.
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                ) : null}
-              </View>
+              <SessionEmptyPlanCard
+                colors={colors}
+                title={ptBR.session.emptyPlan.title}
+                description={ptBR.session.emptyPlan.description}
+                applyTrainingLabel={ptBR.session.emptyPlan.applyTraining}
+                generateAutomaticPlanLabel={ptBR.session.actions.generateAutomaticPlan}
+                showSavedClassPlans={showSavedClassPlans}
+                savedPlans={savedPlanPreviews}
+                isGeneratingPlan={isGeneratingPedagogicalPlan}
+                isSavingPlan={isSavingPedagogicalPlan}
+                onToggleSavedClassPlans={() => setShowSavedClassPlans((current) => !current)}
+                onGeneratePlan={handleGeneratePedagogicalPlan}
+                onApplySavedPlan={handleApplySavedPlanById}
+              />
             ) : null}
           </>
         ) : null}
@@ -5056,167 +4702,43 @@ export default function SessionScreen() {
         onSave={handleSaveBlockEdit}
       />
 
-      {sessionTab === "treino" && showPlanFabMenu ? (
-        <Pressable
-          onPress={() => setShowPlanFabMenu(false)}
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            zIndex: 3180,
+      {sessionTab === "treino" ? (
+        <SessionPlanFabActions
+          colors={colors}
+          showMenu={showPlanFabMenu}
+          planExists={!!plan}
+          canImportPlan={!!cls}
+          planFabBottom={planFabBottom}
+          planFabMenuBottom={planFabMenuBottom}
+          animation={planFabAnim}
+          startTrainingLabel={ptBR.session.actions.startTraining}
+          exportLabel={ptBR.session.actions.export}
+          importPlanLabel={ptBR.session.actions.importPlan}
+          onCloseMenu={() => setShowPlanFabMenu(false)}
+          onToggleMenu={() => setShowPlanFabMenu((current) => !current)}
+          onStartTraining={() => {
+            setShowPlanFabMenu(false);
+            if (!cls) return;
+            router.push({
+              pathname: "/class/[id]/attendance",
+              params: { id: cls.id, date: sessionDate },
+            });
+          }}
+          onExportPdf={() => {
+            setShowPlanFabMenu(false);
+            handleExportPdf();
+          }}
+          onImportPlan={() => {
+            setShowPlanFabMenu(false);
+            router.push({
+              pathname: "/prof/planning",
+              params: {
+                targetClassId: cls?.id ?? "",
+                openImport: "1",
+              },
+            });
           }}
         />
-      ) : null}
-
-      {sessionTab === "treino" && showPlanFabMenu ? (
-        <View
-          style={{
-            ...(Platform.OS === "web"
-              ? ({ position: "fixed", right: 16, bottom: planFabMenuBottom } as any)
-              : { position: "absolute" as const, right: 16, bottom: planFabMenuBottom }),
-            width: 210,
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 8,
-            gap: 8,
-            zIndex: 3190,
-          }}
-        >
-          {plan ? (
-            <Pressable
-              onPress={() => {
-                setShowPlanFabMenu(false);
-                if (!cls) return;
-                router.push({
-                  pathname: "/class/[id]/attendance",
-                  params: { id: cls.id, date: sessionDate },
-                });
-              }}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.background,
-                borderRadius: 10,
-                paddingHorizontal: 10,
-                paddingVertical: 9,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <LocalIcon name="play" size={16} color={colors.text} />
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                {ptBR.session.actions.startTraining}
-              </Text>
-            </Pressable>
-          ) : null}
-
-          {plan ? (
-            <Pressable
-              onPress={() => {
-                setShowPlanFabMenu(false);
-                handleExportPdf();
-              }}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.background,
-                borderRadius: 10,
-                paddingHorizontal: 10,
-                paddingVertical: 9,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <LocalIcon name="download" size={16} color={colors.text} />
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                {ptBR.session.actions.export}
-              </Text>
-            </Pressable>
-          ) : null}
-
-          <Pressable
-            onPress={() => {
-              setShowPlanFabMenu(false);
-              router.push({
-                pathname: "/prof/planning",
-                params: {
-                  targetClassId: cls?.id ?? "",
-                  openImport: "1",
-                },
-              });
-            }}
-            disabled={!cls}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.background,
-              borderRadius: 10,
-              paddingHorizontal: 10,
-              paddingVertical: 9,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              opacity: cls ? 1 : 0.65,
-            }}
-          >
-            <LocalIcon name="upload" size={16} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-              {ptBR.session.actions.importPlan}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {sessionTab === "treino" ? (
-        <Pressable
-          onPress={() => setShowPlanFabMenu((current) => !current)}
-          style={{
-            ...(Platform.OS === "web"
-              ? ({ position: "fixed", right: 16, bottom: planFabBottom } as any)
-              : { position: "absolute" as const, right: 16, bottom: planFabBottom }),
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: colors.primaryBg,
-            borderWidth: 1,
-            borderColor: colors.primaryBg,
-            zIndex: 3200,
-            shadowColor: "#000",
-            shadowOpacity: 0.2,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 4 },
-            elevation: 8,
-          }}
-        >
-          <Animated.View
-            style={{
-              transform: [
-                {
-                  rotate: planFabAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ["0deg", "45deg"],
-                  }),
-                },
-                {
-                  scale: planFabAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, 1.05],
-                  }),
-                },
-              ],
-            }}
-          >
-            <LocalIcon name="plus" size={24} color={colors.primaryText} />
-          </Animated.View>
-        </Pressable>
       ) : null}
 
       <ModalSheet
