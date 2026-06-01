@@ -1,6 +1,7 @@
-﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+    useCallback,
     useEffect,
     useMemo,
     useRef,
@@ -54,6 +55,18 @@ const formatDisplayDate = (value: string) => {
   const parts = value.split("-");
   if (parts.length !== 3) return value;
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
+const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+
+const formatDays = (days: number[]) =>
+  days.length ? days.map((day) => dayNames[day]).join(", ") : "";
+
+const getDayIndex = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getDay();
 };
 
 // perf-check: ignore-render
@@ -118,15 +131,6 @@ export default function AttendanceScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (!cls) return;
-    if (typeof dateParam !== "string") return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return;
-    const parsed = new Date(dateParam);
-    if (Number.isNaN(parsed.getTime())) return;
-    void loadDate(dateParam);
-  }, [cls, dateParam]);
-
-  useEffect(() => {
     const initialStatus: Record<string, "presente" | "faltou" | undefined> = {};
     const initialNotes: Record<string, string> = {};
     const initialPain: Record<string, number> = {};
@@ -152,16 +156,7 @@ export default function AttendanceScreen() {
     [students, statusById, noteById, painById]
   );
 
-  const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
-  const formatDays = (days: number[]) =>
-    days.length ? days.map((day) => dayNames[day]).join(", ") : "";
-  const getDayIndex = (value: string) => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-    const parsed = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(parsed.getTime())) return null;
-    return parsed.getDay();
-  };
-  const classDays = cls?.daysOfWeek ?? [];
+  const classDays = useMemo(() => cls?.daysOfWeek ?? [], [cls?.daysOfWeek]);
   const isClassDay = useMemo(() => {
     if (!classDays.length) return true;
     const dayIndex = getDayIndex(date);
@@ -169,7 +164,7 @@ export default function AttendanceScreen() {
     return classDays.includes(dayIndex);
   }, [classDays, date]);
 
-  const buildBaseMaps = () => {
+  const buildBaseMaps = useCallback(() => {
     const baseStatus: Record<string, "presente" | "faltou" | undefined> = {};
     const baseNotes: Record<string, string> = {};
     const basePain: Record<string, number> = {};
@@ -179,7 +174,99 @@ export default function AttendanceScreen() {
       basePain[student.id] = 0;
     });
     return { baseStatus, baseNotes, basePain };
-  };
+  }, [students]);
+
+  const loadDate = useCallback(
+    async (value: string) => {
+      if (!cls) return;
+      setDate(value);
+      setLoadMessage("");
+      if (loadMessageTimer.current) {
+        clearTimeout(loadMessageTimer.current);
+        loadMessageTimer.current = null;
+      }
+      const { baseStatus, baseNotes, basePain } = buildBaseMaps();
+      if (classDays.length) {
+        const dayIndex = getDayIndex(value);
+        if (dayIndex !== null && !classDays.includes(dayIndex)) {
+          setStatusById(baseStatus);
+          setNoteById(baseNotes);
+          setPainById(basePain);
+          setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
+          setHasSaved(false);
+          setLoadMessage(
+            `Essa turma treina em ${formatDays(classDays)}. Selecione um desses dias.`
+          );
+          loadMessageTimer.current = setTimeout(() => {
+            setLoadMessage("");
+            loadMessageTimer.current = null;
+          }, 2500);
+          return;
+        }
+      }
+      let records: AttendanceRecord[] = [];
+      try {
+        records = await getAttendanceByDate(cls.id, value);
+      } catch (error) {
+        if (isAuthError(error)) {
+          setLoadMessage("Sessão expirada. Faça login novamente.");
+        } else if (isNetworkError(error)) {
+          setLoadMessage("Sem conexão. Mantendo os dados já carregados.");
+        } else {
+          setLoadMessage("Não foi possível carregar a data agora.");
+        }
+        loadMessageTimer.current = setTimeout(() => {
+          setLoadMessage("");
+          loadMessageTimer.current = null;
+        }, 2500);
+        return;
+      }
+      if (!records.length) {
+        setStatusById(baseStatus);
+        setNoteById(baseNotes);
+        setPainById(basePain);
+        setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
+        setHasSaved(false);
+        setLoadMessage("Sem registros para essa data.");
+        loadMessageTimer.current = setTimeout(() => {
+          setLoadMessage("");
+          loadMessageTimer.current = null;
+        }, 2500);
+        return;
+      }
+      const nextStatus: Record<string, "presente" | "faltou"> = {};
+      const nextNotes: Record<string, string> = {};
+      const nextPain: Record<string, number> = {};
+      records.forEach((record) => {
+        nextStatus[record.studentId] = record.status;
+        nextNotes[record.studentId] = record.note;
+        nextPain[record.studentId] = record.painScore ?? 0;
+      });
+      const finalStatus = { ...baseStatus, ...nextStatus };
+      const finalNotes = { ...baseNotes, ...nextNotes };
+      const finalPain = { ...basePain, ...nextPain };
+      setStatusById(finalStatus);
+      setNoteById(finalNotes);
+      setPainById(finalPain);
+      setBaseline({ status: finalStatus, note: finalNotes, pain: finalPain });
+      setHasSaved(true);
+      setLoadMessage("Histórico carregado para essa data.");
+      loadMessageTimer.current = setTimeout(() => {
+        setLoadMessage("");
+        loadMessageTimer.current = null;
+      }, 2000);
+    },
+    [buildBaseMaps, classDays, cls]
+  );
+
+  useEffect(() => {
+    if (!cls) return;
+    if (typeof dateParam !== "string") return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return;
+    const parsed = new Date(dateParam);
+    if (Number.isNaN(parsed.getTime())) return;
+    void loadDate(dateParam);
+  }, [cls, dateParam, loadDate]);
 
   useEffect(() => {
     if (!cls) return;
@@ -187,8 +274,7 @@ export default function AttendanceScreen() {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
     void loadDate(date);
-  }, [cls, date, students.length]);
-
+  }, [cls, date, loadDate, students.length]);
 
   const handleSave = async () => {
     if (!cls) return;
@@ -269,86 +355,6 @@ export default function AttendanceScreen() {
     }
   };
 
-  const loadDate = async (value: string) => {
-    if (!cls) return;
-    setDate(value);
-    setLoadMessage("");
-    if (loadMessageTimer.current) {
-      clearTimeout(loadMessageTimer.current);
-      loadMessageTimer.current = null;
-    }
-    const { baseStatus, baseNotes, basePain } = buildBaseMaps();
-    if (classDays.length) {
-      const dayIndex = getDayIndex(value);
-      if (dayIndex !== null && !classDays.includes(dayIndex)) {
-        setStatusById(baseStatus);
-        setNoteById(baseNotes);
-        setPainById(basePain);
-        setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
-        setHasSaved(false);
-        setLoadMessage(
-          `Essa turma treina em ${formatDays(classDays)}. Selecione um desses dias.`
-        );
-        loadMessageTimer.current = setTimeout(() => {
-          setLoadMessage("");
-          loadMessageTimer.current = null;
-        }, 2500);
-        return;
-      }
-    }
-    let records: AttendanceRecord[] = [];
-    try {
-      records = await getAttendanceByDate(cls.id, value);
-    } catch (error) {
-      if (isAuthError(error)) {
-        setLoadMessage("Sessão expirada. Faça login novamente.");
-      } else if (isNetworkError(error)) {
-        setLoadMessage("Sem conexão. Mantendo os dados já carregados.");
-      } else {
-        setLoadMessage("Não foi possível carregar a data agora.");
-      }
-      loadMessageTimer.current = setTimeout(() => {
-        setLoadMessage("");
-        loadMessageTimer.current = null;
-      }, 2500);
-      return;
-    }
-    if (!records.length) {
-      setStatusById(baseStatus);
-      setNoteById(baseNotes);
-      setPainById(basePain);
-      setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
-      setHasSaved(false);
-      setLoadMessage("Sem registros para essa data.");
-      loadMessageTimer.current = setTimeout(() => {
-        setLoadMessage("");
-        loadMessageTimer.current = null;
-      }, 2500);
-      return;
-    }
-    const nextStatus: Record<string, "presente" | "faltou"> = {};
-    const nextNotes: Record<string, string> = {};
-    const nextPain: Record<string, number> = {};
-    records.forEach((record) => {
-      nextStatus[record.studentId] = record.status;
-      nextNotes[record.studentId] = record.note;
-      nextPain[record.studentId] = record.painScore ?? 0;
-    });
-    const finalStatus = { ...baseStatus, ...nextStatus };
-    const finalNotes = { ...baseNotes, ...nextNotes };
-    const finalPain = { ...basePain, ...nextPain };
-    setStatusById(finalStatus);
-    setNoteById(finalNotes);
-    setPainById(finalPain);
-    setBaseline({ status: finalStatus, note: finalNotes, pain: finalPain });
-    setHasSaved(true);
-    setLoadMessage("Histórico carregado para essa data.");
-    loadMessageTimer.current = setTimeout(() => {
-      setLoadMessage("");
-      loadMessageTimer.current = null;
-    }, 2000);
-  };
-
   const handleDateChange = (value: string) => {
     if (cls) {
       setHasSaved(false);
@@ -358,16 +364,6 @@ export default function AttendanceScreen() {
       setLoadMessage("");
     }
   };
-
-  const handleToday = () => {
-    const today = formatDate(new Date());
-    if (cls) {
-      void loadDate(today);
-    } else {
-      setDate(today);
-    }
-  };
-
 
   const hasChanges = useMemo(() => {
     const statusKeys = new Set([
@@ -736,5 +732,3 @@ export default function AttendanceScreen() {
     </SafeAreaView>
   );
 }
-
-

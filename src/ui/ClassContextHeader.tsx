@@ -67,6 +67,8 @@ export function ClassContextHeader({
     <View style={{ gap: 8, marginBottom: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Voltar de ${safeTitle || "tela"}`}
           onPress={() => {
             if (router.canGoBack()) {
               router.back();
