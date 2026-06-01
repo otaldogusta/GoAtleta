@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import {
     Suspense,
     lazy,
-    memo,
     useCallback,
     useEffect,
     useMemo,
@@ -65,6 +64,10 @@ import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../../src/screens/students/components/ClassModalityFilterChips";
+import {
+    StudentClassOption,
+    StudentSelectOption,
+} from "../../src/screens/students/components/StudentDropdownOptions";
 import { StudentListRow } from "../../src/screens/students/components/StudentListRow";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
 import { StudentsOverviewCard } from "../../src/screens/students/components/StudentsOverviewCard";
@@ -91,7 +94,6 @@ import { StudentsImportModal } from "../../src/screens/students/modals/StudentsI
 import { WhatsAppModal } from "../../src/screens/students/modals/WhatsAppModal";
 import { StudentsListTab } from "../../src/screens/students/StudentsListTab";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
-import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -1841,7 +1843,7 @@ export default function StudentsScreen() {
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted }}>Turma</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Nenhuma turma dispoNível para essa unidade.
+            Nenhuma turma disponível para essa unidade.
           </Text>
         </View>
       );
@@ -2107,83 +2109,6 @@ export default function StudentsScreen() {
       }
     };
   }, []);
-
-  const SelectOption = useMemo(
-    () =>
-      memo(function SelectOptionItem({
-        label,
-        value,
-        active,
-        onSelect,
-        isFirst,
-      }: {
-        label: string;
-        value: string;
-        active: boolean;
-        onSelect: (value: string) => void;
-        isFirst: boolean;
-      }) {
-        return (
-          <AnchoredDropdownOption active={active} onPress={() => onSelect(value)}>
-            <Text
-              style={{
-                color: active ? colors.primaryText : colors.text,
-                fontSize: 14,
-                fontWeight: active ? "700" : "500",
-              }}
-            >
-              {label}
-            </Text>
-          </AnchoredDropdownOption>
-        );
-      }),
-    [colors]
-  );
-
-  const ClassOption = useMemo(
-    () =>
-      memo(function ClassOptionItem({
-        item,
-        active,
-        onSelect,
-        isFirst,
-      }: {
-        item: ClassGroup;
-        active: boolean;
-        onSelect: (value: ClassGroup) => void;
-        isFirst: boolean;
-      }) {
-        return (
-          <AnchoredDropdownOption
-            active={active}
-            onPress={() => onSelect(item)}
-            rightAccessory={<ClassGenderBadge gender={item.gender} />}
-          >
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              <Text
-                style={{
-                  color: active ? colors.primaryText : colors.text,
-                  fontSize: 14,
-                  fontWeight: active ? "700" : "500",
-                }}
-              >
-                {getClassLabel(item)}
-              </Text>
-            </View>
-            <Text
-              style={{
-                color: active ? colors.primaryText : colors.muted,
-                fontSize: 12,
-                marginTop: 2,
-              }}
-            >
-              {unitLabel(item.unit)}
-            </Text>
-          </AnchoredDropdownOption>
-        );
-      }),
-    [colors, getClassLabel, unitLabel]
-  );
 
   const renderStudentItem = useCallback(
     ({
@@ -2604,7 +2529,7 @@ export default function StudentsScreen() {
         >
           { unitOptions.length ? (
             unitOptions.map((item, index) => (
-              <SelectOption
+              <StudentSelectOption
                 key={item}
                 label={item}
                 value={item}
@@ -2642,7 +2567,7 @@ export default function StudentsScreen() {
               />
               {filteredClassOptions.length ? (
                 filteredClassOptions.map((item, index) => (
-                  <ClassOption
+                  <StudentClassOption
                     key={item.id}
                     item={item}
                     active={item.id === classId}
@@ -2675,7 +2600,7 @@ export default function StudentsScreen() {
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {guardianRelationOptions.map((item, index) => (
-            <SelectOption
+            <StudentSelectOption
               key={item}
               label={item}
               value={item}
@@ -2698,7 +2623,7 @@ export default function StudentsScreen() {
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {([{ label: "Aluno regular", value: "regular" }, { label: "Experimental", value: "experimental" }] as const).map((item, index) => (
-            <SelectOption
+            <StudentSelectOption
               key={item.value}
               label={item.label}
               value={item.value}
@@ -2860,8 +2785,8 @@ export default function StudentsScreen() {
         isEditDirty={isEditDirty}
         selectFieldStyle={selectFieldStyle}
         colors={colors}
-        SelectOption={SelectOption}
-        ClassOption={ClassOption}
+        SelectOption={StudentSelectOption}
+        ClassOption={StudentClassOption}
       />
       <WhatsAppModal
         visible={showWhatsAppModal}

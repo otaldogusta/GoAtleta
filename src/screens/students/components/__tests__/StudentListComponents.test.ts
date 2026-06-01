@@ -1,6 +1,10 @@
-import type { Student } from "../../../../core/models";
+import type { ClassGroup, Student } from "../../../../core/models";
 import type { StudentHealthAssessment } from "../../../../core/student-health";
 import type { ThemeColors } from "../../../../ui/app-theme";
+import {
+  StudentClassOptionContent,
+  StudentSelectOptionContent,
+} from "../StudentDropdownOptions";
 import { StudentListRowContent } from "../StudentListRow";
 import { StudentsOverviewCardContent } from "../StudentsOverviewCard";
 
@@ -50,6 +54,32 @@ const healthAssessment: StudentHealthAssessment = {
   signals: ["health_issue"],
   summary: "Há informações de saúde registradas para acompanhamento.",
 };
+
+const classGroup = {
+  id: "class_1",
+  name: "Turma 10-12",
+  organizationId: "org_1",
+  unit: "Rede Esportes Pinhais",
+  unitId: "unit_1",
+  colorKey: "brown",
+  modality: "voleibol",
+  ageBand: "10-12",
+  gender: "misto",
+  startTime: "14:00",
+  endTime: "15:00",
+  durationMinutes: 60,
+  daysOfWeek: [1, 3],
+  daysPerWeek: 2,
+  goal: "Fundamentos",
+  equipment: "quadra",
+  level: 1,
+  mvLevel: "MV1",
+  cycleStartDate: "2026-06-01",
+  cycleLengthWeeks: 8,
+  acwrLow: 0.8,
+  acwrHigh: 1.3,
+  createdAt: "2026-06-01T00:00:00.000Z",
+} as ClassGroup;
 
 const colors: ThemeColors = {
   backgroundSubtle: "#f8fafc",
@@ -138,6 +168,38 @@ describe("student list components", () => {
     expect(text).toContain("Atenção");
     expect(text).toContain("Gerar convite do aluno");
     expect(text).toContain("Abrir WhatsApp do aluno");
+    expect(text).not.toMatch(/[\uF000-\uF8FF]/);
+  });
+
+  it("renders generic dropdown options with active label", () => {
+    const text = collectTextAndLabels(
+      StudentSelectOptionContent({
+        colors,
+        label: "Aluno regular",
+        value: "regular",
+        active: true,
+        isFirst: true,
+        onSelect: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("Aluno regular");
+    expect(text).not.toMatch(/[\uF000-\uF8FF]/);
+  });
+
+  it("renders class dropdown options with schedule and unit", () => {
+    const text = collectTextAndLabels(
+      StudentClassOptionContent({
+        colors,
+        item: classGroup,
+        active: false,
+        isFirst: false,
+        onSelect: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("14:00 - 15:00 - Turma 10-12");
+    expect(text).toContain("Rede Esportes Pinhais");
     expect(text).not.toMatch(/[\uF000-\uF8FF]/);
   });
 });
