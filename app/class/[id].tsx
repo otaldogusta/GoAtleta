@@ -1,4 +1,4 @@
-﻿import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
@@ -1653,6 +1653,29 @@ export default function ClassDetails() {
               </Text>
             </Pressable>
             <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/class/[id]/session",
+                  params: { id, tab: "scouting" },
+                })
+              }
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+                Scouting da turma
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Leitura rápida do jogo
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={handleExportRoster}
               style={{
                 width: "100%",
@@ -3170,4 +3193,3 @@ export default function ClassDetails() {
     </SafeAreaView>
   );
 }
-
