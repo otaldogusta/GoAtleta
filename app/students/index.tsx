@@ -63,7 +63,10 @@ import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
-import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../../src/screens/students/components/ClassModalityFilterChips";
+import {
+    StudentClassDropdownPanel,
+    type ClassModalityFilterValue,
+} from "../../src/screens/students/components/StudentClassDropdownPanel";
 import {
     StudentClassOption,
     StudentSelectOption,
@@ -98,7 +101,6 @@ import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { getClassPalette } from "../../src/ui/class-colors";
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
@@ -1765,31 +1767,6 @@ export default function StudentsScreen() {
     return hasTrailingSpace ? formatted + " " : formatted;
   };
 
-  const parseTime = (value: string) => {
-    const match = value.match(/^(\d{1,2}):(\d{2})$/);
-    if (!match) return null;
-    const hour = Number(match[1]);
-    const minute = Number(match[2]);
-    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
-    return { hour, minute };
-  };
-
-  const formatTime = (hour: number, minute: number) => {
-    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  };
-
-  const formatTimeRange = (startTime: string, durationMinutes: number) => {
-    const parsed = parseTime(startTime);
-    if (!parsed) return "";
-    const total = parsed.hour * 60 + parsed.minute + durationMinutes;
-    const endHour = Math.floor(total / 60) % 24;
-    const endMinute = total % 60;
-    return `${formatTime(parsed.hour, parsed.minute)} - ${formatTime(
-      endHour,
-      endMinute
-    )}`;
-  };
-
   const classOptions = useMemo(() => {
     if (!classes.length) return [];
     if (unit) {
@@ -1827,89 +1804,6 @@ export default function StudentsScreen() {
       setClassModalityFilter(selectedClassModality ?? "all");
     }
   }, [classModalities, classModalityFilter, selectedClassModality, showClassPicker]);
-
-  const getClassLabel = (cls: ClassGroup) => {
-    const start = cls.startTime || "";
-    const duration = cls.durationMinutes || 60;
-    const timeRange = start ? formatTimeRange(start, duration) : "";
-    if (timeRange) return `${timeRange} - ${cls.name}`;
-    return cls.name;
-  };
-
-  const renderClassPicker = () => {
-    if (!unit) return null;
-    if (!classOptions.length) {
-      return (
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.muted }}>Turma</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Nenhuma turma disponível para essa unidade.
-          </Text>
-        </View>
-      );
-    }
-    return (
-      <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.muted }}>Turma</Text>
-        <View
-          style={{
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-        >
-          {classOptions.map((item, index) => {
-            const active = item.id === classId;
-            return (
-              <Pressable
-                key={item.id}
-                onPress={() => setClassId(active ? "" : item.id)}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 10,
-                  borderRadius: 10,
-                  margin: index === 0 ? 6 : 2,
-                  backgroundColor: active ? colors.primaryBg : "transparent",
-                }}
-              >
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                  <Text
-                    style={{
-                      color: active ? colors.primaryText : colors.text,
-                      fontSize: 12,
-                      fontWeight: active ? "700" : "500",
-                    }}
-                  >
-                    {getClassLabel(item)}
-                  </Text>
-                  <ClassGenderBadge gender={item.gender} />
-                </View>
-                <Text
-                  style={{
-                    color: active ? colors.primaryText : colors.muted,
-                    fontSize: 11,
-                    marginTop: 2,
-                  }}
-                >
-                  {unitLabel(item.unit)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        { selectedClassName ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Turma selecionada: {selectedClassName}
-          </Text>
-        ) : (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Selecione uma turma.
-          </Text>
-        )}
-      </View>
-    );
-  };
 
   const today = useMemo(() => new Date(), []);
   const birthdayUnitOptions = useMemo(
@@ -2557,35 +2451,16 @@ export default function StudentsScreen() {
           interactiveRefs={[classTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
-          {classOptions.length ? (
-            <View style={{ gap: 10 }}>
-              <ClassModalityFilterChips
-                colors={colors}
-                value={classModalityFilter}
-                modalities={classModalities}
-                onChange={setClassModalityFilter}
-              />
-              {filteredClassOptions.length ? (
-                filteredClassOptions.map((item, index) => (
-                  <StudentClassOption
-                    key={item.id}
-                    item={item}
-                    active={item.id === classId}
-                    onSelect={handleSelectClass}
-                    isFirst={index === 0}
-                  />
-                ))
-              ) : (
-                <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-                  Nenhuma turma dessa modalidade nesta unidade.
-                </Text>
-              )}
-            </View>
-          ) : (
-            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-              Nenhuma turma encontrada.
-            </Text>
-          )}
+          <StudentClassDropdownPanel
+            colors={colors}
+            classOptions={classOptions}
+            filteredClassOptions={filteredClassOptions}
+            classModalities={classModalities}
+            selectedClassId={classId}
+            modalityFilter={classModalityFilter}
+            onModalityFilterChange={setClassModalityFilter}
+            onSelectClass={handleSelectClass}
+          />
         </StudentsAnchoredDropdown>
         <StudentsAnchoredDropdown
           visible={showGuardianRelationPickerContent}

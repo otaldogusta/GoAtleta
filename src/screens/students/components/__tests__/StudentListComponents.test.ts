@@ -1,6 +1,7 @@
 import type { ClassGroup, Student } from "../../../../core/models";
 import type { StudentHealthAssessment } from "../../../../core/student-health";
 import type { ThemeColors } from "../../../../ui/app-theme";
+import { StudentClassDropdownPanelContent } from "../StudentClassDropdownPanel";
 import {
   StudentClassOptionContent,
   StudentSelectOptionContent,
@@ -201,5 +202,41 @@ describe("student list components", () => {
     expect(text).toContain("14:00 - 15:00 - Turma 10-12");
     expect(text).toContain("Rede Esportes Pinhais");
     expect(text).not.toMatch(/[\uF000-\uF8FF]/);
+  });
+
+  it("renders class dropdown panel with class option", () => {
+    const text = collectTextAndLabels(
+      StudentClassDropdownPanelContent({
+        colors,
+        classOptions: [classGroup],
+        filteredClassOptions: [classGroup],
+        classModalities: ["voleibol"],
+        selectedClassId: classGroup.id,
+        modalityFilter: "all",
+        onModalityFilterChange: jest.fn(),
+        onSelectClass: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("14:00 - 15:00 - Turma 10-12");
+    expect(text).toContain("Rede Esportes Pinhais");
+    expect(text).not.toMatch(/[\uF000-\uF8FF]/);
+  });
+
+  it("renders class dropdown panel empty state", () => {
+    const text = collectTextAndLabels(
+      StudentClassDropdownPanelContent({
+        colors,
+        classOptions: [],
+        filteredClassOptions: [],
+        classModalities: [],
+        selectedClassId: "",
+        modalityFilter: "all",
+        onModalityFilterChange: jest.fn(),
+        onSelectClass: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("Nenhuma turma encontrada.");
   });
 });
