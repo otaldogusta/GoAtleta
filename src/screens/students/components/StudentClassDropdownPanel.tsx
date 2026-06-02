@@ -28,6 +28,7 @@ type StudentClassDropdownListProps = {
   filteredClassOptions: ClassGroup[];
   selectedClassId: string;
   onSelectClass: (value: ClassGroup) => void;
+  compact?: boolean;
 };
 
 export function StudentClassDropdownPanel(props: StudentClassDropdownPanelProps) {
@@ -75,6 +76,7 @@ export function StudentClassDropdownListContent({
   filteredClassOptions,
   selectedClassId,
   onSelectClass,
+  compact,
 }: StudentClassDropdownListProps) {
   if (!classOptions.length) {
     return (
@@ -102,6 +104,7 @@ export function StudentClassDropdownListContent({
             active: item.id === selectedClassId,
             onSelect: onSelectClass,
             isFirst: index === 0,
+            compact,
           }),
           { key: item.id }
         )

@@ -181,7 +181,6 @@ export type StudentEditModalProps = {
     classOptions: ClassGroup[];
     classId: string;
     showEditClassPickerContent: boolean;
-    editClassTriggerLayout: Layout | null;
     editClassPickerAnimStyle: any;
     handleSelectEditClass: (value: ClassGroup) => void;
 
@@ -309,7 +308,6 @@ export function StudentEditModal({
     classOptions,
     classId,
     showEditClassPickerContent,
-    editClassTriggerLayout,
     editClassPickerAnimStyle,
     handleSelectEditClass,
     closeAllEditPickers,
@@ -416,7 +414,7 @@ export function StudentEditModal({
                     </View>
                     <ScrollView
                         style={{ width: "100%", flex: 1 }}
-                        contentContainerStyle={{ gap: 10, paddingBottom: 24 }}
+                        contentContainerStyle={{ gap: 10, paddingBottom: 96 }}
                         keyboardShouldPersistTaps="handled"
                         onScrollBeginDrag={closeAllEditPickers}
                     >
@@ -856,6 +854,44 @@ export function StudentEditModal({
                                                             <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }} />
                                                         </Pressable>
                                                     </View>
+                                                    {showEditUnitPickerContent ? (
+                                                        <Animated.View style={[editUnitPickerAnimStyle, { overflow: "hidden" }]}>
+                                                            <View
+                                                                style={{
+                                                                    maxHeight: 142,
+                                                                    borderWidth: 1,
+                                                                    borderColor: colors.border,
+                                                                    borderRadius: 12,
+                                                                    backgroundColor: colors.card,
+                                                                    overflow: "hidden",
+                                                                }}
+                                                            >
+                                                                <ScrollView
+                                                                    nestedScrollEnabled
+                                                                    showsVerticalScrollIndicator
+                                                                    contentContainerStyle={{ padding: 6, gap: 4 }}
+                                                                >
+                                                                    {unitOptions.length ? (
+                                                                        unitOptions.map((item, index) => (
+                                                                            <StudentMultiSelectOption
+                                                                                key={item}
+                                                                                label={item}
+                                                                                value={item}
+                                                                                active={selectedUnitFilters.includes(item)}
+                                                                                onToggle={handleToggleEditUnitFilter}
+                                                                                isFirst={index === 0}
+                                                                                compact
+                                                                            />
+                                                                        ))
+                                                                    ) : (
+                                                                        <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+                                                                            Nenhuma unidade cadastrada.
+                                                                        </Text>
+                                                                    )}
+                                                                </ScrollView>
+                                                            </View>
+                                                        </Animated.View>
+                                                    ) : null}
                                                 </View>
                                                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                                                     <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
@@ -865,45 +901,37 @@ export function StudentEditModal({
                                                             <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
                                                         </Pressable>
                                                     </View>
+                                                    {showEditClassPickerContent ? (
+                                                        <Animated.View style={[editClassPickerAnimStyle, { overflow: "hidden" }]}>
+                                                            <View
+                                                                style={{
+                                                                    maxHeight: 104,
+                                                                    borderWidth: 1,
+                                                                    borderColor: colors.border,
+                                                                    borderRadius: 12,
+                                                                    backgroundColor: colors.card,
+                                                                    overflow: "hidden",
+                                                                }}
+                                                            >
+                                                                <ScrollView
+                                                                    nestedScrollEnabled
+                                                                    showsVerticalScrollIndicator
+                                                                    contentContainerStyle={{ padding: 6, gap: 4 }}
+                                                                >
+                                                                    <StudentClassDropdownList
+                                                                        colors={colors}
+                                                                        classOptions={classOptions}
+                                                                        filteredClassOptions={filteredClassOptions}
+                                                                        selectedClassId={classId}
+                                                                        onSelectClass={handleSelectEditClass}
+                                                                        compact
+                                                                    />
+                                                                </ScrollView>
+                                                            </View>
+                                                        </Animated.View>
+                                                    ) : null}
                                                 </View>
                                             </View>
-                                            {showEditUnitPickerContent ? (
-                                                <Animated.View style={[editUnitPickerAnimStyle, { overflow: "hidden" }]}>
-                                                    <View
-                                                        style={{
-                                                            maxHeight: 220,
-                                                            borderWidth: 1,
-                                                            borderColor: colors.border,
-                                                            borderRadius: 14,
-                                                            backgroundColor: colors.card,
-                                                            overflow: "hidden",
-                                                        }}
-                                                    >
-                                                        <ScrollView
-                                                            nestedScrollEnabled
-                                                            showsVerticalScrollIndicator
-                                                            contentContainerStyle={{ padding: 8, gap: 6 }}
-                                                        >
-                                                            {unitOptions.length ? (
-                                                                unitOptions.map((item, index) => (
-                                                                    <StudentMultiSelectOption
-                                                                        key={item}
-                                                                        label={item}
-                                                                        value={item}
-                                                                        active={selectedUnitFilters.includes(item)}
-                                                                        onToggle={handleToggleEditUnitFilter}
-                                                                        isFirst={index === 0}
-                                                                    />
-                                                                ))
-                                                            ) : (
-                                                                <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-                                                                    Nenhuma unidade cadastrada.
-                                                                </Text>
-                                                            )}
-                                                        </ScrollView>
-                                                    </View>
-                                                </Animated.View>
-                                            ) : null}
                                             <ClassModalityFilterChips
                                                 colors={colors}
                                                 value={classModalityFilter}
@@ -973,31 +1001,6 @@ export function StudentEditModal({
                             </Text>
                         </Pressable>
                     </View>
-
-                    <AnchoredDropdown
-                        visible={showEditClassPickerContent}
-                        layout={
-                            editClassTriggerLayout
-                                ? editClassTriggerLayout
-                                : null
-                        }
-                        container={editContainerWindow}
-                        animationStyle={editClassPickerAnimStyle}
-                        zIndex={420}
-                        maxHeight={240}
-                        nestedScrollEnabled
-                        interactiveRefs={[editClassTriggerRef]}
-                        onRequestClose={closeAllEditPickers}
-                        scrollContentStyle={{ padding: 8, gap: 6 }}
-                    >
-                        <StudentClassDropdownList
-                            colors={colors}
-                            classOptions={classOptions}
-                            filteredClassOptions={filteredClassOptions}
-                            selectedClassId={classId}
-                            onSelectClass={handleSelectEditClass}
-                        />
-                    </AnchoredDropdown>
 
                     <AnchoredDropdown
                         visible={showEditGuardianRelationPickerContent}

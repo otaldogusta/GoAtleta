@@ -1,27 +1,10 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import { memo, type ReactElement } from "react";
-import { Text, TextInput, View } from "react-native";
-import type { ClassGender } from "../../core/models";
+import { View } from "react-native";
+
 import type { Student } from "../../core/models";
-import { radius } from "../../theme/tokens";
-import { useAppTheme } from "../../ui/app-theme";
-import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
-import { Pressable } from "../../ui/Pressable";
-import { UnitFilterBar } from "../../ui/UnitFilterBar";
-
-type ClassGroup = {
-  classId: string;
-  className: string;
-  gender: ClassGender;
-  scheduleLabel: string;
-  palette: { bg: string; text: string } | null;
-  students: Student[];
-};
-
-type UnitGroup = {
-  unitName: string;
-  classes: ClassGroup[];
-};
+import type { StudentListUnitGroup } from "./application/student-list-selectors";
+import { StudentsListSection } from "./components/StudentsListSection";
+import { StudentsSearchFiltersPanel } from "./components/StudentsSearchFiltersPanel";
 
 type RenderStudentItemArgs = {
   item: Student;
@@ -37,7 +20,7 @@ export type StudentsListTabProps = {
   studentsSearch: string;
   setStudentsSearch: (search: string) => void;
   studentsFiltered: Student[];
-  studentsGrouped: UnitGroup[];
+  studentsGrouped: StudentListUnitGroup[];
   expandedUnits: Record<string, boolean>;
   expandedClasses: Record<string, boolean>;
   toggleUnitExpanded: (unitName: string) => void;
@@ -59,309 +42,29 @@ export const StudentsListTab = memo(function StudentsListTab({
   toggleClassExpanded,
   renderStudentItem,
 }: StudentsListTabProps) {
-  const { colors } = useAppTheme();
   const hasSearch = studentsSearch.trim().length > 0;
 
   return (
     <View style={{ gap: 12 }}>
-      <UnitFilterBar
-        units={studentsUnitOptions}
-        selectedUnit={studentsUnitFilter}
-        onSelectUnit={setStudentsUnitFilter}
+      <StudentsSearchFiltersPanel
+        studentsUnitOptions={studentsUnitOptions}
+        studentsUnitFilter={studentsUnitFilter}
+        onStudentsUnitFilterChange={setStudentsUnitFilter}
+        studentsSearch={studentsSearch}
+        onStudentsSearchChange={setStudentsSearch}
       />
 
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          paddingVertical: 10,
-          paddingHorizontal: 12,
-          borderRadius: radius.card,
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: colors.borderSubtle,
-        }}
-      >
-        <Ionicons name="search" size={16} color={colors.textMuted} />
-        <TextInput
-          placeholder="Buscar aluno, responsável, turma ou unidade"
-          value={studentsSearch}
-          onChangeText={setStudentsSearch}
-          placeholderTextColor={colors.placeholder}
-          style={{ flex: 1, color: colors.textPrimary, fontSize: 13 }}
-        />
-        <Pressable
-          onPress={() => setStudentsSearch("")}
-          onContextMenu={(event: any) => event.preventDefault()}
-          disabled={!studentsSearch}
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: radius.full,
-            backgroundColor: colors.backgroundSubtle,
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: studentsSearch ? 1 : 0,
-          }}
-        >
-          <Ionicons name="close" size={14} color={colors.textMuted} />
-        </Pressable>
-      </View>
-
-      <View style={{ gap: 8 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "900", color: colors.textPrimary }}>
-            Alunos
-          </Text>
-          <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-            {studentsFiltered.length} resultado(s)
-          </Text>
-        </View>
-
-        { studentsGrouped.length > 0 ? (
-          <View style={{ gap: 12 }}>
-            {studentsGrouped.map(({ unitName, classes: unitClasses }) => (
-              <View key={unitName} style={{ gap: 8 }}>
-                {(() => {
-                  const unitExpanded = hasSearch || !!expandedUnits[unitName];
-                  return (
-                    <>
-                      <Pressable
-                        onPress={() => toggleUnitExpanded(unitName)}
-                        style={{
-                          paddingVertical: 7,
-                          paddingHorizontal: 10,
-                          borderRadius: radius.internal,
-                          backgroundColor: colors.backgroundSubtle,
-                          borderWidth: 1,
-                          borderColor: colors.borderSubtle,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Text
-                          style={{ fontSize: 14, fontWeight: "900", color: colors.textPrimary }}
-                        >
-                          {unitName}
-                        </Text>
-                        <Ionicons
-                          name={unitExpanded ? "chevron-down" : "chevron-forward"}
-                          size={16}
-                          color={colors.textMuted}
-                        />
-                      </Pressable>
-                      { unitExpanded ? (
-                        <View
-                          style={{
-                            gap: 10,
-                            marginLeft: 4,
-                            paddingLeft: 10,
-                            paddingTop: 6,
-                            borderLeftWidth: 2,
-                            borderLeftColor: colors.borderSubtle,
-                          }}
-                        >
-                          {unitClasses.map((group) => {
-                            const classExpanded =
-                              (hasSearch && group.students.length > 0) ||
-                              !!expandedClasses[group.classId];
-                            const groupPalette =
-                              group.palette ?? {
-                                bg: colors.primaryBg,
-                                text: colors.primaryText,
-                              };
-                            return (
-                              <View key={group.classId} style={{ gap: 6 }}>
-                                <Pressable
-                                  onPress={() => toggleClassExpanded(group.classId)}
-                                  style={{
-                                    paddingVertical: 6,
-                                    paddingHorizontal: 8,
-                                    borderRadius: radius.internal,
-                                    backgroundColor: colors.surface,
-                                    borderWidth: 1,
-                                    borderColor: colors.borderSubtle,
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    gap: 10,
-                                  }}
-                                >
-                                  {(() => {
-                                    const items: { key: string; node: ReactElement }[] = [
-                                      {
-                                        key: "name",
-                                        node: (
-                                          <Text
-                                            style={{
-                                              fontSize: 13,
-                                              fontWeight: "800",
-                                              color: colors.textPrimary,
-                                            }}
-                                            numberOfLines={1}
-                                          >
-                                            {group.className}
-                                          </Text>
-                                        ),
-                                      },
-                                    ];
-                                    if (group.gender) {
-                                      items.push({
-                                        key: "gender",
-                                        node: <ClassGenderBadge gender={group.gender} size="sm" />,
-                                      });
-                                    }
-                                    if (group.scheduleLabel) {
-                                      items.push({
-                                        key: "schedule",
-                                        node: (
-                                          <Text
-                                            style={{
-                                              fontSize: 11,
-                                              fontWeight: "700",
-                                              color: colors.textMuted,
-                                            }}
-                                          >
-                                            {group.scheduleLabel}
-                                          </Text>
-                                        ),
-                                      });
-                                    }
-                                    return (
-                                      <View
-                                        style={{
-                                          flexDirection: "row",
-                                          alignItems: "center",
-                                          flexWrap: "wrap",
-                                          gap: 6,
-                                          minWidth: 0,
-                                          flex: 1,
-                                        }}
-                                      >
-                                        <View
-                                          style={{
-                                            width: 8,
-                                            height: 8,
-                                            borderRadius: radius.full,
-                                            backgroundColor: groupPalette.bg,
-                                            marginRight: 2,
-                                          }}
-                                        />
-                                        {items.map((entry, index) => (
-                                          <View
-                                            key={entry.key}
-                                            style={{
-                                              flexDirection: "row",
-                                              alignItems: "center",
-                                              gap: 6,
-                                              minWidth: 0,
-                                            }}
-                                          >
-                                            {index > 0 ? (
-                                              <View
-                                                style={{
-                                                  width: 4,
-                                                  height: 4,
-                                                  borderRadius: radius.full,
-                                                  backgroundColor: colors.textMuted,
-                                                  opacity: 0.9,
-                                                  marginHorizontal: 2,
-                                                }}
-                                              />
-                                            ) : null}
-                                            {entry.node}
-                                          </View>
-                                        ))}
-                                      </View>
-                                    );
-                                  })()}
-                                  <Ionicons
-                                    name={classExpanded ? "chevron-down" : "chevron-forward"}
-                                    size={16}
-                                    color={colors.textMuted}
-                                  />
-                                </Pressable>
-                                { classExpanded ? (
-                                  <View
-                                    style={{
-                                      gap: 8,
-                                      marginLeft: 4,
-                                      paddingLeft: 10,
-                                      borderLeftWidth: 2,
-                                      borderLeftColor: groupPalette.bg,
-                                    }}
-                                  >
-                                    {group.students.length > 0 ? (
-                                      group.students.map((student) => (
-                                        <View key={student.id}>
-                                          {renderStudentItem({
-                                            item: student,
-                                            paletteOverride: groupPalette,
-                                            classNameOverride: group.className,
-                                            unitNameOverride: unitName,
-                                          })}
-                                        </View>
-                                      ))
-                                    ) : (
-                                      <View
-                                        style={{
-                                          borderWidth: 1,
-                                          borderColor: colors.borderSubtle,
-                                          backgroundColor: colors.backgroundSubtle,
-                                          borderRadius: radius.internal,
-                                          paddingVertical: 10,
-                                          paddingHorizontal: 12,
-                                        }}
-                                      >
-                                        <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                                          Nenhum aluno nesta turma.
-                                        </Text>
-                                      </View>
-                                    )}
-                                  </View>
-                                ) : null}
-                              </View>
-                            );
-                          })}
-                        </View>
-                      ) : null}
-                    </>
-                  );
-                })()}
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View
-            style={{
-              padding: 16,
-              borderRadius: radius.container,
-              backgroundColor: colors.backgroundSubtle,
-              borderWidth: 1,
-              borderColor: colors.borderSubtle,
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <Text style={{ color: colors.textPrimary, fontWeight: "900" }}>
-              Nenhum aluno encontrado
-            </Text>
-            <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-              {studentsUnitFilter === "Todas"
-                 ? "Comece adicionando alunos"
-                : "Nenhum aluno nesta unidade"}
-            </Text>
-          </View>
-        )}
-      </View>
+      <StudentsListSection
+        studentsFilteredCount={studentsFiltered.length}
+        studentsGrouped={studentsGrouped}
+        studentsUnitFilter={studentsUnitFilter}
+        hasSearch={hasSearch}
+        expandedUnits={expandedUnits}
+        expandedClasses={expandedClasses}
+        toggleUnitExpanded={toggleUnitExpanded}
+        toggleClassExpanded={toggleClassExpanded}
+        renderStudentItem={renderStudentItem}
+      />
     </View>
   );
 });

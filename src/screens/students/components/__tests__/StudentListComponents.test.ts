@@ -11,7 +11,11 @@ import {
   StudentSelectOptionContent,
 } from "../StudentDropdownOptions";
 import { StudentListRowContent } from "../StudentListRow";
+import { StudentsEmptyStateContent } from "../StudentsEmptyState";
+import { StudentsListHeaderContent } from "../StudentsListHeader";
+import { StudentsClassGroupBlockContent } from "../StudentsListSection";
 import { StudentsOverviewCardContent } from "../StudentsOverviewCard";
+import { StudentsSearchFiltersPanelContent } from "../StudentsSearchFiltersPanel";
 
 const collectTextAndLabels = (node: unknown): string[] => {
   if (node == null) return [];
@@ -152,6 +156,61 @@ describe("student list components", () => {
     expect(text).toContain("1");
   });
 
+  it("renders search filters with placeholder and typed search", () => {
+    const text = collectTextAndLabels(
+      StudentsSearchFiltersPanelContent({
+        colors,
+        studentsUnitOptions: ["Todas", "Rede Esportes Pinhais"],
+        studentsUnitFilter: "Todas",
+        onStudentsUnitFilterChange: jest.fn(),
+        studentsSearch: "flavia",
+        onStudentsSearchChange: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("Buscar aluno, responsável, turma ou unidade");
+    expect(text).not.toMatch(/[\uF000-\uF8FF]/);
+  });
+
+  it("renders list header with result count", () => {
+    const text = collectTextAndLabels(
+      StudentsListHeaderContent({
+        colors,
+        resultCount: 4,
+      })
+    ).join(" ");
+
+    expect(text).toContain("Alunos");
+    expect(text).toContain("4");
+    expect(text).toContain("resultado(s)");
+  });
+
+  it("renders empty state for an empty roster", () => {
+    const text = collectTextAndLabels(
+      StudentsEmptyStateContent({
+        colors,
+        unitFilter: "Todas",
+        hasSearch: false,
+      })
+    ).join(" ");
+
+    expect(text).toContain("Nenhum aluno encontrado");
+    expect(text).toContain("Comece adicionando alunos");
+  });
+
+  it("renders empty state for a search without results", () => {
+    const text = collectTextAndLabels(
+      StudentsEmptyStateContent({
+        colors,
+        unitFilter: "Todas",
+        hasSearch: true,
+      })
+    ).join(" ");
+
+    expect(text).toContain("Nenhum aluno encontrado");
+    expect(text).toContain("Nenhum aluno corresponde à busca.");
+  });
+
   it("renders student row labels without private glyph text", () => {
     const text = collectTextAndLabels(
       StudentListRowContent({
@@ -173,6 +232,42 @@ describe("student list components", () => {
     expect(text).toContain("Atenção");
     expect(text).toContain("Gerar convite do aluno");
     expect(text).toContain("Abrir WhatsApp do aluno");
+    expect(text).not.toMatch(/[\uF000-\uF8FF]/);
+  });
+
+  it("renders grouped list block preserving accented names", () => {
+    const text = collectTextAndLabels(
+      StudentsClassGroupBlockContent({
+        colors,
+        group: {
+          classId: classGroup.id,
+          className: classGroup.name,
+          gender: classGroup.gender,
+          scheduleLabel: "Seg, Qua 14h",
+          palette: { bg: "#123456", text: "#ffffff" },
+          students: [student],
+        },
+        unitName: "Rede Esportes Pinhais",
+        classExpanded: true,
+        toggleClassExpanded: jest.fn(),
+        renderStudentItem: ({ item, paletteOverride }) =>
+          StudentListRowContent({
+            colors,
+            student: item,
+            classPalette: paletteOverride,
+            healthAssessment,
+            hasBirthDateWarning: false,
+            onPress: jest.fn(),
+            onWhatsApp: jest.fn(),
+            onInvite: jest.fn(),
+            onPhotoPress: jest.fn(),
+          }),
+      })
+    ).join(" ");
+
+    expect(text).toContain("Turma 10-12");
+    expect(text).toContain("Seg, Qua 14h");
+    expect(text).toContain("Flávia Alves");
     expect(text).not.toMatch(/[\uF000-\uF8FF]/);
   });
 

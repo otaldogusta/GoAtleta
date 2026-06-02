@@ -20,6 +20,7 @@ export type StudentClassOptionProps = {
   active: boolean;
   onSelect: (value: ClassGroup) => void;
   isFirst: boolean;
+  compact?: boolean;
 };
 
 export type StudentMultiSelectOptionProps = {
@@ -28,6 +29,7 @@ export type StudentMultiSelectOptionProps = {
   active: boolean;
   onToggle: (value: string) => void;
   isFirst: boolean;
+  compact?: boolean;
 };
 
 export const StudentSelectOption = memo(function StudentSelectOption(
@@ -74,15 +76,22 @@ export function StudentMultiSelectOptionContent({
   value,
   active,
   onToggle,
+  compact = false,
 }: StudentMultiSelectOptionProps & { colors: ThemeColors }) {
   return (
     <AnchoredDropdownOption
       active={active}
       onPress={() => onToggle(value)}
+      style={{
+        paddingVertical: compact ? 9 : 12,
+        paddingHorizontal: compact ? 10 : 12,
+        borderRadius: compact ? 12 : 14,
+        marginVertical: compact ? 1 : 3,
+      }}
       rightAccessory={
         <Ionicons
           name={active ? "checkbox" : "square-outline"}
-          size={18}
+          size={compact ? 16 : 18}
           color={active ? colors.primaryText : colors.muted}
         />
       }
@@ -90,7 +99,7 @@ export function StudentMultiSelectOptionContent({
       <Text
         style={{
           color: active ? colors.primaryText : colors.text,
-          fontSize: 14,
+          fontSize: compact ? 13 : 14,
           fontWeight: active ? "700" : "500",
         }}
       >
@@ -113,18 +122,25 @@ export function StudentClassOptionContent({
   item,
   active,
   onSelect,
+  compact = false,
 }: StudentClassOptionProps & { colors: ThemeColors }) {
   return (
     <AnchoredDropdownOption
       active={active}
       onPress={() => onSelect(item)}
+      style={{
+        paddingVertical: compact ? 9 : 12,
+        paddingHorizontal: compact ? 10 : 12,
+        borderRadius: compact ? 12 : 14,
+        marginVertical: compact ? 1 : 3,
+      }}
       rightAccessory={<ClassGenderBadge gender={item.gender} />}
     >
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
         <Text
           style={{
             color: active ? colors.primaryText : colors.text,
-            fontSize: 14,
+            fontSize: compact ? 13 : 14,
             fontWeight: active ? "700" : "500",
           }}
         >
@@ -134,7 +150,7 @@ export function StudentClassOptionContent({
       <Text
         style={{
           color: active ? colors.primaryText : colors.muted,
-          fontSize: 12,
+          fontSize: compact ? 11 : 12,
           marginTop: 2,
         }}
       >

@@ -404,12 +404,6 @@ export default function StudentsScreen() {
       return value;
     });
   }, []);
-  const [editClassTriggerLayout, setEditClassTriggerLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const [editGuardianRelationTriggerLayout, setEditGuardianRelationTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -737,15 +731,9 @@ export default function StudentsScreen() {
   }, [showClassPicker, showGuardianRelationPicker, showUnitPicker, showTypePicker]);
 
   const syncEditPickerLayouts = useCallback(() => {
-    const hasPickerOpen =
-      showEditClassPicker || showEditGuardianRelationPicker;
+    const hasPickerOpen = showEditGuardianRelationPicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
-      if (showEditClassPicker) {
-        editClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
-          setEditClassTriggerLayout({ x, y, width, height });
-        });
-      }
       if (showEditGuardianRelationPicker) {
         editGuardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditGuardianRelationTriggerLayout({ x, y, width, height });
@@ -755,7 +743,7 @@ export default function StudentsScreen() {
         setEditContainerWindow({ x, y });
       });
     });
-  }, [showEditClassPicker, showEditGuardianRelationPicker]);
+  }, [showEditGuardianRelationPicker]);
 
   const syncTemplateLayout = useCallback(() => {
     requestAnimationFrame(() => {
@@ -832,7 +820,6 @@ export default function StudentsScreen() {
     if (showEditModal) syncEditPickerLayouts();
   }, [
     showEditModal,
-    showEditClassPicker,
     showEditGuardianRelationPicker,
     syncEditPickerLayouts,
   ]);
@@ -2650,7 +2637,6 @@ export default function StudentsScreen() {
         classOptions={editClassOptions}
         classId={classId}
         showEditClassPickerContent={showEditClassPickerContent}
-        editClassTriggerLayout={editClassTriggerLayout}
         editClassPickerAnimStyle={editClassPickerAnimStyle}
         handleSelectEditClass={handleSelectEditClass}
         closeAllEditPickers={closeAllEditPickers}
