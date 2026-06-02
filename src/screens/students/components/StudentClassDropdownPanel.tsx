@@ -22,8 +22,20 @@ type StudentClassDropdownPanelProps = {
   onSelectClass: (value: ClassGroup) => void;
 };
 
+type StudentClassDropdownListProps = {
+  colors: ThemeColors;
+  classOptions: ClassGroup[];
+  filteredClassOptions: ClassGroup[];
+  selectedClassId: string;
+  onSelectClass: (value: ClassGroup) => void;
+};
+
 export function StudentClassDropdownPanel(props: StudentClassDropdownPanelProps) {
   return <StudentClassDropdownPanelContent {...props} />;
+}
+
+export function StudentClassDropdownList(props: StudentClassDropdownListProps) {
+  return <StudentClassDropdownListContent {...props} />;
 }
 
 export function StudentClassDropdownPanelContent({
@@ -36,6 +48,34 @@ export function StudentClassDropdownPanelContent({
   onModalityFilterChange,
   onSelectClass,
 }: StudentClassDropdownPanelProps) {
+  return (
+    <View style={{ gap: 10 }}>
+      {classOptions.length ? (
+        <ClassModalityFilterChips
+          colors={colors}
+          value={modalityFilter}
+          modalities={classModalities}
+          onChange={onModalityFilterChange}
+        />
+      ) : null}
+      {StudentClassDropdownListContent({
+        colors,
+        classOptions,
+        filteredClassOptions,
+        selectedClassId,
+        onSelectClass,
+      })}
+    </View>
+  );
+}
+
+export function StudentClassDropdownListContent({
+  colors,
+  classOptions,
+  filteredClassOptions,
+  selectedClassId,
+  onSelectClass,
+}: StudentClassDropdownListProps) {
   if (!classOptions.length) {
     return (
       <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
@@ -44,32 +84,28 @@ export function StudentClassDropdownPanelContent({
     );
   }
 
+  if (!filteredClassOptions.length) {
+    return (
+      <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+        Nenhuma turma dessa modalidade nesta unidade.
+      </Text>
+    );
+  }
+
   return (
-    <View style={{ gap: 10 }}>
-      <ClassModalityFilterChips
-        colors={colors}
-        value={modalityFilter}
-        modalities={classModalities}
-        onChange={onModalityFilterChange}
-      />
-      {filteredClassOptions.length ? (
-        filteredClassOptions.map((item, index) =>
-          cloneElement(
-            StudentClassOptionContent({
-              colors,
-              item,
-              active: item.id === selectedClassId,
-              onSelect: onSelectClass,
-              isFirst: index === 0,
-            }),
-            { key: item.id }
-          )
+    <>
+      {filteredClassOptions.map((item, index) =>
+        cloneElement(
+          StudentClassOptionContent({
+            colors,
+            item,
+            active: item.id === selectedClassId,
+            onSelect: onSelectClass,
+            isFirst: index === 0,
+          }),
+          { key: item.id }
         )
-      ) : (
-        <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-          Nenhuma turma dessa modalidade nesta unidade.
-        </Text>
       )}
-    </View>
+    </>
   );
 }

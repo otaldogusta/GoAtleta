@@ -67,10 +67,7 @@ import {
     StudentClassDropdownPanel,
     type ClassModalityFilterValue,
 } from "../../src/screens/students/components/StudentClassDropdownPanel";
-import {
-    StudentClassOption,
-    StudentSelectOption,
-} from "../../src/screens/students/components/StudentDropdownOptions";
+import { StudentSelectOption } from "../../src/screens/students/components/StudentDropdownOptions";
 import { StudentListRow } from "../../src/screens/students/components/StudentListRow";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
 import { StudentsOverviewCard } from "../../src/screens/students/components/StudentsOverviewCard";
@@ -2661,7 +2658,6 @@ export default function StudentsScreen() {
         selectFieldStyle={selectFieldStyle}
         colors={colors}
         SelectOption={StudentSelectOption}
-        ClassOption={StudentClassOption}
       />
       <WhatsAppModal
         visible={showWhatsAppModal}

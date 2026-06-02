@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import {
     type NamedExoticComponent,
-    type ReactElement,
     type RefObject,
     useEffect,
     useMemo,
@@ -29,10 +28,10 @@ import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../components/ClassModalityFilterChips";
 import { StudentAcademicFields } from "../components/StudentAcademicFields";
+import { StudentClassDropdownList } from "../components/StudentClassDropdownPanel";
 import { StudentDocumentsFields } from "../components/StudentDocumentsFields";
 
 type CollapsibleAnim = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     animatedStyle: any;
     isVisible: boolean;
 };
@@ -45,13 +44,6 @@ type SelectOptionProps = {
     value: string;
     active: boolean;
     onSelect: (value: string) => void;
-    isFirst: boolean;
-};
-
-type ClassOptionProps = {
-    item: ClassGroup;
-    active: boolean;
-    onSelect: (value: ClassGroup) => void;
     isFirst: boolean;
 };
 
@@ -169,7 +161,6 @@ export type StudentEditModalProps = {
     guardianRelationOptions: string[];
     showEditGuardianRelationPickerContent: boolean;
     editGuardianRelationTriggerLayout: Layout | null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     editGuardianRelationPickerAnimStyle: any;
     handleSelectEditGuardianRelation: (value: string) => void;
 
@@ -185,14 +176,12 @@ export type StudentEditModalProps = {
     showEditUnitPickerContent: boolean;
     editUnitTriggerLayout: Layout | null;
     editContainerWindow: Point | null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     editUnitPickerAnimStyle: any;
     handleSelectEditUnit: (value: string) => void;
     classOptions: ClassGroup[];
     classId: string;
     showEditClassPickerContent: boolean;
     editClassTriggerLayout: Layout | null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     editClassPickerAnimStyle: any;
     handleSelectEditClass: (value: ClassGroup) => void;
 
@@ -214,7 +203,6 @@ export type StudentEditModalProps = {
 
     // Option components (memoized in parent)
     SelectOption: NamedExoticComponent<SelectOptionProps>;
-    ClassOption: NamedExoticComponent<ClassOptionProps>;
 };
 
 export function StudentEditModal({
@@ -334,7 +322,6 @@ export function StudentEditModal({
     selectFieldStyle,
     colors,
     SelectOption,
-    ClassOption,
 }: StudentEditModalProps) {
     const [classModalityFilter, setClassModalityFilter] = useState<ClassModalityFilterValue>("all");
     const selectedClass = useMemo(
@@ -982,25 +969,13 @@ export function StudentEditModal({
                         onRequestClose={closeAllEditPickers}
                         scrollContentStyle={{ padding: 8, gap: 6 }}
                     >
-                        {filteredClassOptions.length ? (
-                            filteredClassOptions.map((item, index) => (
-                                <ClassOption
-                                    key={item.id}
-                                    item={item}
-                                    active={item.id === classId}
-                                    onSelect={handleSelectEditClass}
-                                    isFirst={index === 0}
-                                />
-                            ))
-                        ) : classOptions.length ? (
-                            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-                                Nenhuma turma dessa modalidade nesta unidade.
-                            </Text>
-                        ) : (
-                            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-                                Nenhuma turma encontrada.
-                            </Text>
-                        )}
+                        <StudentClassDropdownList
+                            colors={colors}
+                            classOptions={classOptions}
+                            filteredClassOptions={filteredClassOptions}
+                            selectedClassId={classId}
+                            onSelectClass={handleSelectEditClass}
+                        />
                     </AnchoredDropdown>
 
                     <AnchoredDropdown
