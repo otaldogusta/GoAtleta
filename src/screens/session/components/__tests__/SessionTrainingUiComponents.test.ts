@@ -6,6 +6,7 @@ import { SessionObjectiveCard } from "../SessionObjectiveCard";
 import { SessionAppliedPlanSection } from "../SessionAppliedPlanSection";
 import { SessionPlanGenerationState } from "../SessionPlanGenerationState";
 import { SessionResistanceTrainingSection } from "../SessionResistanceTrainingSection";
+import { SessionReportTab } from "../SessionReportTab";
 import { SessionScoutingTab } from "../SessionScoutingTab";
 import { SessionTrainingBlockCard } from "../SessionTrainingBlockCard";
 
@@ -23,6 +24,7 @@ const collectTextAndLabels = (node: unknown): string[] => {
       props?: {
         accessibilityLabel?: unknown;
         children?: unknown;
+        label?: unknown;
         placeholder?: unknown;
       };
     };
@@ -37,6 +39,7 @@ const collectTextAndLabels = (node: unknown): string[] => {
       typeof maybeNode.props?.accessibilityLabel === "string"
         ? maybeNode.props.accessibilityLabel
         : "",
+      typeof maybeNode.props?.label === "string" ? maybeNode.props.label : "",
       typeof maybeNode.props?.placeholder === "string" ? maybeNode.props.placeholder : "",
       ...collectTextAndLabels(maybeNode.props?.children),
     ].filter(Boolean);
@@ -333,6 +336,86 @@ describe("session training UI components", () => {
     expect(text).toContain("Remover plano do dia");
     expect(text).not.toContain("Academia não priorizada");
     expect(text).not.toContain("Detalhes do plano");
+  });
+
+  it("renders the report tab fields, training preview and photo actions", () => {
+    const nullRef = { current: null } as any;
+    const text = collectTextAndLabels(
+      SessionReportTab({
+        colors: colors as any,
+        containerRef: nullRef,
+        pseTriggerRef: nullRef,
+        techniqueTriggerRef: nullRef,
+        onContainerLayout: jest.fn(),
+        sessionDateLabel: "06/06/2026",
+        hasExistingReport: true,
+        pse: 6,
+        technique: "boa",
+        participantsCount: "12",
+        activity: "Passe orientado em estações.",
+        conclusion: "Turma manteve atenção e evolução técnica.",
+        autoActivity: "Aquecimento / passe orientado / roda rápida.",
+        canApplyAutoActivity: false,
+        showAppliedPreview: true,
+        canSuggestActivity: true,
+        canSuggestConclusion: true,
+        isRewritingActivity: false,
+        isRewritingConclusion: false,
+        reportPhotoUris: ["data:image/png;base64,abc"],
+        photoLimit: 3,
+        isPickingPhoto: false,
+        reportHasChanges: true,
+        showPsePicker: true,
+        showTechniquePicker: false,
+        showPsePickerContent: true,
+        showTechniquePickerContent: true,
+        pseTriggerLayout: null,
+        techniqueTriggerLayout: null,
+        containerWindow: null,
+        psePickerAnimationStyle: {},
+        techniquePickerAnimationStyle: {},
+        photoActionIndex: 0,
+        onTogglePsePicker: jest.fn(),
+        onToggleTechniquePicker: jest.fn(),
+        onClosePickers: jest.fn(),
+        onSelectPse: jest.fn(),
+        onSelectTechnique: jest.fn(),
+        onChangeParticipantsCount: jest.fn(),
+        onChangeActivity: jest.fn(),
+        onChangeConclusion: jest.fn(),
+        onRewriteActivity: jest.fn(),
+        onRewriteConclusion: jest.fn(),
+        onApplyAutoActivity: jest.fn(),
+        onToggleAppliedPreview: jest.fn(),
+        onPickPhoto: jest.fn(),
+        onOpenPhotoActions: jest.fn(),
+        onClosePhotoActions: jest.fn(),
+        onReplacePhoto: jest.fn(),
+        onRemovePhoto: jest.fn(),
+        onSaveReport: jest.fn(),
+        onSaveAndGenerateReport: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("Relatório da aula");
+    expect(text).toContain("06/06/2026");
+    expect(text).toContain("Editando relatório existente");
+    expect(text).toContain("PSE (0-10)");
+    expect(text).toContain("Técnica geral");
+    expect(text).toContain("Número de participantes");
+    expect(text).toContain("Atividade");
+    expect(text).toContain("Conclusão");
+    expect(text).toContain("Preview do treino aplicado");
+    expect(text).toContain("Aquecimento / passe orientado");
+    expect(text).toContain("Fotos");
+    expect(text).toContain("Tirar foto");
+    expect(text).toContain("Galeria");
+    expect(text).toContain("Foto do relatório");
+    expect(text).toContain("Substituir (câmera)");
+    expect(text).toContain("Gerar relatório");
+    expect(text).not.toContain("Academia não priorizada");
+    expect(text).not.toContain("Detalhes do plano");
+    expect(text).not.toMatch(/[\uF000-\uF8FF]/);
   });
 
   it("renders the scouting tab with guide, score controls and save action", () => {

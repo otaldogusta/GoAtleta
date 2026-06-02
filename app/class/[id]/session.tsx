@@ -1,21 +1,16 @@
-import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Animated,
     Easing,
-    FlatList,
-    Image,
     InteractionManager,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     Text,
-    TextInput,
-    type TextStyle,
     View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -47,6 +42,7 @@ import { SessionObjectiveCard } from "../../../src/screens/session/components/Se
 import { SessionPlanFabActions } from "../../../src/screens/session/components/SessionPlanFabActions";
 import { SessionPlanGenerationState } from "../../../src/screens/session/components/SessionPlanGenerationState";
 import { SessionResistanceTrainingSection } from "../../../src/screens/session/components/SessionResistanceTrainingSection";
+import { SessionReportTab } from "../../../src/screens/session/components/SessionReportTab";
 import { SessionScoutingTab } from "../../../src/screens/session/components/SessionScoutingTab";
 import { SessionTabBar } from "../../../src/screens/session/components/SessionTabBar";
 import { SessionTopHeader } from "../../../src/screens/session/components/SessionTopHeader";
@@ -139,10 +135,7 @@ import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
 import { SessionReportDocument } from "../../../src/pdf/session-report-document";
 import { sessionPlanHtml } from "../../../src/pdf/templates/session-plan";
 import { sessionReportHtml } from "../../../src/pdf/templates/session-report";
-import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
-import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../../src/ui/app-theme";
-import { Button } from "../../../src/ui/Button";
 import { getClassPalette } from "../../../src/ui/class-colors";
 import { useConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
@@ -160,46 +153,10 @@ const sessionTabs: readonly SessionTabItem[] = [
 ] as const;
 
 type SessionPedagogicalApproach = NonNullable<TrainingPlanPedagogy["pedagogicalApproach"]>;
-type LocalIconName =
-  | "back"
-  | "next"
-  | "down"
-  | "plus"
-  | "play"
-  | "download"
-  | "upload"
-  | "sparkle"
-  | "loading"
-  | "edit";
 const REPORT_REWRITE_MAX_CHARS = 1200;
 const REPORT_RELEVANT_MIN_CHARS = 24;
 const REPORT_RELEVANT_MIN_WORDS = 5;
 const REPORT_PHOTO_LIMIT = 3;
-
-const localIconNames: Record<LocalIconName, ComponentProps<typeof Ionicons>["name"]> = {
-  back: "chevron-back",
-  next: "chevron-forward",
-  down: "chevron-down",
-  plus: "add",
-  play: "play-circle-outline",
-  download: "download-outline",
-  upload: "cloud-upload-outline",
-  sparkle: "sparkles-outline",
-  loading: "ellipsis-horizontal",
-  edit: "pencil-outline",
-};
-
-const LocalIcon = ({
-  name,
-  color,
-  size = 16,
-  style,
-}: {
-  name: LocalIconName;
-  color: string;
-  size?: number;
-  style?: TextStyle;
-}) => <Ionicons name={localIconNames[name]} size={size} color={color} style={style} />;
 
 const parseReportPhotoUris = (raw: string): string[] => {
   const value = raw.trim();
@@ -3656,603 +3613,74 @@ export default function SessionScreen() {
           />
         ) : null}
         {sessionTab === "relatório" ? (
-        <View
-          ref={containerRef}
-          onLayout={syncPickerLayouts}
-          style={{
-            padding: 14,
-            borderRadius: 18,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            position: "relative",
-            shadowColor: "#000",
-            shadowOpacity: 0.04,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 2,
-            gap: 8,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            {ptBR.session.report.title}
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            {sessionDate.split("-").reverse().join("/")}
-          </Text>
-          {!sessionLog ? (
-            <Text style={{ color: colors.muted }}>
-              {ptBR.session.report.noReportYet}
-            </Text>
-          ) : null}
-          {sessionLog ? (
-            <View
-              style={{
-                alignSelf: "flex-start",
-                paddingVertical: 4,
-                paddingHorizontal: 8,
-                borderRadius: 10,
-                backgroundColor: colors.successBg,
-                marginTop: 4,
-              }}
-            >
-              <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
-                {ptBR.session.report.editingExisting}
-              </Text>
-            </View>
-          ) : null}
-          <View style={{ gap: 12, marginTop: 12 }}>
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                {ptBR.session.report.pse}
-              </Text>
-              <View ref={pseTriggerRef}>
-                <Pressable
-                  onPress={() => togglePicker("pse")}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                    {String(PSE)}
-                  </Text>
-                  <LocalIcon
-                    name="down"
-                    size={16}
-                    color={colors.muted}
-                    style={{ transform: [{ rotate: showPsePicker ? "180deg" : "0deg" }] }}
-                  />
-                </Pressable>
-              </View>
-              </View>
-
-              <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                {ptBR.session.report.technique}
-              </Text>
-              <View ref={techniqueTriggerRef}>
-                <Pressable
-                  onPress={() => togglePicker("technique")}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                    {technique}
-                  </Text>
-                  <LocalIcon
-                    name="down"
-                    size={16}
-                    color={colors.muted}
-                    style={{
-                      transform: [{ rotate: showTechniquePicker ? "180deg" : "0deg" }],
-                    }}
-                  />
-                </Pressable>
-              </View>
-            </View>
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                {ptBR.session.report.participants}
-              </Text>
-                <TextInput
-                  placeholder={ptBR.session.report.participantsPlaceholder}
-                  value={participantsCount}
-                  onChangeText={setParticipantsCount}
-                  keyboardType="numeric"
-                  placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  color: colors.inputText,
-                }}
-              />
-            </View>
-
-              <View style={{ flex: 1, gap: 6 }}>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                {ptBR.session.report.activity}
-              </Text>
-              <View style={{ position: "relative" }}>
-                <TextInput
-                  placeholder={ptBR.session.report.activityPlaceholder}
-                  value={activity}
-                  onChangeText={(value) => {
-                    setActivity(value);
-                    closePickers();
-                  }}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    paddingRight: 52,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                  }}
-                />
-                {(canSuggestActivity || isRewritingActivity) ? (
-                  <Pressable
-                    onPress={() => void handleRewriteField("activity")}
-                    disabled={isRewritingActivity}
-                    style={{
-                      position: "absolute",
-                      right: 8,
-                      top: "50%",
-                      marginTop: -15,
-                      borderRadius: 999,
-                      width: 30,
-                      height: 30,
-                      backgroundColor: colors.primaryBg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      opacity: isRewritingActivity ? 0.65 : 1,
-                    }}
-                  >
-                    <LocalIcon
-                      name={isRewritingActivity ? "loading" : "sparkle"}
-                      size={14}
-                      color={colors.primaryText}
-                    />
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-            </View>
-            {autoActivity ? (
-              <View
-                style={{
-                  padding: 12,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 6,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
-                      {ptBR.session.report.previewAppliedTraining}
-                    </Text>
-                    <Pressable
-                      onPress={handleApplyAutoActivity}
-                      disabled={!canApplyAutoActivity}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: canApplyAutoActivity
-                          ? colors.primaryBg
-                          : colors.secondaryBg,
-                        opacity: canApplyAutoActivity ? 1 : 0.6,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: canApplyAutoActivity ? colors.primaryText : colors.muted,
-                          fontWeight: "700",
-                          fontSize: 12,
-                        }}
-                      >
-                        Aplicar
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <Pressable onPress={() => setShowAppliedPreview((prev) => !prev)}>
-                    <LocalIcon
-                      name="down"
-                      size={16}
-                      color={colors.muted}
-                      style={{
-                        transform: [{ rotate: showAppliedPreview ? "180deg" : "0deg" }],
-                      }}
-                    />
-                  </Pressable>
-                </View>
-                {showAppliedPreview ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {autoActivity}
-                  </Text>
-                ) : null}
-                {!canApplyAutoActivity ? (
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    {ptBR.session.report.clearToApplyHint}
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                {ptBR.session.report.conclusion}
-              </Text>
-              <View style={{ position: "relative" }}>
-                <TextInput
-                  placeholder={ptBR.session.report.conclusionPlaceholder}
-                  value={conclusion}
-                  onChangeText={(value) => {
-                    setConclusion(value);
-                    closePickers();
-                  }}
-                  placeholderTextColor={colors.placeholder}
-                  multiline
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 12,
-                    paddingRight: 52,
-                    borderRadius: 12,
-                    minHeight: 90,
-                    textAlignVertical: "top",
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                  }}
-                />
-                {(canSuggestConclusion || isRewritingConclusion) ? (
-                  <Pressable
-                    onPress={() => void handleRewriteField("conclusion")}
-                    disabled={isRewritingConclusion}
-                    style={{
-                      position: "absolute",
-                      right: 8,
-                      top: 8,
-                      borderRadius: 999,
-                      width: 30,
-                      height: 30,
-                      backgroundColor: colors.primaryBg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      opacity: isRewritingConclusion ? 0.65 : 1,
-                    }}
-                  >
-                    <LocalIcon
-                      name={isRewritingConclusion ? "loading" : "sparkle"}
-                      size={14}
-                      color={colors.primaryText}
-                    />
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-
-            <View style={{ gap: 6 }}>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                {ptBR.session.report.photos}
-              </Text>
-              <View
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  padding: 10,
-                  gap: 10,
-                }}
-              >
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    onPress={() => {
-                      void pickReportPhoto("camera");
-                    }}
-                    disabled={isPickingPhoto || reportPhotoUris.length >= REPORT_PHOTO_LIMIT}
-                    style={{
-                      flex: 1,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      paddingVertical: 9,
-                      alignItems: "center",
-                      opacity:
-                        isPickingPhoto || reportPhotoUris.length >= REPORT_PHOTO_LIMIT
-                          ? 0.6
-                          : 1,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {isPickingPhoto ? ptBR.session.actions.opening : ptBR.session.actions.takePhoto}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      void pickReportPhoto("library");
-                    }}
-                    disabled={isPickingPhoto || reportPhotoUris.length >= REPORT_PHOTO_LIMIT}
-                    style={{
-                      flex: 1,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      paddingVertical: 9,
-                      alignItems: "center",
-                      opacity:
-                        isPickingPhoto || reportPhotoUris.length >= REPORT_PHOTO_LIMIT
-                          ? 0.6
-                          : 1,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {ptBR.session.actions.gallery}
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {reportPhotoUris.length ? (
-                  <FlatList
-                    data={reportPhotoUris}
-                    keyExtractor={(uri, index) => `${uri}_${index}`}
-                    numColumns={Platform.OS === "web" ? 4 : 3}
-                    scrollEnabled={false}
-                    contentContainerStyle={{ gap: 8 }}
-                    columnWrapperStyle={{ gap: 8 }}
-                    renderItem={({ item: uri, index }) => (
-                      <Pressable
-                        onPress={() => setPhotoActionIndex(index)}
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          height: Platform.OS === "web" ? 112 : undefined,
-                          aspectRatio: Platform.OS === "web" ? undefined : 1,
-                          borderRadius: 10,
-                          overflow: "hidden",
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          position: "relative",
-                          backgroundColor: colors.secondaryBg,
-                        }}
-                      >
-                        <Image
-                          source={{ uri }}
-                          resizeMode="cover"
-                          style={{ width: "100%", height: "100%" }}
-                        />
-                        <View
-                          style={{
-                            position: "absolute",
-                            right: 6,
-                            bottom: 6,
-                            width: 24,
-                            height: 24,
-                            borderRadius: 999,
-                            backgroundColor: "rgba(0,0,0,0.72)",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <LocalIcon name="edit" size={12} color={colors.primaryText} />
-                        </View>
-                      </Pressable>
-                    )}
-                  />
-                ) : null}
-              </View>
-            </View>
-
-            <View style={{ gap: 8 }}>
-              <Button
-                label={sessionLog ? ptBR.session.actions.saveChanges : ptBR.session.actions.save}
-                variant="secondary"
-                onPress={handleSaveReport}
-                disabled={!reportHasChanges}
-              />
-              <Button
-                label={ptBR.session.actions.generateReport}
-                onPress={handleSaveAndGenerateReport}
-              />
-            </View>
-          </View>
-
-          <AnchoredDropdown
-            visible={showPsePickerContent}
-            layout={pseTriggerLayout}
-            container={containerWindow}
-            animationStyle={psePickerAnimStyle}
-            zIndex={420}
-            maxHeight={220}
-            nestedScrollEnabled
-            onRequestClose={closePickers}
-            scrollContentStyle={{ padding: 8, gap: 6 }}
-          >
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <AnchoredDropdownOption
-                key={n}
-                active={PSE === n}
-                onPress={() => handleSelectPse(n)}
-              >
-                <Text
-                  style={{
-                    color: PSE === n ? colors.primaryText : colors.text,
-                    fontSize: 14,
-                    fontWeight: PSE === n ? "700" : "500",
-                  }}
-                >
-                  {n}
-                </Text>
-              </AnchoredDropdownOption>
-            ))}
-          </AnchoredDropdown>
-
-          <AnchoredDropdown
-            visible={showTechniquePickerContent}
-            layout={techniqueTriggerLayout}
-            container={containerWindow}
-            animationStyle={techniquePickerAnimStyle}
-            zIndex={420}
-            maxHeight={160}
-            nestedScrollEnabled
-            onRequestClose={closePickers}
-            scrollContentStyle={{ padding: 8, gap: 6 }}
-          >
-            {(["nenhum", "boa", "ok", "ruim"] as const).map((value) => (
-              <AnchoredDropdownOption
-                key={value}
-                active={technique === value}
-                onPress={() => handleSelectTechnique(value)}
-              >
-                <Text
-                  style={{
-                    color: technique === value ? colors.primaryText : colors.text,
-                    fontSize: 14,
-                    fontWeight: technique === value ? "700" : "500",
-                    textTransform: "capitalize",
-                  }}
-                >
-                  {value}
-                </Text>
-              </AnchoredDropdownOption>
-            ))}
-          </AnchoredDropdown>
-
-          <ModalSheet
-            visible={photoActionIndex !== null}
-            onClose={() => setPhotoActionIndex(null)}
-            position="center"
-            overlayZIndex={30000}
-            backdropOpacity={0.7}
-            cardStyle={{
-              width: "100%",
-              maxWidth: 420,
-              borderRadius: 18,
-              backgroundColor: colors.background,
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 16,
-              gap: 10,
+          <SessionReportTab
+            colors={colors}
+            containerRef={containerRef}
+            pseTriggerRef={pseTriggerRef}
+            techniqueTriggerRef={techniqueTriggerRef}
+            onContainerLayout={syncPickerLayouts}
+            sessionDateLabel={sessionDate.split("-").reverse().join("/")}
+            hasExistingReport={!!sessionLog}
+            pse={PSE}
+            technique={technique}
+            participantsCount={participantsCount}
+            activity={activity}
+            conclusion={conclusion}
+            autoActivity={autoActivity}
+            canApplyAutoActivity={canApplyAutoActivity}
+            showAppliedPreview={showAppliedPreview}
+            canSuggestActivity={canSuggestActivity}
+            canSuggestConclusion={canSuggestConclusion}
+            isRewritingActivity={isRewritingActivity}
+            isRewritingConclusion={isRewritingConclusion}
+            reportPhotoUris={reportPhotoUris}
+            photoLimit={REPORT_PHOTO_LIMIT}
+            isPickingPhoto={isPickingPhoto}
+            reportHasChanges={reportHasChanges}
+            showPsePicker={showPsePicker}
+            showTechniquePicker={showTechniquePicker}
+            showPsePickerContent={showPsePickerContent}
+            showTechniquePickerContent={showTechniquePickerContent}
+            pseTriggerLayout={pseTriggerLayout}
+            techniqueTriggerLayout={techniqueTriggerLayout}
+            containerWindow={containerWindow}
+            psePickerAnimationStyle={psePickerAnimStyle}
+            techniquePickerAnimationStyle={techniquePickerAnimStyle}
+            photoActionIndex={photoActionIndex}
+            onTogglePsePicker={() => togglePicker("pse")}
+            onToggleTechniquePicker={() => togglePicker("technique")}
+            onClosePickers={closePickers}
+            onSelectPse={handleSelectPse}
+            onSelectTechnique={handleSelectTechnique}
+            onChangeParticipantsCount={setParticipantsCount}
+            onChangeActivity={(value) => {
+              setActivity(value);
+              closePickers();
             }}
-          >
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-              {ptBR.session.report.photoActionTitle}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              {ptBR.session.report.photoActionSubtitle}
-            </Text>
-            <View style={{ gap: 8, marginTop: 6 }}>
-              <Pressable
-                onPress={() => {
-                  if (photoActionIndex === null) return;
-                  setPhotoActionIndex(null);
-                  void pickReportPhoto("camera", photoActionIndex);
-                }}
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  paddingVertical: 10,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {ptBR.session.actions.replaceCamera}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (photoActionIndex === null) return;
-                  setPhotoActionIndex(null);
-                  void pickReportPhoto("library", photoActionIndex);
-                }}
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  paddingVertical: 10,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {ptBR.session.actions.replaceGallery}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (photoActionIndex === null) return;
-                  removePhotoAtIndex(photoActionIndex);
-                  setPhotoActionIndex(null);
-                }}
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.dangerBorder,
-                  backgroundColor: colors.dangerBg,
-                  paddingVertical: 10,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
-                  {ptBR.session.actions.remove}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setPhotoActionIndex(null)}
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  paddingVertical: 10,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {ptBR.session.actions.cancel}
-                </Text>
-              </Pressable>
-            </View>
-          </ModalSheet>
-        </View>
+            onChangeConclusion={(value) => {
+              setConclusion(value);
+              closePickers();
+            }}
+            onRewriteActivity={() => void handleRewriteField("activity")}
+            onRewriteConclusion={() => void handleRewriteField("conclusion")}
+            onApplyAutoActivity={handleApplyAutoActivity}
+            onToggleAppliedPreview={() => setShowAppliedPreview((prev) => !prev)}
+            onPickPhoto={(photoSource) => {
+              void pickReportPhoto(photoSource);
+            }}
+            onOpenPhotoActions={setPhotoActionIndex}
+            onClosePhotoActions={() => setPhotoActionIndex(null)}
+            onReplacePhoto={(photoSource, index) => {
+              setPhotoActionIndex(null);
+              void pickReportPhoto(photoSource, index);
+            }}
+            onRemovePhoto={(index) => {
+              removePhotoAtIndex(index);
+              setPhotoActionIndex(null);
+            }}
+            onSaveReport={handleSaveReport}
+            onSaveAndGenerateReport={handleSaveAndGenerateReport}
+          />
         ) : null}
       </ScrollView>
 
