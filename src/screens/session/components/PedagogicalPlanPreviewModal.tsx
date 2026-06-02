@@ -356,7 +356,7 @@ export function PedagogicalPlanPreviewModal({
             }}
           >
             <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "800" }}>
-              Ver lógica da sugestão
+              Ver detalhes operacionais
             </Text>
             <Text style={{ color: colors.textMuted, fontSize: 13 }}>
               {showLogicDetails ? "Ocultar" : ""}

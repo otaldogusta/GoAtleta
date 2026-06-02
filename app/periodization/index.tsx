@@ -3943,7 +3943,7 @@ export default function PeriodizationScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Ionicons name="layers-outline" size={18} color={colors.primaryText} />
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Contexto pedagógico
+                Contexto da turma
               </Text>
             </View>
             <View style={{ gap: 4 }}>

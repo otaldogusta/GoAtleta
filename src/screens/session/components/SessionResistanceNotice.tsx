@@ -49,7 +49,7 @@ export function SessionResistanceNotice({
         }}
       >
         <Text style={{ color: accentColor, fontSize: 11, fontWeight: "800" }}>
-          {tone === "warning" ? "Contexto pedagógico" : "Ponte da sessão"}
+          {tone === "warning" ? "Ajuste da sessão" : "Ponte da sessão"}
         </Text>
       </View>
       <View style={{ gap: 4 }}>

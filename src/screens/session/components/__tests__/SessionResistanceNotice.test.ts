@@ -58,6 +58,7 @@ describe("SessionResistanceNotice", () => {
 
     const text = collectText(element).join(" ");
 
+    expect(text).toContain("Ajuste da sessão");
     expect(text).toContain("Sessão resistida indisponível");
     expect(text).toContain("Os exercícios ainda não foram gerados.");
     expect(text).toContain("Regenerar sessão");
