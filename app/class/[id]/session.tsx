@@ -40,16 +40,15 @@ import {
     type BlockEditPayload,
     type EditableBlockItem,
 } from "../../../src/screens/session/components/BlockEditModal";
-import { SessionContextHeader } from "../../../src/screens/session/components/SessionContextHeader";
+import { SessionAppliedPlanSection } from "../../../src/screens/session/components/SessionAppliedPlanSection";
 import { SessionDateNavigator } from "../../../src/screens/session/components/SessionDateNavigator";
 import { SessionEmptyPlanCard } from "../../../src/screens/session/components/SessionEmptyPlanCard";
 import { SessionObjectiveCard } from "../../../src/screens/session/components/SessionObjectiveCard";
 import { SessionPlanFabActions } from "../../../src/screens/session/components/SessionPlanFabActions";
-import { SessionResistanceNotice } from "../../../src/screens/session/components/SessionResistanceNotice";
-import { SessionResistanceBlock } from "../../../src/screens/session/components/SessionResistanceBlock";
+import { SessionPlanGenerationState } from "../../../src/screens/session/components/SessionPlanGenerationState";
+import { SessionResistanceTrainingSection } from "../../../src/screens/session/components/SessionResistanceTrainingSection";
 import { SessionTabBar } from "../../../src/screens/session/components/SessionTabBar";
 import { SessionTopHeader } from "../../../src/screens/session/components/SessionTopHeader";
-import { SessionTrainingBlockCard } from "../../../src/screens/session/components/SessionTrainingBlockCard";
 import { SessionUnavailableState } from "../../../src/screens/session/components/SessionUnavailableState";
 import { getResistancePlanFromSessionComponents } from "../../../src/screens/session/components/get-resistance-plan-from-session-components";
 import type {
@@ -3540,296 +3539,74 @@ export default function SessionScreen() {
             }}
           />
         ) : null}
-        {sessionTab === "treino" && isPlanGenerationBusy && plan ? (
-          <View
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              gap: 6,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
-                {planGenerationLabel}
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                {[planGenerationDotOne, planGenerationDotTwo, planGenerationDotThree].map(
-                  (dotOpacity, index) => (
-                    <Animated.View
-                      key={`plan-generation-dot-${index}`}
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: 3,
-                        backgroundColor: colors.primaryBg,
-                        opacity: dotOpacity,
-                      }}
-                    />
-                  )
-                )}
-              </View>
-            </View>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {planGenerationSubtitle}
-            </Text>
-          </View>
-        ) : null}
-        {sessionTab === "treino" && isPlanGenerationBusy && !plan ? (
-          <>
-            <View
-              style={{
-                padding: 14,
-                borderRadius: 18,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                gap: 8,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                  {planGenerationLabel}
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  {[planGenerationDotOne, planGenerationDotTwo, planGenerationDotThree].map(
-                    (dotOpacity, index) => (
-                      <Animated.View
-                        key={`plan-generation-empty-dot-${index}`}
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 3,
-                          backgroundColor: colors.primaryBg,
-                          opacity: dotOpacity,
-                        }}
-                      />
-                    )
-                  )}
-                </View>
-              </View>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {planGenerationSubtitle}
-              </Text>
-            </View>
-
-            {([
-              { key: "warmup", label: "Aquecimento", accent: colors.warningText, width: "52%" },
-              { key: "main", label: "Parte principal", accent: colors.primaryBg, width: "68%" },
-              { key: "cooldown", label: "Volta a calma", accent: colors.successText, width: "46%" },
-            ] as const).map((section, index) => (
-              <Animated.View
-                key={section.key}
-                style={{
-                  padding: 14,
-                  borderRadius: 18,
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: section.accent,
-                  gap: 10,
-                  opacity: planGenerationPulse,
-                  transform: [
-                    {
-                      translateY: planGenerationAnim.interpolate({
-                        inputRange: [0, 0.5, 1],
-                        outputRange: [0, index % 2 === 0 ? -2 : 2, 0],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                    {section.label}
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <View
-                      style={{
-                        width: 54,
-                        height: 24,
-                        borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    />
-                    <View
-                      style={{
-                        width: 68,
-                        height: 24,
-                        borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    />
-                  </View>
-                </View>
-                <View
-                  style={{
-                    width: section.width,
-                    height: 12,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                />
-                <View style={{ gap: 6 }}>
-                  <View
-                    style={{
-                      width: "82%",
-                      height: 10,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  />
-                  <View
-                    style={{
-                      width: "61%",
-                      height: 10,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  />
-                </View>
-              </Animated.View>
-            ))}
-          </>
+        {sessionTab === "treino" && isPlanGenerationBusy ? (
+          <SessionPlanGenerationState
+            colors={colors}
+            label={planGenerationLabel}
+            subtitle={planGenerationSubtitle}
+            dots={[planGenerationDotOne, planGenerationDotTwo, planGenerationDotThree]}
+            pulse={planGenerationPulse}
+            animation={planGenerationAnim}
+            showBlockSkeletons={!plan}
+          />
         ) : null}
         {sessionTab === "treino" && plan ? (
           <>
-            {hasUnavailableResistanceSession ? (
-              <SessionResistanceNotice
-                colors={colors}
-                tone="warning"
-                title="Sessão resistida indisponível"
-                description="O contexto da semana indica academia, mas os exercícios ainda não foram gerados. Você pode regenerar a sessão ou seguir com treino de quadra."
-                actions={[
-                  {
-                    label:
-                      isSavingPedagogicalPlan || isGeneratingPedagogicalPlan
-                        ? "Gerando plano..."
-                        : "Regenerar sessão",
-                    onPress: handleGeneratePedagogicalPlan,
-                    variant: "primary",
-                  },
-                  {
-                    label: "Usar treino de quadra",
-                    onPress: () => setDismissResistanceUnavailable(true),
-                  },
-                ]}
-              />
-            ) : null}
-            {resistancePreview ? (
-              <>
-                <SessionContextHeader
-                  colors={colors}
-                  environment={resistancePreview.sessionEnvironment}
-                  weeklyPhysicalEmphasis={resistancePreview.weeklyContext?.weeklyPhysicalEmphasis}
-                  courtGymRelationship={resistancePreview.weeklyContext?.courtGymRelationship}
-                  transferTarget={resistancePreview.resistancePlan.transferTarget}
-                  durationMin={resistancePreview.durationMin}
-                />
-                <SessionResistanceBlock
-                  colors={colors}
-                  resistancePlan={resistancePreview.resistancePlan}
-                  durationMin={resistancePreview.durationMin}
-                />
-                {resistancePreview.sessionEnvironment === "mista" ? (
-                  <SessionResistanceNotice
-                    colors={colors}
-                    title="Ponte para a quadra"
-                    description={mixedSessionBridgeDescription}
-                  />
-                ) : null}
-              </>
-            ) : null}
-            {trainingBlockPreviews.map((section) => (
-              <SessionTrainingBlockCard
-                key={section.key}
-                colors={colors}
-                block={section}
-                onPress={() => setSelectedBlockKey(section.key)}
-              />
-            ))}
-            <Pressable
-              onPress={handleRemoveAppliedPlan}
-              disabled={isRemovingAppliedPlan}
-              style={{
-                alignSelf: "flex-start",
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 999,
-                backgroundColor: isRemovingAppliedPlan
-                  ? colors.secondaryBg
-                  : colors.dangerSolidBg,
-                opacity: isRemovingAppliedPlan ? 0.75 : 1,
-              }}
-            >
-              <Text
-                style={{
-                  color: isRemovingAppliedPlan
-                    ? colors.muted
-                    : colors.dangerSolidText,
-                  fontSize: 12,
-                  fontWeight: "800",
-                }}
-              >
-                {isRemovingAppliedPlan ? "Removendo..." : "Remover plano do dia"}
-              </Text>
-            </Pressable>
+            <SessionResistanceTrainingSection
+              colors={colors}
+              showUnavailableNotice={hasUnavailableResistanceSession}
+              unavailableTitle="Sessão resistida indisponível"
+              unavailableDescription="O contexto da semana indica academia, mas os exercícios ainda não foram gerados. Você pode regenerar a sessão ou seguir com treino de quadra."
+              unavailableActions={[
+                {
+                  label:
+                    isSavingPedagogicalPlan || isGeneratingPedagogicalPlan
+                      ? "Gerando plano..."
+                      : "Regenerar sessão",
+                  onPress: handleGeneratePedagogicalPlan,
+                  variant: "primary",
+                },
+                {
+                  label: "Usar treino de quadra",
+                  onPress: () => setDismissResistanceUnavailable(true),
+                },
+              ]}
+              resistancePreview={resistancePreview}
+              bridgeDescription={mixedSessionBridgeDescription}
+            />
+            <SessionAppliedPlanSection
+              colors={colors}
+              blocks={trainingBlockPreviews}
+              isRemovingAppliedPlan={isRemovingAppliedPlan}
+              onSelectBlock={setSelectedBlockKey}
+              onRemoveAppliedPlan={handleRemoveAppliedPlan}
+            />
           </>
         ) : null}
         {sessionTab === "treino" && !plan && !isPlanGenerationBusy ? (
           <>
-            {hasUnavailableResistanceSession ? (
-              <SessionResistanceNotice
-                colors={colors}
-                tone="warning"
-                title="Sessão resistida indisponível"
-                description="O contexto da semana indica academia, mas os exercícios ainda não foram gerados. Você pode regenerar a sessão ou seguir com treino de quadra."
-                actions={[
-                  {
-                    label:
-                      isSavingPedagogicalPlan || isGeneratingPedagogicalPlan
-                        ? "Gerando plano..."
-                        : "Regenerar sessão",
-                    onPress: handleGeneratePedagogicalPlan,
-                    variant: "primary",
-                  },
-                  {
-                    label: "Usar treino de quadra",
-                    onPress: () => setShowSavedClassPlans(true),
-                  },
-                ]}
-              />
-            ) : null}
-            {resistancePreview ? (
-              <>
-                <SessionContextHeader
-                  colors={colors}
-                  environment={resistancePreview.sessionEnvironment}
-                  weeklyPhysicalEmphasis={resistancePreview.weeklyContext?.weeklyPhysicalEmphasis}
-                  courtGymRelationship={resistancePreview.weeklyContext?.courtGymRelationship}
-                  transferTarget={resistancePreview.resistancePlan.transferTarget}
-                  durationMin={resistancePreview.durationMin}
-                />
-                <SessionResistanceBlock
-                  colors={colors}
-                  resistancePlan={resistancePreview.resistancePlan}
-                  durationMin={resistancePreview.durationMin}
-                />
-                {resistancePreview.sessionEnvironment === "mista" ? (
-                  <SessionResistanceNotice
-                    colors={colors}
-                    title="Ponte para a quadra"
-                    description={mixedSessionBridgeDescription}
-                  />
-                ) : null}
-              </>
-            ) : null}
+            <SessionResistanceTrainingSection
+              colors={colors}
+              showUnavailableNotice={hasUnavailableResistanceSession}
+              unavailableTitle="Sessão resistida indisponível"
+              unavailableDescription="O contexto da semana indica academia, mas os exercícios ainda não foram gerados. Você pode regenerar a sessão ou seguir com treino de quadra."
+              unavailableActions={[
+                {
+                  label:
+                    isSavingPedagogicalPlan || isGeneratingPedagogicalPlan
+                      ? "Gerando plano..."
+                      : "Regenerar sessão",
+                  onPress: handleGeneratePedagogicalPlan,
+                  variant: "primary",
+                },
+                {
+                  label: "Usar treino de quadra",
+                  onPress: () => setShowSavedClassPlans(true),
+                },
+              ]}
+              resistancePreview={resistancePreview}
+              bridgeDescription={mixedSessionBridgeDescription}
+            />
             {!resistancePreview ? (
               <SessionEmptyPlanCard
                 colors={colors}

@@ -1,6 +1,11 @@
+import { Animated } from "react-native";
+
 import { SessionDateNavigator } from "../SessionDateNavigator";
 import { SessionEmptyPlanCard } from "../SessionEmptyPlanCard";
 import { SessionObjectiveCard } from "../SessionObjectiveCard";
+import { SessionAppliedPlanSection } from "../SessionAppliedPlanSection";
+import { SessionPlanGenerationState } from "../SessionPlanGenerationState";
+import { SessionResistanceTrainingSection } from "../SessionResistanceTrainingSection";
 import { SessionTrainingBlockCard } from "../SessionTrainingBlockCard";
 
 const collectTextAndLabels = (node: unknown): string[] => {
@@ -13,12 +18,20 @@ const collectTextAndLabels = (node: unknown): string[] => {
   }
   if (typeof node === "object") {
     const maybeNode = node as {
+      type?: unknown;
       props?: {
         accessibilityLabel?: unknown;
         children?: unknown;
         placeholder?: unknown;
       };
     };
+    if (
+      typeof maybeNode.type === "function" &&
+      maybeNode.props &&
+      /^Session/.test(maybeNode.type.name)
+    ) {
+      return collectTextAndLabels(maybeNode.type(maybeNode.props));
+    }
     return [
       typeof maybeNode.props?.accessibilityLabel === "string"
         ? maybeNode.props.accessibilityLabel
@@ -212,5 +225,112 @@ describe("session training UI components", () => {
     expect(text).toContain("Próxima aula");
     expect(text).toContain("06/06/2026");
     expect(text).toContain("09:00 - 10:00");
+  });
+
+  it("renders plan generation status and training skeletons", () => {
+    const text = collectTextAndLabels(
+      SessionPlanGenerationState({
+        colors: colors as any,
+        label: "Gerando plano automático",
+        subtitle: "Preparando blocos do treino.",
+        dots: [new Animated.Value(1), new Animated.Value(1), new Animated.Value(1)],
+        pulse: new Animated.Value(1) as any,
+        animation: new Animated.Value(0),
+        showBlockSkeletons: true,
+      })
+    ).join(" ");
+
+    expect(text).toContain("Gerando plano automático");
+    expect(text).toContain("Preparando blocos do treino.");
+    expect(text).toContain("Aquecimento");
+    expect(text).toContain("Parte principal");
+    expect(text).toContain("Volta a calma");
+  });
+
+  it("renders resistance section with actionable unavailable notice", () => {
+    const text = collectTextAndLabels(
+      SessionResistanceTrainingSection({
+        colors: colors as any,
+        showUnavailableNotice: true,
+        unavailableTitle: "Sessão resistida indisponível",
+        unavailableDescription:
+          "O contexto da semana indica academia, mas os exercícios ainda não foram gerados.",
+        unavailableActions: [
+          {
+            label: "Regenerar sessão",
+            onPress: jest.fn(),
+            variant: "primary",
+          },
+        ],
+        resistancePreview: {
+          sessionEnvironment: "mista",
+          weeklyContext: {
+            weeklyPhysicalEmphasis: "forca_base",
+            courtGymRelationship: "integrado_transferencia_direta",
+          },
+          resistancePlan: {
+            primaryGoal: "Força base",
+            label: "Força base",
+            transferTarget: "salto e estabilização",
+            estimatedDurationMin: 20,
+            exercises: [
+              {
+                name: "Agachamento",
+                category: "membros_inferiores",
+                sets: 2,
+                reps: "8",
+                rest: "60s",
+              },
+            ],
+          } as any,
+          durationMin: 20,
+        },
+        bridgeDescription: "Conectar força ao salto antes do jogo reduzido.",
+      })
+    ).join(" ");
+
+    expect(text).toContain("Sessão resistida indisponível");
+    expect(text).toContain("Regenerar sessão");
+    expect(text).toContain("Sessão resistida");
+    expect(text).toContain("Ponte para a quadra");
+    expect(text).toContain("Conectar força ao salto");
+  });
+
+  it("renders applied plan blocks and keeps internal explanation hidden", () => {
+    const text = collectTextAndLabels(
+      SessionAppliedPlanSection({
+        colors: colors as any,
+        blocks: [
+          {
+            key: "warmup",
+            label: "Aquecimento • 10 min",
+            previewItems: ["Mobilidade e ativação"],
+            updated: false,
+          },
+          {
+            key: "main",
+            label: "Parte principal • 45 min",
+            previewItems: ["3x3 com três contatos"],
+            updated: true,
+          },
+          {
+            key: "cooldown",
+            label: "Volta à calma • 5 min",
+            previewItems: ["Feedback final"],
+            updated: false,
+          },
+        ],
+        isRemovingAppliedPlan: false,
+        onSelectBlock: jest.fn(),
+        onRemoveAppliedPlan: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("Aquecimento");
+    expect(text).toContain("Parte principal");
+    expect(text).toContain("Volta à calma");
+    expect(text).toContain("Remover plano do dia");
+    expect(text).not.toContain("Academia não priorizada");
+    expect(text).not.toContain("Detalhes do plano");
   });
 });
