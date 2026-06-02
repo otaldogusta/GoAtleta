@@ -47,6 +47,7 @@ import { SessionObjectiveCard } from "../../../src/screens/session/components/Se
 import { SessionPlanFabActions } from "../../../src/screens/session/components/SessionPlanFabActions";
 import { SessionPlanGenerationState } from "../../../src/screens/session/components/SessionPlanGenerationState";
 import { SessionResistanceTrainingSection } from "../../../src/screens/session/components/SessionResistanceTrainingSection";
+import { SessionScoutingTab } from "../../../src/screens/session/components/SessionScoutingTab";
 import { SessionTabBar } from "../../../src/screens/session/components/SessionTabBar";
 import { SessionTopHeader } from "../../../src/screens/session/components/SessionTopHeader";
 import { SessionUnavailableState } from "../../../src/screens/session/components/SessionUnavailableState";
@@ -119,7 +120,6 @@ import {
     getFocusSuggestion,
     getSkillMetrics,
     getTotalActions,
-    scoutingSkillHelp,
     scoutingSkills,
     type ScoutingCounts,
 } from "../../../src/core/scouting";
@@ -3626,247 +3626,34 @@ export default function SessionScreen() {
           </>
         ) : null}
         {sessionTab === "scouting" ? (
-        <View
-          style={{
-            padding: 14,
-            borderRadius: 18,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.04,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 2,
-            gap: 10,
-          }}
-        >
-          <View style={{ gap: 4 }}>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              {ptBR.scouting.title}
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {ptBR.scouting.operationHint}
-            </Text>
-            <Pressable
-              onPress={() => {
-                if (!cls) return;
-                router.push({
-                  pathname: "/class/[id]/scouting/[scoutingSessionId]",
-                  params: {
-                    id: cls.id,
-                    scoutingSessionId: `${cls.id}-${sessionDate}`,
-                    teamName: cls.name,
-                    matchType: scoutingMode === "jogo" ? "friendly" : "training_game",
-                  },
-                });
-              }}
-              disabled={!cls}
-              style={{
-                marginTop: 6,
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-                borderRadius: 12,
-                backgroundColor: colors.primaryBg,
-                alignSelf: "flex-start",
-                opacity: cls ? 1 : 0.65,
-              }}
-            >
-              <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
-                Abrir scouting com leitura do jogo
-              </Text>
-            </Pressable>
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
-              {(["treino", "jogo"] as const).map((mode) => {
-                const isActive = scoutingMode === mode;
-                return (
-                  <Pressable
-                    key={mode}
-                    onPress={() => setScoutingMode(mode)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: isActive ? colors.primaryBg : colors.border,
-                      backgroundColor: isActive ? colors.primaryBg : colors.secondaryBg,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: isActive ? colors.primaryText : colors.text,
-                        fontWeight: "700",
-                      }}
-                    >
-                      {mode === "treino" ? ptBR.scouting.modeTrain : ptBR.scouting.modeMatch}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {ptBR.scouting.totalActions}: {totalActions}
-            </Text>
-            <Pressable
-              onPress={() => setShowScoutingGuide((prev) => !prev)}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start" }}
-            >
-              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                {showScoutingGuide ? ptBR.scouting.hideGuide : ptBR.scouting.showGuide}
-              </Text>
-              <LocalIcon
-                name="down"
-                size={14}
-                color={colors.muted}
-                style={{ transform: [{ rotate: showScoutingGuide ? "180deg" : "0deg" }] }}
-              />
-            </Pressable>
-          </View>
-          {showScoutingGuide ? (
-            <View
-              style={{
-                padding: 10,
-                borderRadius: 12,
-                backgroundColor: colors.inputBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 6,
-              }}
-            >
-              <Text style={{ fontWeight: "700", color: colors.text, fontSize: 12 }}>
-                {ptBR.scouting.quickGuideTitle}
-              </Text>
-              <FlatList
-                data={scoutingSkills}
-                keyExtractor={(skill) => skill.id}
-                scrollEnabled={false}
-                contentContainerStyle={{ gap: 2 }}
-                renderItem={({ item: skill }) => (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {skill.label}: {scoutingSkillHelp[skill.id].join(" | ")}
-                  </Text>
-                )}
-              />
-            </View>
-          ) : null}
-          <View style={{ gap: 10 }}>
-            <FlatList
-              data={scoutingSkills}
-              keyExtractor={(skill) => skill.id}
-              scrollEnabled={false}
-              contentContainerStyle={{ gap: 10 }}
-              renderItem={({ item: skill, index }) => {
-                const metrics = scoutingTotals[index];
-                const counts = scoutingCounts[skill.id];
-                const goodPct = Math.round(metrics.goodPct * 100);
-                const shortGuide = scoutingSkillHelp[skill.id]
-                  .map((line, idx) => `${idx} ${line}`)
-                  .join(" • ");
-                return (
-                  <View
-                    style={{
-                      padding: 12,
-                      borderRadius: 14,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      gap: 8,
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                      <Text style={{ fontWeight: "700", color: colors.text }}>
-                        {skill.label}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {metrics.total} ações | {ptBR.scouting.averageLabel} {metrics.avg.toFixed(2)}
-                      </Text>
-                    </View>
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>{shortGuide}</Text>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {([0, 1, 2] as const).map((score) => {
-                        const palette =
-                          score === 2
-                            ? { bg: colors.successBg, text: colors.successText }
-                            : score === 1
-                              ? { bg: colors.inputBg, text: colors.text }
-                              : { bg: colors.dangerSolidBg, text: colors.dangerSolidText };
-                        return (
-                          <Pressable
-                            key={score}
-                            onPress={() => updateScoutingCount(skill.id, score, 1)}
-                            onLongPress={() => updateScoutingCount(skill.id, score, -1)}
-                            onContextMenu={(event) => {
-                              if (event && typeof (event as { preventDefault?: () => void }).preventDefault === "function") {
-                                (event as { preventDefault: () => void }).preventDefault();
-                              }
-                              updateScoutingCount(skill.id, score, -1);
-                            }}
-                            delayLongPress={200}
-                            style={{
-                              flex: 1,
-                              paddingVertical: 8,
-                              borderRadius: 12,
-                              alignItems: "center",
-                              backgroundColor: palette.bg,
-                            }}
-                          >
-                            <Text style={{ color: palette.text, fontWeight: "700" }}>
-                              {score}
-                            </Text>
-                            <Text style={{ color: palette.text, fontSize: 11, opacity: 0.9 }}>
-                              x{counts[score]}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {ptBR.scouting.goodRateLabel}: {goodPct}%
-                    </Text>
-                  </View>
-                );
-              }}
-            />
-          </View>
-          {focusSuggestion ? (
-            <View style={{ gap: 6 }}>
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                {ptBR.scouting.nextSessionFocus}: {focusSuggestion.label}
-              </Text>
-              <Text style={{ color: colors.muted }}>{focusSuggestion.text}</Text>
-            </View>
-          ) : (
-            <Text style={{ color: colors.muted }}>
-              {ptBR.scouting.minimumActionsHint}
-            </Text>
-          )}
-          <Pressable
-            onPress={handleSaveScouting}
-            disabled={!scoutingHasChanges || scoutingSaving}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor:
-                !scoutingHasChanges || scoutingSaving
-                  ? colors.primaryDisabledBg
-                  : colors.primaryBg,
-              alignItems: "center",
+          <SessionScoutingTab
+            colors={colors}
+            canOpenAdvancedScouting={!!cls}
+            scoutingMode={scoutingMode}
+            totalActions={totalActions}
+            showScoutingGuide={showScoutingGuide}
+            scoutingCounts={scoutingCounts}
+            scoutingTotals={scoutingTotals}
+            focusSuggestion={focusSuggestion}
+            scoutingHasChanges={scoutingHasChanges}
+            scoutingSaving={scoutingSaving}
+            onOpenAdvancedScouting={() => {
+              if (!cls) return;
+              router.push({
+                pathname: "/class/[id]/scouting/[scoutingSessionId]",
+                params: {
+                  id: cls.id,
+                  scoutingSessionId: `${cls.id}-${sessionDate}`,
+                  teamName: cls.name,
+                  matchType: scoutingMode === "jogo" ? "friendly" : "training_game",
+                },
+              });
             }}
-          >
-            <Text
-              style={{
-                color:
-                  !scoutingHasChanges || scoutingSaving
-                    ? colors.secondaryText
-                    : colors.primaryText,
-                fontWeight: "700",
-              }}
-            >
-              {ptBR.scouting.saveAction}
-            </Text>
-          </Pressable>
-        </View>
+            onChangeScoutingMode={setScoutingMode}
+            onToggleScoutingGuide={() => setShowScoutingGuide((prev) => !prev)}
+            onUpdateScoutingCount={updateScoutingCount}
+            onSaveScouting={handleSaveScouting}
+          />
         ) : null}
         {sessionTab === "relatório" ? (
         <View

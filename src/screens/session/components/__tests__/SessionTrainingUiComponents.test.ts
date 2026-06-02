@@ -6,6 +6,7 @@ import { SessionObjectiveCard } from "../SessionObjectiveCard";
 import { SessionAppliedPlanSection } from "../SessionAppliedPlanSection";
 import { SessionPlanGenerationState } from "../SessionPlanGenerationState";
 import { SessionResistanceTrainingSection } from "../SessionResistanceTrainingSection";
+import { SessionScoutingTab } from "../SessionScoutingTab";
 import { SessionTrainingBlockCard } from "../SessionTrainingBlockCard";
 
 const collectTextAndLabels = (node: unknown): string[] => {
@@ -332,5 +333,49 @@ describe("session training UI components", () => {
     expect(text).toContain("Remover plano do dia");
     expect(text).not.toContain("Academia não priorizada");
     expect(text).not.toContain("Detalhes do plano");
+  });
+
+  it("renders the scouting tab with guide, score controls and save action", () => {
+    const text = collectTextAndLabels(
+      SessionScoutingTab({
+        colors: colors as any,
+        canOpenAdvancedScouting: true,
+        scoutingMode: "treino",
+        totalActions: 3,
+        showScoutingGuide: true,
+        scoutingCounts: {
+          serve: { 0: 1, 1: 1, 2: 1 },
+          receive: { 0: 0, 1: 0, 2: 0 },
+          set: { 0: 0, 1: 0, 2: 0 },
+          attack_send: { 0: 0, 1: 0, 2: 0 },
+        },
+        scoutingTotals: [
+          { total: 3, avg: 1, goodPct: 1 / 3 },
+          { total: 0, avg: 0, goodPct: 0 },
+          { total: 0, avg: 0, goodPct: 0 },
+          { total: 0, avg: 0, goodPct: 0 },
+        ],
+        focusSuggestion: {
+          label: "Saque",
+          text: "Saque por baixo curto e por zonas.",
+        },
+        scoutingHasChanges: true,
+        scoutingSaving: false,
+        onOpenAdvancedScouting: jest.fn(),
+        onChangeScoutingMode: jest.fn(),
+        onToggleScoutingGuide: jest.fn(),
+        onUpdateScoutingCount: jest.fn(),
+        onSaveScouting: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("Scouting");
+    expect(text).toContain("Abrir scouting com leitura do jogo");
+    expect(text).toContain("Treino");
+    expect(text).toContain("Jogo");
+    expect(text).toContain("Saque");
+    expect(text).toContain("x 1");
+    expect(text).toContain("Salvar scouting");
+    expect(text).not.toMatch(/[\uF000-\uF8FF]/);
   });
 });
