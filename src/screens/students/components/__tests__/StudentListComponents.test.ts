@@ -7,6 +7,7 @@ import {
 } from "../StudentClassDropdownPanel";
 import {
   StudentClassOptionContent,
+  StudentMultiSelectOptionContent,
   StudentSelectOptionContent,
 } from "../StudentDropdownOptions";
 import { StudentListRowContent } from "../StudentListRow";
@@ -188,6 +189,22 @@ describe("student list components", () => {
     ).join(" ");
 
     expect(text).toContain("Aluno regular");
+    expect(text).not.toMatch(/[\uF000-\uF8FF]/);
+  });
+
+  it("renders multi-select dropdown options without private glyph text", () => {
+    const text = collectTextAndLabels(
+      StudentMultiSelectOptionContent({
+        colors,
+        label: "Rede Esportes Pinhais",
+        value: "Rede Esportes Pinhais",
+        active: true,
+        isFirst: true,
+        onToggle: jest.fn(),
+      })
+    ).join(" ");
+
+    expect(text).toContain("Rede Esportes Pinhais");
     expect(text).not.toMatch(/[\uF000-\uF8FF]/);
   });
 

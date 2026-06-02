@@ -22,6 +22,7 @@ export type UseOnEditStudentParams = {
   setStudentFormError: (value: string) => void;
   setStudentDocumentsError: (value: { ra?: string; cpf?: string; rg?: string }) => void;
   setShowEditModal: (value: boolean) => void;
+  setEditUnitFilters: (value: string[]) => void;
   setUnit: (value: string) => void;
   setAgeBand: (value: string) => void;
   setCustomAgeBand: (value: string) => void;
@@ -100,6 +101,7 @@ export function useOnEditStudent({
   setStudentFormError,
   setStudentDocumentsError,
   setShowEditModal,
+  setEditUnitFilters,
   setUnit,
   setAgeBand,
   setCustomAgeBand,
@@ -186,6 +188,7 @@ export function useOnEditStudent({
         const medicationNotesValue = safeText(student.medicationNotes);
         const healthObservationsValue = safeText(student.healthObservations);
         setUnit(nextUnit);
+        setEditUnitFilters(nextUnit ? [nextUnit] : []);
         setAgeBand(nextAgeBand);
         setCustomAgeBand(nextCustomAgeBand);
         setClassId(nextClassId);
@@ -272,6 +275,7 @@ export function useOnEditStudent({
       setStudentFormError,
       setStudentDocumentsError,
       setShowEditModal,
+      setEditUnitFilters,
       setUnit,
       setAgeBand,
       setCustomAgeBand,

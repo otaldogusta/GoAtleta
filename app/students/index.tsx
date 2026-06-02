@@ -337,6 +337,7 @@ export default function StudentsScreen() {
   const [showEditClassPicker, setShowEditClassPicker] = useState(false);
   const [showEditGuardianRelationPicker, setShowEditGuardianRelationPicker] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [editUnitFilters, setEditUnitFilters] = useState<string[]>([]);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
@@ -403,12 +404,6 @@ export default function StudentsScreen() {
       return value;
     });
   }, []);
-  const [editUnitTriggerLayout, setEditUnitTriggerLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const [editClassTriggerLayout, setEditClassTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -687,14 +682,20 @@ export default function StudentsScreen() {
     setShowTypePicker(false);
   }, []);
 
-  const handleSelectEditUnit = useCallback((value: string) => {
-    setUnit(value);
-    setShowEditUnitPicker(false);
+  const handleToggleEditUnitFilter = useCallback((value: string) => {
+    setEditUnitFilters((current) => {
+      if (current.includes(value)) {
+        return current.filter((item) => item !== value);
+      }
+      return [...current, value];
+    });
   }, []);
 
   const handleSelectEditClass = useCallback((value: ClassGroup) => {
+    const nextUnit = unitLabel(value.unit);
     setClassId(value.id);
-    setUnit(unitLabel(value.unit));
+    setUnit(nextUnit);
+    setEditUnitFilters((current) => current.includes(nextUnit) ? current : [...current, nextUnit]);
     setAgeBand(value.ageBand);
     setCustomAgeBand("");
     setShowEditClassPicker(false);
@@ -737,14 +738,9 @@ export default function StudentsScreen() {
 
   const syncEditPickerLayouts = useCallback(() => {
     const hasPickerOpen =
-      showEditUnitPicker || showEditClassPicker || showEditGuardianRelationPicker;
+      showEditClassPicker || showEditGuardianRelationPicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
-      if (showEditUnitPicker) {
-        editUnitTriggerRef.current?.measureInWindow((x, y, width, height) => {
-          setEditUnitTriggerLayout({ x, y, width, height });
-        });
-      }
       if (showEditClassPicker) {
         editClassTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setEditClassTriggerLayout({ x, y, width, height });
@@ -759,7 +755,7 @@ export default function StudentsScreen() {
         setEditContainerWindow({ x, y });
       });
     });
-  }, [showEditClassPicker, showEditGuardianRelationPicker, showEditUnitPicker]);
+  }, [showEditClassPicker, showEditGuardianRelationPicker]);
 
   const syncTemplateLayout = useCallback(() => {
     requestAnimationFrame(() => {
@@ -836,7 +832,6 @@ export default function StudentsScreen() {
     if (showEditModal) syncEditPickerLayouts();
   }, [
     showEditModal,
-    showEditUnitPicker,
     showEditClassPicker,
     showEditGuardianRelationPicker,
     syncEditPickerLayouts,
@@ -1318,6 +1313,7 @@ export default function StudentsScreen() {
   const closeEditModal = () => {
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
+    setEditUnitFilters([]);
     closeAllEditPickers();
     doResetForm();
   };
@@ -1595,6 +1591,7 @@ export default function StudentsScreen() {
     setStudentFormError,
     setStudentDocumentsError,
     setShowEditModal,
+    setEditUnitFilters,
     setUnit,
     setAgeBand,
     setCustomAgeBand,
@@ -1773,6 +1770,14 @@ export default function StudentsScreen() {
     }
     return sortClassesBySchedule(classes);
   }, [classes, unit, unitLabel]);
+  const editClassOptions = useMemo(() => {
+    if (!classes.length) return [];
+    if (!editUnitFilters.length) return sortClassesBySchedule(classes);
+    const selectedUnits = new Set(editUnitFilters);
+    return sortClassesBySchedule(
+      classes.filter((item) => selectedUnits.has(unitLabel(item.unit)))
+    );
+  }, [classes, editUnitFilters, unitLabel]);
   const selectedClassModality = useMemo(
     () => classById.get(classId)?.modality ?? null,
     [classById, classId]
@@ -2630,7 +2635,6 @@ export default function StudentsScreen() {
         editGuardianRelationTriggerLayout={editGuardianRelationTriggerLayout}
         editGuardianRelationPickerAnimStyle={editGuardianRelationPickerAnimStyle}
         handleSelectEditGuardianRelation={handleSelectEditGuardianRelation}
-        unit={unit}
         editUnitTriggerRef={editUnitTriggerRef}
         showEditUnitPicker={showEditUnitPicker}
         selectedClassName={selectedClassLabel}
@@ -2639,11 +2643,11 @@ export default function StudentsScreen() {
         editLinksSummary={editLinksSummary}
         unitOptions={unitOptions}
         showEditUnitPickerContent={showEditUnitPickerContent}
-        editUnitTriggerLayout={editUnitTriggerLayout}
         editContainerWindow={editContainerWindow}
         editUnitPickerAnimStyle={editUnitPickerAnimStyle}
-        handleSelectEditUnit={handleSelectEditUnit}
-        classOptions={classOptions}
+        selectedUnitFilters={editUnitFilters}
+        handleToggleEditUnitFilter={handleToggleEditUnitFilter}
+        classOptions={editClassOptions}
         classId={classId}
         showEditClassPickerContent={showEditClassPickerContent}
         editClassTriggerLayout={editClassTriggerLayout}

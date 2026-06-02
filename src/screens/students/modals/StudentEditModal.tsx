@@ -30,6 +30,7 @@ import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../comp
 import { StudentAcademicFields } from "../components/StudentAcademicFields";
 import { StudentClassDropdownList } from "../components/StudentClassDropdownPanel";
 import { StudentDocumentsFields } from "../components/StudentDocumentsFields";
+import { StudentMultiSelectOption } from "../components/StudentDropdownOptions";
 
 type CollapsibleAnim = {
     animatedStyle: any;
@@ -165,7 +166,6 @@ export type StudentEditModalProps = {
     handleSelectEditGuardianRelation: (value: string) => void;
 
     // Links
-    unit: string;
     editUnitTriggerRef: RefObject<View | null>;
     showEditUnitPicker: boolean;
     selectedClassName: string;
@@ -174,10 +174,10 @@ export type StudentEditModalProps = {
     editLinksSummary: string;
     unitOptions: string[];
     showEditUnitPickerContent: boolean;
-    editUnitTriggerLayout: Layout | null;
     editContainerWindow: Point | null;
     editUnitPickerAnimStyle: any;
-    handleSelectEditUnit: (value: string) => void;
+    selectedUnitFilters: string[];
+    handleToggleEditUnitFilter: (value: string) => void;
     classOptions: ClassGroup[];
     classId: string;
     showEditClassPickerContent: boolean;
@@ -294,7 +294,6 @@ export function StudentEditModal({
     editGuardianRelationTriggerLayout,
     editGuardianRelationPickerAnimStyle,
     handleSelectEditGuardianRelation,
-    unit,
     editUnitTriggerRef,
     showEditUnitPicker,
     selectedClassName,
@@ -303,10 +302,10 @@ export function StudentEditModal({
     editLinksSummary,
     unitOptions,
     showEditUnitPickerContent,
-    editUnitTriggerLayout,
     editContainerWindow,
     editUnitPickerAnimStyle,
-    handleSelectEditUnit,
+    selectedUnitFilters,
+    handleToggleEditUnitFilter,
     classOptions,
     classId,
     showEditClassPickerContent,
@@ -333,6 +332,11 @@ export function StudentEditModal({
         () => Array.from(new Set(classOptions.map((item) => item.modality))),
         [classOptions]
     );
+    const selectedUnitFilterLabel = useMemo(() => {
+        if (selectedUnitFilters.length === 0) return "Todas as unidades";
+        if (selectedUnitFilters.length === 1) return selectedUnitFilters[0] ?? "Todas as unidades";
+        return `${selectedUnitFilters.length} unidades selecionadas`;
+    }, [selectedUnitFilters]);
     const filteredClassOptions = useMemo(
         () =>
             classModalityFilter === "all"
@@ -848,7 +852,7 @@ export function StudentEditModal({
                                                     <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
                                                     <View ref={editUnitTriggerRef}>
                                                         <Pressable onPress={() => toggleEditPicker("unit")} style={selectFieldStyle as StyleProp<ViewStyle>}>
-                                                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{unit || "Selecione a unidade"}</Text>
+                                                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{selectedUnitFilterLabel}</Text>
                                                             <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }} />
                                                         </Pressable>
                                                     </View>
@@ -863,6 +867,43 @@ export function StudentEditModal({
                                                     </View>
                                                 </View>
                                             </View>
+                                            {showEditUnitPickerContent ? (
+                                                <Animated.View style={[editUnitPickerAnimStyle, { overflow: "hidden" }]}>
+                                                    <View
+                                                        style={{
+                                                            maxHeight: 220,
+                                                            borderWidth: 1,
+                                                            borderColor: colors.border,
+                                                            borderRadius: 14,
+                                                            backgroundColor: colors.card,
+                                                            overflow: "hidden",
+                                                        }}
+                                                    >
+                                                        <ScrollView
+                                                            nestedScrollEnabled
+                                                            showsVerticalScrollIndicator
+                                                            contentContainerStyle={{ padding: 8, gap: 6 }}
+                                                        >
+                                                            {unitOptions.length ? (
+                                                                unitOptions.map((item, index) => (
+                                                                    <StudentMultiSelectOption
+                                                                        key={item}
+                                                                        label={item}
+                                                                        value={item}
+                                                                        active={selectedUnitFilters.includes(item)}
+                                                                        onToggle={handleToggleEditUnitFilter}
+                                                                        isFirst={index === 0}
+                                                                    />
+                                                                ))
+                                                            ) : (
+                                                                <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+                                                                    Nenhuma unidade cadastrada.
+                                                                </Text>
+                                                            )}
+                                                        </ScrollView>
+                                                    </View>
+                                                </Animated.View>
+                                            ) : null}
                                             <ClassModalityFilterChips
                                                 colors={colors}
                                                 value={classModalityFilter}
@@ -870,9 +911,17 @@ export function StudentEditModal({
                                                 onChange={setClassModalityFilter}
                                             />
                                             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                                                <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-                                                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>{unit || "Sem unidade"}</Text>
-                                                </View>
+                                                {selectedUnitFilters.length ? (
+                                                    selectedUnitFilters.map((item) => (
+                                                        <View key={item} style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+                                                            <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>{item}</Text>
+                                                        </View>
+                                                    ))
+                                                ) : (
+                                                    <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+                                                        <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>Todas as unidades</Text>
+                                                    </View>
+                                                )}
                                                 <View style={{ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
                                                     <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>{selectedClassName || "Sem turma"}</Text>
                                                 </View>
@@ -926,35 +975,6 @@ export function StudentEditModal({
                     </View>
 
                     <AnchoredDropdown
-                        visible={showEditUnitPickerContent}
-                        layout={editUnitTriggerLayout ? editUnitTriggerLayout : null}
-                        container={editContainerWindow}
-                        animationStyle={editUnitPickerAnimStyle}
-                        zIndex={420}
-                        maxHeight={220}
-                        nestedScrollEnabled
-                        onRequestClose={closeAllEditPickers}
-                        scrollContentStyle={{ padding: 8, gap: 6 }}
-                    >
-                        {unitOptions.length ? (
-                            unitOptions.map((item, index) => (
-                                <SelectOption
-                                    key={item}
-                                    label={item}
-                                    value={item}
-                                    active={item === unit}
-                                    onSelect={handleSelectEditUnit}
-                                    isFirst={index === 0}
-                                />
-                            ))
-                        ) : (
-                            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-                                Nenhuma unidade cadastrada.
-                            </Text>
-                        )}
-                    </AnchoredDropdown>
-
-                    <AnchoredDropdown
                         visible={showEditClassPickerContent}
                         layout={
                             editClassTriggerLayout
@@ -966,6 +986,7 @@ export function StudentEditModal({
                         zIndex={420}
                         maxHeight={240}
                         nestedScrollEnabled
+                        interactiveRefs={[editClassTriggerRef]}
                         onRequestClose={closeAllEditPickers}
                         scrollContentStyle={{ padding: 8, gap: 6 }}
                     >
@@ -990,6 +1011,7 @@ export function StudentEditModal({
                         zIndex={420}
                         maxHeight={160}
                         nestedScrollEnabled
+                        interactiveRefs={[editGuardianRelationTriggerRef]}
                         onRequestClose={closeAllEditPickers}
                         scrollContentStyle={{ padding: 8, gap: 6 }}
                     >

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import { Text, View } from "react-native";
 
@@ -21,6 +22,14 @@ export type StudentClassOptionProps = {
   isFirst: boolean;
 };
 
+export type StudentMultiSelectOptionProps = {
+  label: string;
+  value: string;
+  active: boolean;
+  onToggle: (value: string) => void;
+  isFirst: boolean;
+};
+
 export const StudentSelectOption = memo(function StudentSelectOption(
   props: StudentSelectOptionProps
 ) {
@@ -38,6 +47,46 @@ export function StudentSelectOptionContent({
 }: StudentSelectOptionProps & { colors: ThemeColors }) {
   return (
     <AnchoredDropdownOption active={active} onPress={() => onSelect(value)}>
+      <Text
+        style={{
+          color: active ? colors.primaryText : colors.text,
+          fontSize: 14,
+          fontWeight: active ? "700" : "500",
+        }}
+      >
+        {label}
+      </Text>
+    </AnchoredDropdownOption>
+  );
+}
+
+export const StudentMultiSelectOption = memo(function StudentMultiSelectOption(
+  props: StudentMultiSelectOptionProps
+) {
+  const { colors } = useAppTheme();
+
+  return <StudentMultiSelectOptionContent colors={colors} {...props} />;
+});
+
+export function StudentMultiSelectOptionContent({
+  colors,
+  label,
+  value,
+  active,
+  onToggle,
+}: StudentMultiSelectOptionProps & { colors: ThemeColors }) {
+  return (
+    <AnchoredDropdownOption
+      active={active}
+      onPress={() => onToggle(value)}
+      rightAccessory={
+        <Ionicons
+          name={active ? "checkbox" : "square-outline"}
+          size={18}
+          color={active ? colors.primaryText : colors.muted}
+        />
+      }
+    >
       <Text
         style={{
           color: active ? colors.primaryText : colors.text,
