@@ -563,9 +563,10 @@ export default function ClassDetails() {
     setDuration(durationMinutes ? String(durationMinutes) : "");
   }, [endTime, startTime]);
 
+  const rosterMonthKey = formatMonthKey(rosterMonthValue);
   const rosterMonthEntries = useMemo(
-    () => (cls ? buildRosterMonthEntries(rosterMonthValue, cls.daysOfWeek) : []),
-    [cls, rosterMonthValue]
+    () => (cls ? buildRosterMonthEntries(rosterMonthKey, cls.daysOfWeek) : []),
+    [cls, rosterMonthKey]
   );
   const rosterPreviewDays = useMemo(
     () => rosterMonthEntries.map((entry) => entry.day),
@@ -1237,10 +1238,10 @@ export default function ClassDetails() {
       const timeLabel = timeParts
         ? formatTimeRange(timeParts.hour, timeParts.minute, classDuration)
         : classStartTime;
-      const monthLabel = formatMonthLabel(monthValue);
-      const monthEntries = buildRosterMonthEntries(monthValue, classDays);
-      const monthDays = monthEntries.map((entry) => entry.day);
       const monthKey = formatMonthKey(monthValue);
+      const monthLabel = formatMonthLabel(monthValue);
+      const monthEntries = buildRosterMonthEntries(monthKey, classDays);
+      const monthDays = monthEntries.map((entry) => entry.day);
       const todayKey = new Date().toISOString().split("T")[0];
       const attendanceByStudentDay: Record<string, Record<number, "P" | "F">> = {};
       const firstAttendanceByStudent: Record<string, string> = {};

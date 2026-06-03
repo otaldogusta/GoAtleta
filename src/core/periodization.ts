@@ -31,11 +31,18 @@ const normalizeText = (value: string) =>
 const includesAny = (text: string, terms: string[]) =>
   terms.some((term) => text.includes(term));
 
+const normalizeRosterMonthKey = (value: string) => {
+  const match = String(value ?? "").match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (!match) return "";
+  return `${match[1]}-${match[2]}`;
+};
+
 export const buildRosterMonthEntries = (
   value: string,
   classDaysOfWeek: number[]
 ): RosterMonthEntry[] => {
-  const parsed = new Date(`${value}-01T00:00:00`);
+  const monthKey = normalizeRosterMonthKey(value);
+  const parsed = monthKey ? new Date(`${monthKey}-01T00:00:00`) : new Date();
   const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
   const year = date.getFullYear();
   const monthIndex = date.getMonth();
