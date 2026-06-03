@@ -20,7 +20,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
-import type { ClassGroup, ScoutingLog, Student, TrainingPlan } from "../../src/core/models";
+import type { ClassGroup, ScoutingLog, TrainingPlan } from "../../src/core/models";
 import {
     ROSTER_FUNDAMENTALS,
     buildRosterFundamentalsByDay,
@@ -62,6 +62,7 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
+import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
@@ -104,9 +105,9 @@ type RosterFundamentalOverrides = Record<number, Partial<Record<RosterFundamenta
 const buildRosterExportOptions = (): RosterExportOptions => ({
   includeAttendance: true,
   includeBirthDate: true,
-  includeCourse: true,
+  includeCourse: false,
   includeContact: false,
-  includeFundamentals: true,
+  includeFundamentals: false,
 });
 
 const ROSTER_COLUMN_OPTIONS = [
@@ -129,11 +130,6 @@ const ROSTER_COLUMN_OPTIONS = [
     key: "includeContact" as const,
     label: "Contato",
     description: "Telefone do aluno ou responsável",
-  },
-  {
-    key: "includeFundamentals" as const,
-    label: "Fundamentos",
-    description: "Quadro automático da periodização",
   },
 ] as const;
 
@@ -223,7 +219,14 @@ export default function ClassDetails() {
     maxHeight: "82%",
     maxWidth: 520,
   });
-  const rosterModalCardStyle = useModalCardStyle({ maxHeight: "86%", maxWidth: 820 });
+  const rosterModalCardStyle = useModalCardStyle({
+    maxHeight: Platform.OS === "web" ? "90%" : "94%",
+    maxWidth: 820,
+    padding: 16,
+    radius: 18,
+  });
+  const rosterModalHeight = Platform.OS === "web" ? "82%" : "90%";
+  const rosterColumnsHeaderWidth = Math.min(260, Math.max(170, windowWidth * 0.34));
   const isCompactEditModal = Platform.OS !== "web" && windowWidth <= 760;
   const editModalCardStyle = useModalCardStyle({
     maxHeight: Platform.OS === "web" ? "92%" : "96%",
@@ -266,12 +269,19 @@ export default function ClassDetails() {
   const [editingRosterFundamentalValue, setEditingRosterFundamentalValue] = useState("");
   const [showRosterMonthPicker, setShowRosterMonthPicker] = useState(false);
   const [showRosterExportModal, setShowRosterExportModal] = useState(false);
+  const [showRosterColumnsPicker, setShowRosterColumnsPicker] = useState(false);
+  const [rosterColumnsTriggerLayout, setRosterColumnsTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const rosterColumnsTriggerRef = useRef<View>(null);
   const [showClassFabMenu, setShowClassFabMenu] = useState(false);
   const classFabAnim = useRef(new Animated.Value(0)).current;
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [loading, setLoading] = useState(true);
   const [scoutingLoading, setScoutingLoading] = useState(true);
-  const [classStudents, setClassStudents] = useState<Student[]>([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showEditAgeBandPicker, setShowEditAgeBandPicker] = useState(false);
@@ -572,6 +582,10 @@ export default function ClassDetails() {
     () => rosterMonthEntries.map((entry) => entry.day),
     [rosterMonthEntries]
   );
+  const selectedRosterColumnsLabel =
+    ROSTER_COLUMN_OPTIONS.filter((option) => rosterExportOptions[option.key])
+      .map((option) => option.label)
+      .join(", ") || "Nenhuma coluna selecionada";
   const rosterAutoFundamentalsByDay = useMemo(
     () =>
       cls
@@ -610,7 +624,6 @@ export default function ClassDetails() {
     () => Object.keys(rosterFundamentalOverrides).length > 0,
     [rosterFundamentalOverrides]
   );
-  const rosterPreviewStudents = useMemo(() => classStudents.slice(0, 3), [classStudents]);
   const clsId = cls?.id ?? "";
   const clsUnit = cls?.unit ?? "";
   const currentUnit = unit.trim() || clsUnit || "Sem unidade";
@@ -1068,7 +1081,6 @@ export default function ClassDetails() {
         | "includeBirthDate"
         | "includeCourse"
         | "includeContact"
-        | "includeFundamentals"
     ) => {
       setRosterExportOptions((prev) => ({
         ...prev,
@@ -1077,6 +1089,52 @@ export default function ClassDetails() {
     },
     []
   );
+
+  const toggleRosterFundamentalsExport = useCallback(() => {
+    setRosterExportOptions((prev) => {
+      const nextEnabled = !prev.includeFundamentals;
+      if (!nextEnabled) {
+        setEditingRosterFundamentalIndex(null);
+        setEditingRosterFundamentalValue("");
+      }
+
+      return {
+        ...prev,
+        includeFundamentals: nextEnabled,
+      };
+    });
+  }, []);
+
+  const closeRosterExportModal = useCallback(() => {
+    setShowRosterColumnsPicker(false);
+    setShowRosterExportModal(false);
+  }, []);
+
+  const toggleRosterColumnsPicker = useCallback(() => {
+    if (showRosterColumnsPicker) {
+      setShowRosterColumnsPicker(false);
+      return;
+    }
+
+    const measureTrigger = () => {
+      rosterColumnsTriggerRef.current?.measureInWindow((x, y, width, height) => {
+        setRosterColumnsTriggerLayout({ x, y, width, height });
+        setShowRosterColumnsPicker(true);
+      });
+    };
+
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(measureTrigger);
+      return;
+    }
+
+    measureTrigger();
+  }, [showRosterColumnsPicker]);
+
+  const openRosterMonthPicker = useCallback(() => {
+    setShowRosterColumnsPicker(false);
+    setShowRosterMonthPicker(true);
+  }, []);
 
   const toggleRosterFundamentalCell = useCallback(
     (day: number, fundamental: RosterFundamental) => {
@@ -1207,6 +1265,7 @@ export default function ClassDetails() {
   const handleExportRoster = async () => {
     if (!cls) return;
     setRosterExportOptions(buildRosterExportOptions());
+    setShowRosterColumnsPicker(false);
     setShowRosterExportModal(true);
   };
 
@@ -1395,6 +1454,17 @@ export default function ClassDetails() {
 
   const handleRosterMonthChange = (value: string) => {
     setRosterMonthValue(value);
+  };
+
+  const shiftRosterMonth = (direction: -1 | 1) => {
+    setShowRosterColumnsPicker(false);
+    setRosterMonthValue((current) => {
+      const date = parseIsoDate(current) ?? new Date();
+      const next = new Date(date.getFullYear(), date.getMonth() + direction, 1);
+      const year = next.getFullYear();
+      const month = String(next.getMonth() + 1).padStart(2, "0");
+      return `${year}-${month}-01`;
+    });
   };
 
   const handleWhatsAppGroup = async () => {
@@ -2241,24 +2311,95 @@ export default function ClassDetails() {
 
       </ModalSheet>
 
-            <ModalSheet
+      <ModalSheet
         visible={showRosterExportModal}
-        onClose={() => setShowRosterExportModal(false)}
+        onClose={closeRosterExportModal}
         position="center"
-        cardStyle={rosterModalCardStyle}
+        cardStyle={[
+          rosterModalCardStyle,
+          {
+            height: rosterModalHeight,
+            minHeight: 560,
+            overflow: "hidden",
+          },
+        ]}
       >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ gap: 14, paddingBottom: 6 }}
-        >
-          <View style={{ gap: 4 }}>
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              Exportar lista de chamada
-            </Text>
-            <Text style={{ fontSize: 12, color: colors.muted }}>
-              Marque as colunas e veja a prévia antes de baixar.
-            </Text>
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              paddingBottom: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            }}
+          >
+            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+                Exportar lista de chamada
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View ref={rosterColumnsTriggerRef} style={{ width: rosterColumnsHeaderWidth }}>
+                <Pressable
+                  onPress={toggleRosterColumnsPicker}
+                  accessibilityRole="button"
+                  accessibilityLabel="Selecionar colunas do PDF"
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                gap: 8,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                borderRadius: 12,
+                borderWidth: 1,
+                    borderColor: showRosterColumnsPicker ? colors.primaryBg : colors.border,
+                backgroundColor: colors.inputBg,
+                  }}
+                >
+                  <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                      Colunas do PDF
+                    </Text>
+                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 10 }}>
+                      {selectedRosterColumnsLabel}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name={showRosterColumnsPicker ? "chevron-up" : "chevron-down"}
+                    size={16}
+                    color={colors.muted}
+                  />
+                </Pressable>
+              </View>
+              <Pressable
+                onPress={closeRosterExportModal}
+                accessibilityRole="button"
+                accessibilityLabel="Fechar exportação da lista"
+                style={{
+                  height: 34,
+                  width: 34,
+                  borderRadius: 17,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Ionicons name="close" size={18} color={colors.text} />
+              </Pressable>
+            </View>
           </View>
+
+          <ScrollView
+            style={{ flex: 1, minHeight: 0 }}
+            showsVerticalScrollIndicator
+            onScrollBeginDrag={() => setShowRosterColumnsPicker(false)}
+            contentContainerStyle={{ gap: 14, paddingBottom: 18, paddingTop: 14 }}
+          >
 
           <View style={{ gap: 6 }}>
             <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
@@ -2268,183 +2409,157 @@ export default function ClassDetails() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
+                gap: 8,
               }}
             >
-              <View
+              <Pressable
+                onPress={() => shiftRosterMonth(-1)}
+                accessibilityRole="button"
+                accessibilityLabel="Mês anterior"
+                hitSlop={8}
                 style={{
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
+                  width: 44,
+                  height: 44,
+                  alignItems: "center",
+                  justifyContent: "center",
                   borderRadius: 12,
                   backgroundColor: colors.inputBg,
                   borderWidth: 1,
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                <Ionicons name="chevron-back" size={20} color={colors.muted} />
+              </Pressable>
+              <Pressable
+                onPress={openRosterMonthPicker}
+                accessibilityRole="button"
+                accessibilityLabel="Escolher mês da lista"
+                style={{
+                  flex: 1,
+                  height: 44,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  paddingHorizontal: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", textAlign: "center" }}>
                   {formatMonthLabel(rosterMonthValue)}
                 </Text>
-              </View>
+              </Pressable>
               <Pressable
-                onPress={() => setShowRosterMonthPicker(true)}
+                onPress={() => shiftRosterMonth(1)}
+                accessibilityRole="button"
+                accessibilityLabel="Próximo mês"
+                hitSlop={8}
                 style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 12,
+                  width: 44,
+                  height: 44,
+                  alignItems: "center",
+                  justifyContent: "center",
                   borderRadius: 12,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+              </Pressable>
+            </View>
+          </View>
+
+          {rosterExportOptions.includeFundamentals && hasRosterFundamentalOverrides ? (
+            <View style={{ alignItems: "flex-end" }}>
+              <Pressable
+                onPress={clearRosterFundamentalOverrides}
+                style={{
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
                   backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                  Escolher
+                <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                  Limpar ajustes
                 </Text>
               </Pressable>
             </View>
-          </View>
-
-          <View style={{ gap: 8 }}>
-            <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
-              Colunas do PDF
-            </Text>
-            <View style={{ gap: 8 }}>
-              {ROSTER_COLUMN_OPTIONS.map((option) => {
-                const active = rosterExportOptions[option.key];
-                return (
-                  <Pressable
-                    key={option.key}
-                    onPress={() => toggleRosterBooleanOption(option.key)}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: 12,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: active ? colors.primaryBg : colors.border,
-                      backgroundColor: active ? colors.primaryBg : colors.card,
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name={active ? "checkbox-marked" : "checkbox-blank-outline"}
-                      size={20}
-                      color={active ? colors.primaryText : colors.text}
-                    />
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text
-                        style={{
-                          color: active ? colors.primaryText : colors.text,
-                          fontSize: 14,
-                          fontWeight: "700",
-                        }}
-                      >
-                        {option.label}
-                      </Text>
-                      <Text
-                        style={{
-                          color: active ? colors.primaryText : colors.muted,
-                          fontSize: 11,
-                        }}
-                      >
-                        {option.description}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          {rosterExportOptions.includeFundamentals ? (
-            <View style={{ gap: 8 }}>
-              <View style={{ gap: 3 }}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
-                    Fundamentos trabalhados
-                  </Text>
-                  {hasRosterFundamentalOverrides ? (
-                    <Pressable
-                      onPress={clearRosterFundamentalOverrides}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                        Limpar ajustes
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-                <Text style={{ fontSize: 11, color: colors.muted }}>
-                  O PDF usa automaticamente os planos aplicados no mês para marcar os X.
-                </Text>
-                <Text style={{ fontSize: 11, color: colors.muted }}>
-                  Toque na célula para alternar entre automático e manual. Toque no nome para editar
-                  e confirme com ✓.
-                </Text>
-              </View>
-            </View>
           ) : null}
 
-          <View style={{ gap: 8 }}>
-            <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
-              Prévia
-            </Text>
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: 12,
+              padding: 10,
+              gap: 8,
+              backgroundColor: colors.inputBg,
+            }}
+          >
             <View
               style={{
-                padding: 12,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.card,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
                 gap: 10,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-                    {className}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    {formatMonthLabel(rosterMonthValue)} ? {formatDays(classDays)}
-                  </Text>
-                </View>
-                <View style={{ alignItems: "flex-end", gap: 2 }}>
-                  <Text style={{ color: colors.muted, fontSize: 10 }}>Periodização</Text>
-                  <Text
-                    style={{
-                      color: colors.text,
-                      fontSize: 11,
-                      fontWeight: "700",
-                      textAlign: "right",
-                      maxWidth: 180,
-                    }}
-                  >
-                    {cls ? getBlockForToday(cls) : "-"}
-                  </Text>
-                </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                  Matriz de fundamentos
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>
+                  {rosterExportOptions.includeFundamentals
+                    ? "Vai para o PDF e pode ser editada."
+                    : "Fora do PDF e bloqueada para edição."}
+                </Text>
               </View>
-
+              <Pressable
+                onPress={toggleRosterFundamentalsExport}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: rosterExportOptions.includeFundamentals }}
+                accessibilityLabel="Incluir matriz de fundamentos no PDF"
+                style={{
+                  width: 54,
+                  height: 30,
+                  alignItems: rosterExportOptions.includeFundamentals ? "flex-end" : "flex-start",
+                  justifyContent: "center",
+                  padding: 3,
+                  borderRadius: 999,
+                  backgroundColor: rosterExportOptions.includeFundamentals
+                    ? colors.primaryBg
+                    : colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: rosterExportOptions.includeFundamentals
+                    ? colors.primaryBg
+                    : colors.border,
+                }}
+              >
+                <View
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 999,
+                    backgroundColor: rosterExportOptions.includeFundamentals
+                      ? colors.primaryText
+                      : colors.muted,
+                  }}
+                />
+              </Pressable>
+            </View>
+            <View style={{ opacity: rosterExportOptions.includeFundamentals ? 1 : 0.42 }}>
               <View
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
-                  borderRadius: 12,
+                  borderRadius: 10,
                   overflow: "hidden",
+                  backgroundColor: colors.card,
                 }}
               >
                 <View
@@ -2456,362 +2571,233 @@ export default function ClassDetails() {
                     borderBottomColor: colors.border,
                   }}
                 >
-                  <Text style={{ width: 22, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
-                    #
-                  </Text>
-                  <Text style={{ flex: 1, paddingVertical: 8, fontSize: 10, fontWeight: "700" }}>
-                    Atletas
-                  </Text>
-                  {rosterExportOptions.includeBirthDate ? (
-                    <Text style={{ width: 68, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
-                      Nasc
-                    </Text>
-                  ) : null}
-                  {rosterExportOptions.includeCourse ? (
-                    <Text style={{ width: 90, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
-                      Curso
-                    </Text>
-                  ) : null}
-                  {rosterExportOptions.includeContact ? (
-                    <Text style={{ width: 84, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
-                      Contato
-                    </Text>
-                  ) : null}
-                  {rosterExportOptions.includeAttendance
-                    ? rosterPreviewDays.map((day) => (
-                        <Text
-                          key={`preview-day-${day}`}
-                          style={{
-                            width: 22,
-                            paddingVertical: 8,
-                            textAlign: "center",
-                            fontSize: 10,
-                          }}
-                        >
-                          {day}
-                        </Text>
-                      ))
-                    : null}
-                  {rosterExportOptions.includeAttendance ? (
-                    <Text style={{ width: 34, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
-                      Total
-                    </Text>
-                  ) : null}
-                </View>
-
-                {rosterPreviewStudents.length ? (
-                  rosterPreviewStudents.map((student, index) => {
-                    const contact = getContactPhone(student);
-                    const contactLabel =
-                      contact.status === "ok"
-                        ? contact.source === "guardian"
-                          ? "Resp."
-                          : "Aluno"
-                        : contact.status === "missing"
-                          ? "Sem tel"
-                          : "Inválido";
-                    const contactPhone =
-                      contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "";
-                    return (
-                      <View
-                        key={student.id}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          borderBottomWidth: index === rosterPreviewStudents.length - 1 ? 0 : 1,
-                          borderBottomColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ width: 22, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
-                          {index + 1}
-                        </Text>
-                        <Text
-                          numberOfLines={1}
-                          style={{
-                            flex: 1,
-                            paddingVertical: 8,
-                            fontSize: 11,
-                            fontWeight: "700",
-                            color: colors.text,
-                          }}
-                        >
-                          {student.name}
-                        </Text>
-                        {rosterExportOptions.includeBirthDate ? (
-                          <Text style={{ width: 68, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
-                            {formatBirthDate(student.birthDate)}
-                          </Text>
-                        ) : null}
-                        {rosterExportOptions.includeCourse ? (
-                          <Text
-                            style={{
-                              width: 90,
-                              paddingVertical: 8,
-                              textAlign: "center",
-                              fontSize: 10,
-                            }}
-                          >
-                            {student.collegeCourse?.trim() || "-"}
-                          </Text>
-                        ) : null}
-                        {rosterExportOptions.includeContact ? (
-                          <View style={{ width: 84, paddingVertical: 8, alignItems: "center" }}>
-                            <Text style={{ fontSize: 10, fontWeight: "700", color: colors.text }}>
-                              {contactLabel}
-                            </Text>
-                            <Text style={{ fontSize: 9, color: colors.muted }}>
-                              {contactPhone || "—"}
-                            </Text>
-                          </View>
-                        ) : null}
-                        {rosterExportOptions.includeAttendance
-                          ? rosterPreviewDays.map((day) => (
-                              <Text
-                                key={`preview-row-${student.id}-${day}`}
-                                style={{
-                                  width: 22,
-                                  paddingVertical: 8,
-                                  textAlign: "center",
-                                  fontSize: 10,
-                                  color: colors.muted,
-                                }}
-                              >
-                                -
-                              </Text>
-                            ))
-                          : null}
-                        {rosterExportOptions.includeAttendance ? (
-                          <Text style={{ width: 34, paddingVertical: 8, textAlign: "center", fontSize: 10 }}>
-                            -
-                          </Text>
-                        ) : null}
-                      </View>
-                    );
-                  })
-                ) : (
-                  <View style={{ padding: 12 }}>
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>
-                      Nenhum aluno carregado para pré-visualização.
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {rosterExportOptions.includeFundamentals ? (
-                <View
-                  style={{
-                    marginTop: 2,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 12,
-                    padding: 10,
-                    gap: 8,
-                    backgroundColor: colors.inputBg,
-                  }}
-                >
-                  <View style={{ gap: 2 }}>
-                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                      Fundamentos trabalhados
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 10 }}>
-                      X automático conforme os planos do mês.
-                    </Text>
-                  </View>
-
-                  <View
+                  <Text
                     style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderRadius: 10,
-                      overflow: "hidden",
-                      backgroundColor: colors.card,
+                      width: 132,
+                      paddingVertical: 8,
+                      paddingHorizontal: 8,
+                      fontSize: 10,
+                      fontWeight: "700",
+                      color: colors.text,
+                      borderRightWidth: 1,
+                      borderRightColor: colors.border,
                     }}
                   >
+                    Fundamento
+                  </Text>
+                  {rosterPreviewDays.map((day) => (
+                    <Text
+                      key={`matrix-head-${day}`}
+                      style={{
+                        width: 28,
+                        paddingVertical: 8,
+                        textAlign: "center",
+                        fontSize: 10,
+                        fontWeight: "700",
+                        color: colors.text,
+                        borderRightWidth: 1,
+                        borderRightColor: colors.border,
+                      }}
+                    >
+                      {day}
+                    </Text>
+                  ))}
+                </View>
+
+                {rosterFundamentalLabels.map((fundamentalLabel, index) => {
+                  const fundamentalKey = ROSTER_FUNDAMENTALS[index] ?? fundamentalLabel;
+                  const isEditing =
+                    rosterExportOptions.includeFundamentals &&
+                    editingRosterFundamentalIndex === index;
+                  return (
                     <View
+                      key={`matrix-row-${fundamentalKey}`}
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        backgroundColor: colors.secondaryBg,
-                        borderBottomWidth: 1,
+                        borderBottomWidth:
+                          index === rosterFundamentalLabels.length - 1 ? 0 : 1,
                         borderBottomColor: colors.border,
                       }}
                     >
-                      <Text
-                        style={{
-                          width: 132,
-                          paddingVertical: 8,
-                          paddingHorizontal: 8,
-                          fontSize: 10,
-                          fontWeight: "700",
-                          color: colors.text,
-                          borderRightWidth: 1,
-                          borderRightColor: colors.border,
-                        }}
-                      >
-                        Fundamento
-                      </Text>
-                      {rosterPreviewDays.map((day) => (
-                        <Text
-                          key={`matrix-head-${day}`}
-                          style={{
-                            width: 28,
-                            paddingVertical: 8,
-                            textAlign: "center",
-                            fontSize: 10,
-                            fontWeight: "700",
-                            color: colors.text,
-                            borderRightWidth: 1,
-                            borderRightColor: colors.border,
-                          }}
-                        >
-                          {day}
-                        </Text>
-                      ))}
-                    </View>
-
-                    {rosterFundamentalLabels.map((fundamentalLabel, index) => {
-                      const fundamentalKey = ROSTER_FUNDAMENTALS[index] ?? fundamentalLabel;
-                      const isEditing = editingRosterFundamentalIndex === index;
-                      return (
+                      {isEditing ? (
                         <View
-                          key={`matrix-row-${fundamentalKey}`}
                           style={{
+                            width: 132,
+                            paddingVertical: 7,
+                            paddingHorizontal: 8,
                             flexDirection: "row",
                             alignItems: "center",
-                            borderBottomWidth:
-                              index === rosterFundamentalLabels.length - 1 ? 0 : 1,
-                            borderBottomColor: colors.border,
+                            gap: 6,
+                            borderRightWidth: 1,
+                            borderRightColor: colors.border,
+                            backgroundColor: colors.card,
                           }}
                         >
-                          {isEditing ? (
-                            <View
-                              style={{
-                                width: 132,
-                                paddingVertical: 7,
-                                paddingHorizontal: 8,
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: 6,
-                                borderRightWidth: 1,
-                                borderRightColor: colors.border,
-                                backgroundColor: colors.card,
-                              }}
-                            >
-                              <TextInput
-                                autoFocus
-                                value={editingRosterFundamentalValue}
-                                onChangeText={setEditingRosterFundamentalValue}
-                                onSubmitEditing={saveRosterFundamentalLabel}
-                                onBlur={saveRosterFundamentalLabel}
-                                blurOnSubmit
-                                placeholder="Nome do fundamento"
-                                placeholderTextColor={colors.muted}
-                                style={{
-                                  flex: 1,
-                                  minWidth: 0,
-                                  padding: 0,
-                                  margin: 0,
-                                  fontSize: 10,
-                                  color: colors.text,
-                                }}
-                              />
-                            </View>
-                          ) : (
-                            <Pressable
-                              onPress={() => beginRosterFundamentalEdit(index)}
-                              style={{
-                                width: 132,
-                                paddingVertical: 7,
-                                paddingHorizontal: 8,
-                                borderRightWidth: 1,
-                                borderRightColor: colors.border,
-                                backgroundColor: colors.card,
-                              }}
-                            >
-                              <Text
-                                numberOfLines={1}
-                                style={{
-                                  fontSize: 10,
-                                  color: colors.text,
-                                }}
-                              >
-                                {fundamentalLabel}
-                              </Text>
-                            </Pressable>
-                          )}
-                          {rosterPreviewDays.map((day) => {
-                            const active = rosterFundamentalsByDay[day]?.includes(fundamentalKey) ?? false;
-                            return (
-                              <Pressable
-                                key={`matrix-${fundamentalKey}-${day}`}
-                                onPress={() => toggleRosterFundamentalCell(day, fundamentalKey)}
-                                accessibilityRole="checkbox"
-                                accessibilityState={{ checked: active }}
-                                style={{
-                                  width: 28,
-                                  minHeight: 28,
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  borderRightWidth: 1,
-                                  borderRightColor: colors.border,
-                                  backgroundColor: active ? colors.primaryBg : colors.card,
-                                }}
-                              >
-                                <Text
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: "800",
-                                    color: active ? colors.primaryText : colors.muted,
-                                  }}
-                                >
-                                  {active ? "X" : ""}
-                                </Text>
-                              </Pressable>
-                            );
-                          })}
+                          <TextInput
+                            autoFocus
+                            value={editingRosterFundamentalValue}
+                            onChangeText={setEditingRosterFundamentalValue}
+                            onSubmitEditing={saveRosterFundamentalLabel}
+                            onBlur={saveRosterFundamentalLabel}
+                            blurOnSubmit
+                            placeholder="Nome do fundamento"
+                            placeholderTextColor={colors.muted}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              padding: 0,
+                              margin: 0,
+                              fontSize: 10,
+                              color: colors.text,
+                            }}
+                          />
                         </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
+                      ) : (
+                        <Pressable
+                          disabled={!rosterExportOptions.includeFundamentals}
+                          onPress={() => beginRosterFundamentalEdit(index)}
+                          style={{
+                            width: 132,
+                            paddingVertical: 7,
+                            paddingHorizontal: 8,
+                            borderRightWidth: 1,
+                            borderRightColor: colors.border,
+                            backgroundColor: colors.card,
+                          }}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              fontSize: 10,
+                              color: colors.text,
+                            }}
+                          >
+                            {fundamentalLabel}
+                          </Text>
+                        </Pressable>
+                      )}
+                      {rosterPreviewDays.map((day) => {
+                        const active = rosterFundamentalsByDay[day]?.includes(fundamentalKey) ?? false;
+                        return (
+                          <Pressable
+                            key={`matrix-${fundamentalKey}-${day}`}
+                            disabled={!rosterExportOptions.includeFundamentals}
+                            onPress={() => toggleRosterFundamentalCell(day, fundamentalKey)}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{
+                              checked: active,
+                              disabled: !rosterExportOptions.includeFundamentals,
+                            }}
+                            style={{
+                              width: 28,
+                              minHeight: 28,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderRightWidth: 1,
+                              borderRightColor: colors.border,
+                              backgroundColor: active ? colors.primaryBg : colors.card,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                fontWeight: "800",
+                                color: active ? colors.primaryText : colors.muted,
+                              }}
+                            >
+                              {active ? "X" : ""}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           </View>
 
-          <View style={{ gap: 8 }}>
-            <Pressable
-              onPress={() => {
-                setShowRosterExportModal(false);
-                void exportRosterPdf(rosterMonthValue, rosterExportOptions);
-              }}
-              style={{
-                paddingVertical: 12,
-                borderRadius: 12,
-                backgroundColor: colors.primaryBg,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 14 }}>
-                Baixar PDF
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setShowRosterExportModal(false)}
-              style={{
-                paddingVertical: 12,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-                Fechar
-              </Text>
-            </Pressable>
-          </View>
         </ScrollView>
+        <View
+          style={{
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}
+        >
+          <Pressable
+            onPress={() => {
+              closeRosterExportModal();
+              void exportRosterPdf(rosterMonthValue, rosterExportOptions);
+            }}
+            style={{
+              paddingVertical: 13,
+              borderRadius: 12,
+              backgroundColor: colors.primaryBg,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 14 }}>
+              Baixar PDF
+            </Text>
+          </Pressable>
+        </View>
+        <AnchoredDropdown
+          visible={showRosterColumnsPicker}
+          layout={rosterColumnsTriggerLayout}
+          container={null}
+          animationStyle={{ opacity: 1 }}
+          zIndex={5000}
+          maxHeight={240}
+          nestedScrollEnabled
+          onRequestClose={() => setShowRosterColumnsPicker(false)}
+          interactiveRefs={[rosterColumnsTriggerRef]}
+          portalToBodyOnWeb
+          panelStyle={{ borderRadius: 14 }}
+          scrollContentStyle={{ padding: 6, gap: 4 }}
+        >
+          {ROSTER_COLUMN_OPTIONS.map((option) => {
+            const active = rosterExportOptions[option.key];
+            return (
+              <Pressable
+                key={option.key}
+                onPress={() => toggleRosterBooleanOption(option.key)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: active }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  paddingVertical: 9,
+                  paddingHorizontal: 10,
+                  borderRadius: 12,
+                  backgroundColor: active ? colors.primaryBg : colors.card,
+                  borderWidth: 1,
+                  borderColor: active ? colors.primaryBg : colors.border,
+                }}
+              >
+                <Ionicons
+                  name={active ? "checkbox" : "square-outline"}
+                  size={18}
+                  color={active ? colors.primaryText : colors.text}
+                />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    color: active ? colors.primaryText : colors.text,
+                    fontSize: 13,
+                    fontWeight: "700",
+                  }}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </AnchoredDropdown>
+        </View>
       </ModalSheet>
 
       <ModalSheet
