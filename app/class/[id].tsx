@@ -1653,12 +1653,13 @@ export default function ClassDetails() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() =>
+              onPress={() => {
+                if (!cls) return;
                 router.push({
-                  pathname: "/class/[id]/session",
-                  params: { id, tab: "scouting" },
-                })
-              }
+                  pathname: "/class/[id]/scouting",
+                  params: { id: cls.id },
+                });
+              }}
               style={{
                 width: "100%",
                 padding: 14,
@@ -1669,10 +1670,10 @@ export default function ClassDetails() {
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Scouting da turma
+                Análise de scouting
               </Text>
               <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Leitura rápida do jogo
+                Vídeos, jogos e leitura avançada
               </Text>
             </Pressable>
             <Pressable
