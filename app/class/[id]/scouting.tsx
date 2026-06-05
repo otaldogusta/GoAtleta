@@ -1,113 +1,182 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BackTitleHeader } from "../../../src/components/ui/BackTitleHeader";
-import type { ClassGroup, ScoutingLog } from "../../../src/core/models";
+import type {
+  ClassGroup,
+  ScoutingAction,
+  ScoutingSession,
+  ScoutingSessionType,
+  TrainingSession,
+} from "../../../src/core/models";
 import {
-  countsFromLog,
-  getFocusSuggestion,
-  getSkillMetrics,
-  getTechnicalPerformanceScore,
-  getTotalActions,
-  scoutingSkills,
+  buildScoutingAthleteHighlights,
+  buildScoutingTeamSignals,
+  buildScoutingWeeklyPriorities,
+  scoutingSessionTypes,
 } from "../../../src/core/scouting";
-import { getClassById, getLatestScoutingLog } from "../../../src/db/seed";
+import {
+  createScoutingSession,
+  getClassById,
+  getScoutingSessionById,
+  getScoutingSessionsByClass,
+  getTrainingSessionsByClass,
+} from "../../../src/db/seed";
 import { Button } from "../../../src/ui/Button";
-import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
-import { LocationBadge } from "../../../src/ui/LocationBadge";
+import { DateInput } from "../../../src/ui/DateInput";
+import { ModalDialogFrame } from "../../../src/ui/ModalDialogFrame";
+import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
-import { getClassPalette } from "../../../src/ui/class-colors";
+import { getSectionCardStyle } from "../../../src/ui/section-styles";
+import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
 
-const formatDate = (value: string) =>
-  value
-    ? new Intl.DateTimeFormat("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }).format(new Date(`${value}T12:00:00`))
-    : "-";
+const toLocalIsoDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatDate = (value: string) => {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
+};
+
+const formatDateTime = (value: string) => {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+};
+
+const sessionTypeLabel = (type: ScoutingSessionType) =>
+  scoutingSessionTypes.find((item) => item.id === type)?.label ?? "Treino";
 
 export default function ClassScoutingRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useAppTheme();
+  const modalCardStyle = useModalCardStyle({ maxWidth: 560, maxHeight: "88%" });
   const classId = typeof id === "string" ? id : "";
   const [cls, setCls] = useState<ClassGroup | null>(null);
-  const [latestScouting, setLatestScouting] = useState<ScoutingLog | null>(null);
+  const [sessions, setSessions] = useState<ScoutingSession[]>([]);
+  const [actions, setActions] = useState<ScoutingAction[]>([]);
+  const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newType, setNewType] = useState<ScoutingSessionType>("treino");
+  const [newDate, setNewDate] = useState(toLocalIsoDate());
+  const [newOpponent, setNewOpponent] = useState("");
+  const [newNote, setNewNote] = useState("");
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const [classData, scoutingLog] = await Promise.all([
-          getClassById(classId),
-          getLatestScoutingLog(classId),
-        ]);
-        if (!alive) return;
-        setCls(classData);
-        setLatestScouting(scoutingLog);
-      } catch (loadError) {
-        if (!alive) return;
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "Não foi possível carregar a análise de scouting.",
-        );
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
+  const loadData = useCallback(async () => {
+    if (!classId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const [classData, scoutingSessions, upcomingContext] = await Promise.all([
+        getClassById(classId),
+        getScoutingSessionsByClass(classId, { limit: 12 }),
+        getTrainingSessionsByClass(classId),
+      ]);
+      const details = await Promise.all(
+        scoutingSessions.slice(0, 8).map((session) => getScoutingSessionById(session.id))
+      );
+      setCls(classData);
+      setSessions(scoutingSessions);
+      setActions(details.flatMap((detail) => detail?.actions ?? []));
+      setTrainingSessions(upcomingContext);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Não foi possível carregar o scouting da turma."
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [classId]);
 
-  const classPalette = useMemo(
-    () => getClassPalette(cls?.colorKey ?? null, colors, cls?.unit ?? ""),
-    [cls?.colorKey, cls?.unit, colors],
-  );
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
-  const scoutingCounts = useMemo(
-    () => (latestScouting ? countsFromLog(latestScouting) : null),
-    [latestScouting],
-  );
-  const totalActions = useMemo(
-    () => (scoutingCounts ? getTotalActions(scoutingCounts) : 0),
-    [scoutingCounts],
-  );
-  const performanceScore = useMemo(
-    () => (scoutingCounts ? getTechnicalPerformanceScore(scoutingCounts) : null),
-    [scoutingCounts],
-  );
-  const focusSuggestion = useMemo(
-    () => (scoutingCounts ? getFocusSuggestion(scoutingCounts, 10) : null),
-    [scoutingCounts],
-  );
+  const latestSession = sessions[0] ?? null;
+  const actionCountBySessionId = useMemo(() => {
+    const map = new Map<string, number>();
+    actions.forEach((action) => {
+      map.set(action.sessionId, (map.get(action.sessionId) ?? 0) + 1);
+    });
+    return map;
+  }, [actions]);
+
+  const nextContext = useMemo(() => {
+    const now = Date.now();
+    return [...trainingSessions]
+      .filter((session) => new Date(session.startAt).getTime() >= now)
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())[0] ?? null;
+  }, [trainingSessions]);
+
+  const signals = useMemo(() => buildScoutingTeamSignals(actions), [actions]);
+  const priorities = useMemo(() => buildScoutingWeeklyPriorities(actions), [actions]);
+  const highlights = useMemo(() => buildScoutingAthleteHighlights(actions), [actions]);
 
   const goBack = () => {
     if (classId) {
       router.replace({ pathname: "/class/[id]", params: { id: classId } });
       return;
     }
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.replace("/prof/classes");
+    if (router.canGoBack()) router.back();
   };
 
-  const openFastScouting = () => {
-    if (!classId) return;
+  const openSession = (sessionId: string) => {
     router.push({
-      pathname: "/class/[id]/session",
-      params: { id: classId, tab: "scouting" },
+      pathname: "/class/[id]/scouting/[scoutingSessionId]",
+      params: { id: classId, scoutingSessionId: sessionId },
     });
+  };
+
+  const handleCreateSession = async () => {
+    if (!cls || saving || !newDate) return;
+    setSaving(true);
+    try {
+      const session = await createScoutingSession({
+        classId: cls.id,
+        organizationId: cls.organizationId,
+        type: newType,
+        date: newDate,
+        opponent: newOpponent,
+        initialNote: newNote,
+      });
+      setShowCreateModal(false);
+      setNewType("treino");
+      setNewDate(toLocalIsoDate());
+      setNewOpponent("");
+      setNewNote("");
+      router.push({
+        pathname: "/class/[id]/scouting/[scoutingSessionId]",
+        params: { id: cls.id, scoutingSessionId: session.id },
+      });
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error ? saveError.message : "Não foi possível criar o scouting."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -116,223 +185,392 @@ export default function ClassScoutingRoute() {
         contentContainerStyle={{
           padding: 20,
           paddingBottom: 96,
-          gap: 18,
+          gap: 16,
           width: "100%",
-          maxWidth: 980,
+          maxWidth: 1180,
           alignSelf: "center",
         }}
       >
-        <BackTitleHeader title="Análise de scouting" onBack={goBack} />
-
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 18,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 12,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <View
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 5,
-                backgroundColor: classPalette.bg,
-              }}
-            />
-            <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
-              {cls?.name ?? "Turma"}
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <BackTitleHeader title="Scouting" onBack={goBack} />
+            <Text style={{ color: colors.muted, marginLeft: 36 }}>
+              Análise técnica, jogo e evolução da equipe
             </Text>
-            <ClassGenderBadge gender={cls?.gender ?? "misto"} size="md" />
           </View>
-          <LocationBadge location={cls?.unit || "Unidade"} palette={classPalette} size="sm" showIcon />
-          <Text style={{ color: colors.muted, lineHeight: 22 }}>
-            Área para leitura técnica da turma, jogos, vídeos e sinais que ajudam a ajustar o
-            próximo treino.
-          </Text>
+          <Button label="+ Nova análise" onPress={() => setShowCreateModal(true)} />
         </View>
 
+        {error ? (
+          <View style={getSectionCardStyle(colors, "warning", { shadow: false })}>
+            <Text style={{ color: colors.warningText, fontWeight: "800" }}>Atenção</Text>
+            <Text style={{ color: colors.warningText }}>{error}</Text>
+          </View>
+        ) : null}
+
         {loading ? (
-          <View
-            style={{
-              padding: 18,
-              borderRadius: 18,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
+          <View style={[getSectionCardStyle(colors, "neutral", { shadow: false }), { alignItems: "center" }]}>
             <ActivityIndicator color={colors.primaryBg} />
             <Text style={{ color: colors.muted }}>Carregando scouting...</Text>
           </View>
         ) : null}
 
-        {!loading && error ? (
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 18,
-              backgroundColor: colors.dangerBg,
-              borderWidth: 1,
-              borderColor: colors.dangerBorder,
-              gap: 8,
-            }}
-          >
-            <Text style={{ color: colors.dangerText, fontWeight: "800" }}>Falha ao carregar</Text>
-            <Text style={{ color: colors.dangerText }}>{error}</Text>
-          </View>
-        ) : null}
-
-        {!loading && !error ? (
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 18,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              gap: 14,
-            }}
-          >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-                  Scouting recente
-                </Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>
-                  {latestScouting
-                    ? `${latestScouting.mode === "jogo" ? "Jogo" : "Treino"} em ${formatDate(
-                        latestScouting.date,
-                      )}`
-                    : "Nenhum scouting registrado ainda."}
-                </Text>
-              </View>
-              <View
-                style={{
-                  minWidth: 86,
-                  borderRadius: 14,
-                  backgroundColor: colors.secondaryBg,
-                  padding: 10,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Ações</Text>
-                <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
-                  {totalActions}
-                </Text>
-              </View>
+        {!loading ? (
+          <>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+              <ContextCard
+                title="Última análise"
+                primary={
+                  latestSession
+                    ? formatDate(latestSession.date)
+                    : "Sem scouting ainda"
+                }
+                secondary={
+                  latestSession
+                    ? latestSession.title
+                    : "Crie uma análise para acompanhar a evolução da equipe."
+                }
+                badge={latestSession ? sessionTypeLabel(latestSession.type) : undefined}
+                colors={colors}
+              />
+              <ContextCard
+                title="Próximo contexto"
+                primary={nextContext ? formatDateTime(nextContext.startAt) : "Sem evento próximo"}
+                secondary={nextContext?.title || "Nenhum treino ou jogo futuro encontrado."}
+                badge={nextContext ? (nextContext.type === "match" ? "Jogo" : "Treino") : undefined}
+                colors={colors}
+              />
+              <ContextCard
+                title="Modo atual"
+                primary={sessions.some((session) => session.type === "jogo" || session.type === "amistoso") ? "Competitivo" : "Normal"}
+                secondary={
+                  latestSession?.status === "em_andamento"
+                    ? "Análise em andamento"
+                    : actions.length >= 8
+                      ? "Leitura técnica ativa"
+                      : "Sem sinais suficientes"
+                }
+                colors={colors}
+              />
+              <ContextCard
+                title="Ações registradas"
+                primary={actions.length ? String(actions.length) : "Sem ações"}
+                secondary={actions.length ? "Nas análises da turma" : "Registre ações em uma análise para consolidar leitura."}
+                colors={colors}
+              />
             </View>
 
-            {latestScouting && scoutingCounts ? (
-              <>
-                <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
-                  <MetricPill
-                    label="Desempenho"
-                    value={performanceScore === null ? "-" : `${performanceScore.toFixed(1)}%`}
-                    colors={colors}
-                  />
-                  <MetricPill
-                    label="Foco"
-                    value={focusSuggestion?.label ?? "Aguardando dados"}
-                    colors={colors}
-                  />
-                </View>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+              <View style={{ flex: 1, minWidth: 320, gap: 16 }}>
+                <Section title="Últimos scoutings" colors={colors}>
+                  {sessions.length ? (
+                    sessions.slice(0, 5).map((session) => (
+                      <ListRow
+                        key={session.id}
+                        title={session.title}
+                        subtitle={`${formatDate(session.date)} · ${session.opponent || sessionTypeLabel(session.type)} · ${
+                          actionCountBySessionId.get(session.id) ?? 0
+                        } ações`}
+                        badge={session.status === "concluido" ? "Concluído" : "Em andamento"}
+                        onPress={() => openSession(session.id)}
+                        colors={colors}
+                      />
+                    ))
+                  ) : (
+                    <EmptyState
+                      title="Nenhuma análise registrada ainda"
+                      text="Crie uma análise para acompanhar a evolução da equipe."
+                      colors={colors}
+                    />
+                  )}
+                </Section>
 
-                <View style={{ gap: 10 }}>
-                  {scoutingSkills.map((skill) => {
-                    const metrics = getSkillMetrics(scoutingCounts[skill.id]);
-                    return (
-                      <View
-                        key={skill.id}
-                        style={{
-                          padding: 12,
-                          borderRadius: 14,
-                          backgroundColor: colors.secondaryBg,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          gap: 6,
-                        }}
-                      >
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                            gap: 12,
-                          }}
-                        >
-                          <Text style={{ color: colors.text, fontWeight: "800" }}>{skill.label}</Text>
-                          <Text style={{ color: colors.muted }}>{metrics.total} ações</Text>
-                        </View>
-                        <Text style={{ color: colors.muted }}>
-                          Média {metrics.avg.toFixed(2)} · boas {Math.round(metrics.goodPct * 100)}%
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </>
-            ) : (
-              <Text style={{ color: colors.muted, lineHeight: 22 }}>
-                Use o scouting rápido da Aula do Dia para registrar ações. Quando houver dados, o
-                resumo técnico aparece aqui.
-              </Text>
-            )}
-          </View>
+                <Section title="Evolução individual" colors={colors}>
+                  {highlights.length ? (
+                    highlights.map((item) => (
+                      <ListRow
+                        key={item.studentId ?? item.name}
+                        title={item.name}
+                        subtitle={`${item.score}% · ${item.positiveActions} ações positivas`}
+                        badge="Em alta"
+                        colors={colors}
+                      />
+                    ))
+                  ) : (
+                    <EmptyState title="Sem leitura individual ainda" text="Registre ações por atleta para gerar destaques." colors={colors} />
+                  )}
+                </Section>
+              </View>
+
+              <View style={{ flex: 1, minWidth: 320, gap: 16 }}>
+                <Section title="Sinais para treino" colors={colors}>
+                  {signals.length ? (
+                    signals.map((signal) => (
+                      <ListRow
+                        key={`${signal.title}-${signal.tone}`}
+                        title={signal.title}
+                        subtitle={signal.description}
+                        badge={signal.tone === "success" ? "Ponto forte" : signal.tone === "danger" ? "Prioridade alta" : "Atenção"}
+                        colors={colors}
+                      />
+                    ))
+                  ) : (
+                    <EmptyState title="Sem alertas relevantes" text="Amostra atual ainda não sustenta sinais confiáveis." colors={colors} />
+                  )}
+                </Section>
+
+                <Section title="Prioridades da semana" colors={colors}>
+                  {priorities.length ? (
+                    priorities.map((priority, index) => (
+                      <ListRow
+                        key={priority.title}
+                        title={`${index + 1}. ${priority.title}`}
+                        subtitle={priority.description}
+                        colors={colors}
+                      />
+                    ))
+                  ) : (
+                    <EmptyState title="Sem prioridades geradas" text="As prioridades aparecem quando houver volume técnico suficiente." colors={colors} />
+                  )}
+                </Section>
+
+                <Section title="Vídeo" colors={colors}>
+                  <EmptyState
+                    title="Sem vídeo vinculado"
+                    text="A integração de vídeo será adicionada quando houver fonte real para revisar lances."
+                    colors={colors}
+                  />
+                </Section>
+              </View>
+            </View>
+          </>
         ) : null}
+      </ScrollView>
 
-        <View
+      <ModalDialogFrame
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        cardStyle={modalCardStyle}
+        colors={colors}
+        title="Nova análise"
+        subtitle="Crie uma análise da turma para registrar ações e sinais técnicos."
+        footer={
+          <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
+            <Button label="Cancelar" variant="secondary" onPress={() => setShowCreateModal(false)} />
+            <Button label="Iniciar análise" loading={saving} disabled={!newDate} onPress={handleCreateSession} />
+          </View>
+        }
+      >
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.text, fontWeight: "800" }}>Tipo</Text>
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+            {scoutingSessionTypes.map((type) => (
+              <Chip
+                key={type.id}
+                label={type.label}
+                active={newType === type.id}
+                onPress={() => setNewType(type.id)}
+                colors={colors}
+              />
+            ))}
+          </View>
+        </View>
+        <FieldLabel label="Data" colors={colors} />
+        <DateInput value={newDate} onChange={setNewDate} placeholder="Data da análise" />
+        <FieldLabel label="Adversário opcional" colors={colors} />
+        <TextInput
+          value={newOpponent}
+          onChangeText={setNewOpponent}
+          placeholder="Ex.: UniBrasil"
+          placeholderTextColor={colors.placeholder}
           style={{
-            padding: 16,
-            borderRadius: 18,
-            backgroundColor: colors.card,
+            minHeight: 44,
+            borderRadius: 12,
             borderWidth: 1,
             borderColor: colors.border,
-            gap: 12,
+            backgroundColor: colors.background,
+            color: colors.inputText,
+            paddingHorizontal: 12,
           }}
-        >
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-            Vídeos e jogos
-          </Text>
-          <Text style={{ color: colors.muted, lineHeight: 22 }}>
-            Use esta área para revisar a leitura da turma. O registro rápido continua na Aula do Dia;
-            esta tela consolida a análise fora da aula operacional.
-          </Text>
-          <Button label="Abrir scouting rápido da aula" onPress={openFastScouting} variant="secondary" />
-        </View>
-      </ScrollView>
+        />
+        <FieldLabel label="Observação inicial opcional" colors={colors} />
+        <TextInput
+          value={newNote}
+          onChangeText={setNewNote}
+          placeholder="Contexto da análise"
+          placeholderTextColor={colors.placeholder}
+          multiline
+          style={{
+            minHeight: 82,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.background,
+            color: colors.inputText,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            textAlignVertical: "top",
+          }}
+        />
+      </ModalDialogFrame>
     </SafeAreaView>
   );
 }
 
-function MetricPill({
+function ContextCard({
+  title,
+  primary,
+  secondary,
+  badge,
+  colors,
+}: {
+  title: string;
+  primary: string;
+  secondary: string;
+  badge?: string;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <View style={[getSectionCardStyle(colors, "neutral", { shadow: false }), { flex: 1, minWidth: 230 }]}>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>{title}</Text>
+        {badge ? <SmallBadge label={badge} colors={colors} /> : null}
+      </View>
+      <Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>{primary}</Text>
+      <Text style={{ color: colors.muted }}>{secondary}</Text>
+    </View>
+  );
+}
+
+function Section({
+  title,
+  children,
+  colors,
+}: {
+  title: string;
+  children: ReactNode;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <View style={getSectionCardStyle(colors, "neutral", { shadow: false })}>
+      <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{title}</Text>
+      <View style={{ gap: 8 }}>{children}</View>
+    </View>
+  );
+}
+
+function ListRow({
+  title,
+  subtitle,
+  badge,
+  onPress,
+  colors,
+}: {
+  title: string;
+  subtitle: string;
+  badge?: string;
+  onPress?: () => void;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.secondaryBg,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: colors.text, fontWeight: "900" }}>{title}</Text>
+        <Text style={{ color: colors.muted, marginTop: 2 }}>{subtitle}</Text>
+      </View>
+      {badge ? <SmallBadge label={badge} colors={colors} /> : null}
+      {onPress ? <Ionicons name="chevron-forward" size={18} color={colors.muted} /> : null}
+    </Pressable>
+  );
+}
+
+function SmallBadge({
   label,
-  value,
   colors,
 }: {
   label: string;
-  value: string;
   colors: ReturnType<typeof useAppTheme>["colors"];
 }) {
   return (
     <View
       style={{
-        flexGrow: 1,
-        minWidth: 140,
-        padding: 12,
-        borderRadius: 14,
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        borderRadius: 999,
         backgroundColor: colors.infoBg,
-        borderWidth: 1,
-        borderColor: colors.border,
-        gap: 4,
       }}
     >
-      <Text style={{ color: colors.infoText, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: colors.text, fontWeight: "800" }}>{value}</Text>
+      <Text style={{ color: colors.infoText, fontSize: 11, fontWeight: "900" }}>{label}</Text>
     </View>
   );
+}
+
+function EmptyState({
+  title,
+  text,
+  colors,
+}: {
+  title: string;
+  text: string;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <View style={{ padding: 12, borderRadius: 12, backgroundColor: colors.secondaryBg }}>
+      <Text style={{ color: colors.text, fontWeight: "900" }}>{title}</Text>
+      <Text style={{ color: colors.muted, marginTop: 4 }}>{text}</Text>
+    </View>
+  );
+}
+
+function Chip({
+  label,
+  active,
+  onPress,
+  colors,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        paddingVertical: 9,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: active ? colors.primaryBg : colors.border,
+        backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+      }}
+    >
+      <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "900" }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function FieldLabel({
+  label,
+  colors,
+}: {
+  label: string;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return <Text style={{ color: colors.text, fontWeight: "800" }}>{label}</Text>;
 }

@@ -26,7 +26,7 @@ import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
 import { markRender, measureAsync } from "../../src/observability/perf";
-import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
@@ -217,7 +217,8 @@ export default function EventsScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
-  const { activeOrganization } = useOrganization();
+  const organization = useOptionalOrganization();
+  const activeOrganization = organization?.activeOrganization ?? null;
   const { session } = useAuth();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const { confirm: confirmDialog } = useConfirmDialog();

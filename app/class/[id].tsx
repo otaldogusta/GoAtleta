@@ -1727,6 +1727,30 @@ export default function ClassDetails() {
               onPress={() => {
                 if (!cls) return;
                 router.push({
+                  pathname: "/class/[id]/visual-tech",
+                  params: { id: cls.id },
+                });
+              }}
+              style={{
+                width: "100%",
+                padding: 14,
+                borderRadius: 16,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
+                Quadra visual
+              </Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
+                Rodizio, movimentacao e desenho tecnico
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                if (!cls) return;
+                router.push({
                   pathname: "/class/[id]/scouting",
                   params: { id: cls.id },
                 });

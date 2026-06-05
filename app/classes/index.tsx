@@ -1,6 +1,5 @@
 ﻿import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Animated,
@@ -2485,5 +2484,4 @@ export default function ClassesScreen() {
     </SafeAreaView>
   );
 }
-
 

@@ -43,7 +43,6 @@ import { SessionPlanFabActions } from "../../../src/screens/session/components/S
 import { SessionPlanGenerationState } from "../../../src/screens/session/components/SessionPlanGenerationState";
 import { SessionResistanceTrainingSection } from "../../../src/screens/session/components/SessionResistanceTrainingSection";
 import { SessionReportTab } from "../../../src/screens/session/components/SessionReportTab";
-import { SessionScoutingTab } from "../../../src/screens/session/components/SessionScoutingTab";
 import { SessionTabBar } from "../../../src/screens/session/components/SessionTabBar";
 import { SessionTopHeader } from "../../../src/screens/session/components/SessionTopHeader";
 import { SessionUnavailableState } from "../../../src/screens/session/components/SessionUnavailableState";
@@ -82,7 +81,6 @@ import type {
     ClassGroup,
     ClassPlan,
     ProgressionDimension,
-    ScoutingLog,
     TrainingPlan,
     TrainingPlanActivity,
     TrainingPlanCriterion,
@@ -110,12 +108,9 @@ import {
 } from "../../../src/core/pedagogical-planning";
 import { buildPeriodizationContext } from "../../../src/core/periodization-context";
 import {
-    buildLogFromCounts,
     countsFromLog,
     createEmptyCounts,
-    getFocusSuggestion,
     getSkillMetrics,
-    getTotalActions,
     scoutingSkills,
     type ScoutingCounts,
 } from "../../../src/core/scouting";
@@ -125,7 +120,6 @@ import {
     deleteTrainingPlansByClassAndDate,
     getLatestTrainingPlanByClass,
     getTrainingPlans,
-    saveScoutingLog,
     saveTrainingPlan,
 } from "../../../src/db/seed";
 import { logAction, logPlanGenerationDecision } from "../../../src/observability/breadcrumbs";
@@ -149,7 +143,6 @@ import { calculateAdjacentClassDate } from "../../../src/utils/whatsapp-template
 const sessionTabs: readonly SessionTabItem[] = [
   { id: "treino", label: ptBR.session.tabs.training },
   { id: "relatório", label: ptBR.session.tabs.report },
-  { id: "scouting", label: ptBR.session.tabs.scouting },
 ] as const;
 
 type SessionPedagogicalApproach = NonNullable<TrainingPlanPedagogy["pedagogicalApproach"]>;
@@ -1634,16 +1627,10 @@ export default function SessionScreen() {
   const { colors } = useAppTheme();
   const { confirm } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
-  const [scoutingCounts, setScoutingCounts] = useState(createEmptyCounts());
-  const [scoutingBaseline, setScoutingBaseline] = useState(createEmptyCounts());
-  const [scoutingSaving, setScoutingSaving] = useState(false);
-  const [scoutingMode, setScoutingMode] = useState<"treino" | "jogo">("treino");
-  const [showScoutingGuide, setShowScoutingGuide] = useState(false);
   const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
   const sessionTabAnim = useRef<Record<SessionTabId, Animated.Value>>({
     treino: new Animated.Value(1),
     relatório: new Animated.Value(0),
-    scouting: new Animated.Value(0),
   }).current;
   const [showAppliedPreview, setShowAppliedPreview] = useState(false);
   const [autoActivity, setAutoActivity] = useState("");
@@ -1724,7 +1711,6 @@ export default function SessionScreen() {
     sessionLog,
     setSessionLog,
     scoutingLog,
-    setScoutingLog,
     attendancePercent,
     currentClassPlan,
     currentDailyLessonPlan,
@@ -1734,9 +1720,13 @@ export default function SessionScreen() {
     classId: id,
     sessionDate,
     weekdayId,
-    scoutingMode,
+    scoutingMode: "treino",
     compactTrainingPlans,
   });
+  const scoutingCounts = useMemo(
+    () => (scoutingLog ? countsFromLog(scoutingLog) : createEmptyCounts()),
+    [scoutingLog]
+  );
   const visibleSessionObjective = useMemo(
     () => resolveSessionObjectiveText(plan),
     [plan]
@@ -1777,6 +1767,7 @@ export default function SessionScreen() {
     () => hasUsablePeriodization(currentClassPlan),
     [currentClassPlan]
   );
+  const safeSessionTabParam = tab === "treino" || tab === "relatório" ? tab : undefined;
 
   useEffect(() => {
     if (hasExplicitSessionDate || !cls) return;
@@ -1799,7 +1790,7 @@ export default function SessionScreen() {
       params: {
         id: cls.id,
         date: targetIsoDate,
-        tab: typeof tab === "string" ? tab : undefined,
+        tab: safeSessionTabParam,
         autogenerate: typeof autogenerate === "string" ? autogenerate : undefined,
         source: typeof source === "string" ? source : undefined,
       },
@@ -1809,9 +1800,9 @@ export default function SessionScreen() {
     cls,
     hasExplicitSessionDate,
     router,
+    safeSessionTabParam,
     sessionDate,
     source,
-    tab,
   ]);
 
   const parseTime = (value: string) => {
@@ -2169,12 +2160,6 @@ export default function SessionScreen() {
       });
     });
   };
-
-  useEffect(() => {
-    const counts = scoutingLog ? countsFromLog(scoutingLog) : createEmptyCounts();
-    setScoutingCounts(counts);
-    setScoutingBaseline(counts);
-  }, [scoutingLog]);
 
   useEffect(() => {
     if (!plan) return;
@@ -2682,47 +2667,6 @@ export default function SessionScreen() {
       params: { id: cls.id },
     });
   };
-
-  const updateScoutingCount = (
-    skillId: (typeof scoutingSkills)[number]["id"],
-    score: 0 | 1 | 2,
-    delta: 1 | -1
-  ) => {
-    setScoutingCounts((prev) => {
-      const current = prev[skillId][score];
-      const nextValue = Math.max(0, current + delta);
-      return {
-        ...prev,
-        [skillId]: {
-          ...prev[skillId],
-          [score]: nextValue,
-        },
-      };
-    });
-  };
-
-  const scoutingHasChanges = useMemo(() => {
-    return scoutingSkills.some((skill) => {
-      const current = scoutingCounts[skill.id];
-      const base = scoutingBaseline[skill.id];
-      return current[0] !== base[0] || current[1] !== base[1] || current[2] !== base[2];
-    });
-  }, [scoutingBaseline, scoutingCounts]);
-
-  const scoutingTotals = useMemo(
-    () => scoutingSkills.map((skill) => getSkillMetrics(scoutingCounts[skill.id])),
-    [scoutingCounts]
-  );
-
-  const totalActions = useMemo(
-    () => getTotalActions(scoutingCounts),
-    [scoutingCounts]
-  );
-
-  const focusSuggestion = useMemo(
-    () => getFocusSuggestion(scoutingCounts, 10),
-    [scoutingCounts]
-  );
 
   const buildAutoPlanResultFromSessionContext = useCallback(
     (variationSeed?: number, dimensionGuidelines?: string[]): AutoPlanForCycleDayResult | null => {
@@ -3351,42 +3295,18 @@ export default function SessionScreen() {
     }
   };
 
-  const handleSaveScouting = async () => {
-    if (!cls) return;
-    setScoutingSaving(true);
-    try {
-      const now = new Date().toISOString();
-      const base: Omit<ScoutingLog, "serve0" | "serve1" | "serve2" | "receive0" | "receive1" | "receive2" | "set0" | "set1" | "set2" | "attackSend0" | "attackSend1" | "attackSend2"> =
-        scoutingLog ?? {
-          id: "scout_" + Date.now(),
-          classId: cls.id,
-          unit: cls.unit,
-          mode: scoutingMode,
-          date: sessionDate,
-          createdAt: now,
-        };
-      const payload = {
-        ...buildLogFromCounts(base, scoutingCounts),
-        mode: scoutingMode,
-      } as Parameters<typeof saveScoutingLog>[0];
-      const saved = await saveScoutingLog(payload);
-      setScoutingLog(saved);
-      setScoutingBaseline(countsFromLog(saved));
-      showSaveToast({ message: ptBR.session.success.scoutingSaved, variant: "success" });
-    } catch {
-      showSaveToast({ message: ptBR.session.errors.scoutingSaveFailed, variant: "error" });
-      Alert.alert(ptBR.session.alerts.saveFailedTitle, ptBR.session.alerts.tryAgain);
-    } finally {
-      setScoutingSaving(false);
-    }
-  };
-
   useEffect(() => {
-    if (!tab) return;
-    if (tab === "treino" || tab === "relatório" || tab === "scouting") {
+    if (tab === "scouting" && id) {
+      router.replace({
+        pathname: "/class/[id]/scouting",
+        params: { id },
+      });
+      return;
+    }
+    if (tab === "treino" || tab === "relatório") {
       setSessionTab(tab);
     }
-  }, [tab]);
+  }, [id, router, tab]);
 
   useEffect(() => {
     (Object.keys(sessionTabAnim) as SessionTabId[]).forEach((tabKey) => {
@@ -3581,36 +3501,6 @@ export default function SessionScreen() {
               />
             ) : null}
           </>
-        ) : null}
-        {sessionTab === "scouting" ? (
-          <SessionScoutingTab
-            colors={colors}
-            canOpenAdvancedScouting={!!cls}
-            scoutingMode={scoutingMode}
-            totalActions={totalActions}
-            showScoutingGuide={showScoutingGuide}
-            scoutingCounts={scoutingCounts}
-            scoutingTotals={scoutingTotals}
-            focusSuggestion={focusSuggestion}
-            scoutingHasChanges={scoutingHasChanges}
-            scoutingSaving={scoutingSaving}
-            onOpenAdvancedScouting={() => {
-              if (!cls) return;
-              router.push({
-                pathname: "/class/[id]/scouting/[scoutingSessionId]",
-                params: {
-                  id: cls.id,
-                  scoutingSessionId: `${cls.id}-${sessionDate}`,
-                  teamName: cls.name,
-                  matchType: scoutingMode === "jogo" ? "friendly" : "training_game",
-                },
-              });
-            }}
-            onChangeScoutingMode={setScoutingMode}
-            onToggleScoutingGuide={() => setShowScoutingGuide((prev) => !prev)}
-            onUpdateScoutingCount={updateScoutingCount}
-            onSaveScouting={handleSaveScouting}
-          />
         ) : null}
         {sessionTab === "relatório" ? (
           <SessionReportTab

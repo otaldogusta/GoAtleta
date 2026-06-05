@@ -1095,6 +1095,57 @@ export type StudentScoutingLog = {
   updatedAt?: string;
 };
 
+export type ScoutingSessionType = "treino" | "amistoso" | "jogo";
+export type ScoutingSessionStatus = "em_andamento" | "concluido";
+
+export type ScoutingActionFundamental =
+  | "saque"
+  | "recepcao"
+  | "levantamento"
+  | "ataque"
+  | "bloqueio"
+  | "defesa"
+  | "cobertura"
+  | "transicao"
+  | "comunicacao";
+
+export type ScoutingActionPhase =
+  | "saque"
+  | "side_out"
+  | "transicao"
+  | "pressao"
+  | "freeball";
+
+export type ScoutingSession = {
+  id: string;
+  organizationId: string;
+  classId: string;
+  type: ScoutingSessionType;
+  date: string;
+  title: string;
+  opponent?: string | null;
+  initialNote?: string | null;
+  status: ScoutingSessionStatus;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+};
+
+export type ScoutingAction = {
+  id: string;
+  sessionId: string;
+  organizationId: string;
+  classId: string;
+  studentId?: string | null;
+  athleteName?: string | null;
+  fundamental: ScoutingActionFundamental;
+  phase: ScoutingActionPhase;
+  resultKey: string;
+  resultLabel: string;
+  resultLevel: 0 | 1 | 2 | 3;
+  createdAt: string;
+};
+
 export type PlanningCycle = {
   id: string;
   classId: string;

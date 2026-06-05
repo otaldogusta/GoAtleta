@@ -1,9 +1,7 @@
 ﻿import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 
-import { Link, useRouter } from "expo-router";
-
-import { useFocusEffect } from "@react-navigation/native";
+import { Link, useFocusEffect, useRouter } from "expo-router";
 
 import * as Updates from "expo-updates";
 

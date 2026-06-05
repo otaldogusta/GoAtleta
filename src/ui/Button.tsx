@@ -11,6 +11,7 @@ export function Button({
   onPress,
   variant = "primary",
   disabled = false,
+  disabledOpacity = 0.7,
   loading = false,
 }: {
   label: string;
@@ -25,6 +26,7 @@ export function Button({
     | "warning"
     | "info";
   disabled?: boolean;
+  disabledOpacity?: number;
   loading?: boolean;
 }) {
   const { colors } = useAppTheme();
@@ -95,7 +97,7 @@ export function Button({
           borderWidth,
           borderColor: isDisabled ? disabledBorder : selected.border,
           alignItems: "center",
-          opacity: isDisabled ? 0.7 : 1,
+          opacity: isDisabled ? disabledOpacity : 1,
         },
         pressed && !isDisabled
           ? { transform: [{ scale: 0.98 }], opacity: 0.92 }

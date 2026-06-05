@@ -1,4 +1,4 @@
-export type SessionTabId = "treino" | "relatório" | "scouting";
+export type SessionTabId = "treino" | "relatório";
 
 export type SessionBlockKey = "warmup" | "main" | "cooldown";
 

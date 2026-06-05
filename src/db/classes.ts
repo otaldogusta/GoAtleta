@@ -379,6 +379,17 @@ export async function deleteClassCascade(id: string) {
   await supabaseDelete("/class_plans?" + classFilter);
   await supabaseDelete("/attendance_logs?" + classFilter);
   await supabaseDelete("/scouting_logs?" + classFilter);
+  try {
+    await supabaseDelete("/scouting_actions?" + classFilter);
+    await supabaseDelete("/scouting_sessions?" + classFilter);
+  } catch (error) {
+    if (
+      !isMissingRelation(error, "scouting_actions") &&
+      !isMissingRelation(error, "scouting_sessions")
+    ) {
+      throw error;
+    }
+  }
   await supabaseDelete("/students?" + classFilter);
   await supabaseDelete("/session_logs?" + classFilter);
   try {

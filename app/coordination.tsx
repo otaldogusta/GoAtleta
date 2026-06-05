@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import {
     cacheDirectory,
@@ -8,7 +7,7 @@ import {
     EncodingType,
     writeAsStringAsync,
 } from "expo-file-system/legacy";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";

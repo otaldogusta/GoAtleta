@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, Text, View, useWindowDimensions } from "react-native";
@@ -20,8 +19,12 @@ import { radius, shadow } from "../../theme/tokens";
 import { FabRadialMenu } from "./FabRadialMenu";
 import { ROLE_RADIAL_ACTIONS, ROLE_TABS, type AppRole } from "./tab-config";
 
-type AnimatedBottomTabsProps = BottomTabBarProps & {
+type AnimatedBottomTabsProps = {
   role: AppRole;
+  navigation: {
+    addListener?: (eventName: string, listener: () => void) => () => void;
+    navigate: (routeName: string) => void;
+  };
 };
 
 export function AnimatedBottomTabs({
@@ -90,7 +93,7 @@ export function AnimatedBottomTabs({
   }, [iconAnim, menuOpen]);
 
   useEffect(() => {
-    const unsubscribe = (navigation as any).addListener("blur", () => {
+    const unsubscribe = navigation.addListener?.("blur", () => {
       setMenuOpen(false);
     });
     return unsubscribe;
@@ -181,7 +184,7 @@ export function AnimatedBottomTabs({
               key={tab.key}
               onPress={() => {
                 setMenuOpen(false);
-                navigation.navigate(tab.routeName as never);
+                navigation.navigate(tab.routeName);
               }}
               style={{
                 flex: 1,

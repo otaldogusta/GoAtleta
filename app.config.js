@@ -18,6 +18,7 @@ const enableManualLinking =
 
 const plugins = [
 	"expo-router",
+	"expo-status-bar",
 	[
 		"expo-splash-screen",
 		{

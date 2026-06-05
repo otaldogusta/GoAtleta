@@ -242,6 +242,48 @@ export type StudentScoutingRow = {
   updatedat?: string | null;
 };
 
+export type ScoutingSessionRow = {
+  id: string;
+  organization_id?: string | null;
+  classid: string;
+  type?: string | null;
+  date: string;
+  title?: string | null;
+  opponent?: string | null;
+  initial_note?: string | null;
+  status?: string | null;
+  createdat: string;
+  updatedat?: string | null;
+  completed_at?: string | null;
+};
+
+export type ScoutingActionRow = {
+  id: string;
+  session_id: string;
+  organization_id?: string | null;
+  classid: string;
+  student_id?: string | null;
+  athlete_name?: string | null;
+  fundamental?: string | null;
+  phase?: string | null;
+  result_key?: string | null;
+  result_label?: string | null;
+  result_level?: number | null;
+  createdat: string;
+};
+
+export type TechnicalVisualRow = {
+  id: string;
+  organization_id?: string | null;
+  class_id: string;
+  source_kind?: string | null;
+  source_id?: string | null;
+  title?: string | null;
+  payload_json?: unknown;
+  created_at: string;
+  updated_at?: string | null;
+};
+
 export type ClassPlanRow = {
   id: string;
   classid: string;

@@ -740,7 +740,6 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
         </View>
         <StatusBar
           style={mode === "dark" ? "light" : "dark"}
-          backgroundColor="transparent"
         />
       </View>
     );
@@ -751,7 +750,6 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
       <ScreenBackdrop />
       <StatusBar
         style={mode === "dark" ? "light" : "dark"}
-        backgroundColor="transparent"
       />
       {shouldShowEmailVerifyBanner ? (
         <View

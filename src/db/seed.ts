@@ -25,6 +25,27 @@ export {
 } from "./session";
 
 export {
+    addScoutingAction,
+    buildScoutingSessionTitle,
+    completeScoutingSession,
+    createScoutingSession,
+    deleteLastScoutingAction,
+    getScoutingSessionById,
+    getScoutingSessionsByClass,
+    type ScoutingSessionDetail
+} from "./scouting-sessions";
+
+export {
+    buildTechnicalVisualId,
+    ensureDefaultRotationVisual,
+    ensureDefaultVisualPresets,
+    getTechnicalVisualById,
+    listTechnicalVisualsByClass,
+    saveTechnicalVisual,
+    technicalVisualRowToModel
+} from "./technical-visuals";
+
+export {
     buildTrainingSessionId,
     buildTrainingSessionWindow, deleteTrainingIntegrationRuleBySession, deleteTrainingSessionsByClass, getTrainingIntegrationRules, getTrainingSessionAttendanceBySessionId, getTrainingSessionByDate, getTrainingSessionEvidenceByClass,
     getTrainingSessionsByClass, resolveTrainingPlanForDate, syncTrainingIntegrationRuleFromSession, syncTrainingSessionFromAttendance,
@@ -60,4 +81,3 @@ export {
     getAttendanceByStudent, getStudentById, getStudentPreRegistrations, getStudents,
     getStudentsByClass, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
 } from "./students";
-
