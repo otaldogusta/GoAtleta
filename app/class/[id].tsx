@@ -66,6 +66,7 @@ import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
+import { useSaveToast } from "../../src/ui/save-toast";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette, toRgba } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
@@ -204,6 +205,7 @@ export default function ClassDetails() {
   const router = useRouter();
   const { width: windowWidth } = useWindowDimensions();
   const { colors, mode } = useAppTheme();
+  const { showSaveToast } = useSaveToast();
   const insets = useSafeAreaInsets();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm } = useConfirmUndo();
@@ -1252,9 +1254,17 @@ export default function ClassDetails() {
         // Keep state unchanged; deletion is committed only after undo window.
       },
       onConfirm: async () => {
-        await measure("deleteClassCascade", () => deleteClassCascade(targetClassId));
-        logAction("Excluir turma", { classId: targetClassId });
-        router.replace("/classes");
+        try {
+          await measure("deleteClassCascade", () => deleteClassCascade(targetClassId));
+          logAction("Excluir turma", { classId: targetClassId });
+          router.replace("/classes");
+        } catch (error) {
+          showSaveToast({
+            error,
+            variant: "error",
+            message: "Não foi possível excluir a turma.",
+          });
+        }
       },
       onUndo: async () => {
         // Nothing to revert locally because removal happens after the undo window.

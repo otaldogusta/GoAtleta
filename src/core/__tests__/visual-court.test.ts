@@ -24,11 +24,14 @@ import {
   SETTER_ROTATION_ZONES_5X1,
   getZoneBounds,
   isDefenseBase6BackPreset,
+  normalizeCourtPayload,
+  normalizeDefenseBase6BackPayload,
   normalizeCourtPoint,
   parseCourtVisualPayload,
   resetCourtVisualStepAnimations,
   resolveCourtZone,
   serializeCourtVisualPayload,
+  shouldDisplayCourtMovementLines,
   updateCourtVisualStepActorPosition,
   updateCourtVisualStepActorStaticPosition,
 } from "../visual-court";
@@ -243,8 +246,8 @@ describe("visual-court", () => {
     expect(preset.actors.map((actor) => actor.label)).toEqual([
       "Lv",
       "Op",
-      "P",
-      "P",
+      "P¹",
+      "P²",
       "C",
       "C",
       "Lb",
@@ -271,6 +274,29 @@ describe("visual-court", () => {
       "P3",
       "P2",
     ]);
+  });
+
+  it("normalizes legacy outside hitter labels without changing extra generic pointers", () => {
+    const preset = buildRotation5x1Preset();
+    const legacyPayload = {
+      ...preset,
+      actors: [
+        ...preset.actors.map((actor) =>
+          actor.id === "p1" || actor.id === "p2" ? { ...actor, label: "P" } : actor
+        ),
+        {
+          ...preset.actors.find((actor) => actor.id === "p1")!,
+          id: "p_extra_1",
+          label: "P",
+        },
+      ],
+    };
+
+    const normalized = normalizeCourtPayload(legacyPayload);
+
+    expect(normalized.actors.find((actor) => actor.id === "p1")?.label).toBe("P¹");
+    expect(normalized.actors.find((actor) => actor.id === "p2")?.label).toBe("P²");
+    expect(normalized.actors.find((actor) => actor.id === "p_extra_1")?.label).toBe("P");
   });
 
   it("uses the fixed Brazilian 5x1 legal lineup matrix", () => {
@@ -362,18 +388,77 @@ describe("visual-court", () => {
     expect(steps[4].attackOrigin).toBe("middle");
     expect(steps[8].attackOrigin).toBe("right");
 
+    const expectedDefenseBaseByRotation = {
+      P1: {
+        lev: { x: 0.8328, y: 0.737 },
+        op: { x: 0.1367, y: 0.21 },
+        p1: { x: 0.7933, y: 0.21 },
+        p2: { x: 0.5159, y: 0.7341 },
+        c2: { x: 0.5, y: 0.21 },
+        lib: { x: 0.166, y: 0.7355 },
+      },
+      P6: {
+        lev: { x: 0.822, y: 0.8 },
+        op: { x: 0.8116, y: 0.2386 },
+        p1: { x: 0.4975, y: 0.7958 },
+        p2: { x: 0.1762, y: 0.2702 },
+        c2: { x: 0.5069, y: 0.2702 },
+        lib: { x: 0.182, y: 0.7986 },
+      },
+      P5: {
+        lev: { x: 0.8666, y: 0.7585 },
+        op: { x: 0.8338, y: 0.2386 },
+        p1: { x: 0.5058, y: 0.7714 },
+        p2: { x: 0.1812, y: 0.2443 },
+        c1: { x: 0.5064, y: 0.2358 },
+        lib: { x: 0.1577, y: 0.7527 },
+      },
+      P4: {
+        lev: { x: 0.8475, y: 0.2529 },
+        op: { x: 0.8491, y: 0.7342 },
+        p1: { x: 0.5102, y: 0.7442 },
+        p2: { x: 0.1652, y: 0.2385 },
+        c1: { x: 0.5, y: 0.2329 },
+        lib: { x: 0.1489, y: 0.7413 },
+      },
+      P3: {
+        lev: { x: 0.8373, y: 0.2558 },
+        op: { x: 0.8479, y: 0.78 },
+        p1: { x: 0.163, y: 0.2616 },
+        p2: { x: 0.5107, y: 0.7757 },
+        c1: { x: 0.5203, y: 0.2386 },
+        lib: { x: 0.1572, y: 0.7713 },
+      },
+      P2: {
+        lev: { x: 0.8499, y: 0.2673 },
+        op: { x: 0.8581, y: 0.78 },
+        p1: { x: 0.1756, y: 0.2671 },
+        p2: { x: 0.498, y: 0.7857 },
+        c2: { x: 0.5102, y: 0.2673 },
+        lib: { x: 0.1386, y: 0.7642 },
+      },
+    } as const;
+
     SETTER_ROTATION_ZONES_5X1.forEach((_, index) => {
       const rotationSteps = steps.filter((step) => step.rotationIndex === index + 1);
+      const setterPosition = getSetterPositionLabel(
+        (index + 1) as 1 | 2 | 3 | 4 | 5 | 6
+      );
+      const baseStep = rotationSteps.find(
+        (step) => step.attackOrigin === "left" && step.defenseKind === "parallel"
+      )!;
       expect(rotationSteps).toHaveLength(
         DEFENSE_ATTACK_ORIGIN_ORDER.length * DEFENSE_KIND_ORDER.length
       );
-      expect(rotationSteps[0].label).toBe(
-        `${getSetterPositionLabel((index + 1) as 1 | 2 | 3 | 4 | 5 | 6)} - defesa`
+      expect(rotationSteps[0].label).toBe(`${setterPosition} - defesa`);
+      expect(baseStep.actorPositions).toMatchObject(
+        expectedDefenseBaseByRotation[setterPosition]
       );
       rotationSteps.forEach((step) => {
         expect(step.visibleActorIds).toHaveLength(6);
         expect(step.trajectories).toBeUndefined();
         expect(step.transitions).toBeUndefined();
+        expect(step.actorPositions).toEqual(baseStep.actorPositions);
         expect(step.baselineActorPositions).toEqual(step.actorPositions);
         expect(step.defensiveRoles).toBeDefined();
         expect(Object.values(step.defensiveRoles ?? {})).toEqual(
@@ -817,6 +902,70 @@ describe("visual-court", () => {
     expect(next.timeline.steps[1]).toBe(moved.timeline.steps[1]);
   });
 
+  it("normalizes defense base variants from Entrada across every attack origin", () => {
+    const preset = buildDefenseBase6BackPreset();
+    const p5EntradaSteps = preset.timeline.steps.filter(
+      (step) =>
+        step.formationKind === "defense_base_6_back" &&
+        step.rotationIndex === 3 &&
+        step.attackOrigin === "left"
+    );
+    const parallelIndex = preset.timeline.steps.findIndex(
+      (step) => step === p5EntradaSteps.find((item) => item.defenseKind === "parallel")
+    );
+    const diagonalIndex = preset.timeline.steps.findIndex(
+      (step) => step === p5EntradaSteps.find((item) => item.defenseKind === "diagonal")
+    );
+    const deepIndex = preset.timeline.steps.findIndex(
+      (step) => step === p5EntradaSteps.find((item) => item.defenseKind === "deep")
+    );
+
+    const editedParallel = updateCourtVisualStepActorStaticPosition(
+      preset,
+      parallelIndex,
+      "lib",
+      { x: 0.18, y: 0.72 }
+    );
+    const animatedDiagonal = updateCourtVisualStepActorPosition(
+      editedParallel,
+      diagonalIndex,
+      "lib",
+      { x: 0.82, y: 0.28 }
+    );
+    const animatedDeep = updateCourtVisualStepActorPosition(
+      animatedDiagonal,
+      deepIndex,
+      "p1",
+      { x: 0.22, y: 0.3 }
+    );
+
+    const normalized = normalizeDefenseBase6BackPayload(animatedDeep);
+    const normalizedP5Steps = normalized.timeline.steps.filter(
+      (step) =>
+        step.formationKind === "defense_base_6_back" &&
+        step.rotationIndex === 3
+    );
+    const basePositions =
+      normalizedP5Steps.find(
+        (step) => step.attackOrigin === "left" && step.defenseKind === "parallel"
+      )!
+        .actorPositions;
+
+    DEFENSE_ATTACK_ORIGIN_ORDER.forEach((origin) => {
+      DEFENSE_KIND_ORDER.forEach((kind) => {
+        const step = normalizedP5Steps.find(
+          (item) => item.attackOrigin === origin && item.defenseKind === kind
+        )!;
+        expect(step.actorPositions).toMatchObject(basePositions);
+        expect(step.baselineActorPositions).toMatchObject(basePositions);
+        expect(step.trajectories).toBeUndefined();
+        expect(step.transitions).toBeUndefined();
+        expect(step.visibleLayerIds).not.toContain("trajectories");
+      });
+    });
+    expect(basePositions.lib).toEqual({ x: 0.18, y: 0.72 });
+  });
+
   it("adds an extra actor from the legend only to the current frame", () => {
     const preset = buildRotation5x1Preset();
     const next = addCourtVisualActorFromLegend(preset, 0, "P");
@@ -841,24 +990,93 @@ describe("visual-court", () => {
     expect(next.timeline.steps[1].actorPositions.p_extra_1).toBeUndefined();
   });
 
+  it("does not create a movement trajectory when adding a legend actor", () => {
+    const animated = updateCourtVisualStepActorPosition(
+      buildRotation5x1Preset(),
+      0,
+      "p1",
+      { x: 0.42, y: 0.68 }
+    );
+    const next = addCourtVisualActorFromLegend(animated, 0, "Op");
+
+    expect(next.timeline.steps[0].actorPositions.op_extra_1).toEqual({
+      x: 0.5,
+      y: 0.5,
+    });
+    expect(
+      next.timeline.steps[0].trajectories?.some(
+        (trajectory) => trajectory.actorId === "op_extra_1"
+      )
+    ).not.toBe(true);
+  });
+
+  it("does not move or replace existing actors when adding a legend actor", () => {
+    const animated = updateCourtVisualStepActorPosition(
+      buildRotation5x1Preset(),
+      0,
+      "p1",
+      { x: 0.42, y: 0.68 }
+    );
+    const beforeStep = animated.timeline.steps[0];
+    const next = addCourtVisualActorFromLegend(animated, 0, "Op");
+    const nextStep = next.timeline.steps[0];
+
+    expect(nextStep.actorPositions.p1).toEqual(beforeStep.actorPositions.p1);
+    expect(nextStep.actorPositions.op).toEqual(beforeStep.actorPositions.op);
+    expect(nextStep.baselineActorPositions?.p1).toEqual(
+      beforeStep.baselineActorPositions?.p1
+    );
+    expect(nextStep.trajectories?.filter((item) => item.actorId === "p1")).toEqual(
+      beforeStep.trajectories?.filter((item) => item.actorId === "p1")
+    );
+    expect(nextStep.visibleActorIds).toEqual([
+      ...(beforeStep.visibleActorIds ?? []),
+      "op_extra_1",
+    ]);
+  });
+
+  it("shows movement lines only during play or explicit animation editing", () => {
+    expect(
+      shouldDisplayCourtMovementLines({
+        animationProgress: undefined,
+        forceShowMovementLines: false,
+        movementLineCount: 4,
+      })
+    ).toBe(false);
+    expect(
+      shouldDisplayCourtMovementLines({
+        animationProgress: 0,
+        forceShowMovementLines: false,
+        movementLineCount: 4,
+      })
+    ).toBe(true);
+    expect(
+      shouldDisplayCourtMovementLines({
+        animationProgress: undefined,
+        forceShowMovementLines: true,
+        movementLineCount: 4,
+      })
+    ).toBe(true);
+  });
+
   it("duplicates the selected actor only in the current frame", () => {
     const preset = buildRotation5x1Preset();
     const next = duplicateCourtVisualStepActor(preset, 0, "p1");
-    const duplicatedActor = next.actors.find((actor) => actor.id === "p_extra_1");
+    const duplicatedActor = next.actors.find((actor) => actor.id === "p1_extra_1");
 
     expect(duplicatedActor).toMatchObject({
-      id: "p_extra_1",
-      label: "P",
+      id: "p1_extra_1",
+      label: "P¹",
       role: "outside",
       baseColor: "#60A5FA",
     });
-    expect(next.timeline.steps[0].visibleActorIds).toContain("p_extra_1");
-    expect(next.timeline.steps[0].actorPositions.p_extra_1).toEqual({
+    expect(next.timeline.steps[0].visibleActorIds).toContain("p1_extra_1");
+    expect(next.timeline.steps[0].actorPositions.p1_extra_1).toEqual({
       x: 0.84,
       y: 0.74,
     });
-    expect(next.timeline.steps[1].visibleActorIds).not.toContain("p_extra_1");
-    expect(next.timeline.steps[1].actorPositions.p_extra_1).toBeUndefined();
+    expect(next.timeline.steps[1].visibleActorIds).not.toContain("p1_extra_1");
+    expect(next.timeline.steps[1].actorPositions.p1_extra_1).toBeUndefined();
   });
 
   it("deletes the selected actor from the current frame without removing other frames", () => {

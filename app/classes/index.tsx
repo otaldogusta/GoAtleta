@@ -52,6 +52,7 @@ import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 
 const ClassEditModalBody = lazy(() =>
   import("../../src/screens/classes/components/ClassEditModalBody").then((module) => ({
@@ -82,6 +83,30 @@ export default function ClassesScreen() {
   const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
+  const getClassId = useCallback((item: ClassGroup) => item.id, []);
+  const undoableClassDelete = useUndoableListDelete({
+    items: classes,
+    setItems: setClasses,
+    getId: getClassId,
+    confirm: confirmUndo,
+    title: "Excluir turma?",
+    message: "Isso remove a turma e todos os dados relacionados.",
+    confirmLabel: "Excluir",
+    cancelLabel: "Cancelar",
+    undoLabel: "Desfazer",
+    undoMessage: "Turma excluída. Deseja desfazer?",
+    delayMs: 4500,
+    deleteItems: async (ids) => {
+      const [classId] = ids;
+      if (!classId) return;
+      await measure("deleteClassCascade", () => deleteClassCascade(classId));
+    },
+    onConfirmed: (targets) => {
+      const [target] = targets;
+      if (!target) return;
+      logAction("Excluir turma", { classId: target.id });
+    },
+  });
 
   useCopilotContext(
     useMemo(
@@ -1180,26 +1205,7 @@ export default function ClassesScreen() {
     setShowEditModal(false);
     setEditingClass(null);
     setTimeout(() => {
-      confirmUndo({
-        title: "Excluir turma?",
-        message: "Isso remove a turma e todos os dados relacionados.",
-        confirmLabel: "Excluir",
-        cancelLabel: "Cancelar",
-        undoLabel: "Desfazer",
-        undoMessage: "Turma excluída. Deseja desfazer?",
-        delayMs: 4500,
-        onOptimistic: () => {
-          setClasses((prev) => prev.filter((item) => item.id !== target.id));
-        },
-        onConfirm: async () => {
-          await measure("deleteClassCascade", () => deleteClassCascade(target.id));
-          await loadClasses();
-          logAction("Excluir turma", { classId: target.id });
-        },
-        onUndo: async () => {
-          await loadClasses();
-        },
-      });
+      undoableClassDelete.deleteOne(target);
     }, 10);
   };
 
@@ -2484,4 +2490,3 @@ export default function ClassesScreen() {
     </SafeAreaView>
   );
 }
-

@@ -35,6 +35,7 @@ import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { useAppTheme } from "../../src/ui/app-theme";
 import type { ConfirmDialogOptions } from "../../src/ui/confirm-dialog";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
 
@@ -116,6 +117,7 @@ export default function EventDetailsScreen() {
   const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
+  const { confirm: confirmUndo } = useConfirmUndo();
   const organization = useOptionalOrganization();
   const activeOrganization = organization?.activeOrganization ?? null;
   const organizationLoading = organization?.isLoading ?? false;
@@ -348,21 +350,29 @@ export default function EventDetailsScreen() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!activeOrganization?.id || !isAdmin) return;
-    confirmDialog({
-      title: "Excluir evento",
-      message: "Deseja realmente excluir este evento? Esta ação não pode ser desfeita.",
+    const organizationId = activeOrganization.id;
+    confirmUndo({
+      title: "Excluir evento?",
+      message: "Deseja realmente excluir este evento?",
       confirmLabel: "Excluir",
       cancelLabel: "Cancelar",
-      tone: "danger",
+      undoLabel: "Desfazer",
+      undoMessage: "Evento será excluído em {seconds}...",
+      onOptimistic: () => {
+        // Keep detail state until deletion is committed.
+      },
       onConfirm: async () => {
         try {
-          await deleteEvent(eventId, activeOrganization.id);
+          await deleteEvent(eventId, organizationId);
           router.replace("/events");
         } catch (err) {
           Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao excluir.");
         }
+      },
+      onUndo: async () => {
+        // Nothing to restore locally on the detail screen.
       },
     });
   };

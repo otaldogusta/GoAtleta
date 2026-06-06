@@ -1,4 +1,8 @@
-import { buildRotation5x1Preset } from "../../core/visual-court";
+import {
+  buildDefenseBase6BackPreset,
+  buildRotation5x1Preset,
+  updateCourtVisualStepActorStaticPosition,
+} from "../../core/visual-court";
 import {
   ensureDefaultRotationVisual,
   ensureDefaultVisualPresets,
@@ -97,6 +101,37 @@ describe("technical-visuals db helpers", () => {
     expect(rows[0].updated_at).toBeTruthy();
   });
 
+  it("preserves manually edited defense positions instead of normalizing them on save", async () => {
+    const preset = buildDefenseBase6BackPreset();
+    const targetIndex = preset.timeline.steps.findIndex(
+      (step) =>
+        step.rotationIndex === 3 &&
+        step.attackOrigin === "middle" &&
+        step.defenseKind === "short_tip"
+    );
+    const editedPayload = updateCourtVisualStepActorStaticPosition(
+      preset,
+      targetIndex,
+      "lib",
+      { x: 0.21, y: 0.73 }
+    );
+
+    await saveTechnicalVisual({
+      organizationId: "org_1",
+      classId: "class_1",
+      sourceKind: "rotation",
+      sourceId: "defense_base_6_back",
+      title: "Defesa base — 6 fundo",
+      payload: editedPayload,
+    });
+
+    const [, rows] = mockSupabasePost.mock.calls[0];
+    expect(rows[0].payload_json.timeline.steps[targetIndex].actorPositions.lib).toEqual({
+      x: 0.21,
+      y: 0.73,
+    });
+  });
+
   it("saves locally when the technical_visuals table is not applied yet", async () => {
     mockSupabasePost.mockRejectedValueOnce(new Error("technical_visuals missing"));
 
@@ -184,7 +219,7 @@ describe("technical-visuals db helpers", () => {
     });
 
     expect(result.map((item) => item.title)).toEqual([
-      "5x1 base - recepção em 3",
+      "5x1 - Recepção",
       "5x1 base - equipe sacando",
       "Defesa base — 6 fundo",
       "Grade didática",
