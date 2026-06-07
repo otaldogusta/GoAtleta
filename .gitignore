@@ -63,3 +63,5 @@ scripts/preview-roster.ts
 tmp-*-check.ts
 tatus
 testvoleiapp
+
+.vercel
