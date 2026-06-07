@@ -1,9 +1,3 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import StudentsScreen from "../students";
 
-const ProfStudentsTab = createLazyRoute(
-  () => import("../students"),
-  createLoadingFallback(ptBR.loading.routes.students)
-);
-
-export default ProfStudentsTab;
+export default StudentsScreen;
