@@ -184,6 +184,12 @@ export const normalizeExtendedCourtPoint = (point: CourtPoint): CourtPoint => ({
   y: Number(clampCourtExtendedUnit(point.y).toFixed(4)),
 });
 
+const normalizeCourtVisualActorLabel = (actor: CourtVisualActor) => {
+  if (actor.id === "p1") return "P¹";
+  if (actor.id === "p2") return "P²";
+  return actor.label;
+};
+
 export const normalizeCourtPayload = (
   payload: CourtVisualPayload
 ): CourtVisualPayload => ({
@@ -200,6 +206,7 @@ export const normalizeCourtPayload = (
   },
   actors: payload.actors.map((actor) => ({
     ...actor,
+    label: normalizeCourtVisualActorLabel(actor),
     initialPosition: normalizeCourtPoint(actor.initialPosition),
   })),
   markers: payload.markers.map((marker) => ({
@@ -832,7 +839,7 @@ const tacticalActors: CourtVisualActor[] = [
   },
   {
     id: "p1",
-    label: "P",
+    label: "P¹",
     role: "outside",
     color: "#60A5FA",
     baseColor: "#60A5FA",
@@ -843,7 +850,7 @@ const tacticalActors: CourtVisualActor[] = [
   },
   {
     id: "p2",
-    label: "P",
+    label: "P²",
     role: "outside",
     color: "#60A5FA",
     baseColor: "#60A5FA",
@@ -1206,52 +1213,52 @@ const DEFENSE_BASE_6_BACK_BY_SETTER_POSITION: Record<
   DefenseBase6BackTemplate
 > = {
   P1: {
-    lev: { x: 0.8614, y: 0.7385 },
+    lev: { x: 0.8328, y: 0.737 },
     op: { x: 0.1367, y: 0.21 },
     p1: { x: 0.7933, y: 0.21 },
-    p2: { x: 0.5064, y: 0.7428 },
+    p2: { x: 0.5159, y: 0.7341 },
     c2: { x: 0.5, y: 0.21 },
-    lib: { x: 0.1565, y: 0.7485 },
+    lib: { x: 0.166, y: 0.7355 },
   },
   P6: {
-    lev: { x: 0.8448, y: 0.7098 },
-    op: { x: 0.8364, y: 0.213 },
-    p1: { x: 0.5089, y: 0.7328 },
-    p2: { x: 0.2067, y: 0.21 },
-    c2: { x: 0.507, y: 0.2072 },
-    lib: { x: 0.1896, y: 0.727 },
+    lev: { x: 0.822, y: 0.8 },
+    op: { x: 0.8116, y: 0.2386 },
+    p1: { x: 0.4975, y: 0.7958 },
+    p2: { x: 0.1762, y: 0.2702 },
+    c2: { x: 0.5069, y: 0.2702 },
+    lib: { x: 0.182, y: 0.7986 },
   },
   P5: {
-    lev: { x: 0.8379, y: 0.7456 },
-    op: { x: 0.8033, y: 0.21 },
-    p1: { x: 0.5115, y: 0.7542 },
-    p2: { x: 0.164, y: 0.2358 },
-    c1: { x: 0.5102, y: 0.2301 },
+    lev: { x: 0.8666, y: 0.7585 },
+    op: { x: 0.8338, y: 0.2386 },
+    p1: { x: 0.5058, y: 0.7714 },
+    p2: { x: 0.1812, y: 0.2443 },
+    c1: { x: 0.5064, y: 0.2358 },
     lib: { x: 0.1577, y: 0.7527 },
   },
   P4: {
-    lev: { x: 0.8532, y: 0.2244 },
-    op: { x: 0.8586, y: 0.7199 },
-    p1: { x: 0.5046, y: 0.7227 },
-    p2: { x: 0.1615, y: 0.2273 },
-    c1: { x: 0.5, y: 0.21 },
-    lib: { x: 0.1565, y: 0.7355 },
+    lev: { x: 0.8475, y: 0.2529 },
+    op: { x: 0.8491, y: 0.7342 },
+    p1: { x: 0.5102, y: 0.7442 },
+    p2: { x: 0.1652, y: 0.2385 },
+    c1: { x: 0.5, y: 0.2329 },
+    lib: { x: 0.1489, y: 0.7413 },
   },
   P3: {
-    lev: { x: 0.8353, y: 0.2015 },
-    op: { x: 0.8517, y: 0.6941 },
-    p1: { x: 0.1267, y: 0.21 },
-    p2: { x: 0.5279, y: 0.7084 },
-    c1: { x: 0.5051, y: 0.2185 },
-    lib: { x: 0.1495, y: 0.7141 },
+    lev: { x: 0.8373, y: 0.2558 },
+    op: { x: 0.8479, y: 0.78 },
+    p1: { x: 0.163, y: 0.2616 },
+    p2: { x: 0.5107, y: 0.7757 },
+    c1: { x: 0.5203, y: 0.2386 },
+    lib: { x: 0.1572, y: 0.7713 },
   },
   P2: {
-    lev: { x: 0.8633, y: 0.21 },
-    op: { x: 0.8581, y: 0.697 },
-    p1: { x: 0.1642, y: 0.2415 },
-    p2: { x: 0.5151, y: 0.707 },
-    c2: { x: 0.4949, y: 0.2329 },
-    lib: { x: 0.1864, y: 0.707 },
+    lev: { x: 0.8499, y: 0.2673 },
+    op: { x: 0.8581, y: 0.78 },
+    p1: { x: 0.1756, y: 0.2671 },
+    p2: { x: 0.498, y: 0.7857 },
+    c2: { x: 0.5102, y: 0.2673 },
+    lib: { x: 0.1386, y: 0.7642 },
   },
 };
 
@@ -1750,6 +1757,18 @@ export const getVisibleLayerIdsForStep = (
     .filter((layer) => layer.visibleByDefault)
     .map((layer) => layer.id);
 
+export const shouldDisplayCourtMovementLines = ({
+  animationProgress,
+  forceShowMovementLines,
+  movementLineCount,
+}: {
+  animationProgress?: number;
+  forceShowMovementLines?: boolean;
+  movementLineCount: number;
+}) =>
+  Boolean(forceShowMovementLines) ||
+  (typeof animationProgress === "number" && movementLineCount > 0);
+
 export const getStepAtIndex = (
   payload: CourtVisualPayload,
   index: number
@@ -1859,6 +1878,97 @@ const getDefaultDefenseBaselinePositions = (step: CourtVisualStep) => {
   return DEFENSE_BASE_6_BACK_BY_SETTER_POSITION[
     getSetterPositionLabel(step.rotationIndex)
   ] ?? {};
+};
+
+const getDefenseBaseGroupKey = (step: CourtVisualStep) =>
+  step.formationKind === "defense_base_6_back" && step.rotationIndex
+    ? `${step.rotationIndex}`
+    : "";
+
+const getDefenseBaseCanonicalPositions = (step: CourtVisualStep) => {
+  const fallback = getDefaultDefenseBaselinePositions(step);
+  const sourcePositions = step.baselineActorPositions ?? step.actorPositions;
+  const actorIds = step.visibleActorIds ?? Object.keys(sourcePositions);
+  return actorIds.reduce<Record<string, CourtPoint>>((positions, actorId) => {
+    const point =
+      sourcePositions[actorId] ??
+      fallback[actorId] ??
+      step.actorPositions[actorId];
+    if (point) positions[actorId] = normalizeExtendedCourtPoint(point);
+    return positions;
+  }, {});
+};
+
+export const normalizeDefenseBase6BackPayload = (
+  payload: CourtVisualPayload
+): CourtVisualPayload => {
+  const canonicalByGroup = new Map<
+    string,
+    { positions: Record<string, CourtPoint>; score: number }
+  >();
+
+  payload.timeline.steps.forEach((step) => {
+    const groupKey = getDefenseBaseGroupKey(step);
+    if (!groupKey) return;
+    const current = canonicalByGroup.get(groupKey);
+    const canonicalPositions = getDefenseBaseCanonicalPositions(step);
+    const score =
+      step.attackOrigin === "left" && step.defenseKind === "parallel"
+        ? 1000
+        : step.attackOrigin === "left"
+          ? 500
+          : step.defenseKind === "parallel"
+            ? 100
+            : 0;
+    if (current && current.score >= score) return;
+    canonicalByGroup.set(groupKey, { positions: canonicalPositions, score });
+  });
+
+  if (!canonicalByGroup.size) return normalizeCourtPayload(payload);
+
+  return normalizeCourtPayload({
+    ...payload,
+    timeline: {
+      steps: payload.timeline.steps.map((step) => {
+        const groupKey = getDefenseBaseGroupKey(step);
+        const canonicalPositions = groupKey
+          ? canonicalByGroup.get(groupKey)?.positions
+          : undefined;
+        if (!canonicalPositions) return step;
+
+        const actorIds = step.visibleActorIds ?? Object.keys(canonicalPositions);
+        const actorPositions = { ...step.actorPositions };
+        actorIds.forEach((actorId) => {
+          const point = canonicalPositions[actorId];
+          if (point) actorPositions[actorId] = point;
+        });
+
+        return {
+          ...step,
+          actorPositions,
+          baselineActorPositions: {
+            ...(step.baselineActorPositions ?? {}),
+            ...Object.fromEntries(
+              actorIds
+                .filter((actorId) => canonicalPositions[actorId])
+                .map((actorId) => [actorId, canonicalPositions[actorId]])
+            ),
+          },
+          tacticalPositions: {
+            ...(step.tacticalPositions ?? {}),
+            ...Object.fromEntries(
+              actorIds
+                .filter((actorId) => canonicalPositions[actorId])
+                .map((actorId) => [actorId, canonicalPositions[actorId]])
+            ),
+          },
+          transitions: undefined,
+          trajectories: undefined,
+          visibleLayerIds: removeVisibleLayer(step.visibleLayerIds, "trajectories"),
+        };
+      }),
+    },
+  });
 };
 
 const getStepSavedBaselineActorPositions = (step: CourtVisualStep) => ({

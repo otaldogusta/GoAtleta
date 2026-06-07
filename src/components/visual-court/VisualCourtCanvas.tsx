@@ -28,6 +28,7 @@ import {
   resolveCourtZone,
   getStepAtIndex,
   getVisibleLayerIdsForStep,
+  shouldDisplayCourtMovementLines,
   type CourtDidacticSlot,
   type CourtPoint,
   type CourtVisualMarker,
@@ -48,6 +49,7 @@ type Props = {
   onActorMove?: (actorId: string, point: CourtPoint) => void;
   onActorMoveEnd?: (actorId: string, point: CourtPoint) => void;
   onActorSelect?: (actorId: string) => void;
+  onCanvasPress?: () => void;
 };
 
 type LayoutState = {
@@ -448,6 +450,7 @@ export function VisualCourtCanvas({
   onActorMove,
   onActorMoveEnd,
   onActorSelect,
+  onCanvasPress,
 }: Props) {
   const { colors, mode } = useAppTheme();
   const dragStartPointRef = useRef<Record<string, CourtPoint>>({});
@@ -474,10 +477,11 @@ export function VisualCourtCanvas({
       : step;
   const visibleLayerIds = getVisibleLayerIdsForStep(payload, step);
   const movementLines = animationStep.trajectories ?? animationStep.transitions;
-  const showMovementLines =
-    forceShowMovementLines ||
-    visibleLayerIds.includes("trajectories") ||
-    (typeof animationProgress === "number" && Boolean(movementLines?.length));
+  const showMovementLines = shouldDisplayCourtMovementLines({
+    animationProgress,
+    forceShowMovementLines,
+    movementLineCount: movementLines?.length ?? 0,
+  });
   const isDidacticSlots =
     payload.court.layoutMode === "didactic_slots" || payload.court.labelMode === "slots";
   const frame = useMemo(
@@ -547,10 +551,6 @@ export function VisualCourtCanvas({
       animation.stop();
     };
   }, [selectedActorId, selectionPulse]);
-  const selectionScale = selectionPulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.22],
-  });
   const selectionOpacity = selectionPulse.interpolate({
     inputRange: [0, 1],
     outputRange: [0.72, 0.16],
@@ -620,6 +620,25 @@ export function VisualCourtCanvas({
     x: event.nativeEvent?.pageX ?? event.pageX ?? event.nativeEvent?.clientX ?? event.clientX ?? 0,
     y: event.nativeEvent?.pageY ?? event.pageY ?? event.nativeEvent?.clientY ?? event.clientY ?? 0,
   });
+  const getCanvasPressHandlers = () => {
+    if (!onCanvasPress) return {};
+    if (Platform.OS === "web") {
+      return {
+        onMouseDown: (event: {
+          preventDefault?: () => void;
+          stopPropagation?: () => void;
+        }) => {
+          event.stopPropagation?.();
+          onCanvasPress();
+        },
+      };
+    }
+    return {
+      onTouchStart: () => {
+        onCanvasPress();
+      },
+    };
+  };
   const getActorDragHandlers = (actorId: string, currentPoint: CourtPoint) => {
     if (!canEditActors) {
       if (!onActorSelect) return {};
@@ -745,6 +764,7 @@ export function VisualCourtCanvas({
   if (Platform.OS === "web") {
     return (
       <View
+        {...getCanvasPressHandlers()}
         onLayout={(event) => {
           const nextWidth = event.nativeEvent.layout.width;
           if (nextWidth > 0) {
@@ -1092,7 +1112,7 @@ export function VisualCourtCanvas({
                 <View
                   key={actor.id}
                   testID={`visual-court-actor-${actor.id}`}
-                  {...getActorDragHandlers(actor.id, actorPosition)}
+                  {...getActorDragHandlers(actor.id, displayPosition)}
                   style={{
                     position: "absolute",
                     left: point.x - visual.radius,
@@ -1114,23 +1134,22 @@ export function VisualCourtCanvas({
                         testID={`visual-court-selection-${actor.id}`}
                         style={{
                           position: "absolute",
-                          left: -8,
-                          top: -8,
-                          width: visual.radius * 2 + 16,
-                          height: visual.radius * 2 + 16,
-                          borderRadius: visual.radius + 8,
+                          left: -12 - visual.borderWidth,
+                          top: -12 - visual.borderWidth,
+                          width: visual.radius * 2 + 24,
+                          height: visual.radius * 2 + 24,
+                          borderRadius: visual.radius + 12,
                           borderWidth: 2,
                           borderColor: selectionColor,
                           opacity: selectionOpacity,
-                          transform: [{ scale: selectionScale }],
                         }}
                       />
                       <View
                         pointerEvents="none"
                         style={{
                           position: "absolute",
-                          left: -4,
-                          top: -4,
+                          left: -4 - visual.borderWidth,
+                          top: -4 - visual.borderWidth,
                           width: visual.radius * 2 + 8,
                           height: visual.radius * 2 + 8,
                           borderRadius: visual.radius + 4,
@@ -1154,6 +1173,7 @@ export function VisualCourtCanvas({
 
   return (
     <View
+      {...getCanvasPressHandlers()}
       onLayout={(event) => {
           const nextWidth = event.nativeEvent.layout.width;
           if (nextWidth > 0) {
@@ -1592,7 +1612,7 @@ export function VisualCourtCanvas({
             return (
               <View
                 key={`actor-label-${actor.id}`}
-                {...getActorDragHandlers(actor.id, actorPosition)}
+                {...getActorDragHandlers(actor.id, displayPosition)}
                 style={{
                   position: "absolute",
                   left: point.x - visual.radius,
@@ -1610,23 +1630,22 @@ export function VisualCourtCanvas({
                       testID={`visual-court-selection-${actor.id}`}
                       style={{
                         position: "absolute",
-                        left: -8,
-                        top: -8,
-                        width: visual.radius * 2 + 16,
-                        height: visual.radius * 2 + 16,
-                        borderRadius: visual.radius + 8,
+                        left: -12 - visual.borderWidth,
+                        top: -12 - visual.borderWidth,
+                        width: visual.radius * 2 + 24,
+                        height: visual.radius * 2 + 24,
+                        borderRadius: visual.radius + 12,
                         borderWidth: 2,
                         borderColor: selectionColor,
                         opacity: selectionOpacity,
-                        transform: [{ scale: selectionScale }],
                       }}
                     />
                     <View
                       pointerEvents="none"
                       style={{
                         position: "absolute",
-                        left: -4,
-                        top: -4,
+                        left: -4 - visual.borderWidth,
+                        top: -4 - visual.borderWidth,
                         width: visual.radius * 2 + 8,
                         height: visual.radius * 2 + 8,
                         borderRadius: visual.radius + 4,

@@ -109,6 +109,7 @@ import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
 import { normalizeRaDigits, validateStudentRa } from "../../src/utils/student-ra";
@@ -1313,65 +1314,54 @@ export default function StudentsScreen() {
     closeEditModal();
   };
 
-  const onDelete = (id: string) => {
-    const student = students.find((item) => item.id === id);
-    if (!student) return;
-    confirm({
-      title: "Excluir aluno?",
-      message: student.name
+  const getStudentId = useCallback((student: Student) => student.id, []);
+  const undoableStudentDelete = useUndoableListDelete({
+    items: students,
+    setItems: setStudents,
+    getId: getStudentId,
+    confirm,
+    title: "Excluir aluno?",
+    message: (targets) => {
+      const [student] = targets;
+      return student?.name
         ? `Tem certeza que deseja excluir ${student.name}?`
-        : "Tem certeza que deseja excluir este aluno?",
-      confirmLabel: "Excluir",
-      undoMessage: "Aluno excluído. Deseja desfazer?",
-      onOptimistic: () => {
-        setStudents((prev) => prev.filter((item) => item.id !== student.id));
-        if (editingId === student.id) {
-          setEditingId(null);
-          setEditingCreatedAt(null);
-        }
-      },
-      onConfirm: async () => {
-        await measure("deleteStudent", () => deleteStudent(student.id));
-        await reload();
-        logAction("Excluir aluno", {
-          studentId: student.id,
-          classId: student.classId,
-        });
-      },
-      onUndo: async () => {
-        await reload();
-      },
-    });
+        : "Tem certeza que deseja excluir este aluno?";
+    },
+    confirmLabel: "Excluir",
+    undoMessage: "Aluno excluído. Deseja desfazer?",
+    deleteItems: async (ids) => {
+      const [studentId] = ids;
+      if (!studentId) return;
+      await measure("deleteStudent", () => deleteStudent(studentId));
+    },
+    onOptimistic: (_targets, ids) => {
+      if (ids.includes(editingId ?? "")) {
+        closeEditModal();
+      }
+    },
+    onConfirmed: (targets) => {
+      const [student] = targets;
+      if (!student) return;
+      logAction("Excluir aluno", {
+        studentId: student.id,
+        classId: student.classId,
+      });
+    },
+    onError: (error) => {
+      const detail =
+        error instanceof Error ? error.message : "Não foi possível excluir o aluno.";
+      Alert.alert("Excluir aluno", detail);
+    },
+  });
+
+  const onDelete = (id: string) => {
+    undoableStudentDelete.deleteOne(id);
   };
 
   const deleteEditingStudent = useCallback(() => {
     if (!editingId) return;
-    const student = students.find((item) => item.id === editingId);
-    if (!student) return;
-    confirm({
-      title: "Excluir aluno?",
-      message: student.name
-        ? `Tem certeza que deseja excluir ${student.name}?`
-        : "Tem certeza que deseja excluir este aluno?",
-      confirmLabel: "Excluir",
-      undoMessage: "Aluno excluído. Deseja desfazer?",
-      onOptimistic: () => {
-        setStudents((prev) => prev.filter((item) => item.id !== student.id));
-        closeEditModal();
-      },
-      onConfirm: async () => {
-        await measure("deleteStudent", () => deleteStudent(student.id));
-        await reload();
-        logAction("Excluir aluno", {
-          studentId: student.id,
-          classId: student.classId,
-        });
-      },
-      onUndo: async () => {
-        await reload();
-      },
-    });
-  }, [confirm, editingId, closeEditModal, logAction, reload, students]);
+    undoableStudentDelete.deleteOne(editingId);
+  }, [editingId, undoableStudentDelete]);
 
   const handleRevealEditingCpf = useCallback(async () => {
     if (!editingId || !canRevealCpf) return;

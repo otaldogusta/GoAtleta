@@ -37,6 +37,7 @@ import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 
 const getYoutubeId = (url: string) => {
   const match =
@@ -76,6 +77,32 @@ export default function ExercisesScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const canSave = Boolean(videoUrl.trim()) && !metaLoading;
   const debouncedSearchText = useDebouncedValue(searchText, 250);
+  const getExerciseId = useCallback((exercise: Exercise) => exercise.id, []);
+  const undoableExerciseDelete = useUndoableListDelete({
+    items,
+    setItems,
+    getId: getExerciseId,
+    confirm,
+    title: "Excluir exercício?",
+    message: (targets) => {
+      const [exercise] = targets;
+      return exercise?.title
+        ? `Deseja remover ${exercise.title}?`
+        : "Deseja remover este exercício?";
+    },
+    confirmLabel: "Excluir",
+    undoMessage: "Exercício excluído. Deseja desfazer?",
+    deleteItems: async (ids) => {
+      const [exerciseId] = ids;
+      if (!exerciseId) return;
+      await deleteExercise(exerciseId);
+    },
+    onError: (error) => {
+      const message =
+        error instanceof Error ? error.message : "Erro desconhecido.";
+      Alert.alert("Não foi possível excluir", message);
+    },
+  });
 
   const load = useCallback(async () => {
     try {
@@ -245,30 +272,7 @@ export default function ExercisesScreen() {
   };
 
   const confirmDelete = (exercise: Exercise) => {
-    confirm({
-      title: "Excluir exercício?",
-      message: exercise.title
-        ? `Deseja remover ${exercise.title}?`
-        : "Deseja remover este exercício?",
-      confirmLabel: "Excluir",
-      undoMessage: "Exercício excluído. Deseja desfazer?",
-      onOptimistic: () => {
-        setItems((prev) => prev.filter((item) => item.id !== exercise.id));
-      },
-      onConfirm: async () => {
-        try {
-          await deleteExercise(exercise.id);
-          await load();
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Erro desconhecido.";
-          Alert.alert("Não foi possível excluir", message);
-        }
-      },
-      onUndo: async () => {
-        await load();
-      },
-    });
+    undoableExerciseDelete.deleteOne(exercise);
   };
 
   return (

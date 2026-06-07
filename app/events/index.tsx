@@ -34,6 +34,8 @@ import { Pressable as AppPressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import type { ConfirmDialogOptions } from "../../src/ui/confirm-dialog";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useConfirmUndo } from "../../src/ui/confirm-undo";
+import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 import { formatDateTimeInputPtBr, parseDateTimeInput } from "../../src/utils/date-time";
 
 const eventTypes: EventType[] = ["torneio", "amistoso", "treino", "reuniao", "outro"];
@@ -222,6 +224,7 @@ export default function EventsScreen() {
   const { session } = useAuth();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const { confirm: confirmDialog } = useConfirmDialog();
+  const { confirm: confirmUndo } = useConfirmUndo();
   const isWideLayout = width >= 980;
   const isFormRowLayout = width >= 0;
 
@@ -242,6 +245,34 @@ export default function EventsScreen() {
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [classes, setClasses] = useState<{ id: string; name: string; unitId: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const getEventId = useCallback((event: EventListItem) => event.id, []);
+  const undoableEventDelete = useUndoableListDelete({
+    items: events,
+    setItems: setEvents,
+    getId: getEventId,
+    confirm: confirmUndo,
+    title: "Excluir evento?",
+    message: (targets) => {
+      const [event] = targets;
+      return event?.title
+        ? `Deseja realmente excluir ${event.title}?`
+        : "Deseja realmente excluir este evento?";
+    },
+    confirmLabel: "Excluir",
+    cancelLabel: "Cancelar",
+    undoLabel: "Desfazer",
+    undoMessage: "Evento excluído. Deseja desfazer?",
+    deleteItems: async (ids) => {
+      const [eventId] = ids;
+      if (!eventId || !activeOrganization?.id) {
+        throw new Error("Selecione uma organização ativa.");
+      }
+      await deleteEvent(eventId, activeOrganization.id);
+    },
+    onError: (err) => {
+      Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao excluir evento.");
+    },
+  });
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -502,23 +533,9 @@ export default function EventsScreen() {
     }
   };
 
-  const handleDelete = async (eventId: string) => {
+  const handleDelete = (eventId: string) => {
     if (!activeOrganization?.id || !isAdmin) return;
-    confirmDialog({
-      title: "Excluir evento?",
-      message: "Deseja realmente excluir este evento?",
-      confirmLabel: "Excluir",
-      cancelLabel: "Cancelar",
-      tone: "danger",
-      onConfirm: async () => {
-        try {
-          await deleteEvent(eventId, activeOrganization.id);
-          await loadData();
-        } catch (err) {
-          Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao excluir evento.");
-        }
-      },
-    });
+    undoableEventDelete.deleteOne(eventId);
   };
 
   const resetCreateForm = () => {

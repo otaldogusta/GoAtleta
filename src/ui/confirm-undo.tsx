@@ -12,7 +12,7 @@ import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
 
-type ConfirmUndoOptions = {
+export type ConfirmUndoOptions = {
   title: string;
   message: string;
   confirmLabel: string;

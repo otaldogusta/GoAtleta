@@ -49,6 +49,7 @@ import { useAppTheme } from "../../../src/ui/app-theme";
 import { useConfirmUndo } from "../../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../../src/ui/section-styles";
 import { useSaveToast } from "../../../src/ui/save-toast";
+import { useUndoableListDelete } from "../../../src/ui/useUndoableListDelete";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
 import { measureAsync } from "../../../src/observability/perf";
@@ -1187,29 +1188,66 @@ export default function ClassStudentsScreen() {
     }
   };
 
-  const removeStudent = useCallback((student: Student) => {
-    confirm({
-      title: "Excluir aluno?",
-      message: student.name
-        ? `Tem certeza que deseja excluir ${student.name}?`
-        : "Tem certeza que deseja excluir este aluno?",
-      confirmLabel: "Excluir",
-      undoMessage: "Aluno excluído. Deseja desfazer?",
-      onOptimistic: () => {
-        setStudents((prev) => prev.filter((item) => item.id !== student.id));
-        if (editingStudent?.id === student.id) {
-          closeEditModal();
-        }
-      },
-      onConfirm: async () => {
-        await deleteStudent(student.id);
-        await load();
-      },
-      onUndo: async () => {
-        await load();
-      },
-    });
-  }, [closeEditModal, confirm, editingStudent?.id, load]);
+  const getStudentId = useCallback((student: Student) => student.id, []);
+  const undoableStudentDelete = useUndoableListDelete({
+    items: students,
+    setItems: setStudents,
+    getId: getStudentId,
+    confirm,
+    title: (targets) => (targets.length === 1 ? "Excluir aluno?" : "Excluir alunos?"),
+    message: (targets) => {
+      if (targets.length === 1) {
+        const [student] = targets;
+        return student.name
+          ? `Tem certeza que deseja excluir ${student.name}?`
+          : "Tem certeza que deseja excluir este aluno?";
+      }
+      return `${targets.length} aluno(s) serão excluídos da turma. Você poderá desfazer por alguns segundos.`;
+    },
+    confirmLabel: "Excluir",
+    undoMessage: (targets) =>
+      targets.length === 1
+        ? `${targets[0].name || "Aluno"} excluído. Deseja desfazer?`
+        : `${targets.length} aluno(s) excluído(s). Desfazer?`,
+    deleteItems: async (ids) => {
+      if (ids.length === 1) {
+        await deleteStudent(ids[0]);
+        return;
+      }
+      await deleteStudents(ids);
+    },
+    onOptimistic: (targets, ids) => {
+      const idSet = new Set(ids);
+      setSelectedStudentIds((prev) => prev.filter((id) => !idSet.has(id)));
+      if (editingStudent?.id && idSet.has(editingStudent.id)) {
+        closeEditModal();
+      }
+    },
+    onConfirmed: (targets) => {
+      if (targets.length === 1) {
+        showSaveToast({
+          message: `${targets[0].name || "Aluno"} excluído da turma.`,
+          variant: "success",
+        });
+      }
+    },
+    onError: (error, targets) => {
+      const detail =
+        error instanceof Error
+          ? error.message
+          : targets.length === 1
+          ? "Não foi possível excluir o aluno."
+          : "Não foi possível excluir os alunos.";
+      Alert.alert(targets.length === 1 ? "Excluir aluno" : "Excluir alunos", detail);
+    },
+  });
+
+  const removeStudent = useCallback(
+    (student: Student) => {
+      undoableStudentDelete.deleteOne(student);
+    },
+    [undoableStudentDelete]
+  );
 
   const selectedStudents = useMemo(
     () => students.filter((student) => selectedStudentIds.includes(student.id)),
@@ -1442,45 +1480,8 @@ export default function ClassStudentsScreen() {
   }, [clearSelectedStudents, cls, confirm, selectedStudents]);
 
   const handleDeleteSelectedStudents = useCallback(() => {
-    const targets = selectedStudents.map((student) => ({ ...student }));
-    if (!targets.length) return;
-    const targetIds = targets.map((student) => student.id);
-    const targetIdSet = new Set(targetIds);
-    const restoreDeletedStudents = () => {
-      setStudents((prev) => {
-        const byId = new Map(prev.map((item) => [item.id, item]));
-        for (const student of targets) {
-          if (!byId.has(student.id)) {
-            byId.set(student.id, student);
-          }
-        }
-        return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
-      });
-    };
-
-    confirm({
-      title: "Excluir alunos?",
-      message: `${targets.length} aluno(s) serão excluídos da turma. Essa ação não pode ser desfeita.`,
-      confirmLabel: "Excluir",
-      undoMessage: `${targets.length} aluno(s) excluído(s). Desfazer?`,
-      onOptimistic: () => {
-        setStudents((prev) => prev.filter((item) => !targetIdSet.has(item.id)));
-        clearSelectedStudents();
-      },
-      onConfirm: async () => {
-        try {
-          await deleteStudents(targetIds);
-        } catch (error) {
-          restoreDeletedStudents();
-          const detail = error instanceof Error ? error.message : "Não foi possível excluir os alunos.";
-          Alert.alert("Excluir alunos", detail);
-        }
-      },
-      onUndo: async () => {
-        restoreDeletedStudents();
-      },
-    });
-  }, [clearSelectedStudents, confirm, selectedStudents]);
+    undoableStudentDelete.deleteMany(selectedStudents);
+  }, [selectedStudents, undoableStudentDelete]);
 
   const activeLayout = dropKey ? layouts[dropKey] : null;
   const activeOptions =

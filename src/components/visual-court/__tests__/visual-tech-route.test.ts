@@ -2,7 +2,10 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
 import ClassVisualTechRoute from "../../../../app/class/[id]/visual-tech";
-import { buildRotation5x1Preset } from "../../../core/visual-court";
+import {
+  buildRotation5x1Preset,
+  updateCourtVisualStepActorPosition,
+} from "../../../core/visual-court";
 
 const mockGetClassById = jest.fn();
 const mockEnsureDefaultVisualPresets = jest.fn();
@@ -58,6 +61,7 @@ jest.mock("../VisualCourtCanvas", () => ({
     animationProgress,
     animationStepIndex,
     editable,
+    onCanvasPress,
     onActorSelect,
     onActorMoveEnd,
     selectedActorId,
@@ -67,6 +71,7 @@ jest.mock("../VisualCourtCanvas", () => ({
     animationProgress?: number;
     animationStepIndex?: number;
     editable?: boolean;
+    onCanvasPress?: () => void;
     onActorSelect?: (actorId: string) => void;
     onActorMoveEnd?: (actorId: string, point: { x: number; y: number }) => void;
     selectedActorId?: string | null;
@@ -76,22 +81,39 @@ jest.mock("../VisualCourtCanvas", () => ({
     const ReactMock = require("react");
     const { Pressable, Text } = require("react-native");
     return ReactMock.createElement(
-      Pressable,
-      {
-        accessibilityLabel: "Mover p1",
-        onPress: () => {
-          onActorSelect?.("p1");
-          return editable ? onActorMoveEnd?.("p1", { x: 0.33, y: 0.77 }) : undefined;
-        },
-      },
+      ReactMock.Fragment,
+      null,
       ReactMock.createElement(
-        Text,
-        null,
-        `Canvas step ${stepIndex} ${editable ? "editavel" : "bloqueado"} progress ${
-          typeof animationProgress === "number" ? animationProgress.toFixed(2) : "sem-previa"
-        } animação ${animationStepIndex ?? "sem-animação"} setas ${
-          showMovementLines ? "visiveis" : "escondidas"
-        } selecionado ${selectedActorId ?? "nenhum"}`
+        Pressable,
+        {
+          accessibilityLabel: "Mover p1",
+          onPress: () => {
+            onActorSelect?.("p1");
+            return editable
+              ? onActorMoveEnd?.(
+                  "p1",
+                  showMovementLines ? { x: 0.44, y: 0.66 } : { x: 0.33, y: 0.77 }
+                )
+              : undefined;
+          },
+        },
+        ReactMock.createElement(
+          Text,
+          null,
+          `Canvas step ${stepIndex} ${editable ? "editavel" : "bloqueado"} progress ${
+            typeof animationProgress === "number" ? animationProgress.toFixed(2) : "sem-previa"
+          } animação ${animationStepIndex ?? "sem-animação"} setas ${
+            showMovementLines ? "visiveis" : "escondidas"
+          } selecionado ${selectedActorId ?? "nenhum"}`
+        )
+      ),
+      ReactMock.createElement(
+        Pressable,
+        {
+          accessibilityLabel: "Clicar na quadra",
+          onPress: () => onCanvasPress?.(),
+        },
+        ReactMock.createElement(Text, null, "Clicar na quadra")
       )
     );
   },
@@ -213,16 +235,23 @@ describe("ClassVisualTechRoute", () => {
     });
 
     expect(collectText(tree!.root)).toContain("Quadra visual local carregada");
-    expect(collectText(tree!.root)).toContain("5x1 base - recepção em 3");
+    expect(collectText(tree!.root)).toContain("5x1 - Recepção");
     expect(collectText(tree!.root)).toContain("5x1 base - equipe sacando");
     expect(collectText(tree!.root)).toContain("Defesa base — 6 fundo");
     expect(collectText(tree!.root)).toContain("Grade didática");
     expect(collectText(tree!.root)).toContain("6 passos");
     expect(collectText(tree!.root)).toContain("P1 - Antes do saque");
-    expect(collectText(tree!.root)).toContain("Canvas step 0 bloqueado");
+    expect(collectText(tree!.root)).toContain("Canvas step 0 editavel");
     expect(collectText(tree!.root)).toContain("Editar posições");
     expect(collectText(tree!.root)).toContain("Animar movimento");
     expect(collectText(tree!.root)).toContain("Alinhar passe");
+    expect(collectText(tree!.root)).toContain(
+      "P¹/P² = ponteiros. P1/P6/P5/P4/P3/P2 = posição do levantador."
+    );
+    expect(
+      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props
+        .accessibilityState
+    ).toEqual({ disabled: true });
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Sem animação disponível" })
     ).toBeTruthy();
@@ -245,6 +274,10 @@ describe("ClassVisualTechRoute", () => {
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
     ).toEqual({ disabled: false });
+    expect(
+      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props
+        .accessibilityState
+    ).toEqual({ disabled: false });
 
     act(() => {
       tree!.root.findByProps({ accessibilityLabel: "Próximo passo" }).props.onPress();
@@ -254,23 +287,22 @@ describe("ClassVisualTechRoute", () => {
       tree!.root.findByProps({ accessibilityLabel: "Passo anterior" }).props.onPress();
     });
     expect(collectText(tree!.root)).toContain("P1 - Antes do saque");
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props.onPress();
-    });
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Sem animação disponível" })
-    ).toBeTruthy();
-    expect(collectText(tree!.root)).toContain("setas escondidas");
+    expect(collectText(tree!.root)).toContain(
+      "Canvas step 0 editavel progress 0.00 animação 0"
+    );
     expect(collectText(tree!.root)).not.toContain("Animando movimento");
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
+    ).toEqual({ disabled: false });
+    expect(
+      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props
+        .accessibilityState
     ).toEqual({ disabled: true });
 
     await act(async () => {
       tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
     });
-    expect(mockSaveTechnicalVisual).not.toHaveBeenCalled();
+    expect(mockSaveTechnicalVisual).toHaveBeenCalled();
   });
 
   it("edits actor position with the pencil mode without creating a manual trajectory", async () => {
@@ -341,6 +373,54 @@ describe("ClassVisualTechRoute", () => {
     });
   });
 
+  it("keeps the current visual state when adding an actor from the legend", async () => {
+    const animatedPayload = updateCourtVisualStepActorPosition(
+      buildRotation5x1Preset(),
+      0,
+      "p1",
+      { x: 0.44, y: 0.66 }
+    );
+    mockEnsureDefaultVisualPresets.mockResolvedValue([
+      {
+        id: "technical_visual_1",
+        organizationId: "org_1",
+        classId: "class_1",
+        sourceKind: "rotation",
+        sourceId: "5x1_receive_3",
+        title: "5x1 - Recepção",
+        payload: animatedPayload,
+        createdAt: "2026-06-06T00:00:00.000Z",
+        updatedAt: "2026-06-06T00:00:00.000Z",
+      },
+    ]);
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+    });
+
+    expect(collectText(tree!.root)).toContain(
+      "Canvas step 0 editavel progress 0.00 animação 0 setas escondidas"
+    );
+
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: "Animar movimento" }).props.onPress();
+    });
+
+    expect(collectText(tree!.root)).toContain(
+      "Canvas step 0 editavel progress sem-previa animação sem-animação setas visiveis"
+    );
+
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: "Adicionar Op" }).props.onPress();
+    });
+
+    expect(collectText(tree!.root)).toContain("Op adicionado na quadra");
+    expect(collectText(tree!.root)).toContain(
+      "Canvas step 0 editavel progress sem-previa animação sem-animação setas escondidas selecionado op_extra_1"
+    );
+  });
+
   it("selects an actor on the court and duplicates it in the current frame", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
@@ -362,7 +442,7 @@ describe("ClassVisualTechRoute", () => {
     });
 
     expect(collectText(tree!.root)).toContain("Posição duplicada");
-    expect(collectText(tree!.root)).toContain("selecionado p_extra_1");
+    expect(collectText(tree!.root)).toContain("selecionado p1_extra_1");
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
     ).toEqual({ disabled: false });
@@ -375,16 +455,39 @@ describe("ClassVisualTechRoute", () => {
     expect(saveInput.payload.actors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "p_extra_1",
-          label: "P",
+          id: "p1_extra_1",
+          label: "P¹",
         }),
       ])
     );
-    expect(saveInput.payload.timeline.steps[0].visibleActorIds).toContain("p_extra_1");
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p_extra_1).toEqual({
-      x: 0.84,
-      y: 0.74,
+    expect(saveInput.payload.timeline.steps[0].visibleActorIds).toContain("p1_extra_1");
+    expect(saveInput.payload.timeline.steps[0].actorPositions.p1_extra_1).toEqual({
+      x: 0.39,
+      y: 0.81,
     });
+  });
+
+  it("deselects the current actor when pressing the court background", async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+    });
+
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
+    });
+
+    expect(collectText(tree!.root)).toContain("Selecionado P");
+    expect(collectText(tree!.root)).toContain("selecionado p1");
+
+    act(() => {
+      tree!.root.findByProps({ accessibilityLabel: "Clicar na quadra" }).props.onPress();
+    });
+
+    expect(collectText(tree!.root)).not.toContain("Selecionado P");
+    expect(collectText(tree!.root)).not.toContain("Duplicar");
+    expect(collectText(tree!.root)).not.toContain("Excluir");
+    expect(collectText(tree!.root)).toContain("selecionado nenhum");
   });
 
   it("selects an actor on the court and removes it from the current frame", async () => {
@@ -421,19 +524,21 @@ describe("ClassVisualTechRoute", () => {
     expect(saveInput.payload.timeline.steps[1].visibleActorIds).toContain("p1");
   });
 
-  it("keeps save disabled when align pass only restores the initial view", async () => {
+  it("keeps align pass disabled when no animation exists", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
     });
 
+    expect(
+      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props
+        .accessibilityState
+    ).toEqual({ disabled: true });
     act(() => {
       tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props.onPress();
     });
 
-    expect(collectText(tree!.root)).toContain(
-      "Linha de passe voltou para a posição inicial"
-    );
+    expect(collectText(tree!.root)).not.toContain("Passe voltou para o início da animação");
     expect(collectText(tree!.root)).not.toContain("Alterações locais ainda não salvas");
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
@@ -463,12 +568,17 @@ describe("ClassVisualTechRoute", () => {
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Alinhar posições" })
     ).toBeTruthy();
+    expect(
+      tree!.root.findByProps({ accessibilityLabel: "Alinhar posições" }).props
+        .accessibilityState
+    ).toEqual({ disabled: true });
 
     act(() => {
       tree!.root.findByProps({ accessibilityLabel: "Alinhar posições" }).props.onPress();
     });
 
-    expect(collectText(tree!.root)).toContain("Posições voltaram para o início do frame");
+    expect(collectText(tree!.root)).not.toContain("Posições voltaram para o início da animação");
+    expect(collectText(tree!.root)).toContain("progress 0.00");
     expect(
       tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
     ).toEqual({ disabled: true });
@@ -500,16 +610,13 @@ describe("ClassVisualTechRoute", () => {
     });
     const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
     expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toEqual({
-      x: 0.33,
-      y: 0.77,
+      x: 0.44,
+      y: 0.66,
     });
     expect(saveInput.payload.timeline.steps[0].trajectories).toContainEqual({
       id: "manual-move-p1",
       actorId: "p1",
-      points: [
-        buildRotation5x1Preset().timeline.steps[0].baselineActorPositions!.p1,
-        { x: 0.33, y: 0.77 },
-      ],
+      points: [{ x: 0.33, y: 0.77 }, { x: 0.44, y: 0.66 }],
       color: "#60A5FA",
     });
   });
@@ -543,8 +650,8 @@ describe("ClassVisualTechRoute", () => {
     });
     const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
     expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toEqual({
-      x: 0.33,
-      y: 0.77,
+      x: 0.44,
+      y: 0.66,
     });
     expect(saveInput.payload.timeline.steps[0].trajectories).toBeUndefined();
     expect(saveInput.payload.timeline.steps[0].transitions).toBeUndefined();
@@ -554,10 +661,6 @@ describe("ClassVisualTechRoute", () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
-    });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Editar posições" }).props.onPress();
     });
 
     await act(async () => {
@@ -595,7 +698,7 @@ describe("ClassVisualTechRoute", () => {
         jest.runOnlyPendingTimers();
       });
 
-      expect(collectText(tree!.root)).toContain("Canvas step 0 bloqueado progress 1.00 animação 0");
+      expect(collectText(tree!.root)).toContain("Canvas step 0 editavel progress 1.00 animação 0");
       expect(
         tree!.root.findByProps({ accessibilityLabel: "Reproduzir animação" })
       ).toBeTruthy();
@@ -645,8 +748,8 @@ describe("ClassVisualTechRoute", () => {
     });
     const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
     expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toEqual({
-      x: 0.33,
-      y: 0.77,
+      x: 0.44,
+      y: 0.66,
     });
   });
 });

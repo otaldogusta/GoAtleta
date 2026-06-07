@@ -32,7 +32,7 @@ type SaveTechnicalVisualInput = {
   payload: CourtVisualPayload;
 };
 
-const DEFAULT_RECEIVE_TITLE = "5x1 base - recepção em 3";
+const DEFAULT_RECEIVE_TITLE = "5x1 - Recepção";
 const DEFAULT_SERVING_TITLE = "5x1 base - equipe sacando";
 const DEFAULT_DEFENSE_TITLE = "Defesa base — 6 fundo";
 const DEFAULT_DIDACTIC_TITLE = "Grade didática";

@@ -10,7 +10,6 @@ import { VisualCourtTimelineControls } from "../../../src/components/visual-cour
 import type { ClassGroup } from "../../../src/core/models";
 import {
   addCourtVisualActorFromLegend,
-  alignCourtVisualStepPassers,
   build5x1ServingPreset,
   buildDefenseBase6BackPreset,
   buildDidacticRotationGridPreset,
@@ -23,6 +22,7 @@ import {
   getCourtVisualStepAlignmentPositions,
   getStepAtIndex,
   normalizeCourtPayload,
+  normalizeDefenseBase6BackPayload,
   resetCourtVisualStepAnimations,
   syncCourtVisualPairedTrajectories,
   type CourtVisualDocument,
@@ -76,10 +76,37 @@ const getSaveablePayloadSignature = (payload: CourtVisualPayload) => {
   });
 };
 
+const areSameCourtPoint = (
+  left: CourtPoint | undefined,
+  right: CourtPoint | undefined
+) => {
+  if (!left || !right) return false;
+  return (
+    Math.abs(left.x - right.x) <= 0.001 &&
+    Math.abs(left.y - right.y) <= 0.001
+  );
+};
+
+const getStepActorPoint = (
+  payload: CourtVisualPayload,
+  stepIndex: number,
+  actorId: string
+) => {
+  const step = payload.timeline.steps[stepIndex];
+  const actor = payload.actors.find((item) => item.id === actorId);
+  return (
+    step?.actorPositions[actorId] ??
+    step?.baselineActorPositions?.[actorId] ??
+    actor?.initialPosition
+  );
+};
+
 const syncVisualDocument = (document: CourtVisualDocument): CourtVisualDocument => ({
   ...document,
   payload: syncCourtVisualPairedTrajectories(
-    ensureCourtVisualPayloadBaselines(document.payload)
+    ensureCourtVisualPayloadBaselines(
+      normalizeDefenseBase6BackPayload(document.payload)
+    )
   ),
 });
 
@@ -185,6 +212,14 @@ const getPlaybackLandingStepIndex = (
   return animationStepIndex;
 };
 
+const getInitialAnimationProgressForStep = (
+  payload: CourtVisualPayload,
+  stepIndex: number
+) => {
+  const animationStepIndex = getPlaybackAnimationStepIndex(payload, stepIndex);
+  return getStepMovementCount(payload, animationStepIndex) > 0 ? 0 : undefined;
+};
+
 const buildLocalRotationDocument = (
   classId: string,
   organizationId?: string | null
@@ -196,7 +231,7 @@ const buildLocalRotationDocument = (
     classId,
     sourceKind: "rotation",
     sourceId: "5x1_receive_3",
-    title: "5x1 base - recepção em 3",
+    title: "5x1 - Recepção",
     payload: buildRotation5x1Preset(),
     createdAt: now,
     updatedAt: now,
@@ -407,6 +442,8 @@ export default function ClassVisualTechRoute() {
       setDocuments(nextDocuments);
       activeDocumentRef.current = selected;
       setActiveDocument(selected);
+      setStepIndex(0);
+      setAnimationProgress(getInitialAnimationProgressForStep(selected.payload, 0));
       setSavedPayloadSnapshot(selected.payload);
       clearHistory();
       if (nextDocuments.some((item) => item.id.startsWith("local_"))) {
@@ -424,6 +461,8 @@ export default function ClassVisualTechRoute() {
       activeDocumentRef.current = selected;
       setActiveDocument(selected);
       setDocuments(nextDocuments);
+      setStepIndex(0);
+      setAnimationProgress(getInitialAnimationProgressForStep(selected.payload, 0));
       setSavedPayloadSnapshot(selected.payload);
       clearHistory();
       setError("Não foi possível sincronizar agora. O preset local segue disponível.");
@@ -464,22 +503,28 @@ export default function ClassVisualTechRoute() {
   }, [canPlayCurrentStep, isPlaying, payload, playbackAnimationStepIndex, speed]);
 
   const handlePrevious = () => {
+    const previousIndex = getPreviousVisibleStepIndex(payload, stepIndex);
     setIsPlaying(false);
-    setAnimationProgress(undefined);
+    setAnimationProgress(getInitialAnimationProgressForStep(payload, previousIndex));
+    setIsPositionEditMode(false);
+    setIsAnimationEditMode(false);
     setSelectedActorId(null);
-    setStepIndex((current) => getPreviousVisibleStepIndex(payload, current));
+    setStepIndex(previousIndex);
   };
 
   const handleNext = () => {
+    const nextIndex = getNextVisibleStepIndex(payload, stepIndex);
     setIsPlaying(false);
-    setAnimationProgress(undefined);
+    setAnimationProgress(getInitialAnimationProgressForStep(payload, nextIndex));
+    setIsPositionEditMode(false);
+    setIsAnimationEditMode(false);
     setSelectedActorId(null);
-    setStepIndex((current) => getNextVisibleStepIndex(payload, current));
+    setStepIndex(nextIndex);
   };
 
   const handleSelectDocument = (document: CourtVisualDocument) => {
     setIsPlaying(false);
-    setAnimationProgress(undefined);
+    setAnimationProgress(getInitialAnimationProgressForStep(document.payload, 0));
     setIsPositionEditMode(false);
     setIsAnimationEditMode(false);
     setSelectedActorId(null);
@@ -554,14 +599,17 @@ export default function ClassVisualTechRoute() {
 
   const handleActorMove = useCallback(
     (actorId: string, point: CourtPoint) => {
-      if (!isPositionEditMode && !isAnimationEditMode) return;
+      const shouldEditStaticPosition = isPositionEditMode || !isAnimationEditMode;
       setIsPlaying(false);
       setAnimationProgress(undefined);
+      if (!isPositionEditMode && !isAnimationEditMode) {
+        setIsPositionEditMode(true);
+      }
       if (!pendingDragSnapshotRef.current) {
         pendingDragSnapshotRef.current = getCurrentHistoryEntry();
       }
       updateActivePayload((currentPayload) =>
-        isPositionEditMode
+        shouldEditStaticPosition
           ? updateCourtVisualStepActorStaticPosition(currentPayload, stepIndex, actorId, point)
           : updateCourtVisualStepActorPosition(currentPayload, stepIndex, actorId, point)
       );
@@ -577,32 +625,49 @@ export default function ClassVisualTechRoute() {
 
   const handleActorMoveEnd = useCallback(
     (actorId: string, point: CourtPoint) => {
+      const before = pendingDragSnapshotRef.current ?? getCurrentHistoryEntry();
+      const originalPoint = before
+        ? getStepActorPoint(before.payload, before.stepIndex, actorId)
+        : undefined;
+      if (areSameCourtPoint(originalPoint, point)) {
+        pendingDragSnapshotRef.current = null;
+        return;
+      }
       handleActorMove(actorId, point);
       pushUndoEntry(pendingDragSnapshotRef.current);
       pendingDragSnapshotRef.current = null;
+      const isStaticEdit = isPositionEditMode || !isAnimationEditMode;
       setStatusMessage(
-        isPositionEditMode
+        isStaticEdit
           ? "Posição editada sem seta. Use Salvar para guardar a quadra."
           : "Animação com setas ajustada. Use Salvar para guardar o play."
       );
     },
-    [handleActorMove, isPositionEditMode, pushUndoEntry]
+    [
+      getCurrentHistoryEntry,
+      handleActorMove,
+      isAnimationEditMode,
+      isPositionEditMode,
+      pushUndoEntry,
+    ]
   );
 
   const handleAlignPassers = useCallback(() => {
+    const isAlreadyAtAnimationStart =
+      typeof animationProgress === "number" && animationProgress <= 0.001;
+    if (!canPlayCurrentStep || isAlreadyAtAnimationStart) return;
+
     setIsPlaying(false);
-    setAnimationProgress(undefined);
+    setAnimationProgress(0);
     setIsPositionEditMode(false);
     setIsAnimationEditMode(false);
-    updateActivePayload((currentPayload) =>
-      alignCourtVisualStepPassers(currentPayload, stepIndex)
-    );
+    setSelectedActorId(null);
     setStatusMessage(
       currentStep.passers?.length
-        ? "Linha de passe voltou para a posição inicial."
-        : "Posições voltaram para o início do frame."
+        ? "Passe voltou para o início da animação."
+        : "Posições voltaram para o início da animação."
     );
-  }, [currentStep.passers?.length, stepIndex, updateActivePayload]);
+  }, [animationProgress, canPlayCurrentStep, currentStep.passers?.length]);
 
   const handleResetAnimations = useCallback(() => {
     const before = getCurrentHistoryEntry();
@@ -618,13 +683,13 @@ export default function ClassVisualTechRoute() {
 
   const handleTogglePositionEditMode = useCallback(() => {
     setIsPlaying(false);
-    setAnimationProgress(undefined);
+    setAnimationProgress(getInitialAnimationProgressForStep(payload, stepIndex));
     setIsPositionEditMode((current) => {
       const next = !current;
       if (next) setIsAnimationEditMode(false);
       return next;
     });
-  }, []);
+  }, [payload, stepIndex]);
 
   const handleToggleAnimationEditMode = useCallback(() => {
     setIsPlaying(false);
@@ -641,7 +706,6 @@ export default function ClassVisualTechRoute() {
       const before = getCurrentHistoryEntry();
       let nextSelectedActorId: string | null = null;
       setIsPlaying(false);
-      setAnimationProgress(undefined);
       setIsAnimationEditMode(false);
       setIsPositionEditMode(true);
       updateActivePayload((currentPayload) => {
@@ -659,7 +723,16 @@ export default function ClassVisualTechRoute() {
   );
 
   const handleSelectActor = useCallback((actorId: string) => {
+    setIsPlaying(false);
+    setAnimationProgress(getInitialAnimationProgressForStep(payload, stepIndex));
     setSelectedActorId(actorId);
+    if (!isAnimationEditMode) {
+      setIsPositionEditMode(true);
+    }
+  }, [isAnimationEditMode, payload, stepIndex]);
+
+  const handleDeselectActor = useCallback(() => {
+    setSelectedActorId(null);
   }, []);
 
   const handleDuplicateSelectedActor = useCallback(() => {
@@ -667,7 +740,6 @@ export default function ClassVisualTechRoute() {
     const before = getCurrentHistoryEntry();
     let nextSelectedActorId: string | null = null;
     setIsPlaying(false);
-    setAnimationProgress(undefined);
     setIsAnimationEditMode(false);
     setIsPositionEditMode(true);
     updateActivePayload((currentPayload) => {
@@ -690,10 +762,13 @@ export default function ClassVisualTechRoute() {
     if (!selectedActorId) return;
     const before = getCurrentHistoryEntry();
     setIsPlaying(false);
-    setAnimationProgress(undefined);
-    updateActivePayload((currentPayload) =>
-      deleteCourtVisualStepActor(currentPayload, stepIndex, selectedActorId)
-    );
+    updateActivePayload((currentPayload) => {
+      return deleteCourtVisualStepActor(
+        currentPayload,
+        stepIndex,
+        selectedActorId
+      );
+    });
     setSelectedActorId(null);
     pushUndoEntry(before);
     setStatusMessage("Posição excluída do frame atual. Use Salvar para guardar.");
@@ -765,9 +840,9 @@ export default function ClassVisualTechRoute() {
   const alignButtonLabel = currentStep.passers?.length
     ? "Alinhar passe"
     : "Alinhar posições";
-  const canAlignCurrentStep = Boolean(
-    currentStep.visibleActorIds?.length ?? payload.actors.length
-  );
+  const isAnimationPreviewAtStart =
+    typeof animationProgress === "number" && animationProgress <= 0.001;
+  const canAlignCurrentStep = canPlayCurrentStep && !isAnimationPreviewAtStart;
   const canResetCurrentAnimations = getStepMovementCount(payload, stepIndex) > 0;
 
   return (
@@ -841,11 +916,7 @@ export default function ClassVisualTechRoute() {
               <VisualCourtCanvas
                 payload={payload}
                 stepIndex={stepIndex}
-                editable={
-                  !isPlaying &&
-                  typeof animationProgress !== "number" &&
-                  (isPositionEditMode || isAnimationEditMode)
-                }
+                editable={!isPlaying}
                 showMovementLines={isAnimationEditMode}
                 animationProgress={animationProgress}
                 animationStepIndex={
@@ -857,6 +928,7 @@ export default function ClassVisualTechRoute() {
                 onActorMove={handleActorMove}
                 onActorMoveEnd={handleActorMoveEnd}
                 onActorSelect={handleSelectActor}
+                onCanvasPress={handleDeselectActor}
               />
               {currentStep.formationKind === "defense_base_6_back" && currentStep.note ? (
                 <View style={getSectionCardStyle(colors, "info", { shadow: false })}>
@@ -1020,10 +1092,12 @@ export default function ClassVisualTechRoute() {
                     </Text>
                   </Pressable>
                 ) : null}
-                {canAlignCurrentStep ? (
+                {Boolean(currentStep.visibleActorIds?.length ?? payload.actors.length) ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={alignButtonLabel}
+                    accessibilityState={{ disabled: !canAlignCurrentStep }}
+                    disabled={!canAlignCurrentStep}
                     onPress={handleAlignPassers}
                     style={{
                       flexDirection: "row",
@@ -1034,12 +1108,24 @@ export default function ClassVisualTechRoute() {
                       paddingVertical: 9,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
+                      borderColor: canAlignCurrentStep ? colors.border : "rgba(148,163,184,0.16)",
+                      backgroundColor: canAlignCurrentStep
+                        ? colors.secondaryBg
+                        : "rgba(15,23,42,0.52)",
+                      opacity: canAlignCurrentStep ? 1 : 0.45,
                     }}
                   >
-                    <Ionicons name="reorder-three" size={18} color={colors.text} />
-                    <Text style={{ color: colors.text, fontWeight: "900" }}>
+                    <Ionicons
+                      name="reorder-three"
+                      size={18}
+                      color={canAlignCurrentStep ? colors.text : colors.muted}
+                    />
+                    <Text
+                      style={{
+                        color: canAlignCurrentStep ? colors.text : colors.muted,
+                        fontWeight: "900",
+                      }}
+                    >
                       {alignButtonLabel}
                     </Text>
                   </Pressable>
@@ -1062,7 +1148,9 @@ export default function ClassVisualTechRoute() {
                 onTogglePlay={handleTogglePlay}
                 onSelectStep={(index) => {
                   setIsPlaying(false);
-                  setAnimationProgress(undefined);
+                  setAnimationProgress(getInitialAnimationProgressForStep(payload, index));
+                  setIsPositionEditMode(false);
+                  setIsAnimationEditMode(false);
                   setSelectedActorId(null);
                   setStepIndex(index);
                 }}
@@ -1163,6 +1251,9 @@ export default function ClassVisualTechRoute() {
                     </Pressable>
                   ))}
                 </View>
+                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>
+                  P¹/P² = ponteiros. P1/P6/P5/P4/P3/P2 = posição do levantador.
+                </Text>
               </View>
             </View>
           </View>
