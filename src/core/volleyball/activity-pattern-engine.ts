@@ -269,7 +269,7 @@ const skillRecipes: Record<
     drillName: "Ataque para alvo aberto",
     gameName: "Mini jogo com finalização combinada",
     action: "envia a bola para uma zona livre sem exigir gesto técnico",
-    drillAction: "recebe uma bola preparada e finaliza para uma zona aberta",
+    drillAction: "recebe uma bola preparada pelo colega e finaliza para uma zona aberta",
     gameAction: "escolhe entre mandar a bola para zona livre ou manter o rally",
     scoring: "Vale ponto extra quando a finalização escolhe uma zona livre.",
     coachFocus: "Observar escolha de zona e segurança na finalização.",
@@ -286,8 +286,8 @@ const skillRecipes: Record<
     drillName: "Bloqueio com sombra e cobertura",
     gameName: "Mini jogo com bloqueio e cobertura",
     action: "acompanha o colega e ocupa a janela marcada perto da rede",
-    drillAction: "um aluno simula a bola, outro fecha a janela e o grupo cobre atrás",
-    gameAction: "defende a zona da rede e cobre a sobra para continuar o rally",
+    drillAction: "fecha a janela perto da rede enquanto um colega simula a bola e outro cobre atrás",
+    gameAction: "protege a zona da rede e cobre a sobra para continuar o rally",
     scoring: "Vale ponto extra quando bloqueio ou cobertura mantém a bola em jogo.",
     coachFocus: "Observar tempo de leitura e cobertura atrás da rede.",
     successCriteria: "A equipe fecha a zona combinada e cobre a sobra sem parar a atividade.",
@@ -303,7 +303,7 @@ const skillRecipes: Record<
     drillName: "Defesa e devolução jogável",
     gameName: "Mini jogo com defesa pontuada",
     action: "protege uma zona e chama a bola quando ela entra no espaço",
-    drillAction: "recebe bola variada e devolve jogável para o grupo continuar",
+    drillAction: "recebe uma bola variada do colega e devolve jogável para o grupo continuar",
     gameAction: "defende a primeira bola e tenta devolver jogável para a equipe",
     scoring: "Vale ponto extra quando a defesa volta jogável e o rally continua.",
     coachFocus: "Observar comunicação, ocupação de zona e bola jogável.",
@@ -338,7 +338,7 @@ const skillRecipes: Record<
     gameName: "Mini jogo de vira-jogo",
     action: "troca de função depois da bola e ocupa uma nova zona",
     drillAction: "defende, reorganiza o trio e envia a bola para uma zona livre",
-    gameAction: "muda da defesa para o ataque com uma regra simples de apoio",
+    gameAction: "passa da defesa ao ataque com uma regra simples de apoio",
     scoring: "Vale ponto extra quando a equipe reorganiza e continua após defender.",
     coachFocus: "Observar troca de função e apoio depois da primeira bola.",
     successCriteria: "A equipe reconhece a mudança de fase e mantém o rally jogável.",
@@ -363,7 +363,7 @@ const buildWarmupPattern = (skill: VolleyballSkill): ActivityPattern => ({
           context.ageProfile.gameForm
         )} com zonas simples marcadas por cones.`
       : "Espalhar duplas ou trios em espaços pequenos da quadra, com cones marcando zonas largas.";
-    const starter = "Um aluno inicia a bola ao sinal do professor.";
+    const starter = "Ao sinal combinado, um aluno inicia a bola para o grupo.";
     const action = `O grupo ${recipe.action}.`;
     const rotation = "Depois de cada rodada, muda quem inicia a bola.";
     const simpleRule = isYounger(context)
@@ -410,10 +410,10 @@ const buildDrillPattern = (skill: VolleyballSkill): ActivityPattern => ({
         )} em quadra reduzida, com uma zona-alvo grande e bolas nas laterais.`
       : "Organizar duplas ou trios em meia quadra, com uma zona-alvo grande marcada por cones.";
     const starter = isOlder(context)
-      ? "Um aluno inicia com lançamento ou ação adaptada para o grupo."
+      ? "Um aluno do grupo inicia com lançamento ou ação adaptada."
       : "Um aluno começa lançando a bola por baixo.";
     const action = `O grupo ${recipe.drillAction}.`;
-    const rotation = "A cada 4 ou 5 bolas, trocam quem inicia, quem executa e quem recolhe.";
+    const rotation = "A cada 4 ou 5 bolas, trocam quem inicia, quem executa a ação principal e quem recolhe.";
     const simpleRule = "A tentativa vale mesmo longe do alvo; a próxima bola entra sem pausa.";
     const execution = `${starter} ${action} ${rotation} ${simpleRule}`;
     return {
@@ -455,9 +455,9 @@ const buildGamePattern = (skill: VolleyballSkill): ActivityPattern => ({
     const organization = isYounger(context)
       ? "Montar miniquadras com duplas ou trios e zonas largas marcadas por cones."
       : `Montar ${gameForm} com zona bônus marcada por cones.`;
-    const starter = "A bola entra por saque adaptado ou lançamento combinado.";
+    const starter = "A bola entra por saque adaptado ou lançamento combinado entre as equipes.";
     const action = `A equipe ${recipe.gameAction}.`;
-    const rotation = "Depois de cada rally, troca quem inicia a bola e todos rodam uma função.";
+    const rotation = "Depois de cada rally, troca quem inicia a bola e todos rodam uma função curta.";
     const simpleRule = "O erro encerra só o rally; a próxima bola entra rápido.";
     const scoring = recipe.scoring;
     const execution = `${starter} ${action} ${rotation} ${scoring} ${simpleRule}`;
