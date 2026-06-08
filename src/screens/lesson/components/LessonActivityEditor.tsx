@@ -9,6 +9,7 @@ type Props = {
   activities: LessonActivity[];
   onChange: (activities: LessonActivity[]) => void;
   maxHeight?: number;
+  showStructuredDetails?: boolean;
 };
 
 const nextActivityId = () => `act_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
@@ -21,7 +22,12 @@ const structuredFields: Array<{ key: keyof LessonActivity; label: string }> = [
   { key: "adaptation", label: "Adaptação" },
 ];
 
-export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: Props) {
+export function LessonActivityEditor({
+  activities,
+  onChange,
+  maxHeight = 280,
+  showStructuredDetails = true,
+}: Props) {
   const { colors } = useAppTheme();
 
   const updateActivity = (index: number, field: keyof LessonActivity, value: string) => {
@@ -77,9 +83,11 @@ export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: 
         {activities.length ? (
           activities.map((activity, index) => (
             (() => {
-              const hasStructuredDetails = structuredFields.some(({ key }) =>
-                Boolean(String(activity[key] ?? "").trim())
-              );
+              const hasStructuredDetails =
+                showStructuredDetails &&
+                structuredFields.some(({ key }) =>
+                  Boolean(String(activity[key] ?? "").trim())
+                );
               return (
             <View
               key={activity.id || `activity_${index}`}
