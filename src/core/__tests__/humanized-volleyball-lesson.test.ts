@@ -2,6 +2,7 @@ import { buildNextVolleyballLessonPlan } from "../progression-engine";
 import type { VolleyballSkill } from "../models";
 import {
   buildHumanizedVolleyballLessonBlocks,
+  resolveVolleyballLessonAgeProfile,
   validateHumanizedVolleyballBlocks,
 } from "../volleyball/humanized-lesson-activities";
 
@@ -18,6 +19,7 @@ const buildPlan = ({
     classId: `class-${ageBand}`,
     unitId: "unit-1",
     className: `Turma ${ageBand}`,
+    ageBand,
     objective,
     focusSkills,
     pedagogicalProfile: "fundamental",
@@ -65,6 +67,11 @@ const expectCompleteActivityFields = (
     expect(activity.presentation?.standardText).not.toContain("Adaptação:");
   });
 };
+
+const collectVisibleText = (blocks: ReturnType<typeof buildHumanizedVolleyballLessonBlocks>) =>
+  [...blocks.warmup, ...blocks.main, ...blocks.cooldown]
+    .map((activity) => `${activity.name} ${activity.presentation?.standardText ?? ""}`)
+    .join(" ");
 
 describe("humanized volleyball lesson activities", () => {
   it.each([
@@ -161,6 +168,78 @@ describe("humanized volleyball lesson activities", () => {
     expect(mainText).toContain("primeiro contato");
     expect(mainText.toLowerCase()).not.toContain("levantamento");
     expect(mainText.toLowerCase()).not.toContain("levantador");
+  });
+
+  it.each([
+    ["06-08", "early", "Pega-pega dos 3 contatos"],
+    ["07-09", "early", "Pega-pega dos 3 contatos"],
+    ["08-10", "base", "Mini 2x2 dos 3 contatos"],
+    ["09-11", "base", "Mini 2x2 dos 3 contatos"],
+    ["10-12", "transition", "Mini 3x3 com primeiro contato pontuado"],
+    ["11-12", "transition", "Mini 3x3 com primeiro contato pontuado"],
+    ["12-14", "formation", "Mini 4x4 com zona de recepção"],
+    ["13-15", "formation", "Mini 4x4 com zona de recepção"],
+    ["16-18", "specialization", "Jogo aplicado com bônus de recepção"],
+  ])("adapts passe activities for age band %s", (ageBand, expectedStage, expectedText) => {
+    const plan = buildPlan({
+      ageBand,
+      objective: "Passe e manchete para recepção",
+      focusSkills: ["passe"],
+    });
+    const profile = resolveVolleyballLessonAgeProfile(plan);
+    const blocks = buildHumanizedVolleyballLessonBlocks(plan);
+    const visibleText = collectVisibleText(blocks);
+
+    expect(profile.stage).toBe(expectedStage);
+    expect(blocks.validationFlags).toEqual([]);
+    expectCompleteActivityFields(blocks, "passe");
+    expect(visibleText).toContain(expectedText);
+    expect(visibleText).not.toContain("Passe orientado");
+    expect(visibleText).not.toContain("vwv_");
+    expect(visibleText).not.toContain("Foco do professor:");
+    expect(visibleText.toLowerCase()).not.toContain("levantamento");
+  });
+
+  it("does not reuse the same passe plan across development stages", () => {
+    const visibleByAge = ["07-09", "10-12", "13-15", "16-18"].map((ageBand) =>
+      collectVisibleText(
+        buildHumanizedVolleyballLessonBlocks(
+          buildPlan({
+            ageBand,
+            objective: "Passe e manchete para recepção",
+            focusSkills: ["passe"],
+          })
+        )
+      )
+    );
+
+    expect(visibleByAge[0]).not.toBe(visibleByAge[1]);
+    expect(visibleByAge[1]).not.toBe(visibleByAge[2]);
+    expect(visibleByAge[2]).not.toBe(visibleByAge[3]);
+  });
+
+  it.each([
+    ["manchete", "13-15", "Manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 4x4 com cobertura da recepção"],
+    ["saque", "06-08", "Saque por baixo", ["saque"] as VolleyballSkill[], "Boliche do saque por baixo"],
+    ["saque", "13-15", "Saque por baixo", ["saque"] as VolleyballSkill[], "Mini 4x4 com saque direcionado"],
+    ["levantamento", "06-08", "Levantamento", ["levantamento"] as VolleyballSkill[], "Cone pega-toque"],
+    ["levantamento", "13-15", "Levantamento", ["levantamento"] as VolleyballSkill[], "Mini 4x4 com segundo contato obrigatório"],
+    ["levantamento", "16-18", "Levantamento", ["levantamento"] as VolleyballSkill[], "Jogo aplicado com segundo contato definido"],
+  ])("adapts %s output for age band %s", (_label, ageBand, objective, focusSkills, expectedText) => {
+    const blocks = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand,
+        objective,
+        focusSkills,
+      })
+    );
+    const visibleText = collectVisibleText(blocks);
+
+    expect(blocks.validationFlags).toEqual([]);
+    expect(visibleText).toContain(expectedText);
+    expect(visibleText).not.toContain("Passe orientado");
+    expect(visibleText).not.toContain("vwv_");
+    expect(visibleText).not.toContain("Foco do professor:");
   });
 
   it("flags repetition, missing fields, skill drift and artificial language", () => {
