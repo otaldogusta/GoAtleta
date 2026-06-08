@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Platform, Text, TextInput, View } from "react-native";
 import type { LessonActivity } from "../../../core/models";
-import { composeHumanizedActivityDescription } from "../../../core/volleyball/humanized-lesson-activities";
+import { buildActivityPlanText } from "../../../pdf/activity-plan-text";
 import { radius } from "../../../theme/tokens";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
+import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 import { LessonActivityEditor } from "../../lesson/components/LessonActivityEditor";
 
 export type EditableBlockItem = LessonActivity;
@@ -16,6 +17,15 @@ export type BlockEditPayload = {
   durationMinutes: number;
   activities: EditableBlockItem[];
 };
+
+const normalizeInline = (value: string | null | undefined) =>
+  String(value ?? "").replace(/\s+/g, " ").trim();
+
+const toVisibleActivity = (activity: EditableBlockItem): EditableBlockItem => ({
+  ...activity,
+  name: normalizeInline(activity.name),
+  description: buildActivityPlanText(activity),
+});
 
 type BlockEditModalProps = {
   visible: boolean;
@@ -37,6 +47,13 @@ export function BlockEditModal({
   onSave,
 }: BlockEditModalProps) {
   const { colors } = useAppTheme();
+  const modalCardStyle = useModalCardStyle({
+    maxWidth: 640,
+    maxHeight: Platform.OS === "web" ? "82%" : "90%",
+    padding: 14,
+    radius: radius.container,
+    gap: 12,
+  });
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [draftDuration, setDraftDuration] = useState(String(durationMinutes));
   const [draftActivities, setDraftActivities] = useState<EditableBlockItem[]>(activities);
@@ -47,11 +64,12 @@ export function BlockEditModal({
 
   useEffect(() => {
     if (!visible) return;
+    const visibleActivities = activities.map((item) => toVisibleActivity({ ...item }));
     setDraftDuration(String(durationMinutes));
-    setDraftActivities(activities.map((item) => ({ ...item })));
+    setDraftActivities(visibleActivities);
     setBaseline({
       durationMinutes,
-      activities: activities.map((item) => ({ ...item })),
+      activities: visibleActivities.map((item) => ({ ...item })),
     });
     setShowCloseConfirm(false);
   }, [visible, durationMinutes, activities]);
@@ -91,30 +109,29 @@ export function BlockEditModal({
     const sanitizedDuration = Number.isFinite(numeric) && numeric > 0 ? numeric : durationMinutes;
     const sanitizedActivities = draftActivities
       .map((item) => {
+        const visibleDescription =
+          normalizeInline(item?.description) || buildActivityPlanText(item);
+        const nextPresentation = item?.presentation
+          ? {
+              ...item.presentation,
+              standardText: visibleDescription,
+            }
+          : visibleDescription
+            ? { standardText: visibleDescription }
+            : item?.presentation;
         const next: EditableBlockItem = {
           ...item,
-          name: String(item?.name ?? "").trim(),
-          description: String(item?.description ?? "").trim(),
-          organization: String(item?.organization ?? "").trim() || undefined,
-          execution: String(item?.execution ?? "").trim() || undefined,
-          coachFocus: String(item?.coachFocus ?? "").trim() || undefined,
-          successCriteria: String(item?.successCriteria ?? "").trim() || undefined,
-          adaptation: String(item?.adaptation ?? "").trim() || undefined,
+          name: normalizeInline(item?.name),
+          description: visibleDescription,
+          organization: normalizeInline(item?.organization) || undefined,
+          execution: normalizeInline(item?.execution) || undefined,
+          coachFocus: normalizeInline(item?.coachFocus) || undefined,
+          successCriteria: normalizeInline(item?.successCriteria) || undefined,
+          adaptation: normalizeInline(item?.adaptation) || undefined,
           primarySkill: item?.primarySkill,
+          presentation: nextPresentation,
         };
-        const hasStructuredDetails = Boolean(
-          next.organization ||
-            next.execution ||
-            next.coachFocus ||
-            next.successCriteria ||
-            next.adaptation
-        );
-        return {
-          ...next,
-          description: hasStructuredDetails
-            ? composeHumanizedActivityDescription(next)
-            : next.description,
-        };
+        return next;
       })
       .filter((item) => item.name);
     return {
@@ -155,17 +172,7 @@ export function BlockEditModal({
         position="center"
         overlayZIndex={33000}
         backdropOpacity={0.72}
-        cardStyle={{
-          width: "100%",
-          maxWidth: 760,
-          maxHeight: "85%",
-          borderRadius: radius.container,
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: colors.borderSubtle,
-          padding: 16,
-          gap: 12,
-        }}
+        cardStyle={modalCardStyle}
       >
         <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
           <View style={{ flex: 1, gap: 4 }}>
@@ -218,7 +225,12 @@ export function BlockEditModal({
           />
         </View>
 
-        <LessonActivityEditor activities={draftActivities} onChange={setDraftActivities} maxHeight={280} />
+        <LessonActivityEditor
+          activities={draftActivities}
+          onChange={setDraftActivities}
+          maxHeight={Platform.OS === "web" ? 360 : 300}
+          showStructuredDetails={false}
+        />
       </ModalSheet>
 
       <ConfirmCloseOverlay
