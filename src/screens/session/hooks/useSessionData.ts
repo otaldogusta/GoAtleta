@@ -11,6 +11,8 @@ import type {
   TrainingPlan,
 } from "../../../core/models";
 import type { SessionMethodologyEvidence } from "../../../core/methodology/session-pedagogical-panel-language";
+import type { SessionPlanningUpcomingEvent } from "../../../core/session-planning-context";
+import { listEvents } from "../../../api/events";
 import {
   getAttendanceByDate,
   getClassById,
@@ -75,6 +77,19 @@ const getLatestFinalPlanForSession = async (
   return byWeekday[0] ?? null;
 };
 
+const buildEventWindow = (sessionDateValue: string, days = 14) => {
+  const normalizedDate = /^\d{4}-\d{2}-\d{2}$/.test(sessionDateValue)
+    ? sessionDateValue
+    : new Date().toISOString().slice(0, 10);
+  const from = new Date(`${normalizedDate}T00:00:00`);
+  const to = new Date(from);
+  to.setDate(to.getDate() + days);
+  return {
+    fromIso: from.toISOString(),
+    toIso: to.toISOString(),
+  };
+};
+
 export function useSessionData({
   classId,
   sessionDate,
@@ -98,6 +113,7 @@ export function useSessionData({
   const [currentClassPlan, setCurrentClassPlan] = useState<ClassPlan | null>(null);
   const [currentDailyLessonPlan, setCurrentDailyLessonPlan] =
     useState<DailyLessonPlan | null>(null);
+  const [upcomingSessionEvents, setUpcomingSessionEvents] = useState<SessionPlanningUpcomingEvent[]>([]);
   const [isResolvingCurrentClassPlan, setIsResolvingCurrentClassPlan] = useState(false);
   const [methodologyEvidence, setMethodologyEvidence] =
     useState<SessionMethodologyEvidence | null>(null);
@@ -117,7 +133,8 @@ export function useSessionData({
         const data = await getClassById(classId);
         if (alive) setCls(data);
         if (data) {
-          const [classStudents, currentPlan, classTrainingPlans] = await Promise.all([
+          const eventWindow = buildEventWindow(sessionDate);
+          const [classStudents, currentPlan, classTrainingPlans, upcomingEvents] = await Promise.all([
             getStudentsByClass(data.id),
             getLatestFinalPlanForSession(
               data.organizationId ?? null,
@@ -132,11 +149,32 @@ export function useSessionData({
               orderBy: "createdat_desc",
               limit: 24,
             }).catch(() => [] as TrainingPlan[]),
+            data.organizationId
+              ? listEvents({
+                  organizationId: data.organizationId,
+                  fromIso: eventWindow.fromIso,
+                  toIso: eventWindow.toIso,
+                }).catch(() => [])
+              : Promise.resolve([]),
           ]);
+          const scopedEvents = upcomingEvents
+            .filter((event) => {
+              const classScoped = event.classIds.includes(data.id);
+              const unitScoped =
+                !event.classIds.length && Boolean(data.unitId && event.unitId === data.unitId);
+              return classScoped || unitScoped;
+            })
+            .slice(0, 3)
+            .map((event) => ({
+              title: event.title,
+              date: String(event.startsAt ?? "").slice(0, 10),
+              classScoped: event.classIds.includes(data.id),
+            }));
           if (alive) {
             setSessionStudents(classStudents);
             setSavedClassPlans(compactTrainingPlans(classTrainingPlans));
             setPlan(currentPlan);
+            setUpcomingSessionEvents(scopedEvents);
             setSessionDataStatus("ready");
             setSessionDataError(null);
           }
@@ -145,6 +183,7 @@ export function useSessionData({
           setSavedClassPlans([]);
           setSessionStudents([]);
           setPlan(null);
+          setUpcomingSessionEvents([]);
           setSessionLog(null);
           setScoutingLog(null);
           setSessionDataStatus("not_found");
@@ -167,6 +206,7 @@ export function useSessionData({
           setSavedClassPlans([]);
           setSessionStudents([]);
           setPlan(null);
+          setUpcomingSessionEvents([]);
           setSessionLog(null);
           setScoutingLog(null);
           setSessionDataStatus("error");
@@ -357,6 +397,7 @@ export function useSessionData({
     currentClassPlan,
     currentDailyLessonPlan,
     setCurrentDailyLessonPlan,
+    upcomingSessionEvents,
     isResolvingCurrentClassPlan,
     methodologyEvidence,
     reload,

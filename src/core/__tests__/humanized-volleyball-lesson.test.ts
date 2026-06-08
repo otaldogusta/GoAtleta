@@ -1,5 +1,6 @@
 import { buildNextVolleyballLessonPlan } from "../progression-engine";
 import type { VolleyballSkill } from "../models";
+import type { SessionPlanningContext } from "../session-planning-context";
 import {
   buildHumanizedVolleyballLessonBlocks,
   resolveVolleyballLessonAgeProfile,
@@ -72,6 +73,33 @@ const collectVisibleText = (blocks: ReturnType<typeof buildHumanizedVolleyballLe
   [...blocks.warmup, ...blocks.main, ...blocks.cooldown]
     .map((activity) => `${activity.name} ${activity.presentation?.standardText ?? ""}`)
     .join(" ");
+
+const buildSessionContext = (
+  overrides: Partial<SessionPlanningContext> = {}
+): SessionPlanningContext => ({
+  classId: "class-10-12",
+  sessionDate: "2026-06-13",
+  ageBand: "10-12",
+  sport: "volleyball",
+  skillFocus: "passe",
+  cycleGoal: "Recepção e continuidade",
+  weekGoal: "Passe sob decisão simples",
+  weekNumber: 5,
+  sessionIndexInWeek: 2,
+  periodizationPhase: "pre_competitivo",
+  progressionDimension: "tomada_decisao",
+  pedagogicalIntent: "decision_making",
+  loadIntent: "alto",
+  previousSessionSummary: "Passe em trios | alvo_zona",
+  recentDifficulties: ["comunicacao"],
+  recentActivityFamilies: ["alvo_zona", "jogo_aplicado"],
+  upcomingEvents: [],
+  availableDuration: 60,
+  materials: ["bolas", "cones"],
+  classProfile: { level: 2, daysPerWeek: 2, size: 12, heterogeneity: "contextualizada" },
+  constraints: [],
+  ...overrides,
+});
 
 describe("humanized volleyball lesson activities", () => {
   it.each([
@@ -216,6 +244,82 @@ describe("humanized volleyball lesson activities", () => {
     expect(visibleByAge[0]).not.toBe(visibleByAge[1]);
     expect(visibleByAge[1]).not.toBe(visibleByAge[2]);
     expect(visibleByAge[2]).not.toBe(visibleByAge[3]);
+  });
+
+  it("uses periodization and recent history to adjust the operational activity text", () => {
+    const blocks = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand: "10-12",
+        objective: "Passe e manchete para recepção",
+        focusSkills: ["passe"],
+      }),
+      buildSessionContext()
+    );
+    const visibleText = collectVisibleText(blocks);
+    const normalizedVisibleText = visibleText.toLowerCase();
+
+    expect(blocks.validationFlags).toEqual([]);
+    expect(visibleText).toContain("Quem recebe chama a bola antes do contato");
+    expect(visibleText).toContain("equipe escolhe uma zona simples");
+    expect(visibleText).toContain("Vale ponto extra");
+    expect(visibleText).toContain("placar até 3 pontos");
+    expect(visibleText).toContain("Na segunda rodada, o grupo muda a zona");
+    expect(normalizedVisibleText).not.toContain("levantamento");
+    expect(visibleText).not.toContain("Foco do professor:");
+    expect(visibleText).not.toContain("Meta:");
+    expect(visibleText).not.toContain("Adaptação:");
+  });
+
+  it("mentions upcoming events only when the planning context has a real event", () => {
+    const blocksWithEvent = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand: "10-12",
+        objective: "Passe e manchete para recepção",
+        focusSkills: ["passe"],
+      }),
+      buildSessionContext({
+        upcomingEvents: [{ title: "Festival da unidade", date: "2026-06-16", classScoped: true }],
+      })
+    );
+    const blocksWithoutEvent = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand: "10-12",
+        objective: "Passe e manchete para recepção",
+        focusSkills: ["passe"],
+      }),
+      buildSessionContext({ upcomingEvents: [] })
+    );
+
+    expect(blocksWithEvent.validationFlags).toEqual([]);
+    expect(collectVisibleText(blocksWithEvent)).toContain("Festival da unidade em 16/06");
+    expect(collectVisibleText(blocksWithoutEvent)).not.toContain("Festival da unidade");
+  });
+
+  it("flags invented event reminders when no upcoming event exists", () => {
+    const blocks = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand: "10-12",
+        objective: "Passe e manchete para recepção",
+        focusSkills: ["passe"],
+      })
+    );
+    const cooldown = {
+      ...blocks.cooldown[0],
+      execution: "Cada grupo comenta uma coisa que ajudou a jogar melhor. Aviso rápido: festival no cronograma.",
+      description:
+        "Organização: Reunir a turma. Execução: Cada grupo comenta uma coisa que ajudou a jogar melhor. Aviso rápido: festival no cronograma.",
+      presentation: {
+        ...blocks.cooldown[0].presentation,
+        standardText:
+          "Reunir a turma na lateral da quadra. Cada grupo comenta uma coisa que ajudou a jogar melhor. Aviso rápido: festival no cronograma.",
+      },
+    };
+    const flags = validateHumanizedVolleyballBlocks(
+      { warmup: blocks.warmup, main: blocks.main, cooldown: [cooldown] },
+      "passe"
+    );
+
+    expect(flags.some((flag) => flag.includes("Aviso de evento sem evento real"))).toBe(true);
   });
 
   it.each([

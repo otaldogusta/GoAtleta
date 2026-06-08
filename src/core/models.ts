@@ -519,6 +519,7 @@ export type TrainingPlanSessionBlock = {
 
 export type TrainingPlanPedagogy = {
   generationExplanation?: TrainingPlanGenerationExplanation;
+  sessionPlanningContext?: unknown;
   periodizationContext?: PeriodizationContext;
   pedagogicalDecisionSupport?: PedagogicalDecisionSupport;
   periodization?: {

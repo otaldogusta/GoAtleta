@@ -1,5 +1,6 @@
 import type { VolleyballLessonPlan, VolleyballSkill } from "../models";
 import { parseAgeBandRange } from "../age-band";
+import type { SessionPlanningContext } from "../session-planning-context";
 
 type ActivityStage = "warmup" | "drill" | "game" | "cooldown";
 type LessonAgeStage = "early" | "base" | "transition" | "formation" | "specialization";
@@ -343,6 +344,145 @@ const applyAgePatches = (
   if (!patchSet) return blocks;
   const apply = (activity: HumanizedLessonActivity) => {
     const patch = patchSet[activity.id];
+    return patch ? remakeActivity(activity, primarySkill, ageProfile, patch) : activity;
+  };
+  return {
+    warmup: blocks.warmup.map(apply),
+    main: blocks.main.map(apply),
+    cooldown: blocks.cooldown.map(apply),
+  };
+};
+
+const includesAny = (values: string[], patterns: RegExp[]) =>
+  values.some((value) => patterns.some((pattern) => pattern.test(normalize(value))));
+
+const appendSentence = (base: string, addition: string) =>
+  [ensureSentence(base), ensureSentence(addition)].filter(Boolean).join(" ");
+
+const formatEventDate = (value: string) => {
+  const normalized = String(value ?? "").slice(0, 10);
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}` : normalized;
+};
+
+const buildEventReminder = (context?: SessionPlanningContext) => {
+  const event = context?.upcomingEvents?.[0];
+  if (!event?.title) return "";
+  const date = formatEventDate(event.date);
+  return date
+    ? `Aviso rápido: ${event.title} em ${date}.`
+    : `Aviso rápido: ${event.title}.`;
+};
+
+const buildContextualPatch = (
+  activity: HumanizedLessonActivity,
+  context?: SessionPlanningContext
+): HumanizedActivityPatch | null => {
+  if (!context) return null;
+
+  const patch: HumanizedActivityPatch = {};
+  const hasCommunicationDifficulty = includesAny(context.recentDifficulties, [
+    /comunic/,
+    /cham/,
+    /organiz/,
+  ]);
+  const hasParticipationDifficulty = includesAny(context.recentDifficulties, [
+    /particip/,
+    /espera/,
+  ]);
+  const asksDecision =
+    context.pedagogicalIntent === "decision_making" ||
+    context.pedagogicalIntent === "game_reading" ||
+    context.progressionDimension === "tomada_decisao" ||
+    context.progressionDimension === "transferencia_jogo";
+  const asksPressure =
+    context.loadIntent === "alto" ||
+    context.periodizationPhase === "pre_competitivo" ||
+    context.periodizationPhase === "competitivo" ||
+    context.progressionDimension === "pressao_tempo" ||
+    context.progressionDimension === "oposicao";
+  const repeatedTargetFamily = context.recentActivityFamilies.includes("alvo_zona");
+  const repeatedGameFamily = context.recentActivityFamilies.includes("jogo_aplicado");
+
+  if (activity.stage === "warmup" && hasParticipationDifficulty) {
+    patch.simpleRule = "Erro não elimina ninguém; o grupo reinicia rápido e segue jogando.";
+    patch.execution = appendSentence(
+      activity.execution,
+      "Erro não elimina ninguém; o grupo reinicia rápido e segue jogando."
+    );
+  }
+
+  if (
+    hasCommunicationDifficulty &&
+    (activity.primarySkill === "passe" || activity.name.toLowerCase().includes("manchete")) &&
+    activity.stage !== "cooldown"
+  ) {
+    patch.execution = appendSentence(
+      patch.execution ?? activity.execution,
+      "Quem recebe chama a bola antes do contato."
+    );
+    patch.simpleRule = appendSentence(
+      patch.simpleRule ?? activity.simpleRule,
+      "A jogada vale bônus quando a chamada aparece antes do primeiro contato."
+    );
+  }
+
+  if (asksDecision && activity.stage === "game") {
+    patch.execution = appendSentence(
+      patch.execution ?? activity.execution,
+      "Antes do rally, a equipe escolhe uma zona simples para proteger ou atacar. Vale ponto extra quando a escolha da zona aparece na jogada."
+    );
+    patch.scoring = appendSentence(
+      patch.scoring ?? activity.scoring ?? "",
+      "Ponto extra quando a escolha da zona aparece na jogada."
+    );
+  }
+
+  if (asksPressure && activity.stage === "game") {
+    patch.execution = appendSentence(
+      patch.execution ?? activity.execution,
+      "As rodadas são curtas, com troca de função a cada rally e placar até 3 pontos."
+    );
+    patch.simpleRule = appendSentence(
+      patch.simpleRule ?? activity.simpleRule,
+      "Placar curto até 3 pontos por rodada."
+    );
+  }
+
+  if (repeatedTargetFamily && activity.stage === "drill" && /alvo|zona/i.test(activity.organization)) {
+    patch.execution = appendSentence(
+      patch.execution ?? activity.execution,
+      "Na segunda rodada, o grupo muda a zona para não repetir o mesmo desafio da aula anterior."
+    );
+  }
+
+  if (repeatedGameFamily && activity.stage === "game") {
+    patch.simpleRule = appendSentence(
+      patch.simpleRule ?? activity.simpleRule,
+      "A regra muda no meio da atividade para não repetir o jogo da aula anterior."
+    );
+  }
+
+  if (activity.stage === "cooldown") {
+    const eventReminder = buildEventReminder(context);
+    if (eventReminder) {
+      patch.execution = appendSentence(activity.execution, eventReminder);
+      patch.simpleRule = appendSentence(activity.simpleRule, "Aviso somente sobre evento real da turma.");
+    }
+  }
+
+  return Object.keys(patch).length ? patch : null;
+};
+
+const applySessionContextPatches = (
+  blocks: Pick<HumanizedLessonBlocks, "warmup" | "main" | "cooldown">,
+  primarySkill: VolleyballSkill,
+  ageProfile: VolleyballLessonAgeProfile,
+  context?: SessionPlanningContext
+): Pick<HumanizedLessonBlocks, "warmup" | "main" | "cooldown"> => {
+  if (!context) return blocks;
+  const apply = (activity: HumanizedLessonActivity) => {
+    const patch = buildContextualPatch(activity, context);
     return patch ? remakeActivity(activity, primarySkill, ageProfile, patch) : activity;
   };
   return {
@@ -1319,47 +1459,84 @@ const buildGenericBlocks = (
 
 const withValidation = (
   blocks: Pick<HumanizedLessonBlocks, "warmup" | "main" | "cooldown">,
-  primarySkill: VolleyballSkill
+  primarySkill: VolleyballSkill,
+  context?: SessionPlanningContext
 ): HumanizedLessonBlocks => ({
   ...blocks,
-  validationFlags: validateHumanizedVolleyballBlocks(blocks, primarySkill),
+  validationFlags: validateHumanizedVolleyballBlocks(blocks, primarySkill, context),
 });
 
 export const buildHumanizedVolleyballLessonBlocks = (
-  plan: VolleyballLessonPlan
+  plan: VolleyballLessonPlan,
+  context?: SessionPlanningContext
 ): HumanizedLessonBlocks => {
   const primarySkill = asSkill(plan.primaryFocus.skill);
   const ageProfile = resolveVolleyballLessonAgeProfile(plan);
   if (primarySkill === "passe" && hasMancheteIntent(plan)) {
-    return withValidation(
+    const blocks = applySessionContextPatches(
       applyAgePatches(buildMancheteBlocks(primarySkill), primarySkill, ageProfile, MANCHETE_AGE_PATCHES),
-      primarySkill
+      primarySkill,
+      ageProfile,
+      context
+    );
+    return withValidation(
+      blocks,
+      primarySkill,
+      context
     );
   }
   if (primarySkill === "passe") {
-    return withValidation(
+    const blocks = applySessionContextPatches(
       applyAgePatches(buildPasseBlocks(primarySkill), primarySkill, ageProfile, PASSE_AGE_PATCHES),
-      primarySkill
+      primarySkill,
+      ageProfile,
+      context
+    );
+    return withValidation(
+      blocks,
+      primarySkill,
+      context
     );
   }
   if (primarySkill === "saque") {
-    return withValidation(
+    const blocks = applySessionContextPatches(
       applyAgePatches(buildSaqueBlocks(primarySkill), primarySkill, ageProfile, SAQUE_AGE_PATCHES),
-      primarySkill
+      primarySkill,
+      ageProfile,
+      context
+    );
+    return withValidation(
+      blocks,
+      primarySkill,
+      context
     );
   }
   if (primarySkill === "levantamento") {
-    return withValidation(
+    const blocks = applySessionContextPatches(
       applyAgePatches(buildLevantamentoBlocks(primarySkill), primarySkill, ageProfile, LEVANTAMENTO_AGE_PATCHES),
-      primarySkill
+      primarySkill,
+      ageProfile,
+      context
+    );
+    return withValidation(
+      blocks,
+      primarySkill,
+      context
     );
   }
-  return withValidation(buildGenericBlocks(primarySkill, ageProfile), primarySkill);
+  const blocks = applySessionContextPatches(
+    buildGenericBlocks(primarySkill, ageProfile),
+    primarySkill,
+    ageProfile,
+    context
+  );
+  return withValidation(blocks, primarySkill, context);
 };
 
 export const validateHumanizedVolleyballBlocks = (
   blocks: Pick<HumanizedLessonBlocks, "warmup" | "main" | "cooldown">,
-  primarySkill: VolleyballSkill
+  primarySkill: VolleyballSkill,
+  context?: SessionPlanningContext
 ) => {
   const flags: string[] = [];
   const allActivities = [...blocks.warmup, ...blocks.main, ...blocks.cooldown];
@@ -1426,6 +1603,17 @@ export const validateHumanizedVolleyballBlocks = (
 
     if (forbiddenPdfLabels.test(activity.presentation.standardText)) {
       flags.push(`Campo interno vazou para apresentacao em ${activity.name}.`);
+    }
+
+    if (/acertar[^.]{0,30}(alvo|zona)[^.]{0,30}continuar|continuar[^.]{0,30}acertar[^.]{0,30}(alvo|zona)/i.test(text)) {
+      flags.push(`Regra depende de acertar alvo para continuar em ${activity.name}.`);
+    }
+
+    if (
+      !context?.upcomingEvents?.length &&
+      /(festival|torneio|amistoso|evento\s+(?:da|do|em|no|na)|cronograma)/i.test(text)
+    ) {
+      flags.push(`Aviso de evento sem evento real em ${activity.name}.`);
     }
 
     buildRealityFlags(activity, primarySkill).forEach((flag) => flags.push(flag));

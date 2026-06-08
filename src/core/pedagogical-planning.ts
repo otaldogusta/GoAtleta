@@ -2,6 +2,7 @@
 import { inferSkillsFromText, progressionPlanToDraft, volleyballLessonPlanToDraft } from "./ai-operations";
 import { resolveClassModality } from "./class-modality";
 import type { ClassGroup, Student, VolleyballSkill } from "./models";
+import type { SessionPlanningContext } from "./session-planning-context";
 import {
   buildNextSessionProgression,
   buildNextVolleyballLessonPlan,
@@ -46,6 +47,7 @@ export type PlanningInput = {
   rpeTarget?: number;
   weekNumber?: number;
   dimensionGuidelines?: string[];
+  sessionPlanningContext?: SessionPlanningContext;
 };
 
 export type PlanningAnalysis = {
@@ -478,7 +480,12 @@ const buildBasePlan = (input: PlanningInput, analysis: PlanningAnalysis): BasePl
   const objectiveText = [input.objective, input.classGroup.goal, ...(input.students ?? []).map((student) => student.healthObservations)]
     .filter(Boolean)
     .join(" ");
-  const focusSkills = inferSkillsFromText(objectiveText);
+  const focusSkills = input.sessionPlanningContext?.skillFocus
+    ? [
+        input.sessionPlanningContext.skillFocus,
+        input.sessionPlanningContext.secondarySkill,
+      ].filter((skill): skill is VolleyballSkill => Boolean(skill))
+    : inferSkillsFromText(objectiveText);
   const syntheticSnapshot = buildSyntheticSnapshot(input, analysis);
 
   if (classModality === "voleibol") {
@@ -500,7 +507,7 @@ const buildBasePlan = (input: PlanningInput, analysis: PlanningAnalysis): BasePl
       lastAttendanceCount: input.students?.length ?? 0,
     });
     const draft = volleyballLessonPlanToDraft(raw, input.classGroup.name);
-    const humanized = buildHumanizedVolleyballLessonBlocks(raw);
+    const humanized = buildHumanizedVolleyballLessonBlocks(raw, input.sessionPlanningContext);
     return {
       kind: "volleyball",
       raw,

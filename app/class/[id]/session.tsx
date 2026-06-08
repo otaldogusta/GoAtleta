@@ -1434,6 +1434,7 @@ const buildAutoPlanPedagogy = (
 
   return {
     generationExplanation: options?.generationExplanation,
+    sessionPlanningContext: pkg.input.sessionPlanningContext,
     pedagogicalDecisionSupport: options?.pedagogicalDecisionSupport,
     sessionObjective: explicitObjectives.general,
     learningObjectives,
@@ -1766,6 +1767,7 @@ export default function SessionScreen() {
     attendancePercent,
     currentClassPlan,
     currentDailyLessonPlan,
+    upcomingSessionEvents,
     isResolvingCurrentClassPlan,
     reload,
   } = useSessionData({
@@ -2753,11 +2755,12 @@ export default function SessionScreen() {
         sessionDate,
         scoutingCounts,
         recentPlans: savedClassPlans,
+        upcomingEvents: upcomingSessionEvents,
         variationSeed,
         dimensionGuidelines,
       });
     },
-    [cls, currentClassPlan, savedClassPlans, scoutingCounts, sessionDate, sessionStudents]
+    [cls, currentClassPlan, savedClassPlans, scoutingCounts, sessionDate, sessionStudents, upcomingSessionEvents]
   );
 
   const buildFreshAutoPlanResult = async (
