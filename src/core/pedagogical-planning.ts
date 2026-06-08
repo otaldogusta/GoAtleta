@@ -72,12 +72,30 @@ export type PedagogicalActivity = {
   id: string;
   name: string;
   description: string;
+  stage?: "warmup" | "drill" | "game" | "cooldown";
+  participants?: string;
   organization?: string;
+  starter?: string;
+  action?: string;
+  rotation?: string;
+  simpleRule?: string;
+  scoring?: string;
+  materials?: string[];
+  space?: string;
   execution?: string;
   coachFocus?: string;
   successCriteria?: string;
   adaptation?: string;
   primarySkill?: VolleyballSkill;
+  sourcePatternId?: string;
+  validation?: {
+    flags?: string[];
+    checklist?: Record<string, boolean>;
+  };
+  presentation?: {
+    standardText?: string;
+    advancedText?: string;
+  };
 };
 
 export type PedagogicalPlanBlock = {

@@ -255,6 +255,7 @@ export const buildNextVolleyballLessonPlan = (
     sport: "volleyball_indoor",
     classId: request.classId,
     unitId: request.unitId,
+    objective: request.objective,
     cycle: {
       mesoWeek: request.mesoWeek ?? 1,
       microDay: request.microDay ?? "D1",
