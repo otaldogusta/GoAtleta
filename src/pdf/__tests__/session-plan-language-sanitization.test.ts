@@ -38,6 +38,29 @@ const buildGeneratedHtml = (ageBand: string, objective: string, focusSkills: Vol
   });
 };
 
+const expectStandardPdfText = (html: string) => {
+  [
+    "Foco do professor",
+    "Meta:",
+    "Critério de sucesso",
+    "Adaptação",
+    "primarySkill",
+    "sourcePatternId",
+    "vwv_",
+    "Passe orientado",
+    "Exploração guiada",
+    "referência técnica",
+    "atividade estruturada",
+    "O grupo um aluno",
+    "lançamento do professor",
+    "Professor chama",
+    "Só continua se acertar",
+    "volleyballxl",
+  ].forEach((term) => {
+    expect(html).not.toContain(term);
+  });
+};
+
 describe("session-plan language sanitization", () => {
   it("removes forbidden foreign terms from exported html", () => {
     const html = sessionPlanHtml({
@@ -161,6 +184,7 @@ describe("session-plan language sanitization", () => {
     expect(html).not.toContain("Foco do professor");
     expect(html).not.toContain("Meta:");
     expect(html).not.toContain("Adaptação:");
+    expectStandardPdfText(html);
   });
 
   it.each([
@@ -216,24 +240,21 @@ describe("session-plan language sanitization", () => {
     expect(html).not.toContain("Passe orientado");
     expect(html).not.toContain("Exploração guiada");
     expect(html).not.toContain("referência técnica");
+    expectStandardPdfText(html);
   });
 
   it.each([
+    ["10-12", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
     ["13-15", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
     ["13-15", "Bloqueio", ["bloqueio"] as VolleyballSkill[], "Mini jogo com bloqueio e cobertura"],
     ["10-12", "Defesa", ["defesa"] as VolleyballSkill[], "Mini jogo com defesa pontuada"],
+    ["13-15", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
     ["16-18", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
   ])("keeps pattern-backed PDF text operational for %s %s", (ageBand, objective, focusSkills, expectedText) => {
     const html = buildGeneratedHtml(ageBand, objective, focusSkills);
 
     expect(html).toContain(expectedText);
     expect(html).toMatch(/quadra|zona|cones|troca|ponto extra/);
-    expect(html).not.toContain("Foco do professor");
-    expect(html).not.toContain("Meta:");
-    expect(html).not.toContain("Critério de sucesso");
-    expect(html).not.toContain("Adaptação");
-    expect(html).not.toContain("primarySkill");
-    expect(html).not.toContain("vwv_");
-    expect(html).not.toContain("atividade estruturada");
+    expectStandardPdfText(html);
   });
 });

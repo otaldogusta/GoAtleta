@@ -75,6 +75,28 @@ const collectVisibleText = (blocks: ReturnType<typeof buildHumanizedVolleyballLe
     .map((activity) => `${activity.name} ${activity.presentation?.standardText ?? ""}`)
     .join(" ");
 
+const expectOperationalTextQuality = (visibleText: string) => {
+  [
+    "O grupo um aluno",
+    "lançamento do professor",
+    "Professor chama",
+    "Passe orientado",
+    "atividade estruturada",
+    "Exploração guiada",
+    "referência técnica",
+    "Foco do professor:",
+    "Critério de sucesso:",
+    "Adaptação:",
+    "primarySkill",
+    "vwv_",
+    "volleyballxl",
+    "fila longa",
+    "Só continua se acertar",
+  ].forEach((forbidden) => {
+    expect(visibleText).not.toContain(forbidden);
+  });
+};
+
 const buildSessionContext = (
   overrides: Partial<SessionPlanningContext> = {}
 ): SessionPlanningContext => ({
@@ -393,6 +415,33 @@ describe("humanized volleyball lesson activities", () => {
     expect(visibleText).not.toContain("Foco do professor:");
   });
 
+  it.each([
+    ["Passe 07-09", "07-09", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Desafio dos 3 passes"],
+    ["Passe 10-12", "10-12", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 3x3 com primeiro contato pontuado"],
+    ["Manchete 07-09", "07-09", "Manchete para recepção", ["passe"] as VolleyballSkill[], "Miniquadra com primeiro contato combinado"],
+    ["Saque 10-12", "10-12", "Saque por baixo", ["saque"] as VolleyballSkill[], "Mini jogo com saque em jogo"],
+    ["Levantamento 10-12", "10-12", "Levantamento", ["levantamento"] as VolleyballSkill[], "Recebe e levanta"],
+    ["Ataque 10-12", "10-12", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
+    ["Defesa 10-12", "10-12", "Defesa", ["defesa"] as VolleyballSkill[], "Mini jogo com defesa pontuada"],
+    ["Bloqueio 13-15", "13-15", "Bloqueio", ["bloqueio"] as VolleyballSkill[], "Mini jogo com bloqueio e cobertura"],
+    ["Transição 13-15", "13-15", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
+  ])("keeps quality-pass sample operational for %s", (_label, ageBand, objective, focusSkills, expectedText) => {
+    const blocks = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand,
+        objective,
+        focusSkills,
+      })
+    );
+    const visibleText = collectVisibleText(blocks);
+
+    expect(blocks.validationFlags).toEqual([]);
+    expectCompleteActivityFields(blocks, focusSkills[0]);
+    expect(visibleText).toContain(expectedText);
+    expect(visibleText).toMatch(/quadra|zona|cones|duplas|trios|equipes|rally|ponto|troca/i);
+    expectOperationalTextQuality(visibleText);
+  });
+
   it("keeps a batch quality matrix clean across age bands and skills", () => {
     const ageBands = ["06-08", "07-09", "10-12", "13-15", "16-18"];
     const skills: VolleyballSkill[] = [
@@ -438,10 +487,7 @@ describe("humanized volleyball lesson activities", () => {
       results.find((item) => item.ageBand === "16-18" && item.skill === "ataque")?.visibleText
     );
     results.forEach((item) => {
-      expect(item.visibleText).not.toContain("Foco do professor:");
-      expect(item.visibleText).not.toContain("Critério de sucesso:");
-      expect(item.visibleText).not.toContain("Adaptação:");
-      expect(item.visibleText).not.toContain("primarySkill");
+      expectOperationalTextQuality(item.visibleText);
     });
   });
 

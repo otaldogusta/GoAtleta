@@ -1136,12 +1136,12 @@ const buildPasseBlocks = (primarySkill: VolleyballSkill): Pick<HumanizedLessonBl
       action:
         "O grupo tenta manter a bola por 3 contatos antes de devolver para outro trio.",
       rotation: "Após cada tentativa, o trio reorganiza as posições e continua.",
-      simpleRule: "O trio precisa organizar 3 contatos antes de devolver.",
+      simpleRule: "O trio tenta organizar 3 contatos; se a bola cair, recolhe e reinicia sem eliminar ninguém.",
       scoring: "Vale ponto quando o grupo consegue organizar os 3 contatos.",
       materials: ["bolas", "cones"],
       space: "quadra reduzida",
       execution:
-        "O grupo tenta manter a bola por 3 contatos antes de devolver para outro trio. Vale ponto quando o grupo consegue organizar os 3 contatos.",
+        "O grupo tenta manter a bola por 3 contatos antes de devolver para outro trio. Se a bola cair, recolhe e reinicia sem eliminar ninguém. Vale ponto quando o grupo consegue organizar os 3 contatos.",
       coachFocus:
         "Observar chamada da bola e ocupação simples dos espaços.",
       successCriteria:
@@ -1191,11 +1191,11 @@ const buildMancheteBlocks = (primarySkill: VolleyballSkill): Pick<HumanizedLesso
       action:
         "O colega recebe de manchete tentando enviar a bola para o alvo marcado.",
       rotation: "A cada 5 ou 6 tentativas, trocam de função.",
-      simpleRule: "Quem recebe precisa se comunicar antes do contato.",
+      simpleRule: "Quem recebe precisa se comunicar antes do contato; a próxima bola entra mesmo quando o alvo não é atingido.",
       materials: ["bolas", "cones", "bambolês"],
       space: "quadra dividida por alvos",
       execution:
-        "Um aluno lança a bola por baixo e o outro recebe de manchete tentando acertar o alvo marcado por cone ou bambolê. A cada 5 ou 6 tentativas, trocam.",
+        "Um aluno lança a bola por baixo e o outro recebe de manchete tentando enviar para perto do alvo marcado por cone ou bambolê. A cada 5 ou 6 tentativas, trocam. A próxima bola entra mesmo quando o alvo não é atingido.",
       coachFocus:
         "Observar comunicação e direção da bola para a zona combinada.",
       successCriteria:
@@ -1210,7 +1210,7 @@ const buildMancheteBlocks = (primarySkill: VolleyballSkill): Pick<HumanizedLesso
       participants: "equipes pequenas",
       organization:
         "Montar miniquadras com equipes pequenas e uma zona combinada para o primeiro contato.",
-      starter: "A bola entra por lançamento do professor ou de uma equipe.",
+      starter: "A bola entra por lançamento combinado de uma das equipes.",
       action:
         "A equipe tenta fazer o primeiro contato chegar jogável na zona combinada.",
       rotation: "Depois de cada rally, as equipes trocam quem inicia a bola.",
@@ -1219,7 +1219,7 @@ const buildMancheteBlocks = (primarySkill: VolleyballSkill): Pick<HumanizedLesso
       materials: ["bolas", "cones"],
       space: "miniquadra",
       execution:
-        "A bola entra por lançamento. Vale ponto extra quando o primeiro contato chega jogável na zona combinada.",
+        "A bola entra por lançamento combinado de uma das equipes. Vale ponto extra quando o primeiro contato chega jogável na zona combinada. O erro encerra só o rally; a próxima bola entra rápido.",
       coachFocus:
         "Observar leitura da bola e comunicação entre colegas.",
       successCriteria:
@@ -1240,7 +1240,7 @@ const buildSaqueBlocks = (primarySkill: VolleyballSkill): Pick<HumanizedLessonBl
       participants: "pequenos grupos",
       organization:
         "Dividir o fundo da quadra em zonas marcadas por cones.",
-      starter: "O professor chama uma zona ao sinal.",
+      starter: "Um aluno líder chama uma zona ao sinal.",
       action:
         "Os alunos se deslocam e ocupam a zona chamada, já entrando no tema de direção do saque.",
       rotation: "A cada chamada, os grupos mudam de zona.",
@@ -1248,7 +1248,7 @@ const buildSaqueBlocks = (primarySkill: VolleyballSkill): Pick<HumanizedLessonBl
       materials: ["cones"],
       space: "fundo da quadra",
       execution:
-        "Ao sinal, os alunos se deslocam e ocupam a zona chamada. A cada chamada, os grupos mudam de lugar.",
+        "Ao sinal, um aluno líder chama uma zona e os grupos se deslocam para ocupar o espaço. A cada chamada, os grupos mudam de lugar.",
       coachFocus:
         "Observar orientação espacial e prontidão para mirar zonas.",
       successCriteria:
@@ -1348,11 +1348,11 @@ const buildLevantamentoBlocks = (primarySkill: VolleyballSkill): Pick<HumanizedL
       action:
         "O objetivo é acertar a bolinha dentro do cone, simulando a direção do toque.",
       rotation: "A cada 5 arremessos, trocam de função.",
-      simpleRule: "O cone fica como alvo acima da linha do peito.",
+      simpleRule: "O cone fica como alvo acima da linha do peito; se a bolinha não entrar, a dupla recolhe e segue.",
       materials: ["cones", "bolinhas"],
       space: "quadra dividida em duplas",
       execution:
-        "O objetivo é acertar a bolinha dentro do cone. A cada 5 arremessos, trocam de função.",
+        "A dupla tenta colocar a bolinha dentro do cone para perceber direção e altura do toque. Se a bolinha não entrar, recolhe e segue. A cada 5 arremessos, trocam de função.",
       coachFocus:
         "Observar direção alta e controle do segundo contato.",
       successCriteria:
