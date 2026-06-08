@@ -1,4 +1,42 @@
+import type { VolleyballSkill } from "../../core/models";
+import { buildNextVolleyballLessonPlan } from "../../core/progression-engine";
+import { buildHumanizedVolleyballLessonBlocks } from "../../core/volleyball/humanized-lesson-activities";
 import { sessionPlanHtml } from "../templates/session-plan";
+
+const buildGeneratedHtml = (ageBand: string, objective: string, focusSkills: VolleyballSkill[]) => {
+  const plan = buildNextVolleyballLessonPlan({
+    classId: `class-${ageBand}`,
+    unitId: "unit-1",
+    className: `Turma ${ageBand}`,
+    ageBand,
+    objective,
+    focusSkills,
+    pedagogicalProfile: "fundamental",
+    previousSnapshot: {
+      consistencyScore: 0.44,
+      successRate: 0.42,
+      decisionQuality: 0.5,
+      notes: [],
+    },
+    lastRpeGroup: 5,
+    lastAttendanceCount: 10,
+  });
+  const blocks = buildHumanizedVolleyballLessonBlocks(plan);
+  return sessionPlanHtml({
+    className: `Turma ${ageBand}`,
+    ageGroup: ageBand,
+    dateLabel: "13/06/2026",
+    title: objective,
+    blocks: [
+      {
+        key: "main",
+        label: "Parte principal",
+        durationMinutes: 40,
+        activities: blocks.main,
+      },
+    ],
+  });
+};
 
 describe("session-plan language sanitization", () => {
   it("removes forbidden foreign terms from exported html", () => {
@@ -152,5 +190,31 @@ describe("session-plan language sanitization", () => {
     expect(html).not.toContain("os fundamentos de turma");
     expect(html).not.toContain("execucao");
     expect(html).not.toContain("decisao");
+  });
+
+  it.each([
+    ["06-08", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Desafio dos 3 passes"],
+    ["07-09", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Desafio dos 3 passes"],
+    ["08-10", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 2x2 dos 3 contatos"],
+    ["09-11", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Passe em duplas para zona-alvo"],
+    ["10-12", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 3x3 com primeiro contato pontuado"],
+    ["11-12", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Passe em trio com chamada"],
+    ["12-14", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 4x4 com zona de recepção"],
+    ["13-15", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Passe sob lançamento variado"],
+    ["16-18", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Jogo aplicado com bônus de recepção"],
+  ])("keeps generated PDF standard text operational for age band %s", (ageBand, objective, focusSkills, expectedText) => {
+    const html = buildGeneratedHtml(ageBand, objective, focusSkills);
+
+    expect(html).toContain(expectedText);
+    expect(html).toMatch(/quadra|zona|cones|lançamento|ponto/);
+    expect(html).not.toContain("Foco do professor");
+    expect(html).not.toContain("Meta:");
+    expect(html).not.toContain("Critério de sucesso");
+    expect(html).not.toContain("Adaptação");
+    expect(html).not.toContain("primarySkill");
+    expect(html).not.toContain("vwv_");
+    expect(html).not.toContain("Passe orientado");
+    expect(html).not.toContain("Exploração guiada");
+    expect(html).not.toContain("referência técnica");
   });
 });

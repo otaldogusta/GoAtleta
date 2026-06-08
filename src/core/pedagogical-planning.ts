@@ -486,6 +486,7 @@ const buildBasePlan = (input: PlanningInput, analysis: PlanningAnalysis): BasePl
       classId: input.classGroup.id,
       unitId: input.classGroup.unitId,
       className: input.classGroup.name,
+      ageBand: input.classGroup.ageBand,
       objective: input.objective || input.classGroup.goal,
       focusSkills,
       pedagogicalProfile: analysis.profile,

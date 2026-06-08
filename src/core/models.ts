@@ -1563,6 +1563,8 @@ export type VolleyballLessonPlan = {
   sport: "volleyball_indoor";
   classId: string;
   unitId: string;
+  className?: string;
+  ageBand?: string;
   objective?: string;
   cycle: { mesoWeek: number; microDay: string };
   primaryFocus: { skill: string; ladderFrom: string; ladderTo: string };
