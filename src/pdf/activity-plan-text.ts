@@ -4,6 +4,10 @@ type PrintableActivity = {
   execution?: string | null;
   description?: string | null;
   notes?: string | null;
+  presentation?: {
+    standardText?: string | null;
+    advancedText?: string | null;
+  } | null;
 };
 
 const normalizeText = (value: string | null | undefined) =>
@@ -16,6 +20,11 @@ const ensureSentence = (value: string | null | undefined) => {
 };
 
 export const buildActivityPlanText = (activity: PrintableActivity) => {
+  const standardText = normalizeText(activity.presentation?.standardText);
+  if (standardText) {
+    return standardText;
+  }
+
   const organization = ensureSentence(activity.organization);
   const execution = ensureSentence(activity.execution);
   const practicalText = [organization, execution].filter(Boolean).join(" ");

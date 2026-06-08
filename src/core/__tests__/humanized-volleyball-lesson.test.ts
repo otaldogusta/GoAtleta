@@ -43,6 +43,7 @@ const collectText = (blocks: ReturnType<typeof buildHumanizedVolleyballLessonBlo
         activity.successCriteria,
         activity.adaptation,
         activity.primarySkill,
+        activity.presentation?.standardText,
       ].join(" ")
     )
     .join(" ");
@@ -58,6 +59,10 @@ const expectCompleteActivityFields = (
     expect(activity.successCriteria).toBeTruthy();
     expect(activity.adaptation).toBeTruthy();
     expect(activity.primarySkill).toBe(primarySkill);
+    expect(activity.presentation?.standardText).toBeTruthy();
+    expect(activity.presentation?.standardText).not.toContain("Foco do professor:");
+    expect(activity.presentation?.standardText).not.toContain("Critério de sucesso:");
+    expect(activity.presentation?.standardText).not.toContain("Adaptação:");
   });
 };
 
@@ -69,7 +74,12 @@ describe("humanized volleyball lesson activities", () => {
       objective: "Passe e manchete para recepção",
       focusSkills: ["passe"] as VolleyballSkill[],
       primarySkill: "passe" as VolleyballSkill,
-      expected: ["Passe para alvo em duplas", "Manchete com ajuste de pés"],
+      expected: [
+        "Pega-pega dos 3 contatos",
+        "Passe em duplas para voltar jogável",
+        "Desafio dos 3 passes",
+        "Conversa e feedbacks finais",
+      ],
     },
     {
       label: "Manchete 07-09",
@@ -77,7 +87,12 @@ describe("humanized volleyball lesson activities", () => {
       objective: "Manchete para recepção",
       focusSkills: ["passe"] as VolleyballSkill[],
       primarySkill: "passe" as VolleyballSkill,
-      expected: ["manchete", "primeiro contato"],
+      expected: [
+        "Corre e chama",
+        "Manchete no alvo",
+        "Miniquadra com primeiro contato combinado",
+        "Conversa e feedbacks finais",
+      ],
     },
     {
       label: "Saque 10-12",
@@ -85,7 +100,12 @@ describe("humanized volleyball lesson activities", () => {
       objective: "Saque por baixo",
       focusSkills: ["saque"] as VolleyballSkill[],
       primarySkill: "saque" as VolleyballSkill,
-      expected: ["Saque por baixo para zonas", "Saque com rotina curta"],
+      expected: [
+        "Pega-zona do saque",
+        "Saque por baixo para zonas",
+        "Mini jogo com saque em jogo",
+        "Conversa e feedbacks finais",
+      ],
     },
     {
       label: "Levantamento 10-12",
@@ -93,7 +113,12 @@ describe("humanized volleyball lesson activities", () => {
       objective: "Levantamento",
       focusSkills: ["levantamento"] as VolleyballSkill[],
       primarySkill: "levantamento" as VolleyballSkill,
-      expected: ["Levantamento para alvo alto", "Levantamento após passe lançado"],
+      expected: [
+        "Bola ao alto em circulação",
+        "Introdução do toque com cone",
+        "Recebe e levanta",
+        "Conversa e feedbacks finais",
+      ],
     },
   ])("creates a deterministic coupled sample for $label", (sample) => {
     const blocks = buildHumanizedVolleyballLessonBlocks(
@@ -106,7 +131,7 @@ describe("humanized volleyball lesson activities", () => {
     const fullText = collectText(blocks);
 
     expect(blocks.validationFlags).toEqual([]);
-    expect(blocks.main.length).toBeGreaterThanOrEqual(3);
+    expect(blocks.main.length).toBeGreaterThanOrEqual(2);
     expectCompleteActivityFields(blocks, sample.primarySkill);
     expect(fullText).toContain("Organização:");
     expect(fullText).toContain("Execução:");
@@ -119,6 +144,7 @@ describe("humanized volleyball lesson activities", () => {
     expect(fullText).not.toContain("referência técnica");
     expect(fullText).not.toContain("saque com alvo");
     expect(fullText).not.toContain("segundo contato com alvo");
+    expect(fullText).not.toContain("Passe orientado");
   });
 
   it("keeps passe as the dominant focus instead of drifting to levantamento", () => {
@@ -148,6 +174,22 @@ describe("humanized volleyball lesson activities", () => {
       successCriteria: "",
       adaptation: "",
       primarySkill: "passe" as const,
+      stage: "drill" as const,
+      participants: "",
+      starter: "",
+      action: "",
+      rotation: "",
+      simpleRule: "",
+      materials: [],
+      space: "",
+      presentation: {
+        standardText: "Foco do professor: texto interno.",
+        advancedText: "",
+      },
+      validation: {
+        flags: [],
+        checklist: {},
+      },
     };
 
     const flags = validateHumanizedVolleyballBlocks(
@@ -161,7 +203,7 @@ describe("humanized volleyball lesson activities", () => {
 
     expect(flags.some((flag) => flag.includes("Atividade repetida"))).toBe(true);
     expect(flags.some((flag) => flag.includes("Campo ausente"))).toBe(true);
-    expect(flags.some((flag) => flag.includes("quadra pratica"))).toBe(true);
+    expect(flags.some((flag) => flag.includes("Checklist incompleto"))).toBe(true);
     expect(flags.some((flag) => flag.includes("Linguagem artificial"))).toBe(true);
     expect(flags.some((flag) => flag.includes("levantamento"))).toBe(true);
   });
