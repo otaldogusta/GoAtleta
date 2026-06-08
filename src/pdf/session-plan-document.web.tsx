@@ -9,6 +9,7 @@ import {
 } from "@react-pdf/renderer/lib/react-pdf.browser";
 import { resolveLearningObjectives } from "../core/pedagogy/objective-language";
 import { sanitizeVolleyballLanguage } from "../core/pedagogy/volleyball-language-lexicon";
+import { buildPrintableActivityBlock } from "./activity-plan-text";
 import { toPdfCoachingText, toPdfText } from "./pdf-coaching-text";
 import type { SessionPlanPdfData } from "./templates/session-plan";
 
@@ -132,6 +133,8 @@ const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoach
 const buildOrderedLines = (rows: string[]) =>
   rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
 
+const buildActivityBlocks = (rows: string[]) => (rows.length ? rows.join("\n\n") : "-");
+
 const getBlockLabel = (block: SessionPlanPdfData["blocks"][number]) =>
   asText(block?.label || block?.title) || "-";
 
@@ -148,10 +151,17 @@ const getBlockActivities = (block: SessionPlanPdfData["blocks"][number]) => {
   return [];
 };
 
+const resolveActivityDescription = (
+  item: ReturnType<typeof getBlockActivities>[number]
+) => {
+  const printableText = buildPrintableActivityBlock(item);
+  return asCoachingText(printableText).trim();
+};
+
 const resolveBlockDescriptionLines = (block: SessionPlanPdfData["blocks"][number]) => {
   const items = getBlockActivities(block);
   const descriptionRows = items
-    .map((item) => asCoachingText(item?.description || item?.notes).trim())
+    .map((item) => resolveActivityDescription(item))
     .filter(Boolean);
 
   if (descriptionRows.length) return descriptionRows;
@@ -181,6 +191,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
     weeklyFocus,
     theme: weeklyFocus,
     technicalFocus: weeklyFocus,
+    ageBand: data?.ageGroup,
   });
   const resolvedGeneralObjective = sanitizeVolleyballLanguage(resolvedObjectives.generalObjective);
   const resolvedSpecificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
@@ -280,7 +291,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             const activities = buildOrderedLines(
               items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
             );
-            const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
+            const descriptions = buildActivityBlocks(resolveBlockDescriptionLines(block));
             return (
               <View key={`${period}-${blockIndex}`} style={styles.row}>
                 <View style={[styles.cell, styles.periodCell]}>

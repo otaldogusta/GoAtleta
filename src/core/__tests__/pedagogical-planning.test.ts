@@ -110,4 +110,43 @@ describe("pedagogical-planning", () => {
     expect(result.draft.objective).toBe("resistencia");
     expect(result.draft.main.activities.length).toBeGreaterThan(0);
   });
+
+  it("generates humanized coupled activities for base volleyball passe", () => {
+    const result = buildPedagogicalPlan({
+      classGroup: createClassGroup({
+        name: "Turma 07-09",
+        ageBand: "07-09",
+        goal: "Passe e manchete",
+      }),
+      students: [createStudent({ age: 8, healthIssue: false, healthIssueNotes: "", healthObservations: "" })],
+      objective: "Passe",
+      context: "treinamento",
+      constraints: [],
+      materials: ["bolas", "cones"],
+      duration: 60,
+    });
+
+    const firstMain = result.final.main.activities.find((activity) => activity.primarySkill === "passe");
+    const fullText = [
+      result.final.warmup,
+      result.final.main,
+      result.final.cooldown,
+    ]
+      .flatMap((block) => block.activities)
+      .map((activity) => `${activity.name} ${activity.description}`)
+      .join(" ");
+
+    expect(result.generated.basePlanKind).toBe("volleyball");
+    expect(firstMain?.organization).toBeTruthy();
+    expect(firstMain?.execution).toBeTruthy();
+    expect(firstMain?.coachFocus).toBeTruthy();
+    expect(firstMain?.successCriteria).toBeTruthy();
+    expect(firstMain?.adaptation).toBeTruthy();
+    expect(firstMain?.primarySkill).toBe("passe");
+    expect(fullText).toContain("Organização:");
+    expect(fullText).toContain("manchete");
+    expect(fullText).not.toContain("vwv_");
+    expect(fullText).not.toContain("Exploração guiada");
+    expect(fullText.toLowerCase()).not.toContain("levantamento");
+  });
 });

@@ -1340,6 +1340,7 @@ export default function AssistantScreen() {
         lastRpeGroup: Number(latestLog?.PSE ?? 6),
         lastAttendanceCount: Number(latestLog?.participantsCount ?? 0),
         className: selectedClass.name,
+        ageBand: selectedClass.ageBand,
         objective: `Progressão para ${selectedClass.name}`,
         focusSkills: inferSkillsFromText(`${input} ${conversationText}`.trim()),
         previousSnapshot: {

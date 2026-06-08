@@ -435,6 +435,30 @@ export type StrategyLevel = "low" | "medium" | "high";
 export type TrainingPlanActivity = {
   name: string;
   description?: string;
+  stage?: "warmup" | "drill" | "game" | "cooldown";
+  participants?: string;
+  organization?: string;
+  starter?: string;
+  action?: string;
+  rotation?: string;
+  simpleRule?: string;
+  scoring?: string;
+  materials?: string[];
+  space?: string;
+  execution?: string;
+  coachFocus?: string;
+  successCriteria?: string;
+  adaptation?: string;
+  primarySkill?: VolleyballSkill;
+  sourcePatternId?: string;
+  validation?: {
+    flags?: string[];
+    checklist?: Record<string, boolean>;
+  };
+  presentation?: {
+    standardText?: string;
+    advancedText?: string;
+  };
   objective?: string;
   criteria?: TrainingPlanCriterion[];
   source?: "ai" | "fallback";
@@ -453,6 +477,30 @@ export type LessonActivity = {
   id?: string;
   name: string;
   description: string;
+  stage?: "warmup" | "drill" | "game" | "cooldown";
+  participants?: string;
+  organization?: string;
+  starter?: string;
+  action?: string;
+  rotation?: string;
+  simpleRule?: string;
+  scoring?: string;
+  materials?: string[];
+  space?: string;
+  execution?: string;
+  coachFocus?: string;
+  successCriteria?: string;
+  adaptation?: string;
+  primarySkill?: VolleyballSkill;
+  sourcePatternId?: string;
+  validation?: {
+    flags?: string[];
+    checklist?: Record<string, boolean>;
+  };
+  presentation?: {
+    standardText?: string;
+    advancedText?: string;
+  };
 };
 
 export type LessonBlock = {
@@ -471,6 +519,7 @@ export type TrainingPlanSessionBlock = {
 
 export type TrainingPlanPedagogy = {
   generationExplanation?: TrainingPlanGenerationExplanation;
+  sessionPlanningContext?: unknown;
   periodizationContext?: PeriodizationContext;
   pedagogicalDecisionSupport?: PedagogicalDecisionSupport;
   periodization?: {
@@ -1515,6 +1564,9 @@ export type VolleyballLessonPlan = {
   sport: "volleyball_indoor";
   classId: string;
   unitId: string;
+  className?: string;
+  ageBand?: string;
+  objective?: string;
   cycle: { mesoWeek: number; microDay: string };
   primaryFocus: { skill: string; ladderFrom: string; ladderTo: string };
   secondaryFocus: { skill: string; ladderFrom: string; ladderTo: string };

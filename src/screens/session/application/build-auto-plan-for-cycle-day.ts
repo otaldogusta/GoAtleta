@@ -31,6 +31,11 @@ import {
     sanitizePlanForAgeBand,
     type AgeSanitizerDiagnostics,
 } from "../../../core/sanitize-plan-for-age-band";
+import {
+    buildSessionPlanningContext,
+    type SessionPlanningContext,
+    type SessionPlanningUpcomingEvent,
+} from "../../../core/session-planning-context";
 import type { ScoutingCounts } from "../../../core/scouting";
 import type { ClassGenerationContext } from "./build-class-generation-context";
 import { buildPedagogicalInputFromContext } from "./build-pedagogical-input-from-context";
@@ -47,6 +52,7 @@ export type BuildAutoPlanForCycleDayParams = {
   sessions?: TrainingSession[] | null;
   attendance?: TrainingSessionAttendance[] | null;
   sessionLogs?: SessionLog[] | null;
+  upcomingEvents?: SessionPlanningUpcomingEvent[] | null;
   sessionIndexInWeek?: number;
   variationSeed?: number;
   dimensionGuidelines?: string[];
@@ -64,6 +70,7 @@ export type AutoPlanForCycleDayResult = {
   repetitionAdjustment: RepetitionAdjustment;
   explanation: CycleDayGenerationExplanation;
   generationContext: ClassGenerationContext;
+  sessionPlanningContext: SessionPlanningContext;
   package: PedagogicalPlanPackage;
   ageSanitizer: AgeSanitizerDiagnostics;
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
@@ -176,10 +183,19 @@ export const buildAutoPlanForCycleDay = (
     recentSessions,
     recentPlans,
   });
+  const sessionPlanningContext = buildSessionPlanningContext({
+    classGroup: params.classGroup,
+    cycleContext,
+    strategy,
+    recentPlans,
+    upcomingEvents: params.upcomingEvents ?? [],
+  });
+  sessionPlanningContext.classProfile.size = params.students.length;
   const pkg = buildPedagogicalInputFromContext({
     classGroup: params.classGroup,
     students: params.students,
     generationContext,
+    sessionPlanningContext,
     variationSeed: params.variationSeed,
     dimensionGuidelines: params.dimensionGuidelines,
   });
@@ -241,6 +257,7 @@ export const buildAutoPlanForCycleDay = (
     repetitionAdjustment: guardResult.repetitionAdjustment,
     explanation,
     generationContext,
+    sessionPlanningContext,
     package: sanitizedPlan.package,
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,

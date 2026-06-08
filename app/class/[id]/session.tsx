@@ -593,20 +593,35 @@ const pickDevelopmentStage = (classGroup: ClassGroup): NonNullable<TrainingPlanP
 };
 
 const pickFocusSkill = (pkg: PedagogicalPlanPackage): VolleyballSkill => {
+  const structuredPrimarySkill = [
+    ...pkg.final.main.activities,
+    ...pkg.final.warmup.activities,
+    ...pkg.final.cooldown.activities,
+  ].find((activity) => activity.primarySkill)?.primarySkill;
+  if (structuredPrimarySkill) return structuredPrimarySkill;
+
+  const explicitObjective = normalizePedagogicalText(pkg.input.objective);
+  if (explicitObjective.includes("passe") || explicitObjective.includes("recep") || explicitObjective.includes("manchete")) return "passe";
+  if (explicitObjective.includes("levant")) return "levantamento";
+  if (explicitObjective.includes("ataq") || explicitObjective.includes("cortada")) return "ataque";
+  if (explicitObjective.includes("bloq")) return "bloqueio";
+  if (explicitObjective.includes("defes") || explicitObjective.includes("dig")) return "defesa";
+  if (explicitObjective.includes("saque") || explicitObjective.includes("serv")) return "saque";
+  if (explicitObjective.includes("trans") || explicitObjective.includes("jogo")) return "transicao";
+
   const text = normalizePedagogicalText(
     [
-      pkg.input.objective,
       ...pkg.final.main.activities.map((activity) => activity.name),
       ...pkg.final.warmup.activities.map((activity) => activity.name),
     ].join(" ")
   );
+  if (text.includes("passe") || text.includes("recep") || text.includes("manchete")) return "passe";
   if (text.includes("levant")) return "levantamento";
   if (text.includes("ataq") || text.includes("cortada")) return "ataque";
   if (text.includes("bloq")) return "bloqueio";
   if (text.includes("defes") || text.includes("dig")) return "defesa";
   if (text.includes("saque") || text.includes("serv") ) return "saque";
   if (text.includes("trans") || text.includes("jogo")) return "transicao";
-  if (text.includes("passe") || text.includes("recep") || text.includes("manchete")) return "passe";
   return "passe";
 };
 
@@ -904,6 +919,24 @@ const toStructuredActivities = (
     return {
       name: activityName,
       description: activityDescription,
+      stage: activity.stage,
+      participants: activity.participants,
+      organization: activity.organization,
+      starter: activity.starter,
+      action: activity.action,
+      rotation: activity.rotation,
+      simpleRule: activity.simpleRule,
+      scoring: activity.scoring,
+      materials: activity.materials,
+      space: activity.space,
+      execution: activity.execution,
+      coachFocus: activity.coachFocus,
+      successCriteria: activity.successCriteria,
+      adaptation: activity.adaptation,
+      primarySkill: activity.primarySkill,
+      sourcePatternId: activity.sourcePatternId,
+      validation: activity.validation,
+      presentation: activity.presentation,
       objective: sessionObjective,
       criteria,
       source: "fallback",
@@ -935,6 +968,24 @@ const toStructuredActivitiesWithAiFallback = async (
     pedagogicalApproach,
     focusSkill
   );
+
+  const hasHumanizedFields = (activity: TrainingPlanActivity) =>
+    Boolean(
+      activity.organization &&
+        activity.execution &&
+        activity.coachFocus &&
+        activity.successCriteria &&
+        activity.adaptation &&
+        activity.primarySkill
+    );
+
+  if (fallback.some(hasHumanizedFields)) {
+    logAction("structuredActivities fallback", {
+      reason: "humanized_fields_present",
+      activities: fallback.length,
+    });
+    return fallback;
+  }
 
   const normalizeActivityKey = (value: string) =>
     String(value ?? "")
@@ -1145,6 +1196,7 @@ const toStructuredActivitiesWithAiFallback = async (
       finalConfidenceSum += finalConfidence;
 
       return {
+        ...fallbackActivity,
         name: rawName,
         description: resolvedDescription,
         objective: aiObjective || sessionObjective,
@@ -1382,6 +1434,7 @@ const buildAutoPlanPedagogy = (
 
   return {
     generationExplanation: options?.generationExplanation,
+    sessionPlanningContext: pkg.input.sessionPlanningContext,
     pedagogicalDecisionSupport: options?.pedagogicalDecisionSupport,
     sessionObjective: explicitObjectives.general,
     learningObjectives,
@@ -1714,6 +1767,7 @@ export default function SessionScreen() {
     attendancePercent,
     currentClassPlan,
     currentDailyLessonPlan,
+    upcomingSessionEvents,
     isResolvingCurrentClassPlan,
     reload,
   } = useSessionData({
@@ -2373,19 +2427,20 @@ export default function SessionScreen() {
   const buildPdfBlockItems = (blockKey: SessionBlockKey) => {
     const blockSummary = getBlockSummary(blockKey);
     const structuredActivities = getStructuredBlockActivities(blockKey);
-    const sourceItems = structuredActivities.length
+    const sourceItems: TrainingPlanActivity[] = structuredActivities.length
       ? structuredActivities.map((activity) => ({
+          ...activity,
           name: activity.name,
           description: activity.description ?? "",
         }))
       : getBlockActivities(blockKey).map((name) => ({ name, description: "" }));
 
-    return sourceItems
-      .map((item) => {
+    return sourceItems.reduce<Array<TrainingPlanActivity & { description: string }>>(
+      (items, item) => {
         const activityName = sanitizePlanDisplayItem(item.name);
-        if (!activityName) return null;
+        if (!activityName) return items;
         const manualDescription = String(item.description ?? "").trim();
-        return {
+        items.push({
           name: normalizeDisplayText(activityName),
           description: normalizeDisplayText(
             manualDescription ||
@@ -2398,15 +2453,36 @@ export default function SessionScreen() {
                 focusSkill: plan?.pedagogy?.focus?.skill,
               })
           ),
-        };
-      })
-        .filter((item): item is { name: string; description: string } => Boolean(item));
+          organization: item.organization,
+          stage: item.stage,
+          participants: item.participants,
+          starter: item.starter,
+          action: item.action,
+          rotation: item.rotation,
+          simpleRule: item.simpleRule,
+          scoring: item.scoring,
+          materials: item.materials,
+          space: item.space,
+          execution: item.execution,
+          coachFocus: item.coachFocus,
+          successCriteria: item.successCriteria,
+          adaptation: item.adaptation,
+          primarySkill: item.primarySkill,
+          sourcePatternId: item.sourcePatternId,
+          validation: item.validation,
+          presentation: item.presentation,
+        });
+        return items;
+      },
+      []
+    );
   };
 
   const buildEditableBlockActivities = (blockKey: SessionBlockKey): EditableBlockItem[] => {
     const structuredActivities = getStructuredBlockActivities(blockKey);
     const sourceItems = structuredActivities.length
       ? structuredActivities.map((activity) => ({
+          ...activity,
           name: activity.name,
           description: activity.description ?? "",
         }))
@@ -2414,6 +2490,7 @@ export default function SessionScreen() {
 
     return sourceItems
       .map((item) => ({
+        ...item,
         name: sanitizePlanDisplayItem(item.name),
         description: String(item.description ?? "").trim(),
       }))
@@ -2678,11 +2755,12 @@ export default function SessionScreen() {
         sessionDate,
         scoutingCounts,
         recentPlans: savedClassPlans,
+        upcomingEvents: upcomingSessionEvents,
         variationSeed,
         dimensionGuidelines,
       });
     },
-    [cls, currentClassPlan, savedClassPlans, scoutingCounts, sessionDate, sessionStudents]
+    [cls, currentClassPlan, savedClassPlans, scoutingCounts, sessionDate, sessionStudents, upcomingSessionEvents]
   );
 
   const buildFreshAutoPlanResult = async (
@@ -2978,8 +3056,27 @@ export default function SessionScreen() {
           : getBlockDurationMinutes(selectedBlockKey);
       const activities = (payload.activities ?? [])
         .map((item) => ({
+          ...item,
           name: sanitizePlanDisplayItem(item?.name),
           description: String(item?.description ?? "").trim(),
+          stage: item?.stage,
+          participants: String(item?.participants ?? "").trim() || undefined,
+          organization: String(item?.organization ?? "").trim() || undefined,
+          starter: String(item?.starter ?? "").trim() || undefined,
+          action: String(item?.action ?? "").trim() || undefined,
+          rotation: String(item?.rotation ?? "").trim() || undefined,
+          simpleRule: String(item?.simpleRule ?? "").trim() || undefined,
+          scoring: String(item?.scoring ?? "").trim() || undefined,
+          materials: item?.materials,
+          space: String(item?.space ?? "").trim() || undefined,
+          execution: String(item?.execution ?? "").trim() || undefined,
+          coachFocus: String(item?.coachFocus ?? "").trim() || undefined,
+          successCriteria: String(item?.successCriteria ?? "").trim() || undefined,
+          adaptation: String(item?.adaptation ?? "").trim() || undefined,
+          primarySkill: item?.primarySkill,
+          sourcePatternId: item?.sourcePatternId,
+          validation: item?.validation,
+          presentation: item?.presentation,
         }))
         .filter((item) => item.name);
 
@@ -3002,6 +3099,7 @@ export default function SessionScreen() {
         blockSummary: string
       ) =>
         items.map((item) => ({
+          ...item,
           name: item.name,
           description:
             String(item.description ?? "").trim() ||

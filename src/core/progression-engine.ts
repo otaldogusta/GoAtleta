@@ -23,6 +23,7 @@ export type ProgressionRequest = {
 export type VolleyballLessonPlanRequest = ProgressionRequest & {
   classId: string;
   unitId: string;
+  ageBand?: string;
   mesoWeek?: number;
   microDay?: string;
   lastRpeGroup?: number;
@@ -255,6 +256,9 @@ export const buildNextVolleyballLessonPlan = (
     sport: "volleyball_indoor",
     classId: request.classId,
     unitId: request.unitId,
+    className: request.className,
+    ageBand: request.ageBand,
+    objective: request.objective,
     cycle: {
       mesoWeek: request.mesoWeek ?? 1,
       microDay: request.microDay ?? "D1",

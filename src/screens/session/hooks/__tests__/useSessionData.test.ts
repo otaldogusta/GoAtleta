@@ -25,6 +25,10 @@ jest.mock("../../../../db/seed", () => ({
   getTrainingPlans: jest.fn(),
 }));
 
+jest.mock("../../../../api/events", () => ({
+  listEvents: jest.fn(() => Promise.resolve([])),
+}));
+
 type HookSnapshot = {
   cls: ClassGroup | null;
   attendancePercent: number | null;

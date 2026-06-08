@@ -1,6 +1,7 @@
 import type { LessonActivity, LessonBlock } from "../../core/models";
 import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
 import { sanitizeVolleyballLanguage } from "../../core/pedagogy/volleyball-language-lexicon";
+import { buildPrintableActivityBlock } from "../activity-plan-text";
 import { toPdfCoachingText, toPdfText } from "../pdf-coaching-text";
 
 export type SessionPlanActivity = LessonActivity & {
@@ -55,6 +56,8 @@ const nl2br = (value: unknown) => esc(asText(value)).replace(/\n/g, "<br/>");
 const buildOrderedLines = (rows: string[]) =>
   rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
 
+const buildActivityBlocks = (rows: string[]) => (rows.length ? rows.join("\n\n") : "-");
+
 const getBlockLabel = (block: SessionBlock) => asText(block?.label || block?.title) || "-";
 
 const getBlockTime = (block: SessionBlock) => {
@@ -70,10 +73,15 @@ const getBlockActivities = (block: SessionBlock) => {
   return [];
 };
 
+const resolveActivityDescription = (item: SessionPlanActivity) => {
+  const printableText = buildPrintableActivityBlock(item);
+  return asCoachingText(printableText).trim();
+};
+
 const resolveBlockDescriptionLines = (block: SessionBlock) => {
   const blockItems = getBlockActivities(block);
   const descriptionRows = blockItems
-    .map((item) => asCoachingText(item?.description || item?.notes).trim())
+    .map((item) => resolveActivityDescription(item))
     .filter(Boolean);
 
   if (descriptionRows.length) return descriptionRows;
@@ -97,6 +105,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
     weeklyFocus,
     theme: weeklyFocus,
     technicalFocus: weeklyFocus,
+    ageBand: data?.ageGroup,
   });
   const resolvedGeneralObjective = sanitizeVolleyballLanguage(resolvedObjectives.generalObjective);
   const resolvedSpecificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
@@ -109,7 +118,7 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
       const activities = buildOrderedLines(
         blockItems.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
       );
-      const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
+      const descriptions = buildActivityBlocks(resolveBlockDescriptionLines(block));
 
       return `
       <tr>
@@ -294,4 +303,3 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   </html>
   `;
 };
-

@@ -293,6 +293,83 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.package.input.periodizationPhase).toBe("base");
   });
 
+  it("builds a structured session planning context that shapes the final activities", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "10-12",
+        durationMinutes: 60,
+        daysPerWeek: 2,
+        daysOfWeek: [2, 5],
+      }),
+      classPlan: buildClassPlan({
+        phase: "pre_competitivo",
+        theme: "Recepcao com comunicacao",
+        technicalFocus: "Passe",
+        rpeTarget: "PSE 6",
+      }),
+      students: [buildStudent({ id: "student_1" }), buildStudent({ id: "student_2" })],
+      sessionDate: "2026-04-10",
+      recentPlans: [
+        buildTrainingPlan({
+          main: ["Passe para alvo"],
+          pedagogy: {
+            focus: { skill: "passe" },
+            progression: { dimension: "tomada_decisao" },
+            sessionObjective: "Comunicação no passe com dificuldade de decisão",
+          },
+        }),
+      ],
+      upcomingEvents: [
+        { title: "Festival da unidade", date: "2026-04-13", classScoped: true },
+      ],
+      sessionIndexInWeek: 2,
+    });
+    const visibleText = [
+      ...result.package.final.warmup.activities,
+      ...result.package.final.main.activities,
+      ...result.package.final.cooldown.activities,
+    ]
+      .map((activity) => `${activity.name} ${activity.presentation?.standardText ?? ""}`)
+      .join(" ");
+
+    expect(result.sessionPlanningContext.skillFocus).toBe("passe");
+    expect(result.sessionPlanningContext.classProfile.size).toBe(2);
+    expect(result.sessionPlanningContext.upcomingEvents[0]?.title).toBe("Festival da unidade");
+    expect(result.package.input.sessionPlanningContext?.recentDifficulties).toContain("comunicacao");
+    expect(result.package.input.sessionPlanningContext?.recentActivityFamilies).toContain("alvo_zona");
+    expect(visibleText).toContain("Quem recebe chama a bola antes do contato");
+    expect(visibleText).toContain("Festival da unidade em 13/04");
+    expect(visibleText.toLowerCase()).not.toContain("levantamento");
+    expect(visibleText).not.toContain("Foco do professor:");
+    expect(visibleText).not.toContain("Critério de sucesso:");
+    expect(visibleText).not.toContain("Adaptação:");
+  });
+
+  it("does not invent event reminders when no class or unit event is provided", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({ ageBand: "10-12", daysPerWeek: 2, daysOfWeek: [2, 5] }),
+      classPlan: buildClassPlan({
+        phase: "desenvolvimento",
+        theme: "Recepcao com continuidade",
+        technicalFocus: "Passe",
+      }),
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      recentPlans: [buildTrainingPlan()],
+      upcomingEvents: [],
+    });
+    const visibleText = [
+      ...result.package.final.warmup.activities,
+      ...result.package.final.main.activities,
+      ...result.package.final.cooldown.activities,
+    ]
+      .map((activity) => `${activity.name} ${activity.presentation?.standardText ?? ""}`)
+      .join(" ");
+
+    expect(result.sessionPlanningContext.upcomingEvents).toEqual([]);
+    expect(visibleText).not.toMatch(/Festival|torneio|amistoso|cronograma/i);
+  });
+
   it("surfaces dominant block influence in the explanation and strategy output", () => {
     const result = buildAutoPlanForCycleDay({
       classGroup: buildClassGroup(),

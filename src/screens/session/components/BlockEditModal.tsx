@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { Text, TextInput, View } from "react-native";
 import type { LessonActivity } from "../../../core/models";
+import { composeHumanizedActivityDescription } from "../../../core/volleyball/humanized-lesson-activities";
 import { radius } from "../../../theme/tokens";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../ui/ModalSheet";
@@ -61,12 +62,22 @@ export function BlockEditModal({
       draftActivities.map((item) => ({
         name: String(item?.name ?? "").trim(),
         description: String(item?.description ?? "").trim(),
+        organization: String(item?.organization ?? "").trim(),
+        execution: String(item?.execution ?? "").trim(),
+        coachFocus: String(item?.coachFocus ?? "").trim(),
+        successCriteria: String(item?.successCriteria ?? "").trim(),
+        adaptation: String(item?.adaptation ?? "").trim(),
       }))
     );
     const normalizedBase = JSON.stringify(
       baseline.activities.map((item) => ({
         name: String(item?.name ?? "").trim(),
         description: String(item?.description ?? "").trim(),
+        organization: String(item?.organization ?? "").trim(),
+        execution: String(item?.execution ?? "").trim(),
+        coachFocus: String(item?.coachFocus ?? "").trim(),
+        successCriteria: String(item?.successCriteria ?? "").trim(),
+        adaptation: String(item?.adaptation ?? "").trim(),
       }))
     );
     return (
@@ -79,10 +90,32 @@ export function BlockEditModal({
     const numeric = Number.parseInt(draftDuration.replace(/[^0-9]/g, ""), 10);
     const sanitizedDuration = Number.isFinite(numeric) && numeric > 0 ? numeric : durationMinutes;
     const sanitizedActivities = draftActivities
-      .map((item) => ({
-        name: String(item?.name ?? "").trim(),
-        description: String(item?.description ?? "").trim(),
-      }))
+      .map((item) => {
+        const next: EditableBlockItem = {
+          ...item,
+          name: String(item?.name ?? "").trim(),
+          description: String(item?.description ?? "").trim(),
+          organization: String(item?.organization ?? "").trim() || undefined,
+          execution: String(item?.execution ?? "").trim() || undefined,
+          coachFocus: String(item?.coachFocus ?? "").trim() || undefined,
+          successCriteria: String(item?.successCriteria ?? "").trim() || undefined,
+          adaptation: String(item?.adaptation ?? "").trim() || undefined,
+          primarySkill: item?.primarySkill,
+        };
+        const hasStructuredDetails = Boolean(
+          next.organization ||
+            next.execution ||
+            next.coachFocus ||
+            next.successCriteria ||
+            next.adaptation
+        );
+        return {
+          ...next,
+          description: hasStructuredDetails
+            ? composeHumanizedActivityDescription(next)
+            : next.description,
+        };
+      })
       .filter((item) => item.name);
     return {
       durationMinutes: sanitizedDuration,

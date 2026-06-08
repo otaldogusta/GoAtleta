@@ -3,12 +3,14 @@ import {
     buildPedagogicalPlan,
     type PedagogicalPlanPackage,
 } from "../../../core/pedagogical-planning";
+import type { SessionPlanningContext } from "../../../core/session-planning-context";
 import type { ClassGenerationContext } from "./build-class-generation-context";
 
 type BuildPedagogicalInputFromContextParams = {
   classGroup: ClassGroup;
   students: Student[];
   generationContext: ClassGenerationContext;
+  sessionPlanningContext?: SessionPlanningContext;
   variationSeed?: number;
   dimensionGuidelines?: string[];
 };
@@ -130,6 +132,7 @@ export function buildPedagogicalInputFromContext(
     periodizationPhase: params.generationContext.planningPhase,
     rpeTarget: params.generationContext.rpeTarget,
     weekNumber: params.generationContext.weekNumber,
+    sessionPlanningContext: params.sessionPlanningContext,
     dimensionGuidelines: buildContextDimensionGuidelines(
       params.generationContext,
       params.dimensionGuidelines

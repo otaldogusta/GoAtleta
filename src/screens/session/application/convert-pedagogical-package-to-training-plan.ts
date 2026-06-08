@@ -62,6 +62,7 @@ export const buildPedagogicalInputHash = (pkg: PedagogicalPlanPackage) => {
       week: pkg.input.weekNumber ?? null,
       rpeTarget: pkg.input.rpeTarget ?? null,
     },
+    sessionPlanningContext: pkg.input.sessionPlanningContext ?? null,
     analysis: {
       level: pkg.analysis.level,
       heterogeneity: pkg.analysis.heterogeneity,
