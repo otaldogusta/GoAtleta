@@ -132,6 +132,8 @@ const asCoachingText = (value: unknown) => sanitizeVolleyballLanguage(toPdfCoach
 const buildOrderedLines = (rows: string[]) =>
   rows.length ? rows.map((line, index) => `${index + 1}. ${line}`).join("\n") : "-";
 
+const buildActivityBlocks = (rows: string[]) => (rows.length ? rows.join("\n\n") : "-");
+
 const getBlockLabel = (block: SessionPlanPdfData["blocks"][number]) =>
   asText(block?.label || block?.title) || "-";
 
@@ -155,7 +157,7 @@ const resolveActivityDescription = (
     ["Organização", item.organization],
     ["Execução", item.execution],
     ["Foco do professor", item.coachFocus],
-    ["Critério de sucesso", item.successCriteria],
+    ["Meta", item.successCriteria],
     ["Adaptação", item.adaptation],
   ]
     .map(([label, value]) => {
@@ -164,7 +166,10 @@ const resolveActivityDescription = (
     })
     .filter(Boolean);
 
-  if (structuredRows.length) return structuredRows.join(" ");
+  if (structuredRows.length) {
+    const name = asCoachingText(item?.name).trim();
+    return [name, ...structuredRows].filter(Boolean).join("\n");
+  }
   return asCoachingText(item?.description || item?.notes).trim();
 };
 
@@ -201,6 +206,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
     weeklyFocus,
     theme: weeklyFocus,
     technicalFocus: weeklyFocus,
+    ageBand: data?.ageGroup,
   });
   const resolvedGeneralObjective = sanitizeVolleyballLanguage(resolvedObjectives.generalObjective);
   const resolvedSpecificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
@@ -300,7 +306,7 @@ export function SessionPlanDocument({ data }: { data: SessionPlanPdfData }) {
             const activities = buildOrderedLines(
               items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean)
             );
-            const descriptions = buildOrderedLines(resolveBlockDescriptionLines(block));
+            const descriptions = buildActivityBlocks(resolveBlockDescriptionLines(block));
             return (
               <View key={`${period}-${blockIndex}`} style={styles.row}>
                 <View style={[styles.cell, styles.periodCell]}>

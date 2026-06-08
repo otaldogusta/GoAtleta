@@ -71,15 +71,47 @@ describe("session-plan language sanitization", () => {
 
     expect(html).toContain("Passe para alvo em duplas");
     expect(html).toContain("Manchete com ajuste de pés");
+    expect(html).toContain("Passe para alvo em duplas<br/>Organização:");
     expect(html).toContain("Organização: Duplas a 3 metros com cone como alvo.");
     expect(html).toContain("Execução: Um aluno lanca e o outro responde de manchete.");
     expect(html).toContain("Foco do professor: Base baixa e manchete firme.");
-    expect(html).toContain("Critério de sucesso: 3 acertos em 6 tentativas.");
+    expect(html).toContain("Meta: 3 acertos em 6 tentativas.");
+    expect(html).not.toContain("Critério de sucesso:");
     expect(html).toContain("Adaptação: Aproximar ou afastar a dupla.");
+    expect(html).toContain("Manchete com ajuste de pés<br/>Organização:");
     expect(html).toContain("Organização: Três filas curtas atrás da linha de fundo e alvo na posição 3.");
     expect(html).toContain("Execução: O aluno ajusta os pés, chama a bola e faz a manchete para o alvo.");
     expect(html).not.toContain("vwv_");
     expect(html).not.toContain("Exploração guiada");
     expect(html).not.toContain("referência técnica");
+  });
+
+  it.each([
+    {
+      title: "Turma 07-09 · Passe",
+      ageGroup: "07-09",
+    },
+    {
+      title: "Turma 10-12 · Passe",
+      ageGroup: "10-12",
+    },
+  ])("renders polished passe objectives for $title", ({ title, ageGroup }) => {
+    const html = sessionPlanHtml({
+      className: title,
+      ageGroup,
+      dateLabel: "13/06/2026",
+      title,
+      blocks: [],
+    });
+
+    expect(html).toContain(
+      "Objetivo geral:</strong> Desenvolver o controle do passe/manchete em situações simples de jogo."
+    );
+    expect(html).toContain(
+      "Objetivo específico:</strong> Ajustar base, deslocamento e direção da bola para enviar o passe a uma zona-alvo."
+    );
+    expect(html).not.toContain("os fundamentos de turma");
+    expect(html).not.toContain("execucao");
+    expect(html).not.toContain("decisao");
   });
 });

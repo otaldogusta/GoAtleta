@@ -79,6 +79,31 @@ const formatListPtBr = (items: string[]) => {
 
 const polishPtBrText = (value: string) =>
   value
+    .replace(/\bconteudos\b/gi, "conteúdos")
+    .replace(/\btecnico\b/gi, "técnico")
+    .replace(/\btecnicos\b/gi, "técnicos")
+    .replace(/\btatica\b/gi, "tática")
+    .replace(/\btaticas\b/gi, "táticas")
+    .replace(/\btecnico-taticos\b/gi, "técnico-táticos")
+    .replace(/\btecnica\b/gi, "técnica")
+    .replace(/\btecnicas\b/gi, "técnicas")
+    .replace(/\bpraticas\b/gi, "práticas")
+    .replace(/\bexperiencias\b/gi, "experiências")
+    .replace(/\bexecucao\b/gi, "execução")
+    .replace(/\bdecisao\b/gi, "decisão")
+    .replace(/\bdecisoes\b/gi, "decisões")
+    .replace(/\borganizacao\b/gi, "organização")
+    .replace(/\bcomunicacao\b/gi, "comunicação")
+    .replace(/\bdirecao\b/gi, "direção")
+    .replace(/\bsituacao\b/gi, "situação")
+    .replace(/\bsituacoes\b/gi, "situações")
+    .replace(/\bcooperacao\b/gi, "cooperação")
+    .replace(/\bparticipacao\b/gi, "participação")
+    .replace(/\bniveis\b/gi, "níveis")
+    .replace(/\brepeticao\b/gi, "repetição")
+    .replace(/\borientacoes\b/gi, "orientações")
+    .replace(/\bmudancas\b/gi, "mudanças")
+    .replace(/\baplicacao\b/gi, "aplicação")
     .replace(/\bde os\b/gi, "dos")
     .replace(/\bde as\b/gi, "das")
     .replace(/\bde o\b/gi, "do")
@@ -91,6 +116,24 @@ const polishPtBrText = (value: string) =>
     .replace(/\ba as\b/gi, "as")
     .replace(/\s+/g, " ")
     .trim();
+
+const normalizeDiacritics = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const hasPasseMancheteFocus = (input: ResolveLearningObjectivesInput) =>
+  /\b(passe|manchete|recepcao|recepcao|primeiro contato)\b/.test(
+    normalizeDiacritics([
+      input.generalObjective,
+      input.specificObjective,
+      input.title,
+      input.theme,
+      input.technicalFocus,
+      input.weeklyFocus,
+    ].join(" "))
+  );
 
 const extractFundamentals = (value: string) => {
   const text = sentence(value);
@@ -253,11 +296,16 @@ const isListLikeSpecific = (value: string) => {
 };
 
 const buildGeneralObjective = (
+  input: ResolveLearningObjectivesInput,
   lessonType: LessonType,
   dimension: KnowledgeDimension,
   content: string,
   youngAgeBand: boolean
 ) => {
+  if (hasPasseMancheteFocus(input)) {
+    return "Desenvolver o controle do passe/manchete em situações simples de jogo.";
+  }
+
   const resolvedVerb = pickGeneralVerb(lessonType);
 
   if (youngAgeBand) {
@@ -292,11 +340,16 @@ const buildGeneralObjective = (
 };
 
 const buildSpecificObjective = (
+  input: ResolveLearningObjectivesInput,
   lessonType: LessonType,
   dimension: KnowledgeDimension,
   content: string,
   youngAgeBand: boolean
 ) => {
+  if (hasPasseMancheteFocus(input)) {
+    return "Ajustar base, deslocamento e direção da bola para enviar o passe a uma zona-alvo.";
+  }
+
   const resolvedVerb = pickSpecificVerb(lessonType, dimension, pickGeneralVerb(lessonType));
 
   if (youngAgeBand) {
@@ -343,13 +396,13 @@ export const resolveLearningObjectives = (
 
   const generalObjective =
     !generalInput || isTooGenericGeneral(generalInput)
-      ? buildGeneralObjective(lessonType, dimension, content, youngAgeBand)
-      : generalInput;
+      ? buildGeneralObjective(input, lessonType, dimension, content, youngAgeBand)
+      : polishPtBrText(generalInput);
 
   const specificObjective =
     !specificInput || isListLikeSpecific(specificInput)
-      ? buildSpecificObjective(lessonType, dimension, content, youngAgeBand)
-      : specificInput;
+      ? buildSpecificObjective(input, lessonType, dimension, content, youngAgeBand)
+      : polishPtBrText(specificInput);
 
   return {
     generalObjective,
