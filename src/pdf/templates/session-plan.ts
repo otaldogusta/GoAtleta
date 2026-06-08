@@ -70,10 +70,28 @@ const getBlockActivities = (block: SessionBlock) => {
   return [];
 };
 
+const resolveActivityDescription = (item: SessionPlanActivity) => {
+  const structuredRows = [
+    ["Organização", item.organization],
+    ["Execução", item.execution],
+    ["Foco do professor", item.coachFocus],
+    ["Critério de sucesso", item.successCriteria],
+    ["Adaptação", item.adaptation],
+  ]
+    .map(([label, value]) => {
+      const text = asCoachingText(value).trim();
+      return text ? `${label}: ${text}` : "";
+    })
+    .filter(Boolean);
+
+  if (structuredRows.length) return structuredRows.join(" ");
+  return asCoachingText(item?.description || item?.notes).trim();
+};
+
 const resolveBlockDescriptionLines = (block: SessionBlock) => {
   const blockItems = getBlockActivities(block);
   const descriptionRows = blockItems
-    .map((item) => asCoachingText(item?.description || item?.notes).trim())
+    .map((item) => resolveActivityDescription(item))
     .filter(Boolean);
 
   if (descriptionRows.length) return descriptionRows;
@@ -294,4 +312,3 @@ export const sessionPlanHtml = (data: SessionPlanPdfData) => {
   </html>
   `;
 };
-

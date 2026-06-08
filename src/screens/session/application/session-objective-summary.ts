@@ -28,6 +28,51 @@ const cleanActivityName = (value: string | null | undefined) => {
   return text.replace(/^\s*\d+\s*min(?:utos?)?\s*[-•:]?\s*/i, "").trim();
 };
 
+const inferSkillFromText = (value: string) => {
+  const text = cleanText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (/\b(passe|recepcao|manchete|primeiro contato)\b/.test(text)) return "passe";
+  if (/\b(levantamento|levantador|levantar)\b/.test(text)) return "levantamento";
+  if (/\b(ataque|atacar|cortada)\b/.test(text)) return "ataque";
+  if (/\b(bloqueio|bloquear)\b/.test(text)) return "bloqueio";
+  if (/\b(defesa|defender)\b/.test(text)) return "defesa";
+  if (/\b(saque|sacar)\b/.test(text)) return "saque";
+  return "";
+};
+
+const resolveContentSkill = (plan: TrainingPlan) => {
+  const structuredActivities = [
+    ...(plan.pedagogy?.blocks?.main?.activities ?? []),
+    ...(plan.pedagogy?.blocks?.warmup?.activities ?? []),
+    ...(plan.pedagogy?.blocks?.cooldown?.activities ?? []),
+  ];
+  const primarySkill = structuredActivities.find((activity) =>
+    cleanText(activity.primarySkill)
+  )?.primarySkill;
+
+  if (primarySkill) return primarySkill;
+
+  const currentContent = [
+    plan.title,
+    ...(plan.main ?? []),
+    ...(plan.warmup ?? []),
+    ...structuredActivities.flatMap((activity) => [
+      activity.name,
+      activity.description,
+      activity.organization,
+      activity.execution,
+      activity.coachFocus,
+      activity.successCriteria,
+      activity.adaptation,
+    ]),
+  ].join(" ");
+
+  return inferSkillFromText(currentContent);
+};
+
 const formatList = (items: string[]) => {
   if (items.length <= 1) return items[0] ?? "";
   if (items.length === 2) return `${items[0]} e ${items[1]}`;
@@ -37,7 +82,9 @@ const formatList = (items: string[]) => {
 export const buildSessionObjectiveFromPlanContent = (plan: TrainingPlan | null | undefined) => {
   if (!plan) return "";
 
-  const focusSkill = cleanText(plan.pedagogy?.focus?.skill);
+  const contentSkill = resolveContentSkill(plan);
+  const storedFocusSkill = cleanText(plan.pedagogy?.focus?.skill);
+  const focusSkill = contentSkill || storedFocusSkill;
   const skillLabel = focusSkill ? skillLabels[focusSkill] ?? focusSkill : "";
   const progression = cleanText(plan.pedagogy?.progression?.dimension);
   const progressionLabel = progression

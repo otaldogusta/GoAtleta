@@ -13,6 +13,14 @@ type Props = {
 
 const nextActivityId = () => `act_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
+const structuredFields: Array<{ key: keyof LessonActivity; label: string }> = [
+  { key: "organization", label: "Organização" },
+  { key: "execution", label: "Execução" },
+  { key: "coachFocus", label: "Foco do professor" },
+  { key: "successCriteria", label: "Critério de sucesso" },
+  { key: "adaptation", label: "Adaptação" },
+];
+
 export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: Props) {
   const { colors } = useAppTheme();
 
@@ -68,6 +76,11 @@ export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: 
       <ScrollView style={{ maxHeight }} contentContainerStyle={{ gap: 8 }} showsVerticalScrollIndicator>
         {activities.length ? (
           activities.map((activity, index) => (
+            (() => {
+              const hasStructuredDetails = structuredFields.some(({ key }) =>
+                Boolean(String(activity[key] ?? "").trim())
+              );
+              return (
             <View
               key={activity.id || `activity_${index}`}
               style={{
@@ -142,7 +155,39 @@ export function LessonActivityEditor({ activities, onChange, maxHeight = 280 }: 
                   }}
                 />
               </View>
+              {hasStructuredDetails ? (
+                <View style={{ gap: 8 }}>
+                  {structuredFields.map(({ key, label }) => (
+                    <View key={String(key)} style={{ gap: 6 }}>
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                        {label}
+                      </Text>
+                      <TextInput
+                        value={String(activity[key] ?? "")}
+                        multiline
+                        textAlignVertical="top"
+                        onChangeText={(value) => updateActivity(index, key, value)}
+                        placeholder={label}
+                        placeholderTextColor={colors.muted}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          paddingVertical: 10,
+                          paddingHorizontal: 12,
+                          backgroundColor: colors.inputBg,
+                          color: colors.inputText,
+                          fontSize: 14,
+                          minHeight: 60,
+                        }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
+              );
+            })()
           ))
         ) : (
           <Text style={{ color: colors.muted, fontSize: 13 }}>Sem atividades cadastradas.</Text>

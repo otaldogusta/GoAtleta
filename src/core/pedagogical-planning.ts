@@ -1,12 +1,16 @@
 ﻿import { parseAgeBandRange } from "./age-band";
 import { inferSkillsFromText, progressionPlanToDraft, volleyballLessonPlanToDraft } from "./ai-operations";
 import { resolveClassModality } from "./class-modality";
-import type { ClassGroup, Student } from "./models";
+import type { ClassGroup, Student, VolleyballSkill } from "./models";
 import {
   buildNextSessionProgression,
   buildNextVolleyballLessonPlan,
   type PedagogicalProfile,
 } from "./progression-engine";
+import {
+  buildHumanizedVolleyballLessonBlocks,
+  composeHumanizedActivityDescription,
+} from "./volleyball/humanized-lesson-activities";
 
 export type PedagogicalObjective =
   | "controle_bola"
@@ -68,6 +72,12 @@ export type PedagogicalActivity = {
   id: string;
   name: string;
   description: string;
+  organization?: string;
+  execution?: string;
+  coachFocus?: string;
+  successCriteria?: string;
+  adaptation?: string;
+  primarySkill?: VolleyballSkill;
 };
 
 export type PedagogicalPlanBlock = {
@@ -136,7 +146,7 @@ export type PlanningRule = {
   apply: (draft: LessonPlanDraft, ctx: PlanningRuleContext) => void;
 };
 
-const ENGINE_VERSION = "pedagogical-plan.v1";
+const ENGINE_VERSION = "pedagogical-plan.v2";
 
 const normalizeText = (value: string | null | undefined) =>
   String(value ?? "")
@@ -191,9 +201,10 @@ const buildBlock = (
   name: PedagogicalPlanBlockName,
   duration: number,
   items: string[],
-  prefix: string
+  prefix: string,
+  structuredActivities?: PedagogicalActivity[]
 ): PedagogicalPlanBlock => {
-  const activities = buildActivityList(items, prefix);
+  const activities = structuredActivities?.length ? structuredActivities : buildActivityList(items, prefix);
   return {
     name,
     duration: Math.max(1, Math.round(duration)),
@@ -415,6 +426,12 @@ type BasePlanDraft = {
   warmup: string[];
   main: string[];
   cooldown: string[];
+  structuredBlocks?: {
+    warmup: PedagogicalActivity[];
+    main: PedagogicalActivity[];
+    cooldown: PedagogicalActivity[];
+  };
+  manualReviewFlags?: string[];
   warmupTime: number;
   mainTime: number;
   cooldownTime: number;
@@ -430,6 +447,13 @@ const adjustRpeByPhase = (rpe: number, phase?: PlanningPhase): number => {
   };
   return Math.max(3, Math.min(10, rpe + deltas[phase]));
 };
+
+const buildObjectiveActivity = (
+  activity: Omit<PedagogicalActivity, "description"> & { description?: string }
+): PedagogicalActivity => ({
+  ...activity,
+  description: composeHumanizedActivityDescription(activity) || activity.description || activity.name,
+});
 
 const buildBasePlan = (input: PlanningInput, analysis: PlanningAnalysis): BasePlanDraft => {
   const classModality = resolveClassModality(input.classGroup.modality);
@@ -457,6 +481,7 @@ const buildBasePlan = (input: PlanningInput, analysis: PlanningAnalysis): BasePl
       lastAttendanceCount: input.students?.length ?? 0,
     });
     const draft = volleyballLessonPlanToDraft(raw, input.classGroup.name);
+    const humanized = buildHumanizedVolleyballLessonBlocks(raw);
     return {
       kind: "volleyball",
       raw,
@@ -464,6 +489,12 @@ const buildBasePlan = (input: PlanningInput, analysis: PlanningAnalysis): BasePl
       warmup: draft.warmup,
       main: draft.main,
       cooldown: draft.cooldown,
+      structuredBlocks: {
+        warmup: humanized.warmup,
+        main: humanized.main,
+        cooldown: humanized.cooldown,
+      },
+      manualReviewFlags: humanized.validationFlags,
       warmupTime: parseMinutesLabel(draft.warmupTime),
       mainTime: parseMinutesLabel(draft.mainTime),
       cooldownTime: parseMinutesLabel(draft.cooldownTime),
@@ -657,29 +688,46 @@ const buildPlanningRules = (): PlanningRule[] => [
       });
 
       if (normalized === "controle_bola") {
-        draft.main.activities.unshift({
+        draft.main.activities.unshift(buildObjectiveActivity({
           id: "objective_control_ball",
           name: "Controle de bola",
-          description: "Sequência de manipulação com foco em precisão e domínio.",
-        });
+          organization: "Dividir a turma em duplas, cada dupla com uma bola e um espaço marcado.",
+          execution: "Os alunos alternam conduzir, lançar e receber a bola sem deixar a atividade parar.",
+          coachFocus: "Observar controle, comunicação e cuidado com o espaço do colega.",
+          successCriteria: "A dupla mantém a bola em controle por 1 minuto.",
+          adaptation: "Facilitar diminuindo distância; dificultar pedindo deslocamento antes de receber.",
+        }));
       } else if (normalized === "passe") {
-        draft.main.activities.unshift({
+        draft.main.activities.unshift(buildObjectiveActivity({
           id: "objective_pass",
           name: "Passe orientado",
-          description: "Tarefas de passe com alvo e ajuste de contato.",
-        });
+          organization: "Marcar uma zona-alvo com cones e organizar a turma em duplas ou trios.",
+          execution: "O aluno recebe bola lançada, chama a bola e faz o passe tentando deixar jogável na zona combinada.",
+          coachFocus: "Corrigir base, ajuste dos pés e direção da manchete com uma orientação curta por vez.",
+          successCriteria: "O grupo consegue 3 passes jogáveis em 6 tentativas.",
+          adaptation: "Facilitar lançando no corpo; dificultar variando direita, esquerda e profundidade.",
+          primarySkill: "passe",
+        }));
       } else if (normalized === "resistencia") {
-        draft.main.activities.unshift({
+        draft.main.activities.unshift(buildObjectiveActivity({
           id: "objective_endurance",
           name: "Resistência sustentada",
-          description: "Bloco contínuo com controle de ritmo e pausas programadas.",
-        });
+          organization: "Montar um circuito curto com estações simples e pausas visíveis.",
+          execution: "A turma passa pelas estações em ritmo constante, sem corrida máxima e com troca ao sinal.",
+          coachFocus: "Controlar respiração, ritmo e segurança nas transições.",
+          successCriteria: "Os alunos completam o circuito mantendo ritmo e sem perder a técnica.",
+          adaptation: "Facilitar aumentando pausa; dificultar acrescentando uma rodada curta.",
+        }));
       } else if (normalized === "jogo_reduzido") {
-        draft.main.activities.unshift({
+        draft.main.activities.unshift(buildObjectiveActivity({
           id: "objective_reduced_game",
           name: "Jogo reduzido",
-          description: "Ambiente condicionado para transferência e decisão.",
-        });
+          organization: "Separar jogos 3x3 ou 4x4 em espaço reduzido, com rodízio entre equipes.",
+          execution: "A equipe joga com uma regra simples ligada ao tema da aula antes de pontuar.",
+          coachFocus: "Observar comunicação, ocupação de espaço e aplicação da regra combinada.",
+          successCriteria: "Cada equipe aplica a regra em pelo menos 3 jogadas.",
+          adaptation: "Facilitar permitindo bola lançada; dificultar exigindo continuidade antes do ponto.",
+        }));
       }
     },
   },
@@ -769,9 +817,9 @@ const buildDraftFromBase = (
 
   const draft: LessonPlanDraft = {
     objective: normalizePedagogicalObjective(input.objective || input.classGroup.goal),
-    warmup: buildBlock("aquecimento", scaled[0], basePlan.warmup, "warmup"),
-    main: buildBlock("principal", scaled[1], basePlan.main, "main"),
-    cooldown: buildBlock("volta_calma", scaled[2], basePlan.cooldown, "cooldown"),
+    warmup: buildBlock("aquecimento", scaled[0], basePlan.warmup, "warmup", basePlan.structuredBlocks?.warmup),
+    main: buildBlock("principal", scaled[1], basePlan.main, "main", basePlan.structuredBlocks?.main),
+    cooldown: buildBlock("volta_calma", scaled[2], basePlan.cooldown, "cooldown", basePlan.structuredBlocks?.cooldown),
     variations: [],
     adaptations: [],
     explanations: [
@@ -781,7 +829,7 @@ const buildDraftFromBase = (
         appliedTo: "geral",
       },
     ],
-    manualReviewFlags: [],
+    manualReviewFlags: [...(basePlan.manualReviewFlags ?? [])],
   };
 
   if (analysis.softConstraints.includes("tempo_reduzido")) {
@@ -841,5 +889,3 @@ export const buildPedagogicalPlan = (input: PlanningInput): PedagogicalPlanPacka
     final,
   };
 };
-
-

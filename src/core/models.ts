@@ -435,6 +435,12 @@ export type StrategyLevel = "low" | "medium" | "high";
 export type TrainingPlanActivity = {
   name: string;
   description?: string;
+  organization?: string;
+  execution?: string;
+  coachFocus?: string;
+  successCriteria?: string;
+  adaptation?: string;
+  primarySkill?: VolleyballSkill;
   objective?: string;
   criteria?: TrainingPlanCriterion[];
   source?: "ai" | "fallback";
@@ -453,6 +459,12 @@ export type LessonActivity = {
   id?: string;
   name: string;
   description: string;
+  organization?: string;
+  execution?: string;
+  coachFocus?: string;
+  successCriteria?: string;
+  adaptation?: string;
+  primarySkill?: VolleyballSkill;
 };
 
 export type LessonBlock = {

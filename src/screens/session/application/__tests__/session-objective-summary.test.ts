@@ -59,7 +59,39 @@ describe("session objective summary", () => {
     };
 
     expect(buildSessionObjectiveFromPlanContent(editedPlan)).toBe(
-      "Desenvolver levantamento em Saque em zonas, priorizando tomada de decisao."
+      "Desenvolver saque em Saque em zonas, priorizando tomada de decisao."
+    );
+  });
+
+  it("prefers structured activity skill over stale stored focus", () => {
+    const editedPlan: TrainingPlan = {
+      ...basePlan,
+      pedagogy: {
+        ...basePlan.pedagogy,
+        focus: { skill: "levantamento" },
+        blocks: {
+          ...basePlan.pedagogy?.blocks,
+          main: {
+            summary: "Passe",
+            activities: [
+              {
+                name: "Passe orientado",
+                description: "Organização: duplas. Execução: manchete para alvo.",
+                primarySkill: "passe",
+              },
+              {
+                name: "Passe para alvo em duplas",
+                description: "Primeiro contato jogável.",
+                primarySkill: "passe",
+              },
+            ],
+          },
+        } as NonNullable<TrainingPlan["pedagogy"]>["blocks"],
+      },
+    };
+
+    expect(buildSessionObjectiveFromPlanContent(editedPlan)).toBe(
+      "Desenvolver passe em Passe orientado e Passe para alvo em duplas, priorizando tomada de decisao."
     );
   });
 
