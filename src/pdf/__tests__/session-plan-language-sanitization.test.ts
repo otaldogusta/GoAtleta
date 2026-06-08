@@ -217,4 +217,23 @@ describe("session-plan language sanitization", () => {
     expect(html).not.toContain("Exploração guiada");
     expect(html).not.toContain("referência técnica");
   });
+
+  it.each([
+    ["13-15", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
+    ["13-15", "Bloqueio", ["bloqueio"] as VolleyballSkill[], "Mini jogo com bloqueio e cobertura"],
+    ["10-12", "Defesa", ["defesa"] as VolleyballSkill[], "Mini jogo com defesa pontuada"],
+    ["16-18", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
+  ])("keeps pattern-backed PDF text operational for %s %s", (ageBand, objective, focusSkills, expectedText) => {
+    const html = buildGeneratedHtml(ageBand, objective, focusSkills);
+
+    expect(html).toContain(expectedText);
+    expect(html).toMatch(/quadra|zona|cones|troca|ponto extra/);
+    expect(html).not.toContain("Foco do professor");
+    expect(html).not.toContain("Meta:");
+    expect(html).not.toContain("Critério de sucesso");
+    expect(html).not.toContain("Adaptação");
+    expect(html).not.toContain("primarySkill");
+    expect(html).not.toContain("vwv_");
+    expect(html).not.toContain("atividade estruturada");
+  });
 });

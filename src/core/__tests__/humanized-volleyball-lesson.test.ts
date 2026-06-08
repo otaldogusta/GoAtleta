@@ -6,6 +6,7 @@ import {
   resolveVolleyballLessonAgeProfile,
   validateHumanizedVolleyballBlocks,
 } from "../volleyball/humanized-lesson-activities";
+import { VOLLEYBALL_ACTIVITY_PATTERNS } from "../volleyball/activity-pattern-engine";
 
 const buildPlan = ({
   ageBand,
@@ -102,6 +103,29 @@ const buildSessionContext = (
 });
 
 describe("humanized volleyball lesson activities", () => {
+  it("keeps a reusable activity-pattern catalog for every volleyball skill", () => {
+    const skills: VolleyballSkill[] = [
+      "passe",
+      "levantamento",
+      "ataque",
+      "bloqueio",
+      "defesa",
+      "saque",
+      "transicao",
+    ];
+    const stages = ["warmup", "drill", "game"] as const;
+
+    skills.forEach((skill) => {
+      stages.forEach((stage) => {
+        expect(
+          VOLLEYBALL_ACTIVITY_PATTERNS.some(
+            (pattern) => pattern.stage === stage && pattern.skills.includes(skill)
+          )
+        ).toBe(true);
+      });
+    });
+  });
+
   it.each([
     {
       label: "Passe 07-09",
@@ -346,6 +370,81 @@ describe("humanized volleyball lesson activities", () => {
     expect(visibleText).not.toContain("Foco do professor:");
   });
 
+  it.each([
+    ["ataque", "13-15", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
+    ["bloqueio", "13-15", "Bloqueio", ["bloqueio"] as VolleyballSkill[], "Mini jogo com bloqueio e cobertura"],
+    ["defesa", "10-12", "Defesa", ["defesa"] as VolleyballSkill[], "Mini jogo com defesa pontuada"],
+    ["transicao", "16-18", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
+  ])("uses pattern-backed operational output for %s", (_label, ageBand, objective, focusSkills, expectedText) => {
+    const blocks = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand,
+        objective,
+        focusSkills,
+      })
+    );
+    const visibleText = collectVisibleText(blocks);
+
+    expect(blocks.validationFlags).toEqual([]);
+    expectCompleteActivityFields(blocks, focusSkills[0]);
+    expect(visibleText).toContain(expectedText);
+    expect(visibleText).not.toContain("Aquecimento com");
+    expect(visibleText).not.toContain("atividade estruturada");
+    expect(visibleText).not.toContain("Foco do professor:");
+  });
+
+  it("keeps a batch quality matrix clean across age bands and skills", () => {
+    const ageBands = ["06-08", "07-09", "10-12", "13-15", "16-18"];
+    const skills: VolleyballSkill[] = [
+      "passe",
+      "levantamento",
+      "ataque",
+      "bloqueio",
+      "defesa",
+      "saque",
+      "transicao",
+    ];
+    const results = ageBands.flatMap((ageBand) =>
+      skills.map((skill) => {
+        const blocks = buildHumanizedVolleyballLessonBlocks(
+          buildPlan({
+            ageBand,
+            objective: skill === "passe" ? "Passe e manchete para recepção" : skill,
+            focusSkills: [skill],
+          }),
+          buildSessionContext({
+            ageBand,
+            skillFocus: skill,
+            recentActivityFamilies: ageBand === "10-12" ? ["alvo_zona"] : [],
+            upcomingEvents:
+              ageBand === "13-15"
+                ? [{ title: "Festival da unidade", date: "2026-06-16", classScoped: true }]
+                : [],
+          })
+        );
+        return {
+          ageBand,
+          skill,
+          flags: blocks.validationFlags,
+          visibleText: collectVisibleText(blocks),
+        };
+      })
+    );
+
+    expect(results.filter((item) => item.flags.length > 0)).toEqual([]);
+    expect(
+      results.find((item) => item.ageBand === "07-09" && item.skill === "ataque")?.visibleText
+    ).not.toBe(
+      results.find((item) => item.ageBand === "16-18" && item.skill === "ataque")?.visibleText
+    );
+    results.forEach((item) => {
+      expect(item.visibleText).not.toContain("Foco do professor:");
+      expect(item.visibleText).not.toContain("Critério de sucesso:");
+      expect(item.visibleText).not.toContain("Adaptação:");
+      expect(item.visibleText).not.toContain("primarySkill");
+    });
+  });
+
   it("flags repetition, missing fields, skill drift and artificial language", () => {
     const badActivity = {
       id: "bad",
@@ -389,5 +488,32 @@ describe("humanized volleyball lesson activities", () => {
     expect(flags.some((flag) => flag.includes("Checklist incompleto"))).toBe(true);
     expect(flags.some((flag) => flag.includes("Linguagem artificial"))).toBe(true);
     expect(flags.some((flag) => flag.includes("levantamento"))).toBe(true);
+  });
+
+  it("flags teacher bottlenecks and target-dependent continuation rules", () => {
+    const blocks = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand: "10-12",
+        objective: "Ataque",
+        focusSkills: ["ataque"],
+      })
+    );
+    const badActivity = {
+      ...blocks.main[0],
+      execution:
+        "Professor lança uma bola por vez para cada aluno na fila. Só continua se acertar o alvo.",
+      presentation: {
+        ...blocks.main[0].presentation,
+        standardText:
+          "Professor lança uma bola por vez para cada aluno na fila. Só continua se acertar o alvo.",
+      },
+    };
+    const flags = validateHumanizedVolleyballBlocks(
+      { warmup: blocks.warmup, main: [badActivity], cooldown: blocks.cooldown },
+      "ataque"
+    );
+
+    expect(flags.some((flag) => flag.includes("Professor virou gargalo"))).toBe(true);
+    expect(flags.some((flag) => flag.includes("Regra travada por acerto"))).toBe(true);
   });
 });
