@@ -33,7 +33,7 @@ describe("session-plan language sanitization", () => {
     expect(lowered).not.toContain("schoolvolleybal");
   });
 
-  it("renders coupled activity details from the same activity object", () => {
+  it("renders operational activity text without internal coaching fields", () => {
     const html = sessionPlanHtml({
       className: "Turma 07-09",
       dateLabel: "13/06/2026",
@@ -71,19 +71,58 @@ describe("session-plan language sanitization", () => {
 
     expect(html).toContain("Passe para alvo em duplas");
     expect(html).toContain("Manchete com ajuste de pés");
-    expect(html).toContain("Passe para alvo em duplas<br/>Organização:");
-    expect(html).toContain("Organização: Duplas a 3 metros com cone como alvo.");
-    expect(html).toContain("Execução: Um aluno lanca e o outro responde de manchete.");
-    expect(html).toContain("Foco do professor: Base baixa e manchete firme.");
-    expect(html).toContain("Meta: 3 acertos em 6 tentativas.");
+    expect(html).toContain(
+      "Passe para alvo em duplas<br/>Duplas a 3 metros com cone como alvo. Um aluno lanca e o outro responde de manchete."
+    );
+    expect(html).toContain(
+      "Manchete com ajuste de pés<br/>Três filas curtas atrás da linha de fundo e alvo na posição 3. O aluno ajusta os pés, chama a bola e faz a manchete para o alvo."
+    );
+    expect(html).not.toContain("Foco do professor:");
+    expect(html).not.toContain("Meta:");
     expect(html).not.toContain("Critério de sucesso:");
-    expect(html).toContain("Adaptação: Aproximar ou afastar a dupla.");
-    expect(html).toContain("Manchete com ajuste de pés<br/>Organização:");
-    expect(html).toContain("Organização: Três filas curtas atrás da linha de fundo e alvo na posição 3.");
-    expect(html).toContain("Execução: O aluno ajusta os pés, chama a bola e faz a manchete para o alvo.");
+    expect(html).not.toContain("Adaptação:");
+    expect(html).not.toContain("Base baixa e manchete firme.");
+    expect(html).not.toContain("3 acertos em 6 tentativas.");
+    expect(html).not.toContain("Aproximar ou afastar a dupla.");
     expect(html).not.toContain("vwv_");
     expect(html).not.toContain("Exploração guiada");
     expect(html).not.toContain("referência técnica");
+  });
+
+  it("keeps practical scoring and game rules when they are part of execution", () => {
+    const html = sessionPlanHtml({
+      className: "Turma 10-12",
+      dateLabel: "13/06/2026",
+      title: "Passe",
+      blocks: [
+        {
+          key: "main",
+          label: "Parte principal",
+          durationMinutes: 40,
+          activities: [
+            {
+              name: "Mini jogo com ponto extra por passe bom",
+              description: "",
+              organization: "Em quadra reduzida, separar equipes 3x3 ou 4x4.",
+              execution:
+                "A bola entra por lançamento ou saque adaptado. A equipe ganha ponto extra quando o primeiro contato chega jogável na zona marcada.",
+              coachFocus: "Não deve aparecer no PDF.",
+              successCriteria: "Não deve aparecer no PDF.",
+              adaptation: "Não deve aparecer no PDF.",
+              primarySkill: "passe",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toContain("quadra reduzida");
+    expect(html).toContain("lançamento");
+    expect(html).toContain("ponto extra");
+    expect(html).not.toContain("Não deve aparecer no PDF");
+    expect(html).not.toContain("Foco do professor");
+    expect(html).not.toContain("Meta:");
+    expect(html).not.toContain("Adaptação:");
   });
 
   it.each([
