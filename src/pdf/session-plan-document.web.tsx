@@ -9,6 +9,7 @@ import {
 } from "@react-pdf/renderer/lib/react-pdf.browser";
 import { resolveLearningObjectives } from "../core/pedagogy/objective-language";
 import { sanitizeVolleyballLanguage } from "../core/pedagogy/volleyball-language-lexicon";
+import { buildPrintableActivityBlock } from "./activity-plan-text";
 import { toPdfCoachingText, toPdfText } from "./pdf-coaching-text";
 import type { SessionPlanPdfData } from "./templates/session-plan";
 
@@ -153,24 +154,8 @@ const getBlockActivities = (block: SessionPlanPdfData["blocks"][number]) => {
 const resolveActivityDescription = (
   item: ReturnType<typeof getBlockActivities>[number]
 ) => {
-  const structuredRows = [
-    ["Organização", item.organization],
-    ["Execução", item.execution],
-    ["Foco do professor", item.coachFocus],
-    ["Meta", item.successCriteria],
-    ["Adaptação", item.adaptation],
-  ]
-    .map(([label, value]) => {
-      const text = asCoachingText(value).trim();
-      return text ? `${label}: ${text}` : "";
-    })
-    .filter(Boolean);
-
-  if (structuredRows.length) {
-    const name = asCoachingText(item?.name).trim();
-    return [name, ...structuredRows].filter(Boolean).join("\n");
-  }
-  return asCoachingText(item?.description || item?.notes).trim();
+  const printableText = buildPrintableActivityBlock(item);
+  return asCoachingText(printableText).trim();
 };
 
 const resolveBlockDescriptionLines = (block: SessionPlanPdfData["blocks"][number]) => {

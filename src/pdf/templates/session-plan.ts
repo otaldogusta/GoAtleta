@@ -1,6 +1,7 @@
 import type { LessonActivity, LessonBlock } from "../../core/models";
 import { resolveLearningObjectives } from "../../core/pedagogy/objective-language";
 import { sanitizeVolleyballLanguage } from "../../core/pedagogy/volleyball-language-lexicon";
+import { buildPrintableActivityBlock } from "../activity-plan-text";
 import { toPdfCoachingText, toPdfText } from "../pdf-coaching-text";
 
 export type SessionPlanActivity = LessonActivity & {
@@ -73,24 +74,8 @@ const getBlockActivities = (block: SessionBlock) => {
 };
 
 const resolveActivityDescription = (item: SessionPlanActivity) => {
-  const structuredRows = [
-    ["Organização", item.organization],
-    ["Execução", item.execution],
-    ["Foco do professor", item.coachFocus],
-    ["Meta", item.successCriteria],
-    ["Adaptação", item.adaptation],
-  ]
-    .map(([label, value]) => {
-      const text = asCoachingText(value).trim();
-      return text ? `${label}: ${text}` : "";
-    })
-    .filter(Boolean);
-
-  if (structuredRows.length) {
-    const name = asCoachingText(item?.name).trim();
-    return [name, ...structuredRows].filter(Boolean).join("\n");
-  }
-  return asCoachingText(item?.description || item?.notes).trim();
+  const printableText = buildPrintableActivityBlock(item);
+  return asCoachingText(printableText).trim();
 };
 
 const resolveBlockDescriptionLines = (block: SessionBlock) => {
