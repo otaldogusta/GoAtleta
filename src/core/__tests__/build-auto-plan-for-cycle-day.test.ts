@@ -645,7 +645,7 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.decisionTrace.influences.scouting.confidence).toBe("none");
     expect(result.decisionTrace.influences.history.used).toBe(false);
     expect(result.decisionTrace.influences.reportFeedback.used).toBe(false);
-    expect(result.decisionTrace.safeguards.fallbackUsed).toBe(true);
+    expect(result.decisionTrace.safeguards.fallbackUsed).toBe(false);
   });
 
   it("records scouting and report feedback signals when they shape the context", () => {

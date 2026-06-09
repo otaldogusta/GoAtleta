@@ -213,7 +213,7 @@ export const buildSessionDecisionTrace = (params: {
     safeguards: {
       repetitionAdjusted: params.repetitionAdjustment.detected,
       overrideAdjusted: params.overrideAdjusted,
-      fallbackUsed: !periodizationUsed,
+      fallbackUsed: false,
       ageSanitizerFlags: [...params.ageSanitizer.ageSanitizerReasons],
       envelopeDiagnostics: cleanList([
         params.pedagogyEnvelope.tone,
