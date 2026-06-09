@@ -395,7 +395,9 @@ describe("humanized volleyball lesson activities", () => {
     );
 
     expect(blocksWithEvent.validationFlags).toEqual([]);
-    expect(collectVisibleText(blocksWithEvent)).toContain("Festival da unidade em 16/06");
+    const eventText = collectVisibleText(blocksWithEvent);
+    expect(eventText).toContain("Festival da unidade em 16/06");
+    expect(eventText.match(/Festival da unidade em 16\/06/g) ?? []).toHaveLength(1);
     expect(collectVisibleText(blocksWithoutEvent)).not.toContain("Festival da unidade");
   });
 

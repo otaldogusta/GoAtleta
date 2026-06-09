@@ -1,4 +1,3 @@
-import type { SessionPlanningContext } from "../session-planning-context";
 import type {
   ActivityPatternActivitySpec,
   ActivityPatternAgeStage,
@@ -38,21 +37,6 @@ const ageOverride = (
   return override?.[key] ?? pattern[key];
 };
 
-const formatEventDate = (value: string) => {
-  const normalized = String(value ?? "").slice(0, 10);
-  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return match ? `${match[3]}/${match[2]}` : normalized;
-};
-
-const eventReminder = (events?: SessionPlanningContext["upcomingEvents"]) => {
-  const event = events?.[0];
-  if (!event?.title) return "";
-  const date = formatEventDate(event.date);
-  return date
-    ? `Aviso rápido: ${event.title} em ${date}.`
-    : `Aviso rápido: ${event.title}.`;
-};
-
 export const composeActivityPattern = (
   pattern: ActivityKnowledgePattern,
   context: ActivityPatternSelectionContext
@@ -69,7 +53,7 @@ export const composeActivityPattern = (
   const progression = String(ageOverride(pattern, ageStage, "progression") ?? "");
   const space = String(ageOverride(pattern, ageStage, "space"));
   const visibleRule = pattern.stage === "cooldown"
-    ? [simpleRule, eventReminder(context.upcomingEvents)].filter(Boolean).join(" ")
+    ? simpleRule
     : [simpleRule, scoring, progression].filter(Boolean).join(" ");
   const execution = [starter, action, rotation, visibleRule]
     .map((item) => ensureSentence(String(item ?? "")))
