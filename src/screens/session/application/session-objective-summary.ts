@@ -121,16 +121,15 @@ export const buildSessionObjectiveFromPlanContent = (plan: TrainingPlan | null |
       ? formatList(warmupActivities)
       : cleanText(plan.title);
 
-  const planSearchText = normalizeSearchText([
-    plan.title,
-    plan.pedagogy?.focus?.skill,
-    plan.pedagogy?.objective?.description,
+  const currentContentSearchText = normalizeSearchText([
     plan.pedagogy?.blocks?.warmup?.summary,
     plan.pedagogy?.blocks?.main?.summary,
     plan.pedagogy?.blocks?.cooldown?.summary,
     ...(plan.pedagogy?.blocks?.warmup?.activities ?? []),
     ...(plan.pedagogy?.blocks?.main?.activities ?? []),
     ...(plan.pedagogy?.blocks?.cooldown?.activities ?? []),
+    ...(plan.main ?? []),
+    ...(plan.warmup ?? []),
   ]
     .map((item) =>
       typeof item === "string"
@@ -144,11 +143,13 @@ export const buildSessionObjectiveFromPlanContent = (plan: TrainingPlan | null |
           ].join(" ")
     )
     .join(" "));
+  const hasCurrentPassSignals = /\b(passe|manchete|recepcao|primeiro contato)\b/.test(
+    currentContentSearchText
+  );
+  const shouldUsePassMancheteObjective =
+    contentSkill === "passe" || (!contentSkill && (storedFocusSkill === "passe" || hasCurrentPassSignals));
 
-  if (
-    focusSkill === "passe" ||
-    /\b(passe|manchete|recepcao|primeiro contato)\b/.test(planSearchText)
-  ) {
+  if (shouldUsePassMancheteObjective) {
     return "Desenvolver o passe e a manchete em situações simples de jogo, priorizando comunicação, continuidade e primeiro contato jogável.";
   }
 

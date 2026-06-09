@@ -107,6 +107,42 @@ describe("session objective summary", () => {
     expect(objective).not.toContain("segundo contato");
   });
 
+  it("does not let stale pass pedagogy override edited non-pass content", () => {
+    const editedPlan: TrainingPlan = {
+      ...basePlan,
+      title: "Plano antigo de passe",
+      main: ["Saque em zonas"],
+      pedagogy: {
+        ...basePlan.pedagogy,
+        focus: { skill: "passe" },
+        objective: {
+          description: "Desenvolver passe e manchete em recepção.",
+        },
+        progression: { dimension: "decisao" },
+        blocks: {
+          ...basePlan.pedagogy?.blocks,
+          main: {
+            summary: "Saque",
+            activities: [
+              {
+                name: "Saque em zonas",
+                description: "A turma saca para zonas largas.",
+                primarySkill: "saque",
+              },
+            ],
+          },
+        } as NonNullable<TrainingPlan["pedagogy"]>["blocks"],
+      },
+    };
+    const objective = buildSessionObjectiveFromPlanContent(editedPlan);
+
+    expect(objective).toBe(
+      "Desenvolver saque em Saque em zonas, priorizando tomada de decisão."
+    );
+    expect(objective).not.toContain("passe e a manchete");
+    expect(objective).not.toContain("primeiro contato jogável");
+  });
+
   it("preserves a manually edited objective", () => {
     const editedPlan: TrainingPlan = {
       ...basePlan,
