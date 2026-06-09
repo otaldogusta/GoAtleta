@@ -7,6 +7,10 @@ import {
   validateHumanizedVolleyballBlocks,
 } from "../volleyball/humanized-lesson-activities";
 import { VOLLEYBALL_ACTIVITY_PATTERNS } from "../volleyball/activity-pattern-engine";
+import {
+  VOLLEYBALL_ACTIVITY_KNOWLEDGE_PATTERNS,
+  type ActivityFocusVariant,
+} from "../volleyball/activity-knowledge-patterns";
 
 const buildPlan = ({
   ageBand,
@@ -97,6 +101,27 @@ const expectOperationalTextQuality = (visibleText: string) => {
   });
 };
 
+const collectActivities = (blocks: ReturnType<typeof buildHumanizedVolleyballLessonBlocks>) => [
+  ...blocks.warmup,
+  ...blocks.main,
+  ...blocks.cooldown,
+];
+
+const expectRealityScores = (blocks: ReturnType<typeof buildHumanizedVolleyballLessonBlocks>) => {
+  collectActivities(blocks).forEach((activity) => {
+    expect(activity.validation?.realityScore?.score).toBeGreaterThanOrEqual(80);
+    expect(activity.validation?.realityScore?.flags).toEqual([]);
+    expect(activity.validation?.realityScore?.breakdown).toMatchObject({
+      participation: expect.any(Number),
+      waiting: expect.any(Number),
+      clarity: expect.any(Number),
+      progression: expect.any(Number),
+      skillRelation: expect.any(Number),
+      ageFit: expect.any(Number),
+    });
+  });
+};
+
 const buildSessionContext = (
   overrides: Partial<SessionPlanningContext> = {}
 ): SessionPlanningContext => ({
@@ -144,6 +169,39 @@ describe("humanized volleyball lesson activities", () => {
             (pattern) => pattern.stage === stage && pattern.skills.includes(skill)
           )
         ).toBe(true);
+      });
+    });
+  });
+
+  it("keeps a controlled knowledge seed by focus and activity stage", () => {
+    const focusDefinitions: Array<{
+      label: string;
+      skill: VolleyballSkill;
+      variant?: ActivityFocusVariant;
+    }> = [
+      { label: "passe", skill: "passe" },
+      { label: "manchete", skill: "passe", variant: "manchete" },
+      { label: "saque", skill: "saque" },
+      { label: "levantamento", skill: "levantamento" },
+      { label: "ataque", skill: "ataque" },
+      { label: "defesa", skill: "defesa" },
+      { label: "bloqueio", skill: "bloqueio" },
+      { label: "transicao", skill: "transicao" },
+    ];
+    const expectedByStage = { warmup: 2, drill: 3, game: 2, cooldown: 1 };
+
+    focusDefinitions.forEach((focus) => {
+      Object.entries(expectedByStage).forEach(([stage, expectedCount]) => {
+        const count = VOLLEYBALL_ACTIVITY_KNOWLEDGE_PATTERNS.filter(
+          (pattern) =>
+            pattern.skill === focus.skill &&
+            pattern.variant === focus.variant &&
+            pattern.stage === stage
+        ).length;
+
+        expect({ focus: focus.label, stage, count }).toMatchObject({
+          count: expectedCount,
+        });
       });
     });
   });
@@ -440,6 +498,35 @@ describe("humanized volleyball lesson activities", () => {
     expect(visibleText).toContain(expectedText);
     expect(visibleText).toMatch(/quadra|zona|cones|duplas|trios|equipes|rally|ponto|troca/i);
     expectOperationalTextQuality(visibleText);
+    expectRealityScores(blocks);
+  });
+
+  it.each([
+    ["Passe 07-09", "07-09", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[]],
+    ["Passe 10-12", "10-12", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[]],
+    ["Manchete 07-09", "07-09", "Manchete para recepção", ["passe"] as VolleyballSkill[]],
+    ["Saque 10-12", "10-12", "Saque por baixo", ["saque"] as VolleyballSkill[]],
+    ["Levantamento 10-12", "10-12", "Levantamento", ["levantamento"] as VolleyballSkill[]],
+    ["Ataque 10-12", "10-12", "Ataque", ["ataque"] as VolleyballSkill[]],
+    ["Defesa 10-12", "10-12", "Defesa", ["defesa"] as VolleyballSkill[]],
+    ["Bloqueio 13-15", "13-15", "Bloqueio", ["bloqueio"] as VolleyballSkill[]],
+    ["Transição 13-15", "13-15", "Transição", ["transicao"] as VolleyballSkill[]],
+  ])("keeps realism score high for %s", (_label, ageBand, objective, focusSkills) => {
+    const blocks = buildHumanizedVolleyballLessonBlocks(
+      buildPlan({
+        ageBand,
+        objective,
+        focusSkills,
+      })
+    );
+    const visibleText = collectVisibleText(blocks);
+
+    expect(blocks.validationFlags).toEqual([]);
+    expectRealityScores(blocks);
+    expectOperationalTextQuality(visibleText);
+    expect(visibleText).toMatch(/A bola entra|começa|inicia|Ao sinal/i);
+    expect(visibleText).toMatch(/troca|trocam|rodam|A cada|Depois de/i);
+    expect(visibleText).toMatch(/quadra|meia quadra|zona|cones|rede/i);
   });
 
   it("keeps a batch quality matrix clean across age bands and skills", () => {
