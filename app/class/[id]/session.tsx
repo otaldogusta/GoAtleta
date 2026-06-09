@@ -1264,6 +1264,7 @@ const buildAutoPlanPedagogy = (
     scoutingCounts?: ScoutingCounts;
     skillHistoryBySkill?: Partial<Record<VolleyballSkill, SessionSkillHistoryEntry[]>>;
     generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
+    decisionTrace?: TrainingPlanPedagogy["decisionTrace"];
     pedagogicalDecisionSupport?: TrainingPlanPedagogy["pedagogicalDecisionSupport"];
     decisionOverride?: {
       appliedAdjustment: "increase" | "maintain" | "regress";
@@ -1438,6 +1439,7 @@ const buildAutoPlanPedagogy = (
 
   return {
     generationExplanation: options?.generationExplanation,
+    decisionTrace: options?.decisionTrace,
     sessionPlanningContext: pkg.input.sessionPlanningContext,
     pedagogicalDecisionSupport: options?.pedagogicalDecisionSupport,
     sessionObjective: explicitObjectives.general,
@@ -2807,6 +2809,7 @@ export default function SessionScreen() {
     options?: {
       successMessage?: string;
       generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
+      decisionTrace?: TrainingPlanPedagogy["decisionTrace"];
       pedagogicalDecisionSupport?: TrainingPlanPedagogy["pedagogicalDecisionSupport"];
       targetPrimarySkill?: VolleyballSkill;
       targetSecondarySkill?: VolleyballSkill;
@@ -2933,6 +2936,7 @@ export default function SessionScreen() {
           scoutingCounts,
           skillHistoryBySkill,
           generationExplanation: options?.generationExplanation,
+          decisionTrace: options?.decisionTrace,
           pedagogicalDecisionSupport: options?.pedagogicalDecisionSupport,
         }
       ),

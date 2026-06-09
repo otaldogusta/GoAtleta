@@ -12,6 +12,7 @@ import type { AutoPlanForCycleDayResult } from "../application/build-auto-plan-f
 type PersistGeneratedPlanOptions = {
   successMessage?: string;
   generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
+  decisionTrace?: TrainingPlanPedagogy["decisionTrace"];
   pedagogicalDecisionSupport?: TrainingPlanPedagogy["pedagogicalDecisionSupport"];
   targetPrimarySkill?: VolleyballSkill;
   targetSecondarySkill?: VolleyballSkill;
@@ -111,6 +112,7 @@ export function useSessionPlanGeneration({
             autoPlanResult.explanation,
             planningBasis
           ),
+          decisionTrace: autoPlanResult.decisionTrace,
           targetPrimarySkill: autoPlanResult.strategy.primarySkill,
           targetSecondarySkill: autoPlanResult.strategy.secondarySkill,
           pedagogicalDecisionSupport: autoPlanResult.strategy.pedagogicalDecisionSupport,

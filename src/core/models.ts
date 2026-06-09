@@ -1,4 +1,5 @@
 import type { ClassModality } from "./class-modality";
+import type { SessionDecisionTrace } from "./cycle-day-planning/session-decision-trace";
 import type { PedagogicalApproachDetection } from "./methodology/pedagogical-approach-detector";
 import type { SessionPlanningContext } from "./session-planning-context-contract";
 
@@ -520,6 +521,7 @@ export type TrainingPlanSessionBlock = {
 
 export type TrainingPlanPedagogy = {
   generationExplanation?: TrainingPlanGenerationExplanation;
+  decisionTrace?: SessionDecisionTrace;
   sessionPlanningContext?: SessionPlanningContext;
   periodizationContext?: PeriodizationContext;
   pedagogicalDecisionSupport?: PedagogicalDecisionSupport;

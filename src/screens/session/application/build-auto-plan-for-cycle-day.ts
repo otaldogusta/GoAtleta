@@ -1,6 +1,10 @@
 import { applyPlanGuards } from "../../../core/cycle-day-planning/apply-plan-guards";
 import { buildCycleDayPlanningContext } from "../../../core/cycle-day-planning/build-cycle-day-planning-context";
 import { formatGenerationExplanation, type CycleDayGenerationExplanation } from "../../../core/cycle-day-planning/format-generation-explanation";
+import {
+    buildSessionDecisionTrace,
+    type SessionDecisionTrace,
+} from "../../../core/cycle-day-planning/session-decision-trace";
 import { resolvePedagogicalDecisionSupport } from "../../../core/cycle-day-planning/resolve-pedagogical-decision-support";
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
 import type { TeacherOverrideInfluence } from "../../../core/cycle-day-planning/resolve-teacher-override-weight";
@@ -69,6 +73,7 @@ export type AutoPlanForCycleDayResult = {
   structuralFingerprint: string;
   repetitionAdjustment: RepetitionAdjustment;
   explanation: CycleDayGenerationExplanation;
+  decisionTrace: SessionDecisionTrace;
   generationContext: ClassGenerationContext;
   sessionPlanningContext: SessionPlanningContext;
   package: PedagogicalPlanPackage;
@@ -245,6 +250,18 @@ export const buildAutoPlanForCycleDay = (
     operationalAdjusted: strategyDecision.operationalAdjusted,
     operationalInfluence: strategyDecision.operationalInfluence,
   });
+  const decisionTrace = buildSessionDecisionTrace({
+    cycleContext,
+    classPlan: params.classPlan,
+    strategy,
+    sessionPlanningContext,
+    explanation,
+    repetitionAdjustment: guardResult.repetitionAdjustment,
+    overrideAdjusted: strategyDecision.overrideAdjusted,
+    scoutingCounts: params.scoutingCounts,
+    ageSanitizer: sanitizedPlan.diagnostics,
+    pedagogyEnvelope,
+  });
 
   return {
     recentSessions,
@@ -257,6 +274,7 @@ export const buildAutoPlanForCycleDay = (
     structuralFingerprint: guardResult.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     explanation,
+    decisionTrace,
     generationContext,
     sessionPlanningContext,
     package: sanitizedPlan.package,
