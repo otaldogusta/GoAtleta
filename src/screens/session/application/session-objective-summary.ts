@@ -3,7 +3,7 @@ import { normalizeDisplayText } from "../../../utils/text-normalization";
 
 const skillLabels: Record<string, string> = {
   saque: "saque",
-  recepcao: "recepcao",
+  recepcao: "recepção",
   levantamento: "levantamento",
   ataque: "ataque",
   bloqueio: "bloqueio",
@@ -14,11 +14,11 @@ const skillLabels: Record<string, string> = {
 
 const progressionLabels: Record<string, string> = {
   controle: "controle",
-  consistencia: "consistencia",
-  precisao: "precisao",
-  decisao: "tomada de decisao",
-  transferencia: "transferencia para o jogo",
-  cooperacao: "cooperacao",
+  consistencia: "consistência",
+  precisao: "precisão",
+  decisao: "tomada de decisão",
+  transferencia: "transferência para o jogo",
+  cooperacao: "cooperação",
 };
 
 const cleanText = (value: string | null | undefined) => normalizeDisplayText(value).trim();
@@ -42,6 +42,12 @@ const inferSkillFromText = (value: string) => {
   if (/\b(saque|sacar)\b/.test(text)) return "saque";
   return "";
 };
+
+const normalizeSearchText = (value: string) =>
+  cleanText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 const resolveContentSkill = (plan: TrainingPlan) => {
   const structuredActivities = [
@@ -115,6 +121,37 @@ export const buildSessionObjectiveFromPlanContent = (plan: TrainingPlan | null |
       ? formatList(warmupActivities)
       : cleanText(plan.title);
 
+  const planSearchText = normalizeSearchText([
+    plan.title,
+    plan.pedagogy?.focus?.skill,
+    plan.pedagogy?.objective?.description,
+    plan.pedagogy?.blocks?.warmup?.summary,
+    plan.pedagogy?.blocks?.main?.summary,
+    plan.pedagogy?.blocks?.cooldown?.summary,
+    ...(plan.pedagogy?.blocks?.warmup?.activities ?? []),
+    ...(plan.pedagogy?.blocks?.main?.activities ?? []),
+    ...(plan.pedagogy?.blocks?.cooldown?.activities ?? []),
+  ]
+    .map((item) =>
+      typeof item === "string"
+        ? item
+        : [
+            item?.name,
+            item?.description,
+            item?.organization,
+            item?.execution,
+            item?.primarySkill,
+          ].join(" ")
+    )
+    .join(" "));
+
+  if (
+    focusSkill === "passe" ||
+    /\b(passe|manchete|recepcao|primeiro contato)\b/.test(planSearchText)
+  ) {
+    return "Desenvolver o passe e a manchete em situações simples de jogo, priorizando comunicação, continuidade e primeiro contato jogável.";
+  }
+
   if (skillLabel && activityFocus && progressionLabel) {
     return `Desenvolver ${skillLabel} em ${activityFocus}, priorizando ${progressionLabel}.`;
   }
@@ -124,7 +161,7 @@ export const buildSessionObjectiveFromPlanContent = (plan: TrainingPlan | null |
   }
 
   if (activityFocus) {
-    return `Conduzir ${activityFocus} com intencionalidade pedagogica.`;
+    return `Conduzir ${activityFocus} com intencionalidade pedagógica.`;
   }
 
   return "";

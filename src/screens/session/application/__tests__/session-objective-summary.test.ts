@@ -38,7 +38,7 @@ const basePlan: TrainingPlan = {
 describe("session objective summary", () => {
   it("derives the visible objective from current plan content before stale generated text", () => {
     expect(resolveSessionObjectiveText(basePlan)).toBe(
-      "Desenvolver levantamento em 3x3 com tres contatos e Rodizio com comunicacao, priorizando tomada de decisao."
+      "Desenvolver levantamento em 3x3 com tres contatos e Rodizio com comunicacao, priorizando tomada de decisão."
     );
   });
 
@@ -59,16 +59,18 @@ describe("session objective summary", () => {
     };
 
     expect(buildSessionObjectiveFromPlanContent(editedPlan)).toBe(
-      "Desenvolver saque em Saque em zonas, priorizando tomada de decisao."
+      "Desenvolver saque em Saque em zonas, priorizando tomada de decisão."
     );
   });
 
-  it("prefers structured activity skill over stale stored focus", () => {
+  it("builds a natural pass/manchete objective without legacy activity names", () => {
     const editedPlan: TrainingPlan = {
       ...basePlan,
+      title: "Turma 07-09 · Passe",
       pedagogy: {
         ...basePlan.pedagogy,
         focus: { skill: "levantamento" },
+        progression: { dimension: "consistencia" },
         blocks: {
           ...basePlan.pedagogy?.blocks,
           main: {
@@ -80,8 +82,8 @@ describe("session objective summary", () => {
                 primarySkill: "passe",
               },
               {
-                name: "Passe para alvo em duplas",
-                description: "Primeiro contato jogável.",
+                name: "Cone pega-toque",
+                description: "Primeiro contato jogável sem segundo contato.",
                 primarySkill: "passe",
               },
             ],
@@ -89,10 +91,20 @@ describe("session objective summary", () => {
         } as NonNullable<TrainingPlan["pedagogy"]>["blocks"],
       },
     };
+    const objective = buildSessionObjectiveFromPlanContent(editedPlan);
 
-    expect(buildSessionObjectiveFromPlanContent(editedPlan)).toBe(
-      "Desenvolver passe em Passe orientado e Passe para alvo em duplas, priorizando tomada de decisao."
+    expect(objective).toBe(
+      "Desenvolver o passe e a manchete em situações simples de jogo, priorizando comunicação, continuidade e primeiro contato jogável."
     );
+    expect(objective).toContain("passe");
+    expect(objective).toContain("manchete");
+    expect(objective).toContain("primeiro contato");
+    expect(objective).toContain("continuidade");
+    expect(objective).toContain("comunicação");
+    expect(objective).not.toContain("consistencia");
+    expect(objective).not.toContain("Passe orientado");
+    expect(objective).not.toContain("Cone pega-toque");
+    expect(objective).not.toContain("segundo contato");
   });
 
   it("preserves a manually edited objective", () => {
