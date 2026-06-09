@@ -2,6 +2,11 @@ import type { VolleyballLessonPlan, VolleyballSkill } from "../models";
 import { parseAgeBandRange } from "../age-band";
 import type { SessionPlanningContext } from "../session-planning-context";
 import { buildPatternBackedVolleyballBlocks } from "./activity-pattern-engine";
+import {
+  evaluateActivityReality,
+  type ActivityRealityScore,
+} from "./activity-reality-score";
+import type { ActivityFocusVariant } from "./activity-knowledge-patterns";
 
 type ActivityStage = "warmup" | "drill" | "game" | "cooldown";
 type LessonAgeStage = "early" | "base" | "transition" | "formation" | "specialization";
@@ -29,6 +34,7 @@ export type HumanizedLessonActivity = {
   validation?: {
     flags: string[];
     checklist: Record<string, boolean>;
+    realityScore?: ActivityRealityScore;
   };
   presentation: {
     standardText: string;
@@ -214,7 +220,7 @@ const buildRealityChecklist = (activity: Partial<HumanizedLessonActivity>) => {
     participants: /\b(aluno|alunos|dupla|duplas|trio|trios|grupo|grupos|equipe|equipes|turma|pegador|pegadores)\b/.test(text),
     organization: /\b(quadra|meia quadra|quadra reduzida|cones?|alvo|zona|rede|linha|bambole|bambolê|bola|bolas)\b/.test(text),
     starter: /\b(comeca|comecam|inicia|iniciam|abre|bola entra|lanca|lança|saca|sacador|pegadores|ao sinal)\b/.test(text),
-    action: /\b(lancar|lançar|receber|passar|devolver|devolve|enviar|envia|manter|sacar|sacando|chamar|deslocar|deslocam|trocar|levantar|contato|contatos|jogar|organizar|ajustar|ajusta|realiza|faz|tenta|deixar|acertar|ocupar|ocupa|ocupam|acompanha|protege|fecha|reorganiza|entra|corre|correm|circula|cobre|cobertura|mirar|mira|anuncia|escolhe|recolhe|aguarda)\b/.test(text),
+    action: /\b(lancar|lançar|receber|passar|devolver|devolve|enviar|envia|manter|sacar|sacando|chamar|deslocar|deslocam|trocar|levantar|contato|contatos|jogar|organizar|ajustar|ajusta|realiza|faz|tenta|deixar|acertar|ocupar|ocupa|ocupam|acompanha|protege|fecha|reorganiza|entra|corre|correm|circula|cobre|cobertura|mirar|mira|anuncia|escolhe|recolhe|aguarda|comenta|comentam|guardar|guardam)\b/.test(text),
     rotation: /\b(troca|trocam|trocar|rodizio|rodízio|vira|passa|a cada|depois de|apos|após)\b/.test(text),
     lowWait: !/\bfila\b/.test(text) || /\bfila curta|filas curtas|rodizio rapido|rodízio rápido\b/.test(text),
     simpleRule: Boolean(normalizeInline(activity.simpleRule || activity.scoring || activity.execution)),
@@ -304,11 +310,15 @@ const makeActivity = (
       advancedText: description,
     },
   };
+  const realityScore = evaluateActivityReality(activityWithDescription, {
+    primarySkill,
+  });
   return {
     ...activityWithDescription,
     validation: {
       checklist: buildRealityChecklist(activityWithDescription),
       flags: buildRealityFlags(activityWithDescription, primarySkill),
+      realityScore,
     },
   };
 };
@@ -1467,10 +1477,12 @@ const buildGenericBlocks = (
 const buildActivityPatternBlocks = (
   primarySkill: VolleyballSkill,
   ageProfile: VolleyballLessonAgeProfile,
-  context?: SessionPlanningContext
+  context?: SessionPlanningContext,
+  focusVariant?: ActivityFocusVariant
 ): Pick<HumanizedLessonBlocks, "warmup" | "main" | "cooldown"> => {
   const patternBlocks = buildPatternBackedVolleyballBlocks({
     primarySkill,
+    focusVariant,
     ageProfile,
     periodizationPhase: context?.periodizationPhase,
     progressionDimension: context?.progressionDimension,
@@ -1479,6 +1491,7 @@ const buildActivityPatternBlocks = (
     materials: context?.materials?.length ? context.materials : ["bolas", "cones"],
     classSize: context?.classProfile.size ?? 0,
     recentActivityFamilies: context?.recentActivityFamilies ?? [],
+    upcomingEvents: context?.upcomingEvents ?? [],
   });
 
   if (!patternBlocks.warmup.length || !patternBlocks.main.length) {
@@ -1492,7 +1505,11 @@ const buildActivityPatternBlocks = (
     main: patternBlocks.main.map((activity) =>
       makeActivity(activity.id, primarySkill, activity)
     ),
-    cooldown: [feedbackCooldown(primarySkill)],
+    cooldown: patternBlocks.cooldown.length
+      ? patternBlocks.cooldown.map((activity) =>
+          makeActivity(activity.id, primarySkill, activity)
+        )
+      : [feedbackCooldown(primarySkill)],
   };
 };
 
@@ -1511,60 +1528,10 @@ export const buildHumanizedVolleyballLessonBlocks = (
 ): HumanizedLessonBlocks => {
   const primarySkill = asSkill(plan.primaryFocus.skill);
   const ageProfile = resolveVolleyballLessonAgeProfile(plan);
-  if (primarySkill === "passe" && hasMancheteIntent(plan)) {
-    const blocks = applySessionContextPatches(
-      applyAgePatches(buildMancheteBlocks(primarySkill), primarySkill, ageProfile, MANCHETE_AGE_PATCHES),
-      primarySkill,
-      ageProfile,
-      context
-    );
-    return withValidation(
-      blocks,
-      primarySkill,
-      context
-    );
-  }
-  if (primarySkill === "passe") {
-    const blocks = applySessionContextPatches(
-      applyAgePatches(buildPasseBlocks(primarySkill), primarySkill, ageProfile, PASSE_AGE_PATCHES),
-      primarySkill,
-      ageProfile,
-      context
-    );
-    return withValidation(
-      blocks,
-      primarySkill,
-      context
-    );
-  }
-  if (primarySkill === "saque") {
-    const blocks = applySessionContextPatches(
-      applyAgePatches(buildSaqueBlocks(primarySkill), primarySkill, ageProfile, SAQUE_AGE_PATCHES),
-      primarySkill,
-      ageProfile,
-      context
-    );
-    return withValidation(
-      blocks,
-      primarySkill,
-      context
-    );
-  }
-  if (primarySkill === "levantamento") {
-    const blocks = applySessionContextPatches(
-      applyAgePatches(buildLevantamentoBlocks(primarySkill), primarySkill, ageProfile, LEVANTAMENTO_AGE_PATCHES),
-      primarySkill,
-      ageProfile,
-      context
-    );
-    return withValidation(
-      blocks,
-      primarySkill,
-      context
-    );
-  }
+  const focusVariant =
+    primarySkill === "passe" && hasMancheteIntent(plan) ? "manchete" : undefined;
   const blocks = applySessionContextPatches(
-    buildActivityPatternBlocks(primarySkill, ageProfile, context),
+    buildActivityPatternBlocks(primarySkill, ageProfile, context, focusVariant),
     primarySkill,
     ageProfile,
     context
@@ -1643,6 +1610,10 @@ export const validateHumanizedVolleyballBlocks = (
     if (forbiddenPdfLabels.test(activity.presentation.standardText)) {
       flags.push(`Campo interno vazou para apresentacao em ${activity.name}.`);
     }
+
+    activity.validation?.realityScore?.flags.forEach((flag) => {
+      flags.push(`Reality flag ${flag} em ${activity.name}.`);
+    });
 
     if (/acertar[^.]{0,30}(alvo|zona)[^.]{0,30}continuar|continuar[^.]{0,30}acertar[^.]{0,30}(alvo|zona)/i.test(text)) {
       flags.push(`Regra depende de acertar alvo para continuar em ${activity.name}.`);
