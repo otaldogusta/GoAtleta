@@ -1,6 +1,7 @@
 import { buildPeriodizationWeekSchedule } from "../../screens/periodization/application/build-auto-plan-for-cycle-day";
 import { buildAutoPlanForCycleDay } from "../../screens/session/application/build-auto-plan-for-cycle-day";
 import { buildRecentSessionSummary } from "../../screens/session/application/build-recent-session-summary";
+import type { ScoutingCounts } from "../scouting";
 import type {
     ClassGroup,
     ClassPlan,
@@ -556,5 +557,166 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(regenerated.overrideAdjusted).toBe(true);
     expect(regenerated.explanation.debug.overrideStrength).toBe("strong");
     expect(regenerated.explanation.coachSummary).toContain("Aprendizado local do professor (forte)");
+  });
+
+  it("builds a structured decision trace for periodized generated sessions", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "07-09",
+        level: 1,
+        goal: "Passe e manchete",
+      }),
+      classPlan: buildClassPlan({
+        id: "cp_trace",
+        weekNumber: 7,
+        phase: "base",
+        theme: "Recepcao com comunicacao",
+        technicalFocus: "Passe",
+        rpeTarget: "PSE 4",
+      }),
+      students: [buildStudent({ age: 8 })],
+      sessionDate: "2026-04-10",
+      recentPlans: [
+        buildTrainingPlan({
+          pedagogy: {
+            focus: { skill: "passe" },
+            progression: { dimension: "consistencia" },
+            sessionObjective: "Comunicação no primeiro contato",
+          },
+        }),
+      ],
+      recentSessions: [
+        buildRecentSession({
+          primarySkill: "passe",
+          progressionDimension: "consistencia",
+        }),
+      ],
+    });
+
+    expect(result.decisionTrace.schemaVersion).toBe(1);
+    expect(result.decisionTrace.source).toMatchObject({
+      classId: "class_1",
+      sessionDate: "2026-04-10",
+      classPlanId: "cp_trace",
+      classPlanWeekNumber: 7,
+    });
+    expect(result.decisionTrace.influences.periodization).toMatchObject({
+      used: true,
+      technicalFocus: "Passe",
+      theme: "Recepcao com comunicacao",
+      phase: "base",
+      rpeTarget: "PSE 4",
+    });
+    expect(result.decisionTrace.decision.primarySkill).toBe(result.strategy.primarySkill);
+    expect(result.decisionTrace.decision.progressionDimension).toBe(
+      result.strategy.progressionDimension
+    );
+    expect(result.decisionTrace.decision.pedagogicalIntent).toBe(
+      result.strategy.pedagogicalIntent
+    );
+    expect(result.decisionTrace.decision.phaseIntent).toBe(result.cycleContext.phaseIntent);
+    expect(result.decisionTrace.plannedContext.weekNumber).toBe(7);
+    expect(result.decisionTrace.influences.history.used).toBe(true);
+    expect(result.decisionTrace.influences.history.recentSkills).toContain("passe");
+    expect(result.decisionTrace.influences.classContext.used).toBe(true);
+    expect(result.decisionTrace.teacherFacingSummary).toContain("A aula prioriza");
+    expect(result.decisionTrace.teacherFacingSummary).not.toMatch(
+      /IA analisou|par[âa]metros avançados|otimizar a aprendizagem/i
+    );
+  });
+
+  it("marks periodization and scouting as unused when no real signals are provided", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "10-12",
+        goal: "Fundamentos",
+      }),
+      classPlan: null,
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      recentPlans: [],
+      recentSessions: [],
+      upcomingEvents: [],
+    });
+
+    expect(result.decisionTrace.influences.periodization.used).toBe(false);
+    expect(result.decisionTrace.influences.classContext.used).toBe(true);
+    expect(result.decisionTrace.influences.scouting.used).toBe(false);
+    expect(result.decisionTrace.influences.scouting.confidence).toBe("none");
+    expect(result.decisionTrace.influences.history.used).toBe(false);
+    expect(result.decisionTrace.influences.reportFeedback.used).toBe(false);
+    expect(result.decisionTrace.safeguards.fallbackUsed).toBe(false);
+  });
+
+  it("records scouting and report feedback signals when they shape the context", () => {
+    const scoutingCounts: ScoutingCounts = {
+      serve: { 0: 0, 1: 2, 2: 4 },
+      receive: { 0: 8, 1: 2, 2: 0 },
+      set: { 0: 0, 1: 0, 2: 0 },
+      attack_send: { 0: 0, 1: 0, 2: 0 },
+    };
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "10-12",
+        goal: "Passe e recepcao",
+      }),
+      classPlan: buildClassPlan({
+        technicalFocus: "",
+        theme: "Recepcao",
+      }),
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      scoutingCounts,
+      recentPlans: [buildTrainingPlan()],
+      recentSessions: [
+        buildRecentSession({
+          pedagogicalFeedbackSignals: ["low_participation", "recurring_technical_difficulty"],
+        }),
+      ],
+    });
+
+    expect(result.decisionTrace.influences.scouting.used).toBe(true);
+    expect(result.decisionTrace.influences.scouting.sampleSize).toBe(16);
+    expect(result.decisionTrace.influences.scouting.confidence).toBe("medium");
+    expect(result.decisionTrace.influences.scouting.dominantGapSkill).toBe("passe");
+    expect(result.decisionTrace.influences.scouting.dominantGapType).toBeDefined();
+    expect(result.decisionTrace.influences.reportFeedback.used).toBe(true);
+    expect(result.decisionTrace.influences.reportFeedback.signals).toEqual(
+      expect.arrayContaining(["low_participation", "recurring_technical_difficulty"])
+    );
+  });
+
+  it("records anti-repetition safeguards in the decision trace", () => {
+    const baseline = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup(),
+      classPlan: buildClassPlan({ technicalFocus: "Passe" }),
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      recentPlans: [buildTrainingPlan()],
+      recentSessions: [],
+    });
+
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup(),
+      classPlan: buildClassPlan({ technicalFocus: "Passe" }),
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      recentPlans: [buildTrainingPlan()],
+      recentSessions: [
+        buildRecentSession({
+          sessionDate: "2026-04-03",
+          primarySkill: baseline.strategy.primarySkill,
+          secondarySkill: baseline.strategy.secondarySkill,
+          progressionDimension: baseline.strategy.progressionDimension,
+          dominantBlock: baseline.cycleContext.dominantBlock,
+          fingerprint: baseline.fingerprint,
+          structuralFingerprint: baseline.structuralFingerprint,
+        }),
+      ],
+    });
+
+    expect(result.decisionTrace.safeguards.repetitionAdjusted).toBe(true);
+    expect(result.decisionTrace.influences.history.used).toBe(true);
+    expect(result.decisionTrace.influences.history.mustAvoidRepeating.length).toBeGreaterThan(0);
   });
 });
