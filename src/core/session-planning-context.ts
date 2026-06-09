@@ -1,51 +1,29 @@
 import type {
   ClassGroup,
   CycleDayPlanningContext,
-  PedagogicalIntent,
-  ProgressionDimension,
+  RecentSessionSummary,
   SessionStrategy,
   TrainingPlan,
   VolleyballSkill,
-  WeeklyLoadIntent,
 } from "./models";
+import {
+  SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
+  summarizeReportFeedbackSignals,
+  type SessionPlanningContext,
+  type SessionPlanningUpcomingEvent,
+} from "./session-planning-context-contract";
 
-export type SessionPlanningUpcomingEvent = {
-  title: string;
-  date: string;
-  classScoped: boolean;
-};
-
-export type SessionPlanningClassProfile = {
-  level: number;
-  daysPerWeek: number;
-  size: number;
-  heterogeneity: string;
-};
-
-export type SessionPlanningContext = {
-  classId: string;
-  sessionDate: string;
-  ageBand: string;
-  sport: "volleyball";
-  skillFocus: VolleyballSkill;
-  secondarySkill?: VolleyballSkill;
-  cycleGoal?: string;
-  weekGoal?: string;
-  weekNumber?: number;
-  sessionIndexInWeek?: number;
-  periodizationPhase?: CycleDayPlanningContext["planningPhase"];
-  progressionDimension: ProgressionDimension;
-  pedagogicalIntent: PedagogicalIntent;
-  loadIntent: WeeklyLoadIntent;
-  previousSessionSummary?: string;
-  recentDifficulties: string[];
-  recentActivityFamilies: string[];
-  upcomingEvents: SessionPlanningUpcomingEvent[];
-  availableDuration: number;
-  materials: string[];
-  classProfile: SessionPlanningClassProfile;
-  constraints: string[];
-};
+export type {
+  ParsedSessionPlanningContext,
+  ReportFeedbackSignal,
+  SessionPlanningClassProfile,
+  SessionPlanningContext,
+  SessionPlanningUpcomingEvent,
+} from "./session-planning-context-contract";
+export {
+  parseSessionPlanningContext,
+  SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
+} from "./session-planning-context-contract";
 
 const normalizeText = (value: string | null | undefined) =>
   String(value ?? "")
@@ -114,6 +92,7 @@ export const buildSessionPlanningContext = (params: {
   cycleContext: CycleDayPlanningContext;
   strategy: SessionStrategy;
   recentPlans?: TrainingPlan[];
+  recentSessions?: RecentSessionSummary[];
   upcomingEvents?: SessionPlanningUpcomingEvent[];
 }): SessionPlanningContext => {
   const recentPlans = [...(params.recentPlans ?? [])].slice(0, 5);
@@ -123,8 +102,12 @@ export const buildSessionPlanningContext = (params: {
   const recentActivityFamilies = uniqueStrings(
     recentPlans.map((plan) => deriveRecentActivityFamily(plan))
   ).slice(0, 5);
+  const reportFeedback = summarizeReportFeedbackSignals(
+    (params.recentSessions ?? []).flatMap((session) => session.pedagogicalFeedbackSignals ?? [])
+  );
 
   return {
+    schemaVersion: SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
     classId: params.cycleContext.classId,
     sessionDate: params.cycleContext.sessionDate,
     ageBand: params.cycleContext.ageBand,
@@ -156,5 +139,6 @@ export const buildSessionPlanningContext = (params: {
         params.cycleContext.historicalConfidence === "none" ? "desconhecida" : "contextualizada",
     },
     constraints: [...params.cycleContext.constraints],
+    ...(reportFeedback ? { reportFeedback } : {}),
   };
 };

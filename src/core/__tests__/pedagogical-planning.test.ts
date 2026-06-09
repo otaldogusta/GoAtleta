@@ -83,6 +83,7 @@ const collectFinalActivityText = (result: ReturnType<typeof buildPedagogicalPlan
 const createSessionPlanningContext = (
   overrides: Partial<SessionPlanningContext> = {}
 ): SessionPlanningContext => ({
+  schemaVersion: 1,
   classId: "c_1775903848643",
   sessionDate: "2026-06-20",
   ageBand: "07-09",
@@ -95,7 +96,7 @@ const createSessionPlanningContext = (
   sessionIndexInWeek: 1,
   periodizationPhase: "base",
   progressionDimension: "consistencia",
-  pedagogicalIntent: "technical_foundation",
+  pedagogicalIntent: "technical_adjustment",
   loadIntent: "moderado",
   previousSessionSummary: "Passe em duplas",
   recentDifficulties: ["comunicacao"],

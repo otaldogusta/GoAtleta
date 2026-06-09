@@ -751,7 +751,7 @@ const buildPlanningRules = (): PlanningRule[] => [
       } else if (normalized === "passe") {
         draft.main.activities.unshift(buildObjectiveActivity({
           id: "objective_pass",
-          name: "Passe orientado",
+          name: "Passe em duplas para alvo jogável",
           organization: "Marcar uma zona-alvo com cones e organizar a turma em duplas ou trios.",
           execution: "O aluno recebe bola lançada, chama a bola e faz o passe tentando deixar jogável na zona combinada.",
           coachFocus: "Corrigir base, ajuste dos pés e direção da manchete com uma orientação curta por vez.",

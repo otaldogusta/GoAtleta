@@ -115,6 +115,10 @@ import {
     type ScoutingCounts,
 } from "../../../src/core/scouting";
 import { createTrainingPlanVersion } from "../../../src/core/training-plan-factory";
+import {
+    getResolvedTrainingPlanActivityNames,
+    resolveTrainingPlanBlock,
+} from "../../../src/core/training-plan-blocks";
 import { resolveActiveMethodology } from "../../../src/db/knowledge-base";
 import {
     deleteTrainingPlansByClassAndDate,
@@ -222,9 +226,9 @@ const dedupeByNormalizedText = (items: string[]) => {
 const buildSimpleActivityFromPlan = (plan: TrainingPlan | null) => {
   if (!plan) return "";
   const title = String(plan.title ?? "").trim();
-  const warmup = summarizePlanItems(plan.warmup, 1);
-  const main = summarizePlanItems(plan.main, 2);
-  const cooldown = summarizePlanItems(plan.cooldown, 1);
+  const warmup = summarizePlanItems(getResolvedTrainingPlanActivityNames(plan, "warmup"), 1);
+  const main = summarizePlanItems(getResolvedTrainingPlanActivityNames(plan, "main"), 2);
+  const cooldown = summarizePlanItems(getResolvedTrainingPlanActivityNames(plan, "cooldown"), 1);
 
   const parts = [
     title,
@@ -2393,17 +2397,11 @@ export default function SessionScreen() {
   } as const;
 
   const getBlockActivities = (blockKey: SessionBlockKey) => {
-    if (!plan) return [];
-    if (blockKey === "warmup") return plan.warmup ?? [];
-    if (blockKey === "main") return plan.main ?? [];
-    return plan.cooldown ?? [];
+    return getResolvedTrainingPlanActivityNames(plan, blockKey);
   };
 
   const getStructuredBlockActivities = (blockKey: SessionBlockKey) => {
-    if (!plan?.pedagogy?.blocks) return [];
-    if (blockKey === "warmup") return plan.pedagogy.blocks.warmup?.activities ?? [];
-    if (blockKey === "main") return plan.pedagogy.blocks.main?.activities ?? [];
-    return plan.pedagogy.blocks.cooldown?.activities ?? [];
+    return resolveTrainingPlanBlock(plan, blockKey).activities;
   };
 
   const getBlockDurationMinutes = (blockKey: SessionBlockKey) => {
@@ -2414,14 +2412,7 @@ export default function SessionScreen() {
   };
 
   const getBlockSummary = (blockKey: SessionBlockKey) => {
-    if (!plan) return "";
-    const pedagogySummary =
-      blockKey === "warmup"
-        ? plan.pedagogy?.blocks?.warmup?.summary
-        : blockKey === "main"
-          ? plan.pedagogy?.blocks?.main?.summary
-          : plan.pedagogy?.blocks?.cooldown?.summary;
-    return pedagogySummary ?? "";
+    return resolveTrainingPlanBlock(plan, blockKey).summary;
   };
 
   const buildPdfBlockItems = (blockKey: SessionBlockKey) => {
@@ -3152,13 +3143,15 @@ export default function SessionScreen() {
         },
       };
 
-      const activityNames = activities.map((item) => item.name);
+      const nextWarmupNames = nextPedagogyBlocks.warmup.activities.map((item) => item.name);
+      const nextMainNames = nextPedagogyBlocks.main.activities.map((item) => item.name);
+      const nextCooldownNames = nextPedagogyBlocks.cooldown.activities.map((item) => item.name);
 
       const nextPlanDraft: TrainingPlan = {
         ...plan,
-        warmup: selectedBlockKey === "warmup" ? activityNames : plan.warmup,
-        main: selectedBlockKey === "main" ? activityNames : plan.main,
-        cooldown: selectedBlockKey === "cooldown" ? activityNames : plan.cooldown,
+        warmup: nextWarmupNames,
+        main: nextMainNames,
+        cooldown: nextCooldownNames,
         warmupTime:
           selectedBlockKey === "warmup"
             ? `${safeDuration} min`
