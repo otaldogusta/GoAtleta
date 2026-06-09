@@ -91,9 +91,29 @@ const parseRpeTarget = (rpeTarget?: string): number | undefined => {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 };
 
+const skillSignals: Array<{ skill: VolleyballSkill; pattern: RegExp }> = [
+  { skill: "passe", pattern: /\b(passe|passes|recep\w*|manchete|primeiro contato)\b/ },
+  { skill: "levantamento", pattern: /\b(levant\w*|segundo contato|toque)\b/ },
+  { skill: "ataque", pattern: /\b(ataq\w*|cortada|spike)\b/ },
+  { skill: "bloqueio", pattern: /\b(bloq\w*|block)\b/ },
+  { skill: "defesa", pattern: /\b(defes\w*|dig|cobertura)\b/ },
+  { skill: "saque", pattern: /\b(saque|saques|sacar|serv\w*)\b/ },
+  { skill: "transicao", pattern: /\b(trans\w*|virada|jogo)\b/ },
+];
+
 const resolveSkillFromText = (value: string | null | undefined): VolleyballSkill | null => {
   const text = normalizeText(value);
   if (!text) return null;
+
+  const explicitSkill = skillSignals
+    .map(({ skill, pattern }) => {
+      const match = pattern.exec(text);
+      return match ? { skill, index: match.index } : null;
+    })
+    .filter((match): match is { skill: VolleyballSkill; index: number } => Boolean(match))
+    .sort((left, right) => left.index - right.index)[0]?.skill;
+
+  if (explicitSkill) return explicitSkill;
   if (text.includes("fundament") || text.includes("base tecnica") || text.includes("iniciacao")) {
     return "passe";
   }
@@ -101,13 +121,6 @@ const resolveSkillFromText = (value: string | null | undefined): VolleyballSkill
   if (text.includes("organiz") || text.includes("sistema") || text.includes("coletiv")) {
     return "transicao";
   }
-  if (text.includes("levant")) return "levantamento";
-  if (text.includes("ataq") || text.includes("cortada") || text.includes("spike")) return "ataque";
-  if (text.includes("bloq") || text.includes("block")) return "bloqueio";
-  if (text.includes("defes") || text.includes("dig") || text.includes("cobertura")) return "defesa";
-  if (text.includes("saque") || text.includes("serv")) return "saque";
-  if (text.includes("trans") || text.includes("virada") || text.includes("jogo")) return "transicao";
-  if (text.includes("passe") || text.includes("recep") || text.includes("manchete")) return "passe";
   return null;
 };
 
