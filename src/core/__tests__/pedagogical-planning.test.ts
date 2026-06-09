@@ -1,5 +1,6 @@
 import { buildPedagogicalPlan, normalizePedagogicalObjective } from "../pedagogical-planning";
 import type { ClassGroup, Student } from "../models";
+import type { SessionPlanningContext } from "../session-planning-context";
 
 const createClassGroup = (overrides: Partial<ClassGroup> = {}): ClassGroup => ({
   id: "class-1",
@@ -61,6 +62,49 @@ const createStudent = (overrides: Partial<Student> = {}): Student => ({
   isExperimental: false,
   sourcePreRegistrationId: null,
   photoUrl: undefined,
+  ...overrides,
+});
+
+const collectFinalActivityText = (result: ReturnType<typeof buildPedagogicalPlan>) =>
+  [result.final.warmup, result.final.main, result.final.cooldown]
+    .flatMap((block) => block.activities)
+    .map((activity) =>
+      [
+        activity.name,
+        activity.description,
+        activity.organization,
+        activity.execution,
+        activity.presentation?.standardText,
+        activity.primarySkill,
+      ].join(" ")
+    )
+    .join(" ");
+
+const createSessionPlanningContext = (
+  overrides: Partial<SessionPlanningContext> = {}
+): SessionPlanningContext => ({
+  classId: "c_1775903848643",
+  sessionDate: "2026-06-20",
+  ageBand: "07-09",
+  sport: "volleyball",
+  skillFocus: "passe",
+  secondarySkill: "levantamento",
+  cycleGoal: "Recepção e continuidade",
+  weekGoal: "Passe e manchete para recepção",
+  weekNumber: 4,
+  sessionIndexInWeek: 1,
+  periodizationPhase: "base",
+  progressionDimension: "consistencia",
+  pedagogicalIntent: "technical_foundation",
+  loadIntent: "moderado",
+  previousSessionSummary: "Passe em duplas",
+  recentDifficulties: ["comunicacao"],
+  recentActivityFamilies: ["alvo_zona"],
+  upcomingEvents: [],
+  availableDuration: 60,
+  materials: ["bolas", "cones"],
+  classProfile: { level: 1, daysPerWeek: 2, size: 10, heterogeneity: "baixa" },
+  constraints: [],
   ...overrides,
 });
 
@@ -144,9 +188,42 @@ describe("pedagogical-planning", () => {
     expect(firstMain?.adaptation).toBeTruthy();
     expect(firstMain?.primarySkill).toBe("passe");
     expect(fullText).toContain("Organização:");
-    expect(fullText).toContain("manchete");
+    expect(fullText).toContain("primeiro contato");
     expect(fullText).not.toContain("vwv_");
     expect(fullText).not.toContain("Exploração guiada");
     expect(fullText.toLowerCase()).not.toContain("levantamento");
+  });
+
+  it.each([
+    ["without session planning context", undefined],
+    ["with pass context and levantamento as secondary skill", createSessionPlanningContext()],
+  ])("keeps real 07-09 pass generation on first-contact activities %s", (_label, sessionPlanningContext) => {
+    const result = buildPedagogicalPlan({
+      classGroup: createClassGroup({
+        id: "c_1775903848643",
+        name: "Turma 07-09",
+        ageBand: "07-09",
+        goal: "Passe e manchete para recepção",
+      }),
+      students: [createStudent({ age: 8, healthIssue: false, healthIssueNotes: "", healthObservations: "" })],
+      objective: "Passe e manchete para recepção",
+      context: "treinamento",
+      constraints: [],
+      materials: ["bolas", "cones"],
+      duration: 60,
+      sessionPlanningContext,
+    });
+    const text = collectFinalActivityText(result);
+    const normalizedText = text.toLowerCase();
+
+    expect(result.generated.basePlanKind).toBe("volleyball");
+    expect(text).toMatch(/passe|manchete|recepção|recepcao|primeiro contato/i);
+    expect(text).not.toContain("Passe orientado");
+    expect(text).not.toContain("Cone pega-toque");
+    expect(text).not.toContain("Introdução do toque com cone");
+    expect(text).not.toContain("Mini jogo com segundo contato definido");
+    expect(normalizedText).not.toContain("segundo contato");
+    expect(normalizedText).not.toContain("levantamento");
+    expect(normalizedText).not.toContain("levantador");
   });
 });

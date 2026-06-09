@@ -267,7 +267,7 @@ const buildRealityFlags = (
   }
 
   if (primarySkill === "passe") {
-    const settingSignals = (text.match(/\b(levantamento|levantador|distribuicao|organizar ataque)\b/g) ?? []).length;
+    const settingSignals = (text.match(/\b(levantamento|levantador|distribuicao|organizar ataque|segundo contato|toque com cone|cone pega-toque|mini jogo com segundo contato definido)\b/g) ?? []).length;
     if (settingSignals > 0) flags.push(`Plano de passe derivou para levantamento em ${activity.name}.`);
   }
 
@@ -1632,7 +1632,7 @@ export const validateHumanizedVolleyballBlocks = (
   if (primarySkill === "passe") {
     const mainText = normalize(blocks.main.map((activity) => `${activity.name} ${activity.presentation.standardText}`).join(" "));
     const passSignals = (mainText.match(/\b(passe|passes|manchete|recepcao|primeiro contato|contato|contatos|jogavel|jogável)\b/g) ?? []).length;
-    const settingSignals = (mainText.match(/\b(levantamento|levantador|distribuicao|organizar ataque)\b/g) ?? []).length;
+    const settingSignals = (mainText.match(/\b(levantamento|levantador|distribuicao|organizar ataque|segundo contato|toque com cone|cone pega-toque|mini jogo com segundo contato definido)\b/g) ?? []).length;
     if (passSignals < 3) {
       flags.push("Plano de passe sem sinais suficientes de passe/manchete/recepcao.");
     }
