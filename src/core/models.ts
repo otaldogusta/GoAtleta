@@ -1,5 +1,6 @@
 import type { ClassModality } from "./class-modality";
 import type { PedagogicalApproachDetection } from "./methodology/pedagogical-approach-detector";
+import type { SessionPlanningContext } from "./session-planning-context-contract";
 
 export type AgeBand = string;
 export type Goal = string;
@@ -519,7 +520,7 @@ export type TrainingPlanSessionBlock = {
 
 export type TrainingPlanPedagogy = {
   generationExplanation?: TrainingPlanGenerationExplanation;
-  sessionPlanningContext?: unknown;
+  sessionPlanningContext?: SessionPlanningContext;
   periodizationContext?: PeriodizationContext;
   pedagogicalDecisionSupport?: PedagogicalDecisionSupport;
   periodization?: {
@@ -704,7 +705,7 @@ export type TrainingPlan = {
   createdAt: string;
   version?: number;
   status?: "generated" | "final";
-  origin?: "auto" | "manual" | "manual_apply" | "edited_auto" | "imported";
+  origin?: "auto" | "manual" | "manual_apply" | "edited_auto" | "imported" | "assistant";
   inputHash?: string;
   generatedAt?: string;
   finalizedAt?: string;
@@ -1281,6 +1282,10 @@ export type DailyLessonPlan = {
   sessionEnvironment?: SessionEnvironment;
   /** R3: dominant component selected for this daily session */
   sessionPrimaryComponent?: SessionPrimaryComponent;
+  /**
+   * Periodization blueprint text. When a TrainingPlan exists for the session,
+   * UI/PDF/report consumers must use TrainingPlan.pedagogy.blocks instead.
+   */
   warmup: string;
   mainPart: string;
   cooldown: string;

@@ -155,6 +155,8 @@ export type PlanningRuleContext = {
   input: PlanningInput;
   analysis: PlanningAnalysis;
   draft: LessonPlanDraft;
+  basePlanKind: "progression" | "volleyball";
+  hasStructuredBlocks: boolean;
 };
 
 export type PlanningRule = {
@@ -475,17 +477,35 @@ const buildObjectiveActivity = (
   description: composeHumanizedActivityDescription(activity) || activity.description || activity.name,
 });
 
+const hasPassReceptionIntent = (text: string) =>
+  /\b(passe|passes|manchete|recepcao|receber|primeiro contato)\b/.test(normalizeText(text));
+
+const resolvePlanningFocusSkills = (input: PlanningInput, objectiveText: string): VolleyballSkill[] => {
+  const planningContext = input.sessionPlanningContext;
+  const contextFocus = planningContext?.skillFocus;
+  if (contextFocus) {
+    if (contextFocus === "passe" || hasPassReceptionIntent(objectiveText)) {
+      return ["passe"];
+    }
+    return unique([
+      planningContext.skillFocus,
+      planningContext.secondarySkill,
+    ].filter((skill): skill is VolleyballSkill => Boolean(skill)));
+  }
+
+  const inferred = inferSkillsFromText(objectiveText);
+  if (inferred.includes("passe") || hasPassReceptionIntent(objectiveText)) {
+    return ["passe"];
+  }
+  return inferred;
+};
+
 const buildBasePlan = (input: PlanningInput, analysis: PlanningAnalysis): BasePlanDraft => {
   const classModality = resolveClassModality(input.classGroup.modality);
   const objectiveText = [input.objective, input.classGroup.goal, ...(input.students ?? []).map((student) => student.healthObservations)]
     .filter(Boolean)
     .join(" ");
-  const focusSkills = input.sessionPlanningContext?.skillFocus
-    ? [
-        input.sessionPlanningContext.skillFocus,
-        input.sessionPlanningContext.secondarySkill,
-      ].filter((skill): skill is VolleyballSkill => Boolean(skill))
-    : inferSkillsFromText(objectiveText);
+  const focusSkills = resolvePlanningFocusSkills(input, objectiveText);
   const syntheticSnapshot = buildSyntheticSnapshot(input, analysis);
 
   if (classModality === "voleibol") {
@@ -706,12 +726,17 @@ const buildPlanningRules = (): PlanningRule[] => [
     apply: (draft, ctx) => {
       const objective = ctx.input.objective || ctx.input.classGroup.goal;
       const normalized = normalizePedagogicalObjective(objective);
+      const canInjectObjectiveActivity = !(ctx.basePlanKind === "volleyball" && ctx.hasStructuredBlocks);
 
       draft.explanations.push({
         message: `Objetivo normalizado: ${normalized}.`,
         source: "objetivo",
         appliedTo: "principal",
       });
+
+      if (!canInjectObjectiveActivity) {
+        return;
+      }
 
       if (normalized === "controle_bola") {
         draft.main.activities.unshift(buildObjectiveActivity({
@@ -726,7 +751,7 @@ const buildPlanningRules = (): PlanningRule[] => [
       } else if (normalized === "passe") {
         draft.main.activities.unshift(buildObjectiveActivity({
           id: "objective_pass",
-          name: "Passe orientado",
+          name: "Passe em duplas para alvo jogável",
           organization: "Marcar uma zona-alvo com cones e organizar a turma em duplas ou trios.",
           execution: "O aluno recebe bola lançada, chama a bola e faz o passe tentando deixar jogável na zona combinada.",
           coachFocus: "Corrigir base, ajuste dos pés e direção da manchete com uma orientação curta por vez.",
@@ -903,7 +928,13 @@ export const buildPedagogicalPlan = (input: PlanningInput): PedagogicalPlanPacka
   const analysis = analyzePlanningInput(input);
   const basePlan = buildBasePlan(input, analysis);
   const draft = buildDraftFromBase(input, analysis, basePlan);
-  applyPlanningRules(draft, { input, analysis, draft });
+  applyPlanningRules(draft, {
+    input,
+    analysis,
+    draft,
+    basePlanKind: basePlan.kind,
+    hasStructuredBlocks: Boolean(basePlan.structuredBlocks),
+  });
   const generated = buildGeneratedPlan(draft, basePlan.kind);
   const final = finalizeGeneratedPlan(generated);
 

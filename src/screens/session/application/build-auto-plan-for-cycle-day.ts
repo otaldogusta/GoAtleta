@@ -188,6 +188,7 @@ export const buildAutoPlanForCycleDay = (
     cycleContext,
     strategy,
     recentPlans,
+    recentSessions,
     upcomingEvents: params.upcomingEvents ?? [],
   });
   sessionPlanningContext.classProfile.size = params.students.length;

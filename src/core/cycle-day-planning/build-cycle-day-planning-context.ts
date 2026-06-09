@@ -14,7 +14,13 @@ import type {
 } from "../models";
 import type { PlanningPhase } from "../pedagogical-planning";
 import { getPlannedLoads } from "../periodization-load";
-import { getSkillMetrics, scoutingSkills, type ScoutingCounts } from "../scouting";
+import {
+  getSkillMetrics,
+  legacyCountsToScoutingPlanningSignal,
+  scoutingSkills,
+  type ScoutingCounts,
+  type ScoutingPlanningSignal,
+} from "../scouting";
 import { resolveDominantBlockStrategyProfile } from "./resolve-block-dominant-strategy";
 import { resolveHistoricalConfidence } from "./resolve-historical-confidence";
 import { resolvePedagogicalDecisionSupport } from "./resolve-pedagogical-decision-support";
@@ -26,6 +32,7 @@ export type BuildCycleDayPlanningContextParams = {
   sessionDate: string;
   recentSessions?: RecentSessionSummary[] | null;
   scoutingCounts?: ScoutingCounts | null;
+  scoutingSignal?: ScoutingPlanningSignal | null;
   sessionIndexInWeek?: number;
 };
 
@@ -104,7 +111,17 @@ const resolveSkillFromText = (value: string | null | undefined): VolleyballSkill
   return null;
 };
 
-const resolveScoutingPrioritySkill = (counts?: ScoutingCounts | null): VolleyballSkill | null => {
+const resolveScoutingPrioritySkill = (
+  counts?: ScoutingCounts | null,
+  signal?: ScoutingPlanningSignal | null
+): VolleyballSkill | null => {
+  if (
+    signal?.dominantWeakSkill &&
+    signal.confidence !== "none" &&
+    signal.confidence !== "low"
+  ) {
+    return signal.dominantWeakSkill;
+  }
   if (!counts) return null;
   const ranked = scoutingSkills
     .map((skill) => ({
@@ -219,6 +236,7 @@ const resolvePrimarySkill = (params: {
   classGroup: ClassGroup;
   classPlan?: ClassPlan | null;
   scoutingCounts?: ScoutingCounts | null;
+  scoutingSignal?: ScoutingPlanningSignal | null;
   recentSkills: VolleyballSkill[];
   sessionIndexInWeek: number;
 }): VolleyballSkill => {
@@ -226,7 +244,7 @@ const resolvePrimarySkill = (params: {
   const themeSkill = resolveSkillFromText(params.classPlan?.theme);
   const goalSkill = resolveSkillFromText(params.classGroup.goal);
   const modalitySkill = resolveSkillFromText(params.classGroup.modality);
-  const scoutingSkill = resolveScoutingPrioritySkill(params.scoutingCounts);
+  const scoutingSkill = resolveScoutingPrioritySkill(params.scoutingCounts, params.scoutingSignal);
   const recentDominant =
     params.recentSkills[0] && params.recentSkills[1] && params.recentSkills[0] === params.recentSkills[1]
       ? params.recentSkills[0]
@@ -498,6 +516,9 @@ const parseSourcePedagogicalDecisionSupport = (
 export const buildCycleDayPlanningContext = (
   params: BuildCycleDayPlanningContextParams
 ): CycleDayPlanningContext => {
+  const scoutingSignal =
+    params.scoutingSignal ??
+    (params.scoutingCounts ? legacyCountsToScoutingPlanningSignal(params.scoutingCounts) : null);
   const planningPhase = normalizePlanningPhase(params.classPlan?.phase);
   const targetPse = parseRpeTarget(params.classPlan?.rpeTarget);
   const plannedLoads = getPlannedLoads(
@@ -518,12 +539,13 @@ export const buildCycleDayPlanningContext = (
           daysOfWeek: params.classGroup.daysOfWeek,
           sessionDate: params.sessionDate,
         });
-  const dominantGapSkill = resolveScoutingPrioritySkill(params.scoutingCounts);
+  const dominantGapSkill = resolveScoutingPrioritySkill(params.scoutingCounts, scoutingSignal);
   const dominantGapType = resolveDominantGapType(params.scoutingCounts);
   const primarySkill = resolvePrimarySkill({
     classGroup: params.classGroup,
     classPlan: params.classPlan,
     scoutingCounts: params.scoutingCounts,
+    scoutingSignal,
     recentSkills,
     sessionIndexInWeek,
   });

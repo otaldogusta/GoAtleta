@@ -95,7 +95,7 @@ export const evaluateActivityReality = (
     /\b(base baixa|bracos juntos|plataforma firme|correto|perfeito|gesto perfeito)\b/.test(text);
   const skillDrift =
     params.primarySkill === "passe" &&
-    /\b(levantamento|levantador|distribuicao|organizar ataque)\b/.test(text);
+    /\b(levantamento|levantador|distribuicao|organizar ataque|segundo contato|toque com cone|cone pega-toque|mini jogo com segundo contato definido)\b/.test(text);
 
   if (longQueue) flags.push("longQueue");
   if (teacherBottleneck) flags.push("teacherBottleneck");

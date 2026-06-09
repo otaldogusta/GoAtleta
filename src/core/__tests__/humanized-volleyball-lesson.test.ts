@@ -125,6 +125,7 @@ const expectRealityScores = (blocks: ReturnType<typeof buildHumanizedVolleyballL
 const buildSessionContext = (
   overrides: Partial<SessionPlanningContext> = {}
 ): SessionPlanningContext => ({
+  schemaVersion: 1,
   classId: "class-10-12",
   sessionDate: "2026-06-13",
   ageBand: "10-12",

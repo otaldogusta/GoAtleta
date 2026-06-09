@@ -124,8 +124,8 @@ const fallbackMainActivitiesBySkill: Record<VolleyballSkill, Array<{ name: strin
   ],
   passe: [
     {
-      name: "Passe orientado para alvo",
-      description: "Passe para alvo em duplas, com controle de plataforma e direção da bola.",
+      name: "Passe em duplas para alvo jogável",
+      description: "Em duplas, um aluno inicia com lançamento leve e o outro envia o primeiro contato para uma zona marcada.",
     },
     {
       name: "Desafio de sequência em trio",
@@ -252,12 +252,32 @@ const normalizeByAvoidPatterns = (value: string, envelope: SessionPedagogyEnvelo
   return next;
 };
 
+const hasStructuredOperationalActivities = (block: PedagogicalPlanBlock) =>
+  block.activities.some((activity) =>
+    Boolean(
+      activity.presentation?.standardText ||
+        activity.sourcePatternId ||
+        (activity.organization && activity.execution && activity.primarySkill)
+    )
+  );
+
 const adaptMainBlock = (
   block: PedagogicalPlanBlock,
   envelope: SessionPedagogyEnvelope,
   primarySkill: VolleyballSkill,
   secondarySkill?: VolleyballSkill
 ) => {
+  if (hasStructuredOperationalActivities(block)) {
+    return {
+      ...block,
+      summary: normalizeByAvoidPatterns(String(block.summary || ""), envelope),
+      activities: block.activities.map((activity) => ({
+        ...activity,
+        description: normalizeByAvoidPatterns(activity.description, envelope),
+      })),
+    };
+  }
+
   const baseTemplates = fallbackMainActivitiesBySkill[primarySkill];
   const blockText = [block.summary, ...block.activities.map((a) => `${a.name}. ${a.description}`)].join(" ");
   const firstActivitySkill = detectExplicitSkill(block.activities[0]?.name || "");

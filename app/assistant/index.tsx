@@ -364,6 +364,28 @@ const parseDraftTrainingFromReply = (value: string): DraftTraining | null => {
   }
 };
 
+const buildAssistantDraftBlock = (items: string[]) => ({
+  summary: sanitizeList(items).slice(0, 2).join(" / "),
+  activities: sanitizeList(items).map((name, index) => ({
+    name,
+    description: "Rascunho do assistente: revisar organização, troca e regra antes de aplicar na aula.",
+    source: "fallback" as const,
+    confidence: 0.5,
+    constraints: ["assistant_draft_requires_human_review"],
+    presentation: {
+      standardText:
+        "Rascunho do assistente. Revise a dinâmica de quadra antes de salvar como aula aplicada.",
+    },
+    validation: {
+      flags: ["assistant_draft_requires_human_review"],
+      checklist: {
+        requiresHumanReview: true,
+      },
+    },
+    id: `assistant_draft_${index + 1}`,
+  })),
+});
+
 const extractAssistantPayloadError = (value: unknown): string | null => {
   if (!value || typeof value !== "object") return null;
   const payload = value as AssistantErrorPayload;
@@ -419,6 +441,38 @@ const buildTraining = (draft: DraftTraining, classId: string): TrainingPlan => {
     mainTime: String(normalizedDraft.mainTime || ""),
     cooldownTime: String(normalizedDraft.cooldownTime || DEFAULT_COOLDOWN_TIME),
     createdAt: nowIso,
+    status: "generated",
+    origin: "assistant",
+    generatedAt: nowIso,
+    pedagogy: {
+      generationExplanation: {
+        historyMode: "bootstrap",
+        summary: "Rascunho criado pelo assistente.",
+        coachSummary:
+          "Rascunho do assistente: precisa de revisão humana antes de virar aula aplicada.",
+        generationMode: "class_bootstrap",
+        planningBasis: "class_based_bootstrap",
+      },
+      sessionObjective: String(normalizedDraft.title || "Planejamento sugerido"),
+      sessionObjectiveSource: "generated",
+      blocks: {
+        warmup: buildAssistantDraftBlock(normalizedDraft.warmup),
+        main: buildAssistantDraftBlock(normalizedDraft.main),
+        cooldown: buildAssistantDraftBlock(normalizedDraft.cooldown),
+      },
+      override: {
+        type: "methodology",
+        fromRuleId: "assistant_draft",
+        toRuleId: "human_review_required",
+        fromApproach: "assistant_draft",
+        toApproach: "human_review_required",
+        reason: {
+          text: "Planos gerados pelo assistente não são aplicados sem revisão.",
+          tags: ["assistant_guardrail"],
+        },
+        createdAt: nowIso,
+      },
+    },
   };
 };
 

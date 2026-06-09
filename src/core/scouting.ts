@@ -5,12 +5,22 @@ import type {
   ScoutingLog,
   ScoutingSessionType,
   StudentScoutingLog,
+  VolleyballSkill,
 } from "./models";
 
 export type ScoutingSkill = "serve" | "receive" | "set" | "attack_send";
 export type ScoutingScore = 0 | 1 | 2;
 export type ScoreCounts = Record<ScoutingScore, number>;
 export type ScoutingCounts = Record<ScoutingSkill, ScoreCounts>;
+
+export type ScoutingPlanningSignal = {
+  dominantWeakSkill?: VolleyballSkill;
+  dominantWeakFundamental?: ScoutingActionFundamental;
+  dominantWeakPhase?: ScoutingActionPhase;
+  difficulty: "low" | "medium" | "high" | "unknown";
+  sampleSize: number;
+  confidence: "none" | "low" | "medium" | "high";
+};
 
 export const scoutingSkills: { id: ScoutingSkill; label: string }[] = [
   { id: "serve", label: "Saque" },
@@ -278,6 +288,39 @@ const legacySkillByFundamental: Partial<Record<ScoutingActionFundamental, Scouti
   ataque: "attack_send",
 };
 
+const volleyballSkillByFundamental: Record<ScoutingActionFundamental, VolleyballSkill> = {
+  saque: "saque",
+  recepcao: "passe",
+  levantamento: "levantamento",
+  ataque: "ataque",
+  bloqueio: "bloqueio",
+  defesa: "defesa",
+  cobertura: "defesa",
+  transicao: "transicao",
+  comunicacao: "passe",
+};
+
+const volleyballSkillByLegacySkill: Record<ScoutingSkill, VolleyballSkill> = {
+  serve: "saque",
+  receive: "passe",
+  set: "levantamento",
+  attack_send: "ataque",
+};
+
+const confidenceFromSample = (sampleSize: number): ScoutingPlanningSignal["confidence"] => {
+  if (sampleSize <= 0) return "none";
+  if (sampleSize < 8) return "low";
+  if (sampleSize < 20) return "medium";
+  return "high";
+};
+
+const difficultyFromAverage = (average: number): ScoutingPlanningSignal["difficulty"] => {
+  if (!Number.isFinite(average)) return "unknown";
+  if (average < 1.15) return "high";
+  if (average < 1.75) return "medium";
+  return "low";
+};
+
 export const scoreFromScoutingResultLevel = (level: ScoutingAction["resultLevel"]): ScoutingScore => {
   if (level >= 3) return 2;
   if (level >= 1) return 1;
@@ -295,6 +338,69 @@ export const aggregateScoutingActionsToCounts = (
     counts[legacySkill][score] += 1;
   });
   return counts;
+};
+
+export const toScoutingPlanningSignal = (
+  actions: ScoutingAction[]
+): ScoutingPlanningSignal => {
+  const sampleSize = actions.length;
+  const confidence = confidenceFromSample(sampleSize);
+  if (!sampleSize) {
+    return { sampleSize, confidence, difficulty: "unknown" };
+  }
+
+  const candidates = summarizeFundamentals(actions)
+    .filter((summary) => summary.total >= 2)
+    .sort((a, b) => a.average - b.average || b.total - a.total);
+  const weakest = candidates[0];
+  if (!weakest) {
+    return { sampleSize, confidence, difficulty: "unknown" };
+  }
+
+  const phaseCounts = new Map<ScoutingActionPhase, number>();
+  actions
+    .filter((action) => action.fundamental === weakest.fundamental)
+    .forEach((action) => {
+      phaseCounts.set(action.phase, (phaseCounts.get(action.phase) ?? 0) + 1);
+    });
+  const dominantWeakPhase = Array.from(phaseCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  return {
+    dominantWeakSkill: volleyballSkillByFundamental[weakest.fundamental],
+    dominantWeakFundamental: weakest.fundamental,
+    dominantWeakPhase,
+    difficulty: difficultyFromAverage(weakest.average),
+    sampleSize,
+    confidence,
+  };
+};
+
+export const legacyCountsToScoutingPlanningSignal = (
+  counts: ScoutingCounts
+): ScoutingPlanningSignal => {
+  const sampleSize = getTotalActions(counts);
+  const confidence = confidenceFromSample(sampleSize);
+  if (!sampleSize) {
+    return { sampleSize, confidence, difficulty: "unknown" };
+  }
+  const weakest = scoutingSkills
+    .map((skill) => ({
+      skill: skill.id,
+      metrics: getSkillMetrics(counts[skill.id]),
+    }))
+    .filter((entry) => entry.metrics.total > 0)
+    .sort((a, b) => a.metrics.avg - b.metrics.avg || b.metrics.total - a.metrics.total)[0];
+
+  if (!weakest) {
+    return { sampleSize, confidence, difficulty: "unknown" };
+  }
+
+  return {
+    dominantWeakSkill: volleyballSkillByLegacySkill[weakest.skill],
+    difficulty: difficultyFromAverage(weakest.metrics.avg),
+    sampleSize,
+    confidence,
+  };
 };
 
 type FundamentalSummary = {
