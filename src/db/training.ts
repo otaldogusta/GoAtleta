@@ -80,6 +80,7 @@ const buildTrainingPlanBasePayload = (
   applydays: plan.applyDays ?? [],
   applydate: plan.applyDate ? plan.applyDate : null,
   createdat: plan.createdAt,
+  pedagogy: plan.pedagogy ?? null,
 });
 
 const buildTrainingPlanVersionedPayload = (

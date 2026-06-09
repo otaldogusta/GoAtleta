@@ -48,6 +48,11 @@ type UseSessionPlanGenerationParams = {
 
 type PlanGenerationPhase = "idle" | "generating" | "saving" | "settling";
 
+const assertGeneratedDecisionTrace = (autoPlanResult: AutoPlanForCycleDayResult) => {
+  if (autoPlanResult.decisionTrace?.schemaVersion === 1) return;
+  throw new Error("Generated session plan is missing decisionTrace schemaVersion 1.");
+};
+
 export function useSessionPlanGeneration({
   classId,
   sessionDate,
@@ -103,6 +108,7 @@ export function useSessionPlanGeneration({
         await waitForInteractionIdle();
         const autoPlanResult = await buildFreshAutoPlanResult(variationSeed, planningBasis);
         if (!autoPlanResult) return;
+        assertGeneratedDecisionTrace(autoPlanResult);
         setPedagogicalPlanPackage(autoPlanResult.package);
         setPlanGenerationPhase("saving");
         const successMessage = plan && variationSeed ? "Nova variação aplicada." : undefined;
