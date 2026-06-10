@@ -12,6 +12,10 @@ import type {
 } from "../../../core/models";
 import type { SessionMethodologyEvidence } from "../../../core/methodology/session-pedagogical-panel-language";
 import type { SessionPlanningUpcomingEvent } from "../../../core/session-planning-context";
+import {
+  toScoutingPlanningSignal,
+  type ScoutingPlanningSignal,
+} from "../../../core/scouting";
 import { listEvents } from "../../../api/events";
 import {
   getAttendanceByDate,
@@ -20,6 +24,7 @@ import {
   getDailyLessonPlanByWeekAndDate,
   getKnowledgeRuleCitations,
   getKnowledgeSources,
+  getLatestScoutingSessionDetailForPlanning,
   getScoutingLogByDate,
   getSessionLogByDate,
   getStudentsByClass,
@@ -109,6 +114,7 @@ export function useSessionData({
   const [sessionDataError, setSessionDataError] = useState<string | null>(null);
   const [sessionLog, setSessionLog] = useState<SessionLog | null>(null);
   const [scoutingLog, setScoutingLog] = useState<ScoutingLog | null>(null);
+  const [scoutingSignal, setScoutingSignal] = useState<ScoutingPlanningSignal | null>(null);
   const [attendancePercent, setAttendancePercent] = useState<number | null>(null);
   const [currentClassPlan, setCurrentClassPlan] = useState<ClassPlan | null>(null);
   const [currentDailyLessonPlan, setCurrentDailyLessonPlan] =
@@ -186,19 +192,28 @@ export function useSessionData({
           setUpcomingSessionEvents([]);
           setSessionLog(null);
           setScoutingLog(null);
+          setScoutingSignal(null);
           setSessionDataStatus("not_found");
           setSessionDataError(null);
           return;
         }
 
         if (classId) {
-          const [log, scouting] = await Promise.all([
+          const [log, scouting, richScouting] = await Promise.all([
             getSessionLogByDate(classId, sessionDate),
             getScoutingLogByDate(classId, sessionDate, scoutingMode),
+            getLatestScoutingSessionDetailForPlanning(classId, sessionDate, {
+              organizationId: data?.organizationId ?? null,
+            }).catch(() => null),
           ]);
           if (alive) {
             setSessionLog(log);
             setScoutingLog(scouting);
+            setScoutingSignal(
+              richScouting?.actions.length
+                ? toScoutingPlanningSignal(richScouting.actions)
+                : null
+            );
           }
         }
       } catch {
@@ -209,6 +224,7 @@ export function useSessionData({
           setUpcomingSessionEvents([]);
           setSessionLog(null);
           setScoutingLog(null);
+          setScoutingSignal(null);
           setSessionDataStatus("error");
           setSessionDataError("Nao foi possivel carregar a aula do dia.");
         }
@@ -393,6 +409,7 @@ export function useSessionData({
     setSessionLog,
     scoutingLog,
     setScoutingLog,
+    scoutingSignal,
     attendancePercent,
     currentClassPlan,
     currentDailyLessonPlan,

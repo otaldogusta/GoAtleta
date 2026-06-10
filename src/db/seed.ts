@@ -30,6 +30,7 @@ export {
     completeScoutingSession,
     createScoutingSession,
     deleteLastScoutingAction,
+    getLatestScoutingSessionDetailForPlanning,
     getScoutingSessionById,
     getScoutingSessionsByClass,
     type ScoutingSessionDetail

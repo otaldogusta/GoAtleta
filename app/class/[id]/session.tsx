@@ -1770,6 +1770,7 @@ export default function SessionScreen() {
     sessionLog,
     setSessionLog,
     scoutingLog,
+    scoutingSignal,
     attendancePercent,
     currentClassPlan,
     currentDailyLessonPlan,
@@ -2747,13 +2748,23 @@ export default function SessionScreen() {
         students: sessionStudents,
         sessionDate,
         scoutingCounts,
+        scoutingSignal,
         recentPlans: savedClassPlans,
         upcomingEvents: upcomingSessionEvents,
         variationSeed,
         dimensionGuidelines,
       });
     },
-    [cls, currentClassPlan, savedClassPlans, scoutingCounts, sessionDate, sessionStudents, upcomingSessionEvents]
+    [
+      cls,
+      currentClassPlan,
+      savedClassPlans,
+      scoutingCounts,
+      scoutingSignal,
+      sessionDate,
+      sessionStudents,
+      upcomingSessionEvents,
+    ]
   );
 
   const buildFreshAutoPlanResult = async (
