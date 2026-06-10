@@ -1,5 +1,6 @@
 import { applyPlanGuards } from "../../../core/cycle-day-planning/apply-plan-guards";
 import { buildCycleDayPlanningContext } from "../../../core/cycle-day-planning/build-cycle-day-planning-context";
+import { buildDailyLessonPlanningAnchor } from "../../../core/cycle-day-planning/daily-lesson-planning-anchor";
 import { formatGenerationExplanation, type CycleDayGenerationExplanation } from "../../../core/cycle-day-planning/format-generation-explanation";
 import {
     buildSessionDecisionTrace,
@@ -13,6 +14,7 @@ import type {
     ClassGroup,
     ClassPlan,
     CycleDayPlanningContext,
+    DailyLessonPlan,
     ProgressionDimension,
     RecentSessionSummary,
     RepetitionAdjustment,
@@ -48,6 +50,7 @@ import { buildRecentSessionSummary } from "./build-recent-session-summary";
 export type BuildAutoPlanForCycleDayParams = {
   classGroup: ClassGroup;
   classPlan?: ClassPlan | null;
+  dailyLessonPlan?: DailyLessonPlan | null;
   students: Student[];
   sessionDate: string;
   scoutingCounts?: ScoutingCounts | null;
@@ -150,6 +153,10 @@ export const buildAutoPlanForCycleDay = (
   params: BuildAutoPlanForCycleDayParams
 ): AutoPlanForCycleDayResult => {
   const recentPlans = [...(params.recentPlans ?? [])].slice(0, 5);
+  const dailyPlanAnchor = buildDailyLessonPlanningAnchor({
+    dailyLessonPlan: params.dailyLessonPlan,
+    ageBand: params.classGroup.ageBand,
+  });
   const recentSessions =
     params.recentSessions ??
     buildRecentSessionSummary({
@@ -168,6 +175,7 @@ export const buildAutoPlanForCycleDay = (
     recentSessions,
     scoutingCounts: params.scoutingCounts,
     scoutingSignal: params.scoutingSignal,
+    dailyPlanAnchor,
     sessionIndexInWeek: params.sessionIndexInWeek,
   });
   const strategyDecision = resolveSessionStrategyDecisionFromCycleContext(cycleContext);
@@ -197,6 +205,7 @@ export const buildAutoPlanForCycleDay = (
     recentPlans,
     recentSessions,
     upcomingEvents: params.upcomingEvents ?? [],
+    dailyPlanAnchor,
   });
   sessionPlanningContext.classProfile.size = params.students.length;
   const pkg = buildPedagogicalInputFromContext({
@@ -265,6 +274,7 @@ export const buildAutoPlanForCycleDay = (
     reportFeedbackInfluence: strategyDecision.reportFeedbackInfluence,
     scoutingCounts: params.scoutingCounts,
     scoutingSignal: params.scoutingSignal,
+    dailyPlanAnchor,
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,
   });

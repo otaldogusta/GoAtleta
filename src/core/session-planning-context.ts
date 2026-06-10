@@ -10,6 +10,7 @@ import {
   SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
   summarizeReportFeedbackSignals,
   type SessionPlanningContext,
+  type SessionPlanningDailyPlanAnchor,
   type SessionPlanningUpcomingEvent,
 } from "./session-planning-context-contract";
 
@@ -18,6 +19,7 @@ export type {
   ReportFeedbackSignal,
   SessionPlanningClassProfile,
   SessionPlanningContext,
+  SessionPlanningDailyPlanAnchor,
   SessionPlanningUpcomingEvent,
 } from "./session-planning-context-contract";
 export {
@@ -94,6 +96,7 @@ export const buildSessionPlanningContext = (params: {
   recentPlans?: TrainingPlan[];
   recentSessions?: RecentSessionSummary[];
   upcomingEvents?: SessionPlanningUpcomingEvent[];
+  dailyPlanAnchor?: SessionPlanningDailyPlanAnchor | null;
 }): SessionPlanningContext => {
   const recentPlans = [...(params.recentPlans ?? [])].slice(0, 5);
   const recentDifficulties = uniqueStrings(
@@ -138,7 +141,11 @@ export const buildSessionPlanningContext = (params: {
       heterogeneity:
         params.cycleContext.historicalConfidence === "none" ? "desconhecida" : "contextualizada",
     },
-    constraints: [...params.cycleContext.constraints],
+    constraints: uniqueStrings([
+      ...params.cycleContext.constraints,
+      ...(params.dailyPlanAnchor?.constraintHints ?? []),
+    ]),
+    ...(params.dailyPlanAnchor ? { dailyPlanAnchor: params.dailyPlanAnchor } : {}),
     ...(reportFeedback ? { reportFeedback } : {}),
   };
 };

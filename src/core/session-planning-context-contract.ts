@@ -33,6 +33,27 @@ export type ReportFeedbackSignal = {
   notes: string[];
 };
 
+export type SessionPlanningDailyPlanAnchor = {
+  schemaVersion: 1;
+  dailyPlanId: string;
+  weeklyPlanId: string;
+  sessionDate: string;
+  title: string;
+  objectiveHint?: string;
+  plannedBlocks: Array<{
+    key: "warmup" | "main" | "cooldown";
+    label: string;
+    activities: string[];
+  }>;
+  observations?: string;
+  syncStatus?: "in_sync" | "out_of_sync" | "overridden" | "stale_parent";
+  skillHints: VolleyballSkill[];
+  activityHints: string[];
+  constraintHints: string[];
+  conflictResolved: boolean;
+  conflictReasons: string[];
+};
+
 export type SessionPlanningContext = {
   schemaVersion: SessionPlanningContextSchemaVersion;
   classId: string;
@@ -58,6 +79,7 @@ export type SessionPlanningContext = {
   classProfile: SessionPlanningClassProfile;
   constraints: string[];
   reportFeedback?: ReportFeedbackSignal;
+  dailyPlanAnchor?: SessionPlanningDailyPlanAnchor;
 };
 
 export type ParsedSessionPlanningContext =
@@ -97,6 +119,64 @@ const stringArray = (value: unknown): string[] =>
 
 const isVolleyballSkill = (value: unknown): value is VolleyballSkill =>
   typeof value === "string" && volleyballSkills.includes(value as VolleyballSkill);
+
+const parseDailyPlanAnchor = (value: unknown): SessionPlanningDailyPlanAnchor | undefined => {
+  if (!isRecord(value)) return undefined;
+  const dailyPlanId = stringValue(value.dailyPlanId);
+  const weeklyPlanId = stringValue(value.weeklyPlanId);
+  const sessionDate = stringValue(value.sessionDate);
+  if (!dailyPlanId || !weeklyPlanId || !sessionDate) return undefined;
+
+  const plannedBlocks = Array.isArray(value.plannedBlocks)
+    ? value.plannedBlocks
+        .filter(isRecord)
+        .map((block) => {
+          const key = stringValue(block.key);
+          if (key !== "warmup" && key !== "main" && key !== "cooldown") return null;
+          return {
+            key,
+            label: stringValue(block.label) || key,
+            activities: stringArray(block.activities),
+          };
+        })
+        .filter(
+          (
+            block
+          ): block is {
+            key: "warmup" | "main" | "cooldown";
+            label: string;
+            activities: string[];
+          } => Boolean(block)
+        )
+    : [];
+
+  const syncStatus = stringValue(value.syncStatus);
+
+  return {
+    schemaVersion: 1,
+    dailyPlanId,
+    weeklyPlanId,
+    sessionDate,
+    title: stringValue(value.title),
+    objectiveHint: stringValue(value.objectiveHint) || undefined,
+    plannedBlocks,
+    observations: stringValue(value.observations) || undefined,
+    syncStatus:
+      syncStatus === "in_sync" ||
+      syncStatus === "out_of_sync" ||
+      syncStatus === "overridden" ||
+      syncStatus === "stale_parent"
+        ? syncStatus
+        : undefined,
+    skillHints: Array.isArray(value.skillHints)
+      ? value.skillHints.filter(isVolleyballSkill)
+      : [],
+    activityHints: stringArray(value.activityHints),
+    constraintHints: stringArray(value.constraintHints),
+    conflictResolved: Boolean(value.conflictResolved),
+    conflictReasons: stringArray(value.conflictReasons),
+  };
+};
 
 export const parseSessionPlanningContext = (
   value: unknown
@@ -173,6 +253,7 @@ export const parseSessionPlanningContext = (
       heterogeneity: stringValue(classProfile.heterogeneity) || "desconhecida",
     },
     constraints: stringArray(value.constraints),
+    dailyPlanAnchor: parseDailyPlanAnchor(value.dailyPlanAnchor),
   };
 
   return { status, context, warnings };

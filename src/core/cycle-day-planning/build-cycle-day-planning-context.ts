@@ -21,6 +21,7 @@ import {
   type ScoutingCounts,
   type ScoutingPlanningSignal,
 } from "../scouting";
+import type { SessionPlanningDailyPlanAnchor } from "../session-planning-context-contract";
 import { resolveDominantBlockStrategyProfile } from "./resolve-block-dominant-strategy";
 import { resolveHistoricalConfidence } from "./resolve-historical-confidence";
 import { resolvePedagogicalDecisionSupport } from "./resolve-pedagogical-decision-support";
@@ -33,6 +34,7 @@ export type BuildCycleDayPlanningContextParams = {
   recentSessions?: RecentSessionSummary[] | null;
   scoutingCounts?: ScoutingCounts | null;
   scoutingSignal?: ScoutingPlanningSignal | null;
+  dailyPlanAnchor?: SessionPlanningDailyPlanAnchor | null;
   sessionIndexInWeek?: number;
 };
 
@@ -260,10 +262,15 @@ const resolvePrimarySkill = (params: {
   classPlan?: ClassPlan | null;
   scoutingCounts?: ScoutingCounts | null;
   scoutingSignal?: ScoutingPlanningSignal | null;
+  dailyPlanAnchor?: SessionPlanningDailyPlanAnchor | null;
   recentSkills: VolleyballSkill[];
   sessionIndexInWeek: number;
 }): VolleyballSkill => {
   const technicalFocusSkill = resolveSkillFromText(params.classPlan?.technicalFocus);
+  const dailyPlanSkill =
+    params.dailyPlanAnchor?.skillHints.find((skill) => skill === technicalFocusSkill) ??
+    params.dailyPlanAnchor?.skillHints[0] ??
+    null;
   const themeSkill = resolveSkillFromText(params.classPlan?.theme);
   const goalSkill = resolveSkillFromText(params.classGroup.goal);
   const modalitySkill = resolveSkillFromText(params.classGroup.modality);
@@ -273,6 +280,7 @@ const resolvePrimarySkill = (params: {
       ? params.recentSkills[0]
       : null;
 
+  if (dailyPlanSkill) return dailyPlanSkill;
   if (technicalFocusSkill) return technicalFocusSkill;
 
   const candidates = uniqueStrings([scoutingSkill, themeSkill, goalSkill, modalitySkill]) as VolleyballSkill[];
@@ -289,10 +297,12 @@ const resolveSecondarySkill = (params: {
   primarySkill: VolleyballSkill;
   classGroup: ClassGroup;
   classPlan?: ClassPlan | null;
+  dailyPlanAnchor?: SessionPlanningDailyPlanAnchor | null;
   recentSkills: VolleyballSkill[];
   sessionIndexInWeek: number;
 }): VolleyballSkill | undefined => {
   const candidates = uniqueStrings([
+    ...(params.dailyPlanAnchor?.skillHints ?? []),
     resolveSkillFromText(params.classPlan?.theme),
     resolveSkillFromText(params.classGroup.goal),
     resolveSkillFromText(params.classGroup.modality),
@@ -569,6 +579,7 @@ export const buildCycleDayPlanningContext = (
     classPlan: params.classPlan,
     scoutingCounts: params.scoutingCounts,
     scoutingSignal,
+    dailyPlanAnchor: params.dailyPlanAnchor,
     recentSkills,
     sessionIndexInWeek,
   });
@@ -606,6 +617,7 @@ export const buildCycleDayPlanningContext = (
       primarySkill,
       classGroup: params.classGroup,
       classPlan: params.classPlan,
+      dailyPlanAnchor: params.dailyPlanAnchor,
       recentSkills,
       sessionIndexInWeek,
     }),
@@ -630,7 +642,7 @@ export const buildCycleDayPlanningContext = (
       [params.classGroup.goal, params.classPlan?.constraints, params.classGroup.equipment]
         .filter(Boolean)
         .join(", ")
-    ),
+    ).concat(params.dailyPlanAnchor?.constraintHints ?? []),
     mustAvoidRepeating: resolveRepeatGuards(recentSessions),
     mustProgressFrom: resolveProgressionAnchor(recentSessions),
     allowedDrillFamilies: resolveAllowedDrillFamilies({

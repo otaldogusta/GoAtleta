@@ -45,6 +45,8 @@ const expectStandardPdfText = (html: string) => {
     "Critério de sucesso",
     "Adaptação",
     "decisionTrace",
+    "periodizationDaily",
+    "dailyPlanAnchor",
     "schemaVersion",
     "teacherFacingSummary",
     "primarySkill",
