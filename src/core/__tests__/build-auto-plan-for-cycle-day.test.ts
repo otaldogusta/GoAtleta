@@ -323,6 +323,40 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(visibleText).not.toMatch(/Passe orientado|Cone pega-toque|segundo contato/i);
   });
 
+  it("ignores a daily lesson plan from another session date", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "07-09",
+        durationMinutes: 60,
+        daysPerWeek: 1,
+        daysOfWeek: [2],
+        goal: "Saque por baixo com alvo",
+        level: 1,
+      }),
+      classPlan: buildClassPlan({
+        phase: "desenvolvimento",
+        theme: "Saque por baixo",
+        technicalFocus: "Saque",
+      }),
+      dailyLessonPlan: buildDailyLessonPlan({
+        date: "2026-04-06",
+        title: "Passe e manchete de outro dia",
+        observations: "Objetivo da aula: passe e manchete em cooperação.",
+      }),
+      students: [buildStudent({ age: 8, birthDate: "2018-01-01" })],
+      sessionDate: "2026-04-07",
+      recentPlans: [],
+    });
+
+    expect(result.sessionPlanningContext.dailyPlanAnchor).toBeUndefined();
+    expect(result.strategy.primarySkill).toBe("saque");
+    expect(result.decisionTrace.influences.periodizationDaily).toMatchObject({
+      used: false,
+      conflictReasons: [],
+    });
+    expect(result.decisionTrace.decision.primarySkill).toBe("saque");
+  });
+
   it("resolves conflicting 2x2 and 3x3 daily plan signals for young groups", () => {
     const result = buildAutoPlanForCycleDay({
       classGroup: buildClassGroup({
