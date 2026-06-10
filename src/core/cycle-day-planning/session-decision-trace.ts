@@ -8,6 +8,7 @@ import type { SessionPedagogyEnvelopeDiagnostics } from "../resolve-session-peda
 import type { AgeSanitizerDiagnostics } from "../sanitize-plan-for-age-band";
 import { getTotalActions, type ScoutingCounts } from "../scouting";
 import type { SessionPlanningContext } from "../session-planning-context-contract";
+import type { ReportFeedbackInfluence } from "./apply-report-feedback-rules";
 import type { CycleDayGenerationExplanation } from "./format-generation-explanation";
 
 export type SessionDecisionTrace = {
@@ -68,6 +69,8 @@ export type SessionDecisionTrace = {
     reportFeedback: {
       used: boolean;
       signals: string[];
+      rulesApplied?: string[];
+      adjusted?: boolean;
     };
   };
   safeguards: {
@@ -134,6 +137,7 @@ export const buildSessionDecisionTrace = (params: {
   explanation: CycleDayGenerationExplanation;
   repetitionAdjustment: RepetitionAdjustment;
   overrideAdjusted: boolean;
+  reportFeedbackInfluence?: ReportFeedbackInfluence;
   scoutingCounts?: ScoutingCounts | null;
   ageSanitizer: AgeSanitizerDiagnostics;
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
@@ -147,6 +151,7 @@ export const buildSessionDecisionTrace = (params: {
     .filter((skill): skill is SessionStrategy["primarySkill"] => Boolean(skill));
   const periodizationUsed = hasRealClassPlan(params.classPlan);
   const reportSignals = cleanList(params.sessionPlanningContext.reportFeedback?.notes ?? []);
+  const reportRulesApplied = cleanList(params.reportFeedbackInfluence?.rulesApplied ?? []);
 
   const traceWithoutSummary: Omit<SessionDecisionTrace, "teacherFacingSummary"> = {
     schemaVersion: 1,
@@ -206,8 +211,10 @@ export const buildSessionDecisionTrace = (params: {
         mustProgressFrom: params.cycleContext.mustProgressFrom,
       },
       reportFeedback: {
-        used: reportSignals.length > 0,
+        used: reportSignals.length > 0 || Boolean(params.reportFeedbackInfluence?.applied),
         signals: reportSignals,
+        rulesApplied: reportRulesApplied,
+        adjusted: Boolean(params.reportFeedbackInfluence?.applied),
       },
     },
     safeguards: {

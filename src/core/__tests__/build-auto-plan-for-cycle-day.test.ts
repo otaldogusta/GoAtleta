@@ -734,6 +734,91 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.decisionTrace.influences.reportFeedback.signals).toEqual(
       expect.arrayContaining(["low_participation", "recurring_technical_difficulty"])
     );
+    expect(result.decisionTrace.influences.reportFeedback.adjusted).toBe(true);
+    expect(result.decisionTrace.influences.reportFeedback.rulesApplied).toEqual(
+      expect.arrayContaining([
+        "report_feedback_participation_rebuild",
+        "report_feedback_technical_regression",
+      ])
+    );
+    expect(result.explanation.debug.reportFeedbackAdjusted).toBe(true);
+    expect(result.explanation.debug.reportFeedbackSignals).toEqual(
+      expect.arrayContaining(["low_participation", "recurring_technical_difficulty"])
+    );
+    expect(result.explanation.debug.reportFeedbackRulesApplied).toEqual(
+      expect.arrayContaining([
+        "report_feedback_participation_rebuild",
+        "report_feedback_technical_regression",
+      ])
+    );
+  });
+
+  it("uses previous report feedback to reduce complexity without changing the planned skill", () => {
+    const classGroup = buildClassGroup({
+      ageBand: "13-15",
+      daysPerWeek: 2,
+      daysOfWeek: [2, 5],
+      goal: "Ataque e transicao",
+      level: 3,
+    });
+    const classPlan = buildClassPlan({
+      phase: "desenvolvimento",
+      theme: "Ataque com leitura",
+      technicalFocus: "Ataque",
+      rpeTarget: "PSE 6",
+    });
+    const baseline = buildAutoPlanForCycleDay({
+      classGroup,
+      classPlan,
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      recentSessions: [
+        buildRecentSession({
+          sessionDate: "2026-04-03",
+          primarySkill: "defesa",
+          progressionDimension: "pressao_tempo",
+        }),
+      ],
+      sessionIndexInWeek: 2,
+    });
+    const withReportFeedback = buildAutoPlanForCycleDay({
+      classGroup,
+      classPlan,
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      recentSessions: [
+        buildRecentSession({
+          sessionDate: "2026-04-03",
+          primarySkill: "defesa",
+          progressionDimension: "pressao_tempo",
+          pedagogicalFeedbackSignals: [
+            "low_participation",
+            "class_agitation",
+            "recurring_technical_difficulty",
+          ],
+        }),
+      ],
+      sessionIndexInWeek: 2,
+    });
+
+    expect(withReportFeedback.strategy.primarySkill).toBe(baseline.strategy.primarySkill);
+    expect(withReportFeedback.strategy.primarySkill).toBe("ataque");
+    expect(withReportFeedback.explanation.debug.reportFeedbackAdjusted).toBe(true);
+    expect(withReportFeedback.explanation.debug.reportFeedbackRulesApplied).toEqual(
+      expect.arrayContaining([
+        "report_feedback_participation_rebuild",
+        "report_feedback_climate_mediation",
+        "report_feedback_technical_regression",
+      ])
+    );
+    expect(withReportFeedback.strategy.loadIntent).not.toBe("alto");
+    expect(withReportFeedback.strategy.oppositionLevel).not.toBe("high");
+    expect(withReportFeedback.strategy.timePressureLevel).not.toBe("high");
+    expect(withReportFeedback.strategy.pedagogicalIntent).toBe("technical_adjustment");
+    expect(withReportFeedback.decisionTrace.influences.reportFeedback).toMatchObject({
+      used: true,
+      adjusted: true,
+    });
   });
 
   it("records anti-repetition safeguards in the decision trace", () => {

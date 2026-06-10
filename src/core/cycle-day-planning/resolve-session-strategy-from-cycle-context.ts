@@ -11,6 +11,10 @@ import {
     type OperationalPedagogyInfluence,
 } from "./apply-operational-pedagogy-rules";
 import {
+    applyReportFeedbackRules,
+    type ReportFeedbackInfluence,
+} from "./apply-report-feedback-rules";
+import {
     applyDominantBlockStrategy,
     type DominantBlockStrategyInfluence,
 } from "./resolve-block-dominant-strategy";
@@ -33,6 +37,8 @@ export type SessionStrategyResolution = {
   strategy: SessionStrategy;
   overrideAdjusted: boolean;
   overrideInfluence: TeacherOverrideInfluence;
+  reportFeedbackAdjusted: boolean;
+  reportFeedbackInfluence: ReportFeedbackInfluence;
   operationalAdjusted: boolean;
   operationalInfluence: OperationalPedagogyInfluence;
 };
@@ -371,12 +377,16 @@ export const resolveSessionStrategyDecisionFromCycleContext = (
     context,
     strategy: overrideResult.strategy,
   });
+  const reportFeedbackResult = applyReportFeedbackRules({
+    context,
+    strategy: operationalResult.strategy,
+  });
 
   const finalStrategy = {
-    ...operationalResult.strategy,
+    ...reportFeedbackResult.strategy,
     pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({
       context,
-      strategy: operationalResult.strategy,
+      strategy: reportFeedbackResult.strategy,
     }),
   };
 
@@ -389,6 +399,8 @@ export const resolveSessionStrategyDecisionFromCycleContext = (
     strategy: finalStrategy,
     overrideAdjusted: overrideResult.adjusted,
     overrideInfluence: overrideResult.influence,
+    reportFeedbackAdjusted: reportFeedbackResult.influence.applied,
+    reportFeedbackInfluence: reportFeedbackResult.influence,
     operationalAdjusted: operationalResult.influence.applied,
     operationalInfluence: operationalResult.influence,
   };
