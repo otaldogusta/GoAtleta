@@ -95,6 +95,15 @@ export function OverviewTab({
   const showAnnualCoverageWarning = Boolean(
     selectedClass && isAnnualCycle(cycleLength) && missingWeeks > 0
   );
+  const hasGeneratedCycle = Boolean(activeCycle || hasWeekPlans);
+  const canGenerateCycle = Boolean(selectedClass) && !isSavingPlans && !hasGeneratedCycle;
+  const canRegenerateCycle = Boolean(selectedClass) && !isSavingPlans && hasGeneratedCycle;
+  const canRemoveCycle = Boolean(selectedClass) && !isSavingPlans;
+
+  const handleGenerateCycle = () => {
+    if (!selectedClass || isSavingPlans) return;
+    onGenerateCycle();
+  };
 
   return (
     <>
@@ -106,13 +115,51 @@ export function OverviewTab({
         ]}
       >
 
-        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
 
-          {normalizeText("Visão geral")}
+            {normalizeText("Visão geral")}
 
-        </Text>
+          </Text>
 
-        {activeCycle ? (
+          {hasGeneratedCycle ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Gerar ciclo novamente"
+              onPress={() => {
+                if (!canRegenerateCycle) return;
+                handleGenerateCycle();
+              }}
+              disabled={!canRegenerateCycle}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                opacity: canRegenerateCycle ? 1 : 0.55,
+              }}
+            >
+              <Ionicons
+                name="refresh"
+                size={16}
+                color={canRegenerateCycle ? colors.text : colors.secondaryText}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {hasGeneratedCycle ? (
           <View
             style={{
               flexDirection: "row",
@@ -135,7 +182,7 @@ export function OverviewTab({
             >
               <Ionicons name="checkmark-circle" size={12} color={colors.successText} />
               <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
-                {normalizeText(`Ciclo ativo · ${activeCycle.title}`)}
+                {normalizeText(activeCycle ? `Ciclo ativo · ${activeCycle.title}` : "Ciclo gerado")}
               </Text>
             </View>
             {historyCycles.length > 0 ? (
@@ -697,7 +744,9 @@ export function OverviewTab({
 
         <Text style={{ marginTop: 6, color: colors.muted, fontSize: 12, lineHeight: 17 }}>
           {selectedClass
-            ? "Gere ou atualize o ciclo de semanas desta turma."
+            ? hasGeneratedCycle
+              ? "Ciclo já gerado. Use o ícone de atualizar na visão geral para gerar novamente."
+              : "Gere o ciclo de semanas desta turma."
             : "Selecione uma turma para visualizar ou gerar o ciclo."}
         </Text>
 
@@ -705,13 +754,13 @@ export function OverviewTab({
 
           onPress={() => {
 
-            if (!selectedClass || isSavingPlans) return;
+            if (!canGenerateCycle) return;
 
-            onGenerateCycle();
+            handleGenerateCycle();
 
           }}
 
-          disabled={!selectedClass || isSavingPlans}
+          disabled={!canGenerateCycle}
 
           style={{
 
@@ -726,7 +775,7 @@ export function OverviewTab({
 
             backgroundColor:
 
-              !selectedClass || isSavingPlans
+              !canGenerateCycle
 
                 ? colors.primaryDisabledBg
 
@@ -742,7 +791,7 @@ export function OverviewTab({
 
               color:
 
-                !selectedClass || isSavingPlans
+                !canGenerateCycle
 
                   ? colors.secondaryText
 
@@ -754,7 +803,13 @@ export function OverviewTab({
 
           >
 
-            {isSavingPlans ? "Salvando..." : selectedClass ? "Gerar ciclo" : "Selecione uma turma"}
+            {isSavingPlans
+              ? "Salvando..."
+              : !selectedClass
+                ? "Selecione uma turma"
+                : hasGeneratedCycle
+                  ? "Ciclo já gerado"
+                  : "Gerar ciclo"}
 
           </Text>
 
@@ -763,10 +818,10 @@ export function OverviewTab({
         {hasWeekPlans ? (
           <Pressable
             onPress={() => {
-              if (!selectedClass || isSavingPlans) return;
+              if (!canRemoveCycle) return;
               onRemoveCycle();
             }}
-            disabled={!selectedClass || isSavingPlans}
+            disabled={!canRemoveCycle}
             style={{
               marginTop: 8,
               marginRight: reserveFloatingActionSpace ? 72 : 0,
@@ -774,7 +829,7 @@ export function OverviewTab({
               borderRadius: 12,
               alignItems: "center",
               backgroundColor: colors.dangerSolidBg,
-              opacity: !selectedClass || isSavingPlans ? 0.6 : 1,
+              opacity: canRemoveCycle ? 1 : 0.6,
             }}
           >
             <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
