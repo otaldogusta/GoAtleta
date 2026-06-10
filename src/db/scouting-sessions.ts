@@ -278,6 +278,36 @@ export async function getScoutingSessionsByClass(
   }
 }
 
+export async function getLatestScoutingSessionDetailForPlanning(
+  classId: string,
+  sessionDate: string,
+  options: { organizationId?: string | null; limit?: number } = {}
+): Promise<ScoutingSessionDetail | null> {
+  try {
+    const organizationId = options.organizationId ?? (await getActiveOrganizationId());
+    const limit = typeof options.limit === "number" && options.limit > 0 ? options.limit : 8;
+    const rows = await supabaseGet<ScoutingSessionRow[]>(
+      `/scouting_sessions?select=*&classid=eq.${encodeURIComponent(classId)}` +
+        `&date=lte.${encodeURIComponent(sessionDate)}` +
+        (organizationId ? `&organization_id=eq.${encodeURIComponent(organizationId)}` : "") +
+        `&order=date.desc&order=updatedat.desc&order=createdat.desc&limit=${Math.floor(limit)}`
+    );
+    for (const row of rows) {
+      const session = scoutingSessionRowToModel(row);
+      const actions = await getActionsBySessionId(session.id, organizationId);
+      if (actions.length) {
+        return { session, actions };
+      }
+    }
+    return null;
+  } catch (error) {
+    if (isMissingRelation(error, "scouting_sessions")) return null;
+    if (isMissingRelation(error, "scouting_actions")) return null;
+    if (isAuthError(error) || isNetworkError(error)) return null;
+    throw error;
+  }
+}
+
 export async function addScoutingAction(input: AddScoutingActionInput): Promise<ScoutingSessionDetail> {
   const detail = await getScoutingSessionById(input.sessionId);
   if (!detail) {
