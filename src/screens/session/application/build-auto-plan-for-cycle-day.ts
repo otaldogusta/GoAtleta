@@ -247,6 +247,8 @@ export const buildAutoPlanForCycleDay = (
     loadInfluence: strategyDecision.loadInfluence,
     overrideAdjusted: strategyDecision.overrideAdjusted,
     overrideInfluence: strategyDecision.overrideInfluence,
+    reportFeedbackAdjusted: strategyDecision.reportFeedbackAdjusted,
+    reportFeedbackInfluence: strategyDecision.reportFeedbackInfluence,
     operationalAdjusted: strategyDecision.operationalAdjusted,
     operationalInfluence: strategyDecision.operationalInfluence,
   });
@@ -258,6 +260,7 @@ export const buildAutoPlanForCycleDay = (
     explanation,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     overrideAdjusted: strategyDecision.overrideAdjusted,
+    reportFeedbackInfluence: strategyDecision.reportFeedbackInfluence,
     scoutingCounts: params.scoutingCounts,
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,

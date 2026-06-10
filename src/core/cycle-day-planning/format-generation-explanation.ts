@@ -7,6 +7,7 @@ import type {
     TrainingPlanGenerationHistoryMode,
 } from "../models";
 import type { OperationalPedagogyInfluence } from "./apply-operational-pedagogy-rules";
+import type { ReportFeedbackInfluence } from "./apply-report-feedback-rules";
 import type { DominantBlockStrategyInfluence } from "./resolve-block-dominant-strategy";
 import type { LoadModulationInfluence } from "./resolve-load-modulation";
 import type { TeacherOverrideInfluence } from "./resolve-teacher-override-weight";
@@ -51,6 +52,10 @@ export type CycleDayGenerationExplanation = TrainingPlanGenerationExplanation & 
     overrideAdjusted: boolean;
     overridePreferredPrimarySkill?: TeacherOverrideInfluence["preferredPrimarySkill"];
     overridePreferredProgressionDimension?: TeacherOverrideInfluence["preferredProgressionDimension"];
+    reportFeedbackAdjusted: boolean;
+    reportFeedbackSignals: string[];
+    reportFeedbackRulesApplied: string[];
+    reportFeedbackChangedFields: string[];
     operationalAdjusted: boolean;
     operationalRulesApplied: string[];
     operationalChangedFields: string[];
@@ -109,6 +114,13 @@ const overrideStrengthLabel: Record<TeacherOverrideInfluence["strength"], string
   strong: "forte",
 };
 
+const EMPTY_REPORT_FEEDBACK_INFLUENCE: ReportFeedbackInfluence = {
+  applied: false,
+  signals: [],
+  rulesApplied: [],
+  changedFields: [],
+};
+
 const resolveHistoryMode = (confidence: HistoricalConfidence): GenerationHistoryMode => {
   if (confidence === "none") return "bootstrap";
   if (confidence === "high") return "strong_history";
@@ -146,8 +158,12 @@ const buildCoachSummary = (params: {
   dominantBlockInfluence: DominantBlockStrategyInfluence;
   loadAdjusted: boolean;
   loadInfluence: LoadModulationInfluence;
+  reportFeedbackAdjusted?: boolean;
+  reportFeedbackInfluence?: ReportFeedbackInfluence;
   repetitionAdjustment: RepetitionAdjustment;
 }) => {
+  const reportFeedbackInfluence =
+    params.reportFeedbackInfluence ?? EMPTY_REPORT_FEEDBACK_INFLUENCE;
   const sentences = [
     `${formatHistoryLabel(params.historyMode)} na fase ${phaseIntentLabel[params.phaseIntent]}. Sessão ${params.sessionIndexInWeek}/${params.daysPerWeek} com foco em ${skillLabel[params.strategy.primarySkill]} para ${buildFocusReason(params.strategy)}.`,
   ];
@@ -182,6 +198,10 @@ const buildCoachSummary = (params: {
     );
   }
 
+  if (reportFeedbackInfluence.applied) {
+    sentences.push("Relatório anterior ajustou complexidade e organização da próxima aula.");
+  }
+
   if (params.repetitionAdjustment.detected) {
     const reasonLabel = resolveGuardReasonLabel(params.repetitionAdjustment.reason);
     sentences.push(`Variação anti-repetição aplicada por ${reasonLabel}.`);
@@ -203,9 +223,14 @@ export const formatGenerationExplanation = (params: {
   loadInfluence: LoadModulationInfluence;
   overrideAdjusted: boolean;
   overrideInfluence: TeacherOverrideInfluence;
+  reportFeedbackAdjusted?: boolean;
+  reportFeedbackInfluence?: ReportFeedbackInfluence;
   operationalAdjusted: boolean;
   operationalInfluence: OperationalPedagogyInfluence;
 }): CycleDayGenerationExplanation => {
+  const reportFeedbackInfluence =
+    params.reportFeedbackInfluence ?? EMPTY_REPORT_FEEDBACK_INFLUENCE;
+  const reportFeedbackAdjusted = Boolean(params.reportFeedbackAdjusted);
   const historyMode = resolveHistoryMode(params.cycleContext.historicalConfidence);
   const recentSessions = params.cycleContext.recentSessions;
   const recentAppliedCount = recentSessions.filter((session) => session.wasApplied).length;
@@ -232,6 +257,10 @@ export const formatGenerationExplanation = (params: {
 
   if (params.operationalAdjusted && params.operationalInfluence.rulesApplied.length) {
     fragments.push(`regras operacionais: ${params.operationalInfluence.rulesApplied.join(", ")}`);
+  }
+
+  if (reportFeedbackAdjusted && reportFeedbackInfluence.rulesApplied.length) {
+    fragments.push(`feedback do relatório: ${reportFeedbackInfluence.rulesApplied.join(", ")}`);
   }
 
   if (
@@ -268,6 +297,8 @@ export const formatGenerationExplanation = (params: {
     dominantBlockInfluence: params.dominantBlockInfluence,
     loadAdjusted: params.loadAdjusted,
     loadInfluence: params.loadInfluence,
+    reportFeedbackAdjusted,
+    reportFeedbackInfluence,
     repetitionAdjustment: params.repetitionAdjustment,
   });
 
@@ -316,6 +347,10 @@ export const formatGenerationExplanation = (params: {
       overridePreferredPrimarySkill: params.overrideInfluence.preferredPrimarySkill,
       overridePreferredProgressionDimension:
         params.overrideInfluence.preferredProgressionDimension,
+      reportFeedbackAdjusted,
+      reportFeedbackSignals: [...reportFeedbackInfluence.signals],
+      reportFeedbackRulesApplied: [...reportFeedbackInfluence.rulesApplied],
+      reportFeedbackChangedFields: [...reportFeedbackInfluence.changedFields],
       operationalAdjusted: params.operationalAdjusted,
       operationalRulesApplied: [...params.operationalInfluence.rulesApplied],
       operationalChangedFields: [...params.operationalInfluence.changedFields],
