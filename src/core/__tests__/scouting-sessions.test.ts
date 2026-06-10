@@ -106,6 +106,7 @@ describe("scouting session helpers", () => {
       dominantWeakSkill: "defesa",
       dominantWeakFundamental: "defesa",
       dominantWeakPhase: "transicao",
+      dominantGapType: "tomada_decisao",
       difficulty: "high",
       sampleSize: 8,
       confidence: "medium",
@@ -122,9 +123,51 @@ describe("scouting session helpers", () => {
       })
     ).toMatchObject({
       dominantWeakSkill: "passe",
+      dominantGapType: "tecnica",
       difficulty: "high",
       sampleSize: 42,
       confidence: "high",
+    });
+  });
+
+  test("preserves rich coverage, transition and communication gaps for planning", () => {
+    expect(
+      toScoutingPlanningSignal([
+        action("1", { fundamental: "cobertura", phase: "transicao", resultLevel: 0 }),
+        action("2", { fundamental: "cobertura", phase: "transicao", resultLevel: 1 }),
+        action("3", { fundamental: "cobertura", phase: "transicao", resultLevel: 1 }),
+        action("4", { fundamental: "transicao", phase: "transicao", resultLevel: 2 }),
+        action("5", { fundamental: "transicao", phase: "transicao", resultLevel: 2 }),
+        action("6", { fundamental: "comunicacao", phase: "side_out", resultLevel: 2 }),
+        action("7", { fundamental: "comunicacao", phase: "side_out", resultLevel: 2 }),
+        action("8", { fundamental: "recepcao", phase: "side_out", resultLevel: 3 }),
+      ])
+    ).toMatchObject({
+      dominantWeakSkill: "defesa",
+      dominantWeakFundamental: "cobertura",
+      dominantWeakPhase: "transicao",
+      dominantGapType: "organizacao",
+      sampleSize: 8,
+      confidence: "medium",
+    });
+
+    expect(
+      toScoutingPlanningSignal([
+        action("1", { fundamental: "comunicacao", phase: "side_out", resultLevel: 0 }),
+        action("2", { fundamental: "comunicacao", phase: "side_out", resultLevel: 1 }),
+        action("3", { fundamental: "comunicacao", phase: "side_out", resultLevel: 1 }),
+        action("4", { fundamental: "recepcao", phase: "side_out", resultLevel: 3 }),
+        action("5", { fundamental: "recepcao", phase: "side_out", resultLevel: 3 }),
+        action("6", { fundamental: "saque", phase: "saque", resultLevel: 2 }),
+        action("7", { fundamental: "saque", phase: "saque", resultLevel: 2 }),
+        action("8", { fundamental: "ataque", phase: "transicao", resultLevel: 3 }),
+      ])
+    ).toMatchObject({
+      dominantWeakSkill: "passe",
+      dominantWeakFundamental: "comunicacao",
+      dominantGapType: "organizacao",
+      sampleSize: 8,
+      confidence: "medium",
     });
   });
 });

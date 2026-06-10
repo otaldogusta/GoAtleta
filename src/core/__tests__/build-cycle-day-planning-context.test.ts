@@ -1,5 +1,6 @@
 import { buildCycleDayPlanningContext } from "../cycle-day-planning/build-cycle-day-planning-context";
 import type { ClassGroup, ClassPlan, RecentSessionSummary } from "../models";
+import type { ScoutingPlanningSignal } from "../scouting";
 
 const buildClassGroup = (overrides: Partial<ClassGroup> = {}): ClassGroup => ({
   id: "class_1",
@@ -142,5 +143,36 @@ describe("buildCycleDayPlanningContext", () => {
 
     expect(foundationalContext.primarySkill).toBe("passe");
     expect(enduranceContext.primarySkill).toBe("defesa");
+  });
+
+  it("uses rich scouting signal for dominant skill and gap type without legacy counts", () => {
+    const scoutingSignal: ScoutingPlanningSignal = {
+      dominantWeakSkill: "defesa",
+      dominantWeakFundamental: "cobertura",
+      dominantWeakPhase: "transicao",
+      dominantGapType: "organizacao",
+      difficulty: "high",
+      sampleSize: 12,
+      confidence: "medium",
+    };
+
+    const context = buildCycleDayPlanningContext({
+      classGroup: buildClassGroup({
+        goal: "Organizacao defensiva",
+      }),
+      classPlan: buildClassPlan({
+        technicalFocus: "",
+        theme: "Jogo e cobertura",
+      }),
+      sessionDate: "2026-04-07",
+      recentSessions: [],
+      scoutingSignal,
+    });
+
+    expect(context.primarySkill).toBe("defesa");
+    expect(context.dominantGapSkill).toBe("defesa");
+    expect(context.dominantGapType).toBe("organizacao");
+    expect(context.progressionDimensionTarget).toBe("transferencia_jogo");
+    expect(context.pedagogicalIntent).toBe("game_reading");
   });
 });

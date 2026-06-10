@@ -1,7 +1,7 @@
 import { buildPeriodizationWeekSchedule } from "../../screens/periodization/application/build-auto-plan-for-cycle-day";
 import { buildAutoPlanForCycleDay } from "../../screens/session/application/build-auto-plan-for-cycle-day";
 import { buildRecentSessionSummary } from "../../screens/session/application/build-recent-session-summary";
-import type { ScoutingCounts } from "../scouting";
+import type { ScoutingCounts, ScoutingPlanningSignal } from "../scouting";
 import type {
     ClassGroup,
     ClassPlan,
@@ -751,6 +751,48 @@ describe("buildAutoPlanForCycleDay", () => {
         "report_feedback_technical_regression",
       ])
     );
+  });
+
+  it("carries rich scouting signal into planning context and decision trace", () => {
+    const scoutingSignal: ScoutingPlanningSignal = {
+      dominantWeakSkill: "defesa",
+      dominantWeakFundamental: "cobertura",
+      dominantWeakPhase: "transicao",
+      dominantGapType: "organizacao",
+      difficulty: "high",
+      sampleSize: 12,
+      confidence: "medium",
+    };
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        goal: "Cobertura e organizacao defensiva",
+      }),
+      classPlan: buildClassPlan({
+        technicalFocus: "",
+        theme: "Cobertura em transicao",
+      }),
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      scoutingCounts: {
+        serve: { 0: 0, 1: 0, 2: 0 },
+        receive: { 0: 0, 1: 0, 2: 0 },
+        set: { 0: 0, 1: 0, 2: 0 },
+        attack_send: { 0: 0, 1: 0, 2: 0 },
+      },
+      scoutingSignal,
+      recentSessions: [],
+    });
+
+    expect(result.cycleContext.primarySkill).toBe("defesa");
+    expect(result.cycleContext.dominantGapSkill).toBe("defesa");
+    expect(result.cycleContext.dominantGapType).toBe("organizacao");
+    expect(result.decisionTrace.influences.scouting).toMatchObject({
+      used: true,
+      dominantGapSkill: "defesa",
+      dominantGapType: "organizacao",
+      confidence: "medium",
+      sampleSize: 12,
+    });
   });
 
   it("uses previous report feedback to reduce complexity without changing the planned skill", () => {
