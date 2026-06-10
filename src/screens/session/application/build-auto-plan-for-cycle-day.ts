@@ -155,6 +155,7 @@ export const buildAutoPlanForCycleDay = (
   const recentPlans = [...(params.recentPlans ?? [])].slice(0, 5);
   const dailyPlanAnchor = buildDailyLessonPlanningAnchor({
     dailyLessonPlan: params.dailyLessonPlan,
+    sessionDate: params.sessionDate,
     ageBand: params.classGroup.ageBand,
   });
   const recentSessions =

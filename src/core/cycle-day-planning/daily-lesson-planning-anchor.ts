@@ -176,10 +176,12 @@ const extractConstraintHints = (text: string) => {
 
 export const buildDailyLessonPlanningAnchor = (params: {
   dailyLessonPlan?: DailyLessonPlan | null;
+  sessionDate: string;
   ageBand?: string;
 }): SessionPlanningDailyPlanAnchor | null => {
   const plan = params.dailyLessonPlan;
   if (!plan?.id || !plan.weeklyPlanId || !plan.date) return null;
+  if (plan.date !== params.sessionDate) return null;
 
   const plannedBlocks = buildPlannedBlocks(plan);
   const fullText = uniqueStrings([
