@@ -40,7 +40,7 @@ import {
     type SessionPlanningContext,
     type SessionPlanningUpcomingEvent,
 } from "../../../core/session-planning-context";
-import type { ScoutingCounts } from "../../../core/scouting";
+import type { ScoutingCounts, ScoutingPlanningSignal } from "../../../core/scouting";
 import type { ClassGenerationContext } from "./build-class-generation-context";
 import { buildPedagogicalInputFromContext } from "./build-pedagogical-input-from-context";
 import { buildRecentSessionSummary } from "./build-recent-session-summary";
@@ -51,6 +51,7 @@ export type BuildAutoPlanForCycleDayParams = {
   students: Student[];
   sessionDate: string;
   scoutingCounts?: ScoutingCounts | null;
+  scoutingSignal?: ScoutingPlanningSignal | null;
   recentPlans?: TrainingPlan[] | null;
   recentSessions?: RecentSessionSummary[] | null;
   sessions?: TrainingSession[] | null;
@@ -166,6 +167,7 @@ export const buildAutoPlanForCycleDay = (
     sessionDate: params.sessionDate,
     recentSessions,
     scoutingCounts: params.scoutingCounts,
+    scoutingSignal: params.scoutingSignal,
     sessionIndexInWeek: params.sessionIndexInWeek,
   });
   const strategyDecision = resolveSessionStrategyDecisionFromCycleContext(cycleContext);
@@ -262,6 +264,7 @@ export const buildAutoPlanForCycleDay = (
     overrideAdjusted: strategyDecision.overrideAdjusted,
     reportFeedbackInfluence: strategyDecision.reportFeedbackInfluence,
     scoutingCounts: params.scoutingCounts,
+    scoutingSignal: params.scoutingSignal,
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,
   });

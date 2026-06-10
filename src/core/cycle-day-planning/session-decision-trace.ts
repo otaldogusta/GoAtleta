@@ -6,7 +6,7 @@ import type {
 } from "../models";
 import type { SessionPedagogyEnvelopeDiagnostics } from "../resolve-session-pedagogy-envelope";
 import type { AgeSanitizerDiagnostics } from "../sanitize-plan-for-age-band";
-import { getTotalActions, type ScoutingCounts } from "../scouting";
+import { getTotalActions, type ScoutingCounts, type ScoutingPlanningSignal } from "../scouting";
 import type { SessionPlanningContext } from "../session-planning-context-contract";
 import type { ReportFeedbackInfluence } from "./apply-report-feedback-rules";
 import type { CycleDayGenerationExplanation } from "./format-generation-explanation";
@@ -139,10 +139,15 @@ export const buildSessionDecisionTrace = (params: {
   overrideAdjusted: boolean;
   reportFeedbackInfluence?: ReportFeedbackInfluence;
   scoutingCounts?: ScoutingCounts | null;
+  scoutingSignal?: ScoutingPlanningSignal | null;
   ageSanitizer: AgeSanitizerDiagnostics;
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
 }): SessionDecisionTrace => {
-  const scoutingSampleSize = params.scoutingCounts ? getTotalActions(params.scoutingCounts) : 0;
+  const scoutingSampleSize = params.scoutingCounts
+    ? getTotalActions(params.scoutingCounts)
+    : params.scoutingSignal?.sampleSize ?? 0;
+  const scoutingConfidence =
+    params.scoutingSignal?.confidence ?? resolveScoutingConfidence(scoutingSampleSize);
   const scoutingUsed =
     scoutingSampleSize > 0 ||
     Boolean(params.cycleContext.dominantGapSkill || params.cycleContext.dominantGapType);
@@ -200,7 +205,7 @@ export const buildSessionDecisionTrace = (params: {
         used: scoutingUsed,
         dominantGapSkill: scoutingUsed ? params.cycleContext.dominantGapSkill : undefined,
         dominantGapType: scoutingUsed ? params.cycleContext.dominantGapType : undefined,
-        confidence: resolveScoutingConfidence(scoutingSampleSize),
+        confidence: scoutingConfidence,
         sampleSize: scoutingSampleSize,
       },
       history: {

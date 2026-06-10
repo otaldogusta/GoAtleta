@@ -5,6 +5,7 @@ import type {
   ScoutingLog,
   ScoutingSessionType,
   StudentScoutingLog,
+  DominantGapType,
   VolleyballSkill,
 } from "./models";
 
@@ -17,6 +18,7 @@ export type ScoutingPlanningSignal = {
   dominantWeakSkill?: VolleyballSkill;
   dominantWeakFundamental?: ScoutingActionFundamental;
   dominantWeakPhase?: ScoutingActionPhase;
+  dominantGapType?: DominantGapType;
   difficulty: "low" | "medium" | "high" | "unknown";
   sampleSize: number;
   confidence: "none" | "low" | "medium" | "high";
@@ -321,6 +323,44 @@ const difficultyFromAverage = (average: number): ScoutingPlanningSignal["difficu
   return "low";
 };
 
+const gapTypeFromRichSignal = (params: {
+  fundamental: ScoutingActionFundamental;
+  phase?: ScoutingActionPhase;
+  difficulty: ScoutingPlanningSignal["difficulty"];
+}): DominantGapType => {
+  if (params.phase === "pressao") return "pressao";
+  if (
+    params.fundamental === "comunicacao" ||
+    params.fundamental === "cobertura" ||
+    params.fundamental === "transicao"
+  ) {
+    return "organizacao";
+  }
+  if (
+    params.fundamental === "levantamento" ||
+    params.fundamental === "ataque" ||
+    params.phase === "transicao"
+  ) {
+    return "tomada_decisao";
+  }
+  if (params.difficulty === "high") return "tecnica";
+  if (params.difficulty === "medium") return "consistencia";
+  return "consistencia";
+};
+
+const gapTypeFromLegacySkill = (
+  skill: ScoutingSkill,
+  metrics: ReturnType<typeof getSkillMetrics>
+): DominantGapType => {
+  if (skill === "set" || skill === "attack_send") {
+    if (metrics.goodPct <= 0.18) return "tomada_decisao";
+    return "organizacao";
+  }
+  if (metrics.avg <= 0.75) return "tecnica";
+  if (metrics.goodPct <= 0.22) return "consistencia";
+  return "pressao";
+};
+
 export const scoreFromScoutingResultLevel = (level: ScoutingAction["resultLevel"]): ScoutingScore => {
   if (level >= 3) return 2;
   if (level >= 1) return 1;
@@ -364,12 +404,18 @@ export const toScoutingPlanningSignal = (
       phaseCounts.set(action.phase, (phaseCounts.get(action.phase) ?? 0) + 1);
     });
   const dominantWeakPhase = Array.from(phaseCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const difficulty = difficultyFromAverage(weakest.average);
 
   return {
     dominantWeakSkill: volleyballSkillByFundamental[weakest.fundamental],
     dominantWeakFundamental: weakest.fundamental,
     dominantWeakPhase,
-    difficulty: difficultyFromAverage(weakest.average),
+    dominantGapType: gapTypeFromRichSignal({
+      fundamental: weakest.fundamental,
+      phase: dominantWeakPhase,
+      difficulty,
+    }),
+    difficulty,
     sampleSize,
     confidence,
   };
@@ -397,6 +443,7 @@ export const legacyCountsToScoutingPlanningSignal = (
 
   return {
     dominantWeakSkill: volleyballSkillByLegacySkill[weakest.skill],
+    dominantGapType: gapTypeFromLegacySkill(weakest.skill, weakest.metrics),
     difficulty: difficultyFromAverage(weakest.metrics.avg),
     sampleSize,
     confidence,

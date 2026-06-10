@@ -162,7 +162,17 @@ const resolveScoutingPrioritySkill = (
   return mapToSkill[weakest.id] ?? null;
 };
 
-const resolveDominantGapType = (counts?: ScoutingCounts | null): DominantGapType | undefined => {
+const resolveDominantGapType = (
+  counts?: ScoutingCounts | null,
+  signal?: ScoutingPlanningSignal | null
+): DominantGapType | undefined => {
+  if (
+    signal?.dominantGapType &&
+    signal.confidence !== "none" &&
+    signal.confidence !== "low"
+  ) {
+    return signal.dominantGapType;
+  }
   if (!counts) return undefined;
   const ranked = scoutingSkills
     .map((skill) => ({
@@ -553,7 +563,7 @@ export const buildCycleDayPlanningContext = (
           sessionDate: params.sessionDate,
         });
   const dominantGapSkill = resolveScoutingPrioritySkill(params.scoutingCounts, scoutingSignal);
-  const dominantGapType = resolveDominantGapType(params.scoutingCounts);
+  const dominantGapType = resolveDominantGapType(params.scoutingCounts, scoutingSignal);
   const primarySkill = resolvePrimarySkill({
     classGroup: params.classGroup,
     classPlan: params.classPlan,
