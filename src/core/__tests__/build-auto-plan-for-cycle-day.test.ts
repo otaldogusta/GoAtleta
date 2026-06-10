@@ -773,6 +773,12 @@ describe("buildAutoPlanForCycleDay", () => {
       }),
       students: [buildStudent()],
       sessionDate: "2026-04-10",
+      scoutingCounts: {
+        serve: { 0: 0, 1: 0, 2: 0 },
+        receive: { 0: 0, 1: 0, 2: 0 },
+        set: { 0: 0, 1: 0, 2: 0 },
+        attack_send: { 0: 0, 1: 0, 2: 0 },
+      },
       scoutingSignal,
       recentSessions: [],
     });

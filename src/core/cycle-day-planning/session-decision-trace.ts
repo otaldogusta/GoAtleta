@@ -143,9 +143,9 @@ export const buildSessionDecisionTrace = (params: {
   ageSanitizer: AgeSanitizerDiagnostics;
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
 }): SessionDecisionTrace => {
-  const scoutingSampleSize = params.scoutingCounts
-    ? getTotalActions(params.scoutingCounts)
-    : params.scoutingSignal?.sampleSize ?? 0;
+  const scoutingSampleSize =
+    params.scoutingSignal?.sampleSize ??
+    (params.scoutingCounts ? getTotalActions(params.scoutingCounts) : 0);
   const scoutingConfidence =
     params.scoutingSignal?.confidence ?? resolveScoutingConfidence(scoutingSampleSize);
   const scoutingUsed =
