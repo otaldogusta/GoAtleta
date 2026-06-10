@@ -5,6 +5,7 @@ import type { ScoutingCounts, ScoutingPlanningSignal } from "../scouting";
 import type {
     ClassGroup,
     ClassPlan,
+    DailyLessonPlan,
     RecentSessionSummary,
     SessionLog,
     Student,
@@ -56,6 +57,26 @@ const buildClassPlan = (overrides: Partial<ClassPlan> = {}): ClassPlan => ({
   source: "AUTO",
   createdAt: "2026-03-01T10:00:00.000Z",
   updatedAt: "2026-03-01T10:00:00.000Z",
+  ...overrides,
+});
+
+const buildDailyLessonPlan = (
+  overrides: Partial<DailyLessonPlan> = {}
+): DailyLessonPlan => ({
+  id: "daily_1",
+  classId: "class_1",
+  weeklyPlanId: "cp_1",
+  date: "2026-04-07",
+  dayOfWeek: 2,
+  title: "Passe e manchete em tarefa cooperativa",
+  warmup: "Pega-pega dos 3 contatos com bola entrando por lançamento simples.",
+  mainPart: "Passe e manchete em duplas para manter a bola jogável.",
+  cooldown: "Roda rápida de fechamento sobre comunicação.",
+  observations:
+    "Objetivo da aula: passe e manchete em cooperação, mantendo primeiro contato jogável.",
+  syncStatus: "in_sync",
+  createdAt: "2026-04-01T10:00:00.000Z",
+  updatedAt: "2026-04-01T10:00:00.000Z",
   ...overrides,
 });
 
@@ -254,6 +275,93 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(
       result.package.input.constraints.some((item) => item.includes("Favorecer familias:"))
     ).toBe(true);
+  });
+
+  it("uses the daily lesson plan as the day anchor for the applied plan", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "07-09",
+        durationMinutes: 60,
+        daysPerWeek: 1,
+        daysOfWeek: [2],
+        goal: "Passe e manchete com continuidade",
+        level: 1,
+      }),
+      classPlan: buildClassPlan({
+        phase: "desenvolvimento",
+        theme: "Exploração de fundamentos com cooperação e controle da bola",
+        technicalFocus: "Levantamento",
+      }),
+      dailyLessonPlan: buildDailyLessonPlan(),
+      students: [buildStudent({ age: 8, birthDate: "2018-01-01" })],
+      sessionDate: "2026-04-07",
+      recentPlans: [],
+    });
+
+    const visibleText = [
+      result.package.input.objective,
+      ...result.package.final.warmup.activities.map((activity) => activity.name),
+      ...result.package.final.main.activities.map((activity) => activity.name),
+      ...result.package.final.cooldown.activities.map((activity) => activity.name),
+    ].join(" ");
+
+    expect(result.strategy.primarySkill).toBe("passe");
+    expect(result.sessionPlanningContext.dailyPlanAnchor).toMatchObject({
+      dailyPlanId: "daily_1",
+      weeklyPlanId: "cp_1",
+      sessionDate: "2026-04-07",
+      title: "Passe e manchete em tarefa cooperativa",
+      skillHints: ["passe"],
+    });
+    expect(result.decisionTrace.influences.periodizationDaily).toMatchObject({
+      used: true,
+      dailyPlanId: "daily_1",
+      weeklyPlanId: "cp_1",
+      sourceObjective: "passe e manchete em cooperação, mantendo primeiro contato jogável",
+    });
+    expect(result.decisionTrace.decision.primarySkill).toBe("passe");
+    expect(visibleText).not.toMatch(/Passe orientado|Cone pega-toque|segundo contato/i);
+  });
+
+  it("resolves conflicting 2x2 and 3x3 daily plan signals for young groups", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "07-09",
+        durationMinutes: 60,
+        daysPerWeek: 1,
+        daysOfWeek: [2],
+        goal: "Passe e manchete com continuidade",
+        level: 1,
+      }),
+      classPlan: buildClassPlan({
+        phase: "desenvolvimento",
+        theme: "Exploração de fundamentos com cooperação e controle da bola",
+        technicalFocus: "Passe",
+      }),
+      dailyLessonPlan: buildDailyLessonPlan({
+        mainPart: "Mini jogo 3x3 com passe e manchete para manter a bola jogável.",
+        observations:
+          "Objetivo da aula: passe cooperativo. Para 07-09, observar se o mini jogo 2x2 fica mais claro antes de passar ao 3x3.",
+      }),
+      students: [buildStudent({ age: 8, birthDate: "2018-01-01" })],
+      sessionDate: "2026-04-07",
+      recentPlans: [],
+    });
+
+    expect(result.sessionPlanningContext.dailyPlanAnchor?.conflictResolved).toBe(true);
+    expect(result.sessionPlanningContext.dailyPlanAnchor?.conflictReasons[0]).toContain(
+      "priorizar 2x2"
+    );
+    expect(result.sessionPlanningContext.constraints).toContain(
+      "Resolver conflito 2x2/3x3 com base em 2x2 e progressao curta para 3x3."
+    );
+    expect(result.decisionTrace.influences.periodizationDaily).toMatchObject({
+      used: true,
+      conflictResolved: true,
+    });
+    expect(result.decisionTrace.influences.periodizationDaily.conflictReasons[0]).toContain(
+      "priorizar 2x2"
+    );
   });
 
   it("carries teacher override influence into the auto-plan pipeline conservatively", () => {

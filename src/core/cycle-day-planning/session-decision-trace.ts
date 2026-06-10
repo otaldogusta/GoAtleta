@@ -7,7 +7,10 @@ import type {
 import type { SessionPedagogyEnvelopeDiagnostics } from "../resolve-session-pedagogy-envelope";
 import type { AgeSanitizerDiagnostics } from "../sanitize-plan-for-age-band";
 import { getTotalActions, type ScoutingCounts, type ScoutingPlanningSignal } from "../scouting";
-import type { SessionPlanningContext } from "../session-planning-context-contract";
+import type {
+  SessionPlanningContext,
+  SessionPlanningDailyPlanAnchor,
+} from "../session-planning-context-contract";
 import type { ReportFeedbackInfluence } from "./apply-report-feedback-rules";
 import type { CycleDayGenerationExplanation } from "./format-generation-explanation";
 
@@ -44,6 +47,15 @@ export type SessionDecisionTrace = {
       phase?: string;
       rpeTarget?: string;
       weeklyOperationalDecision?: string;
+    };
+    periodizationDaily: {
+      used: boolean;
+      dailyPlanId?: string;
+      weeklyPlanId?: string;
+      title?: string;
+      sourceObjective?: string;
+      conflictResolved?: boolean;
+      conflictReasons: string[];
     };
     classContext: {
       used: boolean;
@@ -108,9 +120,13 @@ const buildTeacherFacingSummary = (params: {
   trace: Omit<SessionDecisionTrace, "teacherFacingSummary">;
 }) => {
   const periodization = params.trace.influences.periodization;
+  const periodizationDaily = params.trace.influences.periodizationDaily;
   const history = params.trace.influences.history;
   const scouting = params.trace.influences.scouting;
   const reasons = [
+    periodizationDaily.used
+      ? `o plano do dia indica ${periodizationDaily.sourceObjective || periodizationDaily.title || "essa intenção"}`
+      : null,
     periodization.used
       ? `o planejamento da semana indica ${periodization.technicalFocus || periodization.theme || "esse foco"}`
       : null,
@@ -140,6 +156,7 @@ export const buildSessionDecisionTrace = (params: {
   reportFeedbackInfluence?: ReportFeedbackInfluence;
   scoutingCounts?: ScoutingCounts | null;
   scoutingSignal?: ScoutingPlanningSignal | null;
+  dailyPlanAnchor?: SessionPlanningDailyPlanAnchor | null;
   ageSanitizer: AgeSanitizerDiagnostics;
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
 }): SessionDecisionTrace => {
@@ -193,6 +210,15 @@ export const buildSessionDecisionTrace = (params: {
         weeklyOperationalDecision: periodizationUsed
           ? params.cycleContext.weeklyOperationalDecision?.quarterFocus
           : undefined,
+      },
+      periodizationDaily: {
+        used: Boolean(params.dailyPlanAnchor),
+        dailyPlanId: params.dailyPlanAnchor?.dailyPlanId,
+        weeklyPlanId: params.dailyPlanAnchor?.weeklyPlanId,
+        title: params.dailyPlanAnchor?.title,
+        sourceObjective: params.dailyPlanAnchor?.objectiveHint,
+        conflictResolved: params.dailyPlanAnchor?.conflictResolved,
+        conflictReasons: [...(params.dailyPlanAnchor?.conflictReasons ?? [])],
       },
       classContext: {
         used: true,

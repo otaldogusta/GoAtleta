@@ -2745,6 +2745,7 @@ export default function SessionScreen() {
       return buildAutoPlanForCycleDay({
         classGroup: cls,
         classPlan: currentClassPlan,
+        dailyLessonPlan: currentDailyLessonPlan,
         students: sessionStudents,
         sessionDate,
         scoutingCounts,
@@ -2758,6 +2759,7 @@ export default function SessionScreen() {
     [
       cls,
       currentClassPlan,
+      currentDailyLessonPlan,
       savedClassPlans,
       scoutingCounts,
       scoutingSignal,
