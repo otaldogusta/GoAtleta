@@ -625,6 +625,56 @@ describe("buildAutoPlanForCycleDay", () => {
     );
   });
 
+  it("keeps decision trace aligned with the first explicit skill in mixed periodization focus", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        name: "Turma 07-09",
+        ageBand: "07-09",
+        level: 1,
+        daysOfWeek: [6],
+        daysPerWeek: 1,
+        goal: "Fundamentos",
+        durationMinutes: 60,
+      }),
+      classPlan: buildClassPlan({
+        id: "cp_mixed_focus",
+        weekNumber: 25,
+        phase: "desenvolvimento",
+        theme: "Consolidação técnica · Aplicação",
+        technicalFocus:
+          "Aplicação de passe ao alvo, saque direcionado e levantamento simples em situações da semana",
+        constraints: "Consistência e direção, Sequências de 2-3 contatos",
+        rpeTarget: "4-5",
+      }),
+      students: [buildStudent({ age: 8 })],
+      sessionDate: "2026-06-20",
+      recentSessions: [
+        buildRecentSession({
+          sessionDate: "2026-06-13",
+          primarySkill: "levantamento",
+          progressionDimension: "consistencia",
+        }),
+      ],
+    });
+
+    const visibleText = [
+      result.package.final.warmup,
+      result.package.final.main,
+      result.package.final.cooldown,
+    ]
+      .flatMap((block) => block.activities.map((activity) => `${activity.name} ${activity.description}`))
+      .join(" ");
+
+    expect(result.strategy.primarySkill).toBe("passe");
+    expect(result.decisionTrace.decision.primarySkill).toBe("passe");
+    expect(result.decisionTrace.teacherFacingSummary).toContain("A aula prioriza passe");
+    expect(result.decisionTrace.teacherFacingSummary).not.toContain("prioriza levantamento");
+    expect(result.package.final.main.activities.every((activity) => activity.primarySkill === "passe"))
+      .toBe(true);
+    expect(visibleText).toContain("Passe em duplas para voltar jogável");
+    expect(visibleText).not.toMatch(/Passe orientado|Cone pega-toque|segundo contato/i);
+  });
+
   it("marks periodization and scouting as unused when no real signals are provided", () => {
     const result = buildAutoPlanForCycleDay({
       classGroup: buildClassGroup({
