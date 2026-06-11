@@ -1084,7 +1084,9 @@ export function useOptionalCopilot() {
 }
 
 export function useCopilotContext(input: CopilotContextData | null) {
-  const context = useContext(CopilotActionsContext);
+  const actionsContext = useContext(CopilotActionsContext);
+  const setContext = actionsContext?.setContext;
+  const clearContext = actionsContext?.clearContext;
   const ownerIdRef = useRef(`copilot_ctx_${Math.random().toString(36).slice(2, 10)}`);
   const contextSignature = useMemo(() => buildContextSignature(input), [input]);
   const payload = useMemo<CopilotContextData | null>(() => {
@@ -1098,37 +1100,41 @@ export function useCopilotContext(input: CopilotContextData | null) {
   }, [contextSignature]);
 
   useEffect(() => {
-    if (!context) return;
+    if (!setContext) return;
     const ownerId = ownerIdRef.current;
-    context.setContext(ownerId, payload);
-  }, [context, payload]);
+    setContext(ownerId, payload);
+  }, [payload, setContext]);
 
   useEffect(
     () => () => {
-      if (!context) return;
-      context.clearContext(ownerIdRef.current);
+      if (!clearContext) return;
+      clearContext(ownerIdRef.current);
     },
-    [context]
+    [clearContext]
   );
 }
 
 export function useCopilotActions(actions: CopilotAction[]) {
-  const context = useContext(CopilotActionsContext);
+  const actionsContext = useContext(CopilotActionsContext);
+  const setActions = actionsContext?.setActions;
+  const clearActions = actionsContext?.clearActions;
   const ownerIdRef = useRef(`copilot_actions_${Math.random().toString(36).slice(2, 10)}`);
   const stableActions = useMemo(() => actions, [actions]);
 
   useEffect(() => {
-    if (!context) return;
+    if (!setActions || !clearActions) return;
     const ownerId = ownerIdRef.current;
-    context.setActions(ownerId, stableActions);
+    setActions(ownerId, stableActions);
     return () => {
-      context.clearActions(ownerId);
+      clearActions(ownerId);
     };
-  }, [context, stableActions]);
+  }, [clearActions, setActions, stableActions]);
 }
 
 export function useCopilotSignals(signals: CopilotSignal[]) {
-  const context = useContext(CopilotActionsContext);
+  const actionsContext = useContext(CopilotActionsContext);
+  const setSignals = actionsContext?.setSignals;
+  const clearSignals = actionsContext?.clearSignals;
   const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
   const signalsSignature = useMemo(() => buildSignalsSignature(signals), [signals]);
   const stableSignals = useMemo(
@@ -1137,13 +1143,13 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
   );
 
   useEffect(() => {
-    if (!context) return;
+    if (!setSignals || !clearSignals) return;
     const ownerId = ownerIdRef.current;
-    context.setSignals(ownerId, stableSignals);
+    setSignals(ownerId, stableSignals);
     return () => {
-      context.clearSignals(ownerId);
+      clearSignals(ownerId);
     };
-  }, [context, stableSignals]);
+  }, [clearSignals, setSignals, stableSignals]);
 }
 
 const styles = StyleSheet.create({
