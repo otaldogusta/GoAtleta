@@ -124,20 +124,44 @@ function WeekAccordionCard({
       expanded={isExpanded}
       onToggle={onToggle}
       containerStyle={[
-        getSectionCardStyle(colors, "primary", { radius: 18 }),
-        { borderWidth: 1, borderColor: colors.border, paddingVertical: 12, gap: 8 },
+        getSectionCardStyle(colors, "primary", { padding: 11, radius: 14, shadow: false }),
+        { borderWidth: 1, borderColor: colors.border, gap: 6 },
       ]}
       header={
-        <View style={{ gap: 6 }}>
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>{label}</Text>
-          <Text style={{ color: colors.muted }}>
-            {weekStartLabel} - {weekEndLabel} · {sessionsCount} aula(s)
+        <View style={{ gap: 5 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>{label}</Text>
+            <View
+              style={{
+                borderRadius: 999,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                {sessionsCount} aula{sessionsCount === 1 ? "" : "s"}
+              </Text>
+            </View>
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            {weekStartLabel} - {weekEndLabel}
           </Text>
-          <Text style={{ color: colors.text, fontSize: 13 }}>{summary}</Text>
+          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 17 }} numberOfLines={1}>
+            {summary}
+          </Text>
         </View>
       }
-      headerStyle={{ gap: 6 }}
-      contentContainerStyle={{ gap: 8, marginTop: 4 }}
+      headerStyle={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+      contentContainerStyle={{
+        gap: 8,
+        marginTop: 8,
+        paddingTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+      }}
       rightAdornment={weekStatus ? <PlanningSyncStatusChip status={weekStatus} compact /> : null}
       chevronColor={colors.muted}
       contentDurationIn={220}
@@ -146,6 +170,36 @@ function WeekAccordionCard({
     >
       {children}
     </CollapsibleSection>
+  );
+}
+
+function PlanningPill({
+  icon,
+  label,
+  colors,
+}: {
+  icon?: keyof typeof Ionicons.glyphMap;
+  label: string;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        maxWidth: "100%",
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: 999,
+        backgroundColor: colors.secondaryBg,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }}
+    >
+      {icon ? <Ionicons name={icon} size={13} color={colors.muted} /> : null}
+      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flexShrink: 1 }}>{label}</Text>
+    </View>
   );
 }
 
@@ -292,6 +346,8 @@ export default function ClassPlanningMonthRoute() {
     () => buildMonthPlanningInsightBullets({ weeklyItems, selectedClass }),
     [selectedClass, weeklyItems]
   );
+  const monthSessionCount = weeklyItems.reduce((total, item) => total + item.sessions.length, 0);
+  const monthInsightSummary = monthInsightBullets.map((item) => item.replace(/\.$/, "")).join(" · ");
 
   const handleExportDailyPdf = useCallback(async () => {
     if (!selectedClass || !selectedSession || !selectedWeekPlan || !selectedDailyPlan) {
@@ -417,14 +473,17 @@ export default function ClassPlanningMonthRoute() {
           paddingBottom: Math.max(insets.bottom + 104, 128),
         }}
       >
-        <View style={{ gap: 8 }}>
-          <BackTitleHeader title={monthTitle} onBack={handleBackToMonths} />
-          <Text style={{ color: colors.muted }}>
-            {selectedClass?.name ? `${selectedClass.name} · visão semanal e diária` : "Visão semanal e diária"}
-          </Text>
-
-          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+              <BackTitleHeader title={monthTitle} onBack={handleBackToMonths} />
+              <Text style={{ color: colors.muted }}>
+                {selectedClass?.name ? `${selectedClass.name} · semanas e aulas` : "Semanas e aulas"}
+              </Text>
+            </View>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Regenerar mês"
               onPress={() => {
                 void handleRegenerateMonth();
               }}
@@ -434,7 +493,7 @@ export default function ClassPlanningMonthRoute() {
                 alignItems: "center",
                 gap: 6,
                 paddingHorizontal: 10,
-                paddingVertical: 7,
+                paddingVertical: 8,
                 borderRadius: 10,
                 backgroundColor: colors.secondaryBg,
                 borderWidth: 1,
@@ -458,35 +517,32 @@ export default function ClassPlanningMonthRoute() {
               </Text>
             </Pressable>
           </View>
+        </View>
 
-          {monthRegenProgress && monthRegenProgress.stage !== "complete" ? (
-            <View style={{ gap: 4, padding: 10, borderRadius: 12, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <ActivityIndicator size="small" color={colors.primaryText} />
-                <Text style={{ color: colors.text, fontWeight: "600" }}>{monthRegenProgress.message}</Text>
-              </View>
-              {monthRegenProgress.total ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {monthRegenProgress.currentIndex}/{monthRegenProgress.total}
-                </Text>
-              ) : null}
-            </View>
+        <View style={[getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }), { gap: 9 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 14 }}>Resumo do mês</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{weeklyItems.length} semana{weeklyItems.length === 1 ? "" : "s"}</Text>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
+            <PlanningPill icon="calendar-outline" label={`${monthSessionCount} aula${monthSessionCount === 1 ? "" : "s"}`} colors={colors} />
+            {selectedClass?.name ? <PlanningPill icon="people-outline" label={selectedClass.name} colors={colors} /> : null}
+          </View>
+          {monthInsightSummary ? (
+            <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }} numberOfLines={2}>
+              {monthInsightSummary}
+            </Text>
           ) : null}
         </View>
 
-        {monthInsightBullets.length ? (
-          <View style={[getSectionCardStyle(colors, "primary", { radius: 16 }), { gap: 8 }]}>
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-              Por que este mês?
-            </Text>
-            <View style={{ gap: 6 }}>
-              {monthInsightBullets.map((item) => (
-                <View key={item} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-                  <Text style={{ color: colors.primaryText, fontWeight: "900", lineHeight: 18 }}>•</Text>
-                  <Text style={{ color: colors.text, flex: 1, lineHeight: 18 }}>{item}</Text>
-                </View>
-              ))}
-            </View>
+        {isRegeneratingMonth && monthRegenProgress ? (
+          <View style={[getSectionCardStyle(colors, "neutral", { padding: 10, radius: 12, shadow: false }), { gap: 4 }]}>
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{monthRegenProgress.message}</Text>
+            {monthRegenProgress.total ? (
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {monthRegenProgress.currentIndex}/{monthRegenProgress.total}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -506,7 +562,7 @@ export default function ClassPlanningMonthRoute() {
           </View>
         ) : null}
 
-        <View style={{ gap: 10 }}>
+        <View style={{ gap: 8 }}>
           {weeklyItems.map((item) => {
             const isExpanded = expandedWeekId === item.plan.id;
             const hasOutOfSyncDay = item.sessions.some((session) => {
@@ -533,6 +589,9 @@ export default function ClassPlanningMonthRoute() {
                   }}
                   style={{
                     alignSelf: "flex-start",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
                     paddingHorizontal: 10,
                     paddingVertical: 6,
                     borderRadius: 12,
@@ -541,6 +600,7 @@ export default function ClassPlanningMonthRoute() {
                     backgroundColor: colors.secondaryBg,
                   }}
                 >
+                  <Ionicons name="refresh" size={13} color={colors.text} />
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     Regenerar aulas da semana
                   </Text>
@@ -576,12 +636,12 @@ export default function ClassPlanningMonthRoute() {
                           setSelectedSession(session);
                         }}
                         style={{
-                          gap: 6,
+                          gap: 7,
                           borderWidth: 1,
                           borderColor: colors.border,
                           backgroundColor: colors.secondaryBg,
                           paddingHorizontal: 12,
-                          paddingVertical: 10,
+                          paddingVertical: 9,
                           borderRadius: 12,
                         }}
                       >
@@ -591,15 +651,14 @@ export default function ClassPlanningMonthRoute() {
                           </Text>
                           {showSessionStatus ? <PlanningSyncStatusChip compact status={sessionStatus} /> : null}
                         </View>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          {compactSummaryLine(warmupPreview, "Revisão em dupla")}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          {compactSummaryLine(mainPreview, `Atividade principal com ${item.plan.theme || "fundamentos"}`)}
-                        </Text>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          {compactSummaryLine(cooldownPreview, "Conversa final")}
-                        </Text>
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                          <PlanningPill label={compactSummaryLine(warmupPreview, "Revisão em dupla")} colors={colors} />
+                          <PlanningPill
+                            label={compactSummaryLine(mainPreview, `Atividade principal com ${item.plan.theme || "fundamentos"}`)}
+                            colors={colors}
+                          />
+                          <PlanningPill label={compactSummaryLine(cooldownPreview, "Conversa final")} colors={colors} />
+                        </View>
                       </Pressable>
                     );
                   })()
