@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +24,37 @@ const getMonthStatusLabel = (month: MonthPlanningSummary, currentMonthKey: strin
   if (month.monthKey === currentMonthKey) return "Mês atual";
   return "Programado";
 };
+
+function SummaryPill({
+  label,
+  value,
+  muted = false,
+  colors,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: 999,
+        backgroundColor: colors.secondaryBg,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }}
+    >
+      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>{label}</Text>
+      <Text style={{ color: muted ? colors.muted : colors.text, fontSize: 12, fontWeight: "800" }}>{value}</Text>
+    </View>
+  );
+}
 
 export default function ClassPlanningHubRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,6 +82,9 @@ export default function ClassPlanningHubRoute() {
   };
 
   const { selectedClass, activeCycle, months, isLoading, error } = useClassPlanning(classId);
+  const plannedMonthsCount = months.filter((month) => month.hasPlans).length;
+  const plannedLessonsCount = months.reduce((total, month) => total + month.estimatedLessonCount, 0);
+  const currentMonth = months.find((month) => month.monthKey === currentMonthKey);
 
   if (isLoading) {
     return (
@@ -83,14 +118,28 @@ export default function ClassPlanningHubRoute() {
           </View>
         ) : null}
 
-        <View style={[getSectionCardStyle(colors, "neutral", { radius: 16 }), { gap: 4 }]}>
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-            {activeCycle?.title ? `Ciclo ${activeCycle.title}` : "Meses do ciclo"}
-          </Text>
-          <Text style={{ color: colors.muted, lineHeight: 18 }}>
-            Meses em ordem de janeiro a dezembro. Meses sem semanas salvas continuam visíveis para revisão ou
-            regeneração.
-          </Text>
+        <View style={[getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }), { gap: 10 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
+                {activeCycle?.title ? `Ciclo ${activeCycle.title}` : "Meses do ciclo"}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+                Abra um mês para revisar semanas e aulas.
+              </Text>
+            </View>
+            <Ionicons name="calendar-outline" size={18} color={colors.muted} />
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <SummaryPill label="Meses" value={`${plannedMonthsCount}/${months.length || 0}`} colors={colors} />
+            <SummaryPill label="Aulas" value={String(plannedLessonsCount)} colors={colors} />
+            <SummaryPill
+              label="Atual"
+              value={currentMonth ? capitalizeFirst(currentMonth.label.replace(/\s+de\s+\d{4}$/i, "")) : "-"}
+              muted={!currentMonth}
+              colors={colors}
+            />
+          </View>
         </View>
 
         {!months.length ? (
@@ -107,10 +156,8 @@ export default function ClassPlanningHubRoute() {
               const isEmpty = !month.hasPlans;
               const isMutedStatus = isEmpty || isPast;
               const statusLabel = getMonthStatusLabel(month, currentMonthKey);
-              const tone = !isPast && !isEmpty ? "primary" : "neutral";
-              const summary = month.hasPlans
-                ? `${month.weekCount} semana(s) · ${month.estimatedLessonCount} aula(s) previstas`
-                : "Sem semanas salvas · abrir para regenerar";
+              const isCurrentMonth = month.monthKey === currentMonthKey;
+              const tone = isCurrentMonth ? "primary" : "neutral";
 
               return (
                 <Pressable
@@ -125,17 +172,19 @@ export default function ClassPlanningHubRoute() {
                     getSectionCardStyle(colors, tone, { radius: 18 }),
                     {
                       width: monthCardWidth,
-                      minHeight: 112,
+                      minHeight: 84,
                       borderWidth: 1,
-                      borderColor: isEmpty ? colors.border : colors.borderStrong,
-                      paddingVertical: 14,
-                      opacity: isPast ? 0.72 : 1,
-                      gap: 8,
+                      borderColor: isCurrentMonth ? colors.primaryBg : colors.border,
+                      paddingVertical: 11,
+                      opacity: isPast ? 0.68 : 1,
+                      gap: 7,
+                      shadowOpacity: 0.12,
+                      shadowRadius: 14,
                     },
                   ]}
                 >
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 17, flex: 1 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16, flex: 1 }}>
                       {capitalizeFirst(month.label)}
                     </Text>
                     <View
@@ -160,7 +209,19 @@ export default function ClassPlanningHubRoute() {
                       </Text>
                     </View>
                   </View>
-                  <Text style={{ color: colors.muted, lineHeight: 18 }}>{summary}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 }}>
+                      {month.hasPlans ? (
+                        <>
+                          <SummaryPill label="Sem." value={String(month.weekCount)} colors={colors} />
+                          <SummaryPill label="Aulas" value={String(month.estimatedLessonCount)} colors={colors} />
+                        </>
+                      ) : (
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>Abrir para regenerar</Text>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                  </View>
                 </Pressable>
               );
             })}
