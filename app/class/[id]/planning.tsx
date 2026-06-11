@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -29,6 +30,8 @@ const getCompactMonthLabel = (label: string) =>
   capitalizeFirst(label.replace(/\s+de\s+\d{4}$/i, ""));
 
 const getMonthYearLabel = (label: string) => label.match(/(\d{4})$/)?.[1] ?? "";
+
+const getCurrentYear = () => new Date().getFullYear();
 
 function SummaryPill({
   label,
@@ -72,6 +75,7 @@ export default function ClassPlanningHubRoute() {
   const isDesktopLayout = width >= 1120;
   const monthCardWidth = isDesktopLayout ? "23.6%" : isTabletLayout ? "31.8%" : "100%";
   const currentMonthKey = getCurrentMonthKey();
+  const [selectedYear, setSelectedYear] = useState(getCurrentYear);
   const handleBackToClass = () => {
     if (router.canGoBack()) {
       router.back();
@@ -86,10 +90,33 @@ export default function ClassPlanningHubRoute() {
     router.replace("/");
   };
 
-  const { selectedClass, activeCycle, months, isLoading, error } = useClassPlanning(classId);
-  const plannedMonthsCount = months.filter((month) => month.hasPlans).length;
-  const plannedLessonsCount = months.reduce((total, month) => total + month.estimatedLessonCount, 0);
-  const currentMonth = months.find((month) => month.monthKey === currentMonthKey);
+  const { selectedClass, activeCycle, months: planningMonths, isLoading, error } = useClassPlanning(classId);
+  const availableYears = [...new Set(planningMonths.map((month) => month.year))].sort((a, b) => a - b);
+  const availableYearKey = availableYears.join("|");
+  const selectedYearIndex = availableYears.indexOf(selectedYear);
+  const canGoPreviousYear = selectedYearIndex > 0;
+  const canGoNextYear = selectedYearIndex >= 0 && selectedYearIndex < availableYears.length - 1;
+  const visibleMonths = planningMonths.filter((month) => month.year === selectedYear);
+  const plannedMonthsCount = visibleMonths.filter((month) => month.hasPlans).length;
+  const plannedLessonsCount = visibleMonths.reduce((total, month) => total + month.estimatedLessonCount, 0);
+  const currentMonth = visibleMonths.find((month) => month.monthKey === currentMonthKey);
+
+  useEffect(() => {
+    if (!availableYears.length) return;
+    const currentYear = getCurrentYear();
+    if (availableYears.includes(selectedYear)) return;
+    setSelectedYear(availableYears.includes(currentYear) ? currentYear : availableYears[0]);
+  }, [availableYearKey, selectedYear]);
+
+  const goToPreviousYear = () => {
+    if (!canGoPreviousYear) return;
+    setSelectedYear(availableYears[selectedYearIndex - 1]);
+  };
+
+  const goToNextYear = () => {
+    if (!canGoNextYear) return;
+    setSelectedYear(availableYears[selectedYearIndex + 1]);
+  };
 
   if (isLoading) {
     return (
@@ -127,16 +154,50 @@ export default function ClassPlanningHubRoute() {
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>
-                {activeCycle?.title ? `Ciclo ${activeCycle.title}` : "Meses do ciclo"}
+                Meses do ciclo
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
-                Abra um mês para revisar semanas e aulas.
+                {activeCycle?.title
+                  ? `Ciclo ${activeCycle.title} · abra um mês para revisar semanas e aulas.`
+                  : "Abra um mês para revisar semanas e aulas."}
               </Text>
             </View>
-            <Ionicons name="calendar-outline" size={18} color={colors.muted} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                borderRadius: 999,
+                paddingHorizontal: 6,
+                paddingVertical: 4,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Pressable
+                accessibilityLabel="Ano anterior"
+                disabled={!canGoPreviousYear}
+                onPress={goToPreviousYear}
+                style={{ opacity: canGoPreviousYear ? 1 : 0.35, padding: 3 }}
+              >
+                <Ionicons name="chevron-back" size={15} color={colors.text} />
+              </Pressable>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13, minWidth: 42, textAlign: "center" }}>
+                {selectedYear}
+              </Text>
+              <Pressable
+                accessibilityLabel="Próximo ano"
+                disabled={!canGoNextYear}
+                onPress={goToNextYear}
+                style={{ opacity: canGoNextYear ? 1 : 0.35, padding: 3 }}
+              >
+                <Ionicons name="chevron-forward" size={15} color={colors.text} />
+              </Pressable>
+            </View>
           </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
-            <SummaryPill label="Meses" value={`${plannedMonthsCount}/${months.length || 0}`} colors={colors} />
+            <SummaryPill label="Meses" value={`${plannedMonthsCount}/${visibleMonths.length || 0}`} colors={colors} />
             <SummaryPill label="Aulas" value={String(plannedLessonsCount)} colors={colors} />
             <SummaryPill
               label="Atual"
@@ -147,16 +208,16 @@ export default function ClassPlanningHubRoute() {
           </View>
         </View>
 
-        {!months.length ? (
+        {!visibleMonths.length ? (
           <View style={[getSectionCardStyle(colors, "primary", { radius: 18 }), { gap: 6 }]}>
             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>Nenhum mês disponível</Text>
             <Text style={{ color: colors.muted }}>
-              Gere ou edite semanas na periodização para começar a organizar os planejamentos por mês.
+              Gere ou edite semanas na periodização para começar a organizar os planejamentos de {selectedYear}.
             </Text>
           </View>
         ) : (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            {months.map((month) => {
+            {visibleMonths.map((month) => {
               const isPast = month.hasPlans && month.monthKey < currentMonthKey;
               const isEmpty = !month.hasPlans;
               const isMutedStatus = isEmpty || isPast;
