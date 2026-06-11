@@ -25,6 +25,7 @@ import { Pressable } from "../src/ui/Pressable";
 import * as Sentry from '@sentry/react-native';
 import { AuthProvider, useAuth } from "../src/auth/auth";
 import { getPendingInvite } from "../src/auth/pending-invite";
+import { buildLoginRedirectHref, sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
 import { RoleProvider, useRole } from "../src/auth/role";
 import {
     hybridVerificationRestrictedPrefixes,
@@ -33,6 +34,7 @@ import {
     trainerPermissionByPrefix,
 } from "../src/auth/route-permissions";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
+import { resolveBootStatus } from "../src/bootstrap/boot-status";
 import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-context";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
@@ -179,26 +181,41 @@ function RootLayoutContent() {
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
   const organization = useOptionalOrganization();
-  const { activeOrganization, memberPermissions, permissionsLoading } = organization ?? {
+  const {
+    activeOrganization,
+    memberPermissions,
+    permissionsLoading,
+    isLoading: organizationLoading,
+  } = organization ?? {
     activeOrganization: null,
     memberPermissions: {},
     permissionsLoading: false,
+    isLoading: false,
   };
   const { isEnabled: biometricsEnabled, isUnlocked, hasCredentialLoginBypass } = useBiometricLock();
   const hadSessionRef = useRef(false);
   const initialRouteGuardAppliedRef = useRef(false);
   const stuckEventsGuardRef = useRef(false);
   const appStartedAtRef = useRef(Date.now());
+  const lastBootPhaseRef = useRef<string | null>(null);
   const pushRegistrationInFlightRef = useRef(false);
   const lastPushRegistrationKeyRef = useRef("");
   const oauthHandledHrefRef = useRef("");
   const oauthInFlightRef = useRef(false);
   const navReady = Boolean(rootState?.key);
   const isAdminProfile = role === "trainer" && (activeOrganization?.role_level ?? 0) >= 50;
-  const isBooting =
-    bootstrapLoading ||
-    !navReady ||
-    loading;
+  const bootStatus = resolveBootStatus({
+    bootstrapLoading,
+    authLoading: loading,
+    navReady,
+    roleLoading,
+    organizationLoading,
+    permissionsLoading,
+    hasSession: Boolean(session),
+    role,
+  });
+  const isBooting = bootStatus.blocking;
+  const [bootElapsedMs, setBootElapsedMs] = useState(0);
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
   const publicRoutes = [
     "/onboarding",
@@ -282,6 +299,34 @@ function RootLayoutContent() {
     !isInviteRoute &&
     needsHybridEmailVerification &&
     !emailBannerDismissed;
+
+  useEffect(() => {
+    if (!isBooting) {
+      setBootElapsedMs(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    setBootElapsedMs(0);
+    const interval = setInterval(() => {
+      setBootElapsedMs(Date.now() - startedAt);
+    }, 500);
+    return () => clearInterval(interval);
+  }, [bootStatus.phase, isBooting]);
+
+  useEffect(() => {
+    if (lastBootPhaseRef.current === bootStatus.phase) return;
+    lastBootPhaseRef.current = bootStatus.phase;
+    if (__DEV__) {
+      console.log(`[boot] phase=${bootStatus.phase} blocking=${bootStatus.blocking}`);
+    }
+    Sentry.addBreadcrumb({
+      category: "boot",
+      message: `phase:${bootStatus.phase}`,
+      data: { blocking: bootStatus.blocking },
+      level: "info",
+    });
+  }, [bootStatus.blocking, bootStatus.phase]);
 
   useEffect(() => {
     setEmailBannerDismissed(false);
@@ -409,7 +454,11 @@ function RootLayoutContent() {
           return;
         }
       }
-      redirectTo = "/login";
+      const currentRoute =
+        Platform.OS === "web" && typeof window !== "undefined"
+          ? `${window.location.pathname}${window.location.search}${window.location.hash}`
+          : normalizedPathname;
+      redirectTo = buildLoginRedirectHref(currentRoute);
     }
 
     if (redirectTo) {
@@ -527,11 +576,13 @@ function RootLayoutContent() {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     if (code) {
+      const nextAfterAuth = sanitizePostLoginRedirect(urlParams.get("next"));
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
       const redirectAfterAuth = async () => {
         const pending = await getPendingInvite();
-        router.replace(pending ? `/invite/${pending}` : "/");
+        const destination = pending ? `/invite/${pending}` : nextAfterAuth ?? "/";
+        router.replace(destination as Parameters<typeof router.replace>[0]);
       };
       exchangeCodeForSession(code).then(async () => {
         // Clean up URL
@@ -559,11 +610,14 @@ function RootLayoutContent() {
       return;
     }
     if (accessToken && type !== "recovery") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const nextAfterAuth = sanitizePostLoginRedirect(searchParams.get("next"));
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
       const redirectAfterAuth = async () => {
         const pending = await getPendingInvite();
-        router.replace(pending ? `/invite/${pending}` : "/");
+        const destination = pending ? `/invite/${pending}` : nextAfterAuth ?? "/";
+        router.replace(destination as Parameters<typeof router.replace>[0]);
       };
       consumeAuthUrl(window.location.href).then(async () => {
         const cleanUrl = window.location.origin + window.location.pathname;
@@ -737,7 +791,9 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
           }}
         >
           <ActivityIndicator size="large" color={colors.text} />
-          <Text style={{ color: colors.text, fontWeight: "600" }}>Carregando...</Text>
+          <Text style={{ color: colors.text, fontWeight: "600" }}>
+            {__DEV__ && bootElapsedMs >= 2500 ? bootStatus.label : "Carregando..."}
+          </Text>
         </View>
         <StatusBar
           style={mode === "dark" ? "light" : "dark"}
