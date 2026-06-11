@@ -308,8 +308,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
 
   useEffect(() => {
     const nextIds = asSortedUniqueIds(selectedMemberClassHeadIds);
-    setClassHeadInitialIds(nextIds);
-    setClassHeadDraftIds(nextIds);
+    setClassHeadInitialIds((current) => (hasSameIds(current, nextIds) ? current : nextIds));
+    setClassHeadDraftIds((current) => (hasSameIds(current, nextIds) ? current : nextIds));
   }, [selectedMemberClassHeadIds, selectedMember?.userId]);
 
   const loadPendingTrainerInvites = useCallback(async () => {
