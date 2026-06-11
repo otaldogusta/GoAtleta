@@ -25,6 +25,11 @@ const getMonthStatusLabel = (month: MonthPlanningSummary, currentMonthKey: strin
   return "Programado";
 };
 
+const getCompactMonthLabel = (label: string) =>
+  capitalizeFirst(label.replace(/\s+de\s+\d{4}$/i, ""));
+
+const getMonthYearLabel = (label: string) => label.match(/(\d{4})$/)?.[1] ?? "";
+
 function SummaryPill({
   label,
   value,
@@ -63,9 +68,9 @@ export default function ClassPlanningHubRoute() {
   const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
   const classId = typeof id === "string" ? id : "";
-  const isWideLayout = width >= 960;
   const isTabletLayout = width >= 700;
-  const monthCardWidth = isWideLayout ? "31.8%" : isTabletLayout ? "48.5%" : "100%";
+  const isDesktopLayout = width >= 1120;
+  const monthCardWidth = isDesktopLayout ? "23.6%" : isTabletLayout ? "31.8%" : "100%";
   const currentMonthKey = getCurrentMonthKey();
   const handleBackToClass = () => {
     if (router.canGoBack()) {
@@ -130,12 +135,12 @@ export default function ClassPlanningHubRoute() {
             </View>
             <Ionicons name="calendar-outline" size={18} color={colors.muted} />
           </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
             <SummaryPill label="Meses" value={`${plannedMonthsCount}/${months.length || 0}`} colors={colors} />
             <SummaryPill label="Aulas" value={String(plannedLessonsCount)} colors={colors} />
             <SummaryPill
               label="Atual"
-              value={currentMonth ? capitalizeFirst(currentMonth.label.replace(/\s+de\s+\d{4}$/i, "")) : "-"}
+              value={currentMonth ? getCompactMonthLabel(currentMonth.label) : "-"}
               muted={!currentMonth}
               colors={colors}
             />
@@ -157,7 +162,11 @@ export default function ClassPlanningHubRoute() {
               const isMutedStatus = isEmpty || isPast;
               const statusLabel = getMonthStatusLabel(month, currentMonthKey);
               const isCurrentMonth = month.monthKey === currentMonthKey;
-              const tone = isCurrentMonth ? "primary" : "neutral";
+              const compactLabel = getCompactMonthLabel(month.label);
+              const yearLabel = getMonthYearLabel(month.label);
+              const statusColor = isMutedStatus ? colors.muted : colors.successText;
+              const statusBg = isMutedStatus ? colors.secondaryBg : colors.successBg;
+              const statusBorder = isMutedStatus ? colors.border : colors.successBorder;
 
               return (
                 <Pressable
@@ -169,39 +178,52 @@ export default function ClassPlanningHubRoute() {
                     })
                   }
                   style={[
-                    getSectionCardStyle(colors, tone, { radius: 18 }),
+                    getSectionCardStyle(colors, "neutral", { padding: 10, radius: 14, shadow: false }),
                     {
                       width: monthCardWidth,
-                      minHeight: 84,
+                      minHeight: 72,
                       borderWidth: 1,
                       borderColor: isCurrentMonth ? colors.primaryBg : colors.border,
-                      paddingVertical: 11,
-                      opacity: isPast ? 0.68 : 1,
-                      gap: 7,
-                      shadowOpacity: 0.12,
-                      shadowRadius: 14,
+                      opacity: isPast ? 0.58 : 1,
+                      gap: 8,
                     },
                   ]}
                 >
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16, flex: 1 }}>
-                      {capitalizeFirst(month.label)}
-                    </Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }} numberOfLines={1}>
+                        {compactLabel}
+                      </Text>
+                      {yearLabel ? (
+                        <Text style={{ color: colors.muted, fontSize: 11, marginTop: 1 }}>{yearLabel}</Text>
+                      ) : null}
+                    </View>
                     <View
                       style={{
                         alignSelf: "flex-start",
                         borderRadius: 999,
-                        paddingHorizontal: 9,
-                        paddingVertical: 4,
-                        backgroundColor: isMutedStatus ? colors.secondaryBg : colors.successBg,
+                        paddingHorizontal: 7,
+                        paddingVertical: 3,
+                        backgroundColor: statusBg,
                         borderWidth: 1,
-                        borderColor: isMutedStatus ? colors.border : colors.successBorder,
+                        borderColor: statusBorder,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 5,
                       }}
                     >
+                      <View
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: 3,
+                          backgroundColor: statusColor,
+                        }}
+                      />
                       <Text
                         style={{
-                          color: isMutedStatus ? colors.muted : colors.successText,
-                          fontSize: 11,
+                          color: statusColor,
+                          fontSize: 10,
                           fontWeight: "700",
                         }}
                       >
@@ -210,16 +232,11 @@ export default function ClassPlanningHubRoute() {
                     </View>
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, flex: 1 }}>
-                      {month.hasPlans ? (
-                        <>
-                          <SummaryPill label="Sem." value={String(month.weekCount)} colors={colors} />
-                          <SummaryPill label="Aulas" value={String(month.estimatedLessonCount)} colors={colors} />
-                        </>
-                      ) : (
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>Abrir para regenerar</Text>
-                      )}
-                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }} numberOfLines={1}>
+                      {month.hasPlans
+                        ? `${month.weekCount} sem. · ${month.estimatedLessonCount} aula${month.estimatedLessonCount === 1 ? "" : "s"}`
+                        : "Abrir para regenerar"}
+                    </Text>
                     <Ionicons name="chevron-forward" size={16} color={colors.muted} />
                   </View>
                 </Pressable>

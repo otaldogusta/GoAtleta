@@ -149,7 +149,9 @@ function WeekAccordionCard({
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             {weekStartLabel} - {weekEndLabel}
           </Text>
-          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 17 }}>{summary}</Text>
+          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 17 }} numberOfLines={1}>
+            {summary}
+          </Text>
         </View>
       }
       headerStyle={{ flexDirection: "row", alignItems: "center", gap: 10 }}
@@ -345,6 +347,7 @@ export default function ClassPlanningMonthRoute() {
     [selectedClass, weeklyItems]
   );
   const monthSessionCount = weeklyItems.reduce((total, item) => total + item.sessions.length, 0);
+  const monthInsightSummary = monthInsightBullets.map((item) => item.replace(/\.$/, "")).join(" · ");
 
   const handleExportDailyPdf = useCallback(async () => {
     if (!selectedClass || !selectedSession || !selectedWeekPlan || !selectedDailyPlan) {
@@ -514,20 +517,6 @@ export default function ClassPlanningMonthRoute() {
               </Text>
             </Pressable>
           </View>
-
-          {monthRegenProgress && monthRegenProgress.stage !== "complete" ? (
-            <View style={{ gap: 4, padding: 10, borderRadius: 12, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <ActivityIndicator size="small" color={colors.primaryText} />
-                <Text style={{ color: colors.text, fontWeight: "600" }}>{monthRegenProgress.message}</Text>
-              </View>
-              {monthRegenProgress.total ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {monthRegenProgress.currentIndex}/{monthRegenProgress.total}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
         </View>
 
         <View style={[getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }), { gap: 9 }]}>
@@ -538,19 +527,22 @@ export default function ClassPlanningMonthRoute() {
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
             <PlanningPill icon="calendar-outline" label={`${monthSessionCount} aula${monthSessionCount === 1 ? "" : "s"}`} colors={colors} />
             {selectedClass?.name ? <PlanningPill icon="people-outline" label={selectedClass.name} colors={colors} /> : null}
-            {monthInsightBullets.slice(0, 2).map((item) => (
-              <PlanningPill key={item} label={item.replace(/\.$/, "")} colors={colors} />
-            ))}
           </View>
+          {monthInsightSummary ? (
+            <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }} numberOfLines={2}>
+              {monthInsightSummary}
+            </Text>
+          ) : null}
         </View>
 
-        {monthInsightBullets.length > 2 ? (
-          <View style={[getSectionCardStyle(colors, "neutral", { padding: 10, radius: 14, shadow: false }), { gap: 6 }]}>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              {monthInsightBullets.slice(2).map((item) => (
-                <PlanningPill key={item} label={item.replace(/\.$/, "")} colors={colors} />
-              ))}
-            </View>
+        {isRegeneratingMonth && monthRegenProgress ? (
+          <View style={[getSectionCardStyle(colors, "neutral", { padding: 10, radius: 12, shadow: false }), { gap: 4 }]}>
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{monthRegenProgress.message}</Text>
+            {monthRegenProgress.total ? (
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {monthRegenProgress.currentIndex}/{monthRegenProgress.total}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
