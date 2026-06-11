@@ -57,6 +57,47 @@ const toIsoDate = (value: string | null | undefined) => {
 const isWithinWindow = (date: string, startDate: string, endDate: string) =>
   Boolean(date && startDate && endDate && date >= startDate && date <= endDate);
 
+const REQUIRED_MONTHLY_DATA_TIMEOUT_MS = 10000;
+const OPTIONAL_MONTHLY_DATA_TIMEOUT_MS = 6000;
+
+const loadRequiredMonthlyData = async <T,>(label: string, promise: Promise<T>): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Tempo excedido ao carregar ${label}.`));
+    }, REQUIRED_MONTHLY_DATA_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
+const loadOptionalMonthlyData = async <T,>(label: string, promise: Promise<T>, fallback: T): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`Monthly planning optional data timed out: ${label}`);
+      resolve(fallback);
+    }, OPTIONAL_MONTHLY_DATA_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } catch (error) {
+    console.warn(`Monthly planning optional data failed: ${label}`, error);
+    return fallback;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 const filterPlansByCycleWindow = (plans: ClassPlan[], options: {
   activeCycleId: string;
   startDate: string;
@@ -217,30 +258,47 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     setError(null);
 
     try {
-      const cls = await getClassById(classId);
+      const cls = await loadRequiredMonthlyData("dados da turma", getClassById(classId));
       const currentYear = new Date().getFullYear();
       const classStartDate = cls?.cycleStartDate || cls?.createdAt || null;
-      await ensureActiveCycleForYear(classId, currentYear, classStartDate);
-      const activeCycle = await getActivePlanningCycle(classId);
+      await loadRequiredMonthlyData(
+        "ciclo ativo",
+        ensureActiveCycleForYear(classId, currentYear, classStartDate)
+      );
+      const activeCycle = await loadRequiredMonthlyData("ciclo ativo", getActivePlanningCycle(classId));
       const cycleYear = activeCycle?.year ?? null;
+      const plans = await loadRequiredMonthlyData(
+        "semanas do ciclo",
+        getClassPlansByClass(classId, {
+          cycleId: activeCycle?.id ?? null,
+          cycleYear,
+        })
+      );
       const [
-        plans,
         exceptions,
         classStudents,
         attendance,
         sessionLogs,
       ] = await Promise.all([
-        getClassPlansByClass(classId, {
-          cycleId: activeCycle?.id ?? null,
-          cycleYear,
-        }),
-        getClassCalendarExceptions(classId, { organizationId: cls?.organizationId ?? null }).catch(() => []),
-        getStudentsByClass(classId).catch(() => undefined),
-        getAttendanceByClass(classId, { organizationId: cls?.organizationId ?? null }).catch(() => []),
-        getSessionLogsByClass(classId, {
-          organizationId: cls?.organizationId ?? null,
-          limit: 12,
-        }).catch(() => []),
+        loadOptionalMonthlyData(
+          "calendar exceptions",
+          getClassCalendarExceptions(classId, { organizationId: cls?.organizationId ?? null }),
+          []
+        ),
+        loadOptionalMonthlyData("students", getStudentsByClass(classId), undefined),
+        loadOptionalMonthlyData(
+          "attendance",
+          getAttendanceByClass(classId, { organizationId: cls?.organizationId ?? null }),
+          []
+        ),
+        loadOptionalMonthlyData(
+          "session logs",
+          getSessionLogsByClass(classId, {
+            organizationId: cls?.organizationId ?? null,
+            limit: 12,
+          }),
+          []
+        ),
       ]);
 
       const windowStart = toIsoDate(activeCycle?.startDate);
@@ -263,7 +321,11 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
 
       const monthPlans = scopedPlans.filter((plan) => toMonthKey(plan.startDate) === monthKey);
       const weekIds = monthPlans.map((plan) => plan.id);
-      const dailyPlans = await listDailyLessonPlansByWeekIds(weekIds);
+      const dailyPlans = await loadOptionalMonthlyData(
+        "daily lesson plans",
+        listDailyLessonPlansByWeekIds(weekIds),
+        []
+      );
       const mapped: DailyLessonPlanLookup = {};
       for (const plan of dailyPlans) {
         mapped[`${plan.weeklyPlanId}::${plan.date}`] = plan;
