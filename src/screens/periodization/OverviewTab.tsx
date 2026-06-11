@@ -736,107 +736,126 @@ export function OverviewTab({
 
       <View style={getSectionCardStyle(colors, "info")}>
 
-        <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+              Planejamento da turma
+            </Text>
+            <Text style={{ marginTop: 5, color: colors.muted, fontSize: 12, lineHeight: 17 }}>
+              {selectedClass
+                ? hasGeneratedCycle
+                  ? "O ciclo desta turma já está pronto."
+                  : "Gere o ciclo de semanas desta turma."
+                : "Selecione uma turma para visualizar ou gerar o ciclo."}
+            </Text>
+          </View>
 
-          Planejamento da turma
+          {hasGeneratedCycle ? (
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 5,
+                borderRadius: 999,
+                paddingHorizontal: 9,
+                paddingVertical: 5,
+                backgroundColor: colors.successBg,
+              }}
+            >
+              <Ionicons name="checkmark-circle" size={13} color={colors.successText} />
+              <Text style={{ color: colors.successText, fontWeight: "800", fontSize: 11 }}>
+                Gerado
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
-        </Text>
-
-        <Text style={{ marginTop: 6, color: colors.muted, fontSize: 12, lineHeight: 17 }}>
-          {selectedClass
-            ? hasGeneratedCycle
-              ? "Ciclo já gerado. Use o ícone de atualizar na visão geral para gerar novamente."
-              : "Gere o ciclo de semanas desta turma."
-            : "Selecione uma turma para visualizar ou gerar o ciclo."}
-        </Text>
-
-        <Pressable
-
-          onPress={() => {
-
-            if (!canGenerateCycle) return;
-
-            handleGenerateCycle();
-
-          }}
-
-          disabled={!canGenerateCycle}
-
-          style={{
-
-            marginTop: 10,
-            marginRight: reserveFloatingActionSpace ? 72 : 0,
-
-            paddingVertical: 10,
-
-            borderRadius: 12,
-
-            alignItems: "center",
-
-            backgroundColor:
-
-              !canGenerateCycle
-
-                ? colors.primaryDisabledBg
-
-                : colors.primaryBg,
-
-            }}
-
-          >
-
-          <Text
-
-            style={{
-
-              color:
-
-                !canGenerateCycle
-
-                  ? colors.secondaryText
-
-                  : colors.primaryText,
-
-              fontWeight: "700",
-
-            }}
-
-          >
-
-            {isSavingPlans
-              ? "Salvando..."
-              : !selectedClass
-                ? "Selecione uma turma"
-                : hasGeneratedCycle
-                  ? "Ciclo já gerado"
-                  : "Gerar ciclo"}
-
-          </Text>
-
-        </Pressable>
-
-        {hasWeekPlans ? (
+        {!hasGeneratedCycle ? (
           <Pressable
             onPress={() => {
-              if (!canRemoveCycle) return;
-              onRemoveCycle();
+              if (!canGenerateCycle) return;
+              handleGenerateCycle();
             }}
-            disabled={!canRemoveCycle}
+            disabled={!canGenerateCycle}
             style={{
-              marginTop: 8,
+              marginTop: 10,
               marginRight: reserveFloatingActionSpace ? 72 : 0,
               paddingVertical: 10,
               borderRadius: 12,
               alignItems: "center",
-              backgroundColor: colors.dangerSolidBg,
-              opacity: canRemoveCycle ? 1 : 0.6,
+              backgroundColor: !canGenerateCycle ? colors.primaryDisabledBg : colors.primaryBg,
             }}
           >
-            <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
-              {isSavingPlans ? "Removendo..." : "Remover ciclo"}
+            <Text
+              style={{
+                color: !canGenerateCycle ? colors.secondaryText : colors.primaryText,
+                fontWeight: "700",
+              }}
+            >
+              {isSavingPlans ? "Salvando..." : !selectedClass ? "Selecione uma turma" : "Gerar ciclo"}
             </Text>
           </Pressable>
-        ) : null}
+        ) : (
+          <View
+            style={{
+              marginTop: 10,
+              marginRight: reserveFloatingActionSpace ? 72 : 0,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                flex: 1,
+                minWidth: 210,
+                borderRadius: 12,
+                paddingHorizontal: 10,
+                paddingVertical: 8,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Ionicons name="refresh" size={13} color={colors.muted} />
+              <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
+                Para gerar novamente, use o ícone de atualizar na visão geral.
+              </Text>
+            </View>
+
+            {hasWeekPlans ? (
+              <Pressable
+                onPress={() => {
+                  if (!canRemoveCycle) return;
+                  onRemoveCycle();
+                }}
+                disabled={!canRemoveCycle}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.dangerBorder,
+                  backgroundColor: colors.dangerBg,
+                  opacity: canRemoveCycle ? 1 : 0.6,
+                }}
+              >
+                <Ionicons name="trash-outline" size={13} color={colors.dangerText} />
+                <Text style={{ color: colors.dangerText, fontWeight: "700", fontSize: 12 }}>
+                  {isSavingPlans ? "Removendo..." : "Remover ciclo"}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        )}
 
       </View>
 

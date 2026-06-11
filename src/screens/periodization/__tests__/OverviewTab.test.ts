@@ -19,6 +19,9 @@ const colors = {
   card: "#111827",
   dangerSolidBg: "#b91c1c",
   dangerSolidText: "#ffffff",
+  dangerBg: "rgba(248, 113, 113, 0.16)",
+  dangerBorder: "rgba(248, 113, 113, 0.36)",
+  dangerText: "#FCA5A5",
   inputBg: "#0f172a",
   muted: "#94a3b8",
   primaryBg: "#22c55e",
@@ -128,7 +131,7 @@ const findNodeByText = (root: TestRenderer.ReactTestInstance, text: string) =>
   root.findAll((node) => collectText(node).includes(text))[0];
 
 describe("OverviewTab", () => {
-  it("disables the main cycle generation action when a cycle already exists", () => {
+  it("hides the large generation action when a cycle already exists", () => {
     const onGenerateCycle = jest.fn();
     let renderer: TestRenderer.ReactTestRenderer;
 
@@ -145,13 +148,16 @@ describe("OverviewTab", () => {
     });
 
     const root = renderer!.root;
-    const disabledGenerateButton = root.findAll(
+    const disabledGenerateButtons = root.findAll(
       (node) => node.props.disabled === true && collectText(node).includes("Ciclo já gerado")
-    )[0];
+    );
     const regenerateIcon = root.findByProps({ accessibilityLabel: "Gerar ciclo novamente" });
 
-    expect(disabledGenerateButton).toBeTruthy();
+    expect(disabledGenerateButtons).toHaveLength(0);
     expect(regenerateIcon.props.disabled).toBe(false);
+    expect(findNodeByText(root, "Gerado")).toBeTruthy();
+    expect(findNodeByText(root, "Para gerar novamente")).toBeTruthy();
+    expect(findNodeByText(root, "Remover ciclo")).toBeTruthy();
 
     act(() => {
       regenerateIcon.props.onPress();
