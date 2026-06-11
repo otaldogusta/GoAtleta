@@ -5,6 +5,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState
 } from "react";
@@ -21,6 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
 import { useAuth } from "../src/auth/auth";
+import { sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
 import { hasStoredSession, setRememberPreference } from "../src/auth/session";
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { getBiometricsEnabled } from "../src/security/biometric-settings";
@@ -46,11 +48,13 @@ export default function LoginScreen() {
     email: prefillEmail,
     password: prefillPassword,
     fromSignup,
+    next,
     pendingHint,
   } = useLocalSearchParams<{
     email?: string;
     password?: string;
     fromSignup?: string;
+    next?: string;
     pendingHint?: string;
   }>();
   const [email, setEmail] = useState("");
@@ -74,6 +78,7 @@ export default function LoginScreen() {
   const loginInFlightRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
   const rememberKey = "auth_remember_email";
+  const loginRedirectTarget = useMemo(() => sanitizePostLoginRedirect(next), [next]);
 
   useEffect(() => {
     if (resetCountdown <= 0) return;
@@ -218,8 +223,8 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (!session) return;
-    router.replace("/");
-  }, [router, session]);
+    router.replace((loginRedirectTarget ?? "/") as Parameters<typeof router.replace>[0]);
+  }, [loginRedirectTarget, router, session]);
 
   const formatCountdown = (value: number) => {
     const minutes = Math.floor(value / 60);
@@ -332,7 +337,10 @@ export default function LoginScreen() {
     setMessage("");
     setBusy(true);
     try {
-      await signInWithOAuth(provider, "login");
+      const redirectPath = loginRedirectTarget
+        ? `login?next=${encodeURIComponent(loginRedirectTarget)}`
+        : "login";
+      await signInWithOAuth(provider, redirectPath);
     } catch (error) {
       const detail =
         error instanceof Error ? error.message.toLowerCase() : "Falha ao autenticar.";
