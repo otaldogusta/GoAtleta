@@ -662,8 +662,17 @@ const reason = (
 
 export const recommendActivityCatalogVariants = (
   context: ActivityCatalogRecommendationContext
-): ActivityCatalogRecommendation[] =>
-  ACTIVITY_CATALOG_VARIANTS.map((variant) => {
+): ActivityCatalogRecommendation[] => {
+  const hasPrimarySkillCoverage = ACTIVITY_CATALOG_VARIANTS.some(
+    (variant) => variant.taxonomy.skill === context.primarySkill
+  );
+  if (!hasPrimarySkillCoverage) return [];
+
+  return ACTIVITY_CATALOG_VARIANTS.filter(
+    (variant) =>
+      variant.taxonomy.skill === context.primarySkill ||
+      variant.taxonomy.skill === context.secondarySkill
+  ).map((variant) => {
     const taxonomy = variant.taxonomy;
     const reasons: ActivityCatalogSelectionReason[] = [];
     let score = 0;
@@ -742,6 +751,7 @@ export const recommendActivityCatalogVariants = (
 
     return { variant, score, reasons };
   }).sort((left, right) => right.score - left.score || left.variant.id.localeCompare(right.variant.id));
+};
 
 export const auditActivityCatalog = (): ActivityCatalogAudit => {
   const bySkill = Object.fromEntries(allSkills.map((skill) => [skill, 0])) as Record<VolleyballSkill, number>;

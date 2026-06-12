@@ -117,6 +117,22 @@ describe("activity catalog foundation", () => {
     ).toBe(true);
   });
 
+  it("returns no recommendations when the catalog has no primary skill coverage", () => {
+    const recommendations = recommendActivityCatalogVariants({
+      primarySkill: "bloqueio",
+      secondarySkill: "passe",
+      ageStage: "formation",
+      phaseIntent: "transferencia_jogo",
+      progressionDimension: "tomada_decisao",
+      pedagogicalIntent: "team_organization",
+      loadIntent: "moderado",
+      recentActivityFamilies: [],
+      materials: ["bolas", "cones"],
+    });
+
+    expect(recommendations).toEqual([]);
+  });
+
   it("penalizes repeated recent families", () => {
     const fresh = recommendActivityCatalogVariants({
       primarySkill: "passe",
