@@ -10,6 +10,11 @@ import { resolvePedagogicalDecisionSupport } from "../../../core/cycle-day-plann
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
 import type { TeacherOverrideInfluence } from "../../../core/cycle-day-planning/resolve-teacher-override-weight";
 import { detectSessionPedagogicalApproach } from "../../../core/methodology/session-pedagogical-language";
+import {
+    recommendActivityCatalogVariants,
+    type ActivityCatalogRecommendation,
+} from "../../../core/volleyball/activity-catalog";
+import { resolveVolleyballLessonAgeProfile } from "../../../core/volleyball/humanized-lesson-activities";
 import type {
     ClassGroup,
     ClassPlan,
@@ -78,6 +83,7 @@ export type AutoPlanForCycleDayResult = {
   repetitionAdjustment: RepetitionAdjustment;
   explanation: CycleDayGenerationExplanation;
   decisionTrace: SessionDecisionTrace;
+  activityCatalogRecommendations: ActivityCatalogRecommendation[];
   generationContext: ClassGenerationContext;
   sessionPlanningContext: SessionPlanningContext;
   package: PedagogicalPlanPackage;
@@ -199,6 +205,25 @@ export const buildAutoPlanForCycleDay = (
     recentSessions,
     recentPlans,
   });
+  const activityCatalogRecommendations = recommendActivityCatalogVariants({
+    primarySkill: strategy.primarySkill,
+    secondarySkill: strategy.secondarySkill,
+    ageStage: resolveVolleyballLessonAgeProfile(params.classGroup).stage,
+    phaseIntent: cycleContext.phaseIntent,
+    progressionDimension: strategy.progressionDimension,
+    pedagogicalIntent: strategy.pedagogicalIntent,
+    loadIntent: strategy.loadIntent,
+    recentActivityFamilies: [
+      ...cycleContext.mustAvoidRepeating,
+      ...strategy.forbiddenDrillFamilies,
+    ],
+    materials: cycleContext.materials,
+    recentDifficulties: [
+      cycleContext.dominantGapSkill,
+      cycleContext.dominantGapType,
+      cycleContext.mustProgressFrom,
+    ].filter((value): value is string => Boolean(value)),
+  }).slice(0, 5);
   const sessionPlanningContext = buildSessionPlanningContext({
     classGroup: params.classGroup,
     cycleContext,
@@ -292,6 +317,7 @@ export const buildAutoPlanForCycleDay = (
     repetitionAdjustment: guardResult.repetitionAdjustment,
     explanation,
     decisionTrace,
+    activityCatalogRecommendations,
     generationContext,
     sessionPlanningContext,
     package: sanitizedPlan.package,

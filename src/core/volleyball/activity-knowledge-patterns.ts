@@ -1,4 +1,9 @@
 import type { VolleyballSkill } from "../models";
+import {
+  ACTIVITY_CATALOG_VARIANTS,
+  type ActivityCatalogTaxonomy,
+  type ActivityCatalogVariant,
+} from "./activity-catalog";
 import type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-engine";
 
 export type ActivityFocusVariant = "manchete";
@@ -47,6 +52,7 @@ export type ActivityKnowledgePattern = {
   materials: string[];
   space: string;
   ageText?: AgeTextOverrides;
+  catalogTaxonomy?: ActivityCatalogTaxonomy;
 };
 
 const allAgeStages: ActivityPatternAgeStage[] = [
@@ -726,3 +732,33 @@ const generatedFocusPatterns = focusConfigs.flatMap((config): ActivityKnowledgeP
 ]);
 
 VOLLEYBALL_ACTIVITY_KNOWLEDGE_PATTERNS.push(...generatedFocusPatterns);
+
+const catalogVariantToKnowledgePattern = (
+  variant: ActivityCatalogVariant
+): ActivityKnowledgePattern => ({
+  id: variant.id,
+  skill: variant.taxonomy.skill,
+  stage: variant.taxonomy.recommendedPhase,
+  ageStages: variant.taxonomy.ageRange,
+  families: variant.taxonomy.families,
+  periodizationFit: variant.periodizationFit,
+  name: variant.name,
+  players: variant.players,
+  setup: variant.setup,
+  starter: variant.starter,
+  action: variant.action,
+  rotation: variant.rotation,
+  constraint: variant.constraint,
+  scoring: variant.scoring,
+  progression: variant.progression,
+  commonMistakes: variant.commonMistakes,
+  adaptations: variant.adaptations,
+  avoid: variant.avoid,
+  materials: variant.materials,
+  space: variant.space,
+  catalogTaxonomy: variant.taxonomy,
+});
+
+VOLLEYBALL_ACTIVITY_KNOWLEDGE_PATTERNS.push(
+  ...ACTIVITY_CATALOG_VARIANTS.map(catalogVariantToKnowledgePattern)
+);
