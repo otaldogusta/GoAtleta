@@ -2,6 +2,8 @@
 
 Objetivo: orientar a evolucao do catalogo canônico de pedagogia do voleibol para que o gerador semanal e diário produza aulas com identidade real de categoria, forma de jogo e momento do ciclo.
 
+Nota operacional: a documentação de manutenção, integração, testes e QA do catálogo vive em [catalog-pedagogico/README.md](catalog-pedagogico/README.md). Este arquivo permanece como direção estratégica de expansão.
+
 ## Principios
 
 - O mes define a faixa do conteudo.

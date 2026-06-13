@@ -272,6 +272,11 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.package.input.constraints).toContain(
       `Skill principal: ${result.strategy.primarySkill}.`
     );
+    expect(result.activityCatalogRecommendations.length).toBeGreaterThan(0);
+    expect(result.activityCatalogRecommendations[0]?.variant.taxonomy.skill).toBe(
+      result.strategy.primarySkill
+    );
+    expect(result.activityCatalogRecommendations[0]?.reasons.length).toBeGreaterThan(0);
     expect(
       result.package.input.constraints.some((item) => item.includes("Favorecer familias:"))
     ).toBe(true);

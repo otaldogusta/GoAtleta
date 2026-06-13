@@ -23,6 +23,7 @@ de entrada antes de abrir arquivos antigos soltos na raiz.
 | Verificação pedagógica | [PEDAGOGICAL_DIMENSIONS_VERIFICATION.md](PEDAGOGICAL_DIMENSIONS_VERIFICATION.md) |
 | Rubrica humana de validação | [ficha-validacao-pedagogica-humana.md](ficha-validacao-pedagogica-humana.md) |
 | Expansão do catálogo pedagógico | [expansao-catalogo-pedagogico.md](expansao-catalogo-pedagogico.md) |
+| Catálogo pedagógico operacional | [catalog-pedagogico/README.md](catalog-pedagogico/README.md) |
 
 ## Treinamento resistido
 

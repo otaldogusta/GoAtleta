@@ -1,9 +1,11 @@
 import type {
   PedagogicalIntent,
+  PhaseIntent,
   ProgressionDimension,
   VolleyballSkill,
   WeeklyLoadIntent,
 } from "../models";
+import type { ActivityCatalogTaxonomy } from "./activity-catalog";
 import type { SessionPlanningContext } from "../session-planning-context";
 import { composeActivityPattern } from "./activity-pattern-composer";
 import {
@@ -33,6 +35,7 @@ export type ActivityPatternSelectionContext = {
   focusVariant?: ActivityFocusVariant;
   ageProfile: ActivityPatternAgeProfile;
   periodizationPhase?: SessionPlanningContext["periodizationPhase"];
+  phaseIntent?: PhaseIntent;
   progressionDimension?: ProgressionDimension;
   pedagogicalIntent?: PedagogicalIntent;
   loadIntent?: WeeklyLoadIntent;
@@ -73,6 +76,7 @@ export type ActivityPattern = {
   space: string;
   materials: string[];
   periodizationFit: Array<"exploration" | "technical" | "decision" | "pressure" | "game_transfer">;
+  catalogTaxonomy?: ActivityCatalogTaxonomy;
   build: (context: ActivityPatternSelectionContext) => ActivityPatternActivitySpec;
 };
 
@@ -125,6 +129,50 @@ const contextIntentFits = (
   return fits.includes("technical") || fits.includes("decision");
 };
 
+const resolvePhaseIntent = (
+  context: ActivityPatternSelectionContext
+): PhaseIntent | undefined => {
+  if (context.phaseIntent) return context.phaseIntent;
+  if (context.periodizationPhase === "base") return "exploracao_fundamentos";
+  if (context.periodizationPhase === "desenvolvimento") return "estabilizacao_tecnica";
+  if (context.periodizationPhase === "pre_competitivo") return "aceleracao_decisao";
+  if (context.periodizationPhase === "competitivo") return "pressao_competitiva";
+  return undefined;
+};
+
+const scoreCatalogTaxonomy = (
+  taxonomy: ActivityCatalogTaxonomy | undefined,
+  context: ActivityPatternSelectionContext
+) => {
+  if (!taxonomy) return 0;
+
+  let score = 0;
+  const phaseIntent = resolvePhaseIntent(context);
+
+  if (phaseIntent) {
+    score += taxonomy.periodizationCompatibility.includes(phaseIntent) ? 44 : -36;
+  }
+  if (
+    context.progressionDimension &&
+    taxonomy.progressionCompatibility.includes(context.progressionDimension)
+  ) {
+    score += 18;
+  }
+  if (
+    context.pedagogicalIntent &&
+    taxonomy.pedagogicalIntent === context.pedagogicalIntent
+  ) {
+    score += 16;
+  }
+  if (context.loadIntent && taxonomy.loadCompatibility.includes(context.loadIntent)) {
+    score += 8;
+  }
+  if (taxonomy.ageRange.includes(context.ageProfile.stage)) {
+    score += 8;
+  }
+  return score;
+};
+
 const scorePattern = (
   pattern: ActivityPattern,
   context: ActivityPatternSelectionContext
@@ -142,6 +190,7 @@ const scorePattern = (
   if (context.classSize >= 16 && /equipe|grupo|turma/.test(normalize(pattern.playerFormat))) {
     score += 2;
   }
+  score += scoreCatalogTaxonomy(pattern.catalogTaxonomy, context);
   return score;
 };
 
@@ -156,6 +205,7 @@ const knowledgeToPattern = (knowledge: ActivityKnowledgePattern): ActivityPatter
   space: knowledge.space,
   materials: knowledge.materials,
   periodizationFit: knowledge.periodizationFit,
+  catalogTaxonomy: knowledge.catalogTaxonomy,
   build: (context) => composeActivityPattern(knowledge, context),
 });
 
