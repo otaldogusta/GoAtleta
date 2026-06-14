@@ -24,21 +24,19 @@ import {
   getCatalogActivityDetailSections,
   getCatalogActivityPrimaryBadge,
   getCatalogActivityShortFamilyLabel,
-  toSelectedCatalogActivity,
   type ActivityCatalogListItem,
-  type SelectedCatalogActivity,
 } from "./activity-catalog-view-model";
 
 type Props = {
   item: ActivityCatalogListItem | null;
   onClose: () => void;
-  onSuggest: (activity: SelectedCatalogActivity) => void;
+  onAddToLesson: (item: ActivityCatalogListItem) => void;
 };
 
 export function ActivityCatalogVideoDetailSheet({
   item,
   onClose,
-  onSuggest,
+  onAddToLesson,
 }: Props) {
   const { colors } = useAppTheme();
   const dimensions = useWindowDimensions();
@@ -91,7 +89,7 @@ export function ActivityCatalogVideoDetailSheet({
       footer={
         <Pressable
           testID="activity-catalog-use-in-plan"
-          onPress={() => onSuggest(toSelectedCatalogActivity(item))}
+          onPress={() => onAddToLesson(item)}
           style={{
             minHeight: 46,
             borderRadius: 14,
@@ -101,7 +99,7 @@ export function ActivityCatalogVideoDetailSheet({
           }}
         >
           <Text style={{ color: colors.primaryText, fontWeight: "900" }}>
-            Levar como sugestão
+            Adicionar à aula
           </Text>
         </Pressable>
       }

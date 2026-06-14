@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 
 import { useAppTheme } from "../../ui/app-theme";
+import { ActivityCatalogAddToLessonModal } from "./ActivityCatalogAddToLessonModal";
 import { ActivityCatalogFilterSheet } from "./ActivityCatalogFilterSheet";
 import { ActivityCatalogFilters } from "./ActivityCatalogFilters";
-import { ActivityCatalogSuggestionConfirmModal } from "./ActivityCatalogSuggestionConfirmModal";
 import { ActivityCatalogVideoCard } from "./ActivityCatalogVideoCard";
 import { ActivityCatalogVideoDetailSheet } from "./ActivityCatalogVideoDetailSheet";
 import {
@@ -15,18 +16,16 @@ import {
   getCatalogFilterOptions,
   type ActivityCatalogListItem,
   type CatalogFilterState,
-  type SelectedCatalogActivity,
 } from "./activity-catalog-view-model";
 
 export function ActivityCatalogTab() {
   const { colors } = useAppTheme();
+  const router = useRouter();
   const [filters, setFilters] = useState<CatalogFilterState>(EMPTY_CATALOG_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [detailItem, setDetailItem] = useState<ActivityCatalogListItem | null>(null);
-  const [pendingSuggestion, setPendingSuggestion] =
-    useState<SelectedCatalogActivity | null>(null);
-  const [selectedActivity, setSelectedActivity] =
-    useState<SelectedCatalogActivity | null>(null);
+  const [addItem, setAddItem] = useState<ActivityCatalogListItem | null>(null);
+  const [addedMessage, setAddedMessage] = useState("");
 
   const items = useMemo(() => buildActivityCatalogListItems(), []);
   const options = useMemo(() => getCatalogFilterOptions(items), [items]);
@@ -62,7 +61,7 @@ export function ActivityCatalogTab() {
         onOpenFilters={() => setShowFilters(true)}
       />
 
-      {selectedActivity ? (
+      {addedMessage ? (
         <View
           testID="activity-catalog-local-selection"
           style={{
@@ -74,7 +73,7 @@ export function ActivityCatalogTab() {
           }}
         >
           <Text style={{ color: colors.infoText, fontSize: 13, fontWeight: "800" }}>
-            Sugestão preparada: {selectedActivity.variantName}. O plano não foi alterado.
+            {addedMessage}
           </Text>
         </View>
       ) : null}
@@ -85,7 +84,7 @@ export function ActivityCatalogTab() {
             <ActivityCatalogVideoCard
               item={item}
               onView={setDetailItem}
-              onSuggest={setPendingSuggestion}
+              onAddToLesson={setAddItem}
             />
           </View>
         ))}
@@ -119,15 +118,20 @@ export function ActivityCatalogTab() {
       <ActivityCatalogVideoDetailSheet
         item={detailItem}
         onClose={() => setDetailItem(null)}
-        onSuggest={setPendingSuggestion}
+        onAddToLesson={setAddItem}
       />
 
-      <ActivityCatalogSuggestionConfirmModal
-        activity={pendingSuggestion}
-        onCancel={() => setPendingSuggestion(null)}
-        onConfirm={(activity) => {
-          setSelectedActivity(activity);
-          setPendingSuggestion(null);
+      <ActivityCatalogAddToLessonModal
+        item={addItem}
+        onCancel={() => setAddItem(null)}
+        onAdded={(message) => {
+          setAddedMessage(message);
+          setAddItem(null);
+          setDetailItem(null);
+        }}
+        onOpenPlanning={() => {
+          setAddItem(null);
+          router.push("/prof/planning");
         }}
       />
     </View>

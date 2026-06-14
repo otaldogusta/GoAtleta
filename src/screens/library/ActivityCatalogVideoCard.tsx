@@ -7,17 +7,15 @@ import { ActivityCatalogThumbnail } from "./ActivityCatalogThumbnail";
 import {
   getCatalogActivityPrimaryBadge,
   type ActivityCatalogListItem,
-  type SelectedCatalogActivity,
-  toSelectedCatalogActivity,
 } from "./activity-catalog-view-model";
 
 type Props = {
   item: ActivityCatalogListItem;
   onView: (item: ActivityCatalogListItem) => void;
-  onSuggest: (activity: SelectedCatalogActivity) => void;
+  onAddToLesson: (item: ActivityCatalogListItem) => void;
 };
 
-export function ActivityCatalogVideoCard({ item, onView, onSuggest }: Props) {
+export function ActivityCatalogVideoCard({ item, onView, onAddToLesson }: Props) {
   const { colors } = useAppTheme();
   const badge = getCatalogActivityPrimaryBadge(item);
   return (
@@ -64,8 +62,8 @@ export function ActivityCatalogVideoCard({ item, onView, onSuggest }: Props) {
             </Text>
           </Pressable>
           <Pressable
-            testID={`activity-catalog-suggest-${item.id}`}
-            onPress={() => onSuggest(toSelectedCatalogActivity(item))}
+            testID={`activity-catalog-add-${item.id}`}
+            onPress={() => onAddToLesson(item)}
             style={{
               height: 38,
               width: 42,

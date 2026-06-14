@@ -50,12 +50,6 @@ export type ActivityCatalogListItem = {
   searchableText: string;
 };
 
-export type SelectedCatalogActivity = {
-  variantId: string;
-  variantName: string;
-  familyTitle: string;
-};
-
 export type CatalogActivityDetailSection = {
   title: string;
   lines: string[];
@@ -280,11 +274,3 @@ export const filterActivityCatalogItems = (
     return true;
   });
 };
-
-export const toSelectedCatalogActivity = (
-  item: ActivityCatalogListItem
-): SelectedCatalogActivity => ({
-  variantId: item.variant.id,
-  variantName: item.variant.name,
-  familyTitle: item.familyTitle,
-});
