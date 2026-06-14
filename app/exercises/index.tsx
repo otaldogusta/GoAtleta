@@ -40,6 +40,7 @@ import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
+import { markRender, measureAsync } from "../../src/observability/perf";
 
 type LibraryTab = "links" | "catalog";
 
@@ -83,6 +84,7 @@ export default function ExercisesScreen() {
   const canSave = Boolean(videoUrl.trim()) && !metaLoading;
   const debouncedSearchText = useDebouncedValue(searchText, 250);
   const getExerciseId = useCallback((exercise: Exercise) => exercise.id, []);
+  markRender("screen.exercises.render.root");
   const undoableExerciseDelete = useUndoableListDelete({
     items,
     setItems,
@@ -111,7 +113,9 @@ export default function ExercisesScreen() {
 
   const load = useCallback(async () => {
     try {
-      const data = await getExercises();
+      const data = await measureAsync("screen.exercises.load.links", () =>
+        getExercises()
+      );
       setItems(data);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
