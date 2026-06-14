@@ -56,6 +56,11 @@ export type SelectedCatalogActivity = {
   familyTitle: string;
 };
 
+export type CatalogActivityDetailSection = {
+  title: string;
+  lines: string[];
+};
+
 export type CatalogFilterOptions = {
   families: Array<{ id: string; label: string }>;
   skills: VolleyballSkill[];
@@ -100,7 +105,51 @@ export const getActivityCatalogSecondaryMeta = (item: ActivityCatalogListItem) =
     formatLabels[taxonomy.format],
     pedagogicalIntentLabels[taxonomy.pedagogicalIntent],
     taxonomy.ageRange.map((ageStage) => ageStageLabels[ageStage]).join("/"),
-  ].filter(Boolean).join(" · ");
+    ].filter(Boolean).join(" · ");
+};
+
+export const getCatalogActivityPrimaryBadge = (item: ActivityCatalogListItem) =>
+  skillLabels[item.variant.taxonomy.skill];
+
+export const getCatalogActivityShortFamilyLabel = (item: ActivityCatalogListItem) =>
+  item.familyLabel;
+
+export const getCatalogActivityDetailSections = (
+  item: ActivityCatalogListItem
+): CatalogActivityDetailSection[] => {
+  const { variant } = item;
+  return [
+    {
+      title: "Objetivo",
+      lines: [item.purpose],
+    },
+    {
+      title: "Como aplicar",
+      lines: [variant.players, variant.setup],
+    },
+    {
+      title: "Funcionamento",
+      lines: [variant.starter, variant.action, variant.rotation],
+    },
+    {
+      title: "Progressão",
+      lines: [variant.constraint, variant.scoring, variant.progression].filter(Boolean) as string[],
+    },
+    {
+      title: "Cuidados",
+      lines: [
+        ...(variant.commonMistakes ?? []),
+        ...(variant.avoid ?? []),
+      ],
+    },
+    {
+      title: "Materiais e espaço",
+      lines: [
+        `Materiais: ${variant.materials.join(", ") || "Sem material obrigatório"}`,
+        `Espaço: ${variant.space}`,
+      ],
+    },
+  ].filter((section) => section.lines.length > 0);
 };
 
 export const buildActivityCatalogListItems = (

@@ -19,6 +19,15 @@ jest.mock("@expo/vector-icons", () => ({
   Ionicons: "Ionicons",
 }));
 
+jest.mock("../../../../assets/activity-catalog/thumbnails/continuity.png", () => 1);
+jest.mock("../../../../assets/activity-catalog/thumbnails/defense-coverage.png", () => 2);
+jest.mock("../../../../assets/activity-catalog/thumbnails/attack-transition.png", () => 3);
+jest.mock("../../../../assets/activity-catalog/thumbnails/sideout.png", () => 4);
+jest.mock("../../../../assets/activity-catalog/thumbnails/serve-reception.png", () => 5);
+jest.mock("../../../../assets/activity-catalog/thumbnails/preventive-strength.png", () => 6);
+jest.mock("../../../../assets/activity-catalog/thumbnails/transition.png", () => 7);
+jest.mock("../../../../assets/activity-catalog/thumbnails/generic-court.png", () => 8);
+
 const safeAreaMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
   insets: { top: 0, left: 0, right: 0, bottom: 0 },
@@ -97,7 +106,7 @@ describe("activity catalog library ui", () => {
     ).toBeGreaterThan(0);
   });
 
-  it("renders catalog activities, context message and public metadata", async () => {
+  it("renders video-first catalog cards with thumbnail, CTA and local plus action", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = renderCatalogTab();
@@ -111,43 +120,51 @@ describe("activity catalog library ui", () => {
     expect(text).toContain("Catálogo geral");
     expect(text).toContain(getActivityCatalogFamilyLabel(firstFamily.id, firstFamily.title));
     expect(text).toContain(firstVariant.name);
+    expect(text).toContain("Ver atividade");
+    expect(root.findByProps({ testID: `activity-catalog-video-card-${firstVariant.id}` })).toBeTruthy();
+    expect(root.findAllByProps({ testID: "activity-catalog-thumbnail" }).length).toBeGreaterThan(0);
+    expect(root.findByProps({ testID: `activity-catalog-suggest-${firstVariant.id}` })).toBeTruthy();
+    expect(text).not.toContain(firstVariant.setup);
+    expect(text).not.toContain(firstVariant.progression ?? "progression unavailable");
     expect(text).not.toContain("decisionTrace");
     expect(text).not.toContain("sourcePatternId");
-
-    act(() => {
-      root.findByProps({ testID: `activity-catalog-card-${firstVariant.id}` }).props.onPress();
-    });
-
-    const detailText = collectRenderedText(root);
-    expect(detailText).toContain("Objetivo pedagógico");
-    expect(detailText).toContain("Organização");
-    expect(detailText).toContain("Metadados");
-    expect(detailText).toContain("Sugerido porque");
-    expect(detailText).not.toContain("decisionTrace");
-    expect(detailText).not.toContain("sourcePatternId");
   });
 
-  it("keeps catalog cards compact and advanced filters hidden until requested", async () => {
+  it("keeps advanced filters closed by default and applies them from the sheet", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = renderCatalogTab();
     });
 
     const root = tree!.root;
-    expect(collectRenderedText(root)).toContain("Mais filtros");
-
-    const items = buildActivityCatalogListItems();
-    expect(getActivityCatalogCardChips(items[0])).toHaveLength(3);
+    const firstFamily = ACTIVITY_CATALOG_FAMILIES[0];
+    expect(collectRenderedText(root)).toContain("Filtros");
+    expect(collectRenderedText(root)).not.toContain("Idade/estágio");
 
     act(() => {
-      root.findByProps({ testID: "catalog-toggle-advanced-filters" }).props.onPress();
+      root.findByProps({ testID: "catalog-open-filters" }).props.onPress();
     });
 
     expect(collectRenderedText(root)).toContain("Família");
     expect(collectRenderedText(root)).toContain("Idade/estágio");
+    expect(collectRenderedText(root)).toContain("Aplicar filtros");
+    expect(collectRenderedText(root)).toContain("Limpar filtros");
+
+    act(() => {
+      root.findByProps({ testID: `catalog-family-filter-${firstFamily.id}` }).props.onPress();
+    });
+    act(() => {
+      root.findByProps({ testID: "catalog-filter-apply" }).props.onPress();
+    });
+
+    const filteredText = collectRenderedText(root);
+    expect(filteredText).toContain(firstFamily.variants[0].name);
   });
 
-  it("shows empty state when filters have no coverage", async () => {
+  it("limits card badges and shows empty state when filters have no coverage", async () => {
+    const items = buildActivityCatalogListItems();
+    expect(getActivityCatalogCardChips(items[0]).length).toBeLessThanOrEqual(3);
+
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = renderCatalogTab();
@@ -160,11 +177,12 @@ describe("activity catalog library ui", () => {
       );
     });
 
-    const text = collectRenderedText(root);
-    expect(text).toContain("Nenhuma atividade encontrada para os filtros selecionados.");
+    expect(collectRenderedText(root)).toContain(
+      "Nenhuma atividade encontrada para os filtros selecionados."
+    );
   });
 
-  it("marks use in plan only as local transient selection", async () => {
+  it("opens video detail with public sections and technical details collapsed", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = renderCatalogTab();
@@ -174,17 +192,50 @@ describe("activity catalog library ui", () => {
     const firstVariant = ACTIVITY_CATALOG_FAMILIES[0].variants[0];
 
     act(() => {
-      root.findByProps({ testID: `activity-catalog-card-${firstVariant.id}` }).props.onPress();
+      root.findByProps({ testID: `activity-catalog-view-${firstVariant.id}` }).props.onPress();
     });
+
+    const detailText = collectRenderedText(root);
+    expect(root.findAllByProps({ testID: "activity-catalog-thumbnail" }).length).toBeGreaterThan(0);
+    expect(detailText).toContain("Objetivo");
+    expect(detailText).toContain("Como aplicar");
+    expect(detailText).toContain("Funcionamento");
+    expect(detailText).toContain("Progressão");
+    expect(detailText).toContain("Cuidados");
+    expect(detailText).toContain("Levar como sugestão");
+    expect(detailText).toContain("Detalhes técnicos");
+    expect(detailText).not.toContain("Demanda cognitiva");
+    expect(detailText).not.toContain("Periodização");
+    expect(detailText).not.toContain("raw score");
+    expect(detailText).not.toContain("decisionTrace");
+    expect(detailText).not.toContain("sourcePatternId");
+  });
+
+  it("marks use in plan only as a confirmed transient selection", async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderCatalogTab();
+    });
+
+    const root = tree!.root;
+    const firstVariant = ACTIVITY_CATALOG_FAMILIES[0].variants[0];
+
     act(() => {
-      root.findByProps({ testID: "activity-catalog-use-in-plan" }).props.onPress();
+      root.findByProps({ testID: `activity-catalog-suggest-${firstVariant.id}` }).props.onPress();
+    });
+
+    expect(collectRenderedText(root)).toContain("Levar atividade como sugestão?");
+    expect(collectRenderedText(root)).toContain(
+      "O plano não será alterado automaticamente."
+    );
+
+    act(() => {
+      root.findByProps({ testID: "activity-catalog-confirm-suggestion" }).props.onPress();
     });
 
     const text = collectRenderedText(root);
-    expect(text).toContain(
-      "A atividade foi marcada como sugestão local. O plano não foi alterado."
-    );
-    expect(text).toContain("Levar como sugestão");
+    expect(text).toContain("Sugestão preparada");
+    expect(text).toContain("O plano não foi alterado.");
     expect(text).not.toContain("TrainingPlan.pedagogy.blocks");
     expect(text).not.toContain("DailyLessonPlan");
     expect(text).not.toContain("decisionTrace");

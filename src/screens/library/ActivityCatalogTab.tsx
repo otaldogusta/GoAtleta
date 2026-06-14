@@ -3,9 +3,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import { useAppTheme } from "../../ui/app-theme";
-import { ActivityCatalogCard } from "./ActivityCatalogCard";
-import { ActivityCatalogDetailModal } from "./ActivityCatalogDetailModal";
+import { ActivityCatalogFilterSheet } from "./ActivityCatalogFilterSheet";
 import { ActivityCatalogFilters } from "./ActivityCatalogFilters";
+import { ActivityCatalogSuggestionConfirmModal } from "./ActivityCatalogSuggestionConfirmModal";
+import { ActivityCatalogVideoCard } from "./ActivityCatalogVideoCard";
+import { ActivityCatalogVideoDetailSheet } from "./ActivityCatalogVideoDetailSheet";
 import {
   EMPTY_CATALOG_FILTERS,
   buildActivityCatalogListItems,
@@ -19,7 +21,10 @@ import {
 export function ActivityCatalogTab() {
   const { colors } = useAppTheme();
   const [filters, setFilters] = useState<CatalogFilterState>(EMPTY_CATALOG_FILTERS);
+  const [showFilters, setShowFilters] = useState(false);
   const [detailItem, setDetailItem] = useState<ActivityCatalogListItem | null>(null);
+  const [pendingSuggestion, setPendingSuggestion] =
+    useState<SelectedCatalogActivity | null>(null);
   const [selectedActivity, setSelectedActivity] =
     useState<SelectedCatalogActivity | null>(null);
 
@@ -54,22 +59,43 @@ export function ActivityCatalogTab() {
         options={options}
         resultCount={filteredItems.length}
         onChange={setFilters}
+        onOpenFilters={() => setShowFilters(true)}
       />
 
-      <View style={{ gap: 10 }}>
+      {selectedActivity ? (
+        <View
+          testID="activity-catalog-local-selection"
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.infoBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ color: colors.infoText, fontSize: 13, fontWeight: "800" }}>
+            Sugestão preparada: {selectedActivity.variantName}. O plano não foi alterado.
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
         {filteredItems.map((item) => (
-          <ActivityCatalogCard
-            key={item.id}
-            item={item}
-            onPress={setDetailItem}
-          />
+          <View key={item.id} style={{ flexGrow: 1, flexBasis: 280, maxWidth: 420 }}>
+            <ActivityCatalogVideoCard
+              item={item}
+              onView={setDetailItem}
+              onSuggest={setPendingSuggestion}
+            />
+          </View>
         ))}
         {!filteredItems.length ? (
           <View
             testID="activity-catalog-empty-state"
             style={{
+              flex: 1,
               padding: 14,
-              borderRadius: 8,
+              borderRadius: 14,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.card,
@@ -82,11 +108,27 @@ export function ActivityCatalogTab() {
         ) : null}
       </View>
 
-      <ActivityCatalogDetailModal
+      <ActivityCatalogFilterSheet
+        visible={showFilters}
+        filters={filters}
+        options={options}
+        onApply={setFilters}
+        onClose={() => setShowFilters(false)}
+      />
+
+      <ActivityCatalogVideoDetailSheet
         item={detailItem}
-        selectedActivity={selectedActivity}
         onClose={() => setDetailItem(null)}
-        onUseInPlan={setSelectedActivity}
+        onSuggest={setPendingSuggestion}
+      />
+
+      <ActivityCatalogSuggestionConfirmModal
+        activity={pendingSuggestion}
+        onCancel={() => setPendingSuggestion(null)}
+        onConfirm={(activity) => {
+          setSelectedActivity(activity);
+          setPendingSuggestion(null);
+        }}
       />
     </View>
   );
