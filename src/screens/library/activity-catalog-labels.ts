@@ -24,22 +24,22 @@ export const skillLabels: Record<VolleyballSkill, string> = {
   bloqueio: "Bloqueio",
   defesa: "Defesa",
   saque: "Saque",
-  transicao: "Transicao",
+  transicao: "Transição",
 };
 
 export const ageStageLabels: Record<ActivityPatternAgeStage, string> = {
-  early: "Iniciacao",
+  early: "Iniciação",
   base: "Base",
-  transition: "Transicao",
-  formation: "Formacao",
-  specialization: "Especializacao",
+  transition: "Transição",
+  formation: "Formação",
+  specialization: "Especialização",
 };
 
 export const phaseLabels: Record<ActivityPatternStage, string> = {
   warmup: "Aquecimento",
   drill: "Desenvolvimento",
-  game: "Jogo/aplicacao",
-  cooldown: "Volta a calma",
+  game: "Jogo/aplicação",
+  cooldown: "Volta à calma",
 };
 
 export const complexityLabels: Record<ActivityCatalogComplexity, string> = {
@@ -52,7 +52,7 @@ export const formatLabels: Record<ActivityCatalogFormat, string> = {
   individual: "Individual",
   dupla: "Dupla",
   trio: "Trio",
-  cooperacao: "Cooperacao",
+  cooperacao: "Cooperação",
   jogo_reduzido: "Jogo reduzido",
   jogo_aplicado: "Jogo aplicado",
 };
@@ -66,45 +66,45 @@ export const environmentLabels: Record<ActivityCatalogEnvironment, string> = {
 
 export const demandLabels: Record<ActivityCatalogDemand, string> = {
   baixa: "Baixa",
-  media: "Media",
+  media: "Média",
   alta: "Alta",
 };
 
 export const gamePhaseLabels: Record<ActivityCatalogGamePhase, string> = {
   aquecimento_motor: "Aquecimento motor",
-  recepcao: "Recepcao",
-  saque_recepcao: "Saque e recepcao",
+  recepcao: "Recepção",
+  saque_recepcao: "Saque e recepção",
   rally: "Rally",
   sideout: "Sideout",
-  transicao: "Transicao",
+  transicao: "Transição",
   defesa_cobertura: "Defesa e cobertura",
   ataque: "Ataque",
   fechamento: "Fechamento",
 };
 
 export const pedagogicalIntentLabels: Record<PedagogicalIntent, string> = {
-  decision_making: "Tomada de decisao",
+  decision_making: "Tomada de decisão",
   game_reading: "Leitura de jogo",
-  team_organization: "Organizacao coletiva",
-  technical_adjustment: "Ajuste tecnico",
-  pressure_adaptation: "Adaptacao a pressao",
+  team_organization: "Organização coletiva",
+  technical_adjustment: "Ajuste técnico",
+  pressure_adaptation: "Adaptação à pressão",
 };
 
 export const phaseIntentLabels: Record<PhaseIntent, string> = {
-  exploracao_fundamentos: "Exploracao de fundamentos",
-  estabilizacao_tecnica: "Estabilizacao tecnica",
-  aceleracao_decisao: "Aceleracao da decisao",
-  transferencia_jogo: "Transferencia para o jogo",
-  pressao_competitiva: "Pressao competitiva",
+  exploracao_fundamentos: "Exploração de fundamentos",
+  estabilizacao_tecnica: "Estabilização técnica",
+  aceleracao_decisao: "Aceleração da decisão",
+  transferencia_jogo: "Transferência para o jogo",
+  pressao_competitiva: "Pressão competitiva",
 };
 
 export const progressionLabels: Record<ProgressionDimension, string> = {
-  consistencia: "Consistencia",
-  precisao: "Precisao",
-  pressao_tempo: "Pressao de tempo",
-  oposicao: "Oposicao",
-  tomada_decisao: "Tomada de decisao",
-  transferencia_jogo: "Transferencia para o jogo",
+  consistencia: "Consistência",
+  precisao: "Precisão",
+  pressao_tempo: "Pressão de tempo",
+  oposicao: "Oposição",
+  tomada_decisao: "Tomada de decisão",
+  transferencia_jogo: "Transferência para o jogo",
 };
 
 export const loadLabels: Record<WeeklyLoadIntent, string> = {
@@ -112,3 +112,20 @@ export const loadLabels: Record<WeeklyLoadIntent, string> = {
   moderado: "Carga moderada",
   alto: "Alta carga",
 };
+
+export const familyLabels: Record<string, string> = {
+  continuidade_tres_contatos: "Continuidade",
+  troca_continua_tarefa_dupla: "Troca contínua",
+  sideout_saque_recepcao: "Sideout",
+  defesa_cobertura_fora_sistema: "Defesa e cobertura",
+  ataque_transicao_zona_livre: "Ataque à zona livre",
+  forca_preventiva_integrada: "Força preventiva",
+};
+
+const humanizeCatalogLabel = (value: string) =>
+  value
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+export const getActivityCatalogFamilyLabel = (familyId: string, fallback: string) =>
+  familyLabels[familyId] ?? (fallback || humanizeCatalogLabel(familyId));

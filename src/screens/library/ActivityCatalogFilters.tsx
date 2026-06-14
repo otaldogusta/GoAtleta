@@ -49,18 +49,18 @@ function FilterChip<T extends string>({
       onPress={() => onSelect(active ? "" : value)}
       style={{
         paddingHorizontal: 10,
-        paddingVertical: 7,
+        paddingVertical: 6,
         borderRadius: 999,
         borderWidth: 1,
-        borderColor: active ? colors.primaryBg : colors.border,
-        backgroundColor: active ? colors.primaryBg : colors.card,
-        minHeight: 32,
+        borderColor: active ? colors.successBorder : colors.border,
+        backgroundColor: active ? colors.successBg : colors.card,
+        minHeight: 30,
         justifyContent: "center",
       }}
     >
       <Text
         style={{
-          color: active ? colors.primaryText : colors.text,
+          color: active ? colors.successText : colors.text,
           fontSize: 12,
           fontWeight: "700",
         }}
@@ -133,7 +133,8 @@ export function ActivityCatalogFilters({
   const active = hasActiveCatalogFilters(filters);
   const hasAdvancedFilter =
     Boolean(
-      filters.ageStage ||
+      filters.familyId ||
+        filters.ageStage ||
         filters.complexity ||
         filters.recommendedPhase ||
         filters.format ||
@@ -145,7 +146,7 @@ export function ActivityCatalogFilters({
     <View
       style={{
         gap: 10,
-        padding: 12,
+        padding: 10,
         borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.border,
@@ -158,7 +159,7 @@ export function ActivityCatalogFilters({
           alignItems: "center",
           borderWidth: 1,
           borderColor: colors.border,
-          paddingVertical: 6,
+          paddingVertical: 5,
           paddingHorizontal: 10,
           borderRadius: 12,
           backgroundColor: colors.inputBg,
@@ -166,42 +167,13 @@ export function ActivityCatalogFilters({
       >
         <TextInput
           testID="catalog-search-input"
-          placeholder="Buscar no catalogo..."
+          placeholder="Buscar atividade..."
           placeholderTextColor={colors.placeholder}
           value={filters.query}
           onChangeText={(query) => onChange({ ...filters, query })}
           style={{ flex: 1, paddingVertical: 2, color: colors.inputText }}
         />
         <Ionicons name="search-outline" size={18} color={colors.muted} />
-      </View>
-
-      <View style={{ gap: 6 }}>
-        <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-          Familia
-        </Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingRight: 8 }}
-        >
-          <FilterChip
-            label="Todas"
-            value=""
-            activeValue={filters.familyId}
-            testID="catalog-family-filter-all"
-            onSelect={(familyId) => onChange({ ...filters, familyId })}
-          />
-          {options.families.map((family) => (
-            <FilterChip
-              key={family.id}
-              label={family.label}
-              value={family.id}
-              activeValue={filters.familyId}
-              testID={`catalog-family-filter-${family.id}`}
-              onSelect={(familyId) => onChange({ ...filters, familyId })}
-            />
-          ))}
-        </ScrollView>
       </View>
 
       <ChipRow
@@ -214,8 +186,8 @@ export function ActivityCatalogFilters({
       />
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Text style={{ flex: 1, color: colors.muted, fontSize: 12 }}>
-          {resultCount} atividades encontradas
+        <Text style={{ flex: 1, color: colors.muted, fontSize: 13 }}>
+          {resultCount} atividades
         </Text>
         <Pressable
           testID="catalog-toggle-advanced-filters"
@@ -272,8 +244,36 @@ export function ActivityCatalogFilters({
 
       {showAdvancedFilters || hasAdvancedFilter ? (
         <View style={{ gap: 10 }}>
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+              Família
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingRight: 8 }}
+            >
+              <FilterChip
+                label="Todas"
+                value=""
+                activeValue={filters.familyId}
+                testID="catalog-family-filter-all"
+                onSelect={(familyId) => onChange({ ...filters, familyId })}
+              />
+              {options.families.map((family) => (
+                <FilterChip
+                  key={family.id}
+                  label={family.label}
+                  value={family.id}
+                  activeValue={filters.familyId}
+                  testID={`catalog-family-filter-${family.id}`}
+                  onSelect={(familyId) => onChange({ ...filters, familyId })}
+                />
+              ))}
+            </ScrollView>
+          </View>
           <ChipRow
-            title="Idade/estagio"
+            title="Idade/estágio"
             values={options.ageStages}
             activeValue={filters.ageStage}
             labels={ageStageLabels}

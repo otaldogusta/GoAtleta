@@ -14,6 +14,11 @@ type AnimatedSegmentedTabsProps<T extends string> = {
   activeTab: T;
   onChange: (tab: T) => void;
   style?: StyleProp<ViewStyle>;
+  activeBackgroundColor?: string;
+  activeTextColor?: string;
+  inactiveTextColor?: string;
+  itemMinHeight?: number;
+  itemPaddingVertical?: number;
 };
 
 export function AnimatedSegmentedTabs<T extends string>({
@@ -21,6 +26,11 @@ export function AnimatedSegmentedTabs<T extends string>({
   activeTab,
   onChange,
   style,
+  activeBackgroundColor,
+  activeTextColor,
+  inactiveTextColor,
+  itemMinHeight = 36,
+  itemPaddingVertical = 8,
 }: AnimatedSegmentedTabsProps<T>) {
   const { colors } = useAppTheme();
   const animRef = useRef<Record<string, Animated.Value>>({});
@@ -71,11 +81,14 @@ export function AnimatedSegmentedTabs<T extends string>({
         });
         const tabBackground = progress.interpolate({
           inputRange: [0, 1],
-          outputRange: ["transparent", colors.primaryBg],
+          outputRange: ["transparent", activeBackgroundColor ?? colors.primaryBg],
         });
         const tabTextColor = progress.interpolate({
           inputRange: [0, 1],
-          outputRange: [colors.text, colors.primaryText],
+          outputRange: [
+            inactiveTextColor ?? colors.text,
+            activeTextColor ?? colors.primaryText,
+          ],
         });
 
         return (
@@ -95,11 +108,11 @@ export function AnimatedSegmentedTabs<T extends string>({
                 onChange(tab.id);
               }}
               style={{
-                paddingVertical: 8,
+                paddingVertical: itemPaddingVertical,
                 borderRadius: 999,
                 alignItems: "center",
                 justifyContent: "center",
-                minHeight: 36,
+                minHeight: itemMinHeight,
               }}
             >
               <Animated.Text

@@ -289,7 +289,7 @@ export default function ExercisesScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <ScrollView
-        contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
+        contentContainerStyle={{ gap: 12, paddingBottom: 150 }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -319,7 +319,7 @@ export default function ExercisesScreen() {
             }}
           />
           <Text style={{ color: colors.muted }}>
-            Biblioteca com videos, links e catalogo pedagogico.
+            Biblioteca com vídeos, links e catálogo pedagógico.
           </Text>
         </View>
 
@@ -330,6 +330,17 @@ export default function ExercisesScreen() {
           ]}
           activeTab={activeLibraryTab}
           onChange={setActiveLibraryTab}
+          activeBackgroundColor={colors.card}
+          activeTextColor={colors.text}
+          inactiveTextColor={colors.muted}
+          itemMinHeight={32}
+          itemPaddingVertical={6}
+          style={{
+            padding: 4,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
         />
 
         {activeLibraryTab === "links" ? (
@@ -367,7 +378,7 @@ export default function ExercisesScreen() {
           }}
         >
             <TextInput
-              placeholder="Link do vídeo (YouTube, Instagram, etc.)"
+              placeholder="Cole o link do vídeo ou exercício..."
               placeholderTextColor={colors.placeholder}
               value={videoUrl}
               onChangeText={setVideoUrl}
@@ -400,43 +411,45 @@ export default function ExercisesScreen() {
                     fontSize: 12,
                   }}
                 >
-                  {editingId ? "Salvar alterações" : "Salvar exercício"}
+                  {editingId ? "Salvar alterações" : "Salvar link"}
                 </Text>
               </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (isFormDirty) {
-                    confirmDialog({
-                      title: "Sair sem salvar?",
-                      message: "Você tem alterações não salvas.",
-                      confirmLabel: "Descartar",
-                      cancelLabel: "Continuar",
-                      onConfirm: () => {
-                        clearForm();
-                      },
-                    });
-                    return;
-                  }
-                  clearForm();
-                }}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 10,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                }}
-              >
-                <Text
+              {isFormDirty ? (
+                <Pressable
+                  onPress={() => {
+                    if (isFormDirty) {
+                      confirmDialog({
+                        title: "Sair sem salvar?",
+                        message: "Você tem alterações não salvas.",
+                        confirmLabel: "Descartar",
+                        cancelLabel: "Continuar",
+                        onConfirm: () => {
+                          clearForm();
+                        },
+                      });
+                      return;
+                    }
+                    clearForm();
+                  }}
                   style={{
-                    color: colors.secondaryText,
-                    fontWeight: "700",
-                    fontSize: 12,
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    backgroundColor: colors.secondaryBg,
+                    alignItems: "center",
                   }}
                 >
-                  Cancelar
-                </Text>
-              </Pressable>
+                  <Text
+                    style={{
+                      color: colors.secondaryText,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    Cancelar
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
         </View>
 
@@ -601,9 +614,23 @@ export default function ExercisesScreen() {
             </Pressable>
           ))}
           { !filteredItems.length ? (
-            <Text style={{ color: colors.muted }}>
-              Nenhum exercício cadastrado.
-            </Text>
+            <View
+              style={{
+                padding: 16,
+                borderRadius: 16,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>
+                Nenhum link salvo ainda
+              </Text>
+              <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                Salve vídeos do YouTube, Instagram ou outras fontes para consultar depois durante seus planejamentos.
+              </Text>
+            </View>
           ) : null}
         </View>
           </>

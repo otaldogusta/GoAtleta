@@ -5,9 +5,13 @@ import TestRenderer, { act } from "react-test-renderer";
 import { ACTIVITY_CATALOG_FAMILIES } from "../../../core/volleyball/activity-catalog";
 import { ActivityCatalogTab } from "../ActivityCatalogTab";
 import {
+  getActivityCatalogFamilyLabel,
+} from "../activity-catalog-labels";
+import {
   EMPTY_CATALOG_FILTERS,
   buildActivityCatalogListItems,
   filterActivityCatalogItems,
+  getActivityCatalogCardChips,
   getCatalogFilterOptions,
 } from "../activity-catalog-view-model";
 
@@ -104,8 +108,8 @@ describe("activity catalog library ui", () => {
     const firstFamily = ACTIVITY_CATALOG_FAMILIES[0];
     const firstVariant = firstFamily.variants[0];
 
-    expect(text).toContain("Mostrando catalogo geral");
-    expect(text).toContain(firstFamily.title);
+    expect(text).toContain("Catálogo geral");
+    expect(text).toContain(getActivityCatalogFamilyLabel(firstFamily.id, firstFamily.title));
     expect(text).toContain(firstVariant.name);
     expect(text).not.toContain("decisionTrace");
     expect(text).not.toContain("sourcePatternId");
@@ -115,12 +119,32 @@ describe("activity catalog library ui", () => {
     });
 
     const detailText = collectRenderedText(root);
-    expect(detailText).toContain("Objetivo pedagogico");
-    expect(detailText).toContain("Organizacao");
+    expect(detailText).toContain("Objetivo pedagógico");
+    expect(detailText).toContain("Organização");
     expect(detailText).toContain("Metadados");
     expect(detailText).toContain("Sugerido porque");
     expect(detailText).not.toContain("decisionTrace");
     expect(detailText).not.toContain("sourcePatternId");
+  });
+
+  it("keeps catalog cards compact and advanced filters hidden until requested", async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = renderCatalogTab();
+    });
+
+    const root = tree!.root;
+    expect(collectRenderedText(root)).toContain("Mais filtros");
+
+    const items = buildActivityCatalogListItems();
+    expect(getActivityCatalogCardChips(items[0])).toHaveLength(3);
+
+    act(() => {
+      root.findByProps({ testID: "catalog-toggle-advanced-filters" }).props.onPress();
+    });
+
+    expect(collectRenderedText(root)).toContain("Família");
+    expect(collectRenderedText(root)).toContain("Idade/estágio");
   });
 
   it("shows empty state when filters have no coverage", async () => {
@@ -158,8 +182,9 @@ describe("activity catalog library ui", () => {
 
     const text = collectRenderedText(root);
     expect(text).toContain(
-      "A atividade foi marcada como sugestao local. O plano nao foi alterado."
+      "A atividade foi marcada como sugestão local. O plano não foi alterado."
     );
+    expect(text).toContain("Levar como sugestão");
     expect(text).not.toContain("TrainingPlan.pedagogy.blocks");
     expect(text).not.toContain("DailyLessonPlan");
     expect(text).not.toContain("decisionTrace");

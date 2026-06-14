@@ -114,20 +114,20 @@ export function ActivityCatalogDetailModal({
   const metadata = [
     ["Fundamento", skillLabels[taxonomy.skill]],
     ["Fase do jogo", gamePhaseLabels[taxonomy.gamePhase]],
-    ["Intencao pedagogica", pedagogicalIntentLabels[taxonomy.pedagogicalIntent]],
+    ["Intenção pedagógica", pedagogicalIntentLabels[taxonomy.pedagogicalIntent]],
     ["Dificuldade", complexityLabels[taxonomy.complexity]],
-    ["Idade/estagio", taxonomy.ageRange.map((ageStage) => ageStageLabels[ageStage]).join(", ")],
+    ["Idade/estágio", taxonomy.ageRange.map((ageStage) => ageStageLabels[ageStage]).join(", ")],
     ["Formato", formatLabels[taxonomy.format]],
     ["Ambiente", environmentLabels[taxonomy.environment]],
     ["Demanda cognitiva", demandLabels[taxonomy.cognitiveDemand]],
     ["Demanda fisica", demandLabels[taxonomy.physicalDemand]],
     ["Fase recomendada", phaseLabels[taxonomy.recommendedPhase]],
     [
-      "Periodizacao",
+      "Periodização",
       taxonomy.periodizationCompatibility.map((phase) => phaseIntentLabels[phase]).join(", "),
     ],
     [
-      "Progressao",
+      "Progressão",
       taxonomy.progressionCompatibility.map((progression) => progressionLabels[progression]).join(", "),
     ],
     ["Carga", taxonomy.loadCompatibility.map((load) => loadLabels[load]).join(", ")],
@@ -154,7 +154,7 @@ export function ActivityCatalogDetailModal({
           }}
         >
           <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-            Usar no plano
+            Levar como sugestão
           </Text>
         </Pressable>
       }
@@ -171,21 +171,21 @@ export function ActivityCatalogDetailModal({
           }}
         >
           <Text style={{ color: colors.infoText, fontSize: 12, fontWeight: "700" }}>
-            A atividade foi marcada como sugestao local. O plano nao foi alterado.
+            A atividade foi marcada como sugestão local. O plano não foi alterado.
           </Text>
         </View>
       ) : null}
 
       <Section title="Sugerido porque">
         <BodyText>
-          Mostrando catalogo geral. Para recomendacoes contextualizadas, abra o catalogo a partir de uma turma ou aula.
+          Catálogo geral. Para recomendações contextualizadas, abra o catálogo a partir de uma turma ou aula.
         </BodyText>
       </Section>
 
-      <Section title="Objetivo pedagogico">
+      <Section title="Objetivo pedagógico">
         <BodyText>{item.purpose}</BodyText>
       </Section>
-      <Section title="Organizacao">
+      <Section title="Organização">
         <BodyText>{variant.players}</BodyText>
         <BodyText>{variant.setup}</BodyText>
       </Section>
@@ -193,34 +193,34 @@ export function ActivityCatalogDetailModal({
         <BodyText>{variant.starter}</BodyText>
         <BodyText>{variant.action}</BodyText>
       </Section>
-      <Section title="Rotacao">
+      <Section title="Rotação">
         <BodyText>{variant.rotation}</BodyText>
       </Section>
       {variant.constraint ? (
-        <Section title="Restricao">
+        <Section title="Restrição">
           <BodyText>{variant.constraint}</BodyText>
         </Section>
       ) : null}
       {variant.scoring ? (
-        <Section title="Pontuacao">
+        <Section title="Pontuação">
           <BodyText>{variant.scoring}</BodyText>
         </Section>
       ) : null}
       {variant.progression ? (
-        <Section title="Progressao">
+        <Section title="Progressão">
           <BodyText>{variant.progression}</BodyText>
         </Section>
       ) : null}
-      <Section title="Adaptacoes">
+      <Section title="Adaptações">
         <BulletList items={variant.adaptations} />
       </Section>
       <Section title="Cuidados">
         <BulletList items={variant.commonMistakes} />
         <BulletList items={variant.avoid} />
       </Section>
-      <Section title="Materiais e espaco">
-        <BodyText>Materiais: {variant.materials.join(", ") || "Sem material obrigatorio"}</BodyText>
-        <BodyText>Espaco: {variant.space}</BodyText>
+      <Section title="Materiais e espaço">
+        <BodyText>Materiais: {variant.materials.join(", ") || "Sem material obrigatório"}</BodyText>
+        <BodyText>Espaço: {variant.space}</BodyText>
       </Section>
       <Section title="Metadados">
         <View style={{ gap: 6 }}>

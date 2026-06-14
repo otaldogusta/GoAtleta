@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import { useAppTheme } from "../../ui/app-theme";
@@ -33,15 +34,18 @@ export function ActivityCatalogTab() {
     <View testID="activity-catalog-tab" style={{ gap: 12 }}>
       <View
         style={{
-          padding: 12,
-          borderRadius: 8,
-          backgroundColor: colors.infoBg,
-          borderWidth: 1,
-          borderColor: colors.border,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 10,
+          paddingVertical: 8,
+          borderRadius: 12,
+          backgroundColor: colors.secondaryBg,
         }}
       >
-        <Text style={{ color: colors.infoText, fontSize: 12, fontWeight: "700" }}>
-          Mostrando catalogo geral. Para recomendacoes contextualizadas, abra o catalogo a partir de uma turma ou aula.
+        <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
+        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700", flex: 1 }}>
+          Catálogo geral. Abra a partir de uma turma ou aula para ver sugestões contextualizadas.
         </Text>
       </View>
 

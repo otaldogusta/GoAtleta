@@ -20,6 +20,7 @@ import {
   environmentLabels,
   formatLabels,
   gamePhaseLabels,
+  getActivityCatalogFamilyLabel,
   pedagogicalIntentLabels,
   phaseIntentLabels,
   phaseLabels,
@@ -43,6 +44,7 @@ export type ActivityCatalogListItem = {
   family: ActivityCatalogFamily;
   variant: ActivityCatalogVariant;
   familyTitle: string;
+  familyLabel: string;
   title: string;
   purpose: string;
   searchableText: string;
@@ -83,13 +85,33 @@ const normalize = (value: string) =>
 
 const joinLabels = (values: string[]) => values.filter(Boolean).join(" ");
 
+export const getActivityCatalogCardChips = (item: ActivityCatalogListItem) => {
+  const taxonomy = item.variant.taxonomy;
+  return [
+    skillLabels[taxonomy.skill],
+    phaseLabels[taxonomy.recommendedPhase],
+    complexityLabels[taxonomy.complexity],
+  ].filter(Boolean).slice(0, 3);
+};
+
+export const getActivityCatalogSecondaryMeta = (item: ActivityCatalogListItem) => {
+  const taxonomy = item.variant.taxonomy;
+  return [
+    formatLabels[taxonomy.format],
+    pedagogicalIntentLabels[taxonomy.pedagogicalIntent],
+    taxonomy.ageRange.map((ageStage) => ageStageLabels[ageStage]).join("/"),
+  ].filter(Boolean).join(" · ");
+};
+
 export const buildActivityCatalogListItems = (
   families: ActivityCatalogFamily[] = ACTIVITY_CATALOG_FAMILIES
 ): ActivityCatalogListItem[] =>
   families.flatMap((family) =>
     family.variants.map((variant) => {
       const taxonomy = variant.taxonomy;
+      const familyLabel = getActivityCatalogFamilyLabel(family.id, family.title);
       const labels = [
+        familyLabel,
         skillLabels[taxonomy.skill],
         gamePhaseLabels[taxonomy.gamePhase],
         pedagogicalIntentLabels[taxonomy.pedagogicalIntent],
@@ -130,6 +152,7 @@ export const buildActivityCatalogListItems = (
         family,
         variant,
         familyTitle: family.title,
+        familyLabel,
         title: variant.name,
         purpose: family.purpose,
         searchableText,
@@ -147,7 +170,7 @@ export const getCatalogFilterOptions = (
 
   return {
     families: Array.from(
-      new Map(items.map((item) => [item.family.id, item.familyTitle])).entries()
+      new Map(items.map((item) => [item.family.id, item.familyLabel])).entries()
     )
       .map(([id, label]) => ({ id, label }))
       .sort((a, b) => a.label.localeCompare(b.label)),
