@@ -81,6 +81,7 @@ export type ActivityCatalogSelectionReasonCode =
   | "progression_match"
   | "intent_match"
   | "load_match"
+  | "anti_repetition"
   | "recent_history_avoided"
   | "materials_match"
   | "scouting_or_feedback_match";

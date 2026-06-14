@@ -34,10 +34,14 @@ import {
     updateExercise,
 } from "../../src/db/seed";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
+import { ActivityCatalogTab } from "../../src/screens/library/ActivityCatalogTab";
+import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
+
+type LibraryTab = "links" | "catalog";
 
 const getYoutubeId = (url: string) => {
   const match =
@@ -73,6 +77,7 @@ export default function ExercisesScreen() {
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [metaStatus, setMetaStatus] = useState("");
   const [metaLoading, setMetaLoading] = useState(false);
+  const [activeLibraryTab, setActiveLibraryTab] = useState<LibraryTab>("links");
   const metaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const canSave = Boolean(videoUrl.trim()) && !metaLoading;
@@ -304,7 +309,7 @@ export default function ExercisesScreen() {
       >
         <View style={{ gap: 6 }}>
           <BackTitleHeader
-            title="Exercícios"
+            title="Biblioteca"
             onBack={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -314,10 +319,21 @@ export default function ExercisesScreen() {
             }}
           />
           <Text style={{ color: colors.muted }}>
-            Biblioteca com vídeos e links
+            Biblioteca com videos, links e catalogo pedagogico.
           </Text>
         </View>
 
+        <AnimatedSegmentedTabs<LibraryTab>
+          tabs={[
+            { id: "links", label: "Meus Links" },
+            { id: "catalog", label: "Catálogo GoAtleta" },
+          ]}
+          activeTab={activeLibraryTab}
+          onChange={setActiveLibraryTab}
+        />
+
+        {activeLibraryTab === "links" ? (
+          <>
         <View
           style={{
             flexDirection: "row",
@@ -590,6 +606,10 @@ export default function ExercisesScreen() {
             </Text>
           ) : null}
         </View>
+          </>
+        ) : (
+          <ActivityCatalogTab />
+        )}
       </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
