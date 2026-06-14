@@ -209,8 +209,8 @@ export const buildAutoPlanForCycleDay = (
     primarySkill: strategy.primarySkill,
     secondarySkill: strategy.secondarySkill,
     ageStage: resolveVolleyballLessonAgeProfile({
-      ...params.classGroup,
-      classId: params.classGroup.id,
+      ageBand: params.classGroup.ageBand,
+      className: params.classGroup.name,
     }).stage,
     phaseIntent: cycleContext.phaseIntent,
     progressionDimension: strategy.progressionDimension,

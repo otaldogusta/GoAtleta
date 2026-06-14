@@ -164,9 +164,10 @@ const gameFormLabel = (value: VolleyballLessonAgeProfile["gameForm"]) => {
 };
 
 export const resolveVolleyballLessonAgeProfile = (
-  plan: Pick<VolleyballLessonPlan, "ageBand" | "className" | "classId">
+  plan: Pick<VolleyballLessonPlan, "ageBand" | "className"> &
+    Partial<Pick<VolleyballLessonPlan, "classId">>
 ): VolleyballLessonAgeProfile => {
-  const source = [plan.ageBand, plan.className, plan.classId].filter(Boolean).join(" ");
+  const source = [plan.ageBand, plan.className].filter(Boolean).join(" ");
   return AGE_PROFILES[resolveAgeStage(source)];
 };
 
