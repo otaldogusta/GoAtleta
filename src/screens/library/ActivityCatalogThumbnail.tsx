@@ -20,12 +20,15 @@ export function ActivityCatalogThumbnail({ item, badge, size = "card" }: Props) 
       source={getCatalogActivityThumbnailSource(item)}
       resizeMode="cover"
       imageStyle={{ borderRadius: isDetail ? 18 : 14 }}
-      style={{
-        aspectRatio: 16 / 9,
-        borderRadius: isDetail ? 18 : 14,
-        overflow: "hidden",
-        backgroundColor: colors.secondaryBg,
-      }}
+      style={[
+        {
+          width: "100%",
+          borderRadius: isDetail ? 18 : 14,
+          overflow: "hidden",
+          backgroundColor: colors.secondaryBg,
+        },
+        isDetail ? { height: 240 } : { aspectRatio: 16 / 9 },
+      ]}
     >
       <View
         style={{

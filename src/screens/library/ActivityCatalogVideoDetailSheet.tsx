@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Text, useWindowDimensions, View } from "react-native";
 
 import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
 import { Pressable } from "../../ui/Pressable";
@@ -41,6 +41,7 @@ export function ActivityCatalogVideoDetailSheet({
   onSuggest,
 }: Props) {
   const { colors } = useAppTheme();
+  const dimensions = useWindowDimensions();
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function ActivityCatalogVideoDetailSheet({
   const { variant } = item;
   const taxonomy = variant.taxonomy;
   const chips = getActivityCatalogCardChips(item);
+  const modalHeight = Math.min(dimensions.height * 0.9, 760);
   const technicalRows = [
     ["Fundamento", skillLabels[taxonomy.skill]],
     ["Fase do jogo", gamePhaseLabels[taxonomy.gamePhase]],
@@ -83,8 +85,8 @@ export function ActivityCatalogVideoDetailSheet({
       colors={colors}
       title={variant.name}
       subtitle={getCatalogActivityShortFamilyLabel(item)}
-      position="bottom"
-      cardStyle={{ width: "100%", maxWidth: 760, maxHeight: "92%" }}
+      position="center"
+      cardStyle={{ width: "100%", maxWidth: 760, height: modalHeight }}
       contentContainerStyle={{ gap: 16, paddingBottom: 20, paddingTop: 14 }}
       footer={
         <Pressable
