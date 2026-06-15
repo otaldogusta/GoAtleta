@@ -335,6 +335,16 @@ describe("humanized volleyball lesson activities", () => {
     expect(visibleText.toLowerCase()).not.toContain("levantamento");
   });
 
+  it("does not infer age stage from opaque class ids", () => {
+    const profile = resolveVolleyballLessonAgeProfile({
+      ageBand: "",
+      className: "Turma importada",
+      classId: "c_1775903848643",
+    });
+
+    expect(profile.stage).toBe("base");
+  });
+
   it("does not reuse the same passe plan across development stages", () => {
     const visibleByAge = ["07-09", "10-12", "13-15", "16-18"].map((ageBand) =>
       collectVisibleText(

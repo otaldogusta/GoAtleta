@@ -208,7 +208,10 @@ export const buildAutoPlanForCycleDay = (
   const activityCatalogRecommendations = recommendActivityCatalogVariants({
     primarySkill: strategy.primarySkill,
     secondarySkill: strategy.secondarySkill,
-    ageStage: resolveVolleyballLessonAgeProfile(params.classGroup).stage,
+    ageStage: resolveVolleyballLessonAgeProfile({
+      ageBand: params.classGroup.ageBand,
+      className: params.classGroup.name,
+    }).stage,
     phaseIntent: cycleContext.phaseIntent,
     progressionDimension: strategy.progressionDimension,
     pedagogicalIntent: strategy.pedagogicalIntent,

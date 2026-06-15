@@ -34,10 +34,15 @@ import {
     updateExercise,
 } from "../../src/db/seed";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
+import { ActivityCatalogTab } from "../../src/screens/library/ActivityCatalogTab";
+import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
+import { markRender, measureAsync } from "../../src/observability/perf";
+
+type LibraryTab = "links" | "catalog";
 
 const getYoutubeId = (url: string) => {
   const match =
@@ -73,11 +78,13 @@ export default function ExercisesScreen() {
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null);
   const [metaStatus, setMetaStatus] = useState("");
   const [metaLoading, setMetaLoading] = useState(false);
+  const [activeLibraryTab, setActiveLibraryTab] = useState<LibraryTab>("links");
   const metaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const canSave = Boolean(videoUrl.trim()) && !metaLoading;
   const debouncedSearchText = useDebouncedValue(searchText, 250);
   const getExerciseId = useCallback((exercise: Exercise) => exercise.id, []);
+  markRender("screen.exercises.render.root");
   const undoableExerciseDelete = useUndoableListDelete({
     items,
     setItems,
@@ -106,7 +113,9 @@ export default function ExercisesScreen() {
 
   const load = useCallback(async () => {
     try {
-      const data = await getExercises();
+      const data = await measureAsync("screen.exercises.load.links", () =>
+        getExercises()
+      );
       setItems(data);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -284,7 +293,7 @@ export default function ExercisesScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <ScrollView
-        contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
+        contentContainerStyle={{ gap: 12, paddingBottom: 150 }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -304,7 +313,7 @@ export default function ExercisesScreen() {
       >
         <View style={{ gap: 6 }}>
           <BackTitleHeader
-            title="Exercícios"
+            title="Biblioteca"
             onBack={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -314,10 +323,32 @@ export default function ExercisesScreen() {
             }}
           />
           <Text style={{ color: colors.muted }}>
-            Biblioteca com vídeos e links
+            Biblioteca com vídeos, links e catálogo pedagógico.
           </Text>
         </View>
 
+        <AnimatedSegmentedTabs<LibraryTab>
+          tabs={[
+            { id: "links", label: "Meus Links" },
+            { id: "catalog", label: "Catálogo GoAtleta" },
+          ]}
+          activeTab={activeLibraryTab}
+          onChange={setActiveLibraryTab}
+          activeBackgroundColor={colors.card}
+          activeTextColor={colors.text}
+          inactiveTextColor={colors.muted}
+          itemMinHeight={32}
+          itemPaddingVertical={6}
+          style={{
+            padding: 4,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        />
+
+        {activeLibraryTab === "links" ? (
+          <>
         <View
           style={{
             flexDirection: "row",
@@ -351,7 +382,7 @@ export default function ExercisesScreen() {
           }}
         >
             <TextInput
-              placeholder="Link do vídeo (YouTube, Instagram, etc.)"
+              placeholder="Cole o link do vídeo ou exercício..."
               placeholderTextColor={colors.placeholder}
               value={videoUrl}
               onChangeText={setVideoUrl}
@@ -384,43 +415,45 @@ export default function ExercisesScreen() {
                     fontSize: 12,
                   }}
                 >
-                  {editingId ? "Salvar alterações" : "Salvar exercício"}
+                  {editingId ? "Salvar alterações" : "Salvar link"}
                 </Text>
               </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (isFormDirty) {
-                    confirmDialog({
-                      title: "Sair sem salvar?",
-                      message: "Você tem alterações não salvas.",
-                      confirmLabel: "Descartar",
-                      cancelLabel: "Continuar",
-                      onConfirm: () => {
-                        clearForm();
-                      },
-                    });
-                    return;
-                  }
-                  clearForm();
-                }}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderRadius: 10,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                }}
-              >
-                <Text
+              {isFormDirty ? (
+                <Pressable
+                  onPress={() => {
+                    if (isFormDirty) {
+                      confirmDialog({
+                        title: "Sair sem salvar?",
+                        message: "Você tem alterações não salvas.",
+                        confirmLabel: "Descartar",
+                        cancelLabel: "Continuar",
+                        onConfirm: () => {
+                          clearForm();
+                        },
+                      });
+                      return;
+                    }
+                    clearForm();
+                  }}
                   style={{
-                    color: colors.secondaryText,
-                    fontWeight: "700",
-                    fontSize: 12,
+                    flex: 1,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    backgroundColor: colors.secondaryBg,
+                    alignItems: "center",
                   }}
                 >
-                  Cancelar
-                </Text>
-              </Pressable>
+                  <Text
+                    style={{
+                      color: colors.secondaryText,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    Cancelar
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
         </View>
 
@@ -585,11 +618,29 @@ export default function ExercisesScreen() {
             </Pressable>
           ))}
           { !filteredItems.length ? (
-            <Text style={{ color: colors.muted }}>
-              Nenhum exercício cadastrado.
-            </Text>
+            <View
+              style={{
+                padding: 16,
+                borderRadius: 16,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 6,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>
+                Nenhum link salvo ainda
+              </Text>
+              <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                Salve vídeos do YouTube, Instagram ou outras fontes para consultar depois durante seus planejamentos.
+              </Text>
+            </View>
           ) : null}
         </View>
+          </>
+        ) : (
+          <ActivityCatalogTab />
+        )}
       </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
