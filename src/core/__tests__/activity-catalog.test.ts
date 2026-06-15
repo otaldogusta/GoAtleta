@@ -1,4 +1,3 @@
-import type { VolleyballSkill } from "../models";
 import {
   ACTIVITY_CATALOG_FAMILIES,
   ACTIVITY_CATALOG_VARIANTS,
@@ -66,10 +65,20 @@ describe("activity catalog foundation", () => {
     expect(audit.totalVariants).toBe(ACTIVITY_CATALOG_VARIANTS.length);
     expect(audit.bySkill.passe).toBeGreaterThan(0);
     expect(audit.bySkill.saque).toBeGreaterThan(0);
+    expect(audit.bySkill.ataque).toBeGreaterThanOrEqual(3);
+    expect(audit.bySkill.bloqueio).toBeGreaterThanOrEqual(3);
+    expect(audit.bySkill.defesa).toBeGreaterThanOrEqual(4);
+    expect(audit.bySkill.levantamento).toBeGreaterThanOrEqual(3);
+    expect(audit.bySkill.transicao).toBeGreaterThanOrEqual(4);
     expect(audit.byAgeStage.formation).toBeGreaterThan(0);
     expect(audit.byPedagogicalIntent.decision_making).toBeGreaterThan(0);
     expect(audit.byPeriodizationCompatibility.transferencia_jogo).toBeGreaterThan(0);
     expect(audit.gaps.length).toBeGreaterThan(0);
+    expect(
+      audit.gaps.filter((gap) =>
+        ["bloqueio", "ataque", "saque", "levantamento", "defesa", "transicao"].includes(gap.skill)
+      ).length
+    ).toBeLessThan(60);
   });
 
   it("prioritizes periodized pass continuity over unrelated attack or block options", () => {
@@ -89,7 +98,7 @@ describe("activity catalog foundation", () => {
     expect(top?.variant.taxonomy.periodizationCompatibility).toContain("estabilizacao_tecnica");
     expect(top?.variant.taxonomy.families.join(" ")).toMatch(/continuidade|sideout|recepcao/);
     expect(top?.variant.taxonomy.skill).not.toBe("ataque");
-    expect(top?.variant.taxonomy.skill).not.toBe("bloqueio" as VolleyballSkill);
+    expect(top?.variant.taxonomy.skill).not.toBe("bloqueio");
     expect(top?.reasons.map((reason) => reason.code)).toEqual(
       expect.arrayContaining(["skill_match", "periodization_match", "progression_match"])
     );
@@ -117,7 +126,7 @@ describe("activity catalog foundation", () => {
     ).toBe(true);
   });
 
-  it("returns no recommendations when the catalog has no primary skill coverage", () => {
+  it("recommends block-specific activities when bloqueio is the primary skill", () => {
     const recommendations = recommendActivityCatalogVariants({
       primarySkill: "bloqueio",
       secondarySkill: "passe",
@@ -129,8 +138,17 @@ describe("activity catalog foundation", () => {
       recentActivityFamilies: [],
       materials: ["bolas", "cones"],
     });
+    const top = recommendations[0];
 
-    expect(recommendations).toEqual([]);
+    expect(recommendations.length).toBeGreaterThan(0);
+    expect(top?.variant.taxonomy.skill).toBe("bloqueio");
+    expect(top?.variant.taxonomy.periodizationCompatibility).toContain("transferencia_jogo");
+    expect(top?.variant.taxonomy.families.join(" ")).toMatch(/bloqueio|cobertura|rede/);
+    expect(top?.variant.taxonomy.skill).not.toBe("passe");
+    expect(top?.variant.taxonomy.skill).not.toBe("ataque");
+    expect(top?.reasons.map((reason) => reason.code)).toEqual(
+      expect.arrayContaining(["skill_match", "periodization_match", "progression_match"])
+    );
   });
 
   it("penalizes repeated recent families", () => {

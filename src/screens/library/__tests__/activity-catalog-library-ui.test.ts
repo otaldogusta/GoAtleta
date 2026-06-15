@@ -100,7 +100,12 @@ jest.mock("../../../../assets/activity-catalog/thumbnails/sideout.png", () => 4)
 jest.mock("../../../../assets/activity-catalog/thumbnails/serve-reception.png", () => 5);
 jest.mock("../../../../assets/activity-catalog/thumbnails/preventive-strength.png", () => 6);
 jest.mock("../../../../assets/activity-catalog/thumbnails/transition.png", () => 7);
-jest.mock("../../../../assets/activity-catalog/thumbnails/generic-court.png", () => 8);
+jest.mock("../../../../assets/activity-catalog/thumbnails/block-coverage.png", () => 8);
+jest.mock("../../../../assets/activity-catalog/thumbnails/serve-pressure.png", () => 9);
+jest.mock("../../../../assets/activity-catalog/thumbnails/second-contact.png", () => 10);
+jest.mock("../../../../assets/activity-catalog/thumbnails/attack-coverage.png", () => 11);
+jest.mock("../../../../assets/activity-catalog/thumbnails/out-of-system.png", () => 12);
+jest.mock("../../../../assets/activity-catalog/thumbnails/generic-court.png", () => 13);
 
 const safeAreaMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -164,6 +169,17 @@ describe("activity catalog library ui", () => {
         skill: first.variant.taxonomy.skill,
       }).every((item) => item.variant.taxonomy.skill === first.variant.taxonomy.skill)
     ).toBe(true);
+
+    (["bloqueio", "ataque", "saque", "levantamento", "defesa", "transicao"] as const).forEach(
+      (skill) => {
+        const filtered = filterActivityCatalogItems(items, {
+          ...EMPTY_CATALOG_FILTERS,
+          skill,
+        });
+        expect(filtered.length).toBeGreaterThan(0);
+        expect(filtered.every((item) => item.variant.taxonomy.skill === skill)).toBe(true);
+      }
+    );
 
     expect(
       filterActivityCatalogItems(items, {
