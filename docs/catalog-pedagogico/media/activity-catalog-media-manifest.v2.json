@@ -1,0 +1,135 @@
+{
+  "version": 2,
+  "assets": [
+    {
+      "mediaKey": "continuity",
+      "file": "assets/activity-catalog/thumbnails/continuity.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "legacy-continuity-v1",
+      "familyIds": ["continuidade_tres_contatos"],
+      "skills": ["passe"],
+      "provider": "manual"
+    },
+    {
+      "mediaKey": "defenseCoverage",
+      "file": "assets/activity-catalog/thumbnails/defense-coverage.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "legacy-defense-coverage-v1",
+      "familyIds": ["defesa_cobertura_fora_sistema"],
+      "skills": ["defesa", "transicao"],
+      "provider": "manual"
+    },
+    {
+      "mediaKey": "attackTransition",
+      "file": "assets/activity-catalog/thumbnails/attack-transition.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "legacy-attack-transition-v1",
+      "familyIds": ["ataque_transicao_zona_livre"],
+      "skills": ["ataque", "transicao"],
+      "provider": "manual"
+    },
+    {
+      "mediaKey": "sideout",
+      "file": "assets/activity-catalog/thumbnails/sideout.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "legacy-sideout-v1",
+      "familyIds": ["sideout_saque_recepcao"],
+      "skills": ["saque", "passe"],
+      "provider": "manual"
+    },
+    {
+      "mediaKey": "serveReception",
+      "file": "assets/activity-catalog/thumbnails/serve-reception.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "legacy-serve-reception-v1",
+      "familyIds": ["sideout_saque_recepcao"],
+      "skills": ["passe", "saque"],
+      "provider": "manual"
+    },
+    {
+      "mediaKey": "preventiveStrength",
+      "file": "assets/activity-catalog/thumbnails/preventive-strength.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "legacy-preventive-strength-v1",
+      "familyIds": ["forca_preventiva_integrada"],
+      "skills": ["defesa", "transicao"],
+      "provider": "manual"
+    },
+    {
+      "mediaKey": "transition",
+      "file": "assets/activity-catalog/thumbnails/transition.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "legacy-transition-v1",
+      "familyIds": ["troca_continua_tarefa_dupla"],
+      "skills": ["levantamento", "transicao"],
+      "provider": "manual"
+    },
+    {
+      "mediaKey": "blockCoverage",
+      "file": "assets/activity-catalog/thumbnails/block-coverage.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "block-coverage-v2",
+      "familyIds": ["bloqueio_cobertura_rede"],
+      "skills": ["bloqueio"],
+      "provider": "imagegen"
+    },
+    {
+      "mediaKey": "servePressure",
+      "file": "assets/activity-catalog/thumbnails/serve-pressure.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "serve-pressure-v2",
+      "familyIds": ["saque_recepcao_pressao_controlada"],
+      "skills": ["saque"],
+      "provider": "imagegen"
+    },
+    {
+      "mediaKey": "secondContact",
+      "file": "assets/activity-catalog/thumbnails/second-contact.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "second-contact-v2",
+      "familyIds": ["levantamento_organizacao_segundo_contato"],
+      "skills": ["levantamento"],
+      "provider": "imagegen"
+    },
+    {
+      "mediaKey": "attackCoverage",
+      "file": "assets/activity-catalog/thumbnails/attack-coverage.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "attack-coverage-v2",
+      "familyIds": ["ataque_cobertura_decisao"],
+      "skills": ["ataque"],
+      "provider": "imagegen"
+    },
+    {
+      "mediaKey": "outOfSystem",
+      "file": "assets/activity-catalog/thumbnails/out-of-system.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "out-of-system-v2",
+      "familyIds": ["defesa_transicao_fora_sistema"],
+      "skills": ["defesa", "transicao"],
+      "provider": "imagegen"
+    },
+    {
+      "mediaKey": "genericCourt",
+      "file": "assets/activity-catalog/thumbnails/generic-court.png",
+      "width": 1280,
+      "height": 720,
+      "promptId": "legacy-generic-court-v1",
+      "familyIds": ["fallback"],
+      "skills": ["passe", "levantamento", "ataque", "bloqueio", "defesa", "saque", "transicao"],
+      "provider": "manual"
+    }
+  ]
+}

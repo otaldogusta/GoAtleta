@@ -28,6 +28,40 @@ export type ActivityCatalogGamePhase =
   | "ataque"
   | "fechamento";
 
+export type ActivityCatalogMediaKey =
+  | "continuity"
+  | "defenseCoverage"
+  | "attackTransition"
+  | "sideout"
+  | "serveReception"
+  | "preventiveStrength"
+  | "transition"
+  | "blockCoverage"
+  | "servePressure"
+  | "secondContact"
+  | "attackCoverage"
+  | "outOfSystem"
+  | "genericCourt";
+
+export type ActivityCatalogVisualScene =
+  | "continuity_three_contacts"
+  | "defense_coverage"
+  | "attack_transition_free_zone"
+  | "sideout_construction"
+  | "serve_reception_pressure"
+  | "preventive_strength"
+  | "transition_task"
+  | "block_coverage_net"
+  | "second_contact_organization"
+  | "attack_coverage_decision"
+  | "out_of_system_transition"
+  | "generic_court";
+
+export type ActivityCatalogVisualProfile = {
+  mediaKey: ActivityCatalogMediaKey;
+  scene: ActivityCatalogVisualScene;
+};
+
 export type ActivityCatalogTaxonomy = {
   skill: VolleyballSkill;
   gamePhase: ActivityCatalogGamePhase;
@@ -48,6 +82,7 @@ export type ActivityCatalogTaxonomy = {
 export type ActivityCatalogVariant = {
   id: string;
   taxonomy: ActivityCatalogTaxonomy;
+  visualProfile?: ActivityCatalogVisualProfile;
   periodizationFit: Array<"exploration" | "technical" | "decision" | "pressure" | "game_transfer">;
   name: string;
   players: string;
@@ -70,6 +105,7 @@ export type ActivityCatalogFamily = {
   title: string;
   purpose: string;
   source: "goatleta_original";
+  visualProfile: ActivityCatalogVisualProfile;
   variants: ActivityCatalogVariant[];
 };
 
@@ -179,6 +215,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Continuidade com tres contatos",
     purpose: "Aumentar cooperacao, chamada da bola e primeiro contato jogavel.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "continuity", scene: "continuity_three_contacts" },
     variants: [
       {
         id: "catalog-continuidade-warmup-trajetoria",
@@ -255,6 +292,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Troca continua com tarefa dupla",
     purpose: "Trabalhar controle, tempo de bola e alternancia de acoes sem repeticao mecanica.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "transition", scene: "transition_task" },
     variants: [
       {
         id: "catalog-troca-dupla-drill",
@@ -331,6 +369,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Sideout e saque-recepcao",
     purpose: "Conectar saque, recepcao e organizacao inicial do ataque.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "serveReception", scene: "serve_reception_pressure" },
     variants: [
       {
         id: "catalog-sideout-drill-recepcao",
@@ -368,6 +407,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
       },
       {
         id: "catalog-sideout-game",
+        visualProfile: { mediaKey: "sideout", scene: "sideout_construction" },
         taxonomy: baseTaxonomy({
           skill: "saque",
           gamePhase: "sideout",
@@ -407,6 +447,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Defesa, cobertura e bola fora do sistema",
     purpose: "Ensinar a equipe a salvar, cobrir e reorganizar a bola sob desequilibrio.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "defenseCoverage", scene: "defense_coverage" },
     variants: [
       {
         id: "catalog-defesa-cobertura-drill",
@@ -483,6 +524,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Ataque e transicao para zona livre",
     purpose: "Ligar finalizacao, cobertura e leitura de espaco em jogo reduzido.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "attackTransition", scene: "attack_transition_free_zone" },
     variants: [
       {
         id: "catalog-ataque-zona-livre-drill",
@@ -559,6 +601,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Bloqueio e cobertura de rede",
     purpose: "Construir leitura de rede, bloqueio sombra e cobertura depois da acao de bloqueio.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "blockCoverage", scene: "block_coverage_net" },
     variants: [
       {
         id: "catalog-bloqueio-sombra-rede",
@@ -669,6 +712,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Saque e recepcao sob pressao controlada",
     purpose: "Aumentar precisao de saque, recepcao orientada e construcao simples de sideout.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "servePressure", scene: "serve_reception_pressure" },
     variants: [
       {
         id: "catalog-saque-alvo-progressivo",
@@ -745,6 +789,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Levantamento e organizacao do segundo contato",
     purpose: "Transformar o segundo contato em decisao simples para preparar a bola final.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "secondContact", scene: "second_contact_organization" },
     variants: [
       {
         id: "catalog-levantamento-segundo-contato-jogavel",
@@ -821,6 +866,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Ataque com decisao e cobertura",
     purpose: "Ensinar finalizacao para espaco livre sem separar ataque da cobertura do grupo.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "attackCoverage", scene: "attack_coverage_decision" },
     variants: [
       {
         id: "catalog-ataque-devolucao-espaco-livre",
@@ -897,6 +943,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Defesa e transicao fora do sistema",
     purpose: "Converter bolas quebradas em continuidade, segunda acao organizada e transicao segura.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "outOfSystem", scene: "out_of_system_transition" },
     variants: [
       {
         id: "catalog-defesa-salva-jogavel",
@@ -1007,6 +1054,7 @@ export const ACTIVITY_CATALOG_FAMILIES: ActivityCatalogFamily[] = [
     title: "Forca preventiva integrada",
     purpose: "Preparar aterrissagem, estabilidade e deslocamento com linguagem apropriada a idade.",
     source: "goatleta_original",
+    visualProfile: { mediaKey: "preventiveStrength", scene: "preventive_strength" },
     variants: [
       {
         id: "catalog-preventivo-warmup-fundamental",

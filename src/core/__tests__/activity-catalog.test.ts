@@ -1,9 +1,42 @@
 import {
   ACTIVITY_CATALOG_FAMILIES,
   ACTIVITY_CATALOG_VARIANTS,
+  type ActivityCatalogMediaKey,
+  type ActivityCatalogVisualScene,
   auditActivityCatalog,
   recommendActivityCatalogVariants,
 } from "../volleyball/activity-catalog";
+
+const mediaKeys: ActivityCatalogMediaKey[] = [
+  "continuity",
+  "defenseCoverage",
+  "attackTransition",
+  "sideout",
+  "serveReception",
+  "preventiveStrength",
+  "transition",
+  "blockCoverage",
+  "servePressure",
+  "secondContact",
+  "attackCoverage",
+  "outOfSystem",
+  "genericCourt",
+];
+
+const visualScenes: ActivityCatalogVisualScene[] = [
+  "continuity_three_contacts",
+  "defense_coverage",
+  "attack_transition_free_zone",
+  "sideout_construction",
+  "serve_reception_pressure",
+  "preventive_strength",
+  "transition_task",
+  "block_coverage_net",
+  "second_contact_organization",
+  "attack_coverage_decision",
+  "out_of_system_transition",
+  "generic_court",
+];
 
 describe("activity catalog foundation", () => {
   it("keeps pedagogical families with valid variants and complete taxonomy", () => {
@@ -12,9 +45,15 @@ describe("activity catalog foundation", () => {
 
     ACTIVITY_CATALOG_FAMILIES.forEach((family) => {
       expect(family.source).toBe("goatleta_original");
+      expect(mediaKeys).toContain(family.visualProfile.mediaKey);
+      expect(visualScenes).toContain(family.visualProfile.scene);
       expect(family.variants.length).toBeGreaterThan(0);
       family.variants.forEach((variant) => {
         expect(variant.id).toMatch(/^catalog-/);
+        if (variant.visualProfile) {
+          expect(mediaKeys).toContain(variant.visualProfile.mediaKey);
+          expect(visualScenes).toContain(variant.visualProfile.scene);
+        }
         expect(variant.taxonomy.skill).toBeTruthy();
         expect(variant.taxonomy.gamePhase).toBeTruthy();
         expect(variant.taxonomy.pedagogicalIntent).toBeTruthy();
@@ -39,7 +78,22 @@ describe("activity catalog foundation", () => {
     expect(serialized).not.toContain("volleyballxl");
     expect(serialized).not.toContain("requiredphase");
     expect(serialized).not.toContain("required_phase");
+    expect(serialized).not.toContain("http://");
+    expect(serialized).not.toContain("https://");
     expect(serialized).toContain("recommendedphase");
+  });
+
+  it("keeps visual profiles semantic and allows variant-level overrides", () => {
+    expect(ACTIVITY_CATALOG_FAMILIES.every((family) => family.visualProfile)).toBe(true);
+    expect(ACTIVITY_CATALOG_VARIANTS.some((variant) => variant.visualProfile)).toBe(true);
+    expect(
+      ACTIVITY_CATALOG_VARIANTS.find((variant) => variant.id === "catalog-sideout-game")
+        ?.visualProfile?.mediaKey
+    ).toBe("sideout");
+    expect(
+      ACTIVITY_CATALOG_FAMILIES.find((family) => family.id === "sideout_saque_recepcao")
+        ?.visualProfile.mediaKey
+    ).toBe("serveReception");
   });
 
   it("does not duplicate variants by skill, age, phase and name", () => {

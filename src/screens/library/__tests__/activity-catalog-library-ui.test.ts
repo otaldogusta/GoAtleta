@@ -15,6 +15,11 @@ import {
   getActivityCatalogCardChips,
   getCatalogFilterOptions,
 } from "../activity-catalog-view-model";
+import {
+  ACTIVITY_CATALOG_THUMBNAILS,
+  getCatalogActivityThumbnailKey,
+  resolveActivityCatalogThumbnail,
+} from "../activity-catalog-media";
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: "Ionicons",
@@ -199,6 +204,23 @@ describe("activity catalog library ui", () => {
         environment: first.variant.taxonomy.environment,
       }).length
     ).toBeGreaterThan(0);
+  });
+
+  it("resolves catalog thumbnails from visual profile with local fallback", () => {
+    const items = buildActivityCatalogListItems();
+    const sideout = items.find((item) => item.variant.id === "catalog-sideout-game");
+    const block = items.find((item) => item.family.id === "bloqueio_cobertura_rede");
+    const fallbackItem = {
+      ...items[0],
+      family: { ...items[0].family, visualProfile: undefined },
+      variant: { ...items[0].variant, visualProfile: undefined },
+    };
+
+    expect(ACTIVITY_CATALOG_THUMBNAILS.genericCourt).toBe(13);
+    expect(getCatalogActivityThumbnailKey(sideout!)).toBe("sideout");
+    expect(getCatalogActivityThumbnailKey(block!)).toBe("blockCoverage");
+    expect(getCatalogActivityThumbnailKey(fallbackItem as any)).toBe("genericCourt");
+    expect(resolveActivityCatalogThumbnail(undefined)).toBe(ACTIVITY_CATALOG_THUMBNAILS.genericCourt);
   });
 
   it("renders video-first catalog cards with thumbnail, CTA and local plus action", async () => {
