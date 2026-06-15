@@ -27,6 +27,7 @@ jest.mock("expo-router", () => ({
 }));
 
 const mockSaveTrainingPlan = jest.fn();
+const mockGetLatestTrainingPlanByClass = jest.fn();
 const localTodayIso = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -88,7 +89,7 @@ jest.mock("../../../db/seed", () => ({
   getTrainingPlans: jest.fn(async (options?: { applyDate?: string }) =>
     options?.applyDate ? [mockPlan] : [mockPlan]
   ),
-  getLatestTrainingPlanByClass: jest.fn(async () => mockPlan),
+  getLatestTrainingPlanByClass: (...args: unknown[]) => mockGetLatestTrainingPlanByClass(...args),
   saveTrainingPlan: (...args: unknown[]) => mockSaveTrainingPlan(...args),
 }));
 
@@ -132,6 +133,7 @@ const collectRenderedText = (root: TestRenderer.ReactTestInstance) =>
 describe("activity catalog library ui", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetLatestTrainingPlanByClass.mockResolvedValue(mockPlan);
   });
 
   it("builds list items from catalog families and filters by public fields", () => {
@@ -324,9 +326,26 @@ describe("activity catalog library ui", () => {
         expect.objectContaining({
           name: firstVariant.name,
           primarySkill: firstVariant.taxonomy.skill,
+          catalog: {
+            source: "goAtletaCatalog",
+            familyId: ACTIVITY_CATALOG_FAMILIES[0].id,
+            variantId: firstVariant.id,
+            addedAt: expect.any(String),
+          },
         }),
       ])
     );
+
+    mockGetLatestTrainingPlanByClass.mockResolvedValue(savedPlan);
+    await act(async () => {
+      root.findByProps({ testID: `activity-catalog-add-${firstVariant.id}` }).props.onPress();
+    });
+    await act(async () => {
+      root.findByProps({ testID: "activity-catalog-confirm-add" }).props.onPress();
+    });
+
+    expect(mockSaveTrainingPlan).toHaveBeenCalledTimes(1);
+    expect(collectRenderedText(root)).toContain("Esta atividade já está na aula");
     expect(text).toContain("Atividade adicionada");
     expect(text).not.toContain("sugestão local");
     expect(text).not.toContain("decisionTrace");

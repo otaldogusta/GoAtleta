@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ScrollView, Text, TextInput, View } from "react-native";
 
+import { getTrainingPlanActivitySourceLabel } from "../../../core/training-plan-activity-source";
 import type { LessonActivity } from "../../../core/models";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
@@ -83,6 +84,7 @@ export function LessonActivityEditor({
         {activities.length ? (
           activities.map((activity, index) => (
             (() => {
+              const sourceLabel = getTrainingPlanActivitySourceLabel(activity);
               const hasStructuredDetails =
                 showStructuredDetails &&
                 structuredFields.some(({ key }) =>
@@ -100,6 +102,24 @@ export function LessonActivityEditor({
                 backgroundColor: colors.card,
               }}
             >
+              {sourceLabel ? (
+                <View
+                  testID="training-plan-activity-source-badge"
+                  style={{
+                    alignSelf: "flex-start",
+                    paddingVertical: 3,
+                    paddingHorizontal: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.successBg,
+                    borderWidth: 1,
+                    borderColor: colors.successBorder,
+                  }}
+                >
+                  <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "800" }}>
+                    {sourceLabel}
+                  </Text>
+                </View>
+              ) : null}
               <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
                 <View style={{ flex: 1, gap: 6 }}>
                   <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Atividade</Text>

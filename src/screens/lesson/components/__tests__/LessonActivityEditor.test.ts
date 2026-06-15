@@ -92,4 +92,33 @@ describe("LessonActivityEditor", () => {
     expect(text).toContain("Critério de sucesso");
     expect(text).toContain("Adaptação");
   });
+
+  it("shows a public source badge for catalog activities", async () => {
+    let tree: TestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      tree = TestRenderer.create(
+        React.createElement(LessonActivityEditor, {
+          activities: [
+            {
+              ...activity,
+              catalog: {
+                source: "goAtletaCatalog",
+                familyId: "continuity",
+                variantId: "catch-playable-ball",
+                addedAt: "2026-06-15T00:00:00.000Z",
+              },
+            },
+          ],
+          onChange: jest.fn(),
+          showStructuredDetails: false,
+        })
+      );
+    });
+
+    const text = collectRendererText(tree);
+
+    expect(text).toContain("Catálogo GoAtleta");
+    expect(text).not.toContain("goAtletaCatalog");
+    expect(text).not.toContain("variantId");
+  });
 });
