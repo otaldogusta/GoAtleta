@@ -244,7 +244,7 @@ describe("humanized volleyball lesson activities", () => {
       primarySkill: "saque" as VolleyballSkill,
       expected: [
         "Pega-zona do saque",
-        "Saque por baixo para zonas",
+        "Saque por alvo com retorno jogavel",
         "Mini jogo com saque em jogo",
         "Conversa e feedbacks finais",
       ],
@@ -257,7 +257,7 @@ describe("humanized volleyball lesson activities", () => {
       primarySkill: "levantamento" as VolleyballSkill,
       expected: [
         "Bola ao alto em circulação",
-        "Troca contínua com bola auxiliar",
+        "Segundo contato para bola jogavel",
         "Recebe e levanta",
         "Conversa e feedbacks finais",
       ],
@@ -444,10 +444,10 @@ describe("humanized volleyball lesson activities", () => {
   it.each([
     ["manchete", "13-15", "Manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 4x4 com cobertura da recepção"],
     ["saque", "06-08", "Saque por baixo", ["saque"] as VolleyballSkill[], "Boliche do saque por baixo"],
-    ["saque", "13-15", "Saque por baixo", ["saque"] as VolleyballSkill[], "Mini sideout com bônus de construção"],
+    ["saque", "13-15", "Saque por baixo", ["saque"] as VolleyballSkill[], "Sideout contra alvo de saque"],
     ["levantamento", "06-08", "Levantamento", ["levantamento"] as VolleyballSkill[], "Cone pega-toque"],
-    ["levantamento", "13-15", "Levantamento", ["levantamento"] as VolleyballSkill[], "Mini 4x4 com segundo contato obrigatório"],
-    ["levantamento", "16-18", "Levantamento", ["levantamento"] as VolleyballSkill[], "Jogo aplicado com segundo contato definido"],
+    ["levantamento", "13-15", "Levantamento", ["levantamento"] as VolleyballSkill[], "Escolha simples do segundo contato"],
+    ["levantamento", "16-18", "Levantamento", ["levantamento"] as VolleyballSkill[], "Escolha simples do segundo contato"],
   ])("adapts %s output for age band %s", (_label, ageBand, objective, focusSkills, expectedText) => {
     const blocks = buildHumanizedVolleyballLessonBlocks(
       buildPlan({
@@ -469,7 +469,7 @@ describe("humanized volleyball lesson activities", () => {
     ["ataque", "13-15", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
     ["bloqueio", "13-15", "Bloqueio", ["bloqueio"] as VolleyballSkill[], "Mini jogo com bloqueio e cobertura"],
     ["defesa", "10-12", "Defesa", ["defesa"] as VolleyballSkill[], "Mini jogo com defesa pontuada"],
-    ["transicao", "16-18", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
+    ["transicao", "16-18", "Transição", ["transicao"] as VolleyballSkill[], "Bola quebrada para contra-ataque seguro"],
   ])("uses pattern-backed operational output for %s", (_label, ageBand, objective, focusSkills, expectedText) => {
     const blocks = buildHumanizedVolleyballLessonBlocks(
       buildPlan({
@@ -497,7 +497,7 @@ describe("humanized volleyball lesson activities", () => {
     ["Ataque 10-12", "10-12", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
     ["Defesa 10-12", "10-12", "Defesa", ["defesa"] as VolleyballSkill[], "Mini jogo com defesa pontuada"],
     ["Bloqueio 13-15", "13-15", "Bloqueio", ["bloqueio"] as VolleyballSkill[], "Mini jogo com bloqueio e cobertura"],
-    ["Transição 13-15", "13-15", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
+    ["Transição 13-15", "13-15", "Transição", ["transicao"] as VolleyballSkill[], "Bola quebrada para contra-ataque seguro"],
   ])("keeps quality-pass sample operational for %s", (_label, ageBand, objective, focusSkills, expectedText) => {
     const blocks = buildHumanizedVolleyballLessonBlocks(
       buildPlan({

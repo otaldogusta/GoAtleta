@@ -14,6 +14,7 @@
     "lint": "expo lint",
     "typecheck:core": "tsc -p tsconfig.check.json --noEmit",
     "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit",
+    "check:activity-catalog-media": "node scripts/check-activity-catalog-media.js",
     "check:perf-hygiene": "node scripts/check-perf-hygiene.js",
     "check:perf-hygiene:strict": "node scripts/check-perf-hygiene.js --strict",
     "check:org-scope": "node scripts/check-org-scope.js",

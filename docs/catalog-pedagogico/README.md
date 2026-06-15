@@ -60,6 +60,9 @@ flowchart TD
 | `QA_CHECKLIST.md` | Criterios de aceite pedagogico e tecnico |
 | `PR_GUIDE.md` | Roteiro de PR pequeno e revisao |
 | `EXAMPLES.md` | Exemplos originais e snippets alinhados ao estado local |
+| `media/activity-catalog-media-manifest.v2.json` | Manifest auditavel dos thumbnails locais do catalogo |
+| `media/prompts/activity-catalog-thumbnails-v2.md` | Prompts versionados para assets visuais do catalogo |
+| `media/providers/higgsfield.md` | Regras para usar Higgsfield como provider opcional, fora do runtime |
 
 ## Fora de escopo desta etapa
 

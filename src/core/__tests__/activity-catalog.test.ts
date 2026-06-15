@@ -1,10 +1,42 @@
-import type { VolleyballSkill } from "../models";
 import {
   ACTIVITY_CATALOG_FAMILIES,
   ACTIVITY_CATALOG_VARIANTS,
+  type ActivityCatalogMediaKey,
+  type ActivityCatalogVisualScene,
   auditActivityCatalog,
   recommendActivityCatalogVariants,
 } from "../volleyball/activity-catalog";
+
+const mediaKeys: ActivityCatalogMediaKey[] = [
+  "continuity",
+  "defenseCoverage",
+  "attackTransition",
+  "sideout",
+  "serveReception",
+  "preventiveStrength",
+  "transition",
+  "blockCoverage",
+  "servePressure",
+  "secondContact",
+  "attackCoverage",
+  "outOfSystem",
+  "genericCourt",
+];
+
+const visualScenes: ActivityCatalogVisualScene[] = [
+  "continuity_three_contacts",
+  "defense_coverage",
+  "attack_transition_free_zone",
+  "sideout_construction",
+  "serve_reception_pressure",
+  "preventive_strength",
+  "transition_task",
+  "block_coverage_net",
+  "second_contact_organization",
+  "attack_coverage_decision",
+  "out_of_system_transition",
+  "generic_court",
+];
 
 describe("activity catalog foundation", () => {
   it("keeps pedagogical families with valid variants and complete taxonomy", () => {
@@ -13,9 +45,15 @@ describe("activity catalog foundation", () => {
 
     ACTIVITY_CATALOG_FAMILIES.forEach((family) => {
       expect(family.source).toBe("goatleta_original");
+      expect(mediaKeys).toContain(family.visualProfile.mediaKey);
+      expect(visualScenes).toContain(family.visualProfile.scene);
       expect(family.variants.length).toBeGreaterThan(0);
       family.variants.forEach((variant) => {
         expect(variant.id).toMatch(/^catalog-/);
+        if (variant.visualProfile) {
+          expect(mediaKeys).toContain(variant.visualProfile.mediaKey);
+          expect(visualScenes).toContain(variant.visualProfile.scene);
+        }
         expect(variant.taxonomy.skill).toBeTruthy();
         expect(variant.taxonomy.gamePhase).toBeTruthy();
         expect(variant.taxonomy.pedagogicalIntent).toBeTruthy();
@@ -40,7 +78,22 @@ describe("activity catalog foundation", () => {
     expect(serialized).not.toContain("volleyballxl");
     expect(serialized).not.toContain("requiredphase");
     expect(serialized).not.toContain("required_phase");
+    expect(serialized).not.toContain("http://");
+    expect(serialized).not.toContain("https://");
     expect(serialized).toContain("recommendedphase");
+  });
+
+  it("keeps visual profiles semantic and allows variant-level overrides", () => {
+    expect(ACTIVITY_CATALOG_FAMILIES.every((family) => family.visualProfile)).toBe(true);
+    expect(ACTIVITY_CATALOG_VARIANTS.some((variant) => variant.visualProfile)).toBe(true);
+    expect(
+      ACTIVITY_CATALOG_VARIANTS.find((variant) => variant.id === "catalog-sideout-game")
+        ?.visualProfile?.mediaKey
+    ).toBe("sideout");
+    expect(
+      ACTIVITY_CATALOG_FAMILIES.find((family) => family.id === "sideout_saque_recepcao")
+        ?.visualProfile.mediaKey
+    ).toBe("serveReception");
   });
 
   it("does not duplicate variants by skill, age, phase and name", () => {
@@ -66,10 +119,20 @@ describe("activity catalog foundation", () => {
     expect(audit.totalVariants).toBe(ACTIVITY_CATALOG_VARIANTS.length);
     expect(audit.bySkill.passe).toBeGreaterThan(0);
     expect(audit.bySkill.saque).toBeGreaterThan(0);
+    expect(audit.bySkill.ataque).toBeGreaterThanOrEqual(3);
+    expect(audit.bySkill.bloqueio).toBeGreaterThanOrEqual(3);
+    expect(audit.bySkill.defesa).toBeGreaterThanOrEqual(4);
+    expect(audit.bySkill.levantamento).toBeGreaterThanOrEqual(3);
+    expect(audit.bySkill.transicao).toBeGreaterThanOrEqual(4);
     expect(audit.byAgeStage.formation).toBeGreaterThan(0);
     expect(audit.byPedagogicalIntent.decision_making).toBeGreaterThan(0);
     expect(audit.byPeriodizationCompatibility.transferencia_jogo).toBeGreaterThan(0);
     expect(audit.gaps.length).toBeGreaterThan(0);
+    expect(
+      audit.gaps.filter((gap) =>
+        ["bloqueio", "ataque", "saque", "levantamento", "defesa", "transicao"].includes(gap.skill)
+      ).length
+    ).toBeLessThan(60);
   });
 
   it("prioritizes periodized pass continuity over unrelated attack or block options", () => {
@@ -89,7 +152,7 @@ describe("activity catalog foundation", () => {
     expect(top?.variant.taxonomy.periodizationCompatibility).toContain("estabilizacao_tecnica");
     expect(top?.variant.taxonomy.families.join(" ")).toMatch(/continuidade|sideout|recepcao/);
     expect(top?.variant.taxonomy.skill).not.toBe("ataque");
-    expect(top?.variant.taxonomy.skill).not.toBe("bloqueio" as VolleyballSkill);
+    expect(top?.variant.taxonomy.skill).not.toBe("bloqueio");
     expect(top?.reasons.map((reason) => reason.code)).toEqual(
       expect.arrayContaining(["skill_match", "periodization_match", "progression_match"])
     );
@@ -117,7 +180,7 @@ describe("activity catalog foundation", () => {
     ).toBe(true);
   });
 
-  it("returns no recommendations when the catalog has no primary skill coverage", () => {
+  it("recommends block-specific activities when bloqueio is the primary skill", () => {
     const recommendations = recommendActivityCatalogVariants({
       primarySkill: "bloqueio",
       secondarySkill: "passe",
@@ -129,8 +192,17 @@ describe("activity catalog foundation", () => {
       recentActivityFamilies: [],
       materials: ["bolas", "cones"],
     });
+    const top = recommendations[0];
 
-    expect(recommendations).toEqual([]);
+    expect(recommendations.length).toBeGreaterThan(0);
+    expect(top?.variant.taxonomy.skill).toBe("bloqueio");
+    expect(top?.variant.taxonomy.periodizationCompatibility).toContain("transferencia_jogo");
+    expect(top?.variant.taxonomy.families.join(" ")).toMatch(/bloqueio|cobertura|rede/);
+    expect(top?.variant.taxonomy.skill).not.toBe("passe");
+    expect(top?.variant.taxonomy.skill).not.toBe("ataque");
+    expect(top?.reasons.map((reason) => reason.code)).toEqual(
+      expect.arrayContaining(["skill_match", "periodization_match", "progression_match"])
+    );
   });
 
   it("penalizes repeated recent families", () => {

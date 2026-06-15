@@ -15,6 +15,11 @@ import {
   getActivityCatalogCardChips,
   getCatalogFilterOptions,
 } from "../activity-catalog-view-model";
+import {
+  ACTIVITY_CATALOG_THUMBNAILS,
+  getCatalogActivityThumbnailKey,
+  resolveActivityCatalogThumbnail,
+} from "../activity-catalog-media";
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: "Ionicons",
@@ -100,7 +105,12 @@ jest.mock("../../../../assets/activity-catalog/thumbnails/sideout.png", () => 4)
 jest.mock("../../../../assets/activity-catalog/thumbnails/serve-reception.png", () => 5);
 jest.mock("../../../../assets/activity-catalog/thumbnails/preventive-strength.png", () => 6);
 jest.mock("../../../../assets/activity-catalog/thumbnails/transition.png", () => 7);
-jest.mock("../../../../assets/activity-catalog/thumbnails/generic-court.png", () => 8);
+jest.mock("../../../../assets/activity-catalog/thumbnails/block-coverage.png", () => 8);
+jest.mock("../../../../assets/activity-catalog/thumbnails/serve-pressure.png", () => 9);
+jest.mock("../../../../assets/activity-catalog/thumbnails/second-contact.png", () => 10);
+jest.mock("../../../../assets/activity-catalog/thumbnails/attack-coverage.png", () => 11);
+jest.mock("../../../../assets/activity-catalog/thumbnails/out-of-system.png", () => 12);
+jest.mock("../../../../assets/activity-catalog/thumbnails/generic-court.png", () => 13);
 
 const safeAreaMetrics = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -165,6 +175,17 @@ describe("activity catalog library ui", () => {
       }).every((item) => item.variant.taxonomy.skill === first.variant.taxonomy.skill)
     ).toBe(true);
 
+    (["bloqueio", "ataque", "saque", "levantamento", "defesa", "transicao"] as const).forEach(
+      (skill) => {
+        const filtered = filterActivityCatalogItems(items, {
+          ...EMPTY_CATALOG_FILTERS,
+          skill,
+        });
+        expect(filtered.length).toBeGreaterThan(0);
+        expect(filtered.every((item) => item.variant.taxonomy.skill === skill)).toBe(true);
+      }
+    );
+
     expect(
       filterActivityCatalogItems(items, {
         ...EMPTY_CATALOG_FILTERS,
@@ -183,6 +204,23 @@ describe("activity catalog library ui", () => {
         environment: first.variant.taxonomy.environment,
       }).length
     ).toBeGreaterThan(0);
+  });
+
+  it("resolves catalog thumbnails from visual profile with local fallback", () => {
+    const items = buildActivityCatalogListItems();
+    const sideout = items.find((item) => item.variant.id === "catalog-sideout-game");
+    const block = items.find((item) => item.family.id === "bloqueio_cobertura_rede");
+    const fallbackItem = {
+      ...items[0],
+      family: { ...items[0].family, visualProfile: undefined },
+      variant: { ...items[0].variant, visualProfile: undefined },
+    };
+
+    expect(ACTIVITY_CATALOG_THUMBNAILS.genericCourt).toBe(13);
+    expect(getCatalogActivityThumbnailKey(sideout!)).toBe("sideout");
+    expect(getCatalogActivityThumbnailKey(block!)).toBe("blockCoverage");
+    expect(getCatalogActivityThumbnailKey(fallbackItem as any)).toBe("genericCourt");
+    expect(resolveActivityCatalogThumbnail(undefined)).toBe(ACTIVITY_CATALOG_THUMBNAILS.genericCourt);
   });
 
   it("renders video-first catalog cards with thumbnail, CTA and local plus action", async () => {
