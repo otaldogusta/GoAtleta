@@ -2563,6 +2563,7 @@ export default function TrainingList() {
             nestedScrollEnabled
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={closeFormPickers}
+            interactiveRefs={[formUnitTriggerRef, formClassTriggerRef]}
           >
             {[
               { label: "Selecione uma unidade", value: "" },
@@ -2603,6 +2604,7 @@ export default function TrainingList() {
             nestedScrollEnabled
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={closeFormPickers}
+            interactiveRefs={[formUnitTriggerRef, formClassTriggerRef]}
           >
             { classOptionsForForm.length ? (
               classOptionsForForm.map((item) => {

@@ -214,6 +214,7 @@ function TrainingApplyModalContentBase({
             nestedScrollEnabled
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={actions.closeApplyPickers}
+            interactiveRefs={[refs.applyUnitTriggerRef, refs.applyClassTriggerRef]}
           >
             {[
               { label: "Selecione uma unidade", value: "" },
@@ -255,6 +256,7 @@ function TrainingApplyModalContentBase({
             nestedScrollEnabled
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={actions.closeApplyPickers}
+            interactiveRefs={[refs.applyUnitTriggerRef, refs.applyClassTriggerRef]}
           >
             {data.classOptionsForUnit.length ? (
               data.classOptionsForUnit.map((item) => {
