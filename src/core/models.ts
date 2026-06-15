@@ -467,6 +467,14 @@ export type TrainingPlanActivity = {
   confidence?: number;
   constraints?: string[];
   progression?: string;
+  catalog?: TrainingPlanActivityCatalogMeta;
+};
+
+export type TrainingPlanActivityCatalogMeta = {
+  source: "goAtletaCatalog";
+  familyId: string;
+  variantId: string;
+  addedAt: string;
 };
 
 export type TrainingPlanCriterion = {
@@ -503,6 +511,7 @@ export type LessonActivity = {
     standardText?: string;
     advancedText?: string;
   };
+  catalog?: TrainingPlanActivityCatalogMeta;
 };
 
 export type LessonBlock = {

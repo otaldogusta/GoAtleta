@@ -68,8 +68,12 @@ export function ActivityCatalogAddToLessonModal({
     setSaving(true);
     setError("");
     try {
-      await addCatalogActivityToLesson(selectedDestination, item);
-      onAdded(`Atividade adicionada: ${selectedDestination.label}.`);
+      const result = await addCatalogActivityToLesson(selectedDestination, item);
+      onAdded(
+        result.added
+          ? `Atividade adicionada: ${selectedDestination.label}.`
+          : `Esta atividade já está na aula: ${selectedDestination.label}.`
+      );
     } catch {
       setError("Não foi possível adicionar este exercício à aula.");
     } finally {

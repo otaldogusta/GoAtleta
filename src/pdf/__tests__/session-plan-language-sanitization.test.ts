@@ -176,6 +176,13 @@ describe("session-plan language sanitization", () => {
               successCriteria: "Não deve aparecer no PDF.",
               adaptation: "Não deve aparecer no PDF.",
               primarySkill: "passe",
+              sourcePatternId: "pattern_internal",
+              catalog: {
+                source: "goAtletaCatalog",
+                familyId: "continuity",
+                variantId: "playable-ball",
+                addedAt: "2026-06-15T00:00:00.000Z",
+              },
             },
           ],
         },
@@ -185,6 +192,14 @@ describe("session-plan language sanitization", () => {
     expect(html).toContain("quadra reduzida");
     expect(html).toContain("lançamento");
     expect(html).toContain("ponto extra");
+    expect(html).not.toContain("Catálogo GoAtleta");
+    expect(html).not.toContain("goAtletaCatalog");
+    expect(html).not.toContain("source");
+    expect(html).not.toContain("sourcePatternId");
+    expect(html).not.toContain("pattern_internal");
+    expect(html).not.toContain("familyId");
+    expect(html).not.toContain("variantId");
+    expect(html).not.toContain("playable-ball");
     expect(html).not.toContain("Não deve aparecer no PDF");
     expect(html).not.toContain("Foco do professor");
     expect(html).not.toContain("Meta:");
@@ -224,12 +239,12 @@ describe("session-plan language sanitization", () => {
   it.each([
     ["06-08", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Desafio dos 3 passes"],
     ["07-09", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Desafio dos 3 passes"],
-    ["08-10", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 2x2 dos 3 contatos"],
+    ["08-10", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Mini jogo da continuidade"],
     ["09-11", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Passe em duplas para zona-alvo"],
-    ["10-12", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 3x3 com primeiro contato pontuado"],
-    ["11-12", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Passe em trio com chamada"],
-    ["12-14", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Mini 4x4 com zona de recepção"],
-    ["13-15", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Passe sob lançamento variado"],
+    ["10-12", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Recepção para organizar sideout"],
+    ["11-12", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Recepção para organizar sideout"],
+    ["12-14", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Recepção para organizar sideout"],
+    ["13-15", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Recepção para organizar sideout"],
     ["16-18", "Passe e manchete para recepção", ["passe"] as VolleyballSkill[], "Jogo aplicado com bônus de recepção"],
   ])("keeps generated PDF standard text operational for age band %s", (ageBand, objective, focusSkills, expectedText) => {
     const html = buildGeneratedHtml(ageBand, objective, focusSkills);

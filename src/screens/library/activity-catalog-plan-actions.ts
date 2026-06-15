@@ -5,6 +5,7 @@ import type {
   TrainingPlanPedagogy,
 } from "../../core/models";
 import { createTrainingPlanVersion } from "../../core/training-plan-factory";
+import { hasMatchingTrainingPlanActivity } from "../../core/training-plan-activity-source";
 import type { TrainingPlanBlockKey } from "../../core/training-plan-blocks";
 import {
   getClasses,
@@ -107,7 +108,8 @@ const pickCatalogActivityBlock = (item: ActivityCatalogListItem): TrainingPlanBl
 };
 
 const buildCatalogTrainingActivity = (
-  item: ActivityCatalogListItem
+  item: ActivityCatalogListItem,
+  addedAt: string
 ): TrainingPlanActivity => {
   const { variant } = item;
   const taxonomy = variant.taxonomy;
@@ -130,6 +132,12 @@ const buildCatalogTrainingActivity = (
     objective: item.purpose,
     constraints: variant.avoid,
     progression: variant.progression,
+    catalog: {
+      source: "goAtletaCatalog",
+      familyId: item.family.id,
+      variantId: variant.id,
+      addedAt,
+    },
   };
 };
 
@@ -137,33 +145,34 @@ const emptyBlock = () => ({ summary: "", activities: [] as TrainingPlanActivity[
 
 const buildPedagogyWithCatalogActivity = (
   plan: TrainingPlan,
-  item: ActivityCatalogListItem
-): TrainingPlanPedagogy => {
+  item: ActivityCatalogListItem,
+  addedAt: string
+): { pedagogy: TrainingPlanPedagogy; added: boolean } => {
   const blockKey = pickCatalogActivityBlock(item);
-  const activity = buildCatalogTrainingActivity(item);
+  const activity = buildCatalogTrainingActivity(item, addedAt);
   const currentBlocks = plan.pedagogy?.blocks ?? {
     warmup: emptyBlock(),
     main: emptyBlock(),
     cooldown: emptyBlock(),
   };
   const block = currentBlocks[blockKey] ?? emptyBlock();
-  const alreadyExists = block.activities.some(
-    (existing) =>
-      existing.name.trim().toLowerCase() === activity.name.trim().toLowerCase()
-  );
+  const alreadyExists = hasMatchingTrainingPlanActivity(block.activities, activity);
   const nextActivities = alreadyExists
     ? block.activities
     : [...block.activities, activity];
 
   return {
-    ...(plan.pedagogy ?? {}),
-    blocks: {
-      warmup: currentBlocks.warmup ?? emptyBlock(),
-      main: currentBlocks.main ?? emptyBlock(),
-      cooldown: currentBlocks.cooldown ?? emptyBlock(),
-      [blockKey]: {
-        ...block,
-        activities: nextActivities,
+    added: !alreadyExists,
+    pedagogy: {
+      ...(plan.pedagogy ?? {}),
+      blocks: {
+        warmup: currentBlocks.warmup ?? emptyBlock(),
+        main: currentBlocks.main ?? emptyBlock(),
+        cooldown: currentBlocks.cooldown ?? emptyBlock(),
+        [blockKey]: {
+          ...block,
+          activities: nextActivities,
+        },
       },
     },
   };
@@ -200,25 +209,31 @@ export const addCatalogActivityToLesson = async (
     organizationId: destination.classGroup.organizationId ?? null,
   });
   const latestVersion = latestVersionPlan?.version ?? 0;
+  const basePlan =
+    latestVersionPlan?.applyDate === destination.date ? latestVersionPlan : destination.plan;
+  const { pedagogy, added } = buildPedagogyWithCatalogActivity(basePlan, item, nowIso);
+  if (!added) {
+    return { plan: basePlan, added };
+  }
   const nextPlan = createTrainingPlanVersion({
     classId: destination.classGroup.id,
-    version: Math.max(destination.plan.version ?? 0, latestVersion) + 1,
+    version: Math.max(basePlan.version ?? 0, latestVersion) + 1,
     origin: "manual",
-    draft: buildDraftWithCatalogActivity(destination.plan, item),
+    draft: buildDraftWithCatalogActivity(basePlan, item),
     applyDays: [],
     applyDate: destination.date,
-    inputHash: destination.plan.inputHash,
+    inputHash: basePlan.inputHash,
     nowIso,
     idPrefix: "plan_catalog",
     status: "final",
-    generatedAt: destination.plan.generatedAt,
+    generatedAt: basePlan.generatedAt,
     finalizedAt: nowIso,
-    parentPlanId: destination.plan.parentPlanId ?? destination.plan.id,
-    previousVersionId: destination.plan.id,
-    pedagogy: buildPedagogyWithCatalogActivity(destination.plan, item),
+    parentPlanId: basePlan.parentPlanId ?? basePlan.id,
+    previousVersionId: basePlan.id,
+    pedagogy,
   });
   await saveTrainingPlan(nextPlan, {
     organizationId: destination.classGroup.organizationId,
   });
-  return nextPlan;
+  return { plan: nextPlan, added };
 };
