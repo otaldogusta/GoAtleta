@@ -139,7 +139,7 @@ export function CatalogAuditPanel({ report, loading, error, onRefresh }: Catalog
 
   return (
     <View style={{ gap: 12 }}>
-      <Section title="Auditoria do Catálogo">
+      <Section title="Resumo executivo">
         <Text style={{ color: colors.muted }}>
           Cobertura pedagógica e uso real derivados dos planos carregados. Não mede qualidade da aula nem eventos de clique.
         </Text>
@@ -147,11 +147,13 @@ export function CatalogAuditPanel({ report, loading, error, onRefresh }: Catalog
           <MetricCard label="Famílias" value={coverage.totalFamilies} />
           <MetricCard label="Variantes" value={coverage.totalVariants} />
           <MetricCard label="Usos em planos" value={usage.totalCatalogActivitiesUsed} />
-          <MetricCard label="Planos lidos" value={usage.totalPlansScanned} />
+          <MetricCard label="Alta prioridade" value={insightReport.highPriorityCount} />
+          <MetricCard label="Nunca usadas" value={usage.unusedVariants.length} />
+          <MetricCard label="Referências antigas" value={usage.unknownCatalogReferences.length} />
         </View>
       </Section>
 
-      <CatalogAuditInsightsPanel report={insightReport} />
+      <CatalogAuditInsightsPanel report={insightReport} auditReport={report} />
 
       <Section title="Cobertura por fundamento">
         <View style={{ gap: 8 }}>

@@ -62,6 +62,7 @@ flowchart TD
 | `EXAMPLES.md` | Exemplos originais e snippets alinhados ao estado local |
 | `activity-catalog-usage-audit.md` | Auditoria derivada de cobertura e uso real do catalogo |
 | `activity-catalog-insights.md` | Insights determinísticos para orientar evolucao pedagogica do catalogo |
+| `activity-catalog-action-center.md` | Centro interno de acao para priorizar revisoes e exportar achados do catalogo |
 | `media/activity-catalog-media-manifest.v2.json` | Manifest auditavel dos thumbnails locais do catalogo |
 | `media/prompts/activity-catalog-thumbnails-v2.md` | Prompts versionados para assets visuais do catalogo |
 | `media/providers/higgsfield.md` | Regras para usar Higgsfield como provider opcional, fora do runtime |
