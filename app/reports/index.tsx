@@ -18,9 +18,13 @@ import { useAppTheme } from "../../src/ui/app-theme";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
+import type { ActivityCatalogAuditReport } from "../../src/core/volleyball/activity-catalog-audit";
+import { buildActivityCatalogAuditReport } from "../../src/core/volleyball/activity-catalog-audit";
+import { getTrainingPlans } from "../../src/db/seed";
 import TrainerReportsScreen from "./trainer";
+import { CatalogAuditPanel } from "../../src/screens/reports/CatalogAuditPanel";
 
-type DashboardTab = "attendance" | "session" | "activity";
+type DashboardTab = "attendance" | "session" | "activity" | "catalog";
 
 type DashboardListItem =
   | { id: string; kind: "attendance"; value: AdminPendingAttendance }
@@ -64,6 +68,7 @@ const tabItems: { id: DashboardTab; label: string }[] = [
   { id: "attendance", label: "Chamada pendente" },
   { id: "session", label: "Relatórios pendentes" },
   { id: "activity", label: "Atividade" },
+  { id: "catalog", label: "Catálogo" },
 ];
 
 export default function ReportsScreen() {
@@ -81,6 +86,7 @@ export default function ReportsScreen() {
   const [pendingAttendance, setPendingAttendance] = useState<AdminPendingAttendance[]>([]);
   const [pendingSessions, setPendingSessions] = useState<AdminPendingSessionLogs[]>([]);
   const [recentActivity, setRecentActivity] = useState<AdminRecentActivity[]>([]);
+  const [catalogAuditReport, setCatalogAuditReport] = useState<ActivityCatalogAuditReport | null>(null);
 
   const loadDashboard = useCallback(async () => {
     const organizationId = activeOrganization?.id;
@@ -88,6 +94,7 @@ export default function ReportsScreen() {
       setPendingAttendance([]);
       setPendingSessions([]);
       setRecentActivity([]);
+      setCatalogAuditReport(null);
       setError(null);
       setLoading(false);
       return;
@@ -95,24 +102,32 @@ export default function ReportsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [attendanceRows, sessionRows, activityRows] = await measureAsync(
+      const [attendanceRows, sessionRows, activityRows, trainingPlans] = await measureAsync(
         "screen.reportsAdmin.load.dashboard",
         () =>
           Promise.all([
             listAdminPendingAttendance({ organizationId }),
             listAdminPendingSessionLogs({ organizationId }),
             listAdminRecentActivity({ organizationId, limit: 50 }),
+            getTrainingPlans({
+              organizationId,
+              status: "final",
+              orderBy: "createdat_desc",
+              limit: 300,
+            }),
           ]),
         { screen: "reportsAdmin", organizationId }
       );
       setPendingAttendance(attendanceRows);
       setPendingSessions(sessionRows);
       setRecentActivity(activityRows);
+      setCatalogAuditReport(buildActivityCatalogAuditReport(trainingPlans));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar dashboard.");
       setPendingAttendance([]);
       setPendingSessions([]);
       setRecentActivity([]);
+      setCatalogAuditReport(null);
     } finally {
       setLoading(false);
     }
@@ -136,6 +151,9 @@ export default function ReportsScreen() {
         kind: "session",
         value: item,
       }));
+    }
+    if (tab === "catalog") {
+      return [];
     }
     return recentActivity.map((item, index) => ({
       id: `${item.kind}_${item.classId}_${item.occurredAt}_${index}`,
@@ -167,6 +185,9 @@ export default function ReportsScreen() {
     const attendancePending = pendingAttendance.length;
     const sessionPending = pendingSessions.length;
     const recentActions = recentActivity.length;
+    const catalogUses = catalogAuditReport?.usage.totalCatalogActivitiesUsed ?? 0;
+    const catalogUnknownReferences =
+      catalogAuditReport?.usage.unknownCatalogReferences.length ?? 0;
     const activeClasses = new Set([
       ...pendingAttendance.map((item) => item.classId),
       ...pendingSessions.map((item) => item.classId),
@@ -176,9 +197,11 @@ export default function ReportsScreen() {
       attendancePending,
       sessionPending,
       recentActions,
+      catalogUses,
+      catalogUnknownReferences,
       activeClasses,
     };
-  }, [pendingAttendance, pendingSessions, recentActivity]);
+  }, [catalogAuditReport, pendingAttendance, pendingSessions, recentActivity]);
 
   const renderItem = useCallback(
     ({ item }: { item: DashboardListItem }) => {
@@ -448,6 +471,34 @@ export default function ReportsScreen() {
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Catálogo usado: {executiveSummary.catalogUses}
+            </Text>
+          </View>
+          <View
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Referências pendentes: {executiveSummary.catalogUnknownReferences}
+            </Text>
+          </View>
+          <View
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
               Turmas em foco: {executiveSummary.activeClasses}
             </Text>
           </View>
@@ -491,18 +542,27 @@ export default function ReportsScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
         ListHeaderComponent={header}
         ListEmptyComponent={
-          <View
-            style={{
-              padding: 14,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>{emptyState.title}</Text>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>{emptyState.text}</Text>
-          </View>
+          tab === "catalog" ? (
+            <CatalogAuditPanel
+              report={catalogAuditReport}
+              loading={loading}
+              error={error}
+              onRefresh={loadDashboard}
+            />
+          ) : (
+            <View
+              style={{
+                padding: 14,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>{emptyState.title}</Text>
+              <Text style={{ color: colors.muted, marginTop: 4 }}>{emptyState.text}</Text>
+            </View>
+          )
         }
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
       />
