@@ -1,5 +1,7 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
+import * as Clipboard from "expo-clipboard";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import type { TrainingPlan, TrainingPlanActivity } from "../../../core/models";
 import { ACTIVITY_CATALOG_FAMILIES } from "../../../core/volleyball/activity-catalog";
@@ -7,6 +9,10 @@ import { buildActivityCatalogAuditReport } from "../../../core/volleyball/activi
 import { buildActivityCatalogInsights } from "../../../core/volleyball/activity-catalog-insights";
 import { CatalogAuditPanel } from "../CatalogAuditPanel";
 import { CatalogAuditInsightsPanel } from "../CatalogAuditInsightsPanel";
+
+jest.mock("expo-clipboard", () => ({
+  setStringAsync: jest.fn(async () => true),
+}));
 
 const firstFamily = ACTIVITY_CATALOG_FAMILIES[0];
 const firstVariant = firstFamily.variants[0];
@@ -69,7 +75,18 @@ const collectText = (value: unknown): string[] => {
 const renderText = async (element: React.ReactElement) => {
   let renderer: TestRenderer.ReactTestRenderer | null = null;
   await act(async () => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(
+      React.createElement(
+        SafeAreaProvider,
+        {
+          initialMetrics: {
+            frame: { x: 0, y: 0, width: 1024, height: 768 },
+            insets: { top: 0, right: 0, bottom: 0, left: 0 },
+          },
+        },
+        element
+      )
+    );
   });
   return collectText(renderer?.toJSON()).join(" ");
 };
@@ -77,7 +94,18 @@ const renderText = async (element: React.ReactElement) => {
 const renderRoot = async (element: React.ReactElement) => {
   let renderer: TestRenderer.ReactTestRenderer | null = null;
   await act(async () => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(
+      React.createElement(
+        SafeAreaProvider,
+        {
+          initialMetrics: {
+            frame: { x: 0, y: 0, width: 1024, height: 768 },
+            insets: { top: 0, right: 0, bottom: 0, left: 0 },
+          },
+        },
+        element
+      )
+    );
   });
   if (!renderer) throw new Error("Failed to render test component.");
   return renderer;
@@ -111,9 +139,13 @@ describe("CatalogAuditPanel", () => {
       })
     );
 
-    expect(text).toContain("Auditoria do Catálogo");
+    expect(text).toContain("Resumo executivo");
+    expect(text).toContain("Alta prioridade");
+    expect(text).toContain("Nunca usadas");
+    expect(text).toContain("Referências antigas");
+    expect(text).toContain("Centro de ação do Catálogo");
     expect(text).toContain("Insights do Catálogo");
-    expect(text).toContain("Sinais derivados da cobertura e do uso real");
+    expect(text).toContain("Transforme cobertura e uso do catálogo");
     expect(text).toContain("Cobertura por fundamento");
     expect(text).toContain("Bloqueio");
     expect(text).toContain("Variantes mais usadas");
@@ -167,12 +199,19 @@ describe("CatalogAuditPanel", () => {
       maxInsights: 20,
     });
     const renderer = await renderRoot(
-      React.createElement(CatalogAuditInsightsPanel, { report: insightReport })
+      React.createElement(CatalogAuditInsightsPanel, {
+        report: insightReport,
+        auditReport,
+      })
     );
 
     expect(collectText(renderer.toJSON()).join(" ")).toContain(
       "Referências antigas encontradas"
     );
+    expect(collectText(renderer.toJSON()).join(" ")).toContain("Copiar relatório Markdown");
+    expect(collectText(renderer.toJSON()).join(" ")).toContain("Copiar JSON");
+    expect(collectText(renderer.toJSON()).join(" ")).toContain("Ver detalhes");
+    expect(collectText(renderer.toJSON()).join(" ")).toContain("Copiar ação");
     expect(collectText(renderer.toJSON()).join(" ")).toContain("Evidências");
     expect(collectText(renderer.toJSON()).join(" ")).toContain("Ações sugeridas");
     expect(collectText(renderer.toJSON()).join(" ")).toContain(
@@ -189,6 +228,62 @@ describe("CatalogAuditPanel", () => {
     const filteredText = collectText(renderer.toJSON()).join(" ");
     expect(filteredText).toContain("Referências antigas encontradas");
     expect(filteredText).not.toContain("Uso do catálogo ainda sem linha histórica");
+  });
+
+  it("opens insight details and copies report/action content", async () => {
+    const auditReport = buildActivityCatalogAuditReport([
+      plan([
+        catalogActivity(
+          firstFamily.id,
+          firstVariant.id,
+          firstVariant.name,
+          "2026-06-15T09:00:00.000Z"
+        ),
+      ]),
+    ]);
+    const insightReport = buildActivityCatalogInsights(auditReport, {
+      now: "2026-06-16T00:00:00.000Z",
+      maxInsights: 20,
+    });
+    const renderer = await renderRoot(
+      React.createElement(CatalogAuditInsightsPanel, {
+        report: insightReport,
+        auditReport,
+      })
+    );
+    const targetInsight = insightReport.insights[0];
+
+    const detailButton = renderer.root.findByProps({
+      accessibilityLabel: `Ver detalhes: ${targetInsight.title}`,
+    });
+    await act(async () => {
+      detailButton.props.onPress();
+    });
+
+    const detailText = collectText(renderer.toJSON()).join(" ");
+    expect(detailText).toContain("Evidências completas");
+    expect(detailText).toContain("Escopo");
+    expect(detailText).toContain("Variantes relacionadas");
+
+    const copyMarkdown = renderer.root.findByProps({
+      accessibilityLabel: "Copiar relatório Markdown",
+    });
+    await act(async () => {
+      await copyMarkdown.props.onPress();
+    });
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
+      expect.stringContaining("# Relatório de Auditoria do Catálogo GoAtleta")
+    );
+
+    const copyAction = renderer.root.findByProps({
+      accessibilityLabel: `Copiar ação: ${targetInsight.title}`,
+    });
+    await act(async () => {
+      await copyAction.props.onPress();
+    });
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
+      expect.stringContaining("# Ação sugerida - Catálogo GoAtleta")
+    );
   });
 
   it("renders insight empty state", async () => {
@@ -236,7 +331,34 @@ describe("CatalogAuditPanel", () => {
     );
 
     expect(
-      await renderText(React.createElement(CatalogAuditInsightsPanel, { report: insightReport }))
+      await renderText(
+        React.createElement(CatalogAuditInsightsPanel, {
+          report: insightReport,
+          auditReport: {
+            coverage: {
+              totalFamilies: 1,
+              totalVariants: 3,
+              bySkill: {},
+              byFamily: {},
+              byAgeRange: {},
+              byRecommendedPhase: {},
+              byComplexity: {},
+              criticalGaps: [],
+            },
+            usage: {
+              totalCatalogActivitiesUsed: 7,
+              totalPlansScanned: 2,
+              totalBlocksScanned: 6,
+              byVariantId: {},
+              byFamilyId: {},
+              bySkill: {},
+              mostUsedVariants: [],
+              unusedVariants: [],
+              unknownCatalogReferences: [],
+            },
+          },
+        })
+      )
     ).toContain("Nenhum insight crítico encontrado.");
   });
 
