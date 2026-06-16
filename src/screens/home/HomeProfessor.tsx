@@ -440,6 +440,12 @@ export function HomeProfessorScreen({
             hasOrganization: Boolean(activeOrganization?.id),
           }
         );
+      } catch (error) {
+        console.warn("[HomeProfessor] Failed to load home schedule", error);
+        if (alive) {
+          setClasses([]);
+          setUpcomingEvents([]);
+        }
       } finally {
 
         if (alive) setLoadingClasses(false);
@@ -493,9 +499,13 @@ export function HomeProfessorScreen({
 
       let active = true;
 
-      void loadProfilePhoto().then((uri) => {
-        if (active) setProfilePhotoUri(uri);
-      });
+      void loadProfilePhoto()
+        .then((uri) => {
+          if (active) setProfilePhotoUri(uri);
+        })
+        .catch(() => {
+          if (active) setProfilePhotoUri(null);
+        });
 
       return () => {
 
