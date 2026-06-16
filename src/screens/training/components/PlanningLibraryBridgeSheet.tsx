@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import type { Exercise } from "../../../core/models";
 import type { TrainingPlanBlockKey } from "../../../core/training-plan-blocks";
@@ -11,12 +11,14 @@ import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import { ActivityCatalogFilterSheet } from "../../library/ActivityCatalogFilterSheet";
 import { ActivityCatalogFilters } from "../../library/ActivityCatalogFilters";
-import { ActivityCatalogVideoCard } from "../../library/ActivityCatalogVideoCard";
+import { ActivityCatalogThumbnail } from "../../library/ActivityCatalogThumbnail";
 import { ActivityCatalogVideoDetailSheet } from "../../library/ActivityCatalogVideoDetailSheet";
 import {
   buildActivityCatalogListItems,
   EMPTY_CATALOG_FILTERS,
   filterActivityCatalogItems,
+  getActivityCatalogCardChips,
+  getCatalogActivityPrimaryBadge,
   getCatalogFilterOptions,
   type ActivityCatalogListItem,
   type CatalogFilterState,
@@ -52,6 +54,7 @@ export function PlanningLibraryBridgeSheet({
   onAddExerciseLink,
 }: Props) {
   const { colors } = useAppTheme();
+  const { height, width } = useWindowDimensions();
   const [activeTab, setActiveTab] = useState<LibraryTab>("catalog");
   const [filters, setFilters] = useState<CatalogFilterState>(EMPTY_CATALOG_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
@@ -121,6 +124,9 @@ export function PlanningLibraryBridgeSheet({
     setSelectedCatalogItem(null);
   };
 
+  const useStackedCards = width < 720;
+  const modalHeight = Math.min(height * 0.84, 760);
+
   return (
     <>
       <ModalDialogFrame
@@ -130,8 +136,8 @@ export function PlanningLibraryBridgeSheet({
         title="Adicionar atividade"
         subtitle={`Destino: ${getPlanningBlockLabel(blockKey)}`}
         position="center"
-        cardStyle={{ width: "100%", maxWidth: 920, height: "88%" }}
-        contentContainerStyle={{ gap: 14, paddingBottom: 18, paddingTop: 14 }}
+        cardStyle={{ width: "94%", maxWidth: 820, height: modalHeight }}
+        contentContainerStyle={{ gap: 12, paddingBottom: 16, paddingTop: 12 }}
       >
         <AnimatedSegmentedTabs<LibraryTab>
           tabs={tabs}
@@ -150,13 +156,14 @@ export function PlanningLibraryBridgeSheet({
               onOpenFilters={() => setShowFilters(true)}
             />
             {filteredCatalogItems.length ? (
-              <View style={{ gap: 12 }}>
+              <View style={{ gap: 10 }}>
                 {filteredCatalogItems.map((item) => (
-                  <ActivityCatalogVideoCard
+                  <PlanningCatalogCompactCard
                     key={item.id}
                     item={item}
+                    stacked={useStackedCards}
                     onView={setSelectedCatalogItem}
-                    onAddToLesson={addCatalogItem}
+                    onAdd={addCatalogItem}
                   />
                 ))}
               </View>
@@ -230,6 +237,131 @@ export function PlanningLibraryBridgeSheet({
         onAddToLesson={addCatalogItem}
       />
     </>
+  );
+}
+
+function PlanningCatalogCompactCard({
+  item,
+  stacked,
+  onView,
+  onAdd,
+}: {
+  item: ActivityCatalogListItem;
+  stacked: boolean;
+  onView: (item: ActivityCatalogListItem) => void;
+  onAdd: (item: ActivityCatalogListItem) => void;
+}) {
+  const { colors } = useAppTheme();
+  const badge = getCatalogActivityPrimaryBadge(item);
+  const chips = getActivityCatalogCardChips(item).slice(0, 2);
+
+  return (
+    <View
+      testID={`planning-catalog-card-${item.id}`}
+      style={{
+        padding: 10,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.card,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: stacked ? "column" : "row",
+          alignItems: stacked ? "stretch" : "center",
+          gap: 10,
+        }}
+      >
+        <Pressable
+          testID={`planning-catalog-preview-${item.id}`}
+          onPress={() => onView(item)}
+          style={{
+            width: stacked ? "100%" : 154,
+            flexShrink: 0,
+          }}
+        >
+          <ActivityCatalogThumbnail item={item} badge={badge} />
+        </Pressable>
+
+        <View style={{ flex: 1, minWidth: 0, gap: 7 }}>
+          <View style={{ gap: 3 }}>
+            <Text
+              numberOfLines={2}
+              style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
+            >
+              {item.variant.name}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}
+            >
+              {item.familyLabel}
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+            {chips.map((chip) => (
+              <View
+                key={chip}
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 999,
+                  backgroundColor: colors.secondaryBg,
+                }}
+              >
+                <Text style={{ color: colors.secondaryText, fontSize: 11, fontWeight: "900" }}>
+                  {chip}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12 }}>
+            {item.purpose}
+          </Text>
+
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable
+              testID={`planning-catalog-view-${item.id}`}
+              onPress={() => onView(item)}
+              style={{
+                flex: 1,
+                minHeight: 34,
+                borderRadius: 11,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.secondaryText, fontSize: 12, fontWeight: "900" }}>
+                Ver
+              </Text>
+            </Pressable>
+            <Pressable
+              testID={`planning-catalog-add-${item.id}`}
+              onPress={() => onAdd(item)}
+              style={{
+                minHeight: 34,
+                borderRadius: 11,
+                paddingHorizontal: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 5,
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Ionicons name="add" size={18} color={colors.primaryText} />
+              <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>
+                Adicionar
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </View>
   );
 }
 

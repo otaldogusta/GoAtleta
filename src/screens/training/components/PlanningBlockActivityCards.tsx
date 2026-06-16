@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { Text, useWindowDimensions, View } from "react-native";
 
 import type { TrainingPlanActivity } from "../../../core/models";
 import { getTrainingPlanActivitySourceLabel } from "../../../core/training-plan-activity-source";
@@ -29,20 +29,29 @@ export function PlanningBlockActivityCards({
   onRemove,
 }: Props) {
   const { colors } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const compact = width < 720;
+
   return (
     <View
       testID={`planning-block-${blockKey}`}
       style={{
-        gap: 10,
-        padding: 12,
-        borderRadius: 16,
+        gap: 9,
+        padding: compact ? 10 : 12,
+        borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <View style={{ flex: 1 }}>
+      <View
+        style={{
+          flexDirection: compact ? "column" : "row",
+          alignItems: compact ? "stretch" : "center",
+          gap: 9,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
             {getPlanningBlockLabel(blockKey)}
           </Text>
@@ -54,7 +63,7 @@ export function PlanningBlockActivityCards({
           testID={`planning-add-activity-${blockKey}`}
           onPress={() => onAdd(blockKey)}
           style={{
-            minHeight: 38,
+            minHeight: 36,
             borderRadius: 12,
             paddingHorizontal: 12,
             alignItems: "center",
@@ -62,6 +71,7 @@ export function PlanningBlockActivityCards({
             flexDirection: "row",
             gap: 6,
             backgroundColor: colors.primaryBg,
+            alignSelf: compact ? "stretch" : "auto",
           }}
         >
           <Ionicons name="add" size={18} color={colors.primaryText} />
@@ -79,16 +89,25 @@ export function PlanningBlockActivityCards({
               testID={`planning-activity-card-${blockKey}`}
               style={{
                 gap: 8,
-                padding: 12,
-                borderRadius: 14,
+                padding: compact ? 10 : 12,
+                borderRadius: 12,
                 borderWidth: 1,
                 borderColor: colors.border,
                 backgroundColor: colors.secondaryBg,
               }}
             >
-              <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+              <View
+                style={{
+                  flexDirection: compact ? "column" : "row",
+                  gap: 8,
+                  alignItems: compact ? "stretch" : "flex-start",
+                }}
+              >
                 <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
+                  <Text
+                    numberOfLines={2}
+                    style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
+                  >
                     {activity.name || "Atividade sem título"}
                   </Text>
                   {activity.description ? (
@@ -99,6 +118,7 @@ export function PlanningBlockActivityCards({
                 </View>
                 <View
                   style={{
+                    alignSelf: compact ? "flex-start" : "auto",
                     paddingHorizontal: 9,
                     paddingVertical: 5,
                     borderRadius: 999,
