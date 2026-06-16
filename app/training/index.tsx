@@ -313,6 +313,7 @@ export default function TrainingList() {
   const [planningDetailActivity, setPlanningDetailActivity] =
     useState<TrainingPlanActivity | null>(null);
   const [planningLibraryMessage, setPlanningLibraryMessage] = useState("");
+  const [showPlanningManualFields, setShowPlanningManualFields] = useState(false);
   const [showTemplates, setShowTemplates] = usePersistedState<boolean>(
     "training_show_templates_v1",
     false
@@ -567,6 +568,12 @@ export default function TrainingList() {
       useNativeDriver: true,
     }).start();
   }, [showTrainingFabMenu, trainingFabAnim]);
+
+  useEffect(() => {
+    if (planningTab === "formulario" && showTrainingFabMenu) {
+      setShowTrainingFabMenu(false);
+    }
+  }, [planningTab, showTrainingFabMenu]);
 
   useEffect(() => {
     if (!createSessionRequestKey) return;
@@ -1502,7 +1509,7 @@ export default function TrainingList() {
       }
       setPlanningActivities(result.activities);
       appendActivityNameToBlockText(blockKey, activity.name);
-      setPlanningLibraryMessage(`Atividade adicionada em ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Parte principal" : "Volta à calma"}.`);
+      setPlanningLibraryMessage(`Adicionado ao ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Principal" : "Volta à calma"}.`);
       return true;
     },
     [appendActivityNameToBlockText, planningActivities]
@@ -1547,28 +1554,19 @@ export default function TrainingList() {
     [planningActivities, removeActivityNameFromBlockText]
   );
 
-  const handleEditPlanningActivityText = useCallback(
-    (blockKey: TrainingPlanBlockKey) => {
-      setPlanningLibraryMessage(
-        `Edite o texto complementar de ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Parte principal" : "Volta à calma"} no campo abaixo.`
-      );
-    },
-    []
-  );
-
   const planningLibraryMessageStyle = useMemo(
     () => ({
-      padding: 10,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.infoBg,
+      alignSelf: "flex-start" as const,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 999,
       backgroundColor: colors.infoBg,
     }),
     [colors.infoBg]
   );
 
   const planningLibraryMessageTextStyle = useMemo(
-    () => ({ color: colors.infoText, fontSize: 13, fontWeight: "800" as const }),
+    () => ({ color: colors.infoText, fontSize: 12, fontWeight: "800" as const }),
     [colors.infoText]
   );
 
@@ -2908,91 +2906,6 @@ export default function TrainingList() {
               color: colors.inputText,
             }}
           />
-          { suggestions.length > 0 && hasFormContent ? (
-            <>
-              <Text style={{ color: colors.muted, marginTop: 2 }}>Sugestoes</Text>
-              <FadeHorizontalScroll
-                fadeColor={colors.card}
-                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-              >
-                {suggestions.map((tag) => (
-                  <Pressable
-                    key={tag}
-                    onPress={() =>
-                      setTagsText(
-                        tagsText.trim()
-                          ? tagsText.trim().replace(/\s*,\s*$/, "") + ", " + tag
-                          : tag
-                      )
-                    }
-                    style={{
-                      paddingVertical: 4,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.text }}>{tag}</Text>
-                  </Pressable>
-                ))}
-              </FadeHorizontalScroll>
-            </>
-          ) : null}
-          {hasFormContent ? (
-            (() => {
-              const tips = methodologyTranslation?.tips ?? [];
-              if (!tips.length) return null;
-              return (
-                <View
-                  style={{
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.inputBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    gap: 6,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Dicas da faixa etária
-                  </Text>
-                  {methodologyTranslation ? (
-                    <>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        Modo: {methodologyTranslation.mode} • Temp pedagógica: {methodologyTranslation.pedagogicalTemperature}
-                      </Text>
-                      {methodologyTranslation.detectedApproach.hasObjectiveText ? (
-                        <>
-                          <Text style={{ color: colors.muted, fontSize: 11 }}>
-                            {methodologyTranslation.detectedApproach.profileLabel} • {methodologyTranslation.detectedApproach.predominanceLabel}
-                          </Text>
-                          <Text style={{ color: colors.muted, fontSize: 11 }}>
-                            Papel do aluno: {methodologyTranslation.detectedApproach.learnerRoleLabel} • Intenção: {methodologyTranslation.detectedApproach.primaryIntentLabel}
-                          </Text>
-                          <Text style={{ color: colors.muted, fontSize: 11 }}>
-                            {methodologyTranslation.detectedApproach.summary}
-                          </Text>
-                          {methodologyTranslation.detectedApproach.secondaryLabels.length ? (
-                            <Text style={{ color: colors.muted, fontSize: 11 }}>
-                              Traços secundários: {methodologyTranslation.detectedApproach.secondaryLabels.join(", ")}
-                            </Text>
-                          ) : null}
-                          <Text style={{ color: colors.muted, fontSize: 11 }}>
-                            Risco de condução tradicional: {methodologyTranslation.detectedApproach.traditionalConductionRisk}
-                          </Text>
-                        </>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {tips.map((tip) => (
-                    <Text key={tip} style={{ color: colors.muted, fontSize: 12 }}>
-                      {"- " + tip}
-                    </Text>
-                  ))}
-                </View>
-              );
-            })()
-          ) : null}
           {planningLibraryMessage ? (
             <View
               testID="planning-library-message"
@@ -3011,94 +2924,133 @@ export default function TrainingList() {
                 activities={planningActivities[blockKey] ?? []}
                 onAdd={handleOpenPlanningLibrary}
                 onView={setPlanningDetailActivity}
-                onEditText={handleEditPlanningActivityText}
                 onRemove={handleRemovePlanningActivity}
               />
             ))}
           </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <TextInput
-              placeholder="Aquecimento (1 por linha)"
-              value={warmup}
-              onChangeText={setWarmup}
-              multiline
-              placeholderTextColor={colors.placeholder}
+          <View
+            style={{
+              gap: 10,
+              padding: 12,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+            }}
+          >
+            <Pressable
+              onPress={() => setShowPlanningManualFields((current) => !current)}
               style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: colors.border,
-                paddingHorizontal: 8,
-                paddingVertical: 14,
-                borderRadius: 10,
-                minHeight: 60,
-                backgroundColor: colors.inputBg,
-                textAlignVertical: "center",
-                color: colors.inputText,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
               }}
-            />
-            <TimeInput
-              placeholder="10:00 (min:seg)"
-              value={warmupTime}
-              onChangeText={setWarmupTime}
-              format="duration"
-              style={{ width: 110 }}
-            />
-          </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <TextInput
-              placeholder="Parte principal (1 por linha)"
-              value={main}
-              onChangeText={setMain}
-              multiline
-              placeholderTextColor={colors.placeholder}
-              style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: colors.border,
-                paddingHorizontal: 8,
-                paddingVertical: 20,
-                borderRadius: 10,
-                minHeight: 80,
-                backgroundColor: colors.inputBg,
-                textAlignVertical: "center",
-                color: colors.inputText,
-              }}
-            />
-            <TimeInput
-              placeholder="01:30 (h:min)"
-              value={mainTime}
-              onChangeText={setMainTime}
-              format="clock"
-              style={{ width: 110 }}
-            />
-          </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <TextInput
-              placeholder="Volta a calma (1 por linha)"
-              value={cooldown}
-              onChangeText={setCooldown}
-              multiline
-              placeholderTextColor={colors.placeholder}
-              style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: colors.border,
-                paddingHorizontal: 8,
-                paddingVertical: 14,
-                borderRadius: 10,
-                minHeight: 60,
-                backgroundColor: colors.inputBg,
-                textAlignVertical: "center",
-                color: colors.inputText,
-              }}
-            />
-            <TimeInput
-              placeholder="05:00 (min:seg)"
-              value={cooldownTime}
-              onChangeText={setCooldownTime}
-              format="duration"
-              style={{ width: 110 }}
-            />
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
+                  Texto manual e duração
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}
+                >
+                  {`Aquec. ${warmupTime || "10:00"} · Principal ${mainTime || "01:30"} · Volta ${cooldownTime || "05:00"}`}
+                </Text>
+              </View>
+              <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>
+                {showPlanningManualFields ? "Ocultar" : "Editar"}
+              </Text>
+            </Pressable>
+
+            {showPlanningManualFields ? (
+              <View style={{ gap: 10 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TextInput
+                    placeholder="Aquecimento (1 por linha)"
+                    value={warmup}
+                    onChangeText={setWarmup}
+                    multiline
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingHorizontal: 8,
+                      paddingVertical: 12,
+                      borderRadius: 10,
+                      minHeight: 52,
+                      backgroundColor: colors.inputBg,
+                      textAlignVertical: "center",
+                      color: colors.inputText,
+                    }}
+                  />
+                  <TimeInput
+                    placeholder="10:00"
+                    value={warmupTime}
+                    onChangeText={setWarmupTime}
+                    format="duration"
+                    style={{ width: 96 }}
+                  />
+                </View>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TextInput
+                    placeholder="Parte principal (1 por linha)"
+                    value={main}
+                    onChangeText={setMain}
+                    multiline
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingHorizontal: 8,
+                      paddingVertical: 14,
+                      borderRadius: 10,
+                      minHeight: 60,
+                      backgroundColor: colors.inputBg,
+                      textAlignVertical: "center",
+                      color: colors.inputText,
+                    }}
+                  />
+                  <TimeInput
+                    placeholder="01:30"
+                    value={mainTime}
+                    onChangeText={setMainTime}
+                    format="clock"
+                    style={{ width: 96 }}
+                  />
+                </View>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TextInput
+                    placeholder="Volta a calma (1 por linha)"
+                    value={cooldown}
+                    onChangeText={setCooldown}
+                    multiline
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingHorizontal: 8,
+                      paddingVertical: 12,
+                      borderRadius: 10,
+                      minHeight: 52,
+                      backgroundColor: colors.inputBg,
+                      textAlignVertical: "center",
+                      color: colors.inputText,
+                    }}
+                  />
+                  <TimeInput
+                    placeholder="05:00"
+                    value={cooldownTime}
+                    onChangeText={setCooldownTime}
+                    format="duration"
+                    style={{ width: 96 }}
+                  />
+                </View>
+              </View>
+            ) : null}
           </View>
           <Pressable
             onPress={formMode === "template" ? saveTemplate : savePlan}
@@ -3356,48 +3308,52 @@ export default function TrainingList() {
         )}
       </ScrollView>
 
-      <Pressable
-        onPress={() => setShowTrainingFabMenu((current) => !current)}
-        style={{
-          ...(Platform.OS === "web"
-            ? ({ position: "fixed", right: trainingFabRight, bottom: trainingFabBottom } as any)
-            : { position: "absolute" as const, right: trainingFabRight, bottom: trainingFabBottom }),
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors.primaryBg,
-          borderWidth: 1,
-          borderColor: colors.border,
-          zIndex: 3200,
-          ...shadow.elevated,
-        }}
-      >
-        <Animated.View
-          style={{
-            transform: [{ rotate: trainingFabRotate }, { scale: trainingFabScale }],
-          }}
-        >
-          <Ionicons name="add" size={24} color={colors.primaryText} />
-        </Animated.View>
-      </Pressable>
+      {planningTab !== "formulario" ? (
+        <>
+          <Pressable
+            onPress={() => setShowTrainingFabMenu((current) => !current)}
+            style={{
+              ...(Platform.OS === "web"
+                ? ({ position: "fixed", right: trainingFabRight, bottom: trainingFabBottom } as any)
+                : { position: "absolute" as const, right: trainingFabRight, bottom: trainingFabBottom }),
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.primaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              zIndex: 3200,
+              ...shadow.elevated,
+            }}
+          >
+            <Animated.View
+              style={{
+                transform: [{ rotate: trainingFabRotate }, { scale: trainingFabScale }],
+              }}
+            >
+              <Ionicons name="add" size={24} color={colors.primaryText} />
+            </Animated.View>
+          </Pressable>
 
-      <TrainingFabMenu
-        visible={showTrainingFabMenu}
-        importBusy={false}
-        anchorRight={trainingFabRight}
-        anchorBottom={trainingFabBottom}
-        onClose={() => setShowTrainingFabMenu(false)}
-        onCreatePress={() => {
-          setShowTrainingFabMenu(false);
-          setShowTrainingSessionCreate(true);
-        }}
-        onImportPress={() => {
-          setShowTrainingFabMenu(false);
-          router.push({ pathname: "/training/import" });
-        }}
-      />
+          <TrainingFabMenu
+            visible={showTrainingFabMenu}
+            importBusy={false}
+            anchorRight={trainingFabRight}
+            anchorBottom={trainingFabBottom}
+            onClose={() => setShowTrainingFabMenu(false)}
+            onCreatePress={() => {
+              setShowTrainingFabMenu(false);
+              setShowTrainingSessionCreate(true);
+            }}
+            onImportPress={() => {
+              setShowTrainingFabMenu(false);
+              router.push({ pathname: "/training/import" });
+            }}
+          />
+        </>
+      ) : null}
       </KeyboardAvoidingView>
       {showTrainingSessionCreate ? (
         <Suspense fallback={null}>

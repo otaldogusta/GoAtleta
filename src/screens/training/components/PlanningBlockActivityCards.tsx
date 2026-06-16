@@ -13,7 +13,6 @@ type Props = {
   activities: TrainingPlanActivity[];
   onAdd: (blockKey: TrainingPlanBlockKey) => void;
   onView: (activity: TrainingPlanActivity) => void;
-  onEditText: (blockKey: TrainingPlanBlockKey) => void;
   onRemove: (blockKey: TrainingPlanBlockKey, index: number) => void;
 };
 
@@ -25,19 +24,22 @@ export function PlanningBlockActivityCards({
   activities,
   onAdd,
   onView,
-  onEditText,
   onRemove,
 }: Props) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const compact = width < 720;
+  const reserveFloatingSpace = width >= 720 && width < 1040;
 
   return (
     <View
       testID={`planning-block-${blockKey}`}
       style={{
         gap: 9,
-        padding: compact ? 10 : 12,
+        paddingTop: compact ? 10 : 12,
+        paddingBottom: compact ? 10 : 12,
+        paddingLeft: compact ? 10 : 12,
+        paddingRight: reserveFloatingSpace ? 72 : compact ? 10 : 12,
         borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.border,
@@ -56,7 +58,9 @@ export function PlanningBlockActivityCards({
             {getPlanningBlockLabel(blockKey)}
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-            {activities.length} atividades estruturadas
+            {activities.length
+              ? `${activities.length} ${activities.length === 1 ? "atividade" : "atividades"}`
+              : "Sem atividades"}
           </Text>
         </View>
         <Pressable
@@ -76,7 +80,7 @@ export function PlanningBlockActivityCards({
         >
           <Ionicons name="add" size={18} color={colors.primaryText} />
           <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "900" }}>
-            Adicionar atividade
+            Adicionar
           </Text>
         </Pressable>
       </View>
@@ -111,7 +115,7 @@ export function PlanningBlockActivityCards({
                     {activity.name || "Atividade sem título"}
                   </Text>
                   {activity.description ? (
-                    <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12 }}>
+                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
                       {activity.description}
                     </Text>
                   ) : null}
@@ -136,14 +140,8 @@ export function PlanningBlockActivityCards({
                   </Text>
                 </View>
               </View>
-              {activity.coachFocus ? (
-                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>
-                  {activity.coachFocus}
-                </Text>
-              ) : null}
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 <ActionButton label="Ver" testID={`planning-view-${blockKey}-${index}`} onPress={() => onView(activity)} />
-                <ActionButton label="Editar texto" testID={`planning-edit-text-${blockKey}-${index}`} onPress={() => onEditText(blockKey)} />
                 <ActionButton
                   label="Remover"
                   danger
@@ -157,9 +155,9 @@ export function PlanningBlockActivityCards({
       ) : (
         <Text
           testID={`planning-empty-${blockKey}`}
-          style={{ color: colors.muted, fontSize: 13, fontWeight: "700" }}
+          style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}
         >
-          Nenhuma atividade adicionada neste bloco.
+          Nenhuma atividade.
         </Text>
       )}
     </View>

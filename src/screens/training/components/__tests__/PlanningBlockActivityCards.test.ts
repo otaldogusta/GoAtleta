@@ -44,7 +44,6 @@ describe("PlanningBlockActivityCards", () => {
     };
     const onAdd = jest.fn();
     const onView = jest.fn();
-    const onEditText = jest.fn();
     const onRemove = jest.fn();
 
     let renderer: TestRenderer.ReactTestRenderer | null = null;
@@ -55,7 +54,6 @@ describe("PlanningBlockActivityCards", () => {
           activities: [activity],
           onAdd,
           onView,
-          onEditText,
           onRemove,
         })
       );
@@ -65,9 +63,8 @@ describe("PlanningBlockActivityCards", () => {
     expect(text).toContain("Aquecimento");
     expect(text).toContain("Caça da bola jogável");
     expect(text).toContain("Catálogo GoAtleta");
-    expect(text).toContain("Adicionar atividade");
+    expect(text).toContain("Adicionar");
     expect(text).toContain("Ver");
-    expect(text).toContain("Editar texto");
     expect(text).toContain("Remover");
 
     act(() => {
@@ -85,12 +82,11 @@ describe("PlanningBlockActivityCards", () => {
           activities: [],
           onAdd: jest.fn(),
           onView: jest.fn(),
-          onEditText: jest.fn(),
           onRemove: jest.fn(),
         })
       );
     });
 
-    expect(collectRenderedText(renderer!)).toContain("Nenhuma atividade adicionada neste bloco.");
+    expect(collectRenderedText(renderer!)).toContain("Nenhuma atividade.");
   });
 });
