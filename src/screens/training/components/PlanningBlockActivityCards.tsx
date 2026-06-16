@@ -29,17 +29,16 @@ export function PlanningBlockActivityCards({
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const compact = width < 720;
-  const reserveFloatingSpace = width >= 720 && width < 1040;
 
   return (
     <View
       testID={`planning-block-${blockKey}`}
       style={{
-        gap: 9,
+        gap: 10,
         paddingTop: compact ? 10 : 12,
         paddingBottom: compact ? 10 : 12,
         paddingLeft: compact ? 10 : 12,
-        paddingRight: reserveFloatingSpace ? 72 : compact ? 10 : 12,
+        paddingRight: compact ? 10 : 12,
         borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.border,
@@ -48,8 +47,8 @@ export function PlanningBlockActivityCards({
     >
       <View
         style={{
-          flexDirection: compact ? "column" : "row",
-          alignItems: compact ? "stretch" : "center",
+          flexDirection: "row",
+          alignItems: "center",
           gap: 9,
         }}
       >
@@ -65,39 +64,34 @@ export function PlanningBlockActivityCards({
         </View>
         <Pressable
           testID={`planning-add-activity-${blockKey}`}
+          accessibilityRole="button"
+          accessibilityLabel={`Adicionar atividade em ${getPlanningBlockLabel(blockKey)}`}
           onPress={() => onAdd(blockKey)}
           style={{
-            minHeight: 36,
+            width: 38,
+            height: 38,
             borderRadius: 12,
-            paddingHorizontal: 12,
             alignItems: "center",
             justifyContent: "center",
-            flexDirection: "row",
-            gap: 6,
             backgroundColor: colors.primaryBg,
-            alignSelf: compact ? "stretch" : "auto",
           }}
         >
-          <Ionicons name="add" size={18} color={colors.primaryText} />
-          <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "900" }}>
-            Adicionar
-          </Text>
+          <Ionicons name="add" size={22} color={colors.primaryText} />
         </Pressable>
       </View>
 
       {activities.length ? (
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: 0 }}>
           {activities.map((activity, index) => (
             <View
               key={`${activity.catalog?.variantId ?? activity.name}-${index}`}
               testID={`planning-activity-card-${blockKey}`}
               style={{
-                gap: 8,
-                padding: compact ? 10 : 12,
-                borderRadius: 12,
-                borderWidth: 1,
+                gap: 7,
+                paddingTop: 10,
+                paddingBottom: index === activities.length - 1 ? 0 : 10,
+                borderTopWidth: 1,
                 borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
               }}
             >
               <View
@@ -110,7 +104,7 @@ export function PlanningBlockActivityCards({
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text
                     numberOfLines={2}
-                    style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
+                    style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}
                   >
                     {activity.name || "Atividade sem título"}
                   </Text>
@@ -123,8 +117,8 @@ export function PlanningBlockActivityCards({
                 <View
                   style={{
                     alignSelf: compact ? "flex-start" : "auto",
-                    paddingHorizontal: 9,
-                    paddingVertical: 5,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
                     borderRadius: 999,
                     backgroundColor: activity.catalog ? colors.successBg : colors.infoBg,
                   }}
@@ -132,7 +126,7 @@ export function PlanningBlockActivityCards({
                   <Text
                     style={{
                       color: activity.catalog ? colors.successText : colors.infoText,
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: "900",
                     }}
                   >
@@ -141,8 +135,14 @@ export function PlanningBlockActivityCards({
                 </View>
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                <ActionButton label="Ver" testID={`planning-view-${blockKey}-${index}`} onPress={() => onView(activity)} />
                 <ActionButton
+                  icon="eye-outline"
+                  label="Ver"
+                  testID={`planning-view-${blockKey}-${index}`}
+                  onPress={() => onView(activity)}
+                />
+                <ActionButton
+                  icon="trash-outline"
                   label="Remover"
                   danger
                   testID={`planning-remove-${blockKey}-${index}`}
@@ -152,24 +152,19 @@ export function PlanningBlockActivityCards({
             </View>
           ))}
         </View>
-      ) : (
-        <Text
-          testID={`planning-empty-${blockKey}`}
-          style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}
-        >
-          Nenhuma atividade.
-        </Text>
-      )}
+      ) : null}
     </View>
   );
 }
 
 function ActionButton({
+  icon,
   label,
   testID,
   danger,
   onPress,
 }: {
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   testID: string;
   danger?: boolean;
@@ -179,11 +174,13 @@ function ActionButton({
   return (
     <Pressable
       testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
       style={{
-        minHeight: 32,
+        width: 32,
+        height: 32,
         borderRadius: 10,
-        paddingHorizontal: 10,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: danger ? colors.dangerBg : colors.card,
@@ -191,15 +188,11 @@ function ActionButton({
         borderColor: danger ? colors.dangerBorder : colors.border,
       }}
     >
-      <Text
-        style={{
-          color: danger ? colors.dangerText : colors.text,
-          fontSize: 12,
-          fontWeight: "900",
-        }}
-      >
-        {label}
-      </Text>
+      <Ionicons
+        name={icon}
+        size={16}
+        color={danger ? colors.dangerText : colors.text}
+      />
     </Pressable>
   );
 }

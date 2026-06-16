@@ -63,9 +63,14 @@ describe("PlanningBlockActivityCards", () => {
     expect(text).toContain("Aquecimento");
     expect(text).toContain("Caça da bola jogável");
     expect(text).toContain("Catálogo GoAtleta");
-    expect(text).toContain("Adicionar");
-    expect(text).toContain("Ver");
-    expect(text).toContain("Remover");
+    expect(text).toContain("add");
+    expect(text).toContain("eye-outline");
+    expect(text).toContain("trash-outline");
+
+    act(() => {
+      renderer!.root.findByProps({ testID: "planning-add-activity-warmup" }).props.onPress();
+    });
+    expect(onAdd).toHaveBeenCalledWith("warmup");
 
     act(() => {
       renderer!.root.findByProps({ testID: "planning-remove-warmup-0" }).props.onPress();
@@ -73,7 +78,7 @@ describe("PlanningBlockActivityCards", () => {
     expect(onRemove).toHaveBeenCalledWith("warmup", 0);
   });
 
-  it("renders block empty state", () => {
+  it("renders compact block empty state", () => {
     let renderer: TestRenderer.ReactTestRenderer | null = null;
     act(() => {
       renderer = TestRenderer.create(
@@ -87,6 +92,6 @@ describe("PlanningBlockActivityCards", () => {
       );
     });
 
-    expect(collectRenderedText(renderer!)).toContain("Nenhuma atividade.");
+    expect(collectRenderedText(renderer!)).toContain("Sem atividades");
   });
 });
