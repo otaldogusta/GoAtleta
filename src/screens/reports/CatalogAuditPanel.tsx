@@ -6,8 +6,10 @@ import type {
   ActivityCatalogCoverageBucket,
   ActivityCatalogUsageRankItem,
 } from "../../core/volleyball/activity-catalog-audit";
+import { buildActivityCatalogInsights } from "../../core/volleyball/activity-catalog-insights";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { CatalogAuditInsightsPanel } from "./CatalogAuditInsightsPanel";
 
 type CatalogAuditPanelProps = {
   report: ActivityCatalogAuditReport | null;
@@ -133,6 +135,7 @@ export function CatalogAuditPanel({ report, loading, error, onRefresh }: Catalog
   const mostUsed = sortRank(usage.mostUsedVariants).slice(0, 5);
   const unused = usage.unusedVariants.slice(0, 6);
   const unknown = usage.unknownCatalogReferences.slice(0, 6);
+  const insightReport = buildActivityCatalogInsights(report);
 
   return (
     <View style={{ gap: 12 }}>
@@ -147,6 +150,8 @@ export function CatalogAuditPanel({ report, loading, error, onRefresh }: Catalog
           <MetricCard label="Planos lidos" value={usage.totalPlansScanned} />
         </View>
       </Section>
+
+      <CatalogAuditInsightsPanel report={insightReport} />
 
       <Section title="Cobertura por fundamento">
         <View style={{ gap: 8 }}>
