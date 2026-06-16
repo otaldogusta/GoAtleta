@@ -33,11 +33,14 @@ import { normalizeAgeBand, sortAgeBandList } from "../../src/core/age-band";
 import { translateMethodology } from "../../src/core/methodology/methodology-translator";
 import type {
     ClassGroup,
+    Exercise,
     HiddenTemplate,
     TrainingPlan,
+    TrainingPlanActivity,
     TrainingTemplate,
 } from "../../src/core/models";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
+import type { TrainingPlanBlockKey } from "../../src/core/training-plan-blocks";
 import { trainingTemplates } from "../../src/core/trainingTemplates";
 import {
     deleteTrainingPlan,
@@ -58,8 +61,24 @@ import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { TrainingAnchoredDropdownOption } from "../../src/screens/training/components/TrainingAnchoredDropdownOption";
 import { TrainingFabMenu } from "../../src/screens/training/components/TrainingFabMenu";
+import { PlanningBlockActivityCards } from "../../src/screens/training/components/PlanningBlockActivityCards";
+import { PlanningLibraryBridgeSheet } from "../../src/screens/training/components/PlanningLibraryBridgeSheet";
+import {
+    addPlanningActivityToBlock,
+    buildPedagogyBlocksFromPlanningForm,
+    buildPlanningActivitiesFromLegacyLines,
+    buildTrainingPlanActivityFromCatalogItem,
+    buildTrainingPlanActivityFromExerciseLink,
+    createEmptyPlanningBlockActivities,
+    hydratePlanningActivitiesFromPlan,
+    planningBlockKeys,
+    removePlanningActivityFromBlock,
+    syncLegacyLinesFromBlocks,
+    type PlanningBlockActivities,
+} from "../../src/screens/training/application/planning-library-bridge";
 import { useTemplateEditorForm } from "../../src/screens/training/hooks/useTemplateEditorForm";
 import { useTrainingPlanForm } from "../../src/screens/training/hooks/useTrainingPlanForm";
+import type { ActivityCatalogListItem } from "../../src/screens/library/activity-catalog-view-model";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { animateLayout } from "../../src/ui/animate-layout";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -287,6 +306,13 @@ export default function TrainingList() {
   const [hiddenTemplates, setHiddenTemplates] = useState<HiddenTemplate[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classId, setClassId] = useState("");
+  const [planningActivities, setPlanningActivities] =
+    useState<PlanningBlockActivities>(() => createEmptyPlanningBlockActivities());
+  const [planningLibraryBlockKey, setPlanningLibraryBlockKey] =
+    useState<TrainingPlanBlockKey | null>(null);
+  const [planningDetailActivity, setPlanningDetailActivity] =
+    useState<TrainingPlanActivity | null>(null);
+  const [planningLibraryMessage, setPlanningLibraryMessage] = useState("");
   const [showTemplates, setShowTemplates] = usePersistedState<boolean>(
     "training_show_templates_v1",
     false
@@ -1400,6 +1426,192 @@ export default function TrainingList() {
     setItems(data);
   };
 
+  const planningBlockText = useMemo(
+    () => ({ warmup, main, cooldown }),
+    [cooldown, main, warmup]
+  );
+
+  const setPlanningBlockText = useCallback(
+    (blockKey: TrainingPlanBlockKey, value: string) => {
+      if (blockKey === "warmup") {
+        setWarmup(value);
+      } else if (blockKey === "main") {
+        setMain(value);
+      } else {
+        setCooldown(value);
+      }
+    },
+    [setCooldown, setMain, setWarmup]
+  );
+
+  const appendActivityNameToBlockText = useCallback(
+    (blockKey: TrainingPlanBlockKey, name: string) => {
+      const currentText = planningBlockText[blockKey] ?? "";
+      const lines = toLines(currentText);
+      const normalizedName = name.trim().toLowerCase();
+      if (lines.some((line) => line.trim().toLowerCase() === normalizedName)) return;
+      setPlanningBlockText(blockKey, [...lines, name].join("\n"));
+    },
+    [planningBlockText, setPlanningBlockText]
+  );
+
+  const removeActivityNameFromBlockText = useCallback(
+    (blockKey: TrainingPlanBlockKey, name: string) => {
+      const normalizedName = name.trim().toLowerCase();
+      const nextLines = toLines(planningBlockText[blockKey] ?? "").filter(
+        (line) => line.trim().toLowerCase() !== normalizedName
+      );
+      setPlanningBlockText(blockKey, nextLines.join("\n"));
+    },
+    [planningBlockText, setPlanningBlockText]
+  );
+
+  const hydrateFormFromPlanningActivities = useCallback(
+    (activities: PlanningBlockActivities) => {
+      const legacyLines = syncLegacyLinesFromBlocks(activities);
+      setWarmup(legacyLines.warmup.join("\n"));
+      setMain(legacyLines.main.join("\n"));
+      setCooldown(legacyLines.cooldown.join("\n"));
+    },
+    [setCooldown, setMain, setWarmup]
+  );
+
+  const resetPlanningActivities = useCallback(() => {
+    setPlanningActivities(createEmptyPlanningBlockActivities());
+  }, []);
+
+  const applyLegacyActivitiesToPlanningForm = useCallback(
+    (lines: Record<TrainingPlanBlockKey, string[]>) => {
+      const nextActivities = buildPlanningActivitiesFromLegacyLines(lines);
+      setPlanningActivities(nextActivities);
+    },
+    []
+  );
+
+  const handleOpenPlanningLibrary = useCallback((blockKey: TrainingPlanBlockKey) => {
+    setPlanningLibraryMessage("");
+    setPlanningLibraryBlockKey(blockKey);
+  }, []);
+
+  const handleAddPlannedActivity = useCallback(
+    (blockKey: TrainingPlanBlockKey, activity: TrainingPlanActivity) => {
+      const result = addPlanningActivityToBlock(planningActivities, blockKey, activity);
+      if (!result.added) {
+        setPlanningLibraryMessage("Esta atividade já está neste bloco.");
+        return false;
+      }
+      setPlanningActivities(result.activities);
+      appendActivityNameToBlockText(blockKey, activity.name);
+      setPlanningLibraryMessage(`Atividade adicionada em ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Parte principal" : "Volta à calma"}.`);
+      return true;
+    },
+    [appendActivityNameToBlockText, planningActivities]
+  );
+
+  const handleAddCatalogActivityToPlanning = useCallback(
+    (item: ActivityCatalogListItem) => {
+      if (!planningLibraryBlockKey) return;
+      const activity = buildTrainingPlanActivityFromCatalogItem(
+        item,
+        planningLibraryBlockKey,
+        new Date().toISOString()
+      );
+      if (handleAddPlannedActivity(planningLibraryBlockKey, activity)) {
+        setPlanningLibraryBlockKey(null);
+      }
+    },
+    [handleAddPlannedActivity, planningLibraryBlockKey]
+  );
+
+  const handleAddExerciseLinkToPlanning = useCallback(
+    (exercise: Exercise) => {
+      if (!planningLibraryBlockKey) return;
+      if (handleAddPlannedActivity(
+        planningLibraryBlockKey,
+        buildTrainingPlanActivityFromExerciseLink(exercise)
+      )) {
+        setPlanningLibraryBlockKey(null);
+      }
+    },
+    [handleAddPlannedActivity, planningLibraryBlockKey]
+  );
+
+  const handleRemovePlanningActivity = useCallback(
+    (blockKey: TrainingPlanBlockKey, index: number) => {
+      const activity = planningActivities[blockKey]?.[index];
+      if (!activity) return;
+      setPlanningActivities((current) => removePlanningActivityFromBlock(current, blockKey, index));
+      removeActivityNameFromBlockText(blockKey, activity.name);
+      setPlanningLibraryMessage("Atividade removida do bloco. Salve o planejamento para confirmar.");
+    },
+    [planningActivities, removeActivityNameFromBlockText]
+  );
+
+  const handleEditPlanningActivityText = useCallback(
+    (blockKey: TrainingPlanBlockKey) => {
+      setPlanningLibraryMessage(
+        `Edite o texto complementar de ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Parte principal" : "Volta à calma"} no campo abaixo.`
+      );
+    },
+    []
+  );
+
+  const planningLibraryMessageStyle = useMemo(
+    () => ({
+      padding: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.infoBg,
+      backgroundColor: colors.infoBg,
+    }),
+    [colors.infoBg]
+  );
+
+  const planningLibraryMessageTextStyle = useMemo(
+    () => ({ color: colors.infoText, fontSize: 13, fontWeight: "800" as const }),
+    [colors.infoText]
+  );
+
+  const planningDetailRowStyle = useMemo(() => ({ gap: 4 }), []);
+  const planningDetailLabelStyle = useMemo(
+    () => ({ color: colors.text, fontSize: 13, fontWeight: "900" as const }),
+    [colors.text]
+  );
+  const planningDetailTextStyle = useMemo(
+    () => ({ color: colors.muted, fontSize: 13, lineHeight: 19 }),
+    [colors.muted]
+  );
+  const planningBlockListStyle = useMemo(() => ({ gap: 10 }), []);
+  const planningDetailContentStyle = useMemo(() => ({ gap: 12 }), []);
+  const planningDetailHeaderStyle = useMemo(
+    () => ({ flexDirection: "row" as const, justifyContent: "space-between" as const, gap: 12 }),
+    []
+  );
+  const planningDetailTitleWrapStyle = useMemo(() => ({ flex: 1, gap: 4 }), []);
+  const planningDetailTitleStyle = useMemo(
+    () => ({ color: colors.text, fontSize: 18, fontWeight: "800" as const }),
+    [colors.text]
+  );
+  const planningDetailSourceStyle = useMemo(
+    () => ({ color: colors.muted, fontSize: 12 }),
+    [colors.muted]
+  );
+  const planningDetailCloseButtonStyle = useMemo(
+    () => ({
+      height: 32,
+      paddingHorizontal: 12,
+      borderRadius: 16,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      backgroundColor: colors.secondaryBg,
+    }),
+    [colors.secondaryBg]
+  );
+  const planningDetailCloseTextStyle = useMemo(
+    () => ({ fontSize: 12, fontWeight: "700" as const, color: colors.text }),
+    [colors.text]
+  );
+
   const savePlan = async () => {
     if (!classId) return;
     const nowIso = new Date().toISOString();
@@ -1408,6 +1620,16 @@ export default function TrainingList() {
     const basePlan = editingId
       ? items.find((item) => item.id === editingId) ?? null
       : null;
+    const pedagogy = buildPedagogyBlocksFromPlanningForm({
+      currentPedagogy: basePlan?.pedagogy,
+      blockActivities: planningActivities,
+      blockText: planningBlockText,
+    });
+    const syncedLegacyLines = syncLegacyLinesFromBlocks({
+      warmup: pedagogy.blocks?.warmup?.activities ?? [],
+      main: pedagogy.blocks?.main?.activities ?? [],
+      cooldown: pedagogy.blocks?.cooldown?.activities ?? [],
+    });
     const plan: TrainingPlan = createTrainingPlanVersion({
       classId,
       version: Math.max(basePlan?.version ?? 0, latestVersion) + 1,
@@ -1418,9 +1640,9 @@ export default function TrainingList() {
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
-        warmup: toLines(warmup),
-        main: toLines(main),
-        cooldown: toLines(cooldown),
+        warmup: syncedLegacyLines.warmup,
+        main: syncedLegacyLines.main,
+        cooldown: syncedLegacyLines.cooldown,
         warmupTime: warmupTime.trim(),
         mainTime: mainTime.trim(),
         cooldownTime: cooldownTime.trim(),
@@ -1432,6 +1654,7 @@ export default function TrainingList() {
       idPrefix: "t",
       status: "final",
       finalizedAt: nowIso,
+      pedagogy,
     });
 
     if (editingId) {
@@ -1464,6 +1687,7 @@ export default function TrainingList() {
     setMainTime("");
     setCooldownTime("");
     setFormUnit("");
+    resetPlanningActivities();
     setEditingId(null);
     setEditingCreatedAt(null);
     setFormMode("plan");
@@ -1538,13 +1762,13 @@ export default function TrainingList() {
   };
 
   const onEdit = (plan: TrainingPlan) => {
+    const hydratedActivities = hydratePlanningActivitiesFromPlan(plan);
     setEditingId(plan.id);
     setEditingCreatedAt(plan.createdAt);
     setTitle(plan.title);
     setTagsText(plan.tags.join(", "));
-    setWarmup(plan.warmup.join("\n"));
-    setMain(plan.main.join("\n"));
-    setCooldown(plan.cooldown.join("\n"));
+    setPlanningActivities(hydratedActivities);
+    hydrateFormFromPlanningActivities(hydratedActivities);
     setWarmupTime(plan.warmupTime);
     setMainTime(plan.mainTime);
     setCooldownTime(plan.cooldownTime);
@@ -1611,6 +1835,11 @@ export default function TrainingList() {
     setWarmup(template.warmup.join("\n"));
     setMain(template.main.join("\n"));
     setCooldown(template.cooldown.join("\n"));
+    applyLegacyActivitiesToPlanningForm({
+      warmup: template.warmup,
+      main: template.main,
+      cooldown: template.cooldown,
+    });
     setWarmupTime(template.warmupTime);
     setMainTime(template.mainTime);
     setCooldownTime(template.cooldownTime);
@@ -2234,6 +2463,11 @@ export default function TrainingList() {
       setWarmup(parsedAiDraft.warmup.join("\n"));
       setMain(parsedAiDraft.main.join("\n"));
       setCooldown(parsedAiDraft.cooldown.join("\n"));
+      applyLegacyActivitiesToPlanningForm({
+        warmup: parsedAiDraft.warmup,
+        main: parsedAiDraft.main,
+        cooldown: parsedAiDraft.cooldown,
+      });
       setWarmupTime(parsedAiDraft.warmupTime);
       setMainTime(parsedAiDraft.mainTime);
       setCooldownTime(parsedAiDraft.cooldownTime);
@@ -2245,6 +2479,7 @@ export default function TrainingList() {
       setWarmup("");
       setMain("");
       setCooldown("");
+      resetPlanningActivities();
       setWarmupTime("");
       setMainTime("");
       setCooldownTime("");
@@ -2263,6 +2498,8 @@ export default function TrainingList() {
     targetClassId,
     classes,
     showSaveToast,
+    applyLegacyActivitiesToPlanningForm,
+    resetPlanningActivities,
   ]);
 
   useEffect(() => {
@@ -2277,6 +2514,7 @@ export default function TrainingList() {
     setWarmup("");
     setMain("");
     setCooldown("");
+    resetPlanningActivities();
     setWarmupTime("");
     setMainTime("");
     setCooldownTime("");
@@ -2289,7 +2527,7 @@ export default function TrainingList() {
       setFormUnit(unitLabel(pendingClass?.unit ?? ""));
     }
     setPendingPlanCreate(null);
-  }, [pendingPlanCreate, setPendingPlanCreate, classes]);
+  }, [pendingPlanCreate, setPendingPlanCreate, classes, resetPlanningActivities]);
 
   const handleRenameTemplate = useCallback((id: string, title: string) => {
     setRenameTemplateId(id);
@@ -2755,6 +2993,29 @@ export default function TrainingList() {
               );
             })()
           ) : null}
+          {planningLibraryMessage ? (
+            <View
+              testID="planning-library-message"
+              style={planningLibraryMessageStyle}
+            >
+              <Text style={planningLibraryMessageTextStyle}>
+                {planningLibraryMessage}
+              </Text>
+            </View>
+          ) : null}
+          <View style={planningBlockListStyle}>
+            {planningBlockKeys.map((blockKey) => (
+              <PlanningBlockActivityCards
+                key={blockKey}
+                blockKey={blockKey}
+                activities={planningActivities[blockKey] ?? []}
+                onAdd={handleOpenPlanningLibrary}
+                onView={setPlanningDetailActivity}
+                onEditText={handleEditPlanningActivityText}
+                onRemove={handleRemovePlanningActivity}
+              />
+            ))}
+          </View>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <TextInput
               placeholder="Aquecimento (1 por linha)"
@@ -2875,9 +3136,12 @@ export default function TrainingList() {
                 setEditingTemplateCreatedAt(null);
                 setFormMode("plan");
                 setTitle("");
+                setTagsText("");
                 setWarmup("");
                 setMain("");
                 setCooldown("");
+                resetPlanningActivities();
+                setPlanningLibraryMessage("");
                 setWarmupTime("");
                 setMainTime("");
                 setCooldownTime("");
@@ -3394,6 +3658,66 @@ export default function TrainingList() {
           </Suspense>
         ) : null}
       </ModalSheet>
+      <PlanningLibraryBridgeSheet
+        visible={Boolean(planningLibraryBlockKey)}
+        blockKey={planningLibraryBlockKey}
+        onClose={() => setPlanningLibraryBlockKey(null)}
+        onAddCatalogActivity={handleAddCatalogActivityToPlanning}
+        onAddExerciseLink={handleAddExerciseLinkToPlanning}
+      />
+      {planningDetailActivity ? (
+        <ModalSheet
+          visible
+          onClose={() => setPlanningDetailActivity(null)}
+          cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
+          position="center"
+        >
+          <View style={planningDetailContentStyle}>
+            <View style={planningDetailHeaderStyle}>
+              <View style={planningDetailTitleWrapStyle}>
+                <Text style={planningDetailTitleStyle}>
+                  {planningDetailActivity.name}
+                </Text>
+                <Text style={planningDetailSourceStyle}>
+                  {planningDetailActivity.catalog
+                    ? "Catálogo GoAtleta"
+                    : planningDetailActivity.execution
+                      ? "Vídeo/link"
+                      : "Atividade manual"}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setPlanningDetailActivity(null)}
+                style={planningDetailCloseButtonStyle}
+              >
+                <Text style={planningDetailCloseTextStyle}>
+                  Fechar
+                </Text>
+              </Pressable>
+            </View>
+            {[
+              ["Objetivo", planningDetailActivity.objective],
+              ["Descrição", planningDetailActivity.description],
+              ["Organização", planningDetailActivity.organization],
+              ["Ação", planningDetailActivity.action],
+              ["Progressão", planningDetailActivity.progression],
+              ["Materiais", planningDetailActivity.materials?.join(", ")],
+              ["Link", planningDetailActivity.execution],
+            ]
+              .filter(([, value]) => Boolean(String(value ?? "").trim()))
+              .map(([label, value]) => (
+                <View key={label} style={planningDetailRowStyle}>
+                  <Text style={planningDetailLabelStyle}>
+                    {label}
+                  </Text>
+                  <Text style={planningDetailTextStyle}>
+                    {String(value)}
+                  </Text>
+                </View>
+              ))}
+          </View>
+        </ModalSheet>
+      ) : null}
       </SafeAreaView>
     </View>
   );

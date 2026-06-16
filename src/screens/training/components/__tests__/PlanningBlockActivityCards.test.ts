@@ -1,0 +1,96 @@
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+
+import type { TrainingPlanActivity } from "../../../../core/models";
+import { PlanningBlockActivityCards } from "../PlanningBlockActivityCards";
+
+jest.mock("@expo/vector-icons", () => {
+  const React = require("react");
+  const { Text } = require("react-native");
+  return {
+    Ionicons: ({ name }: { name: string }) => React.createElement(Text, null, name),
+  };
+});
+
+const collectText = (node: unknown): string[] => {
+  if (node == null) return [];
+  if (typeof node === "string" || typeof node === "number") return [String(node)];
+  if (Array.isArray(node)) return node.flatMap((item) => collectText(item));
+  if (typeof node === "object") {
+    const maybeNode = node as { props?: { children?: unknown } };
+    return collectText(maybeNode.props?.children);
+  }
+  return [];
+};
+
+const collectRenderedText = (renderer: TestRenderer.ReactTestRenderer) =>
+  renderer.root
+    .findAll(() => true)
+    .flatMap((node) => collectText(node.props.children))
+    .join(" ")
+    .replace(/\s+/g, " ");
+
+describe("PlanningBlockActivityCards", () => {
+  it("renders source badges and block actions", () => {
+    const activity: TrainingPlanActivity = {
+      name: "Caça da bola jogável",
+      description: "Aumentar cooperação.",
+      catalog: {
+        source: "goAtletaCatalog",
+        familyId: "continuidade_tres_contatos",
+        variantId: "caca_bola_jogavel",
+        addedAt: "2026-06-16T12:00:00.000Z",
+      },
+    };
+    const onAdd = jest.fn();
+    const onView = jest.fn();
+    const onEditText = jest.fn();
+    const onRemove = jest.fn();
+
+    let renderer: TestRenderer.ReactTestRenderer | null = null;
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(PlanningBlockActivityCards, {
+          blockKey: "warmup",
+          activities: [activity],
+          onAdd,
+          onView,
+          onEditText,
+          onRemove,
+        })
+      );
+    });
+
+    const text = collectRenderedText(renderer!);
+    expect(text).toContain("Aquecimento");
+    expect(text).toContain("Caça da bola jogável");
+    expect(text).toContain("Catálogo GoAtleta");
+    expect(text).toContain("Adicionar atividade");
+    expect(text).toContain("Ver");
+    expect(text).toContain("Editar texto");
+    expect(text).toContain("Remover");
+
+    act(() => {
+      renderer!.root.findByProps({ testID: "planning-remove-warmup-0" }).props.onPress();
+    });
+    expect(onRemove).toHaveBeenCalledWith("warmup", 0);
+  });
+
+  it("renders block empty state", () => {
+    let renderer: TestRenderer.ReactTestRenderer | null = null;
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(PlanningBlockActivityCards, {
+          blockKey: "cooldown",
+          activities: [],
+          onAdd: jest.fn(),
+          onView: jest.fn(),
+          onEditText: jest.fn(),
+          onRemove: jest.fn(),
+        })
+      );
+    });
+
+    expect(collectRenderedText(renderer!)).toContain("Nenhuma atividade adicionada neste bloco.");
+  });
+});
