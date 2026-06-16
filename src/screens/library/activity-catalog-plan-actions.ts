@@ -13,7 +13,7 @@ import {
   getTrainingPlans,
   saveTrainingPlan,
 } from "../../db/seed";
-import { phaseLabels, skillLabels } from "./activity-catalog-labels";
+import { buildTrainingPlanActivityFromCatalogItem } from "../training/application/planning-library-bridge";
 import type { ActivityCatalogListItem } from "./activity-catalog-view-model";
 
 export type CatalogLessonDestination = {
@@ -107,40 +107,6 @@ const pickCatalogActivityBlock = (item: ActivityCatalogListItem): TrainingPlanBl
   return "main";
 };
 
-const buildCatalogTrainingActivity = (
-  item: ActivityCatalogListItem,
-  addedAt: string
-): TrainingPlanActivity => {
-  const { variant } = item;
-  const taxonomy = variant.taxonomy;
-  return {
-    name: variant.name,
-    description: item.purpose,
-    stage: taxonomy.recommendedPhase,
-    participants: variant.players,
-    organization: variant.setup,
-    starter: variant.starter,
-    action: variant.action,
-    rotation: variant.rotation,
-    simpleRule: variant.constraint,
-    scoring: variant.scoring,
-    materials: variant.materials,
-    space: variant.space,
-    coachFocus: `${skillLabels[taxonomy.skill]} · ${phaseLabels[taxonomy.recommendedPhase]}`,
-    adaptation: variant.adaptations?.join("; "),
-    primarySkill: taxonomy.skill,
-    objective: item.purpose,
-    constraints: variant.avoid,
-    progression: variant.progression,
-    catalog: {
-      source: "goAtletaCatalog",
-      familyId: item.family.id,
-      variantId: variant.id,
-      addedAt,
-    },
-  };
-};
-
 const emptyBlock = () => ({ summary: "", activities: [] as TrainingPlanActivity[] });
 
 const buildPedagogyWithCatalogActivity = (
@@ -149,7 +115,7 @@ const buildPedagogyWithCatalogActivity = (
   addedAt: string
 ): { pedagogy: TrainingPlanPedagogy; added: boolean } => {
   const blockKey = pickCatalogActivityBlock(item);
-  const activity = buildCatalogTrainingActivity(item, addedAt);
+  const activity = buildTrainingPlanActivityFromCatalogItem(item, blockKey, addedAt);
   const currentBlocks = plan.pedagogy?.blocks ?? {
     warmup: emptyBlock(),
     main: emptyBlock(),
