@@ -4,7 +4,9 @@ import TestRenderer, { act } from "react-test-renderer";
 import type { TrainingPlan, TrainingPlanActivity } from "../../../core/models";
 import { ACTIVITY_CATALOG_FAMILIES } from "../../../core/volleyball/activity-catalog";
 import { buildActivityCatalogAuditReport } from "../../../core/volleyball/activity-catalog-audit";
+import { buildActivityCatalogInsights } from "../../../core/volleyball/activity-catalog-insights";
 import { CatalogAuditPanel } from "../CatalogAuditPanel";
+import { CatalogAuditInsightsPanel } from "../CatalogAuditInsightsPanel";
 
 const firstFamily = ACTIVITY_CATALOG_FAMILIES[0];
 const firstVariant = firstFamily.variants[0];
@@ -72,6 +74,15 @@ const renderText = async (element: React.ReactElement) => {
   return collectText(renderer?.toJSON()).join(" ");
 };
 
+const renderRoot = async (element: React.ReactElement) => {
+  let renderer: TestRenderer.ReactTestRenderer | null = null;
+  await act(async () => {
+    renderer = TestRenderer.create(element);
+  });
+  if (!renderer) throw new Error("Failed to render test component.");
+  return renderer;
+};
+
 describe("CatalogAuditPanel", () => {
   it("renders catalog coverage and usage summary", async () => {
     const report = buildActivityCatalogAuditReport([
@@ -101,6 +112,8 @@ describe("CatalogAuditPanel", () => {
     );
 
     expect(text).toContain("Auditoria do Catálogo");
+    expect(text).toContain("Insights do Catálogo");
+    expect(text).toContain("Sinais derivados da cobertura e do uso real");
     expect(text).toContain("Cobertura por fundamento");
     expect(text).toContain("Bloqueio");
     expect(text).toContain("Variantes mais usadas");
@@ -136,6 +149,95 @@ describe("CatalogAuditPanel", () => {
     expect(text).toContain("Atividade antiga");
     expect(text).not.toContain('"source"');
     expect(text).not.toContain("decisionTrace");
+  });
+
+  it("renders insight cards and filters by priority", async () => {
+    const invalidActivity = {
+      name: "Atividade antiga",
+      catalog: {
+        source: "externalCatalog",
+        familyId: firstFamily.id,
+        variantId: firstVariant.id,
+        addedAt: "2026-06-15T09:00:00.000Z",
+      },
+    } as unknown as TrainingPlanActivity;
+    const auditReport = buildActivityCatalogAuditReport([plan([invalidActivity])]);
+    const insightReport = buildActivityCatalogInsights(auditReport, {
+      now: "2026-06-16T00:00:00.000Z",
+      maxInsights: 20,
+    });
+    const renderer = await renderRoot(
+      React.createElement(CatalogAuditInsightsPanel, { report: insightReport })
+    );
+
+    expect(collectText(renderer.toJSON()).join(" ")).toContain(
+      "Referências antigas encontradas"
+    );
+    expect(collectText(renderer.toJSON()).join(" ")).toContain("Evidências");
+    expect(collectText(renderer.toJSON()).join(" ")).toContain("Ações sugeridas");
+    expect(collectText(renderer.toJSON()).join(" ")).toContain(
+      "Uso do catálogo ainda sem linha histórica"
+    );
+
+    const highFilter = renderer.root.findByProps({
+      accessibilityLabel: "Filtrar insights: Alta",
+    });
+    await act(async () => {
+      highFilter.props.onPress();
+    });
+
+    const filteredText = collectText(renderer.toJSON()).join(" ");
+    expect(filteredText).toContain("Referências antigas encontradas");
+    expect(filteredText).not.toContain("Uso do catálogo ainda sem linha histórica");
+  });
+
+  it("renders insight empty state", async () => {
+    const insightReport = buildActivityCatalogInsights(
+      {
+        coverage: {
+          totalFamilies: 1,
+          totalVariants: 3,
+          bySkill: {
+            passe: { total: 3, variantIds: ["v1", "v2", "v3"], familyIds: ["f1"] },
+            levantamento: { total: 3, variantIds: ["v4", "v5", "v6"], familyIds: ["f2"] },
+            ataque: { total: 3, variantIds: ["v7", "v8", "v9"], familyIds: ["f3"] },
+            bloqueio: { total: 3, variantIds: ["v10", "v11", "v12"], familyIds: ["f4"] },
+            defesa: { total: 3, variantIds: ["v13", "v14", "v15"], familyIds: ["f5"] },
+            saque: { total: 3, variantIds: ["v16", "v17", "v18"], familyIds: ["f6"] },
+            transicao: { total: 3, variantIds: ["v19", "v20", "v21"], familyIds: ["f7"] },
+          },
+          byFamily: {},
+          byAgeRange: {},
+          byRecommendedPhase: {},
+          byComplexity: {},
+          criticalGaps: [],
+        },
+        usage: {
+          totalCatalogActivitiesUsed: 7,
+          totalPlansScanned: 2,
+          totalBlocksScanned: 6,
+          byVariantId: {},
+          byFamilyId: {},
+          bySkill: {
+            passe: { count: 1, planIds: ["p1"] },
+            levantamento: { count: 1, planIds: ["p1"] },
+            ataque: { count: 1, planIds: ["p1"] },
+            bloqueio: { count: 1, planIds: ["p2"] },
+            defesa: { count: 1, planIds: ["p2"] },
+            saque: { count: 1, planIds: ["p2"] },
+            transicao: { count: 1, planIds: ["p2"] },
+          },
+          mostUsedVariants: [],
+          unusedVariants: [],
+          unknownCatalogReferences: [],
+        },
+      },
+      { maxInsights: 20 }
+    );
+
+    expect(
+      await renderText(React.createElement(CatalogAuditInsightsPanel, { report: insightReport }))
+    ).toContain("Nenhum insight crítico encontrado.");
   });
 
   it("renders loading and error states", async () => {
