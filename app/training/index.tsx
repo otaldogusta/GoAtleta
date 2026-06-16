@@ -1556,6 +1556,62 @@ export default function TrainingList() {
     []
   );
 
+  const planningLibraryMessageStyle = useMemo(
+    () => ({
+      padding: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.infoBg,
+      backgroundColor: colors.infoBg,
+    }),
+    [colors.infoBg]
+  );
+
+  const planningLibraryMessageTextStyle = useMemo(
+    () => ({ color: colors.infoText, fontSize: 13, fontWeight: "800" as const }),
+    [colors.infoText]
+  );
+
+  const planningDetailRowStyle = useMemo(() => ({ gap: 4 }), []);
+  const planningDetailLabelStyle = useMemo(
+    () => ({ color: colors.text, fontSize: 13, fontWeight: "900" as const }),
+    [colors.text]
+  );
+  const planningDetailTextStyle = useMemo(
+    () => ({ color: colors.muted, fontSize: 13, lineHeight: 19 }),
+    [colors.muted]
+  );
+  const planningBlockListStyle = useMemo(() => ({ gap: 10 }), []);
+  const planningDetailContentStyle = useMemo(() => ({ gap: 12 }), []);
+  const planningDetailHeaderStyle = useMemo(
+    () => ({ flexDirection: "row" as const, justifyContent: "space-between" as const, gap: 12 }),
+    []
+  );
+  const planningDetailTitleWrapStyle = useMemo(() => ({ flex: 1, gap: 4 }), []);
+  const planningDetailTitleStyle = useMemo(
+    () => ({ color: colors.text, fontSize: 18, fontWeight: "800" as const }),
+    [colors.text]
+  );
+  const planningDetailSourceStyle = useMemo(
+    () => ({ color: colors.muted, fontSize: 12 }),
+    [colors.muted]
+  );
+  const planningDetailCloseButtonStyle = useMemo(
+    () => ({
+      height: 32,
+      paddingHorizontal: 12,
+      borderRadius: 16,
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      backgroundColor: colors.secondaryBg,
+    }),
+    [colors.secondaryBg]
+  );
+  const planningDetailCloseTextStyle = useMemo(
+    () => ({ fontSize: 12, fontWeight: "700" as const, color: colors.text }),
+    [colors.text]
+  );
+
   const savePlan = async () => {
     if (!classId) return;
     const nowIso = new Date().toISOString();
@@ -2940,20 +2996,14 @@ export default function TrainingList() {
           {planningLibraryMessage ? (
             <View
               testID="planning-library-message"
-              style={{
-                padding: 10,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.infoBg,
-                backgroundColor: colors.infoBg,
-              }}
+              style={planningLibraryMessageStyle}
             >
-              <Text style={{ color: colors.infoText, fontSize: 13, fontWeight: "800" }}>
+              <Text style={planningLibraryMessageTextStyle}>
                 {planningLibraryMessage}
               </Text>
             </View>
           ) : null}
-          <View style={{ gap: 10 }}>
+          <View style={planningBlockListStyle}>
             {planningBlockKeys.map((blockKey) => (
               <PlanningBlockActivityCards
                 key={blockKey}
@@ -3622,13 +3672,13 @@ export default function TrainingList() {
           cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
           position="center"
         >
-          <View style={{ gap: 12 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+          <View style={planningDetailContentStyle}>
+            <View style={planningDetailHeaderStyle}>
+              <View style={planningDetailTitleWrapStyle}>
+                <Text style={planningDetailTitleStyle}>
                   {planningDetailActivity.name}
                 </Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                <Text style={planningDetailSourceStyle}>
                   {planningDetailActivity.catalog
                     ? "Catálogo GoAtleta"
                     : planningDetailActivity.execution
@@ -3638,16 +3688,9 @@ export default function TrainingList() {
               </View>
               <Pressable
                 onPress={() => setPlanningDetailActivity(null)}
-                style={{
-                  height: 32,
-                  paddingHorizontal: 12,
-                  borderRadius: 16,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.secondaryBg,
-                }}
+                style={planningDetailCloseButtonStyle}
               >
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                <Text style={planningDetailCloseTextStyle}>
                   Fechar
                 </Text>
               </Pressable>
@@ -3663,11 +3706,11 @@ export default function TrainingList() {
             ]
               .filter(([, value]) => Boolean(String(value ?? "").trim()))
               .map(([label, value]) => (
-                <View key={label} style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>
+                <View key={label} style={planningDetailRowStyle}>
+                  <Text style={planningDetailLabelStyle}>
                     {label}
                   </Text>
-                  <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
+                  <Text style={planningDetailTextStyle}>
                     {String(value)}
                   </Text>
                 </View>
