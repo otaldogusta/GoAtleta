@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { Animated, Platform, Text, View } from "react-native";
+import type { ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
@@ -155,7 +156,7 @@ export function SaveToastProvider({
             }),
           },
         ],
-      }}
+      } as unknown as ViewStyle}
     >
       <Pressable
         onPress={hideToast}
@@ -212,14 +213,14 @@ export function SaveToastProvider({
       pointerEvents="box-none"
       style={
         Platform.OS === "web"
-          ? {
+          ? ({
               position: "fixed",
               top: 0,
               right: 0,
               bottom: 0,
               left: 0,
               zIndex: 2147483647,
-            }
+            } as unknown as ViewStyle)
           : {
               position: "absolute",
               top: 0,
@@ -254,4 +255,3 @@ export function useSaveToast() {
   }
   return context;
 }
-

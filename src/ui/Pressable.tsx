@@ -116,8 +116,9 @@ export function Pressable({
           ];
         }
 
-        const hoveredBg = state.hovered ? pickBackground(base) : null;
-        const hoverStyle = state.hovered && hoveredBg
+        const isHovered = Boolean((state as typeof state & { hovered?: boolean }).hovered);
+        const hoveredBg = isHovered ? pickBackground(base) : null;
+        const hoverStyle = isHovered && hoveredBg
           ? (() => {
               const parsed = parseColor(hoveredBg);
               const luminance = parsed

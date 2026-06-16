@@ -244,7 +244,7 @@ export function AnchoredDropdown({
           minWidth: resolvedWidth,
           zIndex,
           elevation: zIndex,
-        },
+        } as unknown as ViewStyle,
         animationStyle,
       ]}
     >

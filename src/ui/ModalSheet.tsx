@@ -182,7 +182,7 @@ export function ModalSheet({
         ...(Platform.OS === "web"
           ? { position: "fixed", top: 0, right: 0, bottom: 0, left: 0 }
           : null),
-      }}
+      } as unknown as ViewStyle}
       pointerEvents={visible ? "auto" : "none"}
     >
       <RawPressable
