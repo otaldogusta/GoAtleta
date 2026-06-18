@@ -103,30 +103,26 @@ export function SaveToastProvider({
   const value = useMemo(() => ({ showSaveToast }), [showSaveToast]);
 
   const variant = toast?.variant ?? "info";
-  const backgroundColor =
+  const accentColor =
     variant === "success"
-      ? colors.successBg
+      ? "#3DDC84"
       : variant === "warning"
-      ? colors.warningBg
+      ? "#F2A03D"
       : variant === "error"
-      ? colors.dangerBg
-      : colors.card;
+      ? "#F87171"
+      : "#93C5FD";
+  const backgroundColor =
+    Platform.OS === "web" ? "rgba(7, 18, 34, 0.86)" : "rgba(7, 18, 34, 0.94)";
   const borderColor =
     variant === "success"
-      ? colors.successBg
+      ? "rgba(61, 220, 132, 0.52)"
       : variant === "warning"
-      ? colors.warningBg
+      ? "rgba(242, 160, 61, 0.54)"
       : variant === "error"
-      ? colors.dangerBorder
-      : colors.border;
-  const textColor =
-    variant === "success"
-      ? colors.successText
-      : variant === "warning"
-      ? colors.warningText
-      : variant === "error"
-      ? colors.dangerText
-      : colors.text;
+      ? "rgba(248, 113, 113, 0.58)"
+      : "rgba(147, 197, 253, 0.42)";
+  const textColor = "#F8FAFC";
+  const mutedTextColor = "rgba(248, 250, 252, 0.72)";
   const iconSymbol =
     variant === "success"
       ? "✓"
@@ -161,28 +157,79 @@ export function SaveToastProvider({
       <Pressable
         onPress={hideToast}
         style={{
-          width: "100%",
-          maxWidth: 460,
-          paddingVertical: 10,
-          paddingHorizontal: 12,
-          borderRadius: 12,
+          ...(Platform.OS === "web"
+            ? ({
+                width: "min(560px, calc(100vw - 32px))",
+                backdropFilter: "blur(18px) saturate(155%)",
+                WebkitBackdropFilter: "blur(18px) saturate(155%)",
+              } as unknown as ViewStyle)
+            : ({ width: "92%", maxWidth: 560 } as ViewStyle)),
+          overflow: "hidden",
+          paddingVertical: 12,
+          paddingHorizontal: 14,
+          borderRadius: 18,
           backgroundColor,
           borderWidth: 1,
           borderColor,
           shadowColor: "#000",
-          shadowOpacity: 0.12,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 4,
+          shadowOpacity: 0.28,
+          shadowRadius: 22,
+          shadowOffset: { width: 0, height: 12 },
+          elevation: 12,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 12,
         }}
       >
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            backgroundColor: "rgba(255,255,255,0.26)",
+          }}
+        />
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 4,
+            backgroundColor: accentColor,
+          }}
+        />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          <Text style={{ color: textColor, fontWeight: "800", fontSize: 14 }}>{iconSymbol}</Text>
-          <Text style={{ color: textColor, fontWeight: "600", flex: 1, fontSize: 14 }}>
+          <View
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 999,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(255,255,255,0.10)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.16)",
+            }}
+          >
+            <Text style={{ color: accentColor, fontWeight: "900", fontSize: 13 }}>
+              {iconSymbol}
+            </Text>
+          </View>
+          <Text
+            style={{
+              color: textColor,
+              fontWeight: "800",
+              flex: 1,
+              fontSize: 14,
+              lineHeight: 19,
+            }}
+          >
             {toast.message}
           </Text>
         </View>
@@ -196,10 +243,12 @@ export function SaveToastProvider({
               paddingHorizontal: 10,
               paddingVertical: 6,
               borderRadius: 999,
-              backgroundColor: colors.primaryBg,
+              backgroundColor: "rgba(255,255,255,0.12)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.18)",
             }}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+            <Text style={{ color: mutedTextColor, fontWeight: "800", fontSize: 12 }}>
               {toast.actionLabel}
             </Text>
           </Pressable>
