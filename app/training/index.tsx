@@ -312,7 +312,6 @@ export default function TrainingList() {
     useState<TrainingPlanBlockKey | null>(null);
   const [planningDetailActivity, setPlanningDetailActivity] =
     useState<TrainingPlanActivity | null>(null);
-  const [planningLibraryMessage, setPlanningLibraryMessage] = useState("");
   const [showTemplates, setShowTemplates] = usePersistedState<boolean>(
     "training_show_templates_v1",
     false
@@ -1495,7 +1494,6 @@ export default function TrainingList() {
   );
 
   const handleOpenPlanningLibrary = useCallback((blockKey: TrainingPlanBlockKey) => {
-    setPlanningLibraryMessage("");
     setPlanningLibraryBlockKey(blockKey);
   }, []);
 
@@ -1511,7 +1509,7 @@ export default function TrainingList() {
           onConfirm: () => {},
         });
         if (!shouldAddDuplicate) {
-          setPlanningLibraryMessage("Atividade duplicada não adicionada.");
+          showSaveToast({ message: "Atividade duplicada não adicionada.", variant: "info" });
           return false;
         }
         const duplicateResult = addPlanningActivityToBlock(
@@ -1522,15 +1520,18 @@ export default function TrainingList() {
         );
         setPlanningActivities(duplicateResult.activities);
         appendActivityNameToBlockText(blockKey, activity.name);
-        setPlanningLibraryMessage("Atividade adicionada novamente como duplicada.");
+        showSaveToast({ message: "Atividade adicionada como duplicada.", variant: "success" });
         return true;
       }
       setPlanningActivities(result.activities);
       appendActivityNameToBlockText(blockKey, activity.name);
-      setPlanningLibraryMessage(`Adicionado ao ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Principal" : "Volta à calma"}.`);
+      showSaveToast({
+        message: `Adicionado ao ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Principal" : "Volta à calma"}.`,
+        variant: "success",
+      });
       return true;
     },
-    [appendActivityNameToBlockText, confirmDialog, planningActivities]
+    [appendActivityNameToBlockText, confirmDialog, planningActivities, showSaveToast]
   );
 
   const handleAddCatalogActivityToPlanning = useCallback(
@@ -1567,25 +1568,12 @@ export default function TrainingList() {
       if (!activity) return;
       setPlanningActivities((current) => removePlanningActivityFromBlock(current, blockKey, index));
       removeActivityNameFromBlockText(blockKey, activity.name);
-      setPlanningLibraryMessage("Atividade removida do bloco. Salve o planejamento para confirmar.");
+      showSaveToast({
+        message: "Atividade removida. Salve para confirmar.",
+        variant: "info",
+      });
     },
-    [planningActivities, removeActivityNameFromBlockText]
-  );
-
-  const planningLibraryMessageStyle = useMemo(
-    () => ({
-      alignSelf: "flex-start" as const,
-      paddingVertical: 6,
-      paddingHorizontal: 10,
-      borderRadius: 999,
-      backgroundColor: colors.infoBg,
-    }),
-    [colors.infoBg]
-  );
-
-  const planningLibraryMessageTextStyle = useMemo(
-    () => ({ color: colors.infoText, fontSize: 12, fontWeight: "800" as const }),
-    [colors.infoText]
+    [planningActivities, removeActivityNameFromBlockText, showSaveToast]
   );
 
   const planningDetailRowStyle = useMemo(() => ({ gap: 4 }), []);
@@ -2924,16 +2912,6 @@ export default function TrainingList() {
               color: colors.inputText,
             }}
           />
-          {planningLibraryMessage ? (
-            <View
-              testID="planning-library-message"
-              style={planningLibraryMessageStyle}
-            >
-              <Text style={planningLibraryMessageTextStyle}>
-                {planningLibraryMessage}
-              </Text>
-            </View>
-          ) : null}
           <View style={planningBlockListStyle}>
             {planningBlockKeys.map((blockKey) => (
               <PlanningBlockActivityCards
@@ -3013,7 +2991,6 @@ export default function TrainingList() {
                 setMain("");
                 setCooldown("");
                 resetPlanningActivities();
-                setPlanningLibraryMessage("");
                 setWarmupTime("");
                 setMainTime("");
                 setCooldownTime("");
