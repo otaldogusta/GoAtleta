@@ -45,6 +45,8 @@ describe("PlanningBlockActivityCards", () => {
     const onAdd = jest.fn();
     const onView = jest.fn();
     const onRemove = jest.fn();
+    const onManualTextChange = jest.fn();
+    const onDurationChange = jest.fn();
 
     let renderer: TestRenderer.ReactTestRenderer | null = null;
     act(() => {
@@ -52,9 +54,15 @@ describe("PlanningBlockActivityCards", () => {
         React.createElement(PlanningBlockActivityCards, {
           blockKey: "warmup",
           activities: [activity],
+          manualText: "Jogo de entrada",
+          duration: "10:00",
+          durationPlaceholder: "10:00",
+          durationFormat: "duration",
           onAdd,
           onView,
           onRemove,
+          onManualTextChange,
+          onDurationChange,
         })
       );
     });
@@ -63,7 +71,8 @@ describe("PlanningBlockActivityCards", () => {
     expect(text).toContain("Aquecimento");
     expect(text).toContain("Caça da bola jogável");
     expect(text).toContain("Catálogo GoAtleta");
-    expect(text).toContain("add");
+    expect(text).toContain("texto manual");
+    expect(text).toContain("play-circle-outline");
     expect(text).toContain("eye-outline");
     expect(text).toContain("trash-outline");
 
@@ -76,6 +85,11 @@ describe("PlanningBlockActivityCards", () => {
       renderer!.root.findByProps({ testID: "planning-remove-warmup-0" }).props.onPress();
     });
     expect(onRemove).toHaveBeenCalledWith("warmup", 0);
+
+    act(() => {
+      renderer!.root.findByProps({ testID: "planning-manual-text-warmup" }).props.onChangeText("Novo texto");
+    });
+    expect(onManualTextChange).toHaveBeenCalledWith("Novo texto");
   });
 
   it("renders compact block empty state", () => {
@@ -85,9 +99,15 @@ describe("PlanningBlockActivityCards", () => {
         React.createElement(PlanningBlockActivityCards, {
           blockKey: "cooldown",
           activities: [],
+          manualText: "",
+          duration: "",
+          durationPlaceholder: "05:00",
+          durationFormat: "duration",
           onAdd: jest.fn(),
           onView: jest.fn(),
           onRemove: jest.fn(),
+          onManualTextChange: jest.fn(),
+          onDurationChange: jest.fn(),
         })
       );
     });

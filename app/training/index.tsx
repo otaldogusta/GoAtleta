@@ -313,7 +313,6 @@ export default function TrainingList() {
   const [planningDetailActivity, setPlanningDetailActivity] =
     useState<TrainingPlanActivity | null>(null);
   const [planningLibraryMessage, setPlanningLibraryMessage] = useState("");
-  const [showPlanningManualFields, setShowPlanningManualFields] = useState(false);
   const [showTemplates, setShowTemplates] = usePersistedState<boolean>(
     "training_show_templates_v1",
     false
@@ -2922,135 +2921,37 @@ export default function TrainingList() {
                 key={blockKey}
                 blockKey={blockKey}
                 activities={planningActivities[blockKey] ?? []}
+                manualText={planningBlockText[blockKey] ?? ""}
+                duration={
+                  blockKey === "warmup"
+                    ? warmupTime
+                    : blockKey === "main"
+                      ? mainTime
+                      : cooldownTime
+                }
+                durationPlaceholder={
+                  blockKey === "warmup" ? "10:00" : blockKey === "main" ? "01:30" : "05:00"
+                }
+                durationFormat={blockKey === "main" ? "clock" : "duration"}
                 onAdd={handleOpenPlanningLibrary}
                 onView={setPlanningDetailActivity}
                 onRemove={handleRemovePlanningActivity}
+                onManualTextChange={
+                  blockKey === "warmup"
+                    ? setWarmup
+                    : blockKey === "main"
+                      ? setMain
+                      : setCooldown
+                }
+                onDurationChange={
+                  blockKey === "warmup"
+                    ? setWarmupTime
+                    : blockKey === "main"
+                      ? setMainTime
+                      : setCooldownTime
+                }
               />
             ))}
-          </View>
-          <View
-            style={{
-              gap: 10,
-              padding: 12,
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-            }}
-          >
-            <Pressable
-              onPress={() => setShowPlanningManualFields((current) => !current)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-              }}
-            >
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
-                  Texto manual e duração
-                </Text>
-                <Text
-                  numberOfLines={1}
-                  style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}
-                >
-                  {`Aquec. ${warmupTime || "10:00"} · Principal ${mainTime || "01:30"} · Volta ${cooldownTime || "05:00"}`}
-                </Text>
-              </View>
-              <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>
-                {showPlanningManualFields ? "Ocultar" : "Editar"}
-              </Text>
-            </Pressable>
-
-            {showPlanningManualFields ? (
-              <View style={{ gap: 10 }}>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TextInput
-                    placeholder="Aquecimento (1 por linha)"
-                    value={warmup}
-                    onChangeText={setWarmup}
-                    multiline
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      flex: 1,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingHorizontal: 8,
-                      paddingVertical: 12,
-                      borderRadius: 10,
-                      minHeight: 52,
-                      backgroundColor: colors.inputBg,
-                      textAlignVertical: "center",
-                      color: colors.inputText,
-                    }}
-                  />
-                  <TimeInput
-                    placeholder="10:00"
-                    value={warmupTime}
-                    onChangeText={setWarmupTime}
-                    format="duration"
-                    style={{ width: 96 }}
-                  />
-                </View>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TextInput
-                    placeholder="Parte principal (1 por linha)"
-                    value={main}
-                    onChangeText={setMain}
-                    multiline
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      flex: 1,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingHorizontal: 8,
-                      paddingVertical: 14,
-                      borderRadius: 10,
-                      minHeight: 60,
-                      backgroundColor: colors.inputBg,
-                      textAlignVertical: "center",
-                      color: colors.inputText,
-                    }}
-                  />
-                  <TimeInput
-                    placeholder="01:30"
-                    value={mainTime}
-                    onChangeText={setMainTime}
-                    format="clock"
-                    style={{ width: 96 }}
-                  />
-                </View>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TextInput
-                    placeholder="Volta a calma (1 por linha)"
-                    value={cooldown}
-                    onChangeText={setCooldown}
-                    multiline
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      flex: 1,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingHorizontal: 8,
-                      paddingVertical: 12,
-                      borderRadius: 10,
-                      minHeight: 52,
-                      backgroundColor: colors.inputBg,
-                      textAlignVertical: "center",
-                      color: colors.inputText,
-                    }}
-                  />
-                  <TimeInput
-                    placeholder="05:00"
-                    value={cooldownTime}
-                    onChangeText={setCooldownTime}
-                    format="duration"
-                    style={{ width: 96 }}
-                  />
-                </View>
-              </View>
-            ) : null}
           </View>
           <Pressable
             onPress={formMode === "template" ? saveTemplate : savePlan}

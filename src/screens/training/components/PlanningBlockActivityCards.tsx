@@ -1,19 +1,26 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Text, useWindowDimensions, View } from "react-native";
+import { Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import type { TrainingPlanActivity } from "../../../core/models";
 import { getTrainingPlanActivitySourceLabel } from "../../../core/training-plan-activity-source";
 import type { TrainingPlanBlockKey } from "../../../core/training-plan-blocks";
 import { Pressable } from "../../../ui/Pressable";
+import { TimeInput } from "../../../ui/TimeInput";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getPlanningBlockLabel } from "../application/planning-library-bridge";
 
 type Props = {
   blockKey: TrainingPlanBlockKey;
   activities: TrainingPlanActivity[];
+  manualText: string;
+  duration: string;
+  durationPlaceholder: string;
+  durationFormat: "duration" | "clock";
   onAdd: (blockKey: TrainingPlanBlockKey) => void;
   onView: (activity: TrainingPlanActivity) => void;
   onRemove: (blockKey: TrainingPlanBlockKey, index: number) => void;
+  onManualTextChange: (value: string) => void;
+  onDurationChange: (value: string) => void;
 };
 
 const getActivityBadge = (activity: TrainingPlanActivity) =>
@@ -22,13 +29,20 @@ const getActivityBadge = (activity: TrainingPlanActivity) =>
 export function PlanningBlockActivityCards({
   blockKey,
   activities,
+  manualText,
+  duration,
+  durationPlaceholder,
+  durationFormat,
   onAdd,
   onView,
   onRemove,
+  onManualTextChange,
+  onDurationChange,
 }: Props) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const compact = width < 720;
+  const hasManualText = manualText.trim().length > 0;
 
   return (
     <View
@@ -57,27 +71,101 @@ export function PlanningBlockActivityCards({
             {getPlanningBlockLabel(blockKey)}
           </Text>
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-            {activities.length
-              ? `${activities.length} ${activities.length === 1 ? "atividade" : "atividades"}`
-              : "Sem atividades"}
+            {[
+              activities.length
+                ? `${activities.length} ${activities.length === 1 ? "atividade" : "atividades"}`
+                : "",
+              hasManualText ? "texto manual" : "",
+            ].filter(Boolean).join(" · ") || "Sem atividades"}
           </Text>
         </View>
         <Pressable
           testID={`planning-add-activity-${blockKey}`}
           accessibilityRole="button"
-          accessibilityLabel={`Adicionar atividade em ${getPlanningBlockLabel(blockKey)}`}
+          accessibilityLabel={`Adicionar da biblioteca ou vídeo em ${getPlanningBlockLabel(blockKey)}`}
           onPress={() => onAdd(blockKey)}
           style={{
-            width: 38,
-            height: 38,
+            width: 42,
+            height: 42,
             borderRadius: 12,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: colors.primaryBg,
           }}
         >
-          <Ionicons name="add" size={22} color={colors.primaryText} />
+          <Ionicons name="play-circle-outline" size={22} color={colors.primaryText} />
         </Pressable>
+      </View>
+
+      <View
+        style={{
+          flexDirection: compact ? "column" : "row",
+          gap: 8,
+          alignItems: compact ? "stretch" : "center",
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            minWidth: 0,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 12,
+            backgroundColor: colors.inputBg,
+            paddingHorizontal: 10,
+          }}
+        >
+          <Ionicons name="create-outline" size={16} color={colors.muted} />
+          <TextInput
+            testID={`planning-manual-text-${blockKey}`}
+            placeholder="Texto manual"
+            value={manualText}
+            onChangeText={onManualTextChange}
+            multiline
+            placeholderTextColor={colors.placeholder}
+            style={{
+              flex: 1,
+              minHeight: 42,
+              paddingVertical: 10,
+              color: colors.inputText,
+              fontSize: 13,
+              textAlignVertical: "center",
+            }}
+          />
+        </View>
+        <View
+          style={{
+            width: compact ? "100%" : 104,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 12,
+            backgroundColor: colors.inputBg,
+            paddingLeft: 9,
+          }}
+        >
+          <Ionicons name="time-outline" size={15} color={colors.muted} />
+          <TimeInput
+            testID={`planning-duration-${blockKey}`}
+            placeholder={durationPlaceholder}
+            value={duration}
+            onChangeText={onDurationChange}
+            format={durationFormat}
+            style={{
+              flex: 1,
+              minHeight: 42,
+              borderWidth: 0,
+              paddingHorizontal: 0,
+              paddingVertical: 8,
+              backgroundColor: "transparent",
+            }}
+          />
+        </View>
       </View>
 
       {activities.length ? (
