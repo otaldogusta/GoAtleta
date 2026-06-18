@@ -105,11 +105,14 @@ export const buildTrainingPlanActivityFromExerciseLink = (
 export const addPlanningActivityToBlock = (
   current: PlanningBlockActivities,
   blockKey: TrainingPlanBlockKey,
-  activity: TrainingPlanActivity
+  activity: TrainingPlanActivity,
+  options?: { allowDuplicate?: boolean }
 ): { activities: PlanningBlockActivities; added: boolean } => {
   const blockActivities = current[blockKey] ?? [];
   const alreadyExists = hasMatchingTrainingPlanActivity(blockActivities, activity);
-  if (alreadyExists) return { activities: current, added: false };
+  if (alreadyExists && !options?.allowDuplicate) {
+    return { activities: current, added: false };
+  }
   return {
     added: true,
     activities: {

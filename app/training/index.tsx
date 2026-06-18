@@ -1500,29 +1500,48 @@ export default function TrainingList() {
   }, []);
 
   const handleAddPlannedActivity = useCallback(
-    (blockKey: TrainingPlanBlockKey, activity: TrainingPlanActivity) => {
+    async (blockKey: TrainingPlanBlockKey, activity: TrainingPlanActivity) => {
       const result = addPlanningActivityToBlock(planningActivities, blockKey, activity);
       if (!result.added) {
-        setPlanningLibraryMessage("Esta atividade já está neste bloco.");
-        return false;
+        const shouldAddDuplicate = await confirmDialog({
+          title: "Adicionar duplicado?",
+          message: `"${activity.name || "Esta atividade"}" já está neste bloco. Deseja adicionar mesmo assim como duplicado?`,
+          confirmLabel: "Adicionar duplicado",
+          cancelLabel: "Cancelar",
+          onConfirm: () => {},
+        });
+        if (!shouldAddDuplicate) {
+          setPlanningLibraryMessage("Atividade duplicada não adicionada.");
+          return false;
+        }
+        const duplicateResult = addPlanningActivityToBlock(
+          planningActivities,
+          blockKey,
+          activity,
+          { allowDuplicate: true }
+        );
+        setPlanningActivities(duplicateResult.activities);
+        appendActivityNameToBlockText(blockKey, activity.name);
+        setPlanningLibraryMessage("Atividade adicionada novamente como duplicada.");
+        return true;
       }
       setPlanningActivities(result.activities);
       appendActivityNameToBlockText(blockKey, activity.name);
       setPlanningLibraryMessage(`Adicionado ao ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Principal" : "Volta à calma"}.`);
       return true;
     },
-    [appendActivityNameToBlockText, planningActivities]
+    [appendActivityNameToBlockText, confirmDialog, planningActivities]
   );
 
   const handleAddCatalogActivityToPlanning = useCallback(
-    (item: ActivityCatalogListItem) => {
+    async (item: ActivityCatalogListItem) => {
       if (!planningLibraryBlockKey) return;
       const activity = buildTrainingPlanActivityFromCatalogItem(
         item,
         planningLibraryBlockKey,
         new Date().toISOString()
       );
-      if (handleAddPlannedActivity(planningLibraryBlockKey, activity)) {
+      if (await handleAddPlannedActivity(planningLibraryBlockKey, activity)) {
         setPlanningLibraryBlockKey(null);
       }
     },
@@ -1530,9 +1549,9 @@ export default function TrainingList() {
   );
 
   const handleAddExerciseLinkToPlanning = useCallback(
-    (exercise: Exercise) => {
+    async (exercise: Exercise) => {
       if (!planningLibraryBlockKey) return;
-      if (handleAddPlannedActivity(
+      if (await handleAddPlannedActivity(
         planningLibraryBlockKey,
         buildTrainingPlanActivityFromExerciseLink(exercise)
       )) {

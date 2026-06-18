@@ -77,6 +77,29 @@ describe("planning library bridge", () => {
     expect(second.activities.warmup).toHaveLength(1);
   });
 
+  it("allows an explicit duplicate when the teacher confirms it", () => {
+    const item = catalogItem();
+    const activity = buildTrainingPlanActivityFromCatalogItem(item, "warmup", "now");
+    const first = addPlanningActivityToBlock(
+      createEmptyPlanningBlockActivities(),
+      "warmup",
+      activity
+    );
+    const duplicate = addPlanningActivityToBlock(
+      first.activities,
+      "warmup",
+      { ...activity, name: activity.name.toUpperCase() },
+      { allowDuplicate: true }
+    );
+
+    expect(duplicate.added).toBe(true);
+    expect(duplicate.activities.warmup).toHaveLength(2);
+    expect(duplicate.activities.warmup.map((entry) => entry.catalog?.variantId)).toEqual([
+      item.variant.id,
+      item.variant.id,
+    ]);
+  });
+
   it("builds saved links as simple manual activities without catalog metadata", () => {
     const activity = buildTrainingPlanActivityFromExerciseLink(exerciseLink());
 
