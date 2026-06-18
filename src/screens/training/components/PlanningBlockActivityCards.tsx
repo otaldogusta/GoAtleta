@@ -108,17 +108,13 @@ export function PlanningBlockActivityCards({
           style={{
             flex: 1,
             minWidth: 0,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
             borderWidth: 1,
             borderColor: colors.border,
             borderRadius: 12,
             backgroundColor: colors.inputBg,
-            paddingHorizontal: 10,
+            paddingHorizontal: 12,
           }}
         >
-          <Ionicons name="create-outline" size={16} color={colors.muted} />
           <TextInput
             testID={`planning-manual-text-${blockKey}`}
             placeholder="Texto manual"
