@@ -42,7 +42,6 @@ export function PlanningBlockActivityCards({
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const compact = width < 720;
-  const hasManualText = manualText.trim().length > 0;
 
   return (
     <View
@@ -69,14 +68,6 @@ export function PlanningBlockActivityCards({
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
             {getPlanningBlockLabel(blockKey)}
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-            {[
-              activities.length
-                ? `${activities.length} ${activities.length === 1 ? "atividade" : "atividades"}`
-                : "",
-              hasManualText ? "texto manual" : "",
-            ].filter(Boolean).join(" · ") || "Sem atividades"}
           </Text>
         </View>
         <Pressable
