@@ -48,13 +48,24 @@ export function ActivityCatalogThumbnail({
         <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
           <View
             style={{
+              minHeight: 30,
               paddingHorizontal: 9,
-              paddingVertical: 5,
               borderRadius: 999,
+              alignItems: "center",
+              justifyContent: "center",
               backgroundColor: "rgba(5, 12, 25, 0.68)",
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: "#FFFFFF",
+                fontSize: 12,
+                fontWeight: "800",
+                lineHeight: 14,
+                textAlign: "center",
+              }}
+            >
               {badge}
             </Text>
           </View>
