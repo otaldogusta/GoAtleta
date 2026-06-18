@@ -10,6 +10,7 @@ type Props = {
   badge: string;
   size?: "card" | "detail";
   footerLabel?: string;
+  detailHeight?: number;
 };
 
 export function ActivityCatalogThumbnail({
@@ -17,6 +18,7 @@ export function ActivityCatalogThumbnail({
   badge,
   size = "card",
   footerLabel,
+  detailHeight,
 }: Props) {
   const { colors } = useAppTheme();
   const isDetail = size === "detail";
@@ -34,7 +36,7 @@ export function ActivityCatalogThumbnail({
           overflow: "hidden",
           backgroundColor: colors.secondaryBg,
         },
-        isDetail ? { height: 240 } : { aspectRatio: 16 / 9 },
+        isDetail ? { height: detailHeight ?? 240 } : { aspectRatio: 16 / 9 },
       ]}
     >
       <View
