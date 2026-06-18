@@ -1592,17 +1592,17 @@ export default function TrainingList() {
     async (blockKey: TrainingPlanBlockKey, index: number) => {
       const rows = toManualRows(planningBlockText[blockKey] ?? "");
       const label = rows[index]?.trim();
-      const shouldRemove = await confirmDialog({
-        title: "Remover atividade manual?",
-        message: label
-          ? `Deseja remover "${label}" deste bloco?`
-          : "Deseja remover esta caixa de atividade?",
-        confirmLabel: "Remover",
-        cancelLabel: "Cancelar",
-        tone: "danger",
-        onConfirm: () => {},
-      });
-      if (!shouldRemove) return;
+      if (label) {
+        const shouldRemove = await confirmDialog({
+          title: "Remover atividade manual?",
+          message: `Deseja remover "${label}" deste bloco?`,
+          confirmLabel: "Remover",
+          cancelLabel: "Cancelar",
+          tone: "danger",
+          onConfirm: () => {},
+        });
+        if (!shouldRemove) return;
+      }
       const nextRows = rows.filter((_, rowIndex) => rowIndex !== index);
       setPlanningBlockText(blockKey, nextRows.length ? nextRows.join("\n") : "");
       showSaveToast({
