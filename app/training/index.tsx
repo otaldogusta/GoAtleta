@@ -1509,7 +1509,7 @@ export default function TrainingList() {
           onConfirm: () => {},
         });
         if (!shouldAddDuplicate) {
-          showSaveToast({ message: "Atividade duplicada não adicionada.", variant: "info" });
+          showSaveToast({ message: "Atividade duplicada cancelada.", variant: "info" });
           return false;
         }
         const duplicateResult = addPlanningActivityToBlock(
@@ -1569,7 +1569,7 @@ export default function TrainingList() {
       setPlanningActivities((current) => removePlanningActivityFromBlock(current, blockKey, index));
       removeActivityNameFromBlockText(blockKey, activity.name);
       showSaveToast({
-        message: "Atividade removida. Salve para confirmar.",
+        message: "Atividade removida do bloco.",
         variant: "info",
       });
     },

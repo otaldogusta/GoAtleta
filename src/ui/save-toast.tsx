@@ -38,8 +38,10 @@ export function SaveToastProvider({
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<SaveToastOptions | null>(null);
   const anim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const progressAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const hideToast = useCallback(() => {
     if (timerRef.current) {
@@ -47,6 +49,7 @@ export function SaveToastProvider({
       timerRef.current = null;
     }
     animationRef.current?.stop();
+    progressAnimationRef.current?.stop();
     const exitAnimation = Animated.timing(anim, {
       toValue: 0,
       duration: 180,
@@ -71,24 +74,34 @@ export function SaveToastProvider({
       const message = normalized.error
         ? getFriendlyErrorMessage(normalized.error)
         : normalized.message ?? "Concluído.";
+      const duration = normalized.durationMs ?? 3200;
       setToast({ ...normalized, message, variant });
       anim.setValue(0);
+      progressAnim.setValue(1);
       const enterAnimation = Animated.timing(anim, {
         toValue: 1,
         duration: 200,
         useNativeDriver: true,
       });
+      const progressAnimation = Animated.timing(progressAnim, {
+        toValue: 0,
+        duration,
+        useNativeDriver: false,
+      });
       animationRef.current = enterAnimation;
       enterAnimation.start(() => {
         animationRef.current = null;
       });
-      const duration = normalized.durationMs ?? 2800;
+      progressAnimationRef.current = progressAnimation;
+      progressAnimation.start(() => {
+        progressAnimationRef.current = null;
+      });
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
         hideToast();
       }, duration);
     },
-    [anim, hideToast]
+    [anim, hideToast, progressAnim]
   );
 
   useEffect(() => {
@@ -97,6 +110,8 @@ export function SaveToastProvider({
       timerRef.current = null;
       animationRef.current?.stop();
       animationRef.current = null;
+      progressAnimationRef.current?.stop();
+      progressAnimationRef.current = null;
     };
   }, []);
 
@@ -131,7 +146,7 @@ export function SaveToastProvider({
       : variant === "error"
       ? "✕"
       : "i";
-  const toastTop = Math.max(16, insets.top + 12);
+  const toastTop = Platform.OS === "web" ? Math.max(72, insets.top + 16) : Math.max(16, insets.top + 12);
 
   const toastContent = toast ? (
     <Animated.View
@@ -159,15 +174,16 @@ export function SaveToastProvider({
         style={{
           ...(Platform.OS === "web"
             ? ({
-                width: "min(560px, calc(100vw - 32px))",
-                backdropFilter: "blur(18px) saturate(155%)",
-                WebkitBackdropFilter: "blur(18px) saturate(155%)",
+                width: "min(480px, calc(100vw - 32px))",
+                backdropFilter: "blur(22px) saturate(170%)",
+                WebkitBackdropFilter: "blur(22px) saturate(170%)",
               } as unknown as ViewStyle)
-            : ({ width: "92%", maxWidth: 560 } as ViewStyle)),
+            : ({ width: "92%", maxWidth: 480 } as ViewStyle)),
           overflow: "hidden",
-          paddingVertical: 12,
+          paddingTop: 12,
+          paddingBottom: 14,
           paddingHorizontal: 14,
-          borderRadius: 18,
+          borderRadius: 16,
           backgroundColor,
           borderWidth: 1,
           borderColor,
@@ -207,8 +223,8 @@ export function SaveToastProvider({
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
           <View
             style={{
-              width: 26,
-              height: 26,
+              width: 28,
+              height: 28,
               borderRadius: 999,
               alignItems: "center",
               justifyContent: "center",
@@ -253,6 +269,31 @@ export function SaveToastProvider({
             </Text>
           </Pressable>
         ) : null}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 12,
+            right: 12,
+            bottom: 7,
+            height: 3,
+            borderRadius: 999,
+            backgroundColor: "rgba(255,255,255,0.10)",
+            overflow: "hidden",
+          }}
+        >
+          <Animated.View
+            style={{
+              height: "100%",
+              width: progressAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["0%", "100%"],
+              }) as unknown as ViewStyle["width"],
+              borderRadius: 999,
+              backgroundColor: accentColor,
+            }}
+          />
+        </View>
       </Pressable>
     </Animated.View>
   ) : null;
