@@ -142,6 +142,18 @@ const toLines = (value: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
+const toManualRows = (value: string) => (value.length ? value.split("\n") : [""]);
+
+const isManualTextActivity = (activity: TrainingPlanActivity) =>
+  !activity.catalog &&
+  !activity.execution &&
+  !activity.organization &&
+  !activity.starter &&
+  !activity.action &&
+  !activity.rotation &&
+  !activity.coachFocus &&
+  !(activity.materials?.length);
+
 const formatDate = (value: string) => {
   if (!value) return "";
   const date = new Date(value);
@@ -1451,34 +1463,26 @@ export default function TrainingList() {
     [setCooldown, setMain, setWarmup]
   );
 
-  const appendActivityNameToBlockText = useCallback(
-    (blockKey: TrainingPlanBlockKey, name: string) => {
-      const currentText = planningBlockText[blockKey] ?? "";
-      const lines = toLines(currentText);
-      const normalizedName = name.trim().toLowerCase();
-      if (lines.some((line) => line.trim().toLowerCase() === normalizedName)) return;
-      setPlanningBlockText(blockKey, [...lines, name].join("\n"));
-    },
-    [planningBlockText, setPlanningBlockText]
-  );
-
-  const removeActivityNameFromBlockText = useCallback(
-    (blockKey: TrainingPlanBlockKey, name: string) => {
-      const normalizedName = name.trim().toLowerCase();
-      const nextLines = toLines(planningBlockText[blockKey] ?? "").filter(
-        (line) => line.trim().toLowerCase() !== normalizedName
-      );
-      setPlanningBlockText(blockKey, nextLines.join("\n"));
-    },
-    [planningBlockText, setPlanningBlockText]
-  );
-
   const hydrateFormFromPlanningActivities = useCallback(
     (activities: PlanningBlockActivities) => {
-      const legacyLines = syncLegacyLinesFromBlocks(activities);
-      setWarmup(legacyLines.warmup.join("\n"));
-      setMain(legacyLines.main.join("\n"));
-      setCooldown(legacyLines.cooldown.join("\n"));
+      setWarmup(
+        (activities.warmup ?? [])
+          .filter(isManualTextActivity)
+          .map((activity) => activity.name)
+          .join("\n")
+      );
+      setMain(
+        (activities.main ?? [])
+          .filter(isManualTextActivity)
+          .map((activity) => activity.name)
+          .join("\n")
+      );
+      setCooldown(
+        (activities.cooldown ?? [])
+          .filter(isManualTextActivity)
+          .map((activity) => activity.name)
+          .join("\n")
+      );
     },
     [setCooldown, setMain, setWarmup]
   );
@@ -1521,19 +1525,17 @@ export default function TrainingList() {
           { allowDuplicate: true }
         );
         setPlanningActivities(duplicateResult.activities);
-        appendActivityNameToBlockText(blockKey, activity.name);
         showSaveToast({ message: "Atividade adicionada como duplicada.", variant: "success" });
         return true;
       }
       setPlanningActivities(result.activities);
-      appendActivityNameToBlockText(blockKey, activity.name);
       showSaveToast({
         message: `Adicionado ao ${blockKey === "warmup" ? "Aquecimento" : blockKey === "main" ? "Principal" : "Volta à calma"}.`,
         variant: "success",
       });
       return true;
     },
-    [appendActivityNameToBlockText, confirmDialog, planningActivities, showSaveToast]
+    [confirmDialog, planningActivities, showSaveToast]
   );
 
   const handleAddCatalogActivityToPlanning = useCallback(
@@ -1565,17 +1567,50 @@ export default function TrainingList() {
   );
 
   const handleRemovePlanningActivity = useCallback(
-    (blockKey: TrainingPlanBlockKey, index: number) => {
+    async (blockKey: TrainingPlanBlockKey, index: number) => {
       const activity = planningActivities[blockKey]?.[index];
       if (!activity) return;
+      const shouldRemove = await confirmDialog({
+        title: "Remover atividade?",
+        message: `Deseja remover "${activity.name || "esta atividade"}" deste bloco?`,
+        confirmLabel: "Remover",
+        cancelLabel: "Cancelar",
+        tone: "danger",
+        onConfirm: () => {},
+      });
+      if (!shouldRemove) return;
       setPlanningActivities((current) => removePlanningActivityFromBlock(current, blockKey, index));
-      removeActivityNameFromBlockText(blockKey, activity.name);
       showSaveToast({
         message: "Atividade removida do bloco.",
         variant: "info",
       });
     },
-    [planningActivities, removeActivityNameFromBlockText, showSaveToast]
+    [confirmDialog, planningActivities, showSaveToast]
+  );
+
+  const handleRemoveManualPlanningLine = useCallback(
+    async (blockKey: TrainingPlanBlockKey, index: number) => {
+      const rows = toManualRows(planningBlockText[blockKey] ?? "");
+      const label = rows[index]?.trim();
+      const shouldRemove = await confirmDialog({
+        title: "Remover atividade manual?",
+        message: label
+          ? `Deseja remover "${label}" deste bloco?`
+          : "Deseja remover esta caixa de atividade?",
+        confirmLabel: "Remover",
+        cancelLabel: "Cancelar",
+        tone: "danger",
+        onConfirm: () => {},
+      });
+      if (!shouldRemove) return;
+      const nextRows = rows.filter((_, rowIndex) => rowIndex !== index);
+      setPlanningBlockText(blockKey, nextRows.length ? nextRows.join("\n") : "");
+      showSaveToast({
+        message: "Atividade manual removida.",
+        variant: "info",
+      });
+    },
+    [confirmDialog, planningBlockText, setPlanningBlockText, showSaveToast]
   );
 
   const planningDetailRowStyle = useMemo(() => ({ gap: 4 }), []);
@@ -1777,11 +1812,22 @@ export default function TrainingList() {
 
   const onEdit = (plan: TrainingPlan) => {
     const hydratedActivities = hydratePlanningActivitiesFromPlan(plan);
+    const structuredActivities: PlanningBlockActivities = {
+      warmup: (hydratedActivities.warmup ?? []).filter(
+        (activity) => !isManualTextActivity(activity)
+      ),
+      main: (hydratedActivities.main ?? []).filter(
+        (activity) => !isManualTextActivity(activity)
+      ),
+      cooldown: (hydratedActivities.cooldown ?? []).filter(
+        (activity) => !isManualTextActivity(activity)
+      ),
+    };
     setEditingId(plan.id);
     setEditingCreatedAt(plan.createdAt);
     setTitle(plan.title);
     setTagsText(plan.tags.join(", "));
-    setPlanningActivities(hydratedActivities);
+    setPlanningActivities(structuredActivities);
     hydrateFormFromPlanningActivities(hydratedActivities);
     setWarmupTime(plan.warmupTime);
     setMainTime(plan.mainTime);
@@ -2950,6 +2996,7 @@ export default function TrainingList() {
                       ? setMain
                       : setCooldown
                 }
+                onManualLineRemove={handleRemoveManualPlanningLine}
                 onDurationChange={
                   blockKey === "warmup"
                     ? setWarmupTime

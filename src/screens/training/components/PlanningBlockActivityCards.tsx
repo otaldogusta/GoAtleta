@@ -20,6 +20,7 @@ type Props = {
   onView: (activity: TrainingPlanActivity) => void;
   onRemove: (blockKey: TrainingPlanBlockKey, index: number) => void;
   onManualTextChange: (value: string) => void;
+  onManualLineRemove: (blockKey: TrainingPlanBlockKey, index: number) => void;
   onDurationChange: (value: string) => void;
 };
 
@@ -37,18 +38,30 @@ export function PlanningBlockActivityCards({
   onView,
   onRemove,
   onManualTextChange,
+  onManualLineRemove,
   onDurationChange,
 }: Props) {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const compact = width < 720;
+  const manualLines = manualText.length ? manualText.split("\n") : [""];
+
+  const updateManualLine = (index: number, value: string) => {
+    const nextLines = [...manualLines];
+    nextLines[index] = value;
+    onManualTextChange(nextLines.join("\n"));
+  };
+
+  const addManualLine = () => {
+    onManualTextChange([...manualLines, ""].join("\n"));
+  };
 
   return (
     <View
       testID={`planning-block-${blockKey}`}
       style={{
-        gap: activities.length ? 8 : 0,
-        padding: compact ? 10 : 12,
+        gap: 10,
+        padding: compact ? 12 : 14,
         borderRadius: 16,
         borderWidth: 1,
         borderColor: colors.border,
@@ -64,8 +77,8 @@ export function PlanningBlockActivityCards({
       >
         <View
           style={{
-            width: compact ? "100%" : 150,
-            minWidth: compact ? 0 : 130,
+            flex: 1,
+            minWidth: 0,
             flexDirection: compact ? "row" : "column",
             alignItems: compact ? "center" : "flex-start",
             justifyContent: "space-between",
@@ -81,36 +94,7 @@ export function PlanningBlockActivityCards({
         </View>
         <View
           style={{
-            flex: 1,
-            minWidth: 0,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 12,
-            backgroundColor: colors.inputBg,
-            paddingHorizontal: 12,
-            minHeight: 46,
-          }}
-        >
-          <TextInput
-            testID={`planning-manual-text-${blockKey}`}
-            placeholder="Texto manual"
-            value={manualText}
-            onChangeText={onManualTextChange}
-            multiline
-            placeholderTextColor={colors.placeholder}
-            style={{
-              flex: 1,
-              minHeight: 44,
-              paddingVertical: 8,
-              color: colors.inputText,
-              fontSize: 13,
-              textAlignVertical: "center",
-            }}
-          />
-        </View>
-        <View
-          style={{
-            width: compact ? "100%" : 96,
+            width: compact ? "100%" : 104,
             flexDirection: "row",
             alignItems: "center",
             gap: 6,
@@ -142,6 +126,86 @@ export function PlanningBlockActivityCards({
         {compact ? null : (
           <AddActivityButton blockKey={blockKey} onAdd={onAdd} />
         )}
+      </View>
+
+      <View style={{ gap: 8 }}>
+        {manualLines.map((line, index) => (
+          <View
+            key={`${blockKey}-manual-${index}`}
+            style={{
+              flexDirection: "row",
+              alignItems: "stretch",
+              gap: 8,
+            }}
+          >
+            <View
+              style={{
+                flex: 1,
+                minWidth: 0,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                paddingHorizontal: 12,
+                minHeight: 58,
+              }}
+            >
+              <TextInput
+                testID={`planning-manual-text-${blockKey}-${index}`}
+                placeholder="Descreva a atividade..."
+                value={line}
+                onChangeText={(value) => updateManualLine(index, value)}
+                multiline
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  flex: 1,
+                  minHeight: 56,
+                  paddingVertical: 12,
+                  color: colors.inputText,
+                  fontSize: 14,
+                  textAlignVertical: "top",
+                }}
+              />
+            </View>
+            <Pressable
+              testID={`planning-remove-manual-${blockKey}-${index}`}
+              accessibilityRole="button"
+              accessibilityLabel="Remover atividade manual"
+              onPress={() => onManualLineRemove(blockKey, index)}
+              style={{
+                width: 42,
+                minHeight: 58,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Ionicons name="trash-outline" size={18} color={colors.muted} />
+            </Pressable>
+          </View>
+        ))}
+        <Pressable
+          testID={`planning-add-manual-${blockKey}`}
+          accessibilityRole="button"
+          accessibilityLabel={`Adicionar atividade manual em ${getPlanningBlockLabel(blockKey)}`}
+          onPress={addManualLine}
+          style={{
+            alignSelf: "flex-start",
+            minHeight: 32,
+            borderRadius: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Ionicons name="add" size={18} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
+            Adicionar atividade
+          </Text>
+        </Pressable>
       </View>
 
       {activities.length ? (
