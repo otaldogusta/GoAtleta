@@ -126,7 +126,7 @@ export function PlanningLibraryBridgeSheet({
     setSelectedCatalogItem(null);
   };
 
-  const useStackedCards = width < 720;
+  const useGridCards = width >= 720;
   const modalHeight = Math.min(height * 0.8, 700);
 
   return (
@@ -158,12 +158,18 @@ export function PlanningLibraryBridgeSheet({
               onOpenFilters={() => setShowFilters(true)}
             />
             {filteredCatalogItems.length ? (
-              <View style={{ gap: 8 }}>
+              <View
+                style={{
+                  flexDirection: useGridCards ? "row" : "column",
+                  flexWrap: useGridCards ? "wrap" : "nowrap",
+                  gap: 8,
+                }}
+              >
                 {filteredCatalogItems.map((item) => (
                   <PlanningCatalogCompactCard
                     key={item.id}
                     item={item}
-                    stacked={useStackedCards}
+                    grid={useGridCards}
                     onView={setSelectedCatalogItem}
                     onAdd={addCatalogItem}
                   />
@@ -401,12 +407,12 @@ function QuickSkillChip({
 
 function PlanningCatalogCompactCard({
   item,
-  stacked,
+  grid,
   onView,
   onAdd,
 }: {
   item: ActivityCatalogListItem;
-  stacked: boolean;
+  grid: boolean;
   onView: (item: ActivityCatalogListItem) => void;
   onAdd: (item: ActivityCatalogListItem) => void;
 }) {
@@ -418,6 +424,7 @@ function PlanningCatalogCompactCard({
     <View
       testID={`planning-catalog-card-${item.id}`}
       style={{
+        width: grid ? "49%" : "100%",
         padding: 9,
         borderRadius: 14,
         borderWidth: 1,
@@ -427,63 +434,58 @@ function PlanningCatalogCompactCard({
     >
       <View
         style={{
-          flexDirection: stacked ? "column" : "row",
-          alignItems: stacked ? "stretch" : "center",
-          gap: 10,
+          gap: 9,
         }}
       >
         <Pressable
           testID={`planning-catalog-preview-${item.id}`}
           onPress={() => onView(item)}
           style={{
-            width: stacked ? "100%" : 116,
-            flexShrink: 0,
+            width: "100%",
           }}
         >
           <ActivityCatalogThumbnail item={item} badge={badge} />
         </Pressable>
 
-        <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-          <View style={{ gap: 2 }}>
+        <View style={{ gap: 7 }}>
+          <Text
+            numberOfLines={1}
+            style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
+          >
+            {item.variant.name}
+          </Text>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text
               numberOfLines={1}
-              style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
-            >
-              {item.variant.name}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}
+              style={{ flex: 1, color: colors.muted, fontSize: 12, fontWeight: "800" }}
             >
               {item.familyLabel}
             </Text>
-          </View>
-
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-            {chips.map((chip) => (
+            {chips.slice(0, 1).map((chip) => (
               <View
                 key={chip}
                 style={{
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
+                  paddingHorizontal: 7,
+                  paddingVertical: 3,
                   borderRadius: 999,
                   backgroundColor: colors.secondaryBg,
                 }}
               >
-                <Text style={{ color: colors.secondaryText, fontSize: 11, fontWeight: "900" }}>
+                <Text style={{ color: colors.secondaryText, fontSize: 10, fontWeight: "900" }}>
                   {chip}
                 </Text>
               </View>
             ))}
           </View>
 
-          <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flexDirection: "row", gap: 7 }}>
             <Pressable
               testID={`planning-catalog-view-${item.id}`}
               onPress={() => onView(item)}
               style={{
                 flex: 1,
-                minHeight: 32,
+                minHeight: 34,
                 borderRadius: 11,
                 alignItems: "center",
                 justifyContent: "center",
@@ -501,9 +503,10 @@ function PlanningCatalogCompactCard({
               testID={`planning-catalog-add-${item.id}`}
               onPress={() => onAdd(item)}
               style={{
-                minHeight: 32,
+                flex: 1,
+                minHeight: 34,
                 borderRadius: 11,
-                paddingHorizontal: 12,
+                paddingHorizontal: 10,
                 alignItems: "center",
                 justifyContent: "center",
                 flexDirection: "row",
@@ -511,7 +514,7 @@ function PlanningCatalogCompactCard({
                 backgroundColor: colors.primaryBg,
               }}
             >
-              <Ionicons name="add" size={18} color={colors.primaryText} />
+              <Ionicons name="add" size={17} color={colors.primaryText} />
               <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>
                 Adicionar
               </Text>
