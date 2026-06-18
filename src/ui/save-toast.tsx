@@ -74,7 +74,7 @@ export function SaveToastProvider({
       const message = normalized.error
         ? getFriendlyErrorMessage(normalized.error)
         : normalized.message ?? "Concluído.";
-      const duration = normalized.durationMs ?? 3200;
+      const duration = normalized.durationMs ?? 5000;
       setToast({ ...normalized, message, variant });
       anim.setValue(0);
       progressAnim.setValue(1);
@@ -127,15 +127,8 @@ export function SaveToastProvider({
       ? "#F87171"
       : "#93C5FD";
   const backgroundColor =
-    Platform.OS === "web" ? "rgba(7, 18, 34, 0.86)" : "rgba(7, 18, 34, 0.94)";
-  const borderColor =
-    variant === "success"
-      ? "rgba(61, 220, 132, 0.52)"
-      : variant === "warning"
-      ? "rgba(242, 160, 61, 0.54)"
-      : variant === "error"
-      ? "rgba(248, 113, 113, 0.58)"
-      : "rgba(147, 197, 253, 0.42)";
+    Platform.OS === "web" ? "rgba(10, 18, 32, 0.88)" : "rgba(10, 18, 32, 0.96)";
+  const borderColor = "rgba(226, 232, 240, 0.14)";
   const textColor = "#F8FAFC";
   const mutedTextColor = "rgba(248, 250, 252, 0.72)";
   const iconSymbol =
@@ -146,7 +139,7 @@ export function SaveToastProvider({
       : variant === "error"
       ? "✕"
       : "i";
-  const toastTop = Platform.OS === "web" ? Math.max(72, insets.top + 16) : Math.max(16, insets.top + 12);
+  const toastTop = Math.max(24, insets.top + 12);
 
   const toastContent = toast ? (
     <Animated.View
@@ -175,23 +168,23 @@ export function SaveToastProvider({
           ...(Platform.OS === "web"
             ? ({
                 width: "min(480px, calc(100vw - 32px))",
-                backdropFilter: "blur(22px) saturate(170%)",
-                WebkitBackdropFilter: "blur(22px) saturate(170%)",
+                backdropFilter: "blur(18px) saturate(135%)",
+                WebkitBackdropFilter: "blur(18px) saturate(135%)",
               } as unknown as ViewStyle)
             : ({ width: "92%", maxWidth: 480 } as ViewStyle)),
           overflow: "hidden",
           paddingTop: 12,
           paddingBottom: 14,
           paddingHorizontal: 14,
-          borderRadius: 16,
+          borderRadius: 14,
           backgroundColor,
           borderWidth: 1,
           borderColor,
           shadowColor: "#000",
-          shadowOpacity: 0.28,
-          shadowRadius: 22,
-          shadowOffset: { width: 0, height: 12 },
-          elevation: 12,
+          shadowOpacity: 0.2,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 8,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -209,17 +202,6 @@ export function SaveToastProvider({
             backgroundColor: "rgba(255,255,255,0.26)",
           }}
         />
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: 4,
-            backgroundColor: accentColor,
-          }}
-        />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
           <View
             style={{
@@ -228,9 +210,9 @@ export function SaveToastProvider({
               borderRadius: 999,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: "rgba(255,255,255,0.10)",
+              backgroundColor: "rgba(255,255,255,0.08)",
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.16)",
+              borderColor: "rgba(255,255,255,0.10)",
             }}
           >
             <Text style={{ color: accentColor, fontWeight: "900", fontSize: 13 }}>
@@ -278,7 +260,7 @@ export function SaveToastProvider({
             bottom: 7,
             height: 3,
             borderRadius: 999,
-            backgroundColor: "rgba(255,255,255,0.10)",
+            backgroundColor: "rgba(255,255,255,0.08)",
             overflow: "hidden",
           }}
         >
