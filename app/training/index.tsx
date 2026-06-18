@@ -22,6 +22,7 @@ import {
     Share,
     Text,
     TextInput,
+    useWindowDimensions,
     View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -232,6 +233,7 @@ const extractKeywords = (value: string) => {
 export default function TrainingList() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { width: viewportWidth } = useWindowDimensions();
   const router = useRouter();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -1615,6 +1617,14 @@ export default function TrainingList() {
     () => ({ fontSize: 12, fontWeight: "700" as const, color: colors.text }),
     [colors.text]
   );
+  const planningShellStyle = useMemo(
+    () => ({
+      width: "100%" as const,
+      maxWidth: viewportWidth >= 1440 ? 1280 : 1180,
+      alignSelf: "center" as const,
+    }),
+    [viewportWidth]
+  );
 
   const savePlan = async () => {
     if (!classId) return;
@@ -2600,7 +2610,7 @@ export default function TrainingList() {
             paddingTop: 16,
           }}
         >
-          <View style={{ marginBottom: 4 }}>
+          <View style={[planningShellStyle, { marginBottom: 2 }]}>
             <Pressable
               onPress={() => {
                 if (router.canGoBack()) {
@@ -2620,7 +2630,7 @@ export default function TrainingList() {
 
           <Pressable
             onPress={() => router.push({ pathname: "/consultation" })}
-            style={{
+            style={[planningShellStyle, {
               alignItems: "center",
               backgroundColor: colors.surface,
               borderColor: colors.borderSubtle,
@@ -2629,7 +2639,7 @@ export default function TrainingList() {
               flexDirection: "row",
               gap: 12,
               padding: 14,
-            }}
+            }]}
           >
             <View
               style={{
@@ -2655,13 +2665,13 @@ export default function TrainingList() {
           </Pressable>
 
           <View
-            style={{
+            style={[planningShellStyle, {
               flexDirection: "row",
               gap: 6,
               padding: 6,
               borderRadius: 999,
               backgroundColor: colors.secondaryBg,
-            }}
+            }]}
           >
             {[
               { id: "formulario" as const, label: "Planejar" },
@@ -2700,7 +2710,7 @@ export default function TrainingList() {
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{ paddingBottom: 24, gap: 16, paddingHorizontal: 16, paddingTop: 12 }}
+          contentContainerStyle={{ paddingBottom: 24, gap: 12, paddingHorizontal: 16, paddingTop: 10 }}
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => {
             closeFormPickers();
@@ -2715,7 +2725,7 @@ export default function TrainingList() {
               setFormY(event.nativeEvent.layout.y);
               syncFormPickerLayouts();
             }}
-            style={{ gap: 12 }}
+            style={[planningShellStyle, { gap: 10 }]}
           >
           <View style={{ gap: 10 }}>
           <Text style={{ color: colors.muted }}>Selecione a turma</Text>

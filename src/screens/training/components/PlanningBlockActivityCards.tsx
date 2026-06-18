@@ -47,12 +47,9 @@ export function PlanningBlockActivityCards({
     <View
       testID={`planning-block-${blockKey}`}
       style={{
-        gap: 10,
-        paddingTop: compact ? 10 : 12,
-        paddingBottom: compact ? 10 : 12,
-        paddingLeft: compact ? 10 : 12,
-        paddingRight: compact ? 10 : 12,
-        borderRadius: 14,
+        gap: activities.length ? 8 : 0,
+        padding: compact ? 10 : 12,
+        borderRadius: 16,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
@@ -60,41 +57,28 @@ export function PlanningBlockActivityCards({
     >
       <View
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 9,
+          flexDirection: compact ? "column" : "row",
+          alignItems: compact ? "stretch" : "center",
+          gap: compact ? 8 : 10,
         }}
       >
-        <View style={{ flex: 1, minWidth: 0 }}>
+        <View
+          style={{
+            width: compact ? "100%" : 150,
+            minWidth: compact ? 0 : 130,
+            flexDirection: compact ? "row" : "column",
+            alignItems: compact ? "center" : "flex-start",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
             {getPlanningBlockLabel(blockKey)}
           </Text>
+          {compact ? (
+            <AddActivityButton blockKey={blockKey} onAdd={onAdd} />
+          ) : null}
         </View>
-        <Pressable
-          testID={`planning-add-activity-${blockKey}`}
-          accessibilityRole="button"
-          accessibilityLabel={`Adicionar da biblioteca ou vídeo em ${getPlanningBlockLabel(blockKey)}`}
-          onPress={() => onAdd(blockKey)}
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: 12,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: colors.primaryBg,
-          }}
-        >
-          <Ionicons name="play-circle-outline" size={22} color={colors.primaryText} />
-        </Pressable>
-      </View>
-
-      <View
-        style={{
-          flexDirection: compact ? "column" : "row",
-          gap: 8,
-          alignItems: compact ? "stretch" : "center",
-        }}
-      >
         <View
           style={{
             flex: 1,
@@ -104,6 +88,7 @@ export function PlanningBlockActivityCards({
             borderRadius: 12,
             backgroundColor: colors.inputBg,
             paddingHorizontal: 12,
+            minHeight: 46,
           }}
         >
           <TextInput
@@ -115,8 +100,8 @@ export function PlanningBlockActivityCards({
             placeholderTextColor={colors.placeholder}
             style={{
               flex: 1,
-              minHeight: 42,
-              paddingVertical: 10,
+              minHeight: 44,
+              paddingVertical: 8,
               color: colors.inputText,
               fontSize: 13,
               textAlignVertical: "center",
@@ -125,7 +110,7 @@ export function PlanningBlockActivityCards({
         </View>
         <View
           style={{
-            width: compact ? "100%" : 104,
+            width: compact ? "100%" : 96,
             flexDirection: "row",
             alignItems: "center",
             gap: 6,
@@ -134,6 +119,7 @@ export function PlanningBlockActivityCards({
             borderRadius: 12,
             backgroundColor: colors.inputBg,
             paddingLeft: 9,
+            minHeight: 46,
           }}
         >
           <Ionicons name="time-outline" size={15} color={colors.muted} />
@@ -145,7 +131,7 @@ export function PlanningBlockActivityCards({
             format={durationFormat}
             style={{
               flex: 1,
-              minHeight: 42,
+              minHeight: 44,
               borderWidth: 0,
               paddingHorizontal: 0,
               paddingVertical: 8,
@@ -153,6 +139,9 @@ export function PlanningBlockActivityCards({
             }}
           />
         </View>
+        {compact ? null : (
+          <AddActivityButton blockKey={blockKey} onAdd={onAdd} />
+        )}
       </View>
 
       {activities.length ? (
@@ -229,6 +218,34 @@ export function PlanningBlockActivityCards({
         </View>
       ) : null}
     </View>
+  );
+}
+
+function AddActivityButton({
+  blockKey,
+  onAdd,
+}: {
+  blockKey: TrainingPlanBlockKey;
+  onAdd: (blockKey: TrainingPlanBlockKey) => void;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      testID={`planning-add-activity-${blockKey}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Adicionar da biblioteca ou vídeo em ${getPlanningBlockLabel(blockKey)}`}
+      onPress={() => onAdd(blockKey)}
+      style={{
+        width: 46,
+        height: 46,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: colors.primaryBg,
+      }}
+    >
+      <Ionicons name="play-circle-outline" size={22} color={colors.primaryText} />
+    </Pressable>
   );
 }
 
