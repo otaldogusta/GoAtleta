@@ -1606,7 +1606,7 @@ export default function TrainingList() {
       const nextRows = rows.filter((_, rowIndex) => rowIndex !== index);
       setPlanningBlockText(blockKey, nextRows.length ? nextRows.join("\n") : "");
       showSaveToast({
-        message: "Atividade manual removida.",
+        message: "Atividade removida.",
         variant: "info",
       });
     },

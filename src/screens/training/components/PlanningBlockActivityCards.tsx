@@ -45,6 +45,7 @@ export function PlanningBlockActivityCards({
   const { width } = useWindowDimensions();
   const compact = width < 720;
   const manualLines = manualText.length ? manualText.split("\n") : [""];
+  const canRemoveManualLine = manualLines.length > 1;
 
   const updateManualLine = (index: number, value: string) => {
     const nextLines = [...manualLines];
@@ -167,24 +168,26 @@ export function PlanningBlockActivityCards({
                 }}
               />
             </View>
-            <Pressable
-              testID={`planning-remove-manual-${blockKey}-${index}`}
-              accessibilityRole="button"
-              accessibilityLabel="Remover atividade manual"
-              onPress={() => onManualLineRemove(blockKey, index)}
-              style={{
-                width: 42,
-                minHeight: 58,
-                borderRadius: 12,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Ionicons name="trash-outline" size={18} color={colors.muted} />
-            </Pressable>
+            {canRemoveManualLine ? (
+              <Pressable
+                testID={`planning-remove-manual-${blockKey}-${index}`}
+                accessibilityRole="button"
+                accessibilityLabel="Remover atividade manual"
+                onPress={() => onManualLineRemove(blockKey, index)}
+                style={{
+                  width: 42,
+                  minHeight: 58,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color={colors.muted} />
+              </Pressable>
+            ) : null}
           </View>
         ))}
         <Pressable
