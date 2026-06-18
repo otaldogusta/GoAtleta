@@ -9,11 +9,18 @@ type Props = {
   item: ActivityCatalogListItem;
   badge: string;
   size?: "card" | "detail";
+  footerLabel?: string;
 };
 
-export function ActivityCatalogThumbnail({ item, badge, size = "card" }: Props) {
+export function ActivityCatalogThumbnail({
+  item,
+  badge,
+  size = "card",
+  footerLabel,
+}: Props) {
   const { colors } = useAppTheme();
   const isDetail = size === "detail";
+  const resolvedFooterLabel = footerLabel ?? item.familyLabel;
   return (
     <ImageBackground
       testID="activity-catalog-thumbnail"
@@ -69,7 +76,7 @@ export function ActivityCatalogThumbnail({ item, badge, size = "card" }: Props) 
             numberOfLines={1}
             style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}
           >
-            {item.familyLabel}
+            {resolvedFooterLabel}
           </Text>
         )}
       </View>

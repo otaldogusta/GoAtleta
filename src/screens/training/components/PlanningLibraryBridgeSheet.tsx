@@ -444,17 +444,14 @@ function PlanningCatalogCompactCard({
             width: "100%",
           }}
         >
-          <ActivityCatalogThumbnail item={item} badge={badge} />
+          <ActivityCatalogThumbnail
+            item={item}
+            badge={badge}
+            footerLabel={item.variant.name}
+          />
         </Pressable>
 
         <View style={{ gap: 7 }}>
-          <Text
-            numberOfLines={1}
-            style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
-          >
-            {item.variant.name}
-          </Text>
-
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text
               numberOfLines={1}
