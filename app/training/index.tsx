@@ -1364,12 +1364,7 @@ export default function TrainingList() {
             : "Sem data";
 
         return (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Abrir ${displayTitle}`}
-            onPress={() => onView(plan)}
-            onLongPress={() => onOpenActions(plan)}
-            delayLongPress={250}
+          <View
             style={{
               width: savedPlanCardWidth as any,
               gap: 12,
@@ -1382,7 +1377,14 @@ export default function TrainingList() {
               justifyContent: "space-between",
             }}
           >
-            <View style={{ gap: 8 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Abrir ${displayTitle}`}
+              onPress={() => onView(plan)}
+              onLongPress={() => onOpenActions(plan)}
+              delayLongPress={250}
+              style={{ gap: 8 }}
+            >
               <Text
                 style={{
                   color: colors.muted,
@@ -1440,7 +1442,7 @@ export default function TrainingList() {
                   </Text>
                 </View>
               </View>
-            </View>
+            </Pressable>
 
             <View
               style={{
@@ -1499,7 +1501,7 @@ export default function TrainingList() {
                 </Text>
               </Pressable>
             </View>
-          </Pressable>
+          </View>
         );
       }),
     [classById, colors, getClassName, savedPlanCardWidth]
