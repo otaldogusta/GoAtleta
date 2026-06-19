@@ -1694,28 +1694,64 @@ export default function TrainingList() {
     [confirmDialog, planningBlockText, setPlanningBlockText, showSaveToast]
   );
 
-  const planningDetailRowStyle = useMemo(() => ({ gap: 4 }), []);
+  const planningDetailRowStyle = useMemo(
+    () => ({
+      gap: 6,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.inputBg,
+    }),
+    [colors.border, colors.inputBg]
+  );
   const planningDetailLabelStyle = useMemo(
-    () => ({ color: colors.text, fontSize: 13, fontWeight: "900" as const }),
+    () => ({ color: colors.text, fontSize: 12, fontWeight: "900" as const }),
     [colors.text]
   );
   const planningDetailTextStyle = useMemo(
-    () => ({ color: colors.muted, fontSize: 13, lineHeight: 19 }),
+    () => ({ color: colors.muted, fontSize: 13, lineHeight: 20 }),
     [colors.muted]
   );
   const planningBlockListStyle = useMemo(() => ({ gap: 10 }), []);
-  const planningDetailContentStyle = useMemo(() => ({ gap: 12 }), []);
+  const planningDetailCardStyle = useMemo(
+    () => ({
+      width: "92%" as const,
+      maxWidth: 760,
+      padding: 18,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    }),
+    [colors.border, colors.card]
+  );
+  const planningDetailContentStyle = useMemo(() => ({ gap: 14 }), []);
   const planningDetailHeaderStyle = useMemo(
-    () => ({ flexDirection: "row" as const, justifyContent: "space-between" as const, gap: 12 }),
+    () => ({
+      flexDirection: "row" as const,
+      justifyContent: "space-between" as const,
+      alignItems: "flex-start" as const,
+      gap: 14,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    }),
+    [colors.border]
+  );
+  const planningDetailRowsStyle = useMemo(
+    () => ({
+      gap: 10,
+    }),
     []
   );
   const planningDetailTitleWrapStyle = useMemo(() => ({ flex: 1, gap: 4 }), []);
   const planningDetailTitleStyle = useMemo(
-    () => ({ color: colors.text, fontSize: 18, fontWeight: "800" as const }),
+    () => ({ color: colors.text, fontSize: 19, fontWeight: "900" as const, lineHeight: 24 }),
     [colors.text]
   );
   const planningDetailSourceStyle = useMemo(
-    () => ({ color: colors.muted, fontSize: 12 }),
+    () => ({ color: colors.muted, fontSize: 12, fontWeight: "700" as const }),
     [colors.muted]
   );
   const planningDetailCloseButtonStyle = useMemo(
@@ -3635,7 +3671,7 @@ export default function TrainingList() {
         <ModalSheet
           visible
           onClose={() => setPlanningDetailActivity(null)}
-          cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
+          cardStyle={planningDetailCardStyle}
           position="center"
         >
           <View style={planningDetailContentStyle}>
@@ -3661,26 +3697,28 @@ export default function TrainingList() {
                 </Text>
               </Pressable>
             </View>
-            {[
-              ["Objetivo", planningDetailActivity.objective],
-              ["Descrição", planningDetailActivity.description],
-              ["Organização", planningDetailActivity.organization],
-              ["Ação", planningDetailActivity.action],
-              ["Progressão", planningDetailActivity.progression],
-              ["Materiais", planningDetailActivity.materials?.join(", ")],
-              ["Link", planningDetailActivity.execution],
-            ]
-              .filter(([, value]) => Boolean(String(value ?? "").trim()))
-              .map(([label, value]) => (
-                <View key={label} style={planningDetailRowStyle}>
-                  <Text style={planningDetailLabelStyle}>
-                    {label}
-                  </Text>
-                  <Text style={planningDetailTextStyle}>
-                    {String(value)}
-                  </Text>
-                </View>
-              ))}
+            <View style={planningDetailRowsStyle}>
+              {[
+                ["Objetivo", planningDetailActivity.objective],
+                ["Descrição", planningDetailActivity.description],
+                ["Organização", planningDetailActivity.organization],
+                ["Ação", planningDetailActivity.action],
+                ["Progressão", planningDetailActivity.progression],
+                ["Materiais", planningDetailActivity.materials?.join(", ")],
+                ["Link", planningDetailActivity.execution],
+              ]
+                .filter(([, value]) => Boolean(String(value ?? "").trim()))
+                .map(([label, value]) => (
+                  <View key={label} style={planningDetailRowStyle}>
+                    <Text style={planningDetailLabelStyle}>
+                      {label}
+                    </Text>
+                    <Text style={planningDetailTextStyle}>
+                      {String(value)}
+                    </Text>
+                  </View>
+                ))}
+            </View>
           </View>
         </ModalSheet>
       ) : null}
