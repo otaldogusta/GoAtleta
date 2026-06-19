@@ -269,6 +269,38 @@ const compactTagList = (values: string[], limit = 8) => {
   return result.slice(0, limit);
 };
 
+const normalizeSearchValue = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+const getTrainingPlanBlockCounts = (plan: TrainingPlan) => {
+  const blocks = plan.pedagogy?.blocks;
+  if (blocks) {
+    return {
+      warmup: blocks.warmup?.activities?.length ?? 0,
+      main: blocks.main?.activities?.length ?? 0,
+      cooldown: blocks.cooldown?.activities?.length ?? 0,
+    };
+  }
+
+  return {
+    warmup: plan.warmup?.length ?? 0,
+    main: plan.main?.length ?? 0,
+    cooldown: plan.cooldown?.length ?? 0,
+  };
+};
+
+const getSavedPlanDisplayTitle = (plan: TrainingPlan) => {
+  const parts = plan.title
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length >= 2 ? parts[parts.length - 1] : plan.title;
+};
+
 export default function TrainingList() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -366,6 +398,8 @@ export default function TrainingList() {
     "training_show_saved_plans_v1",
     true
   );
+  const [savedPlanSearch, setSavedPlanSearch] = useState("");
+  const [savedPlanClassFilter, setSavedPlanClassFilter] = useState("__all__");
   const {
     animatedStyle: savedPlansAnimStyle,
     isVisible: showSavedPlansContent,
@@ -625,6 +659,14 @@ export default function TrainingList() {
     () => sortClassesByAgeBand(classes),
     [classes]
   );
+
+  const classById = useMemo(() => {
+    const map = new Map<string, ClassGroup>();
+    classes.forEach((item) => {
+      map.set(item.id, item);
+    });
+    return map;
+  }, [classes]);
 
   const classStartTimeById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -1001,9 +1043,73 @@ export default function TrainingList() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [items]);
 
+  const savedPlanClassOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    items.forEach((plan) => {
+      counts.set(plan.classId, (counts.get(plan.classId) ?? 0) + 1);
+    });
+
+    const labelCounts = new Map<string, number>();
+    Array.from(counts.keys()).forEach((id) => {
+      const label = classById.get(id)?.name ?? "Turma";
+      labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+    });
+
+    return Array.from(counts.entries())
+      .map(([id, count]) => {
+        const classItem = classById.get(id);
+        const baseLabel = classItem?.name ?? "Turma";
+        const hasDuplicateLabel = (labelCounts.get(baseLabel) ?? 0) > 1;
+        return {
+          id,
+          count,
+          label:
+            hasDuplicateLabel && classItem?.startTime
+              ? `${baseLabel} · ${classItem.startTime}`
+              : baseLabel,
+          detail: [classItem?.unit, classItem?.ageBand, classItem?.startTime]
+            .filter(Boolean)
+            .join(" · "),
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [classById, items]);
+
   const filteredItems = useMemo(() => {
-    return items;
-  }, [items]);
+    const query = normalizeSearchValue(savedPlanSearch);
+
+    return items.filter((plan) => {
+      if (savedPlanClassFilter !== "__all__" && plan.classId !== savedPlanClassFilter) {
+        return false;
+      }
+
+      if (!query) return true;
+
+      const classItem = classById.get(plan.classId);
+      const counts = getTrainingPlanBlockCounts(plan);
+      const searchText = normalizeSearchValue(
+        [
+          plan.title,
+          plan.tags?.join(" "),
+          classItem?.name,
+          classItem?.unit,
+          classItem?.ageBand,
+          classItem?.startTime,
+          classItem?.endTime,
+          formatDate(plan.createdAt),
+          plan.applyDate ? formatShortDate(plan.applyDate) : "",
+          plan.applyDays?.length ? formatWeekdays(plan.applyDays) : "",
+          `aquecimento ${counts.warmup}`,
+          `principal ${counts.main}`,
+          `volta ${counts.cooldown}`,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      );
+
+      return searchText.includes(query);
+    });
+  }, [classById, items, savedPlanClassFilter, savedPlanSearch]);
 
   const groupedSavedPlans = useMemo(() => {
     const getPlanDateTime = (plan: TrainingPlan) => {
@@ -1057,8 +1163,8 @@ export default function TrainingList() {
   }, [classStartTimeById, filteredItems]);
 
   const getClassName = useCallback(
-    (id: string) => classes.find((item) => item.id === id)?.name ?? "Turma",
-    [classes]
+    (id: string) => classById.get(id)?.name ?? "Turma",
+    [classById]
   );
 
   const TemplateRow = useMemo(
@@ -1226,6 +1332,8 @@ export default function TrainingList() {
     [colors, renameTemplateId, renameTemplateText]
   );
 
+  const savedPlanCardWidth = viewportWidth >= 1120 ? "49%" : "100%";
+
   const PlanRow = useMemo(
     () =>
       memo(function PlanRowItem({
@@ -1239,78 +1347,228 @@ export default function TrainingList() {
         onApply: (plan: TrainingPlan) => void;
         onView: (plan: TrainingPlan) => void;
       }) {
+        const classItem = classById.get(plan.classId);
+        const counts = getTrainingPlanBlockCounts(plan);
+        const totalActivities = counts.warmup + counts.main + counts.cooldown;
+        const displayTitle = getSavedPlanDisplayTitle(plan);
+        const scheduleText = [
+          classItem?.startTime && classItem?.endTime
+            ? `${classItem.startTime}-${classItem.endTime}`
+            : "",
+          classItem?.ageBand,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        const visibleTags = (plan.tags ?? []).slice(0, 3);
+        const appliedText = plan.applyDays?.length
+          ? formatWeekdays(plan.applyDays)
+          : plan.applyDate
+            ? formatShortDate(plan.applyDate)
+            : "Sem data";
+
         return (
           <Pressable
             onLongPress={() => onOpenActions(plan)}
             style={{
-              gap: 8,
-              padding: 12,
+              width: savedPlanCardWidth as any,
+              gap: 12,
+              padding: 14,
               borderRadius: 14,
               backgroundColor: colors.inputBg,
               borderWidth: 1,
               borderColor: colors.border,
+              minHeight: 208,
+              justifyContent: "space-between",
             }}
           >
-            <View style={{ gap: 4 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                {plan.title}
-              </Text>
-              <Text style={{ color: colors.muted }}>
-                {getClassName(plan.classId)}
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Criado em {formatDate(plan.createdAt)}
-              </Text>
-              { plan.applyDays?.length || plan.applyDate ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Aplicado:{" "}
-                  {plan.applyDays?.length ? formatWeekdays(plan.applyDays) : ""}
-                  {plan.applyDays?.length && plan.applyDate ? " | " : ""}
-                  {plan.applyDate ? formatShortDate(plan.applyDate) : ""}
-                </Text>
-              ) : null}
+            <View style={{ gap: 10 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Text
+                    style={{
+                      color: colors.muted,
+                      fontSize: 12,
+                      fontWeight: "700",
+                    }}
+                    numberOfLines={1}
+                  >
+                    {classItem?.unit ? `${classItem.unit} · ` : ""}
+                    {getClassName(plan.classId)}
+                  </Text>
+                  <Text
+                    style={{ fontSize: 17, fontWeight: "800", color: colors.text }}
+                    numberOfLines={2}
+                  >
+                    {displayTitle}
+                  </Text>
+                  {scheduleText ? (
+                    <Text style={{ color: colors.secondaryText, fontSize: 12 }} numberOfLines={1}>
+                      {scheduleText}
+                    </Text>
+                  ) : null}
+                </View>
+                <View
+                  style={{
+                    paddingVertical: 5,
+                    paddingHorizontal: 8,
+                    borderRadius: 999,
+                    backgroundColor: "rgba(65, 211, 126, 0.14)",
+                    borderWidth: 1,
+                    borderColor: "rgba(65, 211, 126, 0.24)",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.primaryBg,
+                      fontSize: 11,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {totalActivities} ativ.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingVertical: 5,
+                    paddingHorizontal: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Ionicons name="time-outline" size={13} color={colors.muted} />
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                    Criado {formatDate(plan.createdAt)}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingVertical: 5,
+                    paddingHorizontal: 8,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
+                  <Ionicons name="calendar-outline" size={13} color={colors.muted} />
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                    {appliedText}
+                  </Text>
+                </View>
+                {visibleTags.map((tag) => (
+                  <View
+                    key={`${plan.id}-${tag}`}
+                    style={{
+                      paddingVertical: 5,
+                      paddingHorizontal: 8,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
+                    <Text style={{ color: colors.secondaryText, fontSize: 11, fontWeight: "700" }}>
+                      {tag}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 8,
+                  padding: 8,
+                  borderRadius: 12,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                {[
+                  ["Aquec.", counts.warmup],
+                  ["Principal", counts.main],
+                  ["Volta", counts.cooldown],
+                ].map(([label, count]) => (
+                  <View key={`${plan.id}-${label}`} style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>
+                      {label}
+                    </Text>
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                      {count as number}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
+
             <View
               style={{
                 flexDirection: "row",
-                gap: 6,
+                gap: 8,
               }}
             >
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Aplicar ${displayTitle}`}
                 onPress={() => onApply(plan)}
                 style={{
                   flex: 1,
+                  minHeight: 42,
                   paddingVertical: 8,
-                  borderRadius: 10,
+                  borderRadius: 12,
                   backgroundColor: colors.primaryBg,
                   alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  gap: 6,
                 }}
               >
-                <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                  Aplicar planejamento
+                <Ionicons name="checkmark-circle-outline" size={16} color={colors.primaryText} />
+                <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>
+                  Aplicar
                 </Text>
               </Pressable>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Ver ${displayTitle}`}
                 onPress={() => onView(plan)}
                 style={{
                   flex: 1,
+                  minHeight: 42,
                   paddingVertical: 8,
-                  borderRadius: 10,
+                  borderRadius: 12,
                   backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
                   borderColor: colors.border,
                   alignItems: "center",
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  gap: 6,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                  Ver planejamento
+                <Ionicons name="eye-outline" size={16} color={colors.text} />
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>
+                  Ver
                 </Text>
               </Pressable>
             </View>
           </Pressable>
         );
       }),
-    [colors, formatDate, formatShortDate, formatWeekdays, getClassName]
+    [classById, colors, getClassName, savedPlanCardWidth]
   );
 
   const currentTags = useMemo(() => {
@@ -3352,6 +3610,114 @@ export default function TrainingList() {
 
           { showSavedPlansContent ? (
             <Animated.View style={savedPlansAnimStyle}>
+              <View style={{ gap: 10, marginTop: 10, marginBottom: 14 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    paddingHorizontal: 12,
+                    minHeight: 46,
+                    borderRadius: 14,
+                    backgroundColor: colors.inputBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Ionicons name="search" size={18} color={colors.muted} />
+                  <TextInput
+                    value={savedPlanSearch}
+                    onChangeText={setSavedPlanSearch}
+                    placeholder="Buscar por turma, foco, unidade ou data..."
+                    placeholderTextColor={colors.muted}
+                    style={{
+                      flex: 1,
+                      color: colors.text,
+                      fontSize: 14,
+                      outlineStyle: "none" as any,
+                    }}
+                  />
+                  {savedPlanSearch.trim() ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Limpar busca"
+                      onPress={() => setSavedPlanSearch("")}
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 15,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.secondaryBg,
+                      }}
+                    >
+                      <Ionicons name="close" size={16} color={colors.text} />
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                <FadeHorizontalScroll>
+                  <View style={{ flexDirection: "row", gap: 8, paddingVertical: 2 }}>
+                    {[
+                      {
+                        id: "__all__",
+                        label: "Todas as turmas",
+                        count: items.length,
+                        detail: "",
+                      },
+                      ...savedPlanClassOptions,
+                    ].map((option) => {
+                      const active = savedPlanClassFilter === option.id;
+                      return (
+                        <Pressable
+                          key={option.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Filtrar ${option.label}`}
+                          onPress={() => setSavedPlanClassFilter(option.id)}
+                          style={{
+                            minHeight: 36,
+                            paddingVertical: 8,
+                            paddingHorizontal: 12,
+                            borderRadius: 999,
+                            backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                            borderWidth: 1,
+                            borderColor: active ? "transparent" : colors.border,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: active ? colors.primaryText : colors.text,
+                              fontWeight: "800",
+                              fontSize: 12,
+                            }}
+                          >
+                            {option.label}
+                          </Text>
+                          <Text
+                            style={{
+                              color: active ? colors.primaryText : colors.muted,
+                              fontWeight: "700",
+                              fontSize: 11,
+                            }}
+                          >
+                            {option.count}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </FadeHorizontalScroll>
+
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  {filteredItems.length} de {items.length} planos
+                  {savedPlanClassFilter !== "__all__" || savedPlanSearch.trim()
+                    ? " encontrados"
+                    : " salvos"}
+                </Text>
+              </View>
               { groupedSavedPlans.length ? (
                 <View style={{ gap: 16 }}>
                   {groupedSavedPlans.map((group) => (
@@ -3380,7 +3746,13 @@ export default function TrainingList() {
                           {group.items.length} planos
                         </Text>
                       </View>
-                      <View style={{ gap: 12 }}>
+                      <View
+                        style={{
+                          flexDirection: viewportWidth >= 1120 ? "row" : "column",
+                          flexWrap: "wrap",
+                          gap: 12,
+                        }}
+                      >
                         {group.items.map((plan) => (
                           <PlanRow
                             key={plan.id}
@@ -3396,7 +3768,7 @@ export default function TrainingList() {
                 </View>
               ) : (
                 <Text style={{ color: colors.muted }}>
-                  Nenhum planejamento salvo ainda.
+                  Nenhum planejamento encontrado para os filtros selecionados.
                 </Text>
               )}
             </Animated.View>
