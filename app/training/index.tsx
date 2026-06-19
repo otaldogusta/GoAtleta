@@ -3024,48 +3024,6 @@ export default function TrainingList() {
               color: colors.inputText,
             }}
           />
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 10,
-              backgroundColor: colors.inputBg,
-              padding: 10,
-              gap: 8,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons name="pricetag-outline" size={15} color={colors.muted} />
-              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>
-                Tags automáticas
-              </Text>
-            </View>
-            {autoPlanningTags.length ? (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {autoPlanningTags.map((tag) => (
-                  <View
-                    key={tag}
-                    style={{
-                      paddingHorizontal: 9,
-                      paddingVertical: 5,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                      {tag}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Text style={{ color: colors.placeholder, fontSize: 13 }}>
-                Preencha a aula para gerar tags automaticamente.
-              </Text>
-            )}
-          </View>
           <View style={planningBlockListStyle}>
             {planningBlockKeys.map((blockKey) => (
               <PlanningBlockActivityCards
