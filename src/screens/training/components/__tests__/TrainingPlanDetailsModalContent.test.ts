@@ -64,7 +64,6 @@ describe("TrainingPlanDetailsModalContent", () => {
       renderer = TestRenderer.create(
         React.createElement(TrainingPlanDetailsModalContent, {
           plan,
-          getClassName: () => "Turma Sub-13",
         })
       );
     });

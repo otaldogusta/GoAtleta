@@ -3027,6 +3027,20 @@ export default function TrainingList() {
     setSelectedPlan(plan);
   }, []);
 
+  const selectedPlanClassItem = selectedPlan
+    ? classById.get(selectedPlan.classId)
+    : undefined;
+  const selectedPlanScheduleText = selectedPlanClassItem
+    ? [
+        selectedPlanClassItem.startTime && selectedPlanClassItem.endTime
+          ? `${selectedPlanClassItem.startTime}-${selectedPlanClassItem.endTime}`
+          : "",
+        selectedPlanClassItem.ageBand,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenBackdrop />
@@ -3854,13 +3868,18 @@ export default function TrainingList() {
           cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
           position="center"
         >
-          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-            <View style={{ gap: 4, paddingRight: 12 }}>
-              <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-                {selectedPlan.title}
+          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+            <View style={{ flex: 1, gap: 6, paddingRight: 8 }}>
+              <Text
+                numberOfLines={2}
+                style={{ fontSize: 20, fontWeight: "900", color: colors.text }}
+              >
+                {getSavedPlanDisplayTitle(selectedPlan)}
               </Text>
-              <Text style={{ color: colors.muted }}>
-                {getClassName(selectedPlan.classId)}
+              <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
+                {[getClassName(selectedPlan.classId), selectedPlanScheduleText]
+                  .filter(Boolean)
+                  .join(" · ")}
               </Text>
             </View>
             <Pressable
@@ -3888,7 +3907,6 @@ export default function TrainingList() {
         >
             <TrainingPlanDetailsModalContent
               plan={selectedPlan}
-              getClassName={getClassName}
             />
           </Suspense>
         </ModalSheet>
