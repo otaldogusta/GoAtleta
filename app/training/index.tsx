@@ -154,6 +154,11 @@ const isManualTextActivity = (activity: TrainingPlanActivity) =>
   !activity.coachFocus &&
   !(activity.materials?.length);
 
+type PlanningDetailSelection = {
+  blockKey: TrainingPlanBlockKey;
+  index: number;
+};
+
 const formatDate = (value: string) => {
   if (!value) return "";
   const date = new Date(value);
@@ -346,8 +351,8 @@ export default function TrainingList() {
     useState<PlanningBlockActivities>(() => createEmptyPlanningBlockActivities());
   const [planningLibraryBlockKey, setPlanningLibraryBlockKey] =
     useState<TrainingPlanBlockKey | null>(null);
-  const [planningDetailActivity, setPlanningDetailActivity] =
-    useState<TrainingPlanActivity | null>(null);
+  const [planningDetailSelection, setPlanningDetailSelection] =
+    useState<PlanningDetailSelection | null>(null);
   const [showTemplates, setShowTemplates] = usePersistedState<boolean>(
     "training_show_templates_v1",
     false
@@ -1692,6 +1697,68 @@ export default function TrainingList() {
       });
     },
     [confirmDialog, planningBlockText, setPlanningBlockText, showSaveToast]
+  );
+
+  const planningDetailActivity = useMemo(() => {
+    if (!planningDetailSelection) return null;
+    return (
+      planningActivities[planningDetailSelection.blockKey]?.[
+        planningDetailSelection.index
+      ] ?? null
+    );
+  }, [planningActivities, planningDetailSelection]);
+
+  const handleViewPlanningActivity = useCallback(
+    (blockKey: TrainingPlanBlockKey, index: number) => {
+      setPlanningDetailSelection({ blockKey, index });
+    },
+    []
+  );
+
+  const handleClosePlanningDetail = useCallback(() => {
+    setPlanningDetailSelection(null);
+  }, []);
+
+  const updatePlanningDetailActivity = useCallback(
+    (patch: Partial<TrainingPlanActivity>) => {
+      if (!planningDetailSelection) return;
+      const { blockKey, index } = planningDetailSelection;
+      setPlanningActivities((current) => {
+        const currentBlock = current[blockKey] ?? [];
+        if (!currentBlock[index]) return current;
+        return {
+          ...current,
+          [blockKey]: currentBlock.map((activity, activityIndex) =>
+            activityIndex === index
+              ? {
+                  ...activity,
+                  ...patch,
+                }
+              : activity
+          ),
+        };
+      });
+    },
+    [planningDetailSelection]
+  );
+
+  const updatePlanningDetailTextField = useCallback(
+    (field: keyof TrainingPlanActivity, value: string) => {
+      updatePlanningDetailActivity({ [field]: value } as Partial<TrainingPlanActivity>);
+    },
+    [updatePlanningDetailActivity]
+  );
+
+  const updatePlanningDetailMaterials = useCallback(
+    (value: string) => {
+      updatePlanningDetailActivity({
+        materials: value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+    },
+    [updatePlanningDetailActivity]
   );
 
   const planningDetailRowStyle = useMemo(
@@ -3079,7 +3146,7 @@ export default function TrainingList() {
                 }
                 durationFormat={blockKey === "main" ? "clock" : "duration"}
                 onAdd={handleOpenPlanningLibrary}
-                onView={setPlanningDetailActivity}
+                onView={handleViewPlanningActivity}
                 onRemove={handleRemovePlanningActivity}
                 onManualTextChange={
                   blockKey === "warmup"
@@ -3670,16 +3737,20 @@ export default function TrainingList() {
       {planningDetailActivity ? (
         <ModalSheet
           visible
-          onClose={() => setPlanningDetailActivity(null)}
+          onClose={handleClosePlanningDetail}
           cardStyle={planningDetailCardStyle}
           position="center"
         >
           <View style={planningDetailContentStyle}>
             <View style={planningDetailHeaderStyle}>
               <View style={planningDetailTitleWrapStyle}>
-                <Text style={planningDetailTitleStyle}>
-                  {planningDetailActivity.name}
-                </Text>
+                <TextInput
+                  value={planningDetailActivity.name ?? ""}
+                  onChangeText={(value) => updatePlanningDetailTextField("name", value)}
+                  placeholder="Nome da atividade"
+                  placeholderTextColor={colors.placeholder}
+                  style={[planningDetailTitleStyle, { padding: 0 }]}
+                />
                 <Text style={planningDetailSourceStyle}>
                   {planningDetailActivity.catalog
                     ? "Catálogo GoAtleta"
@@ -3689,7 +3760,7 @@ export default function TrainingList() {
                 </Text>
               </View>
               <Pressable
-                onPress={() => setPlanningDetailActivity(null)}
+                onPress={handleClosePlanningDetail}
                 style={planningDetailCloseButtonStyle}
               >
                 <Text style={planningDetailCloseTextStyle}>
@@ -3699,23 +3770,44 @@ export default function TrainingList() {
             </View>
             <View style={planningDetailRowsStyle}>
               {[
-                ["Objetivo", planningDetailActivity.objective],
-                ["Descrição", planningDetailActivity.description],
-                ["Organização", planningDetailActivity.organization],
-                ["Ação", planningDetailActivity.action],
-                ["Progressão", planningDetailActivity.progression],
-                ["Materiais", planningDetailActivity.materials?.join(", ")],
-                ["Link", planningDetailActivity.execution],
+                ["Objetivo", "objective", planningDetailActivity.objective],
+                ["Descrição", "description", planningDetailActivity.description],
+                ["Organização", "organization", planningDetailActivity.organization],
+                ["Ação", "action", planningDetailActivity.action],
+                ["Progressão", "progression", planningDetailActivity.progression],
+                ["Materiais", "materials", planningDetailActivity.materials?.join(", ")],
+                ["Link", "execution", planningDetailActivity.execution],
               ]
-                .filter(([, value]) => Boolean(String(value ?? "").trim()))
-                .map(([label, value]) => (
+                .map(([label, field, value]) => (
                   <View key={label} style={planningDetailRowStyle}>
                     <Text style={planningDetailLabelStyle}>
                       {label}
                     </Text>
-                    <Text style={planningDetailTextStyle}>
-                      {String(value)}
-                    </Text>
+                    <TextInput
+                      value={String(value ?? "")}
+                      onChangeText={(nextValue) => {
+                        if (field === "materials") {
+                          updatePlanningDetailMaterials(nextValue);
+                          return;
+                        }
+                        updatePlanningDetailTextField(
+                          field as keyof TrainingPlanActivity,
+                          nextValue
+                        );
+                      }}
+                      placeholder={`Editar ${String(label).toLowerCase()}`}
+                      placeholderTextColor={colors.placeholder}
+                      multiline
+                      style={[
+                        planningDetailTextStyle,
+                        {
+                          minHeight: field === "execution" ? 32 : 42,
+                          padding: 0,
+                          color: colors.inputText,
+                          textAlignVertical: "top",
+                        },
+                      ]}
+                    />
                   </View>
                 ))}
             </View>

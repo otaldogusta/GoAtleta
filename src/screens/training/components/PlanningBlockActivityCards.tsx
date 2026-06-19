@@ -17,7 +17,7 @@ type Props = {
   durationPlaceholder: string;
   durationFormat: "duration" | "clock";
   onAdd: (blockKey: TrainingPlanBlockKey) => void;
-  onView: (activity: TrainingPlanActivity) => void;
+  onView: (blockKey: TrainingPlanBlockKey, index: number) => void;
   onRemove: (blockKey: TrainingPlanBlockKey, index: number) => void;
   onManualTextChange: (value: string) => void;
   onManualLineRemove: (blockKey: TrainingPlanBlockKey, index: number) => void;
@@ -270,7 +270,7 @@ export function PlanningBlockActivityCards({
                   icon="eye-outline"
                   label="Ver"
                   testID={`planning-view-${blockKey}-${index}`}
-                  onPress={() => onView(activity)}
+                  onPress={() => onView(blockKey, index)}
                 />
                 <ActionButton
                   icon="trash-outline"
