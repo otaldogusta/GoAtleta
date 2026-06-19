@@ -108,6 +108,13 @@ function HomeProfessorBelowFoldBase({
           onPress={() => router.push("/prof/planning")}
         />
 
+        <ShortcutCard
+          label="Consultoria online"
+          description="Prescrição individual"
+          icon="person-outline"
+          onPress={() => router.push("/consultation")}
+        />
+
         {canOpenClassesShortcut ? (
           <ShortcutCard
             label="Turmas"
