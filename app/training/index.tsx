@@ -1371,11 +1371,12 @@ export default function TrainingList() {
           : plan.applyDate
             ? formatShortDate(plan.applyDate)
             : "Sem data";
-        const blockCounts = getTrainingPlanBlockCounts(plan);
-        const totalActivities = blockCounts.warmup + blockCounts.main + blockCounts.cooldown;
+        const hasAppliedPlan = Boolean(plan.classId && (plan.applyDate || plan.applyDays?.length));
         const cardWidth = fullWidth ? "100%" : savedPlanCardWidth;
         const contextLine = [classLabel, scheduleText].filter(Boolean).join(" · ");
         const dateLine = appliedText && appliedText !== "Sem data" ? appliedText : "";
+        const appliedDateLabel = hasAppliedPlan && dateLine ? `Aplicado ${dateLine}` : dateLine;
+        const applyButtonLabel = hasAppliedPlan ? "Aplicar novamente" : "Aplicar";
 
         return (
           <View
@@ -1411,22 +1412,34 @@ export default function TrainingList() {
                 >
                   {unitLabel || "Plano salvo"}
                 </Text>
-                {totalActivities ? (
-                  <View
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingVertical: 5,
+                    paddingHorizontal: 9,
+                    borderRadius: 999,
+                    backgroundColor: hasAppliedPlan ? colors.successBg : colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: hasAppliedPlan ? colors.successBorder : colors.border,
+                  }}
+                >
+                  <Ionicons
+                    name={hasAppliedPlan ? "checkmark-circle-outline" : "ellipse-outline"}
+                    size={13}
+                    color={hasAppliedPlan ? colors.successText : colors.muted}
+                  />
+                  <Text
                     style={{
-                      paddingVertical: 5,
-                      paddingHorizontal: 9,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
+                      color: hasAppliedPlan ? colors.successText : colors.muted,
+                      fontSize: 11,
+                      fontWeight: "800",
                     }}
                   >
-                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>
-                      {totalActivities} {totalActivities === 1 ? "ativ." : "ativ."}
-                    </Text>
-                  </View>
-                ) : null}
+                    {hasAppliedPlan ? "Aplicado" : "Não aplicado"}
+                  </Text>
+                </View>
               </View>
               <Text
                 style={{ fontSize: 18, fontWeight: "800", color: colors.text }}
@@ -1452,7 +1465,7 @@ export default function TrainingList() {
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                     <Ionicons name="calendar-outline" size={13} color={colors.muted} />
                     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                      {dateLine}
+                      {appliedDateLabel}
                     </Text>
                   </View>
                 ) : null}
@@ -1473,7 +1486,7 @@ export default function TrainingList() {
             >
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Aplicar ${displayTitle}`}
+                accessibilityLabel={`${applyButtonLabel} ${displayTitle}`}
                 onPress={(event: any) => {
                   event?.stopPropagation?.();
                   onApply(plan);
@@ -1491,8 +1504,15 @@ export default function TrainingList() {
                 }}
               >
                 <Ionicons name="checkmark-circle-outline" size={16} color={colors.primaryText} />
-                <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>
-                  Aplicar
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: colors.primaryText,
+                    fontWeight: "800",
+                    fontSize: hasAppliedPlan ? 12 : 13,
+                  }}
+                >
+                  {applyButtonLabel}
                 </Text>
               </Pressable>
               <Pressable
