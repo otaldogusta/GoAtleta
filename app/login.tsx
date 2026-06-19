@@ -27,6 +27,7 @@ import { hasStoredSession, setRememberPreference } from "../src/auth/session";
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { getBiometricsEnabled } from "../src/security/biometric-settings";
 import { isBiometricsSupported } from "../src/security/biometrics";
+import { isSupabaseConfigured } from "../src/api/config";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Button } from "../src/ui/Button";
@@ -235,11 +236,13 @@ export default function LoginScreen() {
   const getLoginErrorMessage = (error: unknown) => {
     const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
     const normalized = detail.toLowerCase();
+    if (!isSupabaseConfigured || normalized === "not found") {
+      return "Configuração local do Supabase ausente. Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY no .env.local e reinicie o servidor.";
+    }
     if (
       normalized.includes("invalid login") ||
       normalized.includes("invalid credentials") ||
-      normalized.includes("login credentials") ||
-      normalized === "not found"
+      normalized.includes("login credentials")
     ) {
       return "!Conta não encontrada ou senha incorreta.";
     }
@@ -278,6 +281,10 @@ export default function LoginScreen() {
     }
     if (!password.trim()) {
       setMessage("Informe sua senha.");
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      setMessage("Configuração local do Supabase ausente. Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY no .env.local e reinicie o servidor.");
       return;
     }
     setMessage("");
