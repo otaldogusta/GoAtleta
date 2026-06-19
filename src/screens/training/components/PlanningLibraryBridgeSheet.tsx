@@ -4,6 +4,7 @@ import { ScrollView, Text, TextInput, useWindowDimensions, View } from "react-na
 
 import type { Exercise } from "../../../core/models";
 import type { TrainingPlanBlockKey } from "../../../core/training-plan-blocks";
+import type { ActivityPatternStage } from "../../../core/volleyball/activity-pattern-engine";
 import { getExercises } from "../../../db/seed";
 import { AnimatedSegmentedTabs } from "../../../ui/AnimatedSegmentedTabs";
 import { ModalDialogFrame } from "../../../ui/ModalDialogFrame";
@@ -41,6 +42,12 @@ const tabs = [
   { id: "catalog", label: "Catálogo GoAtleta" },
   { id: "links", label: "Meus Links" },
 ] satisfies ReadonlyArray<{ id: LibraryTab; label: string }>;
+
+const defaultPhaseByBlock: Record<TrainingPlanBlockKey, ActivityPatternStage> = {
+  warmup: "warmup",
+  main: "drill",
+  cooldown: "cooldown",
+};
 
 const normalize = (value: string) =>
   value
@@ -97,7 +104,12 @@ export function PlanningLibraryBridgeSheet({
       return;
     }
     setActiveTab("catalog");
-  }, [visible]);
+    setFilters({
+      ...EMPTY_CATALOG_FILTERS,
+      recommendedPhase: blockKey ? defaultPhaseByBlock[blockKey] : "",
+    });
+    setLinkQuery("");
+  }, [blockKey, visible]);
 
   useEffect(() => {
     if (!visible || activeTab !== "links") return;
