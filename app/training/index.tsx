@@ -235,11 +235,33 @@ const extractKeywords = (value: string) => {
   ]);
   return value
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9\s-]/g, " ")
     .split(/\s+/)
     .map((token) => token.trim())
     .filter(Boolean)
     .filter((token) => token.length >= 3 && !stopwords.has(token));
+};
+
+const normalizeTagToken = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const compactTagList = (values: string[], limit = 8) => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  values.forEach((value) => {
+    const normalized = normalizeTagToken(value);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    result.push(normalized);
+  });
+  return result.slice(0, limit);
 };
 
 export default function TrainingList() {
@@ -1373,6 +1395,65 @@ export default function TrainingList() {
     return result.slice(0, 8);
   }, [cooldown, currentTags, main, methodologyTranslation, tagCounts, title, warmup]);
 
+  const autoPlanningTags = useMemo(() => {
+    const structuredActivities = planningBlockKeys.flatMap(
+      (blockKey) => planningActivities[blockKey] ?? []
+    );
+    const structuredText = structuredActivities
+      .flatMap((activity) => [
+        activity.name,
+        activity.description,
+        activity.objective,
+        activity.coachFocus,
+        activity.primarySkill,
+        activity.catalog?.source === "goAtletaCatalog" ? "catalogo-goatleta" : "",
+        activity.execution ? "video-link" : "",
+      ])
+      .filter(Boolean)
+      .join(" ");
+    const planText = [title, warmup, main, cooldown, structuredText].join(" ");
+    const keywordCounts = extractKeywords(planText).reduce<Record<string, number>>(
+      (acc, token) => {
+        acc[token] = (acc[token] ?? 0) + 1;
+        return acc;
+      },
+      {}
+    );
+    const topKeywords = Object.entries(keywordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([token]) => token);
+    const activityTags = structuredActivities.flatMap((activity) => [
+      activity.primarySkill ?? "",
+      activity.stage ?? "",
+      activity.catalog?.source === "goAtletaCatalog" ? "catalogo-goatleta" : "",
+      activity.execution ? "video-link" : "",
+    ]);
+    const classTags = [
+      selectedClassForMethodology?.ageBand
+        ? `idade-${selectedClassForMethodology.ageBand}`
+        : "",
+    ];
+    return compactTagList(
+      [
+        ...activityTags,
+        ...(methodologyTranslation?.tags ?? []),
+        ...classTags,
+        ...topKeywords,
+        ...tagsText.split(","),
+      ],
+      8
+    );
+  }, [
+    cooldown,
+    main,
+    methodologyTranslation,
+    planningActivities,
+    selectedClassForMethodology?.ageBand,
+    tagsText,
+    title,
+    warmup,
+  ]);
+
   const templateSuggestions = useMemo(() => {
     const templateText = [
       templateTitle,
@@ -1685,10 +1766,7 @@ export default function TrainingList() {
       origin: editingId ? "edited_auto" : "manual",
       draft: {
         title: title.trim() || "Planejamento sem título",
-        tags: tagsText
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean),
+        tags: autoPlanningTags,
         warmup: syncedLegacyLines.warmup,
         main: syncedLegacyLines.main,
         cooldown: syncedLegacyLines.cooldown,
@@ -1758,10 +1836,7 @@ export default function TrainingList() {
       id: editingTemplateId ?? "tpl_" + Date.now(),
       title: title.trim() || "Modelo sem título",
       ageBand: band,
-      tags: tagsText
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      tags: autoPlanningTags,
       warmup: toLines(warmup),
       main: toLines(main),
       cooldown: toLines(cooldown),
@@ -2403,10 +2478,7 @@ export default function TrainingList() {
       id: "tpl_" + Date.now(),
       title: title.trim() || "Modelo sem título",
       ageBand: band,
-      tags: tagsText
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      tags: autoPlanningTags,
       warmup: toLines(warmup),
       main: toLines(main),
       cooldown: toLines(cooldown),
@@ -2449,7 +2521,6 @@ export default function TrainingList() {
 
   const isFormDirty =
     title.trim() ||
-    tagsText.trim() ||
     warmup.trim() ||
     main.trim() ||
     cooldown.trim() ||
@@ -2460,7 +2531,6 @@ export default function TrainingList() {
 
   const hasFormContent = Boolean(
     title.trim() ||
-      tagsText.trim() ||
       warmup.trim() ||
       main.trim() ||
       cooldown.trim() ||
@@ -2954,20 +3024,48 @@ export default function TrainingList() {
               color: colors.inputText,
             }}
           />
-          <TextInput
-            placeholder="Tags (opcional, separe por virgula)"
-            value={tagsText}
-            onChangeText={setTagsText}
-            placeholderTextColor={colors.placeholder}
+          <View
             style={{
               borderWidth: 1,
               borderColor: colors.border,
-              padding: 10,
               borderRadius: 10,
               backgroundColor: colors.inputBg,
-              color: colors.inputText,
+              padding: 10,
+              gap: 8,
             }}
-          />
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="pricetag-outline" size={15} color={colors.muted} />
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>
+                Tags automáticas
+              </Text>
+            </View>
+            {autoPlanningTags.length ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {autoPlanningTags.map((tag) => (
+                  <View
+                    key={tag}
+                    style={{
+                      paddingHorizontal: 9,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                      {tag}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={{ color: colors.placeholder, fontSize: 13 }}>
+                Preencha a aula para gerar tags automaticamente.
+              </Text>
+            )}
+          </View>
           <View style={planningBlockListStyle}>
             {planningBlockKeys.map((blockKey) => (
               <PlanningBlockActivityCards
