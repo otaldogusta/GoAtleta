@@ -12,6 +12,7 @@ import {
   resolveTrainingPlanBlock,
   type TrainingPlanBlockKey,
 } from "../../../core/training-plan-blocks";
+import { formatTrainingPlanDisplayText } from "../application/training-plan-display-text";
 
 type Props = {
   plan: TrainingPlan;
@@ -20,12 +21,12 @@ type Props = {
 const objectivePrefixPattern = /^objetivo\s+(geral|especifico|específico)\s*:/i;
 
 const cleanObjectiveText = (value: string) =>
-  value.replace(objectivePrefixPattern, "").trim();
+  formatTrainingPlanDisplayText(value.replace(objectivePrefixPattern, "").trim());
 
 const isObjectiveActivity = (value: string) => objectivePrefixPattern.test(value);
 
 const getSimpleActivityDescription = (value: string | undefined) => {
-  const normalized = String(value ?? "").trim();
+  const normalized = formatTrainingPlanDisplayText(value).trim();
   if (!normalized) return "";
   if (normalized.length <= 118) return normalized;
   return `${normalized.slice(0, 115).trim()}...`;
@@ -163,10 +164,12 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
               <View style={{ gap: 6 }}>
                 {activities.map((activity, index) => {
                   const sourceLabel = getTrainingPlanActivitySourceLabel(activity);
+                  const activityName =
+                    formatTrainingPlanDisplayText(activity.name) || "Atividade sem título";
                   const description = getSimpleActivityDescription(activity.description);
                   return (
                     <View
-                      key={`${activity.name}_${index}`}
+                      key={`${activityName}_${index}`}
                       style={{
                         flexDirection: "row",
                         alignItems: "flex-start",
@@ -209,7 +212,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                               fontSize: 14,
                             }}
                           >
-                          {activity.name}
+                          {activityName}
                           </Text>
                           {sourceLabel ? (
                             <View

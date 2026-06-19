@@ -77,6 +77,7 @@ import {
     syncLegacyLinesFromBlocks,
     type PlanningBlockActivities,
 } from "../../src/screens/training/application/planning-library-bridge";
+import { formatTrainingPlanDisplayText } from "../../src/screens/training/application/training-plan-display-text";
 import { useTemplateEditorForm } from "../../src/screens/training/hooks/useTemplateEditorForm";
 import { useTrainingPlanForm } from "../../src/screens/training/hooks/useTrainingPlanForm";
 import type { ActivityCatalogListItem } from "../../src/screens/library/activity-catalog-view-model";
@@ -298,7 +299,7 @@ const getSavedPlanDisplayTitle = (plan: TrainingPlan) => {
     .split("|")
     .map((part) => part.trim())
     .filter(Boolean);
-  return parts.length >= 2 ? parts[parts.length - 1] : plan.title;
+  return formatTrainingPlanDisplayText(parts.length >= 2 ? parts[parts.length - 1] : plan.title);
 };
 
 export default function TrainingList() {
