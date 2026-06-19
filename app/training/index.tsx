@@ -1365,7 +1365,11 @@ export default function TrainingList() {
 
         return (
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Abrir ${displayTitle}`}
+            onPress={() => onView(plan)}
             onLongPress={() => onOpenActions(plan)}
+            delayLongPress={250}
             style={{
               width: savedPlanCardWidth as any,
               gap: 12,
@@ -1447,7 +1451,10 @@ export default function TrainingList() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Aplicar ${displayTitle}`}
-                onPress={() => onApply(plan)}
+                onPress={(event: any) => {
+                  event?.stopPropagation?.();
+                  onApply(plan);
+                }}
                 style={{
                   flex: 1,
                   minHeight: 42,
@@ -1468,7 +1475,10 @@ export default function TrainingList() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Ver ${displayTitle}`}
-                onPress={() => onView(plan)}
+                onPress={(event: any) => {
+                  event?.stopPropagation?.();
+                  onView(plan);
+                }}
                 style={{
                   flex: 1,
                   minHeight: 42,
