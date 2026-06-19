@@ -29,6 +29,9 @@ import {
 
 const ACTIVE_ORG_KEY = "active-org-id";
 
+const isMissingOrganizationsRpc = (status: number, reason: string) =>
+  status === 404 || /not\s*found/i.test(reason);
+
 const createAbortError = () => {
   const error = new Error("Aborted");
   error.name = "AbortError";
@@ -313,6 +316,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       if (!res.ok) {
         const details = await res.text();
         const reason = details?.trim() || `status ${res.status}`;
+        if (isMissingOrganizationsRpc(res.status, reason)) {
+          setOrganizations([]);
+          await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
+          setActiveOrgId(null);
+          hasLoadedOrganizationsRef.current = true;
+          lastFetchErrorAtRef.current = 0;
+          return;
+        }
         throw new Error(`Failed to fetch organizations: ${reason}`);
       }
 
