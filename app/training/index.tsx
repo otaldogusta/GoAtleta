@@ -1332,7 +1332,7 @@ export default function TrainingList() {
     [colors, renameTemplateId, renameTemplateText]
   );
 
-  const savedPlanCardWidth = viewportWidth >= 1120 ? "49%" : "100%";
+  const savedPlanCardWidth = viewportWidth >= 760 ? "49%" : "100%";
 
   const PlanRow = useMemo(
     () =>
@@ -1348,8 +1348,6 @@ export default function TrainingList() {
         onView: (plan: TrainingPlan) => void;
       }) {
         const classItem = classById.get(plan.classId);
-        const counts = getTrainingPlanBlockCounts(plan);
-        const totalActivities = counts.warmup + counts.main + counts.cooldown;
         const displayTitle = getSavedPlanDisplayTitle(plan);
         const scheduleText = [
           classItem?.startTime && classItem?.endTime
@@ -1359,7 +1357,6 @@ export default function TrainingList() {
         ]
           .filter(Boolean)
           .join(" · ");
-        const visibleTags = (plan.tags ?? []).slice(0, 3);
         const appliedText = plan.applyDays?.length
           ? formatWeekdays(plan.applyDays)
           : plan.applyDate
@@ -1377,64 +1374,33 @@ export default function TrainingList() {
               backgroundColor: colors.inputBg,
               borderWidth: 1,
               borderColor: colors.border,
-              minHeight: 208,
+              minHeight: 168,
               justifyContent: "space-between",
             }}
           >
-            <View style={{ gap: 10 }}>
-              <View
+            <View style={{ gap: 8 }}>
+              <Text
                 style={{
-                  flexDirection: "row",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  gap: 10,
+                  color: colors.muted,
+                  fontSize: 12,
+                  fontWeight: "700",
                 }}
+                numberOfLines={1}
               >
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text
-                    style={{
-                      color: colors.muted,
-                      fontSize: 12,
-                      fontWeight: "700",
-                    }}
-                    numberOfLines={1}
-                  >
-                    {classItem?.unit ? `${classItem.unit} · ` : ""}
-                    {getClassName(plan.classId)}
-                  </Text>
-                  <Text
-                    style={{ fontSize: 17, fontWeight: "800", color: colors.text }}
-                    numberOfLines={2}
-                  >
-                    {displayTitle}
-                  </Text>
-                  {scheduleText ? (
-                    <Text style={{ color: colors.secondaryText, fontSize: 12 }} numberOfLines={1}>
-                      {scheduleText}
-                    </Text>
-                  ) : null}
-                </View>
-                <View
-                  style={{
-                    paddingVertical: 5,
-                    paddingHorizontal: 8,
-                    borderRadius: 999,
-                    backgroundColor: "rgba(65, 211, 126, 0.14)",
-                    borderWidth: 1,
-                    borderColor: "rgba(65, 211, 126, 0.24)",
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: colors.primaryBg,
-                      fontSize: 11,
-                      fontWeight: "800",
-                    }}
-                  >
-                    {totalActivities} ativ.
-                  </Text>
-                </View>
-              </View>
+                {classItem?.unit ? `${classItem.unit} · ` : ""}
+                {getClassName(plan.classId)}
+              </Text>
+              <Text
+                style={{ fontSize: 17, fontWeight: "800", color: colors.text }}
+                numberOfLines={2}
+              >
+                {displayTitle}
+              </Text>
+              {scheduleText ? (
+                <Text style={{ color: colors.secondaryText, fontSize: 12 }} numberOfLines={1}>
+                  {scheduleText}
+                </Text>
+              ) : null}
 
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
                 <View
@@ -1445,7 +1411,7 @@ export default function TrainingList() {
                     paddingVertical: 5,
                     paddingHorizontal: 8,
                     borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
+                    backgroundColor: colors.card,
                   }}
                 >
                   <Ionicons name="time-outline" size={13} color={colors.muted} />
@@ -1461,7 +1427,7 @@ export default function TrainingList() {
                     paddingVertical: 5,
                     paddingHorizontal: 8,
                     borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
+                    backgroundColor: colors.card,
                   }}
                 >
                   <Ionicons name="calendar-outline" size={13} color={colors.muted} />
@@ -1469,48 +1435,6 @@ export default function TrainingList() {
                     {appliedText}
                   </Text>
                 </View>
-                {visibleTags.map((tag) => (
-                  <View
-                    key={`${plan.id}-${tag}`}
-                    style={{
-                      paddingVertical: 5,
-                      paddingHorizontal: 8,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <Text style={{ color: colors.secondaryText, fontSize: 11, fontWeight: "700" }}>
-                      {tag}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: 8,
-                  padding: 8,
-                  borderRadius: 12,
-                  backgroundColor: colors.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                {[
-                  ["Aquec.", counts.warmup],
-                  ["Principal", counts.main],
-                  ["Volta", counts.cooldown],
-                ].map(([label, count]) => (
-                  <View key={`${plan.id}-${label}`} style={{ flex: 1, gap: 2 }}>
-                    <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>
-                      {label}
-                    </Text>
-                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
-                      {count as number}
-                    </Text>
-                  </View>
-                ))}
               </View>
             </View>
 
@@ -3710,13 +3634,6 @@ export default function TrainingList() {
                     })}
                   </View>
                 </FadeHorizontalScroll>
-
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {filteredItems.length} de {items.length} planos
-                  {savedPlanClassFilter !== "__all__" || savedPlanSearch.trim()
-                    ? " encontrados"
-                    : " salvos"}
-                </Text>
               </View>
               { groupedSavedPlans.length ? (
                 <View style={{ gap: 16 }}>
@@ -3743,12 +3660,12 @@ export default function TrainingList() {
                         </View>
                         <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
                         <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          {group.items.length} planos
+                          {group.items.length} {group.items.length === 1 ? "plano" : "planos"}
                         </Text>
                       </View>
                       <View
                         style={{
-                          flexDirection: viewportWidth >= 1120 ? "row" : "column",
+                          flexDirection: viewportWidth >= 760 ? "row" : "column",
                           flexWrap: "wrap",
                           gap: 12,
                         }}
