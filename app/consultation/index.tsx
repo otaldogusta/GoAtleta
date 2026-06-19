@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 // perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Animated, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import type {
   AvailableEquipment,
   ConsultationGoal,
@@ -295,6 +297,7 @@ const ConsultationField = ({
 export default function ConsultationScreen() {
   markRender("screen.consultation.render.root");
   const { colors } = useAppTheme();
+  const router = useRouter();
   const modalCardStyle = useModalCardStyle({ maxWidth: 1120, maxHeight: "92%", radius: 18, padding: 18 });
   const [students, setStudents] = useState<Student[]>([]);
   const [pilotStudent, setPilotStudent] = useState<Student | null>(null);
@@ -758,10 +761,17 @@ export default function ConsultationScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 32 }}>
-        <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 26, fontWeight: "900" }}>
-            Consultoria online
-          </Text>
+        <View style={{ gap: 6 }}>
+          <BackTitleHeader
+            title="Consultoria online"
+            onBack={() => {
+              if (router.canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/");
+            }}
+          />
           <Text style={{ color: colors.muted }}>
             Prescrição individual, execução em casa e feedback semanal.
           </Text>
