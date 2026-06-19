@@ -1846,7 +1846,13 @@ export default function TrainingList() {
   );
 
   const savePlan = async () => {
-    if (!classId) return;
+    if (!classId) {
+      showSaveToast({
+        message: "Selecione a turma",
+        variant: "warning",
+      });
+      return;
+    }
     const nowIso = new Date().toISOString();
     const latestVersionPlan = await getLatestTrainingPlanByClass(classId);
     const latestVersion = latestVersionPlan?.version ?? 0;
@@ -2652,6 +2658,21 @@ export default function TrainingList() {
       templateMainTime.trim() ||
       templateCooldownTime.trim()
   );
+  const canSaveCurrentForm = formMode === "template" ? hasTemplateContent : hasFormContent;
+  const saveButtonLabel =
+    formMode === "template"
+      ? "Salvar modelo"
+      : editingId
+        ? "Salvar alterações"
+        : "Salvar planejamento";
+  const handleSavePress = () => {
+    if (formMode === "template") {
+      void saveTemplate();
+      return;
+    }
+
+    void savePlan();
+  };
 
   const scrollToForm = () => {
     setTimeout(() => {
@@ -3131,12 +3152,15 @@ export default function TrainingList() {
             ))}
           </View>
           <Pressable
-            onPress={formMode === "template" ? saveTemplate : savePlan}
-            disabled={!hasFormContent}
+            accessibilityRole="button"
+            accessibilityLabel={saveButtonLabel}
+            accessibilityState={{ disabled: !canSaveCurrentForm }}
+            onPress={handleSavePress}
+            disabled={!canSaveCurrentForm}
             style={{
               paddingVertical: 10,
               borderRadius: 12,
-              backgroundColor: hasFormContent
+              backgroundColor: canSaveCurrentForm
                 ? colors.primaryBg
                 : colors.primaryDisabledBg,
               alignItems: "center",
@@ -3144,15 +3168,11 @@ export default function TrainingList() {
           >
             <Text
               style={{
-                color: hasFormContent ? colors.primaryText : colors.secondaryText,
+                color: canSaveCurrentForm ? colors.primaryText : colors.secondaryText,
                 fontWeight: "700",
               }}
             >
-              {formMode === "template"
-                ? "Salvar modelo"
-                : editingId
-                  ? "Salvar alterações"
-                  : "Salvar planejamento"}
+              {saveButtonLabel}
             </Text>
           </Pressable>
           {editingId ? (
