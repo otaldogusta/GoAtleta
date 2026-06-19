@@ -1339,22 +1339,30 @@ export default function TrainingList() {
     () =>
       memo(function PlanRowItem({
         plan,
+        fullWidth,
         onOpenActions,
         onApply,
         onView,
       }: {
         plan: TrainingPlan;
+        fullWidth?: boolean;
         onOpenActions: (plan: TrainingPlan) => void;
         onApply: (plan: TrainingPlan) => void;
         onView: (plan: TrainingPlan) => void;
       }) {
         const classItem = classById.get(plan.classId);
         const displayTitle = getSavedPlanDisplayTitle(plan);
+        const classLabel = formatTrainingPlanDisplayText(getClassName(plan.classId));
+        const unitLabel = formatTrainingPlanDisplayText(classItem?.unit ?? "");
+        const ageBandText = classItem?.ageBand ?? "";
+        const showAgeBand =
+          Boolean(ageBandText) &&
+          !normalizeSearchValue(classLabel).includes(normalizeSearchValue(ageBandText));
         const scheduleText = [
           classItem?.startTime && classItem?.endTime
             ? `${classItem.startTime}-${classItem.endTime}`
             : "",
-          classItem?.ageBand,
+          showAgeBand ? ageBandText : "",
         ]
           .filter(Boolean)
           .join(" · ");
@@ -1363,18 +1371,23 @@ export default function TrainingList() {
           : plan.applyDate
             ? formatShortDate(plan.applyDate)
             : "Sem data";
+        const blockCounts = getTrainingPlanBlockCounts(plan);
+        const totalActivities = blockCounts.warmup + blockCounts.main + blockCounts.cooldown;
+        const cardWidth = fullWidth ? "100%" : savedPlanCardWidth;
+        const contextLine = [classLabel, scheduleText].filter(Boolean).join(" · ");
+        const dateLine = appliedText && appliedText !== "Sem data" ? appliedText : "";
 
         return (
           <View
             style={{
-              width: savedPlanCardWidth as any,
+              width: cardWidth as any,
               gap: 12,
               padding: 14,
               borderRadius: 14,
               backgroundColor: colors.inputBg,
               borderWidth: 1,
               borderColor: colors.border,
-              minHeight: 168,
+              minHeight: 154,
               justifyContent: "space-between",
             }}
           >
@@ -1384,62 +1397,69 @@ export default function TrainingList() {
               onPress={() => onView(plan)}
               onLongPress={() => onOpenActions(plan)}
               delayLongPress={250}
-              style={{ gap: 8 }}
+              style={{ gap: 9 }}
             >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text
+                  style={{
+                    flex: 1,
+                    color: colors.muted,
+                    fontSize: 11,
+                    fontWeight: "700",
+                  }}
+                  numberOfLines={1}
+                >
+                  {unitLabel || "Plano salvo"}
+                </Text>
+                {totalActivities ? (
+                  <View
+                    style={{
+                      paddingVertical: 5,
+                      paddingHorizontal: 9,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>
+                      {totalActivities} {totalActivities === 1 ? "ativ." : "ativ."}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
               <Text
-                style={{
-                  color: colors.muted,
-                  fontSize: 12,
-                  fontWeight: "700",
-                }}
-                numberOfLines={1}
-              >
-                {classItem?.unit ? `${classItem.unit} · ` : ""}
-                {getClassName(plan.classId)}
-              </Text>
-              <Text
-                style={{ fontSize: 17, fontWeight: "800", color: colors.text }}
+                style={{ fontSize: 18, fontWeight: "800", color: colors.text }}
                 numberOfLines={2}
               >
                 {displayTitle}
               </Text>
-              {scheduleText ? (
+              {contextLine ? (
                 <Text style={{ color: colors.secondaryText, fontSize: 12 }} numberOfLines={1}>
-                  {scheduleText}
+                  {contextLine}
                 </Text>
               ) : null}
 
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 5,
-                    paddingVertical: 5,
-                    paddingHorizontal: 8,
-                    borderRadius: 999,
-                    backgroundColor: colors.card,
-                  }}
-                >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                {dateLine ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                    <Ionicons name="calendar-outline" size={13} color={colors.muted} />
+                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                      {dateLine}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                   <Ionicons name="time-outline" size={13} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                     Criado {formatDate(plan.createdAt)}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 5,
-                    paddingVertical: 5,
-                    paddingHorizontal: 8,
-                    borderRadius: 999,
-                    backgroundColor: colors.card,
-                  }}
-                >
-                  <Ionicons name="calendar-outline" size={13} color={colors.muted} />
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                    {appliedText}
                   </Text>
                 </View>
               </View>
@@ -3701,6 +3721,7 @@ export default function TrainingList() {
                           <PlanRow
                             key={plan.id}
                             plan={plan}
+                            fullWidth={group.items.length === 1}
                             onOpenActions={handleOpenPlanActions}
                             onApply={handleApplyPlan}
                             onView={handleViewPlan}
