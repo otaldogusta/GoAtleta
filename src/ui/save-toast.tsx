@@ -38,8 +38,10 @@ export function SaveToastProvider({
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<SaveToastOptions | null>(null);
   const anim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const progressAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const hideToast = useCallback(() => {
     if (timerRef.current) {
@@ -47,6 +49,7 @@ export function SaveToastProvider({
       timerRef.current = null;
     }
     animationRef.current?.stop();
+    progressAnimationRef.current?.stop();
     const exitAnimation = Animated.timing(anim, {
       toValue: 0,
       duration: 180,
@@ -71,24 +74,34 @@ export function SaveToastProvider({
       const message = normalized.error
         ? getFriendlyErrorMessage(normalized.error)
         : normalized.message ?? "Concluído.";
+      const duration = normalized.durationMs ?? 5000;
       setToast({ ...normalized, message, variant });
       anim.setValue(0);
+      progressAnim.setValue(1);
       const enterAnimation = Animated.timing(anim, {
         toValue: 1,
         duration: 200,
         useNativeDriver: true,
       });
+      const progressAnimation = Animated.timing(progressAnim, {
+        toValue: 0,
+        duration,
+        useNativeDriver: false,
+      });
       animationRef.current = enterAnimation;
       enterAnimation.start(() => {
         animationRef.current = null;
       });
-      const duration = normalized.durationMs ?? 2800;
+      progressAnimationRef.current = progressAnimation;
+      progressAnimation.start(() => {
+        progressAnimationRef.current = null;
+      });
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
         hideToast();
       }, duration);
     },
-    [anim, hideToast]
+    [anim, hideToast, progressAnim]
   );
 
   useEffect(() => {
@@ -97,36 +110,27 @@ export function SaveToastProvider({
       timerRef.current = null;
       animationRef.current?.stop();
       animationRef.current = null;
+      progressAnimationRef.current?.stop();
+      progressAnimationRef.current = null;
     };
   }, []);
 
   const value = useMemo(() => ({ showSaveToast }), [showSaveToast]);
 
   const variant = toast?.variant ?? "info";
+  const accentColor =
+    variant === "success"
+      ? "#3DDC84"
+      : variant === "warning"
+      ? "#F2A03D"
+      : variant === "error"
+      ? "#F87171"
+      : "#93C5FD";
   const backgroundColor =
-    variant === "success"
-      ? colors.successBg
-      : variant === "warning"
-      ? colors.warningBg
-      : variant === "error"
-      ? colors.dangerBg
-      : colors.card;
-  const borderColor =
-    variant === "success"
-      ? colors.successBg
-      : variant === "warning"
-      ? colors.warningBg
-      : variant === "error"
-      ? colors.dangerBorder
-      : colors.border;
-  const textColor =
-    variant === "success"
-      ? colors.successText
-      : variant === "warning"
-      ? colors.warningText
-      : variant === "error"
-      ? colors.dangerText
-      : colors.text;
+    Platform.OS === "web" ? "rgba(10, 18, 32, 0.88)" : "rgba(10, 18, 32, 0.96)";
+  const borderColor = "rgba(226, 232, 240, 0.14)";
+  const textColor = "#F8FAFC";
+  const mutedTextColor = "rgba(248, 250, 252, 0.72)";
   const iconSymbol =
     variant === "success"
       ? "✓"
@@ -135,7 +139,7 @@ export function SaveToastProvider({
       : variant === "error"
       ? "✕"
       : "i";
-  const toastTop = Math.max(16, insets.top + 12);
+  const toastTop = Math.max(24, insets.top + 12);
 
   const toastContent = toast ? (
     <Animated.View
@@ -161,28 +165,69 @@ export function SaveToastProvider({
       <Pressable
         onPress={hideToast}
         style={{
-          width: "100%",
-          maxWidth: 460,
-          paddingVertical: 10,
-          paddingHorizontal: 12,
-          borderRadius: 12,
+          ...(Platform.OS === "web"
+            ? ({
+                width: "min(480px, calc(100vw - 32px))",
+                backdropFilter: "blur(18px) saturate(135%)",
+                WebkitBackdropFilter: "blur(18px) saturate(135%)",
+              } as unknown as ViewStyle)
+            : ({ width: "92%", maxWidth: 480 } as ViewStyle)),
+          overflow: "hidden",
+          paddingTop: 12,
+          paddingBottom: 14,
+          paddingHorizontal: 14,
+          borderRadius: 14,
           backgroundColor,
           borderWidth: 1,
           borderColor,
           shadowColor: "#000",
-          shadowOpacity: 0.12,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 4,
+          shadowOpacity: 0.2,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 8,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 12,
         }}
       >
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 1,
+            backgroundColor: "rgba(255,255,255,0.26)",
+          }}
+        />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          <Text style={{ color: textColor, fontWeight: "800", fontSize: 14 }}>{iconSymbol}</Text>
-          <Text style={{ color: textColor, fontWeight: "600", flex: 1, fontSize: 14 }}>
+          <View
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 999,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(255,255,255,0.08)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.10)",
+            }}
+          >
+            <Text style={{ color: accentColor, fontWeight: "900", fontSize: 13 }}>
+              {iconSymbol}
+            </Text>
+          </View>
+          <Text
+            style={{
+              color: textColor,
+              fontWeight: "800",
+              flex: 1,
+              fontSize: 14,
+              lineHeight: 19,
+            }}
+          >
             {toast.message}
           </Text>
         </View>
@@ -196,14 +241,41 @@ export function SaveToastProvider({
               paddingHorizontal: 10,
               paddingVertical: 6,
               borderRadius: 999,
-              backgroundColor: colors.primaryBg,
+              backgroundColor: "rgba(255,255,255,0.12)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.18)",
             }}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+            <Text style={{ color: mutedTextColor, fontWeight: "800", fontSize: 12 }}>
               {toast.actionLabel}
             </Text>
           </Pressable>
         ) : null}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 12,
+            right: 12,
+            bottom: 7,
+            height: 3,
+            borderRadius: 999,
+            backgroundColor: "rgba(255,255,255,0.08)",
+            overflow: "hidden",
+          }}
+        >
+          <Animated.View
+            style={{
+              height: "100%",
+              width: progressAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["0%", "100%"],
+              }) as unknown as ViewStyle["width"],
+              borderRadius: 999,
+              backgroundColor: accentColor,
+            }}
+          />
+        </View>
       </Pressable>
     </Animated.View>
   ) : null;

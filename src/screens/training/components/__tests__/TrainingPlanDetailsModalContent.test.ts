@@ -64,7 +64,6 @@ describe("TrainingPlanDetailsModalContent", () => {
       renderer = TestRenderer.create(
         React.createElement(TrainingPlanDetailsModalContent, {
           plan,
-          getClassName: () => "Turma Sub-13",
         })
       );
     });
@@ -77,5 +76,42 @@ describe("TrainingPlanDetailsModalContent", () => {
     expect(text).not.toContain("Aquecimento legado");
     expect(text).not.toContain("goAtletaCatalog");
     expect(text).not.toContain("variantId");
+  });
+
+  it("normalizes imported text accents in the visible plan detail", async () => {
+    const plan: TrainingPlan = {
+      id: "plan_legacy",
+      classId: "class_1",
+      title: "Plano legado",
+      tags: [],
+      warmup: [],
+      main: [
+        "Objetivo geral: Desenvolver coordenacao motora com adaptacoes.",
+        "Lancar + palmas",
+      ],
+      cooldown: [],
+      warmupTime: "10",
+      mainTime: "40",
+      cooldownTime: "10",
+      createdAt: "2026-06-15T00:00:00.000Z",
+    };
+
+    let renderer: TestRenderer.ReactTestRenderer | null = null;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        React.createElement(TrainingPlanDetailsModalContent, {
+          plan,
+        })
+      );
+    });
+
+    const text = collectRenderedText(renderer!);
+
+    expect(text).toContain("coordenação");
+    expect(text).toContain("adaptações");
+    expect(text).toContain("Lançar + palmas");
+    expect(text).not.toContain("coordenacao");
+    expect(text).not.toContain("adaptacoes");
+    expect(text).not.toContain("Lancar");
   });
 });

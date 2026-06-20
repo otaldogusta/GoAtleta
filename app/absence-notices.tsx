@@ -14,6 +14,7 @@ import {
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { markRender, measureAsync } from "../src/observability/perf";
 
 const formatDate = (value: string) => {
   const parsed = new Date(value + "T00:00:00");
@@ -25,27 +26,52 @@ export default function AbsenceNoticesScreen() {
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
   const router = useRouter();
+  markRender("screen.absenceNotices.render.root");
   const [notices, setNotices] = useState<AbsenceNotice[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadAbsenceNotices = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const [noticeList, studentList, classList] = await measureAsync(
+        "screen.absenceNotices.load.initial",
+        () =>
+          Promise.all([
+            getAbsenceNotices(),
+            getStudents({ organizationId: activeOrganization?.id }),
+            getClasses({ organizationId: activeOrganization?.id }),
+          ]),
+        { hasOrganization: activeOrganization?.id ? 1 : 0 }
+      );
+      setNotices(noticeList);
+      setStudents(studentList);
+      setClasses(classList);
+    } catch {
+      setNotices([]);
+      setStudents([]);
+      setClasses([]);
+      setLoadError(
+        "Não foi possível carregar os avisos agora. Verifique sua sessão e tente novamente."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeOrganization?.id]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [noticeList, studentList, classList] = await Promise.all([
-        getAbsenceNotices(),
-        getStudents({ organizationId: activeOrganization?.id }),
-        getClasses({ organizationId: activeOrganization?.id }),
-      ]);
+      await loadAbsenceNotices();
       if (!alive) return;
-      setNotices(noticeList);
-      setStudents(studentList);
-      setClasses(classList);
     })();
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id]);
+  }, [loadAbsenceNotices]);
 
   const pending = useMemo(
     () => notices.filter((item) => item.status === "pending"),
@@ -104,7 +130,37 @@ export default function AbsenceNoticesScreen() {
           </Pressable>
         </View>
 
-        {pending.length === 0 ? (
+        {loadError ? (
+          <View
+            style={{
+              padding: 16,
+              borderRadius: 16,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              gap: 10,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              Avisos indisponíveis
+            </Text>
+            <Text style={{ color: colors.muted }}>{loadError}</Text>
+            <Pressable
+              onPress={loadAbsenceNotices}
+              style={{
+                alignSelf: "flex-start",
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 10,
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                Tentar novamente
+              </Text>
+            </Pressable>
+          </View>
+        ) : pending.length === 0 ? (
           <View
             style={{
               padding: 16,
@@ -115,7 +171,7 @@ export default function AbsenceNoticesScreen() {
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Nenhum aviso pendente
+              {isLoading ? "Carregando avisos..." : "Nenhum aviso pendente"}
             </Text>
             <Text style={{ color: colors.muted, marginTop: 6 }}>
               Avisos de ausência vão aparecer aqui.

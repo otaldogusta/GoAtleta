@@ -44,8 +44,10 @@ describe("PlanningBlockActivityCards", () => {
     };
     const onAdd = jest.fn();
     const onView = jest.fn();
-    const onEditText = jest.fn();
     const onRemove = jest.fn();
+    const onManualTextChange = jest.fn();
+    const onManualLineRemove = jest.fn();
+    const onDurationChange = jest.fn();
 
     let renderer: TestRenderer.ReactTestRenderer | null = null;
     act(() => {
@@ -53,10 +55,16 @@ describe("PlanningBlockActivityCards", () => {
         React.createElement(PlanningBlockActivityCards, {
           blockKey: "warmup",
           activities: [activity],
+          manualText: "Jogo de entrada",
+          duration: "10:00",
+          durationPlaceholder: "10:00",
+          durationFormat: "duration",
           onAdd,
           onView,
-          onEditText,
           onRemove,
+          onManualTextChange,
+          onManualLineRemove,
+          onDurationChange,
         })
       );
     });
@@ -65,32 +73,55 @@ describe("PlanningBlockActivityCards", () => {
     expect(text).toContain("Aquecimento");
     expect(text).toContain("Caça da bola jogável");
     expect(text).toContain("Catálogo GoAtleta");
-    expect(text).toContain("Adicionar atividade");
-    expect(text).toContain("Ver");
-    expect(text).toContain("Editar texto");
-    expect(text).toContain("Remover");
+    expect(text).toContain("play-circle-outline");
+    expect(text).toContain("eye-outline");
+    expect(text).toContain("trash-outline");
+
+    act(() => {
+      renderer!.root.findByProps({ testID: "planning-add-activity-warmup" }).props.onPress();
+    });
+    expect(onAdd).toHaveBeenCalledWith("warmup");
+
+    act(() => {
+      renderer!.root.findByProps({ testID: "planning-view-warmup-0" }).props.onPress();
+    });
+    expect(onView).toHaveBeenCalledWith("warmup", 0);
 
     act(() => {
       renderer!.root.findByProps({ testID: "planning-remove-warmup-0" }).props.onPress();
     });
     expect(onRemove).toHaveBeenCalledWith("warmup", 0);
+
+    act(() => {
+      renderer!.root.findByProps({ testID: "planning-manual-text-warmup-0" }).props.onChangeText("Novo texto");
+    });
+    expect(onManualTextChange).toHaveBeenCalledWith("Novo texto");
   });
 
-  it("renders block empty state", () => {
+  it("renders compact block empty state", () => {
     let renderer: TestRenderer.ReactTestRenderer | null = null;
     act(() => {
       renderer = TestRenderer.create(
         React.createElement(PlanningBlockActivityCards, {
           blockKey: "cooldown",
           activities: [],
+          manualText: "",
+          duration: "",
+          durationPlaceholder: "05:00",
+          durationFormat: "duration",
           onAdd: jest.fn(),
           onView: jest.fn(),
-          onEditText: jest.fn(),
           onRemove: jest.fn(),
+          onManualTextChange: jest.fn(),
+          onManualLineRemove: jest.fn(),
+          onDurationChange: jest.fn(),
         })
       );
     });
 
-    expect(collectRenderedText(renderer!)).toContain("Nenhuma atividade adicionada neste bloco.");
+    const text = collectRenderedText(renderer!);
+    expect(text).toContain("Volta à calma");
+    expect(text).toContain("Adicionar atividade");
+    expect(text).not.toContain("Sem atividades");
   });
 });

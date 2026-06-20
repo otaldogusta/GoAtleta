@@ -58,6 +58,7 @@ supabase/.temp/
 # Local preview artifacts
 tmp/
 .codex-artifacts/
+.codex-expo-*.log
 tmp-*.log
 scripts/preview-roster.ts
 tmp-*-check.ts

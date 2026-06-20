@@ -9,11 +9,20 @@ type Props = {
   item: ActivityCatalogListItem;
   badge: string;
   size?: "card" | "detail";
+  footerLabel?: string;
+  detailHeight?: number;
 };
 
-export function ActivityCatalogThumbnail({ item, badge, size = "card" }: Props) {
+export function ActivityCatalogThumbnail({
+  item,
+  badge,
+  size = "card",
+  footerLabel,
+  detailHeight,
+}: Props) {
   const { colors } = useAppTheme();
   const isDetail = size === "detail";
+  const resolvedFooterLabel = footerLabel ?? item.familyLabel;
   return (
     <ImageBackground
       testID="activity-catalog-thumbnail"
@@ -27,7 +36,7 @@ export function ActivityCatalogThumbnail({ item, badge, size = "card" }: Props) 
           overflow: "hidden",
           backgroundColor: colors.secondaryBg,
         },
-        isDetail ? { height: 240 } : { aspectRatio: 16 / 9 },
+        isDetail ? { height: detailHeight ?? 240 } : { aspectRatio: 16 / 9 },
       ]}
     >
       <View
@@ -41,13 +50,24 @@ export function ActivityCatalogThumbnail({ item, badge, size = "card" }: Props) 
         <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
           <View
             style={{
+              minHeight: 30,
               paddingHorizontal: 9,
-              paddingVertical: 5,
               borderRadius: 999,
+              alignItems: "center",
+              justifyContent: "center",
               backgroundColor: "rgba(5, 12, 25, 0.68)",
             }}
           >
-            <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: "#FFFFFF",
+                fontSize: 12,
+                fontWeight: "800",
+                lineHeight: 14,
+                textAlign: "center",
+              }}
+            >
               {badge}
             </Text>
           </View>
@@ -69,7 +89,7 @@ export function ActivityCatalogThumbnail({ item, badge, size = "card" }: Props) 
             numberOfLines={1}
             style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "800" }}
           >
-            {item.familyLabel}
+            {resolvedFooterLabel}
           </Text>
         )}
       </View>

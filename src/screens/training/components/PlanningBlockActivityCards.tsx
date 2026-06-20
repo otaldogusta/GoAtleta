@@ -1,20 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Text, View } from "react-native";
+import { Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import type { TrainingPlanActivity } from "../../../core/models";
 import { getTrainingPlanActivitySourceLabel } from "../../../core/training-plan-activity-source";
 import type { TrainingPlanBlockKey } from "../../../core/training-plan-blocks";
 import { Pressable } from "../../../ui/Pressable";
+import { TimeInput } from "../../../ui/TimeInput";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getPlanningBlockLabel } from "../application/planning-library-bridge";
 
 type Props = {
   blockKey: TrainingPlanBlockKey;
   activities: TrainingPlanActivity[];
+  manualText: string;
+  duration: string;
+  durationPlaceholder: string;
+  durationFormat: "duration" | "clock";
   onAdd: (blockKey: TrainingPlanBlockKey) => void;
-  onView: (activity: TrainingPlanActivity) => void;
-  onEditText: (blockKey: TrainingPlanBlockKey) => void;
+  onView: (blockKey: TrainingPlanBlockKey, index: number) => void;
   onRemove: (blockKey: TrainingPlanBlockKey, index: number) => void;
+  onManualTextChange: (value: string) => void;
+  onManualLineRemove: (blockKey: TrainingPlanBlockKey, index: number) => void;
+  onDurationChange: (value: string) => void;
 };
 
 const getActivityBadge = (activity: TrainingPlanActivity) =>
@@ -23,84 +30,226 @@ const getActivityBadge = (activity: TrainingPlanActivity) =>
 export function PlanningBlockActivityCards({
   blockKey,
   activities,
+  manualText,
+  duration,
+  durationPlaceholder,
+  durationFormat,
   onAdd,
   onView,
-  onEditText,
   onRemove,
+  onManualTextChange,
+  onManualLineRemove,
+  onDurationChange,
 }: Props) {
   const { colors } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const compact = width < 720;
+  const manualLines = manualText.length ? manualText.split("\n") : [""];
+  const canRemoveManualLine = manualLines.length > 1;
+
+  const updateManualLine = (index: number, value: string) => {
+    const nextLines = [...manualLines];
+    nextLines[index] = value;
+    onManualTextChange(nextLines.join("\n"));
+  };
+
+  const addManualLine = () => {
+    onManualTextChange([...manualLines, ""].join("\n"));
+  };
+
   return (
     <View
       testID={`planning-block-${blockKey}`}
       style={{
         gap: 10,
-        padding: 12,
+        padding: compact ? 12 : 14,
         borderRadius: 16,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <View style={{ flex: 1 }}>
+      <View
+        style={{
+          flexDirection: compact ? "column" : "row",
+          alignItems: compact ? "stretch" : "center",
+          gap: compact ? 8 : 10,
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            minWidth: 0,
+            flexDirection: compact ? "row" : "column",
+            alignItems: compact ? "center" : "flex-start",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
             {getPlanningBlockLabel(blockKey)}
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-            {activities.length} atividades estruturadas
-          </Text>
+          {compact ? (
+            <AddActivityButton blockKey={blockKey} onAdd={onAdd} />
+          ) : null}
         </View>
-        <Pressable
-          testID={`planning-add-activity-${blockKey}`}
-          onPress={() => onAdd(blockKey)}
+        <View
           style={{
-            minHeight: 38,
-            borderRadius: 12,
-            paddingHorizontal: 12,
-            alignItems: "center",
-            justifyContent: "center",
+            width: compact ? "100%" : 104,
             flexDirection: "row",
+            alignItems: "center",
             gap: 6,
-            backgroundColor: colors.primaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 12,
+            backgroundColor: colors.inputBg,
+            paddingLeft: 9,
+            minHeight: 46,
           }}
         >
-          <Ionicons name="add" size={18} color={colors.primaryText} />
-          <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "900" }}>
+          <Ionicons name="time-outline" size={15} color={colors.muted} />
+          <TimeInput
+            testID={`planning-duration-${blockKey}`}
+            placeholder={durationPlaceholder}
+            value={duration}
+            onChangeText={onDurationChange}
+            format={durationFormat}
+            style={{
+              flex: 1,
+              minHeight: 44,
+              borderWidth: 0,
+              paddingHorizontal: 0,
+              paddingVertical: 8,
+              backgroundColor: "transparent",
+            }}
+          />
+        </View>
+        {compact ? null : (
+          <AddActivityButton blockKey={blockKey} onAdd={onAdd} />
+        )}
+      </View>
+
+      <View style={{ gap: 8 }}>
+        {manualLines.map((line, index) => (
+          <View
+            key={`${blockKey}-manual-${index}`}
+            style={{
+              flexDirection: "row",
+              alignItems: "stretch",
+              gap: 8,
+            }}
+          >
+            <View
+              style={{
+                flex: 1,
+                minWidth: 0,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                backgroundColor: colors.inputBg,
+                paddingHorizontal: 12,
+                minHeight: 58,
+              }}
+            >
+              <TextInput
+                testID={`planning-manual-text-${blockKey}-${index}`}
+                placeholder="Descreva a atividade..."
+                value={line}
+                onChangeText={(value) => updateManualLine(index, value)}
+                multiline
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  flex: 1,
+                  minHeight: 56,
+                  paddingVertical: 12,
+                  color: colors.inputText,
+                  fontSize: 14,
+                  textAlignVertical: "top",
+                }}
+              />
+            </View>
+            {canRemoveManualLine ? (
+              <Pressable
+                testID={`planning-remove-manual-${blockKey}-${index}`}
+                accessibilityRole="button"
+                accessibilityLabel="Remover atividade manual"
+                onPress={() => onManualLineRemove(blockKey, index)}
+                style={{
+                  width: 42,
+                  minHeight: 58,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Ionicons name="trash-outline" size={18} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
+        ))}
+        <Pressable
+          testID={`planning-add-manual-${blockKey}`}
+          accessibilityRole="button"
+          accessibilityLabel={`Adicionar atividade manual em ${getPlanningBlockLabel(blockKey)}`}
+          onPress={addManualLine}
+          style={{
+            alignSelf: "flex-start",
+            minHeight: 32,
+            borderRadius: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Ionicons name="add" size={18} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
             Adicionar atividade
           </Text>
         </Pressable>
       </View>
 
       {activities.length ? (
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: 0 }}>
           {activities.map((activity, index) => (
             <View
               key={`${activity.catalog?.variantId ?? activity.name}-${index}`}
               testID={`planning-activity-card-${blockKey}`}
               style={{
-                gap: 8,
-                padding: 12,
-                borderRadius: 14,
-                borderWidth: 1,
+                gap: 7,
+                paddingTop: 10,
+                paddingBottom: index === activities.length - 1 ? 0 : 10,
+                borderTopWidth: 1,
                 borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
               }}
             >
-              <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+              <View
+                style={{
+                  flexDirection: compact ? "column" : "row",
+                  gap: 8,
+                  alignItems: compact ? "stretch" : "flex-start",
+                }}
+              >
                 <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
+                  <Text
+                    numberOfLines={2}
+                    style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}
+                  >
                     {activity.name || "Atividade sem título"}
                   </Text>
                   {activity.description ? (
-                    <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12 }}>
+                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
                       {activity.description}
                     </Text>
                   ) : null}
                 </View>
                 <View
                   style={{
-                    paddingHorizontal: 9,
-                    paddingVertical: 5,
+                    alignSelf: compact ? "flex-start" : "auto",
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
                     borderRadius: 999,
                     backgroundColor: activity.catalog ? colors.successBg : colors.infoBg,
                   }}
@@ -108,7 +257,7 @@ export function PlanningBlockActivityCards({
                   <Text
                     style={{
                       color: activity.catalog ? colors.successText : colors.infoText,
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: "900",
                     }}
                   >
@@ -116,15 +265,15 @@ export function PlanningBlockActivityCards({
                   </Text>
                 </View>
               </View>
-              {activity.coachFocus ? (
-                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>
-                  {activity.coachFocus}
-                </Text>
-              ) : null}
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                <ActionButton label="Ver" testID={`planning-view-${blockKey}-${index}`} onPress={() => onView(activity)} />
-                <ActionButton label="Editar texto" testID={`planning-edit-text-${blockKey}-${index}`} onPress={() => onEditText(blockKey)} />
                 <ActionButton
+                  icon="eye-outline"
+                  label="Ver"
+                  testID={`planning-view-${blockKey}-${index}`}
+                  onPress={() => onView(blockKey, index)}
+                />
+                <ActionButton
+                  icon="trash-outline"
                   label="Remover"
                   danger
                   testID={`planning-remove-${blockKey}-${index}`}
@@ -134,24 +283,47 @@ export function PlanningBlockActivityCards({
             </View>
           ))}
         </View>
-      ) : (
-        <Text
-          testID={`planning-empty-${blockKey}`}
-          style={{ color: colors.muted, fontSize: 13, fontWeight: "700" }}
-        >
-          Nenhuma atividade adicionada neste bloco.
-        </Text>
-      )}
+      ) : null}
     </View>
   );
 }
 
+function AddActivityButton({
+  blockKey,
+  onAdd,
+}: {
+  blockKey: TrainingPlanBlockKey;
+  onAdd: (blockKey: TrainingPlanBlockKey) => void;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      testID={`planning-add-activity-${blockKey}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Adicionar da biblioteca ou vídeo em ${getPlanningBlockLabel(blockKey)}`}
+      onPress={() => onAdd(blockKey)}
+      style={{
+        width: 46,
+        height: 46,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: colors.primaryBg,
+      }}
+    >
+      <Ionicons name="play-circle-outline" size={22} color={colors.primaryText} />
+    </Pressable>
+  );
+}
+
 function ActionButton({
+  icon,
   label,
   testID,
   danger,
   onPress,
 }: {
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   testID: string;
   danger?: boolean;
@@ -161,11 +333,13 @@ function ActionButton({
   return (
     <Pressable
       testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
       style={{
-        minHeight: 32,
+        width: 32,
+        height: 32,
         borderRadius: 10,
-        paddingHorizontal: 10,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: danger ? colors.dangerBg : colors.card,
@@ -173,15 +347,11 @@ function ActionButton({
         borderColor: danger ? colors.dangerBorder : colors.border,
       }}
     >
-      <Text
-        style={{
-          color: danger ? colors.dangerText : colors.text,
-          fontSize: 12,
-          fontWeight: "900",
-        }}
-      >
-        {label}
-      </Text>
+      <Ionicons
+        name={icon}
+        size={16}
+        color={danger ? colors.dangerText : colors.text}
+      />
     </Pressable>
   );
 }

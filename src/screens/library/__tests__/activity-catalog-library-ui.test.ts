@@ -314,18 +314,30 @@ describe("activity catalog library ui", () => {
 
     const detailText = collectRenderedText(root);
     expect(root.findAllByProps({ testID: "activity-catalog-thumbnail" }).length).toBeGreaterThan(0);
-    expect(detailText).toContain("Objetivo");
-    expect(detailText).toContain("Como aplicar");
-    expect(detailText).toContain("Funcionamento");
-    expect(detailText).toContain("Progressão");
-    expect(detailText).toContain("Cuidados");
+    expect(detailText).toContain("Descrição");
+    expect(detailText).toContain(ACTIVITY_CATALOG_FAMILIES[0].purpose);
+    expect(detailText).toContain("Orientações da atividade");
     expect(detailText).toContain("Adicionar à aula");
     expect(detailText).toContain("Detalhes técnicos");
+    expect(detailText).not.toContain("Como aplicar");
+    expect(detailText).not.toContain("Funcionamento");
+    expect(detailText).not.toContain("Progressão");
+    expect(detailText).not.toContain("Cuidados");
     expect(detailText).not.toContain("Demanda cognitiva");
     expect(detailText).not.toContain("Periodização");
     expect(detailText).not.toContain("raw score");
     expect(detailText).not.toContain("decisionTrace");
     expect(detailText).not.toContain("sourcePatternId");
+
+    act(() => {
+      root.findByProps({ testID: "activity-catalog-toggle-guidance" }).props.onPress();
+    });
+
+    const expandedDetailText = collectRenderedText(root);
+    expect(expandedDetailText).toContain("Como aplicar");
+    expect(expandedDetailText).toContain("Funcionamento");
+    expect(expandedDetailText).toContain("Progressão");
+    expect(expandedDetailText).toContain("Cuidados");
   });
 
   it("adds an activity to a selected lesson only after explicit confirmation", async () => {

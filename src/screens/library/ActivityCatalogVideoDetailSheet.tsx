@@ -40,9 +40,11 @@ export function ActivityCatalogVideoDetailSheet({
 }: Props) {
   const { colors } = useAppTheme();
   const dimensions = useWindowDimensions();
+  const [showGuidance, setShowGuidance] = useState(false);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
   useEffect(() => {
+    setShowGuidance(false);
     setShowTechnicalDetails(false);
   }, [item?.id]);
 
@@ -50,8 +52,12 @@ export function ActivityCatalogVideoDetailSheet({
 
   const { variant } = item;
   const taxonomy = variant.taxonomy;
-  const chips = getActivityCatalogCardChips(item);
-  const modalHeight = Math.min(dimensions.height * 0.9, 760);
+  const chips = getActivityCatalogCardChips(item).slice(0, 2);
+  const modalHeight = Math.min(dimensions.height * 0.92, 820);
+  const heroHeight = Math.min(360, Math.max(270, dimensions.height * 0.42));
+  const guidanceSections = getCatalogActivityDetailSections(item).filter(
+    (section) => section.title !== "Objetivo"
+  );
   const technicalRows = [
     ["Fundamento", skillLabels[taxonomy.skill]],
     ["Fase do jogo", gamePhaseLabels[taxonomy.gamePhase]],
@@ -85,7 +91,7 @@ export function ActivityCatalogVideoDetailSheet({
       subtitle={getCatalogActivityShortFamilyLabel(item)}
       position="center"
       cardStyle={{ width: "100%", maxWidth: 760, height: modalHeight }}
-      contentContainerStyle={{ gap: 16, paddingBottom: 20, paddingTop: 14 }}
+      contentContainerStyle={{ gap: 14, paddingBottom: 18, paddingTop: 12 }}
       footer={
         <Pressable
           testID="activity-catalog-use-in-plan"
@@ -108,15 +114,11 @@ export function ActivityCatalogVideoDetailSheet({
         item={item}
         badge={getCatalogActivityPrimaryBadge(item)}
         size="detail"
+        footerLabel={variant.name}
+        detailHeight={heroHeight}
       />
 
-      <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.text, fontSize: 24, fontWeight: "900" }}>
-          {variant.name}
-        </Text>
-        <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "800" }}>
-          {getCatalogActivityShortFamilyLabel(item)}
-        </Text>
+      <View style={{ gap: 10 }}>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {chips.map((chip) => (
             <View
@@ -135,23 +137,53 @@ export function ActivityCatalogVideoDetailSheet({
             </View>
           ))}
         </View>
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
+            Descrição
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22 }}>
+            {item.purpose}
+          </Text>
+        </View>
       </View>
 
-      {getCatalogActivityDetailSections(item).map((section) => (
-        <View key={section.title} style={{ gap: 7 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
-            {section.title}
+      <View style={{ gap: 8 }}>
+        <Pressable
+          testID="activity-catalog-toggle-guidance"
+          onPress={() => setShowGuidance((current) => !current)}
+          style={{
+            minHeight: 42,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: colors.secondaryBg,
+          }}
+        >
+          <Text style={{ color: colors.secondaryText, fontWeight: "900" }}>
+            Orientações da atividade
           </Text>
-          {section.lines.map((line) => (
-            <Text
-              key={line}
-              style={{ color: colors.text, fontSize: 14, lineHeight: 20 }}
-            >
-              {line}
-            </Text>
-          ))}
-        </View>
-      ))}
+        </Pressable>
+        {showGuidance ? (
+          <View testID="activity-catalog-guidance-details" style={{ gap: 12 }}>
+            {guidanceSections.map((section) => (
+              <View key={section.title} style={{ gap: 7 }}>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
+                  {section.title}
+                </Text>
+                {section.lines.map((line) => (
+                  <Text
+                    key={line}
+                    style={{ color: colors.text, fontSize: 14, lineHeight: 20 }}
+                  >
+                    {line}
+                  </Text>
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
 
       <View style={{ gap: 8 }}>
         <Pressable
