@@ -1174,10 +1174,6 @@ export function HomeProfessorScreen({
 
   }, [agendaCardGap, agendaCardWidth, agendaRefreshToken, autoIndex, agendaWidth]);
 
-  const agendaActiveBorderColor = useMemo(() => {
-    return colors.border;
-  }, [colors.border]);
-
   const activeAttendanceTarget = useMemo(() => {
     const classId = activeItem?.classId;
     const date = activeItem?.dateKey;
@@ -1979,7 +1975,6 @@ export function HomeProfessorScreen({
                   showDivider={agendaDivider?.index === index}
                   agendaCardWidth={agendaCardWidth}
                   agendaCardGap={agendaCardGap}
-                  activeBorderColor={agendaActiveBorderColor}
                   colors={colors}
                   mode={mode}
                   onCardPress={handleAgendaCardPress}

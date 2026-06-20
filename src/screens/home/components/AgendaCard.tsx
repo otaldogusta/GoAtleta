@@ -29,7 +29,6 @@ type AgendaCardProps = {
   showDivider: boolean;
   agendaCardWidth: number;
   agendaCardGap: number;
-  activeBorderColor: string;
   colors: ThemeColors;
   mode: "light" | "dark";
   onCardPress: (index: number) => void;
@@ -45,7 +44,6 @@ export const AgendaCard = memo(function AgendaCard({
   showDivider,
   agendaCardWidth,
   agendaCardGap,
-  activeBorderColor,
   colors,
   mode,
   onCardPress,
@@ -131,7 +129,7 @@ export const AgendaCard = memo(function AgendaCard({
               isWebCard ? styles.innerCardWeb : null,
               {
                 backgroundColor: cardBackground,
-                borderColor: isActive ? activeBorderColor : colors.border,
+                borderColor: colors.border,
                 opacity: isPast ? 0.78 : 1,
               },
             ]}
