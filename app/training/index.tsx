@@ -328,6 +328,29 @@ const getTrainingPlanBlockCounts = (plan: TrainingPlan) => {
   };
 };
 
+const getTrainingPlanTotalActivityCount = (plan: TrainingPlan) => {
+  const counts = getTrainingPlanBlockCounts(plan);
+  return counts.warmup + counts.main + counts.cooldown;
+};
+
+const getTrainingPlanAppliedInfo = (plan: TrainingPlan) => {
+  const hasApplyDate = Boolean(plan.applyDate);
+  const hasApplyDays = Boolean(plan.applyDays?.length);
+  const isApplied = hasApplyDate || hasApplyDays;
+  const dateText = plan.applyDate
+    ? formatShortDate(plan.applyDate)
+    : plan.applyDays?.length
+      ? formatWeekdays(plan.applyDays)
+      : "";
+
+  return {
+    isApplied,
+    dateText,
+    statusLabel: isApplied ? "Aplicado" : "Rascunho",
+    applyButtonLabel: isApplied ? "Aplicar novamente" : "Aplicar",
+  };
+};
+
 const getSavedPlanDisplayTitle = (plan: TrainingPlan) => {
   const parts = plan.title
     .split("|")
@@ -345,7 +368,11 @@ export default function TrainingList() {
   const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const templateEditorCardStyle = useModalCardStyle({ maxHeight: "100%" });
-  const selectedPlanCardStyle = useModalCardStyle({ maxHeight: "100%" });
+  const selectedPlanCardStyle = useModalCardStyle({
+    maxHeight: "94%",
+    maxWidth: 820,
+    padding: 18,
+  });
   const applyModalCardStyle = useModalCardStyle({ maxHeight: "100%" });
   const planActionsCardStyle = useModalCardStyle({ maxHeight: "100%" });
   const params = useLocalSearchParams();
@@ -1367,25 +1394,26 @@ export default function TrainingList() {
     [colors, renameTemplateId, renameTemplateText]
   );
 
-  const savedPlanCardWidth = viewportWidth >= 760 ? "49%" : "100%";
+  const savedPlanCardWidth =
+    viewportWidth >= 1180 ? "32%" : viewportWidth >= 760 ? "49%" : "100%";
 
   const PlanRow = useMemo(
     () =>
       memo(function PlanRowItem({
         plan,
-        fullWidth,
         onOpenActions,
         onApply,
         onView,
       }: {
         plan: TrainingPlan;
-        fullWidth?: boolean;
         onOpenActions: (plan: TrainingPlan) => void;
         onApply: (plan: TrainingPlan) => void;
         onView: (plan: TrainingPlan) => void;
       }) {
         const classItem = classById.get(plan.classId);
         const displayTitle = getSavedPlanDisplayTitle(plan);
+        const activityCount = getTrainingPlanTotalActivityCount(plan);
+        const appliedInfo = getTrainingPlanAppliedInfo(plan);
         const classLabel = formatTrainingPlanDisplayText(getClassName(plan.classId));
         const unitLabel = formatTrainingPlanDisplayText(classItem?.unit ?? "");
         const ageBandText = classItem?.ageBand ?? "";
@@ -1400,29 +1428,21 @@ export default function TrainingList() {
         ]
           .filter(Boolean)
           .join(" · ");
-        const appliedText = plan.applyDays?.length
-          ? formatWeekdays(plan.applyDays)
-          : plan.applyDate
-            ? formatShortDate(plan.applyDate)
-            : "Sem data";
-        const hasAppliedPlan = Boolean(plan.classId && (plan.applyDate || plan.applyDays?.length));
-        const cardWidth = fullWidth ? "100%" : savedPlanCardWidth;
+        const cardWidth = savedPlanCardWidth;
         const contextLine = [classLabel, scheduleText].filter(Boolean).join(" · ");
-        const dateLine = appliedText && appliedText !== "Sem data" ? appliedText : "";
-        const appliedDateLabel = hasAppliedPlan && dateLine ? `Aplicado ${dateLine}` : dateLine;
-        const applyButtonLabel = hasAppliedPlan ? "Aplicar novamente" : "Aplicar";
+        const dateLine = appliedInfo.dateText;
 
         return (
           <View
             style={{
               width: cardWidth as any,
-              gap: 12,
-              padding: 14,
+              gap: 10,
+              padding: 12,
               borderRadius: 14,
               backgroundColor: colors.inputBg,
               borderWidth: 1,
               borderColor: colors.border,
-              minHeight: 154,
+              minHeight: 150,
               justifyContent: "space-between",
             }}
           >
@@ -1432,7 +1452,11 @@ export default function TrainingList() {
               onPress={() => onView(plan)}
               onLongPress={() => onOpenActions(plan)}
               delayLongPress={250}
-              style={{ gap: 9 }}
+              style={{
+                gap: 8,
+                borderRadius: 12,
+                cursor: Platform.OS === "web" ? "pointer" : undefined,
+              } as any}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Text
@@ -1454,24 +1478,24 @@ export default function TrainingList() {
                     paddingVertical: 5,
                     paddingHorizontal: 9,
                     borderRadius: 999,
-                    backgroundColor: hasAppliedPlan ? colors.successBg : colors.secondaryBg,
+                    backgroundColor: appliedInfo.isApplied ? colors.successBg : colors.secondaryBg,
                     borderWidth: 1,
-                    borderColor: hasAppliedPlan ? colors.successBorder : colors.border,
+                    borderColor: appliedInfo.isApplied ? colors.successBorder : colors.border,
                   }}
                 >
                   <Ionicons
-                    name={hasAppliedPlan ? "checkmark-circle-outline" : "ellipse-outline"}
+                    name={appliedInfo.isApplied ? "checkmark-circle-outline" : "ellipse-outline"}
                     size={13}
-                    color={hasAppliedPlan ? colors.successText : colors.muted}
+                    color={appliedInfo.isApplied ? colors.successText : colors.muted}
                   />
                   <Text
                     style={{
-                      color: hasAppliedPlan ? colors.successText : colors.muted,
+                      color: appliedInfo.isApplied ? colors.successText : colors.muted,
                       fontSize: 11,
                       fontWeight: "800",
                     }}
                   >
-                    {hasAppliedPlan ? "Aplicado" : "Não aplicado"}
+                    {appliedInfo.statusLabel}
                   </Text>
                 </View>
               </View>
@@ -1481,11 +1505,9 @@ export default function TrainingList() {
               >
                 {displayTitle}
               </Text>
-              {contextLine ? (
-                <Text style={{ color: colors.secondaryText, fontSize: 12 }} numberOfLines={1}>
-                  {contextLine}
-                </Text>
-              ) : null}
+              <Text style={{ color: colors.secondaryText, fontSize: 12 }} numberOfLines={1}>
+                {contextLine || "Sem turma vinculada"}
+              </Text>
 
               <View
                 style={{
@@ -1499,7 +1521,7 @@ export default function TrainingList() {
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                     <Ionicons name="calendar-outline" size={13} color={colors.muted} />
                     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                      {appliedDateLabel}
+                      {appliedInfo.isApplied ? `Aplicado ${dateLine}` : dateLine}
                     </Text>
                   </View>
                 ) : null}
@@ -1507,6 +1529,12 @@ export default function TrainingList() {
                   <Ionicons name="time-outline" size={13} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                     Criado {formatDate(plan.createdAt)}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Ionicons name="list-outline" size={13} color={colors.muted} />
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                    {activityCount} {activityCount === 1 ? "atividade" : "atividades"}
                   </Text>
                 </View>
               </View>
@@ -1520,7 +1548,7 @@ export default function TrainingList() {
             >
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${applyButtonLabel} ${displayTitle}`}
+                accessibilityLabel={`${appliedInfo.applyButtonLabel} ${displayTitle}`}
                 onPress={(event: any) => {
                   event?.stopPropagation?.();
                   onApply(plan);
@@ -1537,16 +1565,16 @@ export default function TrainingList() {
                   gap: 6,
                 }}
               >
-                <Ionicons name="checkmark-circle-outline" size={16} color={colors.primaryText} />
+                  <Ionicons name="checkmark-circle-outline" size={16} color={colors.primaryText} />
                 <Text
                   numberOfLines={1}
                   style={{
                     color: colors.primaryText,
                     fontWeight: "800",
-                    fontSize: hasAppliedPlan ? 12 : 13,
+                    fontSize: appliedInfo.isApplied ? 12 : 13,
                   }}
                 >
-                  {applyButtonLabel}
+                  {appliedInfo.applyButtonLabel}
                 </Text>
               </Pressable>
               <Pressable
@@ -3115,6 +3143,10 @@ export default function TrainingList() {
         .filter(Boolean)
         .join(" · ")
     : "";
+  const selectedPlanAppliedInfo = selectedPlan ? getTrainingPlanAppliedInfo(selectedPlan) : null;
+  const selectedPlanContextText = selectedPlan
+    ? [getClassName(selectedPlan.classId), selectedPlanScheduleText].filter(Boolean).join(" · ")
+    : "";
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -3764,7 +3796,6 @@ export default function TrainingList() {
                           <PlanRow
                             key={plan.id}
                             plan={plan}
-                            fullWidth={group.items.length === 1}
                             onOpenActions={handleOpenPlanActions}
                             onApply={handleApplyPlan}
                             onView={handleViewPlan}
@@ -3933,19 +3964,62 @@ export default function TrainingList() {
           cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
           position="center"
         >
-          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              gap: 14,
+              paddingBottom: 4,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            }}
+          >
             <View style={{ flex: 1, gap: 6, paddingRight: 8 }}>
               <Text
                 numberOfLines={2}
-                style={{ fontSize: 20, fontWeight: "900", color: colors.text }}
+                style={{ fontSize: 20, fontWeight: "900", color: colors.text, lineHeight: 26 }}
               >
                 {getSavedPlanDisplayTitle(selectedPlan)}
               </Text>
-              <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
-                {[getClassName(selectedPlan.classId), selectedPlanScheduleText]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
+              {selectedPlanContextText ? (
+                <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
+                  {selectedPlanContextText}
+                </Text>
+              ) : null}
+              {selectedPlanAppliedInfo ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  <View
+                    style={{
+                      paddingVertical: 5,
+                      paddingHorizontal: 9,
+                      borderRadius: 999,
+                      backgroundColor: selectedPlanAppliedInfo.isApplied
+                        ? colors.successBg
+                        : colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: selectedPlanAppliedInfo.isApplied
+                        ? colors.successBorder
+                        : colors.border,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selectedPlanAppliedInfo.isApplied
+                          ? colors.successText
+                          : colors.muted,
+                        fontSize: 11,
+                        fontWeight: "900",
+                      }}
+                    >
+                      {selectedPlanAppliedInfo.isApplied
+                        ? selectedPlanAppliedInfo.dateText
+                          ? `Aplicado ${selectedPlanAppliedInfo.dateText}`
+                          : "Aplicado"
+                        : "Rascunho"}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
             </View>
             <Pressable
               onPress={() => {
