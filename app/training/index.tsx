@@ -20,6 +20,7 @@ import {
     Platform,
     ScrollView,
     Share,
+    StyleSheet,
     Text,
     TextInput,
     useWindowDimensions,
@@ -154,6 +155,39 @@ const isManualTextActivity = (activity: TrainingPlanActivity) =>
   !activity.rotation &&
   !activity.coachFocus &&
   !(activity.materials?.length);
+
+const savedPlanFilterChipStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 2,
+  },
+  chip: {
+    minHeight: 36,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  label: {
+    fontWeight: "800",
+    fontSize: 12,
+  },
+  count: {
+    fontWeight: "700",
+    fontSize: 11,
+  },
+  clearSearchButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
 
 type PlanningDetailSelection = {
   blockKey: TrainingPlanBlockKey;
@@ -3633,14 +3667,10 @@ export default function TrainingList() {
                       accessibilityRole="button"
                       accessibilityLabel="Limpar busca"
                       onPress={() => setSavedPlanSearch("")}
-                      style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 15,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        backgroundColor: colors.secondaryBg,
-                      }}
+                      style={[
+                        savedPlanFilterChipStyles.clearSearchButton,
+                        { backgroundColor: colors.secondaryBg },
+                      ]}
                     >
                       <Ionicons name="close" size={16} color={colors.text} />
                     </Pressable>
@@ -3648,7 +3678,7 @@ export default function TrainingList() {
                 </View>
 
                 <FadeHorizontalScroll>
-                  <View style={{ flexDirection: "row", gap: 8, paddingVertical: 2 }}>
+                  <View style={savedPlanFilterChipStyles.row}>
                     {[
                       {
                         id: "__all__",
@@ -3665,34 +3695,27 @@ export default function TrainingList() {
                           accessibilityRole="button"
                           accessibilityLabel={`Filtrar ${option.label}`}
                           onPress={() => setSavedPlanClassFilter(option.id)}
-                          style={{
-                            minHeight: 36,
-                            paddingVertical: 8,
-                            paddingHorizontal: 12,
-                            borderRadius: 999,
-                            backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                            borderWidth: 1,
-                            borderColor: active ? "transparent" : colors.border,
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 8,
-                          }}
+                          style={[
+                            savedPlanFilterChipStyles.chip,
+                            {
+                              backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
+                              borderColor: active ? "transparent" : colors.border,
+                            },
+                          ]}
                         >
                           <Text
-                            style={{
-                              color: active ? colors.primaryText : colors.text,
-                              fontWeight: "800",
-                              fontSize: 12,
-                            }}
+                            style={[
+                              savedPlanFilterChipStyles.label,
+                              { color: active ? colors.primaryText : colors.text },
+                            ]}
                           >
                             {option.label}
                           </Text>
                           <Text
-                            style={{
-                              color: active ? colors.primaryText : colors.muted,
-                              fontWeight: "700",
-                              fontSize: 11,
-                            }}
+                            style={[
+                              savedPlanFilterChipStyles.count,
+                              { color: active ? colors.primaryText : colors.muted },
+                            ]}
                           >
                             {option.count}
                           </Text>
