@@ -79,9 +79,7 @@ export const supabaseRequest = async (
     }
   }
   if (!token) {
-    throw new Error(
-      "Sessão expirada ou sem conexão com internet. Faça login novamente."
-    );
+    throw new Error("Sessão expirada. Entre novamente.");
   }
 
   const startedAt = Date.now();
