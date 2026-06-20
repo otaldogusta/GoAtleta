@@ -5,7 +5,7 @@ type SupabaseErrorPayload = {
   hint: string | null;
 };
 
-const extractErrorText = (error: unknown): string => {
+export const extractErrorText = (error: unknown): string => {
   if (!error) return "";
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
@@ -33,6 +33,49 @@ const parseJsonMessage = (text: string) => {
   }
 };
 
+const getComparableErrorText = (error: unknown) => {
+  const raw = extractErrorText(error).trim();
+  const parsed = parseJsonMessage(raw);
+  return `${parsed?.message ?? raw} ${parsed?.code ?? ""}`.toLowerCase();
+};
+
+export const isAuthSessionError = (error: unknown) => {
+  const lower = getComparableErrorText(error);
+  return (
+    lower.includes("invalid jwt") ||
+    lower.includes("jwt expired") ||
+    lower.includes("missing auth token") ||
+    lower.includes("invalid login credentials") ||
+    lower.includes("unauthorized") ||
+    lower.includes("sessao expirada") ||
+    lower.includes("sessão expirada") ||
+    lower.includes("sessao invalida") ||
+    lower.includes("sessão inválida") ||
+    lower.includes("faca login novamente") ||
+    lower.includes("faça login novamente")
+  );
+};
+
+export const isNetworkConnectionError = (error: unknown) => {
+  const lower = getComparableErrorText(error);
+  return (
+    lower.includes("failed to fetch") ||
+    lower.includes("network request failed") ||
+    lower.includes("fetch failed") ||
+    lower.includes("networkerror") ||
+    lower.includes("timed out") ||
+    lower.includes("timeout")
+  );
+};
+
+export const isNotFoundError = (error: unknown) => {
+  const lower = getComparableErrorText(error);
+  return lower.includes("not found") || lower.includes("404") || lower.includes("pgrst202");
+};
+
+export const isExpectedSessionConnectivityError = (error: unknown) =>
+  isAuthSessionError(error) || isNetworkConnectionError(error) || isNotFoundError(error);
+
 export const getFriendlyErrorMessage = (
   error: unknown,
   fallback = "Não foi possível concluir a ação."
@@ -44,12 +87,7 @@ export const getFriendlyErrorMessage = (
   const message = parsed?.message || raw;
   const lower = message.toLowerCase();
 
-  if (
-    lower.includes("invalid jwt") ||
-    lower.includes("jwt expired") ||
-    lower.includes("missing auth token") ||
-    lower.includes("invalid login credentials")
-  ) {
+  if (isAuthSessionError(error)) {
     return "Sessão expirada. Entre novamente.";
   }
 
@@ -62,7 +100,7 @@ export const getFriendlyErrorMessage = (
     return "Você não tem permissão para essa ação.";
   }
 
-  if (lower.includes("failed to fetch") || lower.includes("network request failed")) {
+  if (isNetworkConnectionError(error)) {
     return "Falha de conexão. Verifique sua internet.";
   }
 
@@ -74,7 +112,7 @@ export const getFriendlyErrorMessage = (
     return "Já existe um registro com esse dado.";
   }
 
-  if (lower.includes("not found") || lower.includes("404")) {
+  if (isNotFoundError(error)) {
     return "Não encontrado.";
   }
 

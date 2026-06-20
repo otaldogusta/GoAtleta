@@ -26,6 +26,10 @@ import {
     setDevProfilePreview as persistDevProfilePreview,
     type DevProfilePreview,
 } from "../dev/profile-preview";
+import {
+  extractErrorText,
+  isExpectedSessionConnectivityError,
+} from "../ui/error-messages";
 
 const ACTIVE_ORG_KEY = "active-org-id";
 
@@ -36,6 +40,14 @@ const createAbortError = () => {
   const error = new Error("Aborted");
   error.name = "AbortError";
   return error;
+};
+
+const logExpectedProviderWarning = (scope: string, error: unknown) => {
+  if (!__DEV__) return;
+  const details = extractErrorText(error).trim();
+  console.warn(
+    `[OrganizationProvider] ${scope} indisponivel no momento${details ? `: ${details}` : "."}`
+  );
 };
 
 const postSupabaseRpc = async ({
@@ -232,7 +244,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setMemberPermissions(mapped);
       } catch (err) {
         if (permissionsRequestKeyRef.current !== requestKey) return;
-        console.error("OrganizationProvider permissions error:", err);
+        if (isExpectedSessionConnectivityError(err)) {
+          logExpectedProviderWarning("permissoes", err);
+        } else {
+          console.error("OrganizationProvider permissions error:", err);
+        }
         setMemberPermissions({});
       } finally {
         if (permissionsInFlightRef.current === requestPromise) {
@@ -350,7 +366,11 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       if (err instanceof Error && err.name === "AbortError") {
         return;
       }
-      console.error("OrganizationProvider fetch error:", err);
+      if (isExpectedSessionConnectivityError(err)) {
+        logExpectedProviderWarning("organizacoes", err);
+      } else {
+        console.error("OrganizationProvider fetch error:", err);
+      }
       if (isFirstLoad) {
         setOrganizations([]);
         setActiveOrgId(null);
