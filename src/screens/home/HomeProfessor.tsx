@@ -2007,7 +2007,6 @@ export function HomeProfessorScreen({
                   gap: 6,
                 }}
               >
-                <Ionicons name="today-outline" size={15} color={colors.primaryText} />
                 <Text numberOfLines={1} style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>Ir pra aula do dia</Text>
               </Pressable>
               <Pressable
