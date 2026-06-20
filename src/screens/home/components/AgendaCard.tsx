@@ -99,15 +99,6 @@ export const AgendaCard = memo(function AgendaCard({
           style={[
             styles.outerCard,
             isWebCard ? styles.outerCardWeb : null,
-            isActive && Platform.OS !== "android"
-              ? {
-                  shadowColor: mode === "dark" ? colors.primaryBg : "#000",
-                  shadowOpacity: mode === "dark" ? 0.42 : 0.12,
-                  shadowRadius: mode === "dark" ? 12 : 6,
-                  shadowOffset: { width: 0, height: 4 },
-                  elevation: mode === "dark" ? 8 : 3,
-                }
-              : null,
           ]}
         >
           <View
