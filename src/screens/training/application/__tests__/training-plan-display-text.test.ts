@@ -18,8 +18,7 @@ describe("formatTrainingPlanDisplayText", () => {
   });
 
   it("decodes mojibake before applying display normalization", () => {
-    expect(formatTrainingPlanDisplayText("CoordenaÃ§Ã£o e adaptaÃ§Ãµes")).toBe(
-      "Coordenação e adaptações"
-    );
+    const mojibake = "Coordena\u00c3\u00a7\u00c3\u00a3o e adapta\u00c3\u00a7\u00c3\u00b5es";
+    expect(formatTrainingPlanDisplayText(mojibake)).toBe("Coordenação e adaptações");
   });
 });

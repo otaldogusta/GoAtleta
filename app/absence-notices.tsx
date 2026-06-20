@@ -14,6 +14,7 @@ import {
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { markRender, measureAsync } from "../src/observability/perf";
 
 const formatDate = (value: string) => {
   const parsed = new Date(value + "T00:00:00");
@@ -25,6 +26,7 @@ export default function AbsenceNoticesScreen() {
   const { colors } = useAppTheme();
   const { activeOrganization } = useOrganization();
   const router = useRouter();
+  markRender("screen.absenceNotices.render.root");
   const [notices, setNotices] = useState<AbsenceNotice[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -35,11 +37,16 @@ export default function AbsenceNoticesScreen() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [noticeList, studentList, classList] = await Promise.all([
-        getAbsenceNotices(),
-        getStudents({ organizationId: activeOrganization?.id }),
-        getClasses({ organizationId: activeOrganization?.id }),
-      ]);
+      const [noticeList, studentList, classList] = await measureAsync(
+        "screen.absenceNotices.load.initial",
+        () =>
+          Promise.all([
+            getAbsenceNotices(),
+            getStudents({ organizationId: activeOrganization?.id }),
+            getClasses({ organizationId: activeOrganization?.id }),
+          ]),
+        { hasOrganization: activeOrganization?.id ? 1 : 0 }
+      );
       setNotices(noticeList);
       setStudents(studentList);
       setClasses(classList);
