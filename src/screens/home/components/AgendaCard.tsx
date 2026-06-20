@@ -100,6 +100,29 @@ export const AgendaCard = memo(function AgendaCard({
           ]}
         >
           <View
+            pointerEvents="none"
+            style={[styles.statusBadgeSlot, Platform.OS === "web" ? styles.webOpticalShift : null]}
+          >
+            <View style={[styles.statusBadge, isCompactCard ? styles.statusBadgeCompact : null, { backgroundColor: badgeBackground, borderColor: badgeBorder, opacity: isPast ? 0.78 : 1 }]}>
+              <Text
+                style={[
+                  styles.statusBadgeText,
+                  isVeryCompactCard
+                    ? styles.statusBadgeTextVeryCompact
+                    : isCompactCard
+                      ? styles.statusBadgeTextCompact
+                      : null,
+                  {
+                    color: badgeText,
+                  },
+                ]}
+                numberOfLines={1}
+              >
+                {dateTimeLabel}
+              </Text>
+            </View>
+          </View>
+          <View
             style={[
               styles.innerCard,
               isCompactCard ? styles.innerCardCompact : null,
@@ -111,26 +134,6 @@ export const AgendaCard = memo(function AgendaCard({
               },
             ]}
           >
-            <View pointerEvents="none" style={styles.statusBadgeRow}>
-              <View style={[styles.statusBadge, isCompactCard ? styles.statusBadgeCompact : null, { backgroundColor: badgeBackground, borderColor: badgeBorder, opacity: isPast ? 0.78 : 1 }]}>
-                <Text
-                  style={[
-                    styles.statusBadgeText,
-                    isVeryCompactCard
-                      ? styles.statusBadgeTextVeryCompact
-                      : isCompactCard
-                        ? styles.statusBadgeTextCompact
-                        : null,
-                    {
-                      color: badgeText,
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {dateTimeLabel}
-                </Text>
-              </View>
-            </View>
             <View
               style={[
                 styles.content,
@@ -179,25 +182,26 @@ const styles = StyleSheet.create({
   outerCard: {
     borderRadius: 14,
     backgroundColor: "transparent",
+    paddingTop: 14,
   },
   outerCardWeb: {
-    borderRadius: 14,
+    paddingTop: 12,
   },
   innerCard: {
-    paddingTop: 12,
+    paddingTop: 28,
     paddingHorizontal: 14,
-    paddingBottom: 14,
+    paddingBottom: 16,
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
   },
   innerCardCompact: {
-    paddingTop: 10,
+    paddingTop: 26,
     paddingHorizontal: 12,
-    paddingBottom: 12,
+    paddingBottom: 14,
   },
   innerCardWeb: {
-    paddingTop: 12,
+    paddingTop: 28,
     paddingHorizontal: 13,
     paddingBottom: 14,
   },
@@ -220,10 +224,13 @@ const styles = StyleSheet.create({
     height: 26,
     paddingHorizontal: 8,
   },
-  statusBadgeRow: {
-    width: "100%",
+  statusBadgeSlot: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     alignItems: "center",
-    marginBottom: 10,
+    zIndex: 2,
   },
   webOpticalShift: {
     transform: [{ translateX: 2 }],
