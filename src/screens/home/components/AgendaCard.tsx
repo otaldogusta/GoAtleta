@@ -101,7 +101,7 @@ export const AgendaCard = memo(function AgendaCard({
         >
           <View
             pointerEvents="none"
-            style={[styles.statusBadgeSlot, Platform.OS === "web" ? styles.webOpticalShift : null]}
+            style={styles.statusBadgeSlot}
           >
             <View style={[styles.statusBadge, isCompactCard ? styles.statusBadgeCompact : null, { backgroundColor: badgeBackground, borderColor: badgeBorder, opacity: isPast ? 0.78 : 1 }]}>
               <Text
@@ -138,7 +138,6 @@ export const AgendaCard = memo(function AgendaCard({
               style={[
                 styles.content,
                 isWebCard ? styles.contentWeb : null,
-                isWebCard ? styles.webOpticalShift : null,
               ]}
             >
               <View style={[styles.classRow, isCompactCard ? styles.classRowCompact : null]}>
@@ -182,13 +181,13 @@ const styles = StyleSheet.create({
   outerCard: {
     borderRadius: 14,
     backgroundColor: "transparent",
-    paddingTop: 14,
+    paddingTop: 18,
   },
   outerCardWeb: {
-    paddingTop: 12,
+    paddingTop: 18,
   },
   innerCard: {
-    paddingTop: 28,
+    paddingTop: 32,
     paddingHorizontal: 14,
     paddingBottom: 16,
     borderRadius: 14,
@@ -196,12 +195,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   innerCardCompact: {
-    paddingTop: 26,
+    paddingTop: 30,
     paddingHorizontal: 12,
     paddingBottom: 14,
   },
   innerCardWeb: {
-    paddingTop: 28,
+    paddingTop: 32,
     paddingHorizontal: 13,
     paddingBottom: 14,
   },
@@ -231,9 +230,6 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     zIndex: 2,
-  },
-  webOpticalShift: {
-    transform: [{ translateX: 2 }],
   },
   statusBadgeText: {
     fontSize: 11,

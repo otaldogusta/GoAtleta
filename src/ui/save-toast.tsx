@@ -74,7 +74,7 @@ export function SaveToastProvider({
       const message = normalized.error
         ? getFriendlyErrorMessage(normalized.error)
         : normalized.message ?? "Concluído.";
-      const duration = normalized.durationMs ?? 5000;
+      const duration = normalized.durationMs ?? 6500;
       setToast({ ...normalized, message, variant });
       anim.setValue(0);
       progressAnim.setValue(1);
@@ -127,8 +127,8 @@ export function SaveToastProvider({
       ? "#F87171"
       : "#93C5FD";
   const backgroundColor =
-    Platform.OS === "web" ? "rgba(10, 18, 32, 0.88)" : "rgba(10, 18, 32, 0.96)";
-  const borderColor = "rgba(226, 232, 240, 0.14)";
+    Platform.OS === "web" ? "rgba(10, 18, 32, 0.92)" : "rgba(10, 18, 32, 0.97)";
+  const borderColor = "rgba(148, 163, 184, 0.16)";
   const textColor = "#F8FAFC";
   const mutedTextColor = "rgba(248, 250, 252, 0.72)";
   const iconSymbol =
@@ -173,18 +173,18 @@ export function SaveToastProvider({
               } as unknown as ViewStyle)
             : ({ width: "92%", maxWidth: 480 } as ViewStyle)),
           overflow: "hidden",
-          paddingTop: 12,
-          paddingBottom: 14,
-          paddingHorizontal: 14,
-          borderRadius: 14,
+          paddingTop: 13,
+          paddingBottom: 15,
+          paddingHorizontal: 15,
+          borderRadius: 18,
           backgroundColor,
           borderWidth: 1,
           borderColor,
           shadowColor: "#000",
-          shadowOpacity: 0.2,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 8,
+          shadowOpacity: 0.16,
+          shadowRadius: 22,
+          shadowOffset: { width: 0, height: 10 },
+          elevation: 7,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
@@ -210,7 +210,7 @@ export function SaveToastProvider({
               borderRadius: 999,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: "rgba(255,255,255,0.08)",
+              backgroundColor: "rgba(255,255,255,0.07)",
               borderWidth: 1,
               borderColor: "rgba(255,255,255,0.10)",
             }}
@@ -260,7 +260,7 @@ export function SaveToastProvider({
             bottom: 7,
             height: 3,
             borderRadius: 999,
-            backgroundColor: "rgba(255,255,255,0.08)",
+            backgroundColor: "rgba(255,255,255,0.09)",
             overflow: "hidden",
           }}
         >

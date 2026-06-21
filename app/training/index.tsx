@@ -1436,13 +1436,13 @@ export default function TrainingList() {
           <View
             style={{
               width: cardWidth as any,
-              gap: 10,
-              padding: 12,
-              borderRadius: 14,
+              gap: 12,
+              padding: 14,
+              borderRadius: 16,
               backgroundColor: colors.inputBg,
               borderWidth: 1,
               borderColor: colors.border,
-              minHeight: 150,
+              minHeight: 164,
               justifyContent: "space-between",
             }}
           >
@@ -1453,8 +1453,8 @@ export default function TrainingList() {
               onLongPress={() => onOpenActions(plan)}
               delayLongPress={250}
               style={{
-                gap: 8,
-                borderRadius: 12,
+                gap: 9,
+                borderRadius: 14,
                 cursor: Platform.OS === "web" ? "pointer" : undefined,
               } as any}
             >
@@ -1464,7 +1464,7 @@ export default function TrainingList() {
                     flex: 1,
                     color: colors.muted,
                     fontSize: 11,
-                    fontWeight: "700",
+                    fontWeight: "800",
                   }}
                   numberOfLines={1}
                 >
@@ -1474,20 +1474,14 @@ export default function TrainingList() {
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 5,
                     paddingVertical: 5,
-                    paddingHorizontal: 9,
+                    paddingHorizontal: 10,
                     borderRadius: 999,
                     backgroundColor: appliedInfo.isApplied ? colors.successBg : colors.secondaryBg,
                     borderWidth: 1,
                     borderColor: appliedInfo.isApplied ? colors.successBorder : colors.border,
                   }}
                 >
-                  <Ionicons
-                    name={appliedInfo.isApplied ? "checkmark-circle-outline" : "ellipse-outline"}
-                    size={13}
-                    color={appliedInfo.isApplied ? colors.successText : colors.muted}
-                  />
                   <Text
                     style={{
                       color: appliedInfo.isApplied ? colors.successText : colors.muted,
@@ -1500,7 +1494,7 @@ export default function TrainingList() {
                 </View>
               </View>
               <Text
-                style={{ fontSize: 18, fontWeight: "800", color: colors.text }}
+                style={{ fontSize: 18, fontWeight: "900", color: colors.text, lineHeight: 23 }}
                 numberOfLines={2}
               >
                 {displayTitle}
@@ -1513,25 +1507,55 @@ export default function TrainingList() {
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: 8,
+                  gap: 7,
                   flexWrap: "wrap",
                 }}
               >
                 {dateLine ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 5,
+                      paddingHorizontal: 8,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      backgroundColor: colors.secondaryBg,
+                    }}
+                  >
                     <Ionicons name="calendar-outline" size={13} color={colors.muted} />
                     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                       {appliedInfo.isApplied ? `Aplicado ${dateLine}` : dateLine}
                     </Text>
                   </View>
                 ) : null}
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingHorizontal: 8,
+                    paddingVertical: 5,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
                   <Ionicons name="time-outline" size={13} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                     Criado {formatDate(plan.createdAt)}
                   </Text>
                 </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingHorizontal: 8,
+                    paddingVertical: 5,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                  }}
+                >
                   <Ionicons name="list-outline" size={13} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                     {activityCount} {activityCount === 1 ? "atividade" : "atividades"}
@@ -1555,9 +1579,9 @@ export default function TrainingList() {
                 }}
                 style={{
                   flex: 1,
-                  minHeight: 42,
+                  minHeight: 44,
                   paddingVertical: 8,
-                  borderRadius: 12,
+                  borderRadius: 14,
                   backgroundColor: colors.primaryBg,
                   alignItems: "center",
                   justifyContent: "center",
@@ -1565,7 +1589,7 @@ export default function TrainingList() {
                   gap: 6,
                 }}
               >
-                  <Ionicons name="checkmark-circle-outline" size={16} color={colors.primaryText} />
+                <Ionicons name="checkmark-circle-outline" size={16} color={colors.primaryText} />
                 <Text
                   numberOfLines={1}
                   style={{
@@ -1586,9 +1610,9 @@ export default function TrainingList() {
                 }}
                 style={{
                   flex: 1,
-                  minHeight: 42,
+                  minHeight: 44,
                   paddingVertical: 8,
-                  borderRadius: 12,
+                  borderRadius: 14,
                   backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
                   borderColor: colors.border,
@@ -2855,7 +2879,7 @@ export default function TrainingList() {
       "Parte principal " + (plan.mainTime ? "(" + formatClock(plan.mainTime) + ")" : ""),
       plan.main.length ? "- " + plan.main.join("\n- ") : "- Sem itens",
       "",
-      "Volta a calma " + (plan.cooldownTime ? "(" + formatDuration(plan.cooldownTime) + ")" : ""),
+      "Volta à calma " + (plan.cooldownTime ? "(" + formatDuration(plan.cooldownTime) + ")" : ""),
       plan.cooldown.length ? "- " + plan.cooldown.join("\n- ") : "- Sem itens",
     ];
     if (plan.tags.length) {

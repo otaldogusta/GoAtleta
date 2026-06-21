@@ -237,10 +237,10 @@ function TemplateEditorModalContentBase({
       </View>
 
       <View style={{ gap: 4 }}>
-        <Text style={{ color: colors.muted, fontSize: 11 }}>Volta a calma</Text>
+        <Text style={{ color: colors.muted, fontSize: 11 }}>Volta à calma</Text>
         <View style={{ flexDirection: "row", gap: 10 }}>
           <TextInput
-            placeholder="Volta a calma (1 por linha)"
+            placeholder="Volta à calma (1 por linha)"
             value={templateCooldown}
             onChangeText={setTemplateCooldown}
             multiline
