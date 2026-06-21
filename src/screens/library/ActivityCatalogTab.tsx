@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 
@@ -36,23 +35,6 @@ export function ActivityCatalogTab() {
 
   return (
     <View testID="activity-catalog-tab" style={{ gap: 12 }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          paddingHorizontal: 10,
-          paddingVertical: 8,
-          borderRadius: 12,
-          backgroundColor: colors.secondaryBg,
-        }}
-      >
-        <Ionicons name="information-circle-outline" size={16} color={colors.muted} />
-        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700", flex: 1 }}>
-          Catálogo geral. Abra a partir de uma turma ou aula para ver sugestões contextualizadas.
-        </Text>
-      </View>
-
       <ActivityCatalogFilters
         filters={filters}
         options={options}
