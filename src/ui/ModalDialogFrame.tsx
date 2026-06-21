@@ -38,9 +38,17 @@ export function ModalDialogFrame({
   return (
     <ModalSheet visible={visible} onClose={onClose} cardStyle={cardStyle} position={position}>
       <View style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            paddingBottom: 10,
+          }}
+        >
           <View style={{ flex: 1, gap: 4 }}>
-            <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>{title}</Text>
+            <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>{title}</Text>
             {subtitle ? <Text style={{ color: colors.muted, fontSize: 12 }}>{subtitle}</Text> : null}
           </View>
           <Pressable

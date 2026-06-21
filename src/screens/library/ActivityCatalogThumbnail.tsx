@@ -43,19 +43,20 @@ export function ActivityCatalogThumbnail({
         style={{
           flex: 1,
           justifyContent: "space-between",
-          padding: isDetail ? 14 : 10,
+          padding: isDetail ? 14 : 12,
           backgroundColor: "rgba(5, 12, 25, 0.26)",
         }}
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
           <View
             style={{
-              minHeight: 30,
-              paddingHorizontal: 9,
+              minHeight: 32,
+              paddingHorizontal: 12,
               borderRadius: 999,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: "rgba(5, 12, 25, 0.68)",
+              maxWidth: "70%",
             }}
           >
             <Text
@@ -64,7 +65,7 @@ export function ActivityCatalogThumbnail({
                 color: "#FFFFFF",
                 fontSize: 12,
                 fontWeight: "800",
-                lineHeight: 14,
+                lineHeight: 16,
                 textAlign: "center",
               }}
             >
