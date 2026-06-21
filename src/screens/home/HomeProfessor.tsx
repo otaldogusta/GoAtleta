@@ -973,7 +973,6 @@ export function HomeProfessorScreen({
   const activeIndex = manualIndex ?? autoIndex;
 
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
-  const isAndroidLight = Platform.OS === "android" && mode === "light";
   const isWebHome = Platform.OS === "web";
   const isUx2CWebHome = isWebHome && screenWidth >= 1200 && !isAdminDashboardContext;
   const isUx2CWithRail = isUx2CWebHome;
@@ -1174,12 +1173,6 @@ export function HomeProfessorScreen({
     });
 
   }, [agendaCardGap, agendaCardWidth, agendaRefreshToken, autoIndex, agendaWidth]);
-
-  const agendaActiveBorderColor = useMemo(() => {
-    if (isAndroidLight) return "rgba(15,23,42,0.16)";
-    if (mode === "light") return colors.border;
-    return colors.primaryBg;
-  }, [colors.border, colors.primaryBg, isAndroidLight, mode]);
 
   const activeAttendanceTarget = useMemo(() => {
     const classId = activeItem?.classId;
@@ -1982,7 +1975,6 @@ export function HomeProfessorScreen({
                   showDivider={agendaDivider?.index === index}
                   agendaCardWidth={agendaCardWidth}
                   agendaCardGap={agendaCardGap}
-                  activeBorderColor={agendaActiveBorderColor}
                   colors={colors}
                   mode={mode}
                   onCardPress={handleAgendaCardPress}
@@ -2015,7 +2007,6 @@ export function HomeProfessorScreen({
                   gap: 6,
                 }}
               >
-                <Ionicons name="today-outline" size={15} color={colors.primaryText} />
                 <Text numberOfLines={1} style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>Ir pra aula do dia</Text>
               </Pressable>
               <Pressable

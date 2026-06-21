@@ -29,7 +29,6 @@ type AgendaCardProps = {
   showDivider: boolean;
   agendaCardWidth: number;
   agendaCardGap: number;
-  activeBorderColor: string;
   colors: ThemeColors;
   mode: "light" | "dark";
   onCardPress: (index: number) => void;
@@ -45,7 +44,6 @@ export const AgendaCard = memo(function AgendaCard({
   showDivider,
   agendaCardWidth,
   agendaCardGap,
-  activeBorderColor,
   colors,
   mode,
   onCardPress,
@@ -99,15 +97,6 @@ export const AgendaCard = memo(function AgendaCard({
           style={[
             styles.outerCard,
             isWebCard ? styles.outerCardWeb : null,
-            isActive && Platform.OS !== "android"
-              ? {
-                  shadowColor: mode === "dark" ? colors.primaryBg : "#000",
-                  shadowOpacity: mode === "dark" ? 0.42 : 0.12,
-                  shadowRadius: mode === "dark" ? 12 : 6,
-                  shadowOffset: { width: 0, height: 4 },
-                  elevation: mode === "dark" ? 8 : 3,
-                }
-              : null,
           ]}
         >
           <View
@@ -140,7 +129,7 @@ export const AgendaCard = memo(function AgendaCard({
               isWebCard ? styles.innerCardWeb : null,
               {
                 backgroundColor: cardBackground,
-                borderColor: isActive ? activeBorderColor : colors.border,
+                borderColor: colors.border,
                 opacity: isPast ? 0.78 : 1,
               },
             ]}

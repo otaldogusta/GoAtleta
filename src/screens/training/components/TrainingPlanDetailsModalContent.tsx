@@ -19,9 +19,18 @@ type Props = {
 };
 
 const objectivePrefixPattern = /^objetivo\s+(geral|especifico|específico)\s*:/i;
+const inlineObjectivePrefixPattern = /\bobjetivo\s+(geral|especifico|específico)\s*:/gi;
 
 const cleanObjectiveText = (value: string) =>
-  formatTrainingPlanDisplayText(value.replace(objectivePrefixPattern, "").trim());
+  formatTrainingPlanDisplayText(
+    value
+      .replace(objectivePrefixPattern, "")
+      .replace(inlineObjectivePrefixPattern, " · ")
+      .replace(/\s*\|\s*/g, " · ")
+      .replace(/\s*·\s*/g, " · ")
+      .replace(/\s+\./g, ".")
+      .trim()
+  );
 
 const isObjectiveActivity = (value: string) => objectivePrefixPattern.test(value);
 
@@ -66,7 +75,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
 
   return (
     <ScrollView
-      contentContainerStyle={{ gap: 10, paddingVertical: 12 }}
+      contentContainerStyle={{ gap: 12, paddingVertical: 8 }}
       style={{ maxHeight: "94%" }}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
@@ -77,7 +86,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
           flexDirection: "row",
           flexWrap: "wrap",
           gap: 8,
-          paddingBottom: 2,
+          paddingBottom: 4,
         }}
       >
         <View
@@ -110,12 +119,12 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
             key={section.key}
             testID={`training-plan-detail-block-${section.key}`}
             style={{
-              padding: 12,
-              borderRadius: 14,
+              padding: 14,
+              borderRadius: 16,
               backgroundColor: section.backgroundColor,
               borderWidth: 1,
               borderColor: colors.border,
-              gap: 10,
+              gap: 12,
             }}
           >
             <View
@@ -126,7 +135,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                 gap: 10,
               }}
             >
-              <Text style={{ fontWeight: "900", color: colors.text, fontSize: 15 }}>
+              <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>
                 {section.title}
               </Text>
               {section.time ? (
@@ -139,8 +148,8 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
             {objectiveLines.length ? (
               <View
                 style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 12,
                   borderRadius: 12,
                   backgroundColor: colors.card,
                   borderWidth: 1,
@@ -153,7 +162,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                 </Text>
                 <Text
                   numberOfLines={2}
-                  style={{ color: colors.secondaryText, fontSize: 12, lineHeight: 17 }}
+                  style={{ color: colors.secondaryText, fontSize: 13, lineHeight: 19 }}
                 >
                   {objectiveLines.join(" · ")}
                 </Text>
@@ -174,7 +183,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                         flexDirection: "row",
                         alignItems: "flex-start",
                         gap: 10,
-                        paddingVertical: 7,
+                        paddingVertical: 9,
                         borderTopWidth: index === 0 ? 0 : 1,
                         borderColor: colors.border,
                       }}
@@ -209,10 +218,10 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                               color: colors.text,
                               fontWeight: "900",
                               flexShrink: 1,
-                              fontSize: 14,
+                              fontSize: 15,
                             }}
                           >
-                          {activityName}
+                            {activityName}
                           </Text>
                           {sourceLabel ? (
                             <View
@@ -241,7 +250,7 @@ function TrainingPlanDetailsModalContentBase({ plan }: Props) {
                         {description ? (
                           <Text
                             numberOfLines={2}
-                            style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}
+                            style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}
                           >
                             {description}
                           </Text>
