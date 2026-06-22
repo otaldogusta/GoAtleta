@@ -123,13 +123,31 @@ const requireUser = async (req: Request) => {
   return data.user;
 };
 
+const decodeHtmlEntities = (value: string) =>
+  value
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) =>
+      String.fromCodePoint(Number.parseInt(code, 16))
+    )
+    .replace(/&#(\d+);/g, (_, code: string) =>
+      String.fromCodePoint(Number.parseInt(code, 10))
+    )
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
 const extractMeta = (html: string, key: string) => {
-  const metaTag = new RegExp(
-    `<meta[^>]+(:property|name)=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
-    "i"
-  );
-  const match = html.match(metaTag);
-  return match ? match[1].trim() : "";
+  const tags = html.match(/<meta\b[^>]*>/gi) ?? [];
+  for (const tag of tags) {
+    const keyMatch = tag.match(/\b(?:property|name)=["']([^"']+)["']/i);
+    if (keyMatch?.[1] !== key) continue;
+
+    const contentMatch = tag.match(/\bcontent=["']([^"']*)["']/i);
+    const content = contentMatch?.[1]?.trim();
+    if (content) return decodeHtmlEntities(content);
+  }
+  return "";
 };
 
 const extractTitle = (html: string) => {
@@ -137,7 +155,7 @@ const extractTitle = (html: string) => {
     extractMeta(html, "og:title") || extractMeta(html, "twitter:title");
   if (ogTitle) return ogTitle;
   const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  return match ? match[1].trim() : "";
+  return match ? decodeHtmlEntities(match[1].trim()) : "";
 };
 
 const extractAuthor = (html: string) => {

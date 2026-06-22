@@ -2,6 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
+import {
+  matchesExerciseLinkSearch,
+  scoreExerciseLinkForPlanningBlock,
+} from "../../../core/exercise-link-classifier";
 import type { Exercise } from "../../../core/models";
 import type { TrainingPlanBlockKey } from "../../../core/training-plan-blocks";
 import type { ActivityPatternStage } from "../../../core/volleyball/activity-pattern-engine";
@@ -49,12 +53,6 @@ const defaultPhaseByBlock: Record<TrainingPlanBlockKey, ActivityPatternStage> = 
   cooldown: "cooldown",
 };
 
-const normalize = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
 export function PlanningLibraryBridgeSheet({
   visible,
   blockKey,
@@ -81,21 +79,17 @@ export function PlanningLibraryBridgeSheet({
     [catalogItems, filters]
   );
   const filteredLinks = useMemo(() => {
-    const query = normalize(linkQuery.trim());
-    if (!query) return links;
-    return links.filter((exercise) =>
-      normalize(
-        [
-          exercise.title,
-          exercise.description,
-          exercise.notes,
-          exercise.source,
-          exercise.tags.join(" "),
-          exercise.videoUrl,
-        ].join(" ")
-      ).includes(query)
+    const query = linkQuery.trim();
+    const matchingLinks = query
+      ? links.filter((exercise) => matchesExerciseLinkSearch(exercise, query))
+      : links;
+    if (!blockKey) return matchingLinks;
+    return [...matchingLinks].sort(
+      (left, right) =>
+        scoreExerciseLinkForPlanningBlock(right, blockKey) -
+        scoreExerciseLinkForPlanningBlock(left, blockKey)
     );
-  }, [linkQuery, links]);
+  }, [blockKey, linkQuery, links]);
 
   useEffect(() => {
     if (!visible) {
@@ -543,36 +537,49 @@ function LinkCard({
   onAdd: (exercise: Exercise) => void;
 }) {
   const { colors } = useAppTheme();
+  const title = exercise.title?.trim() || "Vídeo/link";
+  const description = exercise.description?.trim();
+  const source = exercise.source?.trim();
+
   return (
     <View
       testID={`planning-link-card-${exercise.id}`}
       style={{
-        gap: 8,
-        padding: 12,
+        gap: 10,
+        padding: 11,
         borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
       }}
     >
-      <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
-            {exercise.title || "Vídeo/link"}
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+        <View style={{ flex: 1, gap: 5 }}>
+          <Text
+            numberOfLines={2}
+            style={{
+              color: colors.text,
+              fontSize: 14,
+              fontWeight: "900",
+              lineHeight: 18,
+            }}
+          >
+            {title}
           </Text>
-          {exercise.description ? (
-            <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12 }}>
-              {exercise.description}
+          {description ? (
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
+              {description}
             </Text>
           ) : null}
-          {exercise.source ? (
-            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>
-              {exercise.source}
+          {source ? (
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>
+              {source}
             </Text>
           ) : null}
         </View>
         <View
           style={{
+            flexShrink: 0,
             paddingHorizontal: 9,
             paddingVertical: 5,
             borderRadius: 999,
