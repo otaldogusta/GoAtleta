@@ -6,6 +6,7 @@ import {
   matchesExerciseLinkSearch,
   mergeInferredExerciseLinkTags,
   scoreExerciseLinkForPlanningBlock,
+  shouldRefreshExerciseLinkMetadata,
 } from "../exercise-link-classifier";
 
 const exercise = (overrides: Partial<Exercise>): Exercise => ({
@@ -165,5 +166,34 @@ describe("exercise link classifier", () => {
     );
     expect(presentation.title).not.toMatch(/Pinterest|Pin|Jogo$/i);
     expect(presentation.description).not.toMatch(/Gostou|Segue|Encontre/i);
+  });
+
+  it("does not expose stale generic Pinterest text when metadata is weak", () => {
+    const presentation = getExerciseLinkPresentation(
+      exercise({
+        title: "Pin em Ida & Oscar",
+        description: "1 de fev de 2026 - Encontre (e salve!) seus próprios Pins no Pinterest.",
+        source: "br.pinterest.com",
+        videoUrl: "https://br.pinterest.com/pin/123",
+      })
+    );
+
+    expect(presentation.title).toBe("Referência do Pinterest");
+    expect(presentation.description).toBe("Link salvo para consulta e uso no planejamento.");
+    expect(presentation.title).not.toMatch(/Pin em|Ida|Oscar/i);
+    expect(presentation.description).not.toMatch(/Encontre|Pinterest|Pins/i);
+  });
+
+  it("marks social links with weak metadata for live refresh", () => {
+    expect(
+      shouldRefreshExerciseLinkMetadata(
+        exercise({
+          title: "Pin em Ida & Oscar",
+          description: "Encontre (e salve!) seus próprios Pins no Pinterest.",
+          source: "br.pinterest.com",
+          videoUrl: "https://br.pinterest.com/pin/123",
+        })
+      )
+    ).toBe(true);
   });
 });

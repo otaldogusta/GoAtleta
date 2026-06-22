@@ -2,10 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
+import { getLinkKey, requestLinkMetadata, type LinkMetadata } from "../../../api/link-metadata";
+import { getValidAccessToken } from "../../../auth/session";
 import {
   getExerciseLinkPresentation,
   matchesExerciseLinkSearch,
   scoreExerciseLinkForPlanningBlock,
+  shouldRefreshExerciseLinkMetadata,
 } from "../../../core/exercise-link-classifier";
 import type { Exercise } from "../../../core/models";
 import type { TrainingPlanBlockKey } from "../../../core/training-plan-blocks";
@@ -54,6 +57,37 @@ const defaultPhaseByBlock: Record<TrainingPlanBlockKey, ActivityPatternStage> = 
   cooldown: "cooldown",
 };
 
+const getMetadataForExercise = (
+  previews: Record<string, LinkMetadata | null>,
+  exercise: Exercise
+) => {
+  const key = getLinkKey(exercise.videoUrl ?? "");
+  if (!key || !Object.prototype.hasOwnProperty.call(previews, key)) return undefined;
+  return previews[key];
+};
+
+const buildExerciseLinkInput = (exercise: Exercise, metadata?: LinkMetadata | null) => ({
+  ...exercise,
+  metadataTitle: metadata?.title,
+  metadataDescription: metadata?.description,
+  metadataAuthor: metadata?.author,
+  metadataHost: metadata?.host,
+});
+
+const buildExerciseForPlanningBlock = (
+  exercise: Exercise,
+  metadata?: LinkMetadata | null
+): Exercise => {
+  const presentation = getExerciseLinkPresentation(buildExerciseLinkInput(exercise, metadata));
+  return {
+    ...exercise,
+    title: presentation.title,
+    description: presentation.description,
+    source: presentation.sourceLabel,
+    tags: presentation.tags,
+  };
+};
+
 export function PlanningLibraryBridgeSheet({
   visible,
   blockKey,
@@ -70,6 +104,7 @@ export function PlanningLibraryBridgeSheet({
     useState<ActivityCatalogListItem | null>(null);
   const [linkQuery, setLinkQuery] = useState("");
   const [links, setLinks] = useState<Exercise[]>([]);
+  const [linkPreviews, setLinkPreviews] = useState<Record<string, LinkMetadata | null>>({});
   const [linksError, setLinksError] = useState("");
   const [loadingLinks, setLoadingLinks] = useState(false);
 
@@ -82,15 +117,28 @@ export function PlanningLibraryBridgeSheet({
   const filteredLinks = useMemo(() => {
     const query = linkQuery.trim();
     const matchingLinks = query
-      ? links.filter((exercise) => matchesExerciseLinkSearch(exercise, query))
+      ? links.filter((exercise) =>
+          matchesExerciseLinkSearch(
+            buildExerciseLinkInput(exercise, getMetadataForExercise(linkPreviews, exercise)),
+            query
+          )
+        )
       : links;
     if (!blockKey) return matchingLinks;
     return [...matchingLinks].sort(
-      (left, right) =>
-        scoreExerciseLinkForPlanningBlock(right, blockKey) -
-        scoreExerciseLinkForPlanningBlock(left, blockKey)
+      (left, right) => {
+        const rightInput = buildExerciseLinkInput(
+          right,
+          getMetadataForExercise(linkPreviews, right)
+        );
+        const leftInput = buildExerciseLinkInput(left, getMetadataForExercise(linkPreviews, left));
+        return (
+          scoreExerciseLinkForPlanningBlock(rightInput, blockKey) -
+          scoreExerciseLinkForPlanningBlock(leftInput, blockKey)
+        );
+      }
     );
-  }, [blockKey, linkQuery, links]);
+  }, [blockKey, linkPreviews, linkQuery, links]);
 
   useEffect(() => {
     if (!visible) {
@@ -125,6 +173,50 @@ export function PlanningLibraryBridgeSheet({
       alive = false;
     };
   }, [activeTab, visible]);
+
+  useEffect(() => {
+    if (!visible || activeTab !== "links" || !links.length) return;
+    const candidates = links
+      .filter((exercise) => {
+        const key = getLinkKey(exercise.videoUrl ?? "");
+        if (!key || Object.prototype.hasOwnProperty.call(linkPreviews, key)) return false;
+        return shouldRefreshExerciseLinkMetadata(exercise);
+      })
+      .slice(0, 6);
+    if (!candidates.length) return;
+
+    let alive = true;
+    const loadMetadata = async () => {
+      const accessToken = await getValidAccessToken();
+      if (!accessToken || !alive) return;
+      const entries = await Promise.all(
+        candidates.map(async (exercise) => {
+          const key = getLinkKey(exercise.videoUrl);
+          try {
+            const metadata = await requestLinkMetadata(exercise.videoUrl, accessToken);
+            return [key, metadata] as const;
+          } catch {
+            return [key, null] as const;
+          }
+        })
+      );
+      if (!alive) return;
+      setLinkPreviews((current) => {
+        const next = { ...current };
+        entries.forEach(([key, metadata]) => {
+          if (key && !Object.prototype.hasOwnProperty.call(next, key)) {
+            next[key] = metadata;
+          }
+        });
+        return next;
+      });
+    };
+
+    void loadMetadata();
+    return () => {
+      alive = false;
+    };
+  }, [activeTab, linkPreviews, links, visible]);
 
   if (!visible || !blockKey) return null;
 
@@ -226,6 +318,7 @@ export function PlanningLibraryBridgeSheet({
                   <LinkCard
                     key={exercise.id}
                     exercise={exercise}
+                    metadata={getMetadataForExercise(linkPreviews, exercise)}
                     onAdd={onAddExerciseLink}
                   />
                 ))}
@@ -532,14 +625,17 @@ function PlanningCatalogCompactCard({
 
 function LinkCard({
   exercise,
+  metadata,
   onAdd,
 }: {
   exercise: Exercise;
+  metadata?: LinkMetadata | null;
   onAdd: (exercise: Exercise) => void;
 }) {
   const { colors } = useAppTheme();
-  const presentation = getExerciseLinkPresentation(exercise);
+  const presentation = getExerciseLinkPresentation(buildExerciseLinkInput(exercise, metadata));
   const { title, description, sourceLabel } = presentation;
+  const exerciseForBlock = buildExerciseForPlanningBlock(exercise, metadata);
 
   return (
     <View
@@ -593,7 +689,7 @@ function LinkCard({
       </View>
       <Pressable
         testID={`planning-add-link-${exercise.id}`}
-        onPress={() => onAdd(exercise)}
+        onPress={() => onAdd(exerciseForBlock)}
         style={{
           minHeight: 38,
           borderRadius: 12,

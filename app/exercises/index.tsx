@@ -24,7 +24,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
+import {
+  getLinkKey,
+  LINK_METADATA_FALLBACK_STATUS,
+  requestLinkMetadata,
+  type LinkMetadata,
+} from "../../src/api/link-metadata";
 import { getValidAccessToken } from "../../src/auth/session";
 import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import {
@@ -51,16 +56,6 @@ import { markRender, measureAsync } from "../../src/observability/perf";
 
 type LibraryTab = "links" | "catalog";
 
-type LinkMetadata = {
-  title: string;
-  author: string;
-  host: string;
-  image: string;
-  description: string;
-  publishedAt: string;
-  url: string;
-};
-
 type LinkFormSnapshot = {
   editingId: string | null;
   title: string;
@@ -73,7 +68,6 @@ type LinkFormSnapshot = {
 
 const LINK_METADATA_CACHE_KEY = "goatleta.library.linkMetadata.v2";
 const LINK_METADATA_CACHE_LIMIT = 80;
-const LINK_METADATA_FALLBACK_STATUS = "Preview básico usado para este link.";
 
 const normalizeLinkFormValue = (value?: string | null) => (value ?? "").trim();
 
@@ -122,8 +116,6 @@ const getInstagramMediaUrl = (url: string) => {
   if (!match?.[1] || !match?.[2]) return "";
   return `https://www.instagram.com/${match[1]}/${match[2]}/media/?size=l`;
 };
-
-const getLinkKey = (url: string) => url.trim();
 
 const getThumbnail = (url: string, metadataImage = "") => {
   const image = metadataImage.trim();
@@ -180,40 +172,6 @@ const getDisplaySource = (item: Exercise, metadata?: LinkMetadata | null) =>
 
 const getDisplayDescription = (item: Exercise, metadata?: LinkMetadata | null) =>
   getDisplayPresentation(item, metadata).description;
-
-const requestLinkMetadata = async (
-  url: string,
-  accessToken: string
-): Promise<LinkMetadata> => {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/link-metadata`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      apikey: SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ url: url.trim() }),
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(LINK_METADATA_FALLBACK_STATUS);
-  }
-  let data: Partial<LinkMetadata>;
-  try {
-    data = JSON.parse(text) as Partial<LinkMetadata>;
-  } catch {
-    throw new Error(LINK_METADATA_FALLBACK_STATUS);
-  }
-  return {
-    title: data.title ?? "",
-    author: data.author ?? "",
-    host: data.host ?? "",
-    image: data.image ?? "",
-    description: data.description ?? "",
-    publishedAt: data.publishedAt ?? "",
-    url: data.url ?? url.trim(),
-  };
-};
 
 const readCachedLinkMetadata = async () => {
   try {

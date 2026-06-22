@@ -133,6 +133,32 @@ const shouldUseCleanDisplayTitle = (rawTitle?: string | null, cleanedTitle?: str
       !isLikelyForeignExerciseText(cleanedTitle)
   );
 
+const shouldUseCleanDisplayDescription = (
+  rawDescription?: string | null,
+  cleanedDescription?: string | null
+) =>
+  Boolean(
+    cleanedDescription &&
+      cleanedDescription.length >= 18 &&
+      !isNoisyDisplayText(rawDescription) &&
+      !isLikelyForeignExerciseText(cleanedDescription)
+  );
+
+const getProviderFallbackTitle = (providerTag: string, sourceLabel: string) => {
+  if (providerTag === "instagram") return "Referência do Instagram";
+  if (providerTag === "pinterest") return "Referência do Pinterest";
+  if (providerTag === "youtube") return "Referência do YouTube";
+  if (sourceLabel && sourceLabel !== "Vídeo/link") return `Referência do ${sourceLabel}`;
+  return "Vídeo/link";
+};
+
+const getProviderFallbackDescription = (providerTag: string) => {
+  if (providerTag === "instagram" || providerTag === "pinterest") {
+    return "Link salvo para consulta e uso no planejamento.";
+  }
+  return "Referência salva para consulta e uso no planejamento.";
+};
+
 const hasTag = (tags: Set<string>, tag: string) => tags.has(tag);
 
 const getRuleBasedPresentation = (tags: Set<string>) => {
@@ -452,7 +478,13 @@ export const getExerciseLinkPresentation = (
   const cleanedDescription = stripDisplayNoise(
     input.description || input.metadataDescription || input.notes
   );
-  const useCleanTitle = shouldUseCleanDisplayTitle(input.title || input.metadataTitle, cleanedTitle);
+  const rawTitle = input.title || input.metadataTitle;
+  const rawDescription = input.description || input.metadataDescription || input.notes;
+  const useCleanTitle = shouldUseCleanDisplayTitle(rawTitle, cleanedTitle);
+  const useCleanDescription = shouldUseCleanDisplayDescription(
+    rawDescription,
+    cleanedDescription
+  );
   const preferRuleTitle = hasTag(tagSet, "queimada");
 
   if (ruleBased) {
@@ -464,11 +496,12 @@ export const getExerciseLinkPresentation = (
     };
   }
 
-  const fallbackTitle =
-    cleanedTitle ||
-    (sourceLabel && sourceLabel !== "Vídeo/link" ? `Referência do ${sourceLabel}` : "Vídeo/link");
-  const fallbackDescription =
-    cleanedDescription || "Referência salva para consulta e uso no planejamento.";
+  const fallbackTitle = useCleanTitle
+    ? cleanedTitle
+    : getProviderFallbackTitle(providerTag, sourceLabel);
+  const fallbackDescription = useCleanDescription
+    ? cleanedDescription
+    : getProviderFallbackDescription(providerTag);
 
   return {
     title: limitText(fallbackTitle, 72),
@@ -490,6 +523,22 @@ export const mergeInferredExerciseLinkTags = (
 
 export const getExerciseLinkSearchTags = (exercise: Exercise) =>
   mergeInferredExerciseLinkTags(exercise, exercise.tags ?? []);
+
+export const shouldRefreshExerciseLinkMetadata = (
+  input: ExerciseLinkClassificationInput
+) => {
+  const providerTag = inferProviderTag(input);
+  if (!input.videoUrl?.trim()) return false;
+  if (providerTag === "instagram" || providerTag === "pinterest") return true;
+  return (
+    isNoisyDisplayText(input.title) ||
+    isNoisyDisplayText(input.description) ||
+    isLikelyForeignExerciseText(input.title) ||
+    isLikelyForeignExerciseText(input.description) ||
+    !stripDisplayNoise(input.title).trim() ||
+    !stripDisplayNoise(input.description).trim()
+  );
+};
 
 const buildSearchText = (input: ExerciseLinkClassificationInput) =>
   normalizeText(
@@ -550,10 +599,10 @@ export const EXERCISE_LINK_PRIORITY_TAGS_BY_BLOCK: Record<TrainingPlanBlockKey, 
 };
 
 export const scoreExerciseLinkForPlanningBlock = (
-  exercise: Exercise,
+  exercise: ExerciseLinkClassificationInput,
   blockKey: TrainingPlanBlockKey
 ) => {
-  const tags = new Set(getExerciseLinkSearchTags(exercise));
+  const tags = new Set(mergeInferredExerciseLinkTags(exercise, exercise.tags ?? []));
   const priorityTags = EXERCISE_LINK_PRIORITY_TAGS_BY_BLOCK[blockKey];
   return priorityTags.reduce((score, tag, index) => {
     if (!tags.has(tag)) return score;
