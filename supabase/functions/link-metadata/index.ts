@@ -137,6 +137,273 @@ const decodeHtmlEntities = (value: string) =>
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 
+const compactWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const normalizeMetadataText = (value: string) =>
+  compactWhitespace(decodeHtmlEntities(value))
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const stripHtmlToText = (value: string) =>
+  decodeHtmlEntities(
+    value
+      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<svg\b[\s\S]*?<\/svg>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(?:p|div|h1|h2|h3|li|section|article)>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+  )
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+
+const decodeJsonString = (value: string) => {
+  try {
+    return JSON.parse(`"${value}"`) as string;
+  } catch {
+    return value
+      .replace(/\\u([0-9a-f]{4})/gi, (_, code: string) =>
+        String.fromCharCode(Number.parseInt(code, 16))
+      )
+      .replace(/\\n|\\r|\\t/g, " ")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
+  }
+};
+
+const isGenericMetadataText = (value?: string | null) => {
+  const text = normalizeMetadataText(value ?? "");
+  if (!text) return true;
+  return (
+    text === "instagram" ||
+    text === "pinterest" ||
+    text === "youtube" ||
+    text.includes("encontre e salve") ||
+    text.includes("seus proprios pins") ||
+    text.includes("pin em ") ||
+    text.includes("pin on ") ||
+    text.includes("entrar") && text.includes("criar conta") ||
+    text.includes("adicionar comentario") ||
+    text.includes("comentarios") ||
+    text.includes("log in") && text.includes("sign up") ||
+    text.includes("instagram photos and videos") ||
+    text.includes("likes") && text.includes("comments")
+  );
+};
+
+const sportsMetadataTerms = [
+  "atividade",
+  "aquecimento",
+  "bola",
+  "core",
+  "defesa",
+  "defensor",
+  "dupla",
+  "duplas",
+  "exercicio",
+  "exercício",
+  "forca",
+  "força",
+  "jogo",
+  "jogos",
+  "manchete",
+  "mobilidade",
+  "passe",
+  "queimada",
+  "reativa",
+  "saque",
+  "treino",
+  "variacao",
+  "variação",
+  "voleibol",
+  "volleyball",
+];
+
+const metadataScore = (value: string, kind: "title" | "description") => {
+  const compact = compactWhitespace(value);
+  const normalized = normalizeMetadataText(compact);
+  if (!compact || isGenericMetadataText(compact)) return -1000;
+  let score = 0;
+  const length = compact.length;
+  sportsMetadataTerms.forEach((term) => {
+    if (normalized.includes(normalizeMetadataText(term))) score += 10;
+  });
+  if (kind === "title") {
+    if (length >= 6 && length <= 90) score += 35;
+    if (length > 120) score -= 40;
+  } else {
+    if (length >= 40 && length <= 900) score += 35;
+    if (length > 1200) score -= 25;
+  }
+  return score;
+};
+
+const addCandidate = (target: string[], value?: unknown) => {
+  if (typeof value !== "string") return;
+  const cleaned = compactWhitespace(stripHtmlToText(value));
+  if (!cleaned || isGenericMetadataText(cleaned)) return;
+  if (!target.some((item) => normalizeMetadataText(item) === normalizeMetadataText(cleaned))) {
+    target.push(cleaned);
+  }
+};
+
+const pickBestCandidate = (candidates: string[], kind: "title" | "description") =>
+  [...candidates]
+    .sort((a, b) => metadataScore(b, kind) - metadataScore(a, kind))
+    .find((candidate) => metadataScore(candidate, kind) > 0) ?? "";
+
+type MetadataCandidates = {
+  titles: string[];
+  descriptions: string[];
+  authors: string[];
+  images: string[];
+  dates: string[];
+};
+
+const createMetadataCandidates = (): MetadataCandidates => ({
+  titles: [],
+  descriptions: [],
+  authors: [],
+  images: [],
+  dates: [],
+});
+
+const collectJsonCandidates = (
+  value: unknown,
+  candidates: MetadataCandidates,
+  depth = 0,
+  parentKey = ""
+) => {
+  if (depth > 8 || value == null) return;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectJsonCandidates(item, candidates, depth + 1, parentKey));
+    return;
+  }
+  if (typeof value !== "object") return;
+
+  Object.entries(value as Record<string, unknown>).forEach(([key, entry]) => {
+    const normalizedKey = key.toLowerCase();
+    const parentIsAuthor =
+      parentKey.includes("author") ||
+      parentKey.includes("creator") ||
+      parentKey.includes("profile");
+    if (typeof entry === "string") {
+      if (["title", "name", "headline", "alternatename"].includes(normalizedKey) && !parentIsAuthor) {
+        addCandidate(candidates.titles, entry);
+      }
+      if (
+        ["description", "caption", "text", "articlebody", "transcript"].includes(
+          normalizedKey
+        )
+      ) {
+        addCandidate(candidates.descriptions, entry);
+      }
+      if (["author", "creator", "username"].includes(normalizedKey) || (normalizedKey === "name" && parentIsAuthor)) {
+        addCandidate(candidates.authors, entry);
+      }
+      if (["image", "thumbnail", "thumbnailurl", "contenturl"].includes(normalizedKey)) {
+        addCandidate(candidates.images, entry);
+      }
+      if (["datepublished", "uploaddate", "publishedat"].includes(normalizedKey)) {
+        addCandidate(candidates.dates, entry);
+      }
+    }
+    collectJsonCandidates(entry, candidates, depth + 1, normalizedKey);
+  });
+};
+
+const extractJsonLdCandidates = (html: string, candidates: MetadataCandidates) => {
+  const blocks = html.matchAll(
+    /<script\b[^>]*type=["'][^"']*ld\+json[^"']*["'][^>]*>([\s\S]*?)<\/script>/gi
+  );
+  for (const block of blocks) {
+    const raw = decodeHtmlEntities(block[1] ?? "").trim();
+    if (!raw) continue;
+    try {
+      collectJsonCandidates(JSON.parse(raw), candidates);
+    } catch {
+      // Some providers ship malformed JSON-LD; scripted JSON fallbacks handle those pages.
+    }
+  }
+};
+
+const extractScriptCandidates = (html: string, candidates: MetadataCandidates) => {
+  const scripts = html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi);
+  const titleRegex =
+    /"(?:title|name|headline|grid_title|seoTitle)"\s*:\s*"((?:\\.|[^"\\]){4,500})"/gi;
+  const descriptionRegex =
+    /"(?:description|caption|text|articleBody|seoDescription|grid_description)"\s*:\s*"((?:\\.|[^"\\]){12,1200})"/gi;
+  const authorRegex =
+    /"(?:author_name|authorName|full_name|username|displayName)"\s*:\s*"((?:\\.|[^"\\]){2,200})"/gi;
+  const imageRegex =
+    /"(?:thumbnail_url|thumbnailUrl|contentUrl|image_url|imageUrl)"\s*:\s*"((?:\\.|[^"\\]){8,1000})"/gi;
+  const dateRegex =
+    /"(?:datePublished|uploadDate|publishedAt)"\s*:\s*"((?:\\.|[^"\\]){6,80})"/gi;
+
+  for (const script of scripts) {
+    const body = script[1] ?? "";
+    for (const match of body.matchAll(titleRegex)) addCandidate(candidates.titles, decodeJsonString(match[1]));
+    for (const match of body.matchAll(descriptionRegex)) addCandidate(candidates.descriptions, decodeJsonString(match[1]));
+    for (const match of body.matchAll(authorRegex)) addCandidate(candidates.authors, decodeJsonString(match[1]));
+    for (const match of body.matchAll(imageRegex)) addCandidate(candidates.images, decodeJsonString(match[1]));
+    for (const match of body.matchAll(dateRegex)) addCandidate(candidates.dates, decodeJsonString(match[1]));
+  }
+};
+
+const extractVisibleTextCandidates = (html: string, candidates: MetadataCandidates) => {
+  const text = stripHtmlToText(html);
+  const lines = text
+    .split(/\n| {2,}/g)
+    .map(compactWhitespace)
+    .filter((line) => line.length >= 6 && line.length <= 900 && !isGenericMetadataText(line));
+
+  lines.forEach((line) => {
+    if (line.length <= 90) addCandidate(candidates.titles, line);
+    if (line.length >= 35) addCandidate(candidates.descriptions, line);
+  });
+};
+
+const enrichMetadataFromHtml = (
+  html: string,
+  current: {
+    title: string;
+    author: string;
+    image: string;
+    description: string;
+    publishedAt: string;
+  }
+) => {
+  const candidates = createMetadataCandidates();
+  addCandidate(candidates.titles, current.title);
+  addCandidate(candidates.descriptions, current.description);
+  addCandidate(candidates.authors, current.author);
+  addCandidate(candidates.images, current.image);
+  addCandidate(candidates.dates, current.publishedAt);
+  extractJsonLdCandidates(html, candidates);
+  extractScriptCandidates(html, candidates);
+  extractVisibleTextCandidates(html, candidates);
+
+  const title =
+    current.title && !isGenericMetadataText(current.title)
+      ? current.title
+      : pickBestCandidate(candidates.titles, "title");
+  const description =
+    current.description && !isGenericMetadataText(current.description)
+      ? current.description
+      : pickBestCandidate(candidates.descriptions, "description");
+
+  return {
+    title,
+    author: current.author || candidates.authors[0] || "",
+    image: current.image || candidates.images[0] || "",
+    description,
+    publishedAt: current.publishedAt || candidates.dates[0] || "",
+  };
+};
+
 const extractMeta = (html: string, key: string) => {
   const tags = html.match(/<meta\b[^>]*>/gi) ?? [];
   for (const tag of tags) {
@@ -273,6 +540,18 @@ Deno.serve(async (req) => {
       image = image || extractImage(html);
       description = description || extractDescription(html);
       publishedAt = publishedAt || extractPublished(html);
+      const enriched = enrichMetadataFromHtml(html, {
+        title,
+        author,
+        image,
+        description,
+        publishedAt,
+      });
+      title = enriched.title;
+      author = enriched.author;
+      image = enriched.image;
+      description = enriched.description;
+      publishedAt = enriched.publishedAt;
       if (isYouTube(normalized)) {
         const shortMatch = html.match(/"shortDescription":"(.*)"/);
         if (shortMatch && !description) {

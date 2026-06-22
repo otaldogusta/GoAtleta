@@ -106,6 +106,8 @@ const isNoisyDisplayText = (value?: string | null) => {
     normalized.includes("youtube") ||
     normalized.includes(" likes") ||
     normalized.includes(" comments") ||
+    normalized.includes("encontre e salve") ||
+    normalized.includes("seus proprios pins") ||
     normalized.startsWith("pin em ") ||
     normalized.startsWith("pin on ")
   );
@@ -134,6 +136,18 @@ const shouldUseCleanDisplayTitle = (rawTitle?: string | null, cleanedTitle?: str
 const hasTag = (tags: Set<string>, tag: string) => tags.has(tag);
 
 const getRuleBasedPresentation = (tags: Set<string>) => {
+  if (hasTag(tags, "queimada") && hasTag(tags, "duplas")) {
+    return {
+      title: "Queimada reativa em duplas",
+      description: "Jogo de queimada com proteção em duplas, reação e tomada de decisão.",
+    };
+  }
+  if (hasTag(tags, "queimada")) {
+    return {
+      title: "Queimada reativa",
+      description: "Jogo de oposição simples para reação, deslocamento e tomada de decisão.",
+    };
+  }
   if (hasTag(tags, "forca") && hasTag(tags, "core") && hasTag(tags, "duplas")) {
     return {
       title: "Força e core em duplas",
@@ -238,7 +252,20 @@ const TAG_RULES: ReadonlyArray<{ tag: string; keywords: string[] }> = [
   },
   {
     tag: "jogo-aplicacao",
-    keywords: ["jogo aplicado", "aplicacao", "aplicação", "small sided", "jogo reduzido", "mini jogo", "rally", "sideout", "side-out"],
+    keywords: [
+      "jogo",
+      "jogos",
+      "jogo aplicado",
+      "aplicacao",
+      "aplicação",
+      "small sided",
+      "jogo reduzido",
+      "mini jogo",
+      "rally",
+      "sideout",
+      "side-out",
+      "game",
+    ],
   },
   {
     tag: "drill",
@@ -274,7 +301,19 @@ const TAG_RULES: ReadonlyArray<{ tag: string; keywords: string[] }> = [
   },
   {
     tag: "defesa",
-    keywords: ["defesa", "defense", "dig", "cobertura", "coverage", "salvar bola"],
+    keywords: [
+      "defesa",
+      "defense",
+      "dig",
+      "cobertura",
+      "coverage",
+      "salvar bola",
+      "defensor",
+      "protecao",
+      "proteção",
+      "proteger",
+      "interceptar",
+    ],
   },
   {
     tag: "transicao",
@@ -306,7 +345,7 @@ const TAG_RULES: ReadonlyArray<{ tag: string; keywords: string[] }> = [
   },
   {
     tag: "agilidade",
-    keywords: ["agilidade", "agility", "sprint", "velocidade", "speed", "quickness"],
+    keywords: ["agilidade", "agility", "sprint", "velocidade", "speed", "quickness", "reativa", "reacao", "reação"],
   },
   {
     tag: "core",
@@ -346,6 +385,10 @@ const TAG_RULES: ReadonlyArray<{ tag: string; keywords: string[] }> = [
   {
     tag: "jogo-reduzido",
     keywords: ["jogo reduzido", "mini jogo", "small sided", "2x2", "3x3"],
+  },
+  {
+    tag: "queimada",
+    keywords: ["queimada", "dodgeball", "corredor", "defensor", "interceptar", "intercepta"],
   },
 ];
 
@@ -410,11 +453,12 @@ export const getExerciseLinkPresentation = (
     input.description || input.metadataDescription || input.notes
   );
   const useCleanTitle = shouldUseCleanDisplayTitle(input.title || input.metadataTitle, cleanedTitle);
+  const preferRuleTitle = hasTag(tagSet, "queimada");
 
   if (ruleBased) {
     return {
       ...ruleBased,
-      title: useCleanTitle ? limitText(cleanedTitle, 72) : ruleBased.title,
+      title: useCleanTitle && !preferRuleTitle ? limitText(cleanedTitle, 72) : ruleBased.title,
       sourceLabel,
       tags,
     };

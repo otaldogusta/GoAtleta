@@ -71,7 +71,7 @@ type LinkFormSnapshot = {
   publishedAt: string;
 };
 
-const LINK_METADATA_CACHE_KEY = "goatleta.library.linkMetadata.v1";
+const LINK_METADATA_CACHE_KEY = "goatleta.library.linkMetadata.v2";
 const LINK_METADATA_CACHE_LIMIT = 80;
 const LINK_METADATA_FALLBACK_STATUS = "Preview básico usado para este link.";
 

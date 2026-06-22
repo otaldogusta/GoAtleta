@@ -58,6 +58,26 @@ describe("exercise link classifier", () => {
     expect(tags).toEqual(expect.arrayContaining(["forca", "core", "mobilidade", "instagram"]));
   });
 
+  it("classifies queimada descriptions from rich link metadata", () => {
+    const tags = classifyExerciseLink({
+      title: "Queimada Jogo",
+      description:
+        "Queimada reativa em dupla com proteção. Um aluno é o corredor e o outro defensor. O defensor pode interceptar a bola para proteger o colega.",
+      source: "Pinterest",
+    });
+
+    expect(tags).toEqual(
+      expect.arrayContaining([
+        "queimada",
+        "jogo-aplicacao",
+        "duplas",
+        "defesa",
+        "agilidade",
+        "pinterest",
+      ])
+    );
+  });
+
   it("removes stale managed tags while preserving custom tags", () => {
     const tags = mergeInferredExerciseLinkTags(
       {
@@ -127,5 +147,23 @@ describe("exercise link classifier", () => {
     );
     expect(presentation.title).not.toMatch(/Instagram|Kraft|#|@/i);
     expect(presentation.description).not.toMatch(/likes|comments|#/i);
+  });
+
+  it("presents a rich Pinterest queimada link as a teacher-friendly activity", () => {
+    const presentation = getExerciseLinkPresentation(
+      exercise({
+        title: "Queimada Jogo",
+        description:
+          "Gostou?! Segue aí! Variações. Essa é uma variação da queimada reativa. Em dupla com proteção, os alunos jogam em duplas. Um aluno é o corredor e o outro defensor. O defensor pode interceptar a bola lançada para proteger o colega.",
+        source: "br.pinterest.com",
+      })
+    );
+
+    expect(presentation.title).toBe("Queimada reativa em duplas");
+    expect(presentation.description).toBe(
+      "Jogo de queimada com proteção em duplas, reação e tomada de decisão."
+    );
+    expect(presentation.title).not.toMatch(/Pinterest|Pin|Jogo$/i);
+    expect(presentation.description).not.toMatch(/Gostou|Segue|Encontre/i);
   });
 });
