@@ -5,6 +5,7 @@ import type {
   TrainingPlanPedagogy,
   TrainingPlanSessionBlock,
 } from "../../../core/models";
+import { getExerciseLinkPresentation } from "../../../core/exercise-link-classifier";
 import {
   hasMatchingTrainingPlanActivity,
 } from "../../../core/training-plan-activity-source";
@@ -88,17 +89,14 @@ export const buildTrainingPlanActivityFromCatalogItem = (
 export const buildTrainingPlanActivityFromExerciseLink = (
   exercise: Exercise
 ): TrainingPlanActivity => {
-  const title = exercise.title.trim() || "Vídeo/link";
-  const descriptionParts = [
-    exercise.description?.trim(),
-    exercise.notes?.trim(),
-    exercise.videoUrl ? `Link: ${exercise.videoUrl}` : "",
-  ].filter(Boolean);
+  const presentation = getExerciseLinkPresentation(exercise);
   return {
-    name: title,
-    description: descriptionParts.join("\n"),
+    name: presentation.title,
+    description: presentation.description,
     execution: exercise.videoUrl,
-    coachFocus: exercise.source ? `Vídeo/link · ${exercise.source}` : "Vídeo/link",
+    coachFocus: presentation.sourceLabel
+      ? `Vídeo/link · ${presentation.sourceLabel}`
+      : "Vídeo/link",
   };
 };
 

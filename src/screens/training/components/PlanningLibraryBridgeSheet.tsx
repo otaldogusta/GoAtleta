@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import {
+  getExerciseLinkPresentation,
   matchesExerciseLinkSearch,
   scoreExerciseLinkForPlanningBlock,
 } from "../../../core/exercise-link-classifier";
@@ -537,9 +538,8 @@ function LinkCard({
   onAdd: (exercise: Exercise) => void;
 }) {
   const { colors } = useAppTheme();
-  const title = exercise.title?.trim() || "Vídeo/link";
-  const description = exercise.description?.trim();
-  const source = exercise.source?.trim();
+  const presentation = getExerciseLinkPresentation(exercise);
+  const { title, description, sourceLabel } = presentation;
 
   return (
     <View
@@ -571,9 +571,9 @@ function LinkCard({
               {description}
             </Text>
           ) : null}
-          {source ? (
+          {sourceLabel ? (
             <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>
-              {source}
+              {sourceLabel}
             </Text>
           ) : null}
         </View>

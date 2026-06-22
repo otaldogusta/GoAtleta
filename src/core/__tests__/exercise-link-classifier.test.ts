@@ -1,6 +1,7 @@
 import type { Exercise } from "../models";
 import {
   classifyExerciseLink,
+  getExerciseLinkPresentation,
   getExerciseLinkSearchTags,
   matchesExerciseLinkSearch,
   mergeInferredExerciseLinkTags,
@@ -107,5 +108,24 @@ describe("exercise link classifier", () => {
     expect(classifyExerciseLink(handballLink)).not.toContain("passe");
     expect(matchesExerciseLinkSearch(handballLink, "passe")).toBe(false);
     expect(matchesExerciseLinkSearch(handballLink, "core")).toBe(true);
+  });
+
+  it("presents noisy foreign social metadata as a short Portuguese activity", () => {
+    const presentation = getExerciseLinkPresentation(
+      exercise({
+        title:
+          'Handballcoach Philipp on Instagram: "Kurzes Kräftigen in der Zweiergruppe. Ziel: Körperspannung steigern, große Muskelgruppen kräftigen. #strengthtraining #krafttraining #coreworkout #corestrength #partnerworkout"',
+        description:
+          "11K likes, 33 comments - handballcoach_philipp on September 2, 2024: Kurzes Kräftigen in der Zweiergruppe.",
+        source: "Instagram",
+      })
+    );
+
+    expect(presentation.title).toBe("Força e core em duplas");
+    expect(presentation.description).toBe(
+      "Fortalecimento em duplas para controle corporal e grandes grupos musculares."
+    );
+    expect(presentation.title).not.toMatch(/Instagram|Kraft|#|@/i);
+    expect(presentation.description).not.toMatch(/likes|comments|#/i);
   });
 });

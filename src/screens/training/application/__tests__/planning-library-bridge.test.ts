@@ -105,8 +105,8 @@ describe("planning library bridge", () => {
 
     expect(activity.name).toBe("Vídeo de saque curto");
     expect(activity.execution).toBe("https://example.com/video");
-    expect(activity.description).toContain("Referência técnica curta.");
-    expect(activity.description).toContain("Link: https://example.com/video");
+    expect(activity.description).toBe("Referência para saque, alvo e controle de direção.");
+    expect(activity.description).not.toContain("Link:");
     expect(activity.catalog).toBeUndefined();
   });
 

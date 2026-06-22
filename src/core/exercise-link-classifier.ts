@@ -58,6 +58,175 @@ const inferProviderTag = (input: ExerciseLinkClassificationInput) => {
   return "link";
 };
 
+export type ExerciseLinkPresentation = {
+  title: string;
+  description: string;
+  sourceLabel: string;
+  tags: string[];
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  youtube: "YouTube",
+  instagram: "Instagram",
+  pinterest: "Pinterest",
+  vimeo: "Vimeo",
+  link: "Vídeo/link",
+};
+
+const compactWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const stripDisplayNoise = (value?: string | null) =>
+  compactWhitespace(
+    (value ?? "")
+      .replace(/https?:\/\/\S+/gi, " ")
+      .replace(/#[^\s#]+/g, " ")
+      .replace(/@\S+/g, " ")
+      .replace(/\b\d+[,.]?\d*\s*[kKmM]?\s+likes?,?\s+\d+[,.]?\d*\s+comments?\s*-\s*/gi, " ")
+      .replace(/\b(on|em)\s+[A-Za-zÀ-ÿ]+\s+\d{1,2},?\s+\d{4}:?\s*/gi, " ")
+      .replace(/\b(handballcoach|instagram|pinterest|youtube)\b/gi, " ")
+      .replace(/\s*["“”]\s*/g, " ")
+      .replace(/\s+-\s+$/g, " ")
+  );
+
+const limitText = (value: string, maxLength: number) => {
+  const compact = compactWhitespace(value);
+  if (compact.length <= maxLength) return compact;
+  const sliced = compact.slice(0, maxLength).replace(/\s+\S*$/, "");
+  return `${sliced.trim()}...`;
+};
+
+const isNoisyDisplayText = (value?: string | null) => {
+  const raw = value ?? "";
+  const normalized = normalizeText(raw);
+  return (
+    /https?:\/\/|www\.|[#@]/i.test(raw) ||
+    normalized.includes(" instagram") ||
+    normalized.includes(" on instagram") ||
+    normalized.includes("pinterest") ||
+    normalized.includes("youtube") ||
+    normalized.includes(" likes") ||
+    normalized.includes(" comments") ||
+    normalized.startsWith("pin em ") ||
+    normalized.startsWith("pin on ")
+  );
+};
+
+const isLikelyForeignExerciseText = (value?: string | null) => {
+  const normalized = normalizeText(value);
+  return (
+    normalized.includes("korperspannung") ||
+    normalized.includes("kraft") ||
+    normalized.includes("zweier") ||
+    normalized.includes("muskel") ||
+    normalized.includes("kurzes") ||
+    normalized.includes(" ziel")
+  );
+};
+
+const shouldUseCleanDisplayTitle = (rawTitle?: string | null, cleanedTitle?: string | null) =>
+  Boolean(
+    cleanedTitle &&
+      cleanedTitle.length <= 72 &&
+      !isNoisyDisplayText(rawTitle) &&
+      !isLikelyForeignExerciseText(cleanedTitle)
+  );
+
+const hasTag = (tags: Set<string>, tag: string) => tags.has(tag);
+
+const getRuleBasedPresentation = (tags: Set<string>) => {
+  if (hasTag(tags, "forca") && hasTag(tags, "core") && hasTag(tags, "duplas")) {
+    return {
+      title: "Força e core em duplas",
+      description: "Fortalecimento em duplas para controle corporal e grandes grupos musculares.",
+    };
+  }
+  if (hasTag(tags, "forca") && hasTag(tags, "duplas")) {
+    return {
+      title: "Fortalecimento em duplas",
+      description: "Tarefa em dupla para força geral e controle corporal.",
+    };
+  }
+  if (hasTag(tags, "forca") && hasTag(tags, "core")) {
+    return {
+      title: "Força e core",
+      description: "Fortalecimento para estabilidade, postura e controle corporal.",
+    };
+  }
+  if (hasTag(tags, "agilidade")) {
+    return {
+      title: "Agilidade e velocidade",
+      description: "Atividade curta para aceleração, reação e deslocamento.",
+    };
+  }
+  if (hasTag(tags, "mobilidade") && hasTag(tags, "aquecimento")) {
+    return {
+      title: "Mobilidade para aquecimento",
+      description: "Preparação ativa para iniciar a aula com mais mobilidade e prontidão.",
+    };
+  }
+  if (hasTag(tags, "passe") && hasTag(tags, "recepcao")) {
+    return {
+      title: "Passe e recepção",
+      description: "Referência para primeiro contato, controle e continuidade.",
+    };
+  }
+  if (hasTag(tags, "toque") && hasTag(tags, "levantamento")) {
+    return {
+      title: "Toque e levantamento",
+      description: "Referência para segundo contato, organização e precisão.",
+    };
+  }
+  if (hasTag(tags, "saque")) {
+    return {
+      title: "Saque",
+      description: "Referência para saque, alvo e controle de direção.",
+    };
+  }
+  if (hasTag(tags, "ataque")) {
+    return {
+      title: "Ataque",
+      description: "Referência para finalização e tomada de decisão ofensiva.",
+    };
+  }
+  if (hasTag(tags, "bloqueio")) {
+    return {
+      title: "Bloqueio",
+      description: "Referência para leitura de rede, tempo e cobertura.",
+    };
+  }
+  if (hasTag(tags, "defesa") && hasTag(tags, "transicao")) {
+    return {
+      title: "Defesa e transição",
+      description: "Referência para salvar a bola e reorganizar o ataque.",
+    };
+  }
+  if (hasTag(tags, "defesa")) {
+    return {
+      title: "Defesa",
+      description: "Referência para controle defensivo e continuidade.",
+    };
+  }
+  if (hasTag(tags, "transicao")) {
+    return {
+      title: "Transição",
+      description: "Referência para reorganizar a jogada depois da primeira ação.",
+    };
+  }
+  if (hasTag(tags, "aquecimento")) {
+    return {
+      title: "Aquecimento ativo",
+      description: "Atividade simples para preparar a turma antes da parte principal.",
+    };
+  }
+  if (hasTag(tags, "volta-calma")) {
+    return {
+      title: "Volta à calma",
+      description: "Atividade leve para encerrar a aula com controle e recuperação.",
+    };
+  }
+  return null;
+};
+
 const TAG_RULES: ReadonlyArray<{ tag: string; keywords: string[] }> = [
   {
     tag: "aquecimento",
@@ -141,7 +310,18 @@ const TAG_RULES: ReadonlyArray<{ tag: string; keywords: string[] }> = [
   },
   {
     tag: "core",
-    keywords: ["core", "coreworkout", "corestrength", "coretraining", "abdomen", "abdominal", "prancha", "plank"],
+    keywords: [
+      "core",
+      "coreworkout",
+      "corestrength",
+      "coretraining",
+      "abdomen",
+      "abdominal",
+      "prancha",
+      "plank",
+      "korperspannung",
+      "körperspannung",
+    ],
   },
   {
     tag: "prevencao",
@@ -149,7 +329,7 @@ const TAG_RULES: ReadonlyArray<{ tag: string; keywords: string[] }> = [
   },
   {
     tag: "duplas",
-    keywords: ["dupla", "duplas", "2x2", "pair", "partner"],
+    keywords: ["dupla", "duplas", "2x2", "pair", "partner", "partnerworkout", "zweiergruppe", "zweier"],
   },
   {
     tag: "trios",
@@ -210,6 +390,48 @@ export const classifyExerciseLink = (input: ExerciseLinkClassificationInput): st
   }
 
   return uniqueTags(tags.map(normalizeExerciseLinkTag));
+};
+
+export const getExerciseLinkPresentation = (
+  input: ExerciseLinkClassificationInput
+): ExerciseLinkPresentation => {
+  const tags = mergeInferredExerciseLinkTags(input, input.tags ?? []);
+  const tagSet = new Set(tags);
+  const providerTag = inferProviderTag(input);
+  const sourceLabel =
+    input.source?.trim() ||
+    input.metadataAuthor?.trim() ||
+    input.metadataHost?.trim() ||
+    PROVIDER_LABELS[providerTag] ||
+    "Vídeo/link";
+  const ruleBased = getRuleBasedPresentation(tagSet);
+  const cleanedTitle = stripDisplayNoise(input.title || input.metadataTitle);
+  const cleanedDescription = stripDisplayNoise(
+    input.description || input.metadataDescription || input.notes
+  );
+  const useCleanTitle = shouldUseCleanDisplayTitle(input.title || input.metadataTitle, cleanedTitle);
+
+  if (ruleBased) {
+    return {
+      ...ruleBased,
+      title: useCleanTitle ? limitText(cleanedTitle, 72) : ruleBased.title,
+      sourceLabel,
+      tags,
+    };
+  }
+
+  const fallbackTitle =
+    cleanedTitle ||
+    (sourceLabel && sourceLabel !== "Vídeo/link" ? `Referência do ${sourceLabel}` : "Vídeo/link");
+  const fallbackDescription =
+    cleanedDescription || "Referência salva para consulta e uso no planejamento.";
+
+  return {
+    title: limitText(fallbackTitle, 72),
+    description: limitText(fallbackDescription, 120),
+    sourceLabel,
+    tags,
+  };
 };
 
 export const mergeInferredExerciseLinkTags = (

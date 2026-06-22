@@ -28,8 +28,9 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { getValidAccessToken } from "../../src/auth/session";
 import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import {
-    mergeInferredExerciseLinkTags,
-    matchesExerciseLinkSearch,
+  getExerciseLinkPresentation,
+  mergeInferredExerciseLinkTags,
+  matchesExerciseLinkSearch,
 } from "../../src/core/exercise-link-classifier";
 import type { Exercise } from "../../src/core/models";
 import {
@@ -162,18 +163,23 @@ const getLinkProvider = (url: string) => {
 const isGenericVideoTitle = (value: string) =>
   !value.trim() || value.trim().toLowerCase() === "vídeo" || value.trim().toLowerCase() === "video";
 
-const getDisplayTitle = (item: Exercise, metadata?: LinkMetadata | null) => {
-  if (!isGenericVideoTitle(item.title)) return item.title.trim();
-  if (metadata?.title) return metadata.title;
-  const provider = getLinkProvider(item.videoUrl).label;
-  return provider === "Link" ? "Link salvo" : `Vídeo do ${provider}`;
-};
+const getDisplayPresentation = (item: Exercise, metadata?: LinkMetadata | null) =>
+  getExerciseLinkPresentation({
+    ...item,
+    metadataTitle: metadata?.title,
+    metadataDescription: metadata?.description,
+    metadataAuthor: metadata?.author,
+    metadataHost: metadata?.host,
+  });
+
+const getDisplayTitle = (item: Exercise, metadata?: LinkMetadata | null) =>
+  getDisplayPresentation(item, metadata).title;
 
 const getDisplaySource = (item: Exercise, metadata?: LinkMetadata | null) =>
-  item.source?.trim() || metadata?.author || metadata?.host || getHostLabel(item.videoUrl);
+  getDisplayPresentation(item, metadata).sourceLabel || getHostLabel(item.videoUrl);
 
 const getDisplayDescription = (item: Exercise, metadata?: LinkMetadata | null) =>
-  item.description?.trim() || metadata?.description || item.notes?.trim();
+  getDisplayPresentation(item, metadata).description;
 
 const requestLinkMetadata = async (
   url: string,
@@ -277,8 +283,11 @@ export default function ExercisesScreen() {
     title: "Excluir exercício?",
     message: (targets) => {
       const [exercise] = targets;
-      return exercise?.title
-        ? `Deseja remover ${exercise.title}?`
+      const displayTitle = exercise
+        ? getDisplayTitle(exercise, linkPreviews[getLinkKey(exercise.videoUrl)])
+        : "";
+      return displayTitle
+        ? `Deseja remover ${displayTitle}?`
         : "Deseja remover este exercício?";
     },
     confirmLabel: "Excluir",
@@ -436,37 +445,45 @@ export default function ExercisesScreen() {
     }
     const metadata = linkPreviews[getLinkKey(videoUrl)];
     const provider = getLinkProvider(videoUrl).label;
-    const fallbackTitle =
+    const rawTitle =
       title.trim() ||
       metadata?.title ||
       (provider === "Link" ? "Link salvo" : `Vídeo do ${provider}`);
+    const rawSource = source.trim() || metadata?.author || metadata?.host || getHostLabel(videoUrl);
+    const rawDescription = description.trim() || metadata?.description || "";
+    const rawPublishedAt = publishedAt.trim() || metadata?.publishedAt || "";
     const nowIso = new Date().toISOString();
     const existingTags = editingId
       ? items.find((item) => item.id === editingId)?.tags ?? []
       : [];
+    const classificationInput = {
+      title: rawTitle,
+      videoUrl: videoUrl.trim(),
+      source: rawSource,
+      description: rawDescription,
+      publishedAt: rawPublishedAt,
+      notes: notes.trim(),
+      metadataTitle: metadata?.title,
+      metadataDescription: metadata?.description,
+      metadataAuthor: metadata?.author,
+      metadataHost: metadata?.host,
+    };
     const inferredTags = mergeInferredExerciseLinkTags(
-      {
-        title: fallbackTitle,
-        videoUrl: videoUrl.trim(),
-        source: source.trim() || metadata?.author || metadata?.host || getHostLabel(videoUrl),
-        description: description.trim() || metadata?.description || "",
-        publishedAt: publishedAt.trim() || metadata?.publishedAt || "",
-        notes: notes.trim(),
-        metadataTitle: metadata?.title,
-        metadataDescription: metadata?.description,
-        metadataAuthor: metadata?.author,
-        metadataHost: metadata?.host,
-      },
+      classificationInput,
       existingTags
     );
+    const presentation = getExerciseLinkPresentation({
+      ...classificationInput,
+      tags: inferredTags,
+    });
     const exercise: Exercise = {
       id: editingId ?? "ex_" + Date.now(),
-      title: fallbackTitle,
+      title: presentation.title,
       videoUrl: videoUrl.trim(),
       tags: inferredTags,
-      source: source.trim() || metadata?.author || metadata?.host || getHostLabel(videoUrl),
-      description: description.trim() || metadata?.description || "",
-      publishedAt: publishedAt.trim() || metadata?.publishedAt || "",
+      source: rawSource,
+      description: presentation.description,
+      publishedAt: rawPublishedAt,
       notes: notes.trim(),
       createdAt: editingCreatedAt ?? nowIso,
     };
@@ -508,14 +525,26 @@ export default function ExercisesScreen() {
           setMetaStatus("");
           return;
         }
+        const presentation = getExerciseLinkPresentation({
+          title: data.title,
+          videoUrl: videoUrl.trim(),
+          source: data.author || data.host || getHostLabel(videoUrl),
+          description: data.description || "",
+          publishedAt: data.publishedAt || "",
+          notes,
+          metadataTitle: data.title,
+          metadataDescription: data.description,
+          metadataAuthor: data.author,
+          metadataHost: data.host,
+        });
         if (!title.trim() && data.title) {
-          setTitle(data.title);
+          setTitle(presentation.title);
         }
         if (!source.trim() && (data.author || data.host)) {
           setSource(data.author || data.host || "");
         }
         if (!description.trim() && data.description) {
-          setDescription(data.description);
+          setDescription(presentation.description);
         }
         if (!publishedAt.trim() && data.publishedAt) {
           setPublishedAt(data.publishedAt);
@@ -545,6 +574,7 @@ export default function ExercisesScreen() {
     title,
     source,
     description,
+    notes,
     publishedAt,
   ]);
 
