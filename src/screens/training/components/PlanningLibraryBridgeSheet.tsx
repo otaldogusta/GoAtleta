@@ -1,6 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import {
+  ImageBackground,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { getLinkKey, requestLinkMetadata, type LinkMetadata } from "../../../api/link-metadata";
 import { getValidAccessToken } from "../../../auth/session";
@@ -313,11 +322,18 @@ export function PlanningLibraryBridgeSheet({
                 {linksError}
               </Text>
             ) : filteredLinks.length ? (
-              <View style={{ gap: 10 }}>
+              <View
+                style={{
+                  flexDirection: useGridCards ? "row" : "column",
+                  flexWrap: useGridCards ? "wrap" : "nowrap",
+                  gap: 8,
+                }}
+              >
                 {filteredLinks.map((exercise) => (
                   <LinkCard
                     key={exercise.id}
                     exercise={exercise}
+                    grid={useGridCards}
                     metadata={getMetadataForExercise(linkPreviews, exercise)}
                     onAdd={onAddExerciseLink}
                   />
@@ -625,10 +641,12 @@ function PlanningCatalogCompactCard({
 
 function LinkCard({
   exercise,
+  grid,
   metadata,
   onAdd,
 }: {
   exercise: Exercise;
+  grid: boolean;
   metadata?: LinkMetadata | null;
   onAdd: (exercise: Exercise) => void;
 }) {
@@ -636,21 +654,86 @@ function LinkCard({
   const presentation = getExerciseLinkPresentation(buildExerciseLinkInput(exercise, metadata));
   const { title, description, sourceLabel } = presentation;
   const exerciseForBlock = buildExerciseForPlanningBlock(exercise, metadata);
+  const previewImage = metadata?.image?.trim();
+  const openLink = () => {
+    const url = exercise.videoUrl?.trim();
+    if (!url) return;
+    void Linking.openURL(url).catch(() => undefined);
+  };
 
   return (
     <View
       testID={`planning-link-card-${exercise.id}`}
       style={{
-        gap: 10,
-        padding: 11,
+        width: grid ? "49%" : "100%",
+        padding: 9,
         borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
-        <View style={{ flex: 1, gap: 5 }}>
+      <View style={{ gap: 9 }}>
+        <Pressable
+          testID={`planning-open-link-preview-${exercise.id}`}
+          onPress={openLink}
+          style={{
+            width: "100%",
+            aspectRatio: 16 / 9,
+            borderRadius: 12,
+            overflow: "hidden",
+            backgroundColor: colors.secondaryBg,
+          }}
+        >
+          {previewImage ? (
+            <ImageBackground
+              source={{ uri: previewImage }}
+              resizeMode="cover"
+              style={{ flex: 1, justifyContent: "space-between", padding: 10 }}
+            >
+              <View
+                style={{
+                  ...StyleSheet.absoluteFill,
+                  backgroundColor: "rgba(2, 6, 23, 0.28)",
+                }}
+              />
+              <LinkPreviewOverlay sourceLabel={sourceLabel} title={title} />
+            </ImageBackground>
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "space-between",
+                padding: 10,
+                backgroundColor: colors.infoBg,
+              }}
+            >
+              <LinkPreviewOverlay sourceLabel={sourceLabel} title={title} />
+            </View>
+          )}
+        </Pressable>
+
+        <View style={{ gap: 7 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text
+              numberOfLines={1}
+              style={{ flex: 1, color: colors.muted, fontSize: 12, fontWeight: "800" }}
+            >
+              {sourceLabel || "Vídeo/link"}
+            </Text>
+            <View
+              style={{
+                paddingHorizontal: 7,
+                paddingVertical: 3,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Text style={{ color: colors.secondaryText, fontSize: 10, fontWeight: "900" }}>
+                Link
+              </Text>
+            </View>
+          </View>
           <Text
             numberOfLines={2}
             style={{
@@ -667,44 +750,108 @@ function LinkCard({
               {description}
             </Text>
           ) : null}
-          {sourceLabel ? (
-            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>
-              {sourceLabel}
-            </Text>
-          ) : null}
+
+          <View style={{ flexDirection: "row", gap: 7 }}>
+            <Pressable
+              testID={`planning-open-link-${exercise.id}`}
+              onPress={openLink}
+              style={{
+                flex: 1,
+                minHeight: 34,
+                borderRadius: 11,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 5,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Ionicons name="open-outline" size={15} color={colors.secondaryText} />
+              <Text style={{ color: colors.secondaryText, fontSize: 12, fontWeight: "900" }}>
+                Abrir
+              </Text>
+            </Pressable>
+            <Pressable
+              testID={`planning-add-link-${exercise.id}`}
+              onPress={() => onAdd(exerciseForBlock)}
+              style={{
+                flex: 1,
+                minHeight: 34,
+                borderRadius: 11,
+                paddingHorizontal: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 5,
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Ionicons name="add" size={17} color={colors.primaryText} />
+              <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>
+                Adicionar
+              </Text>
+            </Pressable>
+          </View>
         </View>
+      </View>
+    </View>
+  );
+}
+
+function LinkPreviewOverlay({
+  sourceLabel,
+  title,
+}: {
+  sourceLabel?: string;
+  title: string;
+}) {
+  const { colors } = useAppTheme();
+
+  return (
+    <>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
         <View
           style={{
-            flexShrink: 0,
+            maxWidth: "72%",
             paddingHorizontal: 9,
             paddingVertical: 5,
             borderRadius: 999,
-            backgroundColor: colors.infoBg,
+            backgroundColor: "rgba(2, 6, 23, 0.86)",
           }}
         >
-          <Text style={{ color: colors.infoText, fontSize: 11, fontWeight: "900" }}>
-            Vídeo/link
+          <Text
+            numberOfLines={1}
+            style={{ color: colors.text, fontSize: 11, fontWeight: "900" }}
+          >
+            {sourceLabel || "Vídeo/link"}
           </Text>
         </View>
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(2, 6, 23, 0.86)",
+          }}
+        >
+          <Ionicons name="play" size={17} color={colors.text} />
+        </View>
       </View>
-      <Pressable
-        testID={`planning-add-link-${exercise.id}`}
-        onPress={() => onAdd(exerciseForBlock)}
+      <Text
+        numberOfLines={1}
         style={{
-          minHeight: 38,
-          borderRadius: 12,
-          alignItems: "center",
-          justifyContent: "center",
-          flexDirection: "row",
-          gap: 6,
-          backgroundColor: colors.primaryBg,
+          color: colors.text,
+          fontSize: 12,
+          fontWeight: "900",
+          textShadowColor: "rgba(2, 6, 23, 0.65)",
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
         }}
       >
-        <Ionicons name="add" size={18} color={colors.primaryText} />
-        <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "900" }}>
-          Adicionar ao bloco
-        </Text>
-      </Pressable>
-    </View>
+        {title}
+      </Text>
+    </>
   );
 }
