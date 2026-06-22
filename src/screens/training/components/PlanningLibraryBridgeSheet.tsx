@@ -66,6 +66,72 @@ const defaultPhaseByBlock: Record<TrainingPlanBlockKey, ActivityPatternStage> = 
   cooldown: "cooldown",
 };
 
+const exerciseLinkBadgeLabels: Record<string, string> = {
+  aquecimento: "Aquecimento",
+  ataque: "Ataque",
+  bloqueio: "Bloqueio",
+  circuito: "Circuito",
+  coordenacao: "Coordenação",
+  core: "Core",
+  defesa: "Defesa",
+  desenvolvimento: "Desenvolvimento",
+  drill: "Drill",
+  duplas: "Duplas",
+  forca: "Força",
+  grupo: "Grupo",
+  "jogo-aplicacao": "Jogo",
+  "jogo-reduzido": "Jogo reduzido",
+  levantamento: "Levantamento",
+  mobilidade: "Mobilidade",
+  passe: "Passe",
+  prevencao: "Prevenção",
+  queimada: "Queimada",
+  recepcao: "Recepção",
+  saque: "Saque",
+  toque: "Toque",
+  transicao: "Transição",
+  trios: "Trios",
+  "volta-calma": "Volta à calma",
+};
+
+const exerciseLinkBadgePriority = [
+  "queimada",
+  "forca",
+  "core",
+  "mobilidade",
+  "prevencao",
+  "coordenacao",
+  "agilidade",
+  "passe",
+  "toque",
+  "levantamento",
+  "recepcao",
+  "saque",
+  "ataque",
+  "bloqueio",
+  "defesa",
+  "transicao",
+  "aquecimento",
+  "jogo-aplicacao",
+  "jogo-reduzido",
+  "volta-calma",
+  "drill",
+  "circuito",
+  "duplas",
+  "trios",
+  "grupo",
+];
+
+const getExerciseLinkBadges = (tags: string[], sourceLabel?: string) => {
+  const tagSet = new Set(tags);
+  const rankedTags = exerciseLinkBadgePriority.filter((tag) => tagSet.has(tag));
+  const [primaryTag, secondaryTag] = rankedTags;
+  return {
+    primary: (primaryTag && exerciseLinkBadgeLabels[primaryTag]) || "Vídeo/link",
+    secondary: (secondaryTag && exerciseLinkBadgeLabels[secondaryTag]) || sourceLabel || "Link",
+  };
+};
+
 const getMetadataForExercise = (
   previews: Record<string, LinkMetadata | null>,
   exercise: Exercise
@@ -652,7 +718,8 @@ function LinkCard({
 }) {
   const { colors } = useAppTheme();
   const presentation = getExerciseLinkPresentation(buildExerciseLinkInput(exercise, metadata));
-  const { title, description, sourceLabel } = presentation;
+  const { title, description, sourceLabel, tags } = presentation;
+  const linkBadges = getExerciseLinkBadges(tags, sourceLabel);
   const exerciseForBlock = buildExerciseForPlanningBlock(exercise, metadata);
   const previewImage = metadata?.image?.trim();
   const openLink = () => {
@@ -697,7 +764,7 @@ function LinkCard({
                   backgroundColor: "rgba(2, 6, 23, 0.28)",
                 }}
               />
-              <LinkPreviewOverlay sourceLabel={sourceLabel} title={title} />
+              <LinkPreviewOverlay badgeLabel={linkBadges.primary} title={title} />
             </ImageBackground>
           ) : (
             <View
@@ -708,7 +775,7 @@ function LinkCard({
                 backgroundColor: colors.infoBg,
               }}
             >
-              <LinkPreviewOverlay sourceLabel={sourceLabel} title={title} />
+              <LinkPreviewOverlay badgeLabel={linkBadges.primary} title={title} />
             </View>
           )}
         </Pressable>
@@ -727,10 +794,16 @@ function LinkCard({
                 paddingVertical: 3,
                 borderRadius: 999,
                 backgroundColor: colors.secondaryBg,
+                minHeight: 24,
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              <Text style={{ color: colors.secondaryText, fontSize: 10, fontWeight: "900" }}>
-                Link
+              <Text
+                numberOfLines={1}
+                style={{ color: colors.secondaryText, fontSize: 10, fontWeight: "900", textAlign: "center" }}
+              >
+                {linkBadges.secondary}
               </Text>
             </View>
           </View>
@@ -799,10 +872,10 @@ function LinkCard({
 }
 
 function LinkPreviewOverlay({
-  sourceLabel,
+  badgeLabel,
   title,
 }: {
-  sourceLabel?: string;
+  badgeLabel: string;
   title: string;
 }) {
   const { colors } = useAppTheme();
@@ -813,17 +886,20 @@ function LinkPreviewOverlay({
         <View
           style={{
             maxWidth: "72%",
+            minHeight: 30,
             paddingHorizontal: 9,
             paddingVertical: 5,
             borderRadius: 999,
             backgroundColor: "rgba(2, 6, 23, 0.86)",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           <Text
             numberOfLines={1}
-            style={{ color: colors.text, fontSize: 11, fontWeight: "900" }}
+            style={{ color: colors.text, fontSize: 11, fontWeight: "900", textAlign: "center" }}
           >
-            {sourceLabel || "Vídeo/link"}
+            {badgeLabel}
           </Text>
         </View>
         <View
