@@ -100,6 +100,7 @@ const isNoisyDisplayText = (value?: string | null) => {
   const normalized = normalizeText(raw);
   return (
     /https?:\/\/|www\.|[#@]/i.test(raw) ||
+    normalized.includes("handballcoach") ||
     normalized.includes(" instagram") ||
     normalized.includes(" on instagram") ||
     normalized.includes("pinterest") ||
@@ -157,6 +158,31 @@ const getProviderFallbackDescription = (providerTag: string) => {
     return "Link salvo para consulta e uso no planejamento.";
   }
   return "Referência salva para consulta e uso no planejamento.";
+};
+
+const isHostLikeSourceLabel = (value?: string | null) => {
+  const normalized = normalizeText(value);
+  return (
+    normalized.includes("www.") ||
+    normalized.includes("http") ||
+    normalized.includes(".com") ||
+    normalized.includes(".br") ||
+    normalized.includes(".net")
+  );
+};
+
+const getDisplaySourceLabel = (input: ExerciseLinkClassificationInput, providerTag: string) => {
+  const providerLabel = PROVIDER_LABELS[providerTag] || "Vídeo/link";
+  const explicitSource = input.source?.trim();
+  if (explicitSource && !isHostLikeSourceLabel(explicitSource)) return explicitSource;
+
+  const author = input.metadataAuthor?.trim();
+  if (author && !isNoisyDisplayText(author) && !isHostLikeSourceLabel(author)) return author;
+
+  const host = input.metadataHost?.trim();
+  if (host && !isHostLikeSourceLabel(host)) return host;
+
+  return providerLabel;
 };
 
 const hasTag = (tags: Set<string>, tag: string) => tags.has(tag);
@@ -467,12 +493,7 @@ export const getExerciseLinkPresentation = (
   const tags = mergeInferredExerciseLinkTags(input, input.tags ?? []);
   const tagSet = new Set(tags);
   const providerTag = inferProviderTag(input);
-  const sourceLabel =
-    input.source?.trim() ||
-    input.metadataAuthor?.trim() ||
-    input.metadataHost?.trim() ||
-    PROVIDER_LABELS[providerTag] ||
-    "Vídeo/link";
+  const sourceLabel = getDisplaySourceLabel(input, providerTag);
   const ruleBased = getRuleBasedPresentation(tagSet);
   const cleanedTitle = stripDisplayNoise(input.title || input.metadataTitle);
   const cleanedDescription = stripDisplayNoise(
@@ -485,7 +506,11 @@ export const getExerciseLinkPresentation = (
     rawDescription,
     cleanedDescription
   );
-  const preferRuleTitle = hasTag(tagSet, "queimada");
+  const preferRuleTitle =
+    hasTag(tagSet, "queimada") ||
+    isNoisyDisplayText(rawTitle) ||
+    isLikelyForeignExerciseText(rawTitle) ||
+    isLikelyForeignExerciseText(rawDescription);
 
   if (ruleBased) {
     return {

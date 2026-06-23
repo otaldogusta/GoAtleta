@@ -133,6 +133,23 @@ const getExerciseLinkBadges = (tags: string[], sourceLabel?: string) => {
   };
 };
 
+const getExerciseLinkSourceDisplayLabel = (sourceLabel?: string) => {
+  const value = sourceLabel?.trim();
+  if (!value) return "Link";
+
+  const normalized = value.toLowerCase();
+  if (normalized.includes("instagram")) return "Instagram";
+  if (normalized.includes("pinterest")) return "Pinterest";
+  if (normalized.includes("youtube") || normalized.includes("youtu.be")) return "YouTube";
+  if (normalized.includes("tiktok")) return "TikTok";
+  if (normalized.includes("vimeo")) return "Vimeo";
+  if (/^https?:\/\//.test(normalized) || normalized.startsWith("www.") || normalized.includes(".")) {
+    return "Link";
+  }
+
+  return value;
+};
+
 const getMetadataForExercise = (
   previews: Record<string, LinkMetadata | null>,
   exercise: Exercise
@@ -155,11 +172,12 @@ const buildExerciseForPlanningBlock = (
   metadata?: LinkMetadata | null
 ): Exercise => {
   const presentation = getExerciseLinkPresentation(buildExerciseLinkInput(exercise, metadata));
+  const sourceLabel = getExerciseLinkSourceDisplayLabel(presentation.sourceLabel);
   return {
     ...exercise,
     title: presentation.title,
     description: presentation.description,
-    source: presentation.sourceLabel,
+    source: sourceLabel,
     tags: presentation.tags,
   };
 };
@@ -729,7 +747,8 @@ function LinkCard({
   const { colors } = useAppTheme();
   const presentation = getExerciseLinkPresentation(buildExerciseLinkInput(exercise, metadata));
   const { title, description, sourceLabel, tags } = presentation;
-  const linkBadges = getExerciseLinkBadges(tags, sourceLabel);
+  const sourceDisplayLabel = getExerciseLinkSourceDisplayLabel(sourceLabel);
+  const linkBadges = getExerciseLinkBadges(tags, sourceDisplayLabel);
   const exerciseForBlock = buildExerciseForPlanningBlock(exercise, metadata);
   const previewImage = metadata?.image?.trim();
   const openLink = () => {
@@ -796,7 +815,7 @@ function LinkCard({
               numberOfLines={1}
               style={{ flex: 1, color: colors.muted, fontSize: 12, fontWeight: "800" }}
             >
-              {sourceLabel || "Vídeo/link"}
+              {sourceDisplayLabel}
             </Text>
             <View
               style={{

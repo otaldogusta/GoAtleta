@@ -173,6 +173,24 @@ describe("exercise link classifier", () => {
     expect(presentation.description).not.toMatch(/likes|comments|#/i);
   });
 
+  it("uses rich metadata to replace weak social titles with a pedagogical title", () => {
+    const presentation = getExerciseLinkPresentation(
+      exercise({
+        title: "Handballcoach Philipp",
+        description:
+          'Kurzes Kräftigen in der Zweiergruppe. Ziel: Körperspannung steigern, große Muskelgruppen kräftigen.',
+        source: "www.instagram.com",
+      })
+    );
+
+    expect(presentation.title).toBe("Força e core em duplas");
+    expect(presentation.description).toBe(
+      "Fortalecimento em duplas para controle corporal e grandes grupos musculares."
+    );
+    expect(presentation.sourceLabel).toBe("Instagram");
+    expect(presentation.title).not.toMatch(/Handballcoach|Philipp|Kräftigen/i);
+  });
+
   it("presents a rich Pinterest queimada link as a teacher-friendly activity", () => {
     const presentation = getExerciseLinkPresentation(
       exercise({
