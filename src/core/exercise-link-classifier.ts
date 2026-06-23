@@ -578,6 +578,55 @@ export const matchesExerciseLinkSearch = (
   return queryTokens.every((token) => tokens.has(token)) || text.includes(queryTokens.join(" "));
 };
 
+export const scoreExerciseLinkSearchRelevance = (
+  input: ExerciseLinkClassificationInput,
+  query: string
+) => {
+  const queryTokens = getSearchTokens(query);
+  if (!queryTokens.length) return 0;
+
+  const queryTag = normalizeExerciseLinkTag(query);
+  const tags = new Set(mergeInferredExerciseLinkTags(input, input.tags ?? []));
+  const presentation = getExerciseLinkPresentation(input);
+  const presentationText = normalizeText(
+    [presentation.title, presentation.description, presentation.sourceLabel].join(" ")
+  );
+  const searchText = buildSearchText(input);
+  const presentationTokens = new Set(getSearchTokens(presentationText));
+  const searchTokens = new Set(getSearchTokens(searchText));
+  const queryPhrase = queryTokens.join(" ");
+
+  let score = 0;
+
+  if (queryTag && tags.has(queryTag)) {
+    score += 120;
+  }
+
+  if (queryPhrase.length > 3 && presentationText.includes(queryPhrase)) {
+    score += 60;
+  }
+
+  if (queryPhrase.length > 3 && searchText.includes(queryPhrase)) {
+    score += 24;
+  }
+
+  for (const token of queryTokens) {
+    if (tags.has(token)) {
+      score += 90;
+    } else if (presentationTokens.has(token)) {
+      score += 40;
+    } else if (token.length > 3 && presentationText.includes(token)) {
+      score += 24;
+    } else if (searchTokens.has(token)) {
+      score += 14;
+    } else if (token.length > 4 && searchText.includes(token)) {
+      score += 8;
+    }
+  }
+
+  return score;
+};
+
 export const EXERCISE_LINK_PRIORITY_TAGS_BY_BLOCK: Record<TrainingPlanBlockKey, string[]> = {
   warmup: ["aquecimento", "mobilidade", "coordenacao", "agilidade", "prevencao", "forca"],
   main: [

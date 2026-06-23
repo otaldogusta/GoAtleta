@@ -6,6 +6,7 @@ import {
   matchesExerciseLinkSearch,
   mergeInferredExerciseLinkTags,
   scoreExerciseLinkForPlanningBlock,
+  scoreExerciseLinkSearchRelevance,
   shouldRefreshExerciseLinkMetadata,
 } from "../exercise-link-classifier";
 
@@ -116,6 +117,28 @@ describe("exercise link classifier", () => {
     );
     expect(scoreExerciseLinkForPlanningBlock(cooldown, "cooldown")).toBeGreaterThan(
       scoreExerciseLinkForPlanningBlock(main, "cooldown")
+    );
+  });
+
+  it("prioritizes explicit search intent over generic block relevance", () => {
+    const forceLink = exercise({
+      title:
+        'Handballcoach Philipp on Instagram: "Kurzes Kräftigen in der Zweiergruppe. Ziel: Körperspannung steigern, große Muskelgruppen kräftigen. #strengthtraining #coreworkout #corestrength"',
+      description: "Fortalecimento em duplas para controle corporal e grandes grupos musculares.",
+      source: "Instagram",
+    });
+    const queimadaLink = exercise({
+      title: "Queimada Jogo",
+      description:
+        "Queimada reativa em dupla com proteção. Um aluno é o corredor e o outro defensor.",
+      source: "Pinterest",
+    });
+
+    expect(scoreExerciseLinkSearchRelevance(forceLink, "força")).toBeGreaterThan(
+      scoreExerciseLinkSearchRelevance(queimadaLink, "força")
+    );
+    expect(scoreExerciseLinkSearchRelevance(queimadaLink, "queimada")).toBeGreaterThan(
+      scoreExerciseLinkSearchRelevance(forceLink, "queimada")
     );
   });
 

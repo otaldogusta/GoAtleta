@@ -17,6 +17,7 @@ import {
   getExerciseLinkPresentation,
   matchesExerciseLinkSearch,
   scoreExerciseLinkForPlanningBlock,
+  scoreExerciseLinkSearchRelevance,
   shouldRefreshExerciseLinkMetadata,
 } from "../../../core/exercise-link-classifier";
 import type { Exercise } from "../../../core/models";
@@ -199,20 +200,29 @@ export function PlanningLibraryBridgeSheet({
           )
         )
       : links;
-    if (!blockKey) return matchingLinks;
-    return [...matchingLinks].sort(
-      (left, right) => {
-        const rightInput = buildExerciseLinkInput(
-          right,
-          getMetadataForExercise(linkPreviews, right)
-        );
-        const leftInput = buildExerciseLinkInput(left, getMetadataForExercise(linkPreviews, left));
-        return (
+    if (!blockKey && !query) return matchingLinks;
+    return [...matchingLinks].sort((left, right) => {
+      const rightInput = buildExerciseLinkInput(
+        right,
+        getMetadataForExercise(linkPreviews, right)
+      );
+      const leftInput = buildExerciseLinkInput(left, getMetadataForExercise(linkPreviews, left));
+      const queryDelta =
+        scoreExerciseLinkSearchRelevance(rightInput, query) -
+        scoreExerciseLinkSearchRelevance(leftInput, query);
+      if (queryDelta !== 0) return queryDelta;
+
+      if (blockKey) {
+        const blockDelta =
           scoreExerciseLinkForPlanningBlock(rightInput, blockKey) -
-          scoreExerciseLinkForPlanningBlock(leftInput, blockKey)
-        );
+          scoreExerciseLinkForPlanningBlock(leftInput, blockKey);
+        if (blockDelta !== 0) return blockDelta;
       }
-    );
+
+      const rightTitle = getExerciseLinkPresentation(rightInput).title;
+      const leftTitle = getExerciseLinkPresentation(leftInput).title;
+      return leftTitle.localeCompare(rightTitle, "pt-BR");
+    });
   }, [blockKey, linkPreviews, linkQuery, links]);
 
   useEffect(() => {
