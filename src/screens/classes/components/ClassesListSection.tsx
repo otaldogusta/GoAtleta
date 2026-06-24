@@ -7,6 +7,7 @@ import { markRender } from "../../../observability/perf";
 import { radius } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { getUnitPalette } from "../../../ui/unit-colors";
+import type { ClassCardViewModel } from "../application/class-card-view-model";
 import { ClassCard } from "./ClassCard";
 
 type GroupedClasses = [string, ClassGroup[]][];
@@ -21,6 +22,10 @@ type Props = {
   dayNames: string[];
   colors: ThemeColors;
   onOpenClass: (item: ClassGroup) => void;
+  onEditClass: (item: ClassGroup) => void;
+  onDuplicateClass: (item: ClassGroup) => void;
+  onDeleteClass: (item: ClassGroup) => void;
+  classCardViewModelsById: Record<string, ClassCardViewModel>;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
   onScrollBeginDrag?: () => void;
@@ -34,6 +39,10 @@ export const ClassesListSection = memo(function ClassesListSection({
   dayNames,
   colors,
   onOpenClass,
+  onEditClass,
+  onDuplicateClass,
+  onDeleteClass,
+  classCardViewModelsById,
   refreshing,
   onRefresh,
   onScrollBeginDrag,
@@ -120,9 +129,13 @@ export const ClassesListSection = memo(function ClassesListSection({
                   dayNames={dayNames}
                   colors={colors}
                   onOpen={onOpenClass}
+                  viewModel={classCardViewModelsById[classItem.id]}
                   actionMenuOpen={openActionMenuId === classItem.id}
                   onToggleActionMenu={toggleActionMenu}
                   onCloseActionMenu={closeActionMenu}
+                  onEdit={onEditClass}
+                  onDuplicate={onDuplicateClass}
+                  onDelete={onDeleteClass}
                 />
               </View>
             ))}
@@ -132,10 +145,14 @@ export const ClassesListSection = memo(function ClassesListSection({
     },
     [
       closeActionMenu,
+      classCardViewModelsById,
       colors,
       columnCount,
       conflictsById,
       dayNames,
+      onDeleteClass,
+      onDuplicateClass,
+      onEditClass,
       onOpenClass,
       openActionMenuId,
       toggleActionMenu,

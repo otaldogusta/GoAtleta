@@ -19,21 +19,28 @@ import { ShimmerBlock } from "../../src/ui/Shimmer";
 
 import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
-import type { ClassGroup, TrainingSessionIntegrationRule } from "../../src/core/models";
+import type { ClassGroup, Student, TrainingSessionIntegrationRule } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
     deleteClassCascade,
+    duplicateClass,
     getClasses,
     getTrainingIntegrationRules,
     saveClass,
     updateClass,
 } from "../../src/db/seed";
+import { getStudents } from "../../src/db/students";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
+import {
+  buildClassCardViewModel,
+  groupStudentsByClassId,
+} from "../../src/screens/classes/application/class-card-view-model";
 import { ClassesListSection } from "../../src/screens/classes/components/ClassesListSection";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
@@ -229,10 +236,12 @@ export default function ClassesScreen() {
   const prefillModalityParam = Array.isArray(prefillModality) ? prefillModality[0] : prefillModality;
   const prefillUnitParam = Array.isArray(prefillUnit) ? prefillUnit[0] : prefillUnit;
   const { colors } = useAppTheme();
+  const { session } = useAuth();
   const bottomScrollPadding = insets.bottom + 112;
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
   const getClassId = useCallback((item: ClassGroup) => item.id, []);
   const undoableClassDelete = useUndoableListDelete({
@@ -598,13 +607,43 @@ export default function ClassesScreen() {
   ) => options.find((option) => option.value === value)?.label ?? value ?? "";
 
   const displayClasses = useMemo(() => {
-    if (!__DEV__ || classes.length > 8) return classes;
+    if (!__DEV__ || classes.length > 0) return classes;
     const realIds = new Set(classes.map((item) => item.id));
     const previewItems = CLASS_LIST_PREVIEW_ITEMS.filter((item) => {
       return !realIds.has(item.id);
     });
     return [...classes, ...previewItems];
   }, [classes]);
+
+  const studentsByClassId = useMemo(() => groupStudentsByClassId(students), [students]);
+  const currentTeacher = useMemo(() => {
+    const metadata = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
+    const getText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+    const name =
+      getText(metadata.full_name) ||
+      getText(metadata.name) ||
+      getText(metadata.display_name) ||
+      getText(session?.user?.email);
+    const photoUrl = getText(metadata.avatar_url) || getText(metadata.picture);
+    return {
+      name: name || null,
+      photoUrl: photoUrl || null,
+    };
+  }, [session?.user?.email, session?.user?.user_metadata]);
+
+  const classCardViewModelsById = useMemo(() => {
+    return displayClasses.reduce<Record<string, ReturnType<typeof buildClassCardViewModel>>>(
+      (acc, classGroup) => {
+        acc[classGroup.id] = buildClassCardViewModel({
+          classGroup,
+          students: studentsByClassId[classGroup.id] ?? [],
+          teacher: currentTeacher,
+        });
+        return acc;
+      },
+      {}
+    );
+  }, [currentTeacher, displayClasses, studentsByClassId]);
 
   const goalSuggestions = useMemo(() => {
     const key = normalizeUnitKey(newUnit);
@@ -856,16 +895,22 @@ export default function ClassesScreen() {
     const isAlive = () => !alive || alive.current;
     setLoading(true);
     try {
-      const [data, rules] = await Promise.all([
+      const [data, rules, studentList] = await Promise.all([
         measureAsync(
           "screen.classes.load.list",
           () => getClasses(),
           { screen: "classes" }
         ),
         getTrainingIntegrationRules(),
+        measureAsync(
+          "screen.classes.load.students",
+          () => getStudents(),
+          { screen: "classes" }
+        ),
       ]);
       if (isAlive()) setClasses(data);
       if (isAlive()) setIntegrationRules(rules);
+      if (isAlive()) setStudents(studentList);
     } finally {
       if (isAlive()) setLoading(false);
     }
@@ -1656,6 +1701,46 @@ export default function ClassesScreen() {
     },
     [router]
   );
+
+  const handleEditClassFromCard = useCallback(
+    (item: ClassGroup) => {
+      if (item.id.startsWith("preview_")) return;
+      openEditModal(item);
+    },
+    [openEditModal]
+  );
+
+  const handleDuplicateClassFromCard = useCallback(
+    async (item: ClassGroup) => {
+      if (item.id.startsWith("preview_")) return;
+      const duplicatedClassId = await measure("duplicateClass", () => duplicateClass(item));
+      logAction("Duplicar turma", { classId: item.id });
+      await loadClasses();
+      confirmDialog({
+        title: "Turma duplicada",
+        message: `Criamos uma cópia de ${item.name}.`,
+        confirmLabel: "Ver cópia",
+        cancelLabel: "Ficar na lista",
+        tone: "default",
+        onConfirm: () => {
+          router.push({
+            pathname: "/class/[id]",
+            params: { id: duplicatedClassId },
+          });
+        },
+      });
+    },
+    [confirmDialog, loadClasses, router]
+  );
+
+  const handleDeleteClassFromCard = useCallback(
+    (item: ClassGroup) => {
+      if (item.id.startsWith("preview_")) return;
+      undoableClassDelete.deleteOne(item);
+    },
+    [undoableClassDelete]
+  );
+
   const handleSelectNewColor = useCallback((value: string | null) => {
     setNewColorKey(value);
   }, []);
@@ -1822,6 +1907,10 @@ export default function ClassesScreen() {
               dayNames={dayNames}
               colors={colors}
               onOpenClass={handleOpenClass}
+              onEditClass={handleEditClassFromCard}
+              onDuplicateClass={handleDuplicateClassFromCard}
+              onDeleteClass={handleDeleteClassFromCard}
+              classCardViewModelsById={classCardViewModelsById}
               refreshing={refreshing}
               onRefresh={async () => {
                 setRefreshing(true);

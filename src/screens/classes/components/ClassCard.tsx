@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import { memo, useEffect, useMemo, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
+import { memo, useEffect, useState } from "react";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
+import type { ClassCardViewModel } from "../application/class-card-view-model";
 import { radius, shadow } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
@@ -21,9 +22,13 @@ type ClassCardProps = {
   dayNames: string[];
   colors: Record<string, string>;
   onOpen: (value: ClassGroup) => void;
+  viewModel: ClassCardViewModel;
   actionMenuOpen?: boolean;
   onToggleActionMenu?: (classId: string) => void;
   onCloseActionMenu?: () => void;
+  onEdit?: (value: ClassGroup) => void;
+  onDuplicate?: (value: ClassGroup) => void;
+  onDelete?: (value: ClassGroup) => void;
 };
 
 const parseTime = (value: string) => {
@@ -68,29 +73,10 @@ function MetaPill({
   );
 }
 
-const AVATAR_COLORS = ["#3DDC84", "#93C5FD", "#F8D394", "#FCA5A5", "#C4B5FD"];
-
-const hashString = (value: string) =>
-  value.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
 const getClassInitial = (name: string) => {
   const clean = name.trim();
   if (!clean) return "T";
   return clean[0]?.toUpperCase() ?? "T";
-};
-
-const buildStudentAvatars = (name: string) => {
-  const base = hashString(name || "turma");
-  const initials = ["A", "B", "C", "D"].map((letter, index) => ({
-    label: letter,
-    color: AVATAR_COLORS[(base + index) % AVATAR_COLORS.length],
-  }));
-  return initials;
-};
-
-const getStudentCount = (item: ClassGroup) => {
-  const base = hashString(`${item.name}-${item.unit}-${item.ageBand}`);
-  return 18 + (base % 16);
 };
 
 const getDomSafeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -104,9 +90,13 @@ export const ClassCard = memo(function ClassCard({
   dayNames,
   colors,
   onOpen,
+  viewModel,
   actionMenuOpen = false,
   onToggleActionMenu,
   onCloseActionMenu,
+  onEdit,
+  onDuplicate,
+  onDelete,
 }: ClassCardProps) {
   markRender("screen.classes.render.classCard", { classId: item.id });
 
@@ -125,10 +115,13 @@ export const ClassCard = memo(function ClassCard({
     .map((conflict) => `${conflict.name} (${dayNames[conflict.day]})`)
     .join(", ");
   const classInitial = getClassInitial(item.name);
-  const studentCount = getStudentCount(item);
-  const studentAvatars = useMemo(() => buildStudentAvatars(item.name), [item.name]);
-  const extraStudents = Math.max(0, studentCount - studentAvatars.length);
   const actionRootId = `class-card-actions-${getDomSafeId(item.id)}`;
+  const menuItems = [
+    { label: "Editar", action: () => onEdit?.(item), danger: false },
+    { label: "Duplicar", action: () => onDuplicate?.(item), danger: false },
+    { label: "Ver turma", action: () => onOpen(item), danger: false },
+    { label: "Apagar", action: () => onDelete?.(item), danger: true },
+  ];
 
   useEffect(() => {
     if (!actionMenuOpen || Platform.OS !== "web") return undefined;
@@ -192,9 +185,9 @@ export const ClassCard = memo(function ClassCard({
             </Text>
           </View>
           <View style={styles.studentStack}>
-            {studentAvatars.map((avatar, index) => (
+            {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
               <View
-                key={`${avatar.label}-${index}`}
+                key={avatar.id}
                 style={[
                   styles.studentAvatar,
                   {
@@ -204,12 +197,22 @@ export const ClassCard = memo(function ClassCard({
                   },
                 ]}
               >
-                <Text style={styles.studentAvatarText}>{avatar.label}</Text>
+                {avatar.photoUrl ? (
+                  <Image source={{ uri: avatar.photoUrl }} style={styles.studentAvatarImage} />
+                ) : (
+                  <Text style={styles.studentAvatarText}>{avatar.label}</Text>
+                )}
               </View>
-            ))}
-            <Text numberOfLines={1} style={[styles.studentCount, { color: colors.successText ?? colors.primaryBg }]}>
-              +{extraStudents}
-            </Text>
+            )) : (
+              <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
+                Sem alunos
+              </Text>
+            )}
+            {viewModel.studentCount > 0 ? (
+              <Text numberOfLines={1} style={[styles.studentCount, { color: colors.successText ?? colors.primaryBg }]}>
+                {viewModel.extraStudentCount > 0 ? `+${viewModel.extraStudentCount}` : `${viewModel.studentCount}`}
+              </Text>
+            ) : null}
           </View>
         </View>
 
@@ -247,13 +250,13 @@ export const ClassCard = memo(function ClassCard({
                 },
               ]}
             >
-              {["Editar", "Duplicar", "Ver turma", "Apagar"].map((label) => (
+              {menuItems.map((menuItem) => (
                 <Pressable
-                  key={label}
+                  key={menuItem.label}
                   onPress={(event) => {
                     event.stopPropagation?.();
                     onCloseActionMenu?.();
-                    if (label === "Ver turma" || label === "Editar") onOpen(item);
+                    menuItem.action();
                   }}
                   style={(state) => [
                     styles.actionMenuItem,
@@ -267,10 +270,10 @@ export const ClassCard = memo(function ClassCard({
                   <Text
                     style={[
                       styles.actionMenuText,
-                      { color: label === "Apagar" ? colors.dangerText : colors.text },
+                      { color: menuItem.danger ? colors.dangerText : colors.text },
                     ]}
                   >
-                    {label}
+                    {menuItem.label}
                   </Text>
                 </Pressable>
               ))}
@@ -337,12 +340,18 @@ export const ClassCard = memo(function ClassCard({
 
       <View style={[styles.teacherRow, { borderTopColor: colors.borderSubtle ?? colors.border }]}>
         <View style={[styles.teacherAvatar, { backgroundColor: colors.infoBg }]}>
-          <Text style={[styles.teacherAvatarText, { color: colors.infoText }]}>GR</Text>
+          {viewModel.teacher.photoUrl ? (
+            <Image source={{ uri: viewModel.teacher.photoUrl }} style={styles.teacherAvatarImage} />
+          ) : (
+            <Text style={[styles.teacherAvatarText, { color: colors.infoText }]}>
+              {viewModel.teacher.initials}
+            </Text>
+          )}
         </View>
         <View style={{ minWidth: 0, flex: 1 }}>
           <Text style={[styles.teacherKicker, { color: colors.textMuted ?? colors.muted }]}>Professor</Text>
           <Text numberOfLines={1} style={[styles.teacherName, { color: colors.textPrimary ?? colors.text }]}>
-            Gustavo Ribeiro
+            {viewModel.teacher.name}
           </Text>
         </View>
       </View>
@@ -358,7 +367,7 @@ export const ClassCard = memo(function ClassCard({
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: 170,
+    minHeight: 156,
     padding: 12,
     borderRadius: radius.card,
     borderWidth: 1,
@@ -438,8 +447,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   classAvatar: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: radius.internal,
     alignItems: "center",
     justifyContent: "center",
@@ -456,8 +465,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   studentAvatar: {
-    width: 22,
-    height: 22,
+    width: 21,
+    height: 21,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
@@ -467,6 +476,15 @@ const styles = StyleSheet.create({
     color: "#0A1322",
     fontSize: 9,
     fontWeight: "900",
+  },
+  studentAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 999,
+  },
+  noStudentsText: {
+    fontSize: 11,
+    fontWeight: "700",
   },
   studentCount: {
     marginLeft: 7,
@@ -523,7 +541,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 8,
-    marginTop: 14,
+    marginTop: 12,
   },
   titleWrap: {
     flex: 1,
@@ -542,7 +560,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginTop: 10,
+    marginTop: 9,
   },
   metaPill: {
     alignItems: "center",
@@ -565,8 +583,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 13,
-    paddingTop: 10,
+    marginTop: 11,
+    paddingTop: 9,
     borderTopWidth: 1,
   },
   teacherAvatar: {
@@ -575,6 +593,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+  },
+  teacherAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 999,
   },
   teacherAvatarText: {
     fontSize: 10,
