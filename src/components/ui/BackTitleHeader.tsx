@@ -16,7 +16,7 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
   const { colors } = useAppTheme();
 
   return (
-    <View style={[{ marginBottom: 4 }, style]}>
+    <View style={[{ marginBottom: 4, minWidth: 0 }, style]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${ptBR.common.accessibility.backFromPrefix} ${title}`}
@@ -24,11 +24,14 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
         style={{
           alignSelf: "flex-start",
           maxWidth: "100%",
+          minHeight: 38,
           flexDirection: "row",
           alignItems: "center",
           gap: 6,
-          borderRadius: 16,
-          paddingVertical: 2,
+          borderRadius: 12,
+          paddingLeft: 4,
+          paddingRight: 10,
+          paddingVertical: 4,
         }}
       >
         <View

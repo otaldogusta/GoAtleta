@@ -170,7 +170,7 @@ export const ClassCard = memo(function ClassCard({
       }}
     >
       <View style={styles.topRow}>
-        <View style={styles.avatarCluster}>
+        <View style={styles.classIdentity}>
           <View
             style={[
               styles.classAvatar,
@@ -184,36 +184,48 @@ export const ClassCard = memo(function ClassCard({
               {classInitial}
             </Text>
           </View>
-          <View style={styles.studentStack}>
-            {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
-              <View
-                key={avatar.id}
-                style={[
-                  styles.studentAvatar,
-                  {
-                    backgroundColor: avatar.color,
-                    borderColor: colors.surface ?? colors.background,
-                    marginLeft: index === 0 ? 0 : -8,
-                  },
-                ]}
-              >
-                {avatar.photoUrl ? (
-                  <Image source={{ uri: avatar.photoUrl }} style={styles.studentAvatarImage} />
-                ) : (
-                  <Text style={styles.studentAvatarText}>{avatar.label}</Text>
-                )}
-              </View>
-            )) : (
-              <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
-                Sem alunos
+          <View style={styles.titleWrap}>
+            <View style={styles.titleLine}>
+              <Text numberOfLines={1} style={[styles.title, { color: colors.textPrimary ?? colors.text }]}>
+                {item.name}
               </Text>
-            )}
-            {viewModel.studentCount > 0 ? (
-              <Text numberOfLines={1} style={[styles.studentCount, { color: colors.successText ?? colors.primaryBg }]}>
-                {viewModel.extraStudentCount > 0 ? `+${viewModel.extraStudentCount}` : `${viewModel.studentCount}`}
-              </Text>
-            ) : null}
+              <ClassGenderBadge gender={item.gender} />
+            </View>
+            <Text numberOfLines={1} style={[styles.subtitle, { color: colors.textMuted ?? colors.muted }]}>
+              {timeLabel} · {daysLabel}
+            </Text>
           </View>
+        </View>
+
+        <View style={styles.studentStack}>
+          {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
+            <View
+              key={avatar.id}
+              style={[
+                styles.studentAvatar,
+                {
+                  backgroundColor: avatar.color,
+                  borderColor: colors.surface ?? colors.background,
+                  marginLeft: index === 0 ? 0 : -8,
+                },
+              ]}
+            >
+              {avatar.photoUrl ? (
+                <Image source={{ uri: avatar.photoUrl }} style={styles.studentAvatarImage} />
+              ) : (
+                <Text style={styles.studentAvatarText}>{avatar.label}</Text>
+              )}
+            </View>
+          )) : (
+            <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
+              Sem alunos
+            </Text>
+          )}
+          {viewModel.studentCount > 0 ? (
+            <Text numberOfLines={1} style={[styles.studentCount, { color: colors.successText ?? colors.primaryBg }]}>
+              {viewModel.extraStudentCount > 0 ? `+${viewModel.extraStudentCount}` : `${viewModel.studentCount}`}
+            </Text>
+          ) : null}
         </View>
 
         <View nativeID={actionRootId} style={styles.actionWrap}>
@@ -280,16 +292,6 @@ export const ClassCard = memo(function ClassCard({
             </View>
           ) : null}
         </View>
-      </View>
-
-      <View style={styles.contentRow}>
-        <View style={styles.titleWrap}>
-          <Text numberOfLines={1} style={[styles.title, { color: colors.textPrimary ?? colors.text }]}>{item.name}</Text>
-          <Text numberOfLines={1} style={[styles.subtitle, { color: colors.textMuted ?? colors.muted }]}>
-            {timeLabel} · {daysLabel}
-          </Text>
-        </View>
-        <ClassGenderBadge gender={item.gender} />
       </View>
 
       <View style={styles.metaGrid}>
@@ -434,12 +436,12 @@ const styles = StyleSheet.create({
   },
   topRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 8,
     zIndex: 3,
   },
-  avatarCluster: {
+  classIdentity: {
     flexDirection: "row",
     alignItems: "center",
     minWidth: 0,
@@ -462,7 +464,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     minWidth: 0,
-    flex: 1,
+    flexShrink: 0,
+    maxWidth: 118,
+    paddingTop: 7,
   },
   studentAvatar: {
     width: 21,
@@ -494,6 +498,7 @@ const styles = StyleSheet.create({
   actionWrap: {
     position: "relative",
     alignItems: "flex-end",
+    flexShrink: 0,
   },
   actionButton: {
     width: 30,
@@ -536,12 +541,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
-  contentRow: {
+  titleLine: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 8,
-    marginTop: 12,
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+    maxWidth: "100%",
+    alignSelf: "flex-start",
   },
   titleWrap: {
     flex: 1,
@@ -550,6 +556,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: "900",
+    minWidth: 0,
+    flexShrink: 1,
   },
   subtitle: {
     fontSize: 11,

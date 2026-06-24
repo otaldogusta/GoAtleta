@@ -155,7 +155,16 @@ export function CompetitiveAgendaCard({
       >
         <Pressable
           onPress={() => toggleCompetitiveBlock("profile")}
-          style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            borderRadius: radius.internal,
+            paddingHorizontal: 8,
+            paddingVertical: 6,
+            marginHorizontal: -8,
+            marginVertical: -6,
+          }}
         >
           <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
             {normalizeText("Dados da competição")}

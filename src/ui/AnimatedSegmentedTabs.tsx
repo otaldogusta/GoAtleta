@@ -34,6 +34,8 @@ export function AnimatedSegmentedTabs<T extends string>({
 }: AnimatedSegmentedTabsProps<T>) {
   const { colors } = useAppTheme();
   const animRef = useRef<Record<string, Animated.Value>>({});
+  const containerRadius = 16;
+  const itemRadius = 12;
 
   const getProgress = (tabId: T) => {
     if (!animRef.current[tabId]) {
@@ -62,7 +64,7 @@ export function AnimatedSegmentedTabs<T extends string>({
           gap: 8,
           backgroundColor: colors.secondaryBg,
           padding: 6,
-          borderRadius: 999,
+          borderRadius: containerRadius,
           position: "relative",
           zIndex: 1,
         },
@@ -96,7 +98,7 @@ export function AnimatedSegmentedTabs<T extends string>({
             key={tab.id}
             style={{
               flex: 1,
-              borderRadius: 999,
+              borderRadius: itemRadius,
               opacity: tabOpacity,
               transform: [{ scale: tabScale }],
               backgroundColor: tabBackground,
@@ -109,7 +111,7 @@ export function AnimatedSegmentedTabs<T extends string>({
               }}
               style={{
                 paddingVertical: itemPaddingVertical,
-                borderRadius: 999,
+                borderRadius: itemRadius,
                 alignItems: "center",
                 justifyContent: "center",
                 minHeight: itemMinHeight,

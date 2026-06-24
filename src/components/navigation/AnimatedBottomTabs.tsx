@@ -191,6 +191,7 @@ export function AnimatedBottomTabs({
                 alignItems: "center",
                 justifyContent: "center",
                 paddingVertical: 6,
+                borderRadius: 16,
                 gap: 2,
               }}
             >

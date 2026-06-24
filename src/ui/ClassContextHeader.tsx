@@ -76,7 +76,18 @@ export function ClassContextHeader({
             }
             router.replace("/");
           }}
-          style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, maxWidth: "100%" }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            flexShrink: 1,
+            maxWidth: "100%",
+            minHeight: 38,
+            borderRadius: 12,
+            paddingLeft: 4,
+            paddingRight: 10,
+            paddingVertical: 4,
+          }}
         >
           <Ionicons name="chevron-back" size={20} color={colors.text} />
           {safeTitle ? (

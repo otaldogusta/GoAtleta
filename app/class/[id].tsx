@@ -20,7 +20,9 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
+import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
 import type { ClassGroup, ScoutingLog, TrainingPlan } from "../../src/core/models";
+import { annualCycleOptions } from "../../src/core/periodization-basics";
 import {
     ROSTER_FUNDAMENTALS,
     buildRosterFundamentalsByDay,
@@ -57,6 +59,7 @@ import {
     ClassEditModalPickers,
 } from "../../src/screens/classes/components/ClassEditModalBody";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { Button } from "../../src/ui/Button";
 import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
@@ -286,14 +289,30 @@ export default function ClassDetails() {
   const [scoutingLoading, setScoutingLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [showEditCycleLengthPicker, setShowEditCycleLengthPicker] = useState(false);
+  const [showEditMvLevelPicker, setShowEditMvLevelPicker] = useState(false);
   const [showEditAgeBandPicker, setShowEditAgeBandPicker] = useState(false);
   const [showEditGenderPicker, setShowEditGenderPicker] = useState(false);
+  const [showEditModalityPicker, setShowEditModalityPicker] = useState(false);
   const [showEditGoalPicker, setShowEditGoalPicker] = useState(false);
+  const [showEditCycleCalendar, setShowEditCycleCalendar] = useState(false);
   const [editContainerWindow, setEditContainerWindow] = useState<{
     x: number;
     y: number;
   } | null>(null);
   const editScrollRef = useRef<ScrollView | null>(null);
+  const [editCycleLengthTriggerLayout, setEditCycleLengthTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [editMvLevelTriggerLayout, setEditMvLevelTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [editAgeBandTriggerLayout, setEditAgeBandTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -306,6 +325,12 @@ export default function ClassDetails() {
     width: number;
     height: number;
   } | null>(null);
+  const [editModalityTriggerLayout, setEditModalityTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [editGoalTriggerLayout, setEditGoalTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -313,8 +338,11 @@ export default function ClassDetails() {
     height: number;
   } | null>(null);
   const editContainerRef = useRef<View>(null);
+  const editCycleLengthTriggerRef = useRef<View>(null);
+  const editMvLevelTriggerRef = useRef<View>(null);
   const editAgeBandTriggerRef = useRef<View>(null);
   const editGenderTriggerRef = useRef<View>(null);
+  const editModalityTriggerRef = useRef<View>(null);
   const editGoalTriggerRef = useRef<View>(null);
   const [classColorKey, setClassColorKey] = useState<string | null>(null);
   const [classColorSaving, setClassColorSaving] = useState(false);
@@ -337,11 +365,17 @@ export default function ClassDetails() {
   const [name, setName] = useState("");
   const [coachNameOverride, setCoachNameOverride] = useState("");
   const [unit, setUnit] = useState("");
+  const [modality, setModality] = useState<ClassGroup["modality"]>("voleibol");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
   const [gender, setGender] = useState<ClassGroup["gender"]>("misto");
   const [startTime, setStartTime] = useState("14:00");
   const [endTime, setEndTime] = useState("15:00");
   const [duration, setDuration] = useState("60");
+  const [mvLevel, setMvLevel] = useState("MV1");
+  const [cycleStartDate, setCycleStartDate] = useState("");
+  const [cycleLengthWeeks, setCycleLengthWeeks] = useState<number>(
+    annualCycleOptions[annualCycleOptions.length - 1]
+  );
   const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
   const [latestScouting, setLatestScouting] = useState<ScoutingLog | null>(null);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
@@ -358,6 +392,14 @@ export default function ClassDetails() {
   const classFabBottom = Math.max(insets.bottom + 166, 182);
   const classFabMenuBottom = classFabBottom + 74;
   const {
+    animatedStyle: editCycleLengthPickerAnimStyle,
+    isVisible: showEditCycleLengthPickerContent,
+  } = useCollapsibleAnimation(showEditCycleLengthPicker, { translateY: -6 });
+  const {
+    animatedStyle: editMvLevelPickerAnimStyle,
+    isVisible: showEditMvLevelPickerContent,
+  } = useCollapsibleAnimation(showEditMvLevelPicker, { translateY: -6 });
+  const {
     animatedStyle: editAgeBandPickerAnimStyle,
     isVisible: showEditAgeBandPickerContent,
   } = useCollapsibleAnimation(showEditAgeBandPicker, { translateY: -6 });
@@ -365,6 +407,10 @@ export default function ClassDetails() {
     animatedStyle: editGenderPickerAnimStyle,
     isVisible: showEditGenderPickerContent,
   } = useCollapsibleAnimation(showEditGenderPicker, { translateY: -6 });
+  const {
+    animatedStyle: editModalityPickerAnimStyle,
+    isVisible: showEditModalityPickerContent,
+  } = useCollapsibleAnimation(showEditModalityPicker, { translateY: -6 });
   const {
     animatedStyle: editGoalPickerAnimStyle,
     isVisible: showEditGoalPickerContent,
@@ -408,6 +454,20 @@ export default function ClassDetails() {
     "Prevenção de lesões",
   ];
   const genderOptions: ClassGroup["gender"][] = ["feminino", "masculino", "misto"];
+  const DEFAULT_CLASS_CYCLE_LENGTH_WEEKS = annualCycleOptions[annualCycleOptions.length - 1];
+  const cycleLengthOptions = [...annualCycleOptions];
+  const modalityOptions = [...CLASS_MODALITY_OPTIONS];
+  const mvLevelOptions = [
+    { value: "MV1", label: "Iniciante" },
+    { value: "MV2", label: "Intermediário" },
+    { value: "MV3", label: "Avançado" },
+  ];
+  const parseCycleLength = (value: number) => {
+    if (!Number.isFinite(value) || !Number.isInteger(value)) return null;
+    return cycleLengthOptions.includes(value as (typeof annualCycleOptions)[number])
+      ? value
+      : null;
+  };
   const formatDays = (days: number[]) =>
     days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
   const chipBaseStyle = useMemo(
@@ -569,6 +629,16 @@ export default function ClassDetails() {
     if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return null;
     return durationMinutes;
   };
+  const resolveEndTime = (
+    startValue: string,
+    endValue: string | undefined,
+    durationMinutes: number
+  ) =>
+    endValue && isValidTime(endValue)
+      ? endValue
+      : computeEndTimeFromDuration(startValue, durationMinutes);
+  const normalizeDaysKey = (days: number[]) =>
+    JSON.stringify([...days].sort((a, b) => a - b));
 
   useEffect(() => {
     const durationMinutes = parseDurationFromTimeRange(startTime, endTime);
@@ -713,18 +783,25 @@ export default function ClassDetails() {
         );
         if (alive) {
           const data = dataResult;
+          const nextStartTime = data?.startTime ?? "14:00";
+          const nextDuration = data?.durationMinutes ?? 60;
+          const nextEndTime = resolveEndTime(nextStartTime, data?.endTime, nextDuration);
           setCls(data);
           setName(data?.name ?? "");
           setUnit(data?.unit ?? "");
+          setModality(data?.modality ?? "voleibol");
           setAgeBand(data?.ageBand ?? "08-09");
           setGender(data?.gender ?? "misto");
-          setStartTime(data?.startTime ?? "14:00");
-          setEndTime(
-            data?.endTime ?? computeEndTimeFromDuration(data?.startTime ?? "14:00", data?.durationMinutes ?? 60)
-          );
-          setDuration(String(data?.durationMinutes ?? 60));
+          setStartTime(nextStartTime);
+          setEndTime(nextEndTime);
+          setDuration(String(parseDurationFromTimeRange(nextStartTime, nextEndTime) ?? nextDuration));
           setDaysOfWeek(data?.daysOfWeek ?? []);
           setGoal(data?.goal ?? "Fundamentos");
+          setMvLevel(data?.mvLevel ?? "MV1");
+          setCycleStartDate(data?.cycleStartDate ?? "");
+          setCycleLengthWeeks(
+            parseCycleLength(data?.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS
+          );
           setClassColorKey(data?.colorKey ?? null);
           setCoachNameOverride(
             data?.id ? coachNameByClass[data.id] ?? "" : ""
@@ -794,17 +871,24 @@ export default function ClassDetails() {
 
   const resetEditFields = useCallback(() => {
     if (!cls) return;
+    const nextStartTime = cls.startTime ?? "14:00";
+    const nextDuration = cls.durationMinutes ?? 60;
+    const nextEndTime = resolveEndTime(nextStartTime, cls.endTime, nextDuration);
     setName(cls.name ?? "");
     setCoachNameOverride(classCoachName);
     setUnit(cls.unit ?? "");
+    setModality(cls.modality ?? "voleibol");
     setAgeBand(cls.ageBand ?? "08-09");
     setGender(cls.gender ?? "misto");
-    setStartTime(cls.startTime ?? "14:00");
-    setEndTime(
-      cls.endTime ?? computeEndTimeFromDuration(cls.startTime ?? "14:00", cls.durationMinutes ?? 60)
-    );
-    setDuration(String(cls.durationMinutes ?? 60));
+    setStartTime(nextStartTime);
+    setEndTime(nextEndTime);
+    setDuration(String(parseDurationFromTimeRange(nextStartTime, nextEndTime) ?? nextDuration));
     setDaysOfWeek(cls.daysOfWeek ?? []);
+    setMvLevel(cls.mvLevel ?? "MV1");
+    setCycleStartDate(cls.cycleStartDate ?? "");
+    setCycleLengthWeeks(
+      parseCycleLength(cls.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS
+    );
     const nextAgeBand = cls.ageBand ?? "08-09";
     const nextGoal = cls.goal ?? "Fundamentos";
     const customAgeBandSelected = nextAgeBand.trim().length > 0 && !ageBandOptions.includes(nextAgeBand);
@@ -819,32 +903,50 @@ export default function ClassDetails() {
   }, [ageBandOptions, classCoachName, cls, goalOptions]);
 
   const closeEditPickers = useCallback(() => {
+    setShowEditCycleLengthPicker(false);
+    setShowEditMvLevelPicker(false);
     setShowEditAgeBandPicker(false);
     setShowEditGenderPicker(false);
+    setShowEditModalityPicker(false);
     setShowEditGoalPicker(false);
   }, []);
 
   const openEditPicker = useCallback(
-    (target: "age" | "gender" | "goal") => {
+    (target: "cycle" | "level" | "age" | "gender" | "modality" | "goal") => {
       closeEditPickers();
 
       const measureAndOpen = (attempt = 0) => {
         const measureRef =
-          target === "age"
-            ? editAgeBandTriggerRef.current
-            : target === "gender"
-              ? editGenderTriggerRef.current
-              : editGoalTriggerRef.current;
+          target === "cycle"
+            ? editCycleLengthTriggerRef.current
+            : target === "level"
+              ? editMvLevelTriggerRef.current
+              : target === "age"
+                ? editAgeBandTriggerRef.current
+                : target === "gender"
+                  ? editGenderTriggerRef.current
+                  : target === "modality"
+                    ? editModalityTriggerRef.current
+                    : editGoalTriggerRef.current;
 
         measureRef?.measureInWindow((x, y, width, height) => {
           const isReady = width > 0 && height > 0;
           if (isReady) {
-            if (target === "age") {
+            if (target === "cycle") {
+              setEditCycleLengthTriggerLayout({ x, y, width, height });
+              setShowEditCycleLengthPicker(true);
+            } else if (target === "level") {
+              setEditMvLevelTriggerLayout({ x, y, width, height });
+              setShowEditMvLevelPicker(true);
+            } else if (target === "age") {
               setEditAgeBandTriggerLayout({ x, y, width, height });
               setShowEditAgeBandPicker(true);
             } else if (target === "gender") {
               setEditGenderTriggerLayout({ x, y, width, height });
               setShowEditGenderPicker(true);
+            } else if (target === "modality") {
+              setEditModalityTriggerLayout({ x, y, width, height });
+              setShowEditModalityPicker(true);
             } else {
               setEditGoalTriggerLayout({ x, y, width, height });
               setShowEditGoalPicker(true);
@@ -862,17 +964,23 @@ export default function ClassDetails() {
     },
     [
       closeEditPickers,
+      editCycleLengthTriggerRef,
+      editMvLevelTriggerRef,
       editAgeBandTriggerRef,
       editGenderTriggerRef,
+      editModalityTriggerRef,
       editGoalTriggerRef,
     ]
   );
 
   const toggleEditPicker = useCallback(
-    (target: "age" | "gender" | "goal") => {
+    (target: "cycle" | "level" | "age" | "gender" | "modality" | "goal") => {
       const isOpen =
+        (target === "cycle" && showEditCycleLengthPicker) ||
+        (target === "level" && showEditMvLevelPicker) ||
         (target === "age" && showEditAgeBandPicker) ||
         (target === "gender" && showEditGenderPicker) ||
+        (target === "modality" && showEditModalityPicker) ||
         (target === "goal" && showEditGoalPicker);
 
       if (isOpen) {
@@ -885,27 +993,107 @@ export default function ClassDetails() {
     [
       closeEditPickers,
       openEditPicker,
+      showEditCycleLengthPicker,
+      showEditMvLevelPicker,
       showEditAgeBandPicker,
       showEditGenderPicker,
+      showEditModalityPicker,
       showEditGoalPicker,
     ]
   );
 
-  const isEditDirty = useMemo(() => {
-    if (!cls) return false;
-    return (
-      (cls.name ?? "") !== name ||
-      classCoachName !== coachNameOverride.trim() ||
-      (cls.unit ?? "") !== unit ||
-      (cls.ageBand ?? "08-09") !== ageBand ||
-      (cls.gender ?? "misto") !== gender ||
-      (cls.startTime ?? "14:00") !== startTime ||
-      (cls.endTime ?? computeEndTimeFromDuration(cls.startTime ?? "14:00", cls.durationMinutes ?? 60)) !== endTime ||
-      String(cls.durationMinutes ?? 60) !== duration ||
-      JSON.stringify(cls.daysOfWeek ?? []) !== JSON.stringify(daysOfWeek) ||
-      (cls.goal ?? "Fundamentos") !== goal
+  const handleEditSelectCycleLength = useCallback((value: string | number) => {
+    const parsed = typeof value === "number" ? value : Number(value);
+    const nextCycleLength = parseCycleLength(parsed);
+    if (nextCycleLength) setCycleLengthWeeks(nextCycleLength);
+    closeEditPickers();
+  }, [closeEditPickers]);
+
+  const handleEditSelectMvLevel = useCallback((value: string | number) => {
+    setMvLevel(String(value));
+    closeEditPickers();
+  }, [closeEditPickers]);
+
+  const handleEditSelectModality = useCallback((value: string | number) => {
+    setModality(String(value) as ClassGroup["modality"]);
+    closeEditPickers();
+  }, [closeEditPickers]);
+
+  const editBaselineSnapshot = useMemo(() => {
+    if (!cls) return null;
+    const baselineStartTime = cls.startTime ?? "14:00";
+    const baselineDuration = cls.durationMinutes ?? 60;
+    const baselineEndTime = resolveEndTime(
+      baselineStartTime,
+      cls.endTime,
+      baselineDuration
     );
-  }, [ageBand, classCoachName, cls, coachNameOverride, daysOfWeek, duration, endTime, gender, goal, name, startTime, unit]);
+    return {
+      ageBand: cls.ageBand ?? "08-09",
+      coachName: classCoachName.trim(),
+      cycleLengthWeeks:
+        parseCycleLength(cls.cycleLengthWeeks ?? Number.NaN) ??
+        DEFAULT_CLASS_CYCLE_LENGTH_WEEKS,
+      cycleStartDate: cls.cycleStartDate ?? "",
+      daysOfWeek: normalizeDaysKey(cls.daysOfWeek ?? []),
+      duration: String(
+        parseDurationFromTimeRange(baselineStartTime, baselineEndTime) ??
+          baselineDuration
+      ),
+      endTime: baselineEndTime,
+      gender: cls.gender ?? "misto",
+      goal: cls.goal ?? "Fundamentos",
+      modality: cls.modality ?? "voleibol",
+      mvLevel: cls.mvLevel ?? "MV1",
+      name: cls.name ?? "",
+      startTime: baselineStartTime,
+      unit: cls.unit ?? "",
+    };
+  }, [classCoachName, cls]);
+
+  const editCurrentSnapshot = useMemo(
+    () => ({
+      ageBand: showEditCustomAgeBand ? editCustomAgeBand.trim() : ageBand,
+      coachName: coachNameOverride.trim(),
+      cycleLengthWeeks,
+      cycleStartDate,
+      daysOfWeek: normalizeDaysKey(daysOfWeek),
+      duration,
+      endTime,
+      gender,
+      goal: showEditCustomGoal ? editCustomGoal.trim() : goal,
+      modality,
+      mvLevel,
+      name,
+      startTime,
+      unit,
+    }),
+    [
+      ageBand,
+      coachNameOverride,
+      cycleLengthWeeks,
+      cycleStartDate,
+      daysOfWeek,
+      duration,
+      editCustomAgeBand,
+      editCustomGoal,
+      endTime,
+      gender,
+      goal,
+      modality,
+      mvLevel,
+      name,
+      showEditCustomAgeBand,
+      showEditCustomGoal,
+      startTime,
+      unit,
+    ]
+  );
+
+  const isEditDirty = useMemo(() => {
+    if (!editBaselineSnapshot) return false;
+    return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot);
+  }, [editBaselineSnapshot, editCurrentSnapshot]);
 
   useEffect(() => {
     if (!showEditModal) return;
@@ -913,6 +1101,16 @@ export default function ClassDetails() {
       if (editContainerRef.current) {
         editContainerRef.current.measureInWindow((x, y) => {
           setEditContainerWindow({ x, y });
+        });
+      }
+      if (editCycleLengthTriggerRef.current) {
+        editCycleLengthTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditCycleLengthTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (editMvLevelTriggerRef.current) {
+        editMvLevelTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditMvLevelTriggerLayout({ x, y, width, height });
         });
       }
       if (editAgeBandTriggerRef.current) {
@@ -923,6 +1121,11 @@ export default function ClassDetails() {
       if (editGenderTriggerRef.current) {
         editGenderTriggerRef.current.measureInWindow((x, y, width, height) => {
           setEditGenderTriggerLayout({ x, y, width, height });
+        });
+      }
+      if (editModalityTriggerRef.current) {
+        editModalityTriggerRef.current.measureInWindow((x, y, width, height) => {
+          setEditModalityTriggerLayout({ x, y, width, height });
         });
       }
       if (editGoalTriggerRef.current) {
@@ -1018,18 +1221,28 @@ export default function ClassDetails() {
       Vibration.vibrate(40);
       return false;
     }
+    const cycleValue = parseCycleLength(cycleLengthWeeks);
+    if (!cycleValue) {
+      setFormError("Macrociclo inválido. Selecione 36, 40, 44, 48 ou 52 semanas.");
+      Vibration.vibrate(40);
+      return false;
+    }
     setFormError("");
     setSaving(true);
     try {
       await updateClass(cls.id, {
         name: name.trim() || cls.name,
         unit: unit.trim() || "Rede Esperança",
+        modality,
         daysOfWeek,
         goal: showEditCustomGoal ? editCustomGoal.trim() || goal : goal,
         ageBand: (showEditCustomAgeBand ? editCustomAgeBand.trim() || ageBand : ageBand).trim() || cls.ageBand,
         gender,
         startTime: timeValue,
         durationMinutes: durationValue,
+        mvLevel,
+        cycleStartDate: cycleStartDate || undefined,
+        cycleLengthWeeks: cycleValue,
       });
       await setCoachNameForClass(cls.id, coachNameOverride);
       Vibration.vibrate(60);
@@ -1046,6 +1259,7 @@ export default function ClassDetails() {
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
     closeEditPickers();
+    setShowEditCycleCalendar(false);
     setShowEditCustomAgeBand(false);
     setEditCustomAgeBand("");
     setShowEditCustomGoal(false);
@@ -1583,6 +1797,11 @@ export default function ClassDetails() {
                 alignItems: "center",
                 gap: 8,
                 flexShrink: 1,
+                minHeight: 38,
+                borderRadius: 12,
+                paddingLeft: 4,
+                paddingRight: 10,
+                paddingVertical: 4,
               }}
             >
               <MaterialCommunityIcons name="chevron-left" size={22} color={colors.text} />
@@ -2038,9 +2257,14 @@ export default function ClassDetails() {
               justifyContent: "space-between",
             }}
           >
-            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>
-              Editar turma
-            </Text>
+            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>
+                Editar turma
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {cls?.name ? cls.name : "Ajuste os dados, agenda e perfil da turma."}
+              </Text>
+            </View>
             <Pressable
               onPress={requestCloseEditModal}
               style={{
@@ -2078,30 +2302,45 @@ export default function ClassDetails() {
               showsVerticalScrollIndicator
             >
               <ClassEditModalBody
-                compact
                 renderPickers={false}
               refs={{
                 editContainerRef,
+                editCycleLengthTriggerRef,
+                editMvLevelTriggerRef,
                 editAgeBandTriggerRef,
                 editGenderTriggerRef,
+                editModalityTriggerRef,
                 editGoalTriggerRef,
               }}
               layouts={{
                 editContainerWindow,
+                editCycleLengthTriggerLayout,
+                editMvLevelTriggerLayout,
                 editAgeBandTriggerLayout,
                 editGenderTriggerLayout,
+                editModalityTriggerLayout,
                 editGoalTriggerLayout,
               }}
               pickers={{
+                showEditCycleLengthPicker,
+                showEditMvLevelPicker,
                 showEditAgeBandPicker,
                 showEditGenderPicker,
+                showEditModalityPicker,
                 showEditGoalPicker,
+                showEditCycleLengthPickerContent,
+                showEditMvLevelPickerContent,
                 showEditAgeBandPickerContent,
                 showEditGenderPickerContent,
+                showEditModalityPickerContent,
                 showEditGoalPickerContent,
+                editCycleLengthPickerAnimStyle,
+                editMvLevelPickerAnimStyle,
                 editAgeBandPickerAnimStyle,
                 editGenderPickerAnimStyle,
+                editModalityPickerAnimStyle,
                 editGoalPickerAnimStyle,
+                showEditCycleCalendar,
               }}
               fields={{
                 editName: name,
@@ -2117,12 +2356,17 @@ export default function ClassDetails() {
                 editEndTime: endTime,
                 setEditEndTime: setEndTime,
                 editDuration: duration,
+                editCycleStartDate: cycleStartDate,
+                setEditCycleStartDate: setCycleStartDate,
+                editCycleLengthWeeks: cycleLengthWeeks,
+                editMvLevel: mvLevel,
                 editAgeBand: ageBand,
                 setEditAgeBand: setAgeBand,
                 editShowCustomAgeBand: showEditCustomAgeBand,
                 editCustomAgeBand,
                 setEditCustomAgeBand,
                 editGender: gender,
+                editModality: modality,
                 editGoal: goal,
                 editCustomGoal,
                 setEditCustomGoal,
@@ -2136,31 +2380,22 @@ export default function ClassDetails() {
               }}
               options={{
                 dayNames,
+                cycleLengthOptions,
                 ageBandOptions,
                 genderOptions: genderOptions.map((value) => ({
                   value,
                   label: value === 'misto' ? 'Misto' : value === 'feminino' ? 'Feminino' : 'Masculino',
                 })),
+                modalityOptions,
+                mvLevelOptions,
                 goalOptions,
                 customOptionLabel: 'Personalizar',
               }}
               actions={{
                 closeAllPickers: closeEditPickers,
-                toggleEditPicker: (target) => {
-                  if (target === "age" || target === "gender" || target === "goal") {
-                    const isOpen =
-                      (target === "age" && showEditAgeBandPicker) ||
-                      (target === "gender" && showEditGenderPicker) ||
-                      (target === "goal" && showEditGoalPicker);
-                    if (isOpen) {
-                      closeEditPickers();
-                      return;
-                    }
-                    toggleEditPicker(target);
-                    return;
-                  }
-                  closeEditPickers();
-                },
+                toggleEditPicker,
+                handleEditSelectCycleLength,
+                handleEditSelectMvLevel,
                 handleEditSelectAgeBand: (value) => {
                   const selected = String(value);
                   if (selected === "Personalizar") {
@@ -2177,6 +2412,7 @@ export default function ClassDetails() {
                   setGender(String(value) as ClassGroup['gender']);
                   closeEditPickers();
                 },
+                handleEditSelectModality,
                 handleEditSelectGoal: (value) => {
                   const selected = String(value);
                   if (selected === "Personalizar") {
@@ -2191,73 +2427,81 @@ export default function ClassDetails() {
                 },
                 saveEditClass: handleSaveEdit,
                 handleDeleteClass: onDelete,
+                setShowEditCycleCalendar,
               }}
             />
-
-            <Pressable
-              onPress={onDelete}
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: 48,
-                borderRadius: 14,
-                backgroundColor: colors.dangerSolidBg,
-              }}
-            >
-              <Text style={{ color: colors.dangerSolidText, fontSize: 16, fontWeight: "800" }}>
-                Excluir turma
-              </Text>
-            </Pressable>
             </ScrollView>
           </View>
 
-          <View style={{ gap: 10, paddingTop: 4, borderTopWidth: 1, borderTopColor: colors.border }}>
-            <Pressable
-              onPress={handleSaveEdit}
-              disabled={!isEditDirty || saving}
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: 48,
-                borderRadius: 14,
-                backgroundColor: !isEditDirty || saving ? colors.primaryDisabledBg : colors.primaryBg,
-              }}
-            >
-              <Text
-                style={{
-                  color: !isEditDirty || saving ? colors.muted : colors.primaryText,
-                  fontSize: 16,
-                  fontWeight: "800",
-                }}
-              >
-                {saving ? "Salvando..." : "Salvar alterações"}
-              </Text>
-            </Pressable>
+          <View
+            style={{
+              gap: 10,
+              paddingTop: 12,
+              paddingBottom: 12,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+            }}
+          >
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label={saving ? "Salvando..." : "Salvar alterações"}
+                  onPress={handleSaveEdit}
+                  disabled={saving || !name.trim() || !isEditDirty}
+                  loading={saving}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  label="Excluir turma"
+                  variant="danger"
+                  onPress={onDelete}
+                  disabled={saving}
+                  loading={false}
+                />
+              </View>
+            </View>
           </View>
 
           <ClassEditModalPickers
             refs={{
               editContainerRef,
+              editCycleLengthTriggerRef,
+              editMvLevelTriggerRef,
               editAgeBandTriggerRef,
               editGenderTriggerRef,
+              editModalityTriggerRef,
               editGoalTriggerRef,
             }}
             layouts={{
               editContainerWindow,
+              editCycleLengthTriggerLayout,
+              editMvLevelTriggerLayout,
               editAgeBandTriggerLayout,
               editGenderTriggerLayout,
+              editModalityTriggerLayout,
               editGoalTriggerLayout,
             }}
             pickers={{
+              showEditCycleLengthPicker,
+              showEditMvLevelPicker,
               showEditAgeBandPicker,
               showEditGenderPicker,
+              showEditModalityPicker,
               showEditGoalPicker,
+              showEditCycleLengthPickerContent,
+              showEditMvLevelPickerContent,
               showEditAgeBandPickerContent,
               showEditGenderPickerContent,
+              showEditModalityPickerContent,
               showEditGoalPickerContent,
+              editCycleLengthPickerAnimStyle,
+              editMvLevelPickerAnimStyle,
               editAgeBandPickerAnimStyle,
               editGenderPickerAnimStyle,
+              editModalityPickerAnimStyle,
               editGoalPickerAnimStyle,
+              showEditCycleCalendar,
             }}
             fields={{
               editName: name,
@@ -2273,12 +2517,17 @@ export default function ClassDetails() {
               editEndTime: endTime,
               setEditEndTime: setEndTime,
               editDuration: duration,
+              editCycleStartDate: cycleStartDate,
+              setEditCycleStartDate: setCycleStartDate,
+              editCycleLengthWeeks: cycleLengthWeeks,
+              editMvLevel: mvLevel,
               editAgeBand: ageBand,
               setEditAgeBand: setAgeBand,
               editShowCustomAgeBand: showEditCustomAgeBand,
               editCustomAgeBand,
               setEditCustomAgeBand,
               editGender: gender,
+              editModality: modality,
               editGoal: goal,
               editCustomGoal,
               setEditCustomGoal,
@@ -2292,23 +2541,22 @@ export default function ClassDetails() {
             }}
             options={{
               dayNames,
+              cycleLengthOptions,
               ageBandOptions,
               genderOptions: genderOptions.map((value) => ({
                 value,
                 label: value === "misto" ? "Misto" : value === "feminino" ? "Feminino" : "Masculino",
               })),
+              modalityOptions,
+              mvLevelOptions,
               goalOptions,
               customOptionLabel: "Personalizar",
             }}
             actions={{
               closeAllPickers: closeEditPickers,
-              toggleEditPicker: (target) => {
-                if (target === "age" || target === "gender" || target === "goal") {
-                  toggleEditPicker(target);
-                  return;
-                }
-                closeEditPickers();
-              },
+              toggleEditPicker,
+              handleEditSelectCycleLength,
+              handleEditSelectMvLevel,
               handleEditSelectAgeBand: (value) => {
                 const selected = String(value);
                 if (selected === "Personalizar") {
@@ -2325,6 +2573,7 @@ export default function ClassDetails() {
                 setGender(String(value) as ClassGroup["gender"]);
                 closeEditPickers();
               },
+              handleEditSelectModality,
                 handleEditSelectGoal: (value) => {
                 const selected = String(value);
                 if (selected === "Personalizar") {
@@ -2339,11 +2588,21 @@ export default function ClassDetails() {
               },
               saveEditClass: handleSaveEdit,
               handleDeleteClass: onDelete,
+              setShowEditCycleCalendar,
             }}
           />
         </View>
 
       </ModalSheet>
+
+      <DatePickerModal
+        visible={showEditCycleCalendar}
+        value={cycleStartDate}
+        onChange={(value) => setCycleStartDate(value)}
+        onClose={() => setShowEditCycleCalendar(false)}
+        closeOnSelect={false}
+        initialViewMode="day"
+      />
 
       <ModalSheet
         visible={showRosterExportModal}

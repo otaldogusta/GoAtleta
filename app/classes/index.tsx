@@ -1856,6 +1856,7 @@ export default function ClassesScreen() {
                 }
                 router.replace("/");
               }}
+              style={{ flexShrink: 1, marginBottom: 0 }}
             />
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
@@ -2255,10 +2256,11 @@ export default function ClassesScreen() {
           layout={cycleLengthTriggerLayout}
           container={containerWindow}
           animationStyle={cycleLengthPickerAnimStyle}
-          zIndex={320}
+          zIndex={5200}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[cycleLengthTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {cycleLengthOptions.map((value, index) => (
@@ -2278,10 +2280,11 @@ export default function ClassesScreen() {
           layout={mvLevelTriggerLayout}
           container={containerWindow}
           animationStyle={mvLevelPickerAnimStyle}
-          zIndex={320}
+          zIndex={5201}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[mvLevelTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {mvLevelOptions.map((option, index) => (
@@ -2301,10 +2304,11 @@ export default function ClassesScreen() {
           layout={ageBandTriggerLayout}
           container={containerWindow}
           animationStyle={ageBandPickerAnimStyle}
-          zIndex={320}
+          zIndex={5202}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[ageBandTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {ageBandOptions.map((band, index) => (
@@ -2330,10 +2334,11 @@ export default function ClassesScreen() {
           layout={genderTriggerLayout}
           container={containerWindow}
           animationStyle={genderPickerAnimStyle}
-          zIndex={320}
+          zIndex={5203}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[genderTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {genderOptions.map((option, index) => (
@@ -2353,10 +2358,11 @@ export default function ClassesScreen() {
           layout={modalityTriggerLayout}
           container={containerWindow}
           animationStyle={modalityPickerAnimStyle}
-          zIndex={320}
+          zIndex={5204}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[modalityTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {modalityOptions.map((option, index) => (
@@ -2376,10 +2382,11 @@ export default function ClassesScreen() {
           layout={goalTriggerLayout}
           container={containerWindow}
           animationStyle={goalPickerAnimStyle}
-          zIndex={320}
+          zIndex={5205}
           maxHeight={260}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[goalTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {goalOptions.map((goal, index) => (

@@ -85,6 +85,7 @@ export function ModalDialogFrame({
             style={[
               {
                 paddingTop: 12,
+                paddingBottom: 12,
                 borderTopWidth: 1,
                 borderTopColor: colors.border,
                 gap: 8,

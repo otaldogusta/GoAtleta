@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
@@ -50,6 +50,7 @@ export const AgendaCard = memo(function AgendaCard({
 }: AgendaCardProps) {
   markRender("screen.home.render.agendaCard", { classId: item.classId, index });
 
+  const [isHovered, setIsHovered] = useState(false);
   const handlePress = useCallback(() => onCardPress(index), [index, onCardPress]);
   const isCompactCard = agendaCardWidth <= 260;
   const isVeryCompactCard = agendaCardWidth <= 200;
@@ -92,7 +93,13 @@ export const AgendaCard = memo(function AgendaCard({
           ]}
         />
       ) : null}
-      <Pressable onPress={handlePress}>
+      <Pressable
+        onPress={handlePress}
+        onHoverIn={() => setIsHovered(true)}
+        onHoverOut={() => setIsHovered(false)}
+        suppressWebHoverFeedback
+        style={styles.pressableCard}
+      >
         <View
           style={[
             styles.outerCard,
@@ -128,10 +135,15 @@ export const AgendaCard = memo(function AgendaCard({
               isCompactCard ? styles.innerCardCompact : null,
               isWebCard ? styles.innerCardWeb : null,
               {
-                backgroundColor: cardBackground,
-                borderColor: colors.border,
+                backgroundColor: isHovered
+                  ? isDark
+                    ? "rgba(51, 65, 85, 0.58)"
+                    : colors.secondaryBg
+                  : cardBackground,
+                borderColor: isHovered ? colors.primaryBg : colors.border,
                 opacity: isPast ? 0.78 : 1,
               },
+              isHovered ? styles.innerCardHovered : null,
             ]}
           >
             <View
@@ -179,7 +191,7 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   outerCard: {
-    borderRadius: 14,
+    borderRadius: 12,
     backgroundColor: "transparent",
     paddingTop: 18,
   },
@@ -190,9 +202,18 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingHorizontal: 14,
     paddingBottom: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: "hidden",
     borderWidth: 1,
+  },
+  innerCardHovered: {
+    shadowColor: "#22C55E",
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  pressableCard: {
+    borderRadius: 12,
   },
   innerCardCompact: {
     paddingTop: 30,

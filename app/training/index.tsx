@@ -27,6 +27,7 @@ import {
     View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
 import { Pressable } from "../../src/ui/Pressable";
 
@@ -3189,23 +3190,17 @@ export default function TrainingList() {
             paddingTop: 16,
           }}
         >
-          <View style={[planningShellStyle, { marginBottom: 2 }]}>
-            <Pressable
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/");
-              }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-                Planejamento
-              </Text>
-            </Pressable>
-          </View>
+          <BackTitleHeader
+            title="Planejamento"
+            onBack={() => {
+              if (router.canGoBack()) {
+                router.back();
+                return;
+              }
+              router.replace("/");
+            }}
+            style={[planningShellStyle, { marginBottom: 2 }]}
+          />
 
           <View
             style={[planningShellStyle, {

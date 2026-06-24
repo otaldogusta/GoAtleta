@@ -4,6 +4,7 @@ import type { PressableProps as RNPressableProps, StyleProp, ViewStyle } from "r
 type WebContextMenuHandler = (event: unknown) => void;
 type PressableProps = RNPressableProps & {
   onContextMenu?: WebContextMenuHandler;
+  suppressWebHoverFeedback?: boolean;
 };
 
 const flattenStyle = (style: unknown): ViewStyle[] => {
@@ -40,11 +41,37 @@ const pickBackground = (style: StyleProp<ViewStyle>) => {
   return null;
 };
 
+const pickBorderRadius = (style: StyleProp<ViewStyle>) => {
+  const defaultWebRadius = 12;
+  const styles = flattenStyle(style);
+  for (let i = styles.length - 1; i >= 0; i -= 1) {
+    const item = styles[i];
+    if (!item) continue;
+    if (typeof item.borderRadius === "number") return item.borderRadius;
+  }
+
+  const merged = Object.assign({}, ...styles);
+  if (
+    typeof merged.width === "number" &&
+    typeof merged.height === "number" &&
+    merged.width === merged.height
+  ) {
+    return 999;
+  }
+  if (merged.flexDirection === "row" && merged.alignItems === "center") {
+    return defaultWebRadius;
+  }
+  return defaultWebRadius;
+};
+
 const webClickableStyle = { cursor: "pointer" } as ViewStyle;
 
-const webFallbackHoverStyle = {
-  backgroundColor: "rgba(148, 163, 184, 0.1)",
-} as ViewStyle;
+const getWebFallbackHoverStyle = (style: StyleProp<ViewStyle>) =>
+  ({
+    backgroundColor: "rgba(148, 163, 184, 0.1)",
+    borderRadius: pickBorderRadius(style),
+    overflow: "hidden",
+  }) as ViewStyle;
 
 const clamp = (value: number) => Math.max(0, Math.min(255, value));
 
@@ -107,6 +134,7 @@ const darkenColor = (value: string, amount = 0.08) => {
 export function Pressable({
   style,
   disabled,
+  suppressWebHoverFeedback,
   ...rest
 }: PressableProps) {
   return (
@@ -126,6 +154,14 @@ export function Pressable({
         }
 
         const isHovered = Boolean((state as typeof state & { hovered?: boolean }).hovered);
+        if (suppressWebHoverFeedback) {
+          return [
+            base,
+            webClickableStyle,
+            state.pressed ? { transform: [{ scale: 0.98 }], opacity: 0.92 } : null,
+          ];
+        }
+
         const hoveredBg = isHovered ? pickBackground(base) : null;
         const hoverStyle = isHovered && hoveredBg
           ? (() => {
@@ -140,7 +176,7 @@ export function Pressable({
               return { backgroundColor: lightenColor(hoveredBg, 0.08) };
             })()
           : null;
-        const fallbackHoverStyle = isHovered && !hoverStyle ? webFallbackHoverStyle : null;
+        const fallbackHoverStyle = isHovered && !hoverStyle ? getWebFallbackHoverStyle(base) : null;
         return [
           base,
           webClickableStyle,
