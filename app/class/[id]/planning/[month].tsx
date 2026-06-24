@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BackTitleHeader } from "../../../../src/components/ui/BackTitleHeader";
@@ -11,14 +11,22 @@ import { resolveLearningObjectives } from "../../../../src/core/pedagogy/objecti
 import {
     getClassById,
     getDailyLessonPlanByWeekAndDate,
+    listDailyLessonPlansByWeekIds,
     upsertDailyLessonPlan,
 } from "../../../../src/db/seed";
 import { exportPdf, safeFileName } from "../../../../src/pdf/export-pdf";
+import { MonthlyLessonPlanDocument } from "../../../../src/pdf/monthly-lesson-plan-document";
 import { SessionPlanDocument } from "../../../../src/pdf/session-plan-document";
+import { monthlyPlanHtml } from "../../../../src/pdf/templates/monthly-plan";
 import { sessionPlanHtml } from "../../../../src/pdf/templates/session-plan";
 import type { WeekSessionPreview } from "../../../../src/screens/periodization/application/build-week-session-preview";
 import { resolveLessonBlocksFromDailyPlan } from "../../../../src/screens/planning/application/daily-lesson-blocks";
-import { buildMonthPlanningInsightBullets } from "../../../../src/screens/planning/application/month-planning-insights";
+import type { MonthPlanningSummary } from "../../../../src/screens/planning/application/month-planning-summary";
+import { buildMonthlyPlanExportData } from "../../../../src/screens/planning/application/monthly-plan-export";
+import type {
+  ProfessorAgendaCalendarDay,
+  ProfessorAgendaEvent,
+} from "../../../../src/screens/planning/application/professor-agenda-events";
 import { regenerateDailyLessonPlanFromWeek } from "../../../../src/screens/planning/application/regenerate-daily-lesson-plan";
 import type { MonthRegenerationProgress } from "../../../../src/screens/planning/application/regenerate-month-plans";
 import { regenerateMonthPlans } from "../../../../src/screens/planning/application/regenerate-month-plans";
@@ -28,6 +36,7 @@ import { useDailyLessonPlan } from "../../../../src/screens/planning/hooks/useDa
 import { useMonthlyPlans } from "../../../../src/screens/planning/hooks/useMonthlyPlans";
 import { useAppTheme } from "../../../../src/ui/app-theme";
 import { CollapsibleSection } from "../../../../src/ui/CollapsibleSection";
+import { DatePickerModal } from "../../../../src/ui/DatePickerModal";
 import { Pressable } from "../../../../src/ui/Pressable";
 import { useSaveToast } from "../../../../src/ui/save-toast";
 import { getSectionCardStyle } from "../../../../src/ui/section-styles";
@@ -41,6 +50,36 @@ const toMonthTitle = (monthKey: string) => {
   if (!Number.isFinite(year) || !Number.isFinite(month)) return monthKey;
   const date = new Date(year, Math.max(month - 1, 0), 1);
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+};
+
+const parseMonthKey = (value: string) => {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+  return { year, month };
+};
+
+const shiftMonthKey = (value: string, delta: number) => {
+  const parsed = parseMonthKey(value);
+  if (!parsed) return value;
+  const date = new Date(parsed.year, parsed.month - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const toMonthPickerValue = (value: string) => {
+  const parsed = parseMonthKey(value);
+  if (!parsed) return `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
+  return `${parsed.year}-${String(parsed.month).padStart(2, "0")}-01`;
+};
+
+const toMonthPickerLabel = (value: string) => {
+  const parsed = parseMonthKey(value);
+  if (!parsed) return value;
+  const date = new Date(parsed.year, parsed.month - 1, 1);
+  const label = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+  return label.replace(/^./, (char) => char.toUpperCase()).replace(/\s+de\s+/i, " ");
 };
 
 const trimPreview = (value: string | undefined, fallback: string) => {
@@ -203,10 +242,326 @@ function PlanningPill({
   );
 }
 
+const WEEKDAY_HEADERS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+
+const getCompactWeekLabel = (event: ProfessorAgendaEvent) =>
+  Number.isFinite(event.weekNumber) ? `S${event.weekNumber}` : event.weekLabel.replace(/^Semana\s+/i, "S");
+
+const toTodayIsoDate = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+};
+
+const joinShortList = (items: string[]) => {
+  const unique = [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+  if (!unique.length) return "-";
+  if (unique.length === 1) return unique[0];
+  if (unique.length === 2) return `${unique[0]} e ${unique[1]}`;
+  return `${unique.slice(0, 2).join(", ")} +${unique.length - 2}`;
+};
+
+const buildMonthFocusSummary = (weeklyItems: Array<{ plan: ClassPlan }>) => {
+  const focuses = weeklyItems
+    .map((item) => item.plan.theme || item.plan.technicalFocus || item.plan.generalObjective || "")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return joinShortList(focuses);
+};
+
+function SummaryMetric({
+  icon,
+  label,
+  value,
+  colors,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 128, flexGrow: 1, flexBasis: 0 }}>
+      <View
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: 15,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.secondaryBg,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
+      >
+        <Ionicons name={icon} size={15} color={colors.muted} />
+      </View>
+      <View style={{ minWidth: 0, flex: 1 }}>
+        <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>
+          {value}
+        </Text>
+        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, fontWeight: "600" }}>
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function MonthSummaryPanel({
+  events,
+  weekCount,
+  focus,
+  colors,
+}: {
+  events: ProfessorAgendaEvent[];
+  weekCount: number;
+  focus: string;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+}) {
+  const todayIso = toTodayIsoDate();
+  const nextEvent = events.find((event) => event.date >= todayIso) ?? events[0] ?? null;
+  const classDayCount = new Set(events.map((event) => event.date)).size;
+  const weekdaySummary = joinShortList(events.map((event) => event.weekdayLabel));
+  const nextEventLabel = nextEvent ? `${nextEvent.dateLabel.slice(0, 5)} · ${getCompactWeekLabel(nextEvent)}` : "-";
+  const nextEventTitle = nextEvent?.title ?? "Sem aula programada";
+
+  return (
+    <View style={[getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }), { gap: 12 }]}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <View style={{ minWidth: 0, flex: 1 }}>
+          <Text style={{ color: colors.text, fontWeight: "900", fontSize: 15 }}>Resumo do mês</Text>
+          <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+            {focus}
+          </Text>
+        </View>
+        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+          {weekCount} semana{weekCount === 1 ? "" : "s"}
+        </Text>
+      </View>
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        <SummaryMetric
+          icon="calendar-outline"
+          label="aulas no mês"
+          value={`${events.length} aula${events.length === 1 ? "" : "s"}`}
+          colors={colors}
+        />
+        <SummaryMetric
+          icon="today-outline"
+          label="dias com aula"
+          value={`${classDayCount} dia${classDayCount === 1 ? "" : "s"}`}
+          colors={colors}
+        />
+        <SummaryMetric icon="repeat-outline" label="rotina" value={weekdaySummary} colors={colors} />
+        <SummaryMetric icon="flag-outline" label="próxima aula" value={nextEventLabel} colors={colors} />
+      </View>
+
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingTop: 10,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+        }}
+      >
+        <Ionicons name="chevron-forward-circle-outline" size={16} color={colors.muted} />
+        <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "800", flex: 1 }}>
+          {nextEventTitle}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function CalendarEventCard({
+  event,
+  compact = false,
+  colors,
+  onPress,
+}: {
+  event: ProfessorAgendaEvent;
+  compact?: boolean;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+  onPress: () => void;
+}) {
+  const statusColor =
+    event.status === "needs_review"
+      ? colors.warningText
+      : event.status === "ready"
+        ? colors.successText
+        : colors.muted;
+  const statusBg =
+    event.status === "needs_review"
+      ? colors.warningBg
+      : event.status === "ready"
+        ? colors.successBg
+        : colors.secondaryBg;
+
+  if (compact) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir ${event.title}`}
+        onPress={onPress}
+        style={{
+          minHeight: 24,
+          justifyContent: "center",
+          gap: 3,
+          paddingHorizontal: 5,
+          paddingVertical: 5,
+          borderRadius: 9,
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 }}>
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: statusColor,
+            }}
+          />
+          <Text
+            numberOfLines={1}
+            style={{ color: colors.text, fontSize: 10, fontWeight: "900", minWidth: 0, flexShrink: 1 }}
+          >
+            {getCompactWeekLabel(event)}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        gap: 3,
+        minHeight: 42,
+        paddingHorizontal: 7,
+        paddingVertical: 6,
+        borderRadius: 9,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 5 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0 }}>
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: statusColor,
+            }}
+          />
+          <Text numberOfLines={1} style={{ color: colors.text, fontSize: 10, fontWeight: "900", flexShrink: 1 }}>
+            {getCompactWeekLabel(event)}
+          </Text>
+        </View>
+        <View
+          style={{
+            paddingHorizontal: 5,
+            paddingVertical: 2,
+            borderRadius: 999,
+            backgroundColor: statusBg,
+            maxWidth: "62%",
+          }}
+        >
+          <Text numberOfLines={1} style={{ color: statusColor, fontSize: 9, fontWeight: "800" }}>
+            {event.statusLabel}
+          </Text>
+        </View>
+      </View>
+      <Text numberOfLines={1} style={{ color: colors.text, fontSize: 11, fontWeight: "800", lineHeight: 14 }}>
+        {event.title}
+      </Text>
+    </Pressable>
+  );
+}
+
+function MonthCalendarGrid({
+  days,
+  compact,
+  colors,
+  onSelectEvent,
+}: {
+  days: ProfessorAgendaCalendarDay[];
+  compact: boolean;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+  onSelectEvent: (event: ProfessorAgendaEvent) => void;
+}) {
+  const rows: ProfessorAgendaCalendarDay[][] = [];
+  for (let index = 0; index < days.length; index += 7) {
+    rows.push(days.slice(index, index + 7));
+  }
+
+  return (
+    <View style={[getSectionCardStyle(colors, "neutral", { padding: compact ? 8 : 10, radius: 16, shadow: false }), { gap: 8 }]}>
+      <View style={{ flexDirection: "row", gap: compact ? 4 : 6 }}>
+        {WEEKDAY_HEADERS.map((label) => (
+          <Text key={label} style={{ flex: 1, color: colors.muted, fontSize: 11, fontWeight: "800", textAlign: "center" }}>
+            {label}
+          </Text>
+        ))}
+      </View>
+      {rows.map((row, rowIndex) => (
+        <View key={`row-${rowIndex}`} style={{ flexDirection: "row", gap: compact ? 4 : 6 }}>
+          {row.map((day) => {
+            const hasEvent = day.events.length > 0;
+            const visibleEventsLimit = compact ? 2 : 3;
+            return (
+              <View
+                key={day.date}
+                style={{
+                  flex: 1,
+                  minHeight: compact ? 78 : 108,
+                  gap: compact ? 4 : 6,
+                  padding: compact ? 5 : 8,
+                  borderRadius: compact ? 10 : 12,
+                  backgroundColor: hasEvent ? colors.secondaryBg : colors.backgroundSubtle,
+                  borderWidth: 1,
+                  borderColor: hasEvent ? colors.successBorder : colors.border,
+                  opacity: day.isCurrentMonth ? 1 : 0.35,
+                }}
+              >
+                <Text style={{ color: hasEvent ? colors.text : colors.muted, fontSize: 12, fontWeight: "900" }}>
+                  {day.dayOfMonth}
+                </Text>
+                {day.events.slice(0, visibleEventsLimit).map((event) => (
+                  <CalendarEventCard
+                    key={event.id}
+                    event={event}
+                    compact={compact}
+                    colors={colors}
+                    onPress={() => onSelectEvent(event)}
+                  />
+                ))}
+                {day.events.length > visibleEventsLimit ? (
+                  <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>
+                    +{day.events.length - visibleEventsLimit} aula{day.events.length - visibleEventsLimit === 1 ? "" : "s"}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function ClassPlanningMonthRoute() {
   const { id, month } = useLocalSearchParams<{ id: string; month: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const classId = typeof id === "string" ? id : "";
@@ -215,8 +570,11 @@ export default function ClassPlanningMonthRoute() {
     useSingleAccordion(null, { switchDelayMs: 220 });
   const [selectedWeekPlan, setSelectedWeekPlan] = useState<ClassPlan | null>(null);
   const [selectedSession, setSelectedSession] = useState<WeekSessionPreview | null>(null);
+  const [selectedAgendaEvent, setSelectedAgendaEvent] = useState<ProfessorAgendaEvent | null>(null);
   const [monthRegenProgress, setMonthRegenProgress] = useState<MonthRegenerationProgress | null>(null);
   const [isRegeneratingMonth, setIsRegeneratingMonth] = useState(false);
+  const [isExportingMonth, setIsExportingMonth] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   const {
     selectedClass,
@@ -226,6 +584,8 @@ export default function ClassPlanningMonthRoute() {
     recentAttendance,
     recentSessionLogs,
     weeklyItems,
+    agendaEvents,
+    monthCalendarDays,
     dailyPlansByKey,
     isLoading,
     error,
@@ -342,12 +702,51 @@ export default function ClassPlanningMonthRoute() {
     () => toMonthTitle(monthKey).replace(/^./, (char) => char.toUpperCase()),
     [monthKey]
   );
-  const monthInsightBullets = useMemo(
-    () => buildMonthPlanningInsightBullets({ weeklyItems, selectedClass }),
-    [selectedClass, weeklyItems]
-  );
-  const monthSessionCount = weeklyItems.reduce((total, item) => total + item.sessions.length, 0);
-  const monthInsightSummary = monthInsightBullets.map((item) => item.replace(/\.$/, "")).join(" · ");
+  const monthSessionCount = agendaEvents.length;
+  const monthFocusSummary = useMemo(() => buildMonthFocusSummary(weeklyItems), [weeklyItems]);
+  const isCompactCalendar = width < 900;
+
+  const handleSelectAgendaEvent = useCallback((event: ProfessorAgendaEvent) => {
+    setSelectedAgendaEvent(event);
+    setSelectedWeekPlan(event.plan);
+    setSelectedSession(event.session);
+  }, []);
+
+  const goToMonth = useCallback((nextMonthKey: string) => {
+    if (!classId || nextMonthKey === monthKey) return;
+    router.replace({
+      pathname: "/class/[id]/planning/[month]",
+      params: { id: classId, month: nextMonthKey },
+    });
+  }, [classId, monthKey, router]);
+
+  const goToPreviousMonth = useCallback(() => {
+    goToMonth(shiftMonthKey(monthKey, -1));
+  }, [goToMonth, monthKey]);
+
+  const goToNextMonth = useCallback(() => {
+    goToMonth(shiftMonthKey(monthKey, 1));
+  }, [goToMonth, monthKey]);
+
+  const handleMonthPickerChange = useCallback((value: string) => {
+    const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(value);
+    if (!match) return;
+    goToMonth(`${match[1]}-${match[2]}`);
+    setShowMonthPicker(false);
+  }, [goToMonth]);
+
+  const currentMonthSummary = useMemo<MonthPlanningSummary>(() => {
+    const parsed = parseMonthKey(monthKey);
+    return {
+      monthKey,
+      label: toMonthTitle(monthKey),
+      year: parsed?.year ?? new Date().getFullYear(),
+      month: parsed?.month ?? new Date().getMonth() + 1,
+      weekCount: weeklyItems.length,
+      estimatedLessonCount: monthSessionCount,
+      hasPlans: weeklyItems.length > 0,
+    };
+  }, [monthKey, monthSessionCount, weeklyItems.length]);
 
   const handleExportDailyPdf = useCallback(async () => {
     if (!selectedClass || !selectedSession || !selectedWeekPlan || !selectedDailyPlan) {
@@ -438,7 +837,56 @@ export default function ClassPlanningMonthRoute() {
     await exportPdf({ html, fileName, webDocument });
     showSaveToast({ message: "PDF da aula gerado com contexto semanal.", variant: "success" });
   }, [selectedClass, selectedSession, selectedWeekPlan, selectedDailyPlan, showSaveToast]);
-  const handleBackToMonths = () => {
+
+  const handleExportMonthPdf = useCallback(async () => {
+    if (!selectedClass || !currentMonthSummary.hasPlans || isExportingMonth) {
+      showSaveToast({ message: "Este mês ainda não possui plano para exportar.", variant: "error" });
+      return;
+    }
+
+    setIsExportingMonth(true);
+    showSaveToast({ message: "Gerando PDF do mês...", variant: "success" });
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const monthPlans = weeklyItems.map((item) => item.plan);
+      const dailyPlans = await listDailyLessonPlansByWeekIds(monthPlans.map((plan) => plan.id));
+      const dailyPlansByKeyForExport = Object.fromEntries(
+        dailyPlans.map((plan) => [`${plan.weeklyPlanId}::${plan.date}`, plan])
+      );
+      const data = buildMonthlyPlanExportData({
+        classGroup: selectedClass,
+        month: currentMonthSummary,
+        plans: monthPlans,
+        dailyPlansByKey: dailyPlansByKeyForExport,
+        exceptions: calendarExceptions,
+      });
+      const html = monthlyPlanHtml(data);
+      const fileBase = `plano-mensal-${safeFileName(selectedClass.name)}-${safeFileName(monthKey)}`;
+      const webDocument = Platform.OS === "web" ? <MonthlyLessonPlanDocument data={data} /> : undefined;
+
+      await exportPdf({ html, fileName: `${fileBase}.pdf`, webDocument });
+
+      showSaveToast({ message: "Plano mensal exportado.", variant: "success" });
+    } catch (exportError) {
+      showSaveToast({
+        message: exportError instanceof Error ? exportError.message : "Falha ao exportar o plano mensal.",
+        variant: "error",
+      });
+    } finally {
+      setIsExportingMonth(false);
+    }
+  }, [
+    calendarExceptions,
+    currentMonthSummary,
+    isExportingMonth,
+    monthKey,
+    selectedClass,
+    showSaveToast,
+    weeklyItems,
+  ]);
+
+  const handleBackToClass = () => {
     if (router.canGoBack()) {
       router.back();
       return;
@@ -446,7 +894,7 @@ export default function ClassPlanningMonthRoute() {
 
     if (classId) {
       router.replace({
-        pathname: "/class/[id]/planning",
+        pathname: "/class/[id]",
         params: { id: classId },
       });
       return;
@@ -474,66 +922,150 @@ export default function ClassPlanningMonthRoute() {
         }}
       >
         <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
-              <BackTitleHeader title={monthTitle} onBack={handleBackToMonths} />
+          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <View style={{ flex: 1, minWidth: 260, gap: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <BackTitleHeader title={monthTitle} onBack={handleBackToClass} />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Mês anterior"
+                    onPress={goToPreviousMonth}
+                    hitSlop={8}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Ionicons name="chevron-back" size={18} color={colors.muted} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Escolher mês do calendário"
+                    onPress={() => setShowMonthPicker(true)}
+                    style={{
+                      minWidth: 140,
+                      height: 36,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingHorizontal: 14,
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12, textAlign: "center" }}>
+                      {toMonthPickerLabel(monthKey)}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Próximo mês"
+                    onPress={goToNextMonth}
+                    hitSlop={8}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 12,
+                      backgroundColor: colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+                  </Pressable>
+                </View>
+              </View>
               <Text style={{ color: colors.muted }}>
-                {selectedClass?.name ? `${selectedClass.name} · semanas e aulas` : "Semanas e aulas"}
+                {selectedClass?.name ? `${selectedClass.name} · calendário de aulas` : "Calendário de aulas"}
               </Text>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Regenerar mês"
-              onPress={() => {
-                void handleRegenerateMonth();
-              }}
-              disabled={isRegeneratingMonth || isLoading}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                paddingHorizontal: 10,
-                paddingVertical: 8,
-                borderRadius: 10,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                opacity: isRegeneratingMonth ? 0.8 : 1,
-              }}
-            >
-              {isRegeneratingMonth ? (
-                <ActivityIndicator size="small" color={colors.text} />
-              ) : (
-                <Ionicons name="refresh" size={14} color={colors.text} />
-              )}
-              <Text
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Exportar plano mensal"
+                onPress={() => {
+                  void handleExportMonthPdf();
+                }}
+                disabled={isExportingMonth || !currentMonthSummary.hasPlans}
                 style={{
-                  color: colors.text,
-                  fontWeight: "600",
-                  fontSize: 12,
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: isExportingMonth || !currentMonthSummary.hasPlans ? 0.55 : 1,
                 }}
               >
-                {isRegeneratingMonth ? "Regenerando..." : "Regenerar mês"}
-              </Text>
-            </Pressable>
+                {isExportingMonth ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <Ionicons name="download-outline" size={18} color={colors.text} />
+                )}
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Regenerar mês"
+                onPress={() => {
+                  void handleRegenerateMonth();
+                }}
+                disabled={isRegeneratingMonth || isLoading}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  paddingHorizontal: 10,
+                  paddingVertical: 9,
+                  borderRadius: 12,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: isRegeneratingMonth ? 0.8 : 1,
+                }}
+              >
+                {isRegeneratingMonth ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <Ionicons name="refresh" size={14} color={colors.text} />
+                )}
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontWeight: "600",
+                    fontSize: 12,
+                  }}
+                >
+                  {isRegeneratingMonth ? "Regenerando..." : "Regenerar mês"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
-        <View style={[getSectionCardStyle(colors, "neutral", { padding: 12, radius: 14, shadow: false }), { gap: 9 }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 14 }}>Resumo do mês</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{weeklyItems.length} semana{weeklyItems.length === 1 ? "" : "s"}</Text>
-          </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
-            <PlanningPill icon="calendar-outline" label={`${monthSessionCount} aula${monthSessionCount === 1 ? "" : "s"}`} colors={colors} />
-            {selectedClass?.name ? <PlanningPill icon="people-outline" label={selectedClass.name} colors={colors} /> : null}
-          </View>
-          {monthInsightSummary ? (
-            <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }} numberOfLines={2}>
-              {monthInsightSummary}
-            </Text>
-          ) : null}
-        </View>
+        <MonthSummaryPanel
+          events={agendaEvents}
+          weekCount={weeklyItems.length}
+          focus={monthFocusSummary}
+          colors={colors}
+        />
 
         {isRegeneratingMonth && monthRegenProgress ? (
           <View style={[getSectionCardStyle(colors, "neutral", { padding: 10, radius: 12, shadow: false }), { gap: 4 }]}>
@@ -562,120 +1094,25 @@ export default function ClassPlanningMonthRoute() {
           </View>
         ) : null}
 
-        <View style={{ gap: 8 }}>
-          {weeklyItems.map((item) => {
-            const isExpanded = expandedWeekId === item.plan.id;
-            const hasOutOfSyncDay = item.sessions.some((session) => {
-              const key = `${item.plan.id}::${session.date}`;
-              return dailyPlansByKey[key]?.syncStatus === "out_of_sync";
-            });
-            const weekStatus = hasOutOfSyncDay ? "out_of_sync" : null;
-            return (
-              <WeekAccordionCard
-                key={item.plan.id}
-                label={item.label}
-                weekStartLabel={item.weekStartLabel}
-                weekEndLabel={item.weekEndLabel}
-                sessionsCount={item.sessions.length}
-                summary={item.plan.theme?.trim() || item.plan.technicalFocus?.trim() || item.plan.generalObjective?.trim() || "Planejamento da semana"}
-                isExpanded={isExpanded}
-                weekStatus={weekStatus}
-                onToggle={() => handleToggleWeek(item.plan.id)}
-                colors={colors}
-              >
-                <Pressable
-                  onPress={() => {
-                    void handleRegenerateWeekSessions(item.plan, item.sessions);
-                  }}
-                  style={{
-                    alignSelf: "flex-start",
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Ionicons name="refresh" size={13} color={colors.text} />
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Regenerar aulas da semana
-                  </Text>
-                </Pressable>
-                {item.sessions.map((session) => (
-                  (() => {
-                    const sessionPlan = dailyPlansByKey[`${item.plan.id}::${session.date}`];
-                    const sessionBlocks = sessionPlan
-                      ? resolveLessonBlocksFromDailyPlan({
-                          warmup: sessionPlan.warmup,
-                          mainPart: sessionPlan.mainPart,
-                          cooldown: sessionPlan.cooldown,
-                          blocksJson: sessionPlan.blocksJson,
-                        })
-                      : [];
-                    const warmupPreview =
-                      sessionBlocks.find((block) => block.key === "warmup")?.activities[0]?.name ||
-                      sessionPlan?.warmup;
-                    const mainPreview =
-                      sessionBlocks.find((block) => block.key === "main")?.activities[0]?.name ||
-                      sessionPlan?.mainPart;
-                    const cooldownPreview =
-                      sessionBlocks.find((block) => block.key === "cooldown")?.activities[0]?.name ||
-                      sessionPlan?.cooldown;
-                    const sessionStatus = sessionPlan?.syncStatus ?? "in_sync";
-                    const showSessionStatus = sessionStatus !== "in_sync";
-
-                    return (
-                      <Pressable
-                        key={session.date}
-                        onPress={() => {
-                          setSelectedWeekPlan(item.plan);
-                          setSelectedSession(session);
-                        }}
-                        style={{
-                          gap: 7,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 12,
-                          paddingVertical: 9,
-                          borderRadius: 12,
-                        }}
-                      >
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                          <Text style={{ color: colors.text, fontWeight: "700" }}>
-                            {session.weekdayLabel} {session.dateLabel}
-                          </Text>
-                          {showSessionStatus ? <PlanningSyncStatusChip compact status={sessionStatus} /> : null}
-                        </View>
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                          <PlanningPill label={compactSummaryLine(warmupPreview, "Revisão em dupla")} colors={colors} />
-                          <PlanningPill
-                            label={compactSummaryLine(mainPreview, `Atividade principal com ${item.plan.theme || "fundamentos"}`)}
-                            colors={colors}
-                          />
-                          <PlanningPill label={compactSummaryLine(cooldownPreview, "Conversa final")} colors={colors} />
-                        </View>
-                      </Pressable>
-                    );
-                  })()
-                ))}
-              </WeekAccordionCard>
-            );
-          })}
-        </View>
+        {monthCalendarDays.length ? (
+          <MonthCalendarGrid
+            days={monthCalendarDays}
+            compact={isCompactCalendar}
+            colors={colors}
+            onSelectEvent={handleSelectAgendaEvent}
+          />
+        ) : null}
       </ScrollView>
 
       <DayLessonPlanModal
         visible={Boolean(selectedWeekPlan && selectedSession)}
         initialPlan={selectedDailyPlan}
         dayLabel={selectedSession ? `${selectedSession.weekdayLabel} ${selectedSession.dateLabel}` : "Plano diário"}
+        coachGuidance={selectedAgendaEvent?.guidance}
         onClose={() => {
           setSelectedWeekPlan(null);
           setSelectedSession(null);
+          setSelectedAgendaEvent(null);
         }}
         onRegenerate={async () => {
           await regenerateSelectedDailyPlan();
@@ -686,6 +1123,15 @@ export default function ClassPlanningMonthRoute() {
           await reload();
         }}
         onExportPdf={handleExportDailyPdf}
+      />
+      <DatePickerModal
+        visible={showMonthPicker}
+        value={toMonthPickerValue(monthKey)}
+        onChange={handleMonthPickerChange}
+        onClose={() => setShowMonthPicker(false)}
+        closeOnSelect
+        closeOnMonthYearSelect
+        initialViewMode="month"
       />
     </SafeAreaView>
   );

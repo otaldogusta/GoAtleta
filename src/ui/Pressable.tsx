@@ -30,12 +30,21 @@ const pickBackground = (style: StyleProp<ViewStyle>) => {
   for (let i = styles.length - 1; i >= 0; i -= 1) {
     const item = styles[i];
     if (!item) continue;
-    if (typeof item.backgroundColor === "string") {
+    if (
+      typeof item.backgroundColor === "string" &&
+      item.backgroundColor !== "transparent"
+    ) {
       return item.backgroundColor;
     }
   }
   return null;
 };
+
+const webClickableStyle = { cursor: "pointer" } as ViewStyle;
+
+const webFallbackHoverStyle = {
+  backgroundColor: "rgba(148, 163, 184, 0.1)",
+} as ViewStyle;
 
 const clamp = (value: number) => Math.max(0, Math.min(255, value));
 
@@ -131,9 +140,12 @@ export function Pressable({
               return { backgroundColor: lightenColor(hoveredBg, 0.08) };
             })()
           : null;
+        const fallbackHoverStyle = isHovered && !hoverStyle ? webFallbackHoverStyle : null;
         return [
           base,
+          webClickableStyle,
           hoverStyle,
+          fallbackHoverStyle,
           state.pressed ? { transform: [{ scale: 0.98 }], opacity: 0.92 } : null,
         ];
       }}

@@ -1,24 +1,26 @@
 import { Pressable, Text, View } from "react-native";
 import { useAppTheme } from "./app-theme";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
-import { getSectionCardStyle } from "./section-styles";
 import { getUnitPalette } from "./unit-colors";
 
 interface UnitFilterBarProps {
   units: string[];
   selectedUnit: string;
   onSelectUnit: (unit: string) => void;
+  showLabel?: boolean;
 }
 
-export function UnitFilterBar({ units, selectedUnit, onSelectUnit }: UnitFilterBarProps) {
+export function UnitFilterBar({ units, selectedUnit, onSelectUnit, showLabel = true }: UnitFilterBarProps) {
   const { colors } = useAppTheme();
 
   return (
-    <View style={[getSectionCardStyle(colors, "info", { padding: 10, radius: 16 })]}>
+    <View style={{ gap: 8 }}>
+      {showLabel ? (
+        <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>Filtrar por unidade</Text>
+      ) : null}
       <FadeHorizontalScroll
-        fadeColor={colors.card}
-        containerStyle={{ marginHorizontal: -10 }}
-        contentContainerStyle={{ flexDirection: "row", gap: 8, paddingHorizontal: 10 }}
+        fadeColor={colors.background}
+        contentContainerStyle={{ flexDirection: "row", gap: 8 }}
       >
         {units.map((unit) => {
           const active = selectedUnit === unit;
@@ -31,17 +33,19 @@ export function UnitFilterBar({ units, selectedUnit, onSelectUnit }: UnitFilterB
               key={unit}
               onPress={() => onSelectUnit(unit)}
               style={{
-                paddingVertical: 6,
-                paddingHorizontal: 10,
+                paddingVertical: 7,
+                paddingHorizontal: 11,
                 borderRadius: 999,
                 backgroundColor: active ? palette.bg : colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: active ? palette.bg : colors.border,
               }}
             >
               <Text
                 style={{
                   color: active ? palette.text : colors.text,
                   fontSize: 12,
-                  fontWeight: active ? "700" : "500",
+                  fontWeight: active ? "800" : "600",
                 }}
               >
                 {unit}

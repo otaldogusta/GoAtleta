@@ -15,7 +15,7 @@ type Props = {
   subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
-  position?: "bottom" | "center";
+  position?: "bottom" | "center" | "right";
   contentContainerStyle?: object;
   bodyStyle?: object;
   footerStyle?: object;

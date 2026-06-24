@@ -1,4 +1,5 @@
-import type { ClassGroup, ClassPlan, PlanningCycle } from "../../../core/models";
+import type { ClassCalendarException, ClassGroup, ClassPlan, PlanningCycle } from "../../../core/models";
+import { buildPlanSessionCalendar } from "./monthly-plan-calendar";
 
 export type MonthPlanningSummary = {
   monthKey: string;
@@ -40,6 +41,30 @@ const getClassSessionsPerWeek = (selectedClass: ClassGroup | null) =>
 const getPlanSessionsPerWeek = (plan: ClassPlan, selectedClass: ClassGroup | null) =>
   plan.weeklySessions || getClassSessionsPerWeek(selectedClass);
 
+const addMonthSummary = (
+  byMonth: Map<string, MonthPlanningSummary>,
+  month: ReturnType<typeof toMonthDescriptor>,
+  lessonCount: number
+) => {
+  const existing = byMonth.get(month.monthKey);
+  if (existing) {
+    existing.weekCount += 1;
+    existing.estimatedLessonCount += lessonCount;
+    existing.hasPlans = true;
+    return;
+  }
+
+  byMonth.set(month.monthKey, {
+    monthKey: month.monthKey,
+    label: month.label,
+    year: month.year,
+    month: month.month,
+    weekCount: 1,
+    estimatedLessonCount: lessonCount,
+    hasPlans: true,
+  });
+};
+
 const buildCycleMonthDescriptors = (activeCycle: PlanningCycle | null) => {
   const start = parseIsoDate(activeCycle?.startDate);
   const end = parseIsoDate(activeCycle?.endDate);
@@ -60,33 +85,46 @@ const buildCycleMonthDescriptors = (activeCycle: PlanningCycle | null) => {
 export function buildMonthPlanningSummaries(
   plans: ClassPlan[],
   selectedClass: ClassGroup | null,
-  activeCycle: PlanningCycle | null
+  activeCycle: PlanningCycle | null,
+  exceptions: ClassCalendarException[] = []
 ): MonthPlanningSummary[] {
   const byMonth = new Map<string, MonthPlanningSummary>();
 
   for (const plan of plans) {
-    const date = parseIsoDate(plan.startDate);
-    if (!date) continue;
-    const month = toMonthDescriptor(date);
-    const existing = byMonth.get(month.monthKey);
-    const estimatedLessonCount = getPlanSessionsPerWeek(plan, selectedClass);
+    if (selectedClass) {
+      const calendar = buildPlanSessionCalendar({
+        plan,
+        classGroup: selectedClass,
+        exceptions,
+      });
+      const sessionsByMonth = new Map<string, { month: ReturnType<typeof toMonthDescriptor>; count: number }>();
 
-    if (existing) {
-      existing.weekCount += 1;
-      existing.estimatedLessonCount += estimatedLessonCount;
-      existing.hasPlans = true;
+      for (const session of calendar.sessions) {
+        const sessionDate = parseIsoDate(session.date);
+        if (!sessionDate) continue;
+        const month = toMonthDescriptor(sessionDate);
+        const existing = sessionsByMonth.get(month.monthKey);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          sessionsByMonth.set(month.monthKey, { month, count: 1 });
+        }
+      }
+
+      if (sessionsByMonth.size) {
+        for (const entry of sessionsByMonth.values()) {
+          addMonthSummary(byMonth, entry.month, entry.count);
+        }
+        continue;
+      }
+    }
+
+    const date = parseIsoDate(plan.startDate);
+    if (!date) {
       continue;
     }
 
-    byMonth.set(month.monthKey, {
-      monthKey: month.monthKey,
-      label: month.label,
-      year: month.year,
-      month: month.month,
-      weekCount: 1,
-      estimatedLessonCount,
-      hasPlans: true,
-    });
+    addMonthSummary(byMonth, toMonthDescriptor(date), getPlanSessionsPerWeek(plan, selectedClass));
   }
 
   const cycleMonths = buildCycleMonthDescriptors(activeCycle);

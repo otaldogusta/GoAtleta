@@ -10,7 +10,7 @@ import type {
   SessionLog,
   Student,
 } from "../../../core/models";
-import { buildSessionCalendar, type PlannedSession } from "../../../core/session-calendar-engine";
+import type { PlannedSession } from "../../../core/session-calendar-engine";
 import { ensureActiveCycleForYear, getActivePlanningCycle } from "../../../db/cycles";
 import {
   getAttendanceByClass,
@@ -22,6 +22,11 @@ import {
   listDailyLessonPlansByWeekIds,
 } from "../../../db/seed";
 import type { WeekSessionPreview } from "../../periodization/application/build-week-session-preview";
+import { buildPlanSessionCalendar, filterClassPlansBySessionMonth } from "../application/monthly-plan-calendar";
+import {
+  buildProfessorAgendaEvents,
+  buildProfessorMonthCalendar,
+} from "../application/professor-agenda-events";
 
 export type WeeklyPlanningItem = {
   plan: ClassPlan;
@@ -38,12 +43,6 @@ const formatDatePt = (isoDate: string) => {
   const date = new Date(`${isoDate}T00:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date);
-};
-
-const toMonthKey = (isoDate: string) => {
-  const date = new Date(`${isoDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 };
 
 const toIsoDate = (value: string | null | undefined) => {
@@ -153,30 +152,18 @@ const toWeekSessionPreview = (session: PlannedSession, index: number): WeekSessi
 const buildWeeklyItemsWithCalendar = (
   plans: ClassPlan[],
   selectedClass: ClassGroup | null,
-  calendarExceptions: ClassCalendarException[]
+  calendarExceptions: ClassCalendarException[],
+  monthKey?: string
 ): WeeklyPlanningItem[] => {
-  const daysOfWeek = selectedClass?.daysOfWeek ?? [];
-  const weeklySessions = selectedClass?.daysPerWeek || daysOfWeek.length;
-
   return plans
     .sort((a, b) => a.weekNumber - b.weekNumber)
     .map((plan) => {
-      const weekStart = new Date(`${plan.startDate}T00:00:00`);
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      const weekEndIso = Number.isNaN(weekEnd.getTime())
-        ? ""
-        : `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, "0")}-${String(weekEnd.getDate()).padStart(2, "0")}`;
       const calendar = selectedClass
-        ? buildSessionCalendar({
-            classGroup: {
-              ...selectedClass,
-              daysOfWeek,
-              daysPerWeek: weeklySessions,
-            },
-            startDate: plan.startDate,
-            endDate: weekEndIso,
+        ? buildPlanSessionCalendar({
+            plan,
+            classGroup: selectedClass,
             exceptions: calendarExceptions,
+            monthKey,
           })
         : { sessions: [], skippedSessions: [] };
       const sessions = calendar.sessions.map(toWeekSessionPreview);
@@ -192,15 +179,11 @@ const buildWeeklyItemsWithCalendar = (
         };
       }
       if (!sessions.length && !skippedSessions.length && selectedClass) {
-        const fallbackCalendar = buildSessionCalendar({
-          classGroup: {
-            ...selectedClass,
-            daysOfWeek,
-            daysPerWeek: weeklySessions,
-          },
-          startDate: plan.startDate,
-          endDate: weekEndIso,
+        const fallbackCalendar = buildPlanSessionCalendar({
+          plan,
+          classGroup: selectedClass,
           exceptions: [],
+          monthKey,
         });
         const fallbackSessions = fallbackCalendar.sessions.map(toWeekSessionPreview);
         const weekStartLabel = fallbackSessions[0]?.dateLabel ?? formatDatePt(plan.startDate);
@@ -319,7 +302,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setRecentAttendance(attendance);
       setRecentSessionLogs(sessionLogs);
 
-      const monthPlans = scopedPlans.filter((plan) => toMonthKey(plan.startDate) === monthKey);
+      const monthPlans = filterClassPlansBySessionMonth(scopedPlans, cls, exceptions, monthKey);
       const weekIds = monthPlans.map((plan) => plan.id);
       const dailyPlans = await loadOptionalMonthlyData(
         "daily lesson plans",
@@ -343,13 +326,21 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
   }, [load]);
 
   const monthPlans = useMemo(
-    () => classPlans.filter((plan) => toMonthKey(plan.startDate) === monthKey),
-    [classPlans, monthKey]
+    () => filterClassPlansBySessionMonth(classPlans, selectedClass, calendarExceptions, monthKey),
+    [calendarExceptions, classPlans, monthKey, selectedClass]
   );
 
   const weeklyItems = useMemo(
-    () => buildWeeklyItemsWithCalendar(monthPlans, selectedClass, calendarExceptions),
-    [calendarExceptions, monthPlans, selectedClass]
+    () => buildWeeklyItemsWithCalendar(monthPlans, selectedClass, calendarExceptions, monthKey),
+    [calendarExceptions, monthKey, monthPlans, selectedClass]
+  );
+  const agendaEvents = useMemo(
+    () => buildProfessorAgendaEvents({ weeklyItems, dailyPlansByKey }),
+    [dailyPlansByKey, weeklyItems]
+  );
+  const monthCalendarDays = useMemo(
+    () => buildProfessorMonthCalendar({ monthKey, events: agendaEvents }),
+    [agendaEvents, monthKey]
   );
 
   return {
@@ -360,6 +351,8 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     recentAttendance,
     recentSessionLogs,
     weeklyItems,
+    agendaEvents,
+    monthCalendarDays,
     dailyPlansByKey,
     isLoading,
     error,

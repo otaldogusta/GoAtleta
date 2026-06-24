@@ -1,24 +1,25 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { FlatList, RefreshControl, Text, View } from "react-native";
+import { FlatList, RefreshControl, Text, useWindowDimensions, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
 import { radius } from "../../../theme/tokens";
+import type { ThemeColors } from "../../../ui/app-theme";
+import { getUnitPalette } from "../../../ui/unit-colors";
 import { ClassCard } from "./ClassCard";
 
 type GroupedClasses = [string, ClassGroup[]][];
 type Conflict = { name: string; day: number; modality?: string; kind: "conflict" | "integration" };
 
 type RowItem =
-  | { key: string; kind: "header"; unit: string; count: number }
-  | { key: string; kind: "class"; unit: string; item: ClassGroup };
+  | { key: string; kind: "section"; unit: string; count: number; items: ClassGroup[] };
 
 type Props = {
   grouped: GroupedClasses;
   conflictsById: Record<string, Conflict[]>;
   dayNames: string[];
-  colors: Record<string, string>;
+  colors: ThemeColors;
   onOpenClass: (item: ClassGroup) => void;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
@@ -40,69 +41,105 @@ export const ClassesListSection = memo(function ClassesListSection({
   style,
 }: Props) {
   markRender("screen.classes.render.listSection");
+  const { width } = useWindowDimensions();
+  const columnCount = width >= 1180 ? 3 : width >= 760 ? 2 : 1;
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
   const rows = useMemo<RowItem[]>(() => {
-    const acc: RowItem[] = [];
-    grouped.forEach(([unit, items]) => {
-      acc.push({
-        key: `header_${unit}`,
-        kind: "header",
-        unit,
-        count: items.length,
-      });
-      items.forEach((item) => {
-        acc.push({
-          key: `class_${item.id}`,
-          kind: "class",
-          unit,
-          item,
-        });
-      });
-    });
-    return acc;
+    return grouped.map(([unit, items]) => ({
+      key: `section_${unit}`,
+      kind: "section",
+      unit,
+      count: items.length,
+      items,
+    }));
   }, [grouped]);
 
   const keyExtractor = useCallback((item: RowItem) => item.key, []);
+  const closeActionMenu = useCallback(() => {
+    setOpenActionMenuId(null);
+  }, []);
+  const toggleActionMenu = useCallback((classId: string) => {
+    setOpenActionMenuId((current) => (current === classId ? null : classId));
+  }, []);
 
   const renderItem = useCallback(
     ({ item }: { item: RowItem }) => {
-      if (item.kind === "header") {
-        return (
-          <View
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 8,
-              borderRadius: radius.internal,
-              backgroundColor: colors.backgroundSubtle ?? colors.background,
-              borderWidth: 1,
-              borderColor: colors.borderSubtle ?? colors.border,
-              marginBottom: 10,
-              marginTop: 2,
-            }}
-          >
-            <Text style={{ fontSize: 14, fontWeight: "900", color: colors.textPrimary ?? colors.text }}>
-              {item.unit}
-            </Text>
-            <Text style={{ color: colors.textMuted ?? colors.muted, fontSize: 12, marginTop: 2 }}>
-              Turmas: {item.count}
-            </Text>
-          </View>
-        );
-      }
-
       return (
-        <View style={{ marginBottom: 12 }}>
-          <ClassCard
-            item={item.item}
-            conflicts={conflictsById[item.item.id]}
-            dayNames={dayNames}
-            colors={colors}
-            onOpen={onOpenClass}
-          />
+        <View
+          style={{
+            gap: 12,
+            marginBottom: 14,
+            padding: 12,
+            borderRadius: radius.container,
+            borderWidth: 1,
+            borderLeftWidth: 3,
+            borderColor: colors.borderSubtle ?? colors.border,
+            borderLeftColor: getUnitPalette(item.unit, colors).bg,
+            backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <View style={{ minWidth: 0, flex: 1 }}>
+              <Text style={{ fontSize: 16, fontWeight: "900", color: colors.textPrimary ?? colors.text }}>
+                {item.unit}
+              </Text>
+            </View>
+            <View
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: radius.full,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.borderSubtle ?? colors.border,
+              }}
+            >
+              <Text style={{ color: colors.textMuted ?? colors.muted, fontSize: 11, fontWeight: "800" }}>
+                {item.count} turma{item.count === 1 ? "" : "s"}
+              </Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            {item.items.map((classItem) => (
+              <View
+                key={classItem.id}
+                style={{
+                  width:
+                    columnCount === 1
+                      ? "100%"
+                      : columnCount === 2
+                        ? "49%"
+                        : "32.55%",
+                  minWidth: columnCount === 1 ? undefined : 260,
+                }}
+              >
+                <ClassCard
+                  item={classItem}
+                  conflicts={conflictsById[classItem.id]}
+                  dayNames={dayNames}
+                  colors={colors}
+                  onOpen={onOpenClass}
+                  actionMenuOpen={openActionMenuId === classItem.id}
+                  onToggleActionMenu={toggleActionMenu}
+                  onCloseActionMenu={closeActionMenu}
+                />
+              </View>
+            ))}
+          </View>
         </View>
       );
     },
-    [colors, conflictsById, dayNames, onOpenClass]
+    [
+      closeActionMenu,
+      colors,
+      columnCount,
+      conflictsById,
+      dayNames,
+      onOpenClass,
+      openActionMenuId,
+      toggleActionMenu,
+    ]
   );
 
   if (!rows.length) {
@@ -132,7 +169,10 @@ export const ClassesListSection = memo(function ClassesListSection({
       windowSize={7}
       removeClippedSubviews={false}
       contentContainerStyle={contentContainerStyle}
-      onScrollBeginDrag={onScrollBeginDrag}
+      onScrollBeginDrag={() => {
+        closeActionMenu();
+        onScrollBeginDrag?.();
+      }}
       refreshControl={
         onRefresh ? (
           <RefreshControl

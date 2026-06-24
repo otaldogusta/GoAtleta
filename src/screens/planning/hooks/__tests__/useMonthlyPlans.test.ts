@@ -132,6 +132,74 @@ describe("useMonthlyPlans", () => {
     expect(latest?.dailyPlansByKey).toEqual({});
   });
 
+  it("starts the June weekly item on the first real class day when the plan is anchored later", async () => {
+    (getClassById as jest.Mock).mockResolvedValue({
+      id: "class-1",
+      name: "Turma 8-11",
+      organizationId: "org-1",
+      daysOfWeek: [2, 4],
+      daysPerWeek: 2,
+      durationMinutes: 60,
+    } as ClassGroup);
+    (getClassPlansByClass as jest.Mock).mockResolvedValue([
+      {
+        id: "week-june-start",
+        classId: "class-1",
+        cycleId: "cycle-1",
+        startDate: "2026-06-04",
+        weekNumber: 23,
+        phase: "Fundamentos",
+        theme: "Ponte 1x1 -> 2x2",
+        technicalFocus: "Controle",
+        physicalFocus: "Deslocamento",
+        constraints: "",
+        mvFormat: "",
+        warmupProfile: "",
+        jumpTarget: "",
+        rpeTarget: "",
+        source: "MANUAL",
+        weeklySessions: 2,
+        createdAt: "2026-06-04T00:00:00.000Z",
+        updatedAt: "2026-06-04T00:00:00.000Z",
+      },
+      {
+        id: "week-next",
+        classId: "class-1",
+        cycleId: "cycle-1",
+        startDate: "2026-06-11",
+        weekNumber: 24,
+        phase: "Fundamentos",
+        theme: "2x2 cooperativo",
+        technicalFocus: "Controle",
+        physicalFocus: "Deslocamento",
+        constraints: "",
+        mvFormat: "",
+        warmupProfile: "",
+        jumpTarget: "",
+        rpeTarget: "",
+        source: "MANUAL",
+        weeklySessions: 2,
+        createdAt: "2026-06-11T00:00:00.000Z",
+        updatedAt: "2026-06-11T00:00:00.000Z",
+      },
+    ] as ClassPlan[]);
+
+    let latest: ReturnType<typeof useMonthlyPlans> | null = null;
+
+    await act(async () => {
+      renderUseMonthlyPlans((snapshot) => {
+        latest = snapshot;
+      });
+    });
+    await flushPromises();
+
+    expect(latest?.isLoading).toBe(false);
+    expect(latest?.weeklyItems.map((item) => item.plan.id)).toEqual(["week-june-start", "week-next"]);
+    expect(latest?.weeklyItems[0]?.sessions.map((session) => session.date)).toEqual(["2026-06-02", "2026-06-04"]);
+    expect(latest?.weeklyItems[0]?.weekStartLabel).toBe("02/06/2026");
+    expect(listDailyLessonPlansByWeekIds).toHaveBeenLastCalledWith(["week-june-start", "week-next"]);
+  });
+
   it("stops loading and shows an error when required month data hangs", async () => {
     (getClassPlansByClass as jest.Mock).mockImplementation(() => new Promise(() => undefined));
     let latest: ReturnType<typeof useMonthlyPlans> | null = null;

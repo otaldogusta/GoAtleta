@@ -14,6 +14,7 @@ export function DatePickerModal({
   onChange,
   onClose,
   closeOnSelect = false,
+  closeOnMonthYearSelect = false,
   initialViewMode = "day",
 }: {
   visible: boolean;
@@ -21,6 +22,7 @@ export function DatePickerModal({
   onChange: (value: string) => void;
   onClose: () => void;
   closeOnSelect?: boolean;
+  closeOnMonthYearSelect?: boolean;
   initialViewMode?: ViewMode;
 }) {
   const { colors, mode } = useAppTheme();
@@ -373,6 +375,7 @@ export function DatePickerModal({
                       setCalendarMonth(
                         new Date(calendarMonth.getFullYear(), index, 1)
                       );
+                      if (closeOnMonthYearSelect) onClose();
                     }}
                     style={{
                       width: "33.333%",
@@ -415,6 +418,7 @@ export function DatePickerModal({
                         setCalendarMonth(
                           new Date(year, calendarMonth.getMonth(), 1)
                         );
+                        if (closeOnMonthYearSelect) onClose();
                       }}
                       style={{
                         width: "33.333%",
@@ -459,5 +463,3 @@ export function DatePickerModal({
     </ModalSheet>
   );
 }
-
-

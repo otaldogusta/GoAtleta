@@ -11,7 +11,7 @@ type ModalSheetProps = {
   cardStyle: StyleProp<ViewStyle>;
   backdropOpacity?: number;
   slideOffset?: number;
-  position?: "bottom" | "center";
+  position?: "bottom" | "center" | "right";
   overlayZIndex?: number;
   bottomOffset?: number;
 };
@@ -41,6 +41,7 @@ export function ModalSheet({
   const previousRootOverscroll = useRef<string | null>(null);
   const lockedScrollY = useRef(0);
   const isCenter = position === "center";
+  const isRight = position === "right";
   const insets = useSafeAreaInsets();
   const resolvedBottomOffset = isCenter
     ? 0
@@ -202,6 +203,8 @@ export function ModalSheet({
         style={
           isCenter
             ? { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }
+            : isRight
+              ? { flex: 1, alignItems: "flex-end", justifyContent: "flex-start", padding: 16 }
             : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
         }
         pointerEvents="box-none"
@@ -215,13 +218,23 @@ export function ModalSheet({
                 {
                   translateY: anim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [slideOffset, 0],
+                    outputRange: isRight ? [0, 0] : [slideOffset, 0],
                   }),
                 },
+                ...(isRight
+                  ? [
+                      {
+                        translateX: anim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [slideOffset, 0],
+                        }),
+                      },
+                    ]
+                  : []),
                 {
                   scale: anim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: isCenter ? [0.975, 1] : [0.985, 1],
+                    outputRange: isCenter ? [0.975, 1] : isRight ? [1, 1] : [0.985, 1],
                   }),
                 },
               ],

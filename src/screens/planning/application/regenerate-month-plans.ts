@@ -11,13 +11,13 @@ import {
     parseWeeklyPeriodizationSnapshot,
     serializeWeeklyPeriodizationSnapshot,
 } from "../../../core/periodization-snapshots";
-import { buildSessionCalendar } from "../../../core/session-calendar-engine";
 import {
     listDailyLessonPlansByWeekIds,
     updateClassPlan,
     upsertDailyLessonPlan
 } from "../../../db/seed";
 import { generateMonthlyBlueprint } from "./generate-monthly-blueprint";
+import { buildPlanSessionCalendar, filterClassPlansBySessionMonth } from "./monthly-plan-calendar";
 import { regenerateDailyLessonPlanFromWeek } from "./regenerate-daily-lesson-plan";
 
 export interface MonthRegenerationProgress {
@@ -50,16 +50,13 @@ export interface RegenerateMonthPlansParams {
  */
 export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): Promise<void> => {
   const { classGroup, monthKey, classPlans, activeCycleStartDate, activeCycleEndDate, onProgress } = params;
-  const [yearText, monthText] = monthKey.split("-");
-  const year = Number(yearText);
-  const month = Number(monthText);
 
-  // Filter to monthly plans
-  const monthlyPlans = classPlans.filter((plan) => {
-    if (!plan.startDate) return false;
-    const startDate = new Date(plan.startDate);
-    return startDate.getFullYear() === year && startDate.getMonth() + 1 === month;
-  });
+  const monthlyPlans = filterClassPlansBySessionMonth(
+    classPlans,
+    classGroup,
+    params.calendarExceptions ?? [],
+    monthKey
+  );
 
   if (!monthlyPlans.length) {
     onProgress?.({ stage: "complete", message: "Nenhum plano semanal neste mês" });
@@ -110,21 +107,11 @@ export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): 
   for (let i = 0; i < monthlyPlans.length; i++) {
     const weekPlan = monthlyPlans[i];
 
-    const weekStart = new Date(`${weekPlan.startDate || ""}T00:00:00`);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    const weekEndDate = Number.isNaN(weekEnd.getTime())
-      ? ""
-      : `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, "0")}-${String(weekEnd.getDate()).padStart(2, "0")}`;
-    const weekSessionPreviews = buildSessionCalendar({
-      classGroup: {
-        ...classGroup,
-        daysOfWeek: weekPlan.daysOfWeek ? JSON.parse(weekPlan.daysOfWeek) : classGroup.daysOfWeek,
-        daysPerWeek: weekPlan.weeklySessions || classGroup.daysPerWeek,
-      },
-      startDate: weekPlan.startDate || "",
-      endDate: weekEndDate,
+    const weekSessionPreviews = buildPlanSessionCalendar({
+      plan: weekPlan,
+      classGroup,
       exceptions: params.calendarExceptions,
+      monthKey,
     }).sessions.map((session, index) => ({
       sessionIndex: index + 1,
       weekday: session.weekday,
