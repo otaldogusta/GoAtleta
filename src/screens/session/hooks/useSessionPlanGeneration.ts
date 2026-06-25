@@ -14,6 +14,9 @@ type PersistGeneratedPlanOptions = {
   generationExplanation?: TrainingPlanPedagogy["generationExplanation"];
   decisionTrace?: TrainingPlanPedagogy["decisionTrace"];
   pedagogicalDecisionSupport?: TrainingPlanPedagogy["pedagogicalDecisionSupport"];
+  readinessState?: TrainingPlanPedagogy["readinessState"];
+  adaptiveEnvelope?: TrainingPlanPedagogy["adaptiveEnvelope"];
+  coachGuidance?: TrainingPlanPedagogy["coachGuidance"];
   targetPrimarySkill?: VolleyballSkill;
   targetSecondarySkill?: VolleyballSkill;
 };
@@ -122,6 +125,9 @@ export function useSessionPlanGeneration({
           targetPrimarySkill: autoPlanResult.strategy.primarySkill,
           targetSecondarySkill: autoPlanResult.strategy.secondarySkill,
           pedagogicalDecisionSupport: autoPlanResult.strategy.pedagogicalDecisionSupport,
+          readinessState: autoPlanResult.readinessState,
+          adaptiveEnvelope: autoPlanResult.adaptiveEnvelope,
+          coachGuidance: autoPlanResult.coachGuidance,
         });
         setPlanGenerationPhase("settling");
         await waitForInteractionIdle();

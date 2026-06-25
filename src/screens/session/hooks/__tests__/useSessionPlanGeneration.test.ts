@@ -67,6 +67,48 @@ const buildAutoPlanResult = (
     },
     explanation: {},
     decisionTrace: options.omitDecisionTrace ? undefined : decisionTrace,
+    readinessState: {
+      classId: "class_1",
+      plannedGameLevel: "L6_3x3_introdutorio",
+      estimatedGameLevel: "L3_1x1_intencional",
+      appliedCoreLevel: "L4_2x2_cooperativo",
+      confidence: "medium",
+      riskFlags: ["salto_de_complexidade"],
+      recommendation: "consolidar",
+      reason: ["Ponte curta."],
+      teacherMessage: "Hoje use 2x2 cooperativo.",
+    },
+    adaptiveEnvelope: {
+      periodizationTarget: "L6_3x3_introdutorio",
+      appliedCoreLevel: "L4_2x2_cooperativo",
+      diagnosticProbe: {
+        title: "Comece por 1x1",
+        description: "Observe controle.",
+        decisionRule: "Avance quando estabilizar.",
+      },
+      planARegression: {
+        level: "L3_1x1_intencional",
+        intent: "1x1 com alvo",
+        suggestedConstraint: "Permita quique.",
+      },
+      planBCore: {
+        level: "L4_2x2_cooperativo",
+        intent: "2x2 cooperativo",
+        suggestedConstraint: "Use duplas.",
+      },
+      planCProgression: {
+        level: "L5_2x2_decisao",
+        intent: "2x2 com decisão",
+        suggestedConstraint: "Zona combinada.",
+      },
+    },
+    coachGuidance: {
+      title: "Ponte 1x1 -> 2x2",
+      doNow: ["Comece com 1x1 com quique e alvo."],
+      avoidToday: ["Evite 3x3 livre no começo."],
+      advanceIf: ["A maioria mantiver 3 trocas no 1x1."],
+      simplifyIf: ["A bola cair no primeiro contato."],
+    },
     strategy: {
       primarySkill: "passe",
       secondarySkill: "levantamento",
@@ -143,6 +185,9 @@ describe("useSessionPlanGeneration", () => {
       undefined,
       expect.objectContaining({
         decisionTrace,
+        readinessState: autoPlanResult.readinessState,
+        adaptiveEnvelope: autoPlanResult.adaptiveEnvelope,
+        coachGuidance: autoPlanResult.coachGuidance,
         targetPrimarySkill: "passe",
         targetSecondarySkill: "levantamento",
       })

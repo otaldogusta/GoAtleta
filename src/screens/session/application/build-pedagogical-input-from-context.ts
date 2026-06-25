@@ -98,12 +98,30 @@ const buildContextConstraints = (context: ClassGenerationContext) =>
       : null,
   ]);
 
+const buildCoachGuidanceConstraints = (context?: SessionPlanningContext) => {
+  const guidance = context?.coachGuidance;
+  if (!guidance) return [];
+
+  return uniqueStrings([
+    guidance.title ? `Aula sugerida: ${guidance.title}.` : null,
+    guidance.subtitle ? `Objetivo de quadra: ${guidance.subtitle}` : null,
+    ...guidance.doNow.map((item) => `Faça: ${item}`),
+    ...guidance.avoidToday.map((item) => `Evite: ${item}`),
+    ...guidance.advanceIf.map((item) => `Avance se: ${item}`),
+    ...guidance.simplifyIf.map((item) => `Simplifique se: ${item}`),
+    guidance.setupHint ? `Organização: ${guidance.setupHint}` : null,
+    guidance.closingCue ? `Fechamento: ${guidance.closingCue}` : null,
+  ]);
+};
+
 const buildContextDimensionGuidelines = (
   context: ClassGenerationContext,
-  dimensionGuidelines?: string[]
+  dimensionGuidelines?: string[],
+  sessionPlanningContext?: SessionPlanningContext
 ) =>
   uniqueStrings([
     ...(dimensionGuidelines ?? []),
+    ...buildCoachGuidanceConstraints(sessionPlanningContext),
     `Sessao orientada por ${phaseIntentLabel[context.phaseIntent]} com carga ${loadIntentLabel[context.weeklyLoadIntent]}.`,
     `Skill principal ${skillLabel[context.primarySkill]} com progressao ${progressionLabel[context.progressionDimensionTarget]}.`,
     context.secondarySkill
@@ -125,7 +143,10 @@ export function buildPedagogicalInputFromContext(
     students: params.students,
     objective,
     context: "treinamento",
-    constraints: buildContextConstraints(params.generationContext),
+    constraints: uniqueStrings([
+      ...buildContextConstraints(params.generationContext),
+      ...buildCoachGuidanceConstraints(params.sessionPlanningContext),
+    ]),
     materials: params.generationContext.materials,
     duration: params.generationContext.duration,
     variationSeed: params.variationSeed,
@@ -135,7 +156,8 @@ export function buildPedagogicalInputFromContext(
     sessionPlanningContext: params.sessionPlanningContext,
     dimensionGuidelines: buildContextDimensionGuidelines(
       params.generationContext,
-      params.dimensionGuidelines
+      params.dimensionGuidelines,
+      params.sessionPlanningContext
     ),
   });
 }

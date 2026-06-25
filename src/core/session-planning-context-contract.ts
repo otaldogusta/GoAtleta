@@ -1,8 +1,11 @@
 import type {
   CycleDayPlanningContext,
+  AdaptiveLessonEnvelope,
+  ClassReadinessState,
   PedagogicalFeedbackSignal,
   PedagogicalIntent,
   ProgressionDimension,
+  SessionCoachGuidance,
   VolleyballSkill,
   WeeklyLoadIntent,
 } from "./models";
@@ -80,6 +83,9 @@ export type SessionPlanningContext = {
   constraints: string[];
   reportFeedback?: ReportFeedbackSignal;
   dailyPlanAnchor?: SessionPlanningDailyPlanAnchor;
+  readinessState?: ClassReadinessState;
+  adaptiveEnvelope?: AdaptiveLessonEnvelope;
+  coachGuidance?: SessionCoachGuidance;
 };
 
 export type ParsedSessionPlanningContext =
@@ -254,6 +260,15 @@ export const parseSessionPlanningContext = (
     },
     constraints: stringArray(value.constraints),
     dailyPlanAnchor: parseDailyPlanAnchor(value.dailyPlanAnchor),
+    readinessState: isRecord(value.readinessState)
+      ? (value.readinessState as ClassReadinessState)
+      : undefined,
+    adaptiveEnvelope: isRecord(value.adaptiveEnvelope)
+      ? (value.adaptiveEnvelope as AdaptiveLessonEnvelope)
+      : undefined,
+    coachGuidance: isRecord(value.coachGuidance)
+      ? (value.coachGuidance as SessionCoachGuidance)
+      : undefined,
   };
 
   return { status, context, warnings };

@@ -1,7 +1,10 @@
 import type {
   ClassGroup,
+  AdaptiveLessonEnvelope,
+  ClassReadinessState,
   CycleDayPlanningContext,
   RecentSessionSummary,
+  SessionCoachGuidance,
   SessionStrategy,
   TrainingPlan,
   VolleyballSkill,
@@ -97,6 +100,9 @@ export const buildSessionPlanningContext = (params: {
   recentSessions?: RecentSessionSummary[];
   upcomingEvents?: SessionPlanningUpcomingEvent[];
   dailyPlanAnchor?: SessionPlanningDailyPlanAnchor | null;
+  readinessState?: ClassReadinessState;
+  adaptiveEnvelope?: AdaptiveLessonEnvelope;
+  coachGuidance?: SessionCoachGuidance;
 }): SessionPlanningContext => {
   const recentPlans = [...(params.recentPlans ?? [])].slice(0, 5);
   const recentDifficulties = uniqueStrings(
@@ -147,5 +153,8 @@ export const buildSessionPlanningContext = (params: {
     ]),
     ...(params.dailyPlanAnchor ? { dailyPlanAnchor: params.dailyPlanAnchor } : {}),
     ...(reportFeedback ? { reportFeedback } : {}),
+    ...(params.readinessState ? { readinessState: params.readinessState } : {}),
+    ...(params.adaptiveEnvelope ? { adaptiveEnvelope: params.adaptiveEnvelope } : {}),
+    ...(params.coachGuidance ? { coachGuidance: params.coachGuidance } : {}),
   };
 };

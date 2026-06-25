@@ -106,7 +106,6 @@ export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): 
 
   for (let i = 0; i < monthlyPlans.length; i++) {
     const weekPlan = monthlyPlans[i];
-
     const weekSessionPreviews = buildPlanSessionCalendar({
       plan: weekPlan,
       classGroup,

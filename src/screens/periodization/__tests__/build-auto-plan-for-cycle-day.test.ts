@@ -97,6 +97,11 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
     expect(result.historicalConfidence).toBe("none");
     expect(result.historyMode).toBe("bootstrap");
     expect(result.coachSummary).toContain("Bootstrap");
+    expect(result.coachGuidance.title).toBeTruthy();
+    expect(result.coachGuidance.doNow.length).toBeGreaterThan(0);
+    expect(JSON.stringify(result.coachGuidance)).not.toMatch(
+      /baixa evidência|confidence|riskFlags|readinessState|estimatedGameLevel|appliedCoreLevel|risco de salto/i
+    );
   });
 
   it("does not generate formal resistance blocks for 07-09 beginner volleyball classes with gym access", () => {
@@ -211,6 +216,49 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
     expect(result.historicalConfidence).toBe("low");
     expect(result.historyMode).toBe("partial_history");
     expect(result.sessionLabel.length).toBeGreaterThan(0);
+  });
+
+  it("returns teacher-facing court guidance instead of internal readiness terms", () => {
+    const classGroup = buildClassGroup({
+      ageBand: "08-11",
+      level: 1,
+      goal: "Preparar organização para 3x3",
+    });
+    const result = buildPeriodizationAutoPlanForCycleDay({
+      classGroup,
+      classPlan: buildClassPlan({
+        phase: "competitivo",
+        theme: "Organização coletiva em jogo reduzido",
+        technicalFocus: "Transição",
+      }),
+      weekPlan: buildWeekPlan({
+        focus: "Organização 3x3",
+        volume: "alto",
+        PSETarget: "PSE 7",
+      }),
+      cycleStartDate: classGroup.cycleStartDate,
+      sessionDate: "2026-06-20",
+      periodizationModel: "formacao",
+      sportProfile: "voleibol",
+      weeklySessions: 3,
+      dominantBlock: "Organização coletiva",
+      recentSessions: [
+        buildRecentSession({
+          progressionDimension: "precisao",
+          pedagogicalFeedbackSignals: ["recurring_technical_difficulty"],
+        }),
+      ],
+    });
+    const publicText = JSON.stringify(result.coachGuidance);
+
+    expect(result.coachGuidance.title).toBeTruthy();
+    expect(result.coachGuidance.doNow.length).toBeGreaterThan(0);
+    expect(result.coachGuidance.avoidToday.length).toBeGreaterThan(0);
+    expect(result.coachGuidance.advanceIf.length).toBeGreaterThan(0);
+    expect(result.coachGuidance.simplifyIf.length).toBeGreaterThan(0);
+    expect(publicText).not.toMatch(
+      /baixa evidência|confidence|riskFlags|readinessState|estimatedGameLevel|appliedCoreLevel|risco de salto/i
+    );
   });
 
   it("changes the preview when week demand flips from recovery to intensive", () => {

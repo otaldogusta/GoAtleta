@@ -290,6 +290,83 @@ export type KnownMethodologyApproach = "analitico" | "global" | "jogo" | "hibrid
 
 export type HistoricalConfidence = "none" | "low" | "medium" | "high";
 
+export type GameFormatLevel =
+  | "L0_onboarding"
+  | "L1_controle_individual"
+  | "L2_1x1_facilitado"
+  | "L3_1x1_intencional"
+  | "L4_2x2_cooperativo"
+  | "L5_2x2_decisao"
+  | "L6_3x3_introdutorio"
+  | "L7_3x3_organizado"
+  | "L8_festival_aplicado";
+
+export type ReadinessConfidence = "critical" | "low" | "medium" | "high";
+
+export type ClassReadinessRiskFlag =
+  | "sem_relatorio"
+  | "historico_fraco"
+  | "alunos_novos"
+  | "turma_heterogenea"
+  | "salto_de_complexidade"
+  | "baixa_frequencia"
+  | "dificuldade_recorrente"
+  | "periodizacao_agressiva";
+
+export type ClassReadinessRecommendation =
+  | "diagnosticar"
+  | "regredir"
+  | "consolidar"
+  | "progredir";
+
+export type ClassReadinessState = {
+  classId: string;
+  plannedGameLevel: GameFormatLevel;
+  estimatedGameLevel: GameFormatLevel;
+  appliedCoreLevel: GameFormatLevel;
+  confidence: ReadinessConfidence;
+  riskFlags: ClassReadinessRiskFlag[];
+  recommendation: ClassReadinessRecommendation;
+  reason: string[];
+  teacherMessage: string;
+};
+
+export type AdaptiveLessonEnvelope = {
+  periodizationTarget: GameFormatLevel;
+  appliedCoreLevel: GameFormatLevel;
+  diagnosticProbe: {
+    title: string;
+    description: string;
+    decisionRule: string;
+  };
+  planARegression: {
+    level: GameFormatLevel;
+    intent: string;
+    suggestedConstraint: string;
+  };
+  planBCore: {
+    level: GameFormatLevel;
+    intent: string;
+    suggestedConstraint: string;
+  };
+  planCProgression: {
+    level: GameFormatLevel;
+    intent: string;
+    suggestedConstraint: string;
+  };
+};
+
+export type SessionCoachGuidance = {
+  title: string;
+  subtitle?: string;
+  doNow: string[];
+  avoidToday: string[];
+  advanceIf: string[];
+  simplifyIf: string[];
+  setupHint?: string;
+  closingCue?: string;
+};
+
 export type TrainingPlanGenerationHistoryMode =
   | "bootstrap"
   | "partial_history"
@@ -534,6 +611,9 @@ export type TrainingPlanPedagogy = {
   sessionPlanningContext?: SessionPlanningContext;
   periodizationContext?: PeriodizationContext;
   pedagogicalDecisionSupport?: PedagogicalDecisionSupport;
+  readinessState?: ClassReadinessState;
+  adaptiveEnvelope?: AdaptiveLessonEnvelope;
+  coachGuidance?: SessionCoachGuidance;
   periodization?: {
     phase: string;
     theme: string;

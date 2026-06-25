@@ -196,6 +196,15 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.package.input.duration).toBe(90);
     expect(result.package.input.periodizationPhase).toBe("base");
     expect(result.package.final.main.activities.length).toBeGreaterThan(0);
+    expect(result.readinessState.classId).toBe("class_1");
+    expect(result.adaptiveEnvelope.appliedCoreLevel).toBe(result.readinessState.appliedCoreLevel);
+    expect(result.coachGuidance.doNow.length).toBeGreaterThan(0);
+    expect(result.package.input.sessionPlanningContext?.coachGuidance?.title).toBe(
+      result.coachGuidance.title
+    );
+    expect(JSON.stringify(result.coachGuidance)).not.toMatch(
+      /baixa evidência|confidence|riskFlags|readinessState|estimatedGameLevel|appliedCoreLevel|risco de salto/i
+    );
     expect(result.ageSanitizer.ageBand).toBe("13-15");
     expect(result.ageSanitizer.developmentStage).toBe("especializado");
     expect(result.pedagogyEnvelope.languageProfile).toBe("juvenil");

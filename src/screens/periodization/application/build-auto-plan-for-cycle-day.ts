@@ -1,15 +1,23 @@
 import { applyPlanGuards } from "../../../core/cycle-day-planning/apply-plan-guards";
+import { applyReadinessGuardToSessionStrategy } from "../../../core/cycle-day-planning/apply-readiness-guard-to-session-strategy";
+import { buildAdaptiveLessonEnvelope } from "../../../core/cycle-day-planning/build-adaptive-lesson-envelope";
+import { buildPlanFingerprintSet } from "../../../core/cycle-day-planning/build-plan-fingerprint";
+import { buildSessionCoachGuidance } from "../../../core/cycle-day-planning/build-session-coach-guidance";
 import type { GenerationHistoryMode } from "../../../core/cycle-day-planning/format-generation-explanation";
 import { formatGenerationExplanation } from "../../../core/cycle-day-planning/format-generation-explanation";
 import { resolvePedagogicalDecisionSupport } from "../../../core/cycle-day-planning/resolve-pedagogical-decision-support";
+import { resolveClassReadinessState } from "../../../core/cycle-day-planning/resolve-class-readiness-state";
 import { resolveOrderedTrainingDays } from "../../../core/cycle-day-planning/resolve-session-index-in-week";
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
 import type {
+    AdaptiveLessonEnvelope,
     ClassGroup,
     ClassPlan,
+    ClassReadinessState,
     HistoricalConfidence,
     RecentSessionSummary,
     RepetitionAdjustment,
+    SessionCoachGuidance,
     SessionComponent,
     SessionEnvironment,
     SessionStrategy,
@@ -81,8 +89,11 @@ export type PeriodizationAutoPlanForCycleDayResult = {
   progressionLabel: string;
   pedagogicalIntentLabel: string;
   coachSummary: string;
+  coachGuidance: SessionCoachGuidance;
   explanationSummary: string;
   drillFamiliesLabel: string;
+  readinessState: ClassReadinessState;
+  adaptiveEnvelope: AdaptiveLessonEnvelope;
   debugSignals?: PeriodizationDebugSignals;
   /** R2: resolved environment for this session */
   sessionEnvironment?: SessionEnvironment;
@@ -304,24 +315,52 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     weeklyOperationalDecision: params.weeklyOperationalDecision,
   });
   const strategyDecision = resolveSessionStrategyDecisionFromCycleContext(context.cycleContext);
+  const readinessState = resolveClassReadinessState({
+    classGroup: params.classGroup,
+    sessionDate: params.sessionDate,
+    historicalConfidence: context.cycleContext.historicalConfidence,
+    recentSessions: context.cycleContext.recentSessions,
+    sourceStrategy: strategyDecision.strategy,
+  });
+  const readinessGuardedStrategy = applyReadinessGuardToSessionStrategy({
+    strategy: strategyDecision.strategy,
+    readinessState,
+  });
   const guardResult = applyPlanGuards({
     context: context.cycleContext,
-    strategy: strategyDecision.strategy,
+    strategy: readinessGuardedStrategy,
     recentSessions: context.cycleContext.recentSessions,
   });
+  const finalGuardedStrategy = applyReadinessGuardToSessionStrategy({
+    strategy: guardResult.strategy,
+    readinessState,
+  });
+  const finalFingerprints = buildPlanFingerprintSet({
+    context: context.cycleContext,
+    strategy: finalGuardedStrategy,
+  });
   const finalStrategy = {
-    ...guardResult.strategy,
+    ...finalGuardedStrategy,
     pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({
       context: context.cycleContext,
-      strategy: guardResult.strategy,
+      strategy: finalGuardedStrategy,
     }),
   };
+  const adaptiveEnvelope = buildAdaptiveLessonEnvelope({
+    readinessState,
+    strategy: finalStrategy,
+  });
+  const coachGuidance = buildSessionCoachGuidance({
+    readinessState,
+    adaptiveEnvelope,
+    classGroup: params.classGroup,
+  });
   const explanation = formatGenerationExplanation({
     cycleContext: context.cycleContext,
     baseStrategy: strategyDecision.baseStrategy,
     strategy: finalStrategy,
-    fingerprint: guardResult.fingerprint,
-    structuralFingerprint: guardResult.structuralFingerprint,
+    fingerprint: finalFingerprints.exactFingerprint,
+    structuralFingerprint: finalFingerprints.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     dominantBlockAdjusted: strategyDecision.dominantBlockAdjusted,
     dominantBlockInfluence: strategyDecision.dominantBlockInfluence,
@@ -343,8 +382,8 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     sessionIndexInWeek: context.sessionIndexInWeek,
     historicalConfidence: context.cycleContext.historicalConfidence,
     historyMode: explanation.historyMode,
-    fingerprint: guardResult.fingerprint,
-    structuralFingerprint: guardResult.structuralFingerprint,
+    fingerprint: finalFingerprints.exactFingerprint,
+    structuralFingerprint: finalFingerprints.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     strategy: finalStrategy,
     sessionLabel: `${primarySkillLabel} · ${progressionLabel}`,
@@ -352,8 +391,11 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     progressionLabel,
     pedagogicalIntentLabel,
     coachSummary: explanation.coachSummary,
+    coachGuidance,
     explanationSummary: explanation.summary,
     drillFamiliesLabel: finalStrategy.drillFamilies.join(", "),
+    readinessState,
+    adaptiveEnvelope,
     debugSignals: buildPeriodizationDebugSignals(params, {
       cycleContext: context.cycleContext,
       strategy: finalStrategy,
@@ -536,7 +578,7 @@ export const buildPeriodizationWeekSchedule = (params: {
       dayNumber,
       date,
       session: autoPlan.sessionLabel,
-      summary: autoPlan.coachSummary,
+      summary: autoPlan.coachGuidance.title,
       sessionIndexInWeek: autoPlan.sessionIndexInWeek,
       autoPlan,
     } satisfies PeriodizationWeekScheduleItem;

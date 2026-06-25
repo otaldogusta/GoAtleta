@@ -1,12 +1,17 @@
 import { applyPlanGuards } from "../../../core/cycle-day-planning/apply-plan-guards";
+import { applyReadinessGuardToSessionStrategy } from "../../../core/cycle-day-planning/apply-readiness-guard-to-session-strategy";
+import { buildAdaptiveLessonEnvelope } from "../../../core/cycle-day-planning/build-adaptive-lesson-envelope";
 import { buildCycleDayPlanningContext } from "../../../core/cycle-day-planning/build-cycle-day-planning-context";
 import { buildDailyLessonPlanningAnchor } from "../../../core/cycle-day-planning/daily-lesson-planning-anchor";
+import { buildPlanFingerprintSet } from "../../../core/cycle-day-planning/build-plan-fingerprint";
+import { buildSessionCoachGuidance } from "../../../core/cycle-day-planning/build-session-coach-guidance";
 import { formatGenerationExplanation, type CycleDayGenerationExplanation } from "../../../core/cycle-day-planning/format-generation-explanation";
 import {
     buildSessionDecisionTrace,
     type SessionDecisionTrace,
 } from "../../../core/cycle-day-planning/session-decision-trace";
 import { resolvePedagogicalDecisionSupport } from "../../../core/cycle-day-planning/resolve-pedagogical-decision-support";
+import { resolveClassReadinessState } from "../../../core/cycle-day-planning/resolve-class-readiness-state";
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
 import type { TeacherOverrideInfluence } from "../../../core/cycle-day-planning/resolve-teacher-override-weight";
 import { detectSessionPedagogicalApproach } from "../../../core/methodology/session-pedagogical-language";
@@ -17,6 +22,8 @@ import {
 import { resolveVolleyballLessonAgeProfile } from "../../../core/volleyball/humanized-lesson-activities";
 import type {
     ClassGroup,
+    AdaptiveLessonEnvelope,
+    ClassReadinessState,
     ClassPlan,
     CycleDayPlanningContext,
     DailyLessonPlan,
@@ -24,6 +31,7 @@ import type {
     RecentSessionSummary,
     RepetitionAdjustment,
     SessionLog,
+    SessionCoachGuidance,
     SessionStrategy,
     Student,
     TrainingPlan,
@@ -86,6 +94,9 @@ export type AutoPlanForCycleDayResult = {
   activityCatalogRecommendations: ActivityCatalogRecommendation[];
   generationContext: ClassGenerationContext;
   sessionPlanningContext: SessionPlanningContext;
+  readinessState: ClassReadinessState;
+  adaptiveEnvelope: AdaptiveLessonEnvelope;
+  coachGuidance: SessionCoachGuidance;
   package: PedagogicalPlanPackage;
   ageSanitizer: AgeSanitizerDiagnostics;
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
@@ -186,19 +197,48 @@ export const buildAutoPlanForCycleDay = (
     sessionIndexInWeek: params.sessionIndexInWeek,
   });
   const strategyDecision = resolveSessionStrategyDecisionFromCycleContext(cycleContext);
+  const readinessState = resolveClassReadinessState({
+    classGroup: params.classGroup,
+    sessionDate: params.sessionDate,
+    historicalConfidence: cycleContext.historicalConfidence,
+    recentSessions,
+    sourceStrategy: strategyDecision.strategy,
+    students: params.students,
+  });
+  const readinessGuardedStrategy = applyReadinessGuardToSessionStrategy({
+    strategy: strategyDecision.strategy,
+    readinessState,
+  });
   const guardResult = applyPlanGuards({
     context: cycleContext,
-    strategy: strategyDecision.strategy,
+    strategy: readinessGuardedStrategy,
     recentSessions,
     recentPlanHashes: uniqueStrings(recentPlans.map((plan) => plan.inputHash)).slice(0, 5),
   });
+  const finalGuardedStrategy = applyReadinessGuardToSessionStrategy({
+    strategy: guardResult.strategy,
+    readinessState,
+  });
+  const finalFingerprints = buildPlanFingerprintSet({
+    context: cycleContext,
+    strategy: finalGuardedStrategy,
+  });
   const strategy = {
-    ...guardResult.strategy,
+    ...finalGuardedStrategy,
     pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({
       context: cycleContext,
-      strategy: guardResult.strategy,
+      strategy: finalGuardedStrategy,
     }),
   };
+  const adaptiveEnvelope = buildAdaptiveLessonEnvelope({
+    readinessState,
+    strategy,
+  });
+  const coachGuidance = buildSessionCoachGuidance({
+    readinessState,
+    adaptiveEnvelope,
+    classGroup: params.classGroup,
+  });
   const generationContext = adaptCycleStrategyToGenerationContext({
     cycleContext,
     strategy,
@@ -235,6 +275,9 @@ export const buildAutoPlanForCycleDay = (
     recentSessions,
     upcomingEvents: params.upcomingEvents ?? [],
     dailyPlanAnchor,
+    readinessState,
+    adaptiveEnvelope,
+    coachGuidance,
   });
   sessionPlanningContext.classProfile.size = params.students.length;
   const pkg = buildPedagogicalInputFromContext({
@@ -278,8 +321,8 @@ export const buildAutoPlanForCycleDay = (
     cycleContext,
     baseStrategy: strategyDecision.baseStrategy,
     strategy,
-    fingerprint: guardResult.fingerprint,
-    structuralFingerprint: guardResult.structuralFingerprint,
+    fingerprint: finalFingerprints.exactFingerprint,
+    structuralFingerprint: finalFingerprints.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     dominantBlockAdjusted: strategyDecision.dominantBlockAdjusted,
     dominantBlockInfluence: strategyDecision.dominantBlockInfluence,
@@ -315,14 +358,17 @@ export const buildAutoPlanForCycleDay = (
     strategy,
     overrideAdjusted: strategyDecision.overrideAdjusted,
     overrideInfluence: strategyDecision.overrideInfluence,
-    fingerprint: guardResult.fingerprint,
-    structuralFingerprint: guardResult.structuralFingerprint,
+    fingerprint: finalFingerprints.exactFingerprint,
+    structuralFingerprint: finalFingerprints.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     explanation,
     decisionTrace,
     activityCatalogRecommendations,
     generationContext,
     sessionPlanningContext,
+    readinessState,
+    adaptiveEnvelope,
+    coachGuidance,
     package: sanitizedPlan.package,
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,
