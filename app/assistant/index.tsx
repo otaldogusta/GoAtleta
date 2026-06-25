@@ -28,6 +28,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
 import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
 import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import {
     buildAutoFixSuggestions,
     buildCommunicationDraft,
@@ -1748,13 +1749,7 @@ export default function AssistantScreen() {
                 <View style={{ alignItems: "center", gap: 10 }}>
                   <View style={{ width: "100%", alignItems: "flex-start" }}>
                     <Pressable
-                      onPress={() => {
-                        if (router.canGoBack()) {
-                          router.back();
-                          return;
-                        }
-                        router.replace("/");
-                      }}
+                      onPress={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
                       style={{ flexDirection: "row", alignItems: "center" }}
                     >
                       <Ionicons name="chevron-back" size={20} color={colors.text} />

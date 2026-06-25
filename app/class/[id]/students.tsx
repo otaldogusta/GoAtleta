@@ -20,6 +20,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { uploadStudentPhoto } from "../../../src/api/student-photo-storage";
+import { ScreenPageHeader } from "../../../src/components/ui/ScreenPageHeader";
 import { getClassModalityLabel, matchesClassModalityText } from "../../../src/core/class-modality";
 import { matchAthleteIntakeToStudents, type AthleteIntake } from "../../../src/core/athlete-intake";
 import { useEffectiveProfile } from "../../../src/core/effective-profile";
@@ -38,6 +39,7 @@ import {
     updateStudent,
     updateStudentPhoto,
 } from "../../../src/db/seed";
+import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
 import { useIsOnline } from "../../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../../src/hooks/useDebouncedValue";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
@@ -888,7 +890,10 @@ export default function ClassStudentsScreen() {
       if (!createFormDirty) {
         resetCreateForm();
         if (target === "back") {
-          router.back();
+          navigateBackOrReplace({
+            router,
+            fallback: id ? { pathname: "/class/[id]", params: { id } } : "/",
+          });
           return;
         }
         setScreenTab("alunos");
@@ -897,7 +902,7 @@ export default function ClassStudentsScreen() {
       setCreateExitTarget(target);
       setShowCreateCloseConfirm(true);
     },
-    [createFormDirty, resetCreateForm, router]
+    [createFormDirty, id, resetCreateForm, router]
   );
 
   const closeCreateDiscardConfirm = useCallback(() => {
@@ -911,13 +916,16 @@ export default function ClassStudentsScreen() {
     setCreateExitTarget(null);
     resetCreateForm();
     if (target === "back") {
-      router.back();
+      navigateBackOrReplace({
+        router,
+        fallback: id ? { pathname: "/class/[id]", params: { id } } : "/",
+      });
       return;
     }
     if (target === "alunos") {
       setScreenTab("alunos");
     }
-  }, [createExitTarget, resetCreateForm, router]);
+  }, [createExitTarget, id, resetCreateForm, router]);
 
   const handleScreenTabChange = useCallback(
     (nextTab: ScreenTab) => {
@@ -945,8 +953,11 @@ export default function ClassStudentsScreen() {
       requestDiscardCreateForm("back");
       return;
     }
-    router.back();
-  }, [requestDiscardCreateForm, router, screenTab, selectionModeEnabled]);
+    navigateBackOrReplace({
+      router,
+      fallback: id ? { pathname: "/class/[id]", params: { id } } : "/",
+    });
+  }, [id, requestDiscardCreateForm, router, screenTab, selectionModeEnabled]);
 
   const canSubmitCreateStudent = createFormDirty && !creatingStudent;
 
@@ -1681,18 +1692,12 @@ export default function ClassStudentsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Pressable
-            onPress={handleBackPress}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Alunos da turma</Text>
-          </Pressable>
-        </View>
-
-        <Text style={{ color: colors.muted, marginTop: 6 }}>{cls ? `${cls.name} • ${cls.unit}` : "Carregando turma..."}</Text>
+      <ScreenPageHeader
+        title="Alunos da turma"
+        subtitle={cls ? `${cls.name} • ${cls.unit}` : "Carregando turma..."}
+        onBack={handleBackPress}
+      />
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 2 }}>
 
         {loadError ? (
           <View

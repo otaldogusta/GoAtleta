@@ -234,7 +234,7 @@ describe("activity catalog library ui", () => {
     const firstFamily = ACTIVITY_CATALOG_FAMILIES[0];
     const firstVariant = firstFamily.variants[0];
 
-    expect(text).toContain("Catálogo geral");
+    expect(text).not.toContain("Catálogo geral");
     expect(text).toContain(getActivityCatalogFamilyLabel(firstFamily.id, firstFamily.title));
     expect(text).toContain(firstVariant.name);
     expect(text).toContain("Ver atividade");

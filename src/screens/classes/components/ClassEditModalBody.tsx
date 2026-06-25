@@ -639,6 +639,7 @@ function ClassEditModalBodyBase({
 }
 
 function ClassEditModalPickersBase({
+  refs,
   layouts,
   pickers,
   fields,
@@ -663,6 +664,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
+        interactiveRefs={refs.editCycleLengthTriggerRef ? [refs.editCycleLengthTriggerRef] : undefined}
       >
         <View style={{ gap: 6 }}>
           {(options.cycleLengthOptions ?? []).map((option) => (
@@ -686,6 +688,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
+        interactiveRefs={refs.editMvLevelTriggerRef ? [refs.editMvLevelTriggerRef] : undefined}
       >
         <View style={{ gap: 6 }}>
           {(options.mvLevelOptions ?? []).map((option) => (
@@ -709,6 +712,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
+        interactiveRefs={[refs.editAgeBandTriggerRef]}
       >
         <View style={{ gap: 6 }}>
           {options.ageBandOptions.map((option) => (
@@ -738,6 +742,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
+        interactiveRefs={[refs.editGenderTriggerRef]}
       >
         <View style={{ gap: 6 }}>
           {options.genderOptions.map((option) => (
@@ -761,6 +766,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
+        interactiveRefs={refs.editModalityTriggerRef ? [refs.editModalityTriggerRef] : undefined}
       >
         <View style={{ gap: 6 }}>
           {(options.modalityOptions ?? []).map((option) => (
@@ -784,6 +790,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
+        interactiveRefs={[refs.editGoalTriggerRef]}
       >
         <View style={{ gap: 6 }}>
           {options.goalOptions.map((goal) => (

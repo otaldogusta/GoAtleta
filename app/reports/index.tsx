@@ -11,7 +11,7 @@ import {
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
 } from "../../src/api/reports";
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -21,6 +21,7 @@ import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import type { ActivityCatalogAuditReport } from "../../src/core/volleyball/activity-catalog-audit";
 import { buildActivityCatalogAuditReport } from "../../src/core/volleyball/activity-catalog-audit";
 import { getTrainingPlans } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import TrainerReportsScreen from "./trainer";
 import { CatalogAuditPanel } from "../../src/screens/reports/CatalogAuditPanel";
 
@@ -329,23 +330,6 @@ export default function ReportsScreen() {
 
   const header = (
     <View style={{ gap: 12, paddingBottom: 12 }}>
-      <View style={{ gap: 4 }}>
-        <BackTitleHeader
-          title="Painel de Coordenação"
-          onBack={() => {
-            if (router.canGoBack()) {
-              router.back();
-              return;
-            }
-            router.replace("/");
-          }}
-        />
-        <Text style={{ color: colors.muted }}>
-          Pendências e atividade recente da organização{" "}
-          {activeOrganization?.name ? `• ${activeOrganization.name}` : ""}
-        </Text>
-      </View>
-
       <View style={{ gap: 8 }}>
         <View
           style={{
@@ -386,22 +370,6 @@ export default function ReportsScreen() {
           })}
         </View>
 
-        <Pressable
-          onPress={() => void loadDashboard()}
-          style={{
-            alignSelf: "flex-start",
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.secondaryBg,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-            Recarregar
-          </Text>
-        </Pressable>
       </View>
 
       <View
@@ -530,6 +498,29 @@ export default function ReportsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenPageHeader
+        title="Painel de Coordenação"
+        subtitle={`Pendências e atividade recente da organização${activeOrganization?.name ? ` • ${activeOrganization.name}` : ""}`}
+        onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        right={
+          <Pressable
+            onPress={() => void loadDashboard()}
+            style={{
+              alignSelf: "flex-start",
+              paddingHorizontal: 10,
+              paddingVertical: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.secondaryBg,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+              Recarregar
+            </Text>
+          </Pressable>
+        }
+      />
       <FlatList
         data={listItems}
         renderItem={renderItem}
@@ -539,7 +530,7 @@ export default function ReportsScreen() {
         maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={60}
         removeClippedSubviews={Platform.OS === "android"}
-        contentContainerStyle={{ padding: 16, paddingBottom: 28 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 28 }}
         ListHeaderComponent={header}
         ListEmptyComponent={
           tab === "catalog" ? (

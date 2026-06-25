@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, Text, View } from "react-native";
@@ -13,6 +12,8 @@ import {
     type RegulationRuleSetDiff,
 } from "../src/api/regulation-rule-sets";
 import { listRegulationUpdates, type RegulationUpdate } from "../src/api/regulation-updates";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -163,16 +164,11 @@ export default function RegulationHistoryScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Histórico de regulamentos</Text>
-          </Pressable>
-        </View>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} stickyHeaderIndices={[0]}>
+        <ScreenPageHeader
+          title="Histórico de regulamentos"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        />
 
         <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, gap: 4 }}>
           <Text style={{ color: colors.text, fontWeight: "700" }}>{activeOrganization?.name ?? "Organizacao"}</Text>

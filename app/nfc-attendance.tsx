@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { useCopilotActions, useCopilotContext } from "../src/copilot/CopilotProvider";
 import type { ClassGroup, Student } from "../src/core/models";
 import { useSmartSync } from "../src/core/use-smart-sync";
@@ -42,6 +43,7 @@ import {
     type NfcMetricKey,
     type NfcMetrics,
 } from "../src/nfc/metrics";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { isNfcSupported } from "../src/nfc/nfc";
 import { NFC_ERRORS } from "../src/nfc/nfc-errors";
 import { useNfcContinuousScan } from "../src/nfc/nfc-hooks";
@@ -1052,21 +1054,16 @@ export default function NfcAttendanceScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 30 }}>
-        <View style={{ width: "100%", maxWidth: 980, alignSelf: "center", gap: 14 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Pressable
-            onPress={() => {
-              void stopScanning().finally(() => router.back());
-            }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "900" }}>Presença NFC</Text>
-          </Pressable>
-          <Text style={{ color: colors.muted, fontSize: 13, marginLeft: 26 }}>{organizationLabel}</Text>
-        </View>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 30 }} stickyHeaderIndices={[0]}>
+        <ScreenPageHeader
+          title="Presença NFC"
+          subtitle={organizationLabel}
+          onBack={() => {
+            void stopScanning().finally(() => navigateBackOrReplace({ router, fallback: "/prof/home" }));
+          }}
+        />
 
+        <View style={{ width: "100%", maxWidth: 980, alignSelf: "center", gap: 14 }}>
         <LinearGradient
           colors={
             uiScanState === "scanning"

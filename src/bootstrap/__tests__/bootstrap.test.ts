@@ -65,4 +65,31 @@ describe("bootstrapApp", () => {
     expect(mockInitDb).toHaveBeenCalledTimes(1);
     expect(mockLoadPedagogicalConfig).toHaveBeenCalledTimes(1);
   });
+
+  test("does not capture pedagogical config fallback twice", async () => {
+    const configError = new Error("Config chunk failed");
+    mockLoadPedagogicalConfig.mockResolvedValue({
+      config: { dimensions: [] },
+      error: configError,
+    });
+
+    const { bootstrapApp } = require("../bootstrap") as typeof import("../bootstrap");
+
+    await bootstrapApp();
+
+    expect(mockLoadPedagogicalConfig).toHaveBeenCalledTimes(1);
+    expect(mockCaptureException).not.toHaveBeenCalledWith(
+      configError,
+      expect.objectContaining({
+        tags: { bootstrap_phase: "pedagogical-config" },
+      })
+    );
+    expect(mockAddBreadcrumb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "bootstrap",
+        level: "warning",
+        message: "loadPedagogicalConfig fallback: Config chunk failed",
+      })
+    );
+  });
 });

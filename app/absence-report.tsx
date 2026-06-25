@@ -1,11 +1,12 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { createAbsenceNotice } from "../src/db/seed";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { DateInput } from "../src/ui/DateInput";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -49,7 +50,7 @@ export default function AbsenceReportScreen() {
         status: "pending",
       });
       Alert.alert("Aviso enviado", "O treinador recebeu seu aviso.");
-      router.back();
+      navigateBackOrReplace({ router, fallback: "/prof/home" });
     } catch {
       Alert.alert("Não foi possível enviar o aviso.");
     } finally {
@@ -59,21 +60,14 @@ export default function AbsenceReportScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenPageHeader
+        title="Avisar ausência"
+        onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+      />
       <ScrollView
         style={{ backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: 16, gap: 12 }}
-        stickyHeaderIndices={[0]}
+        contentContainerStyle={{ padding: 16, paddingTop: 2, gap: 12 }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.background, paddingBottom: 8 }}>
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Avisar ausência</Text>
-          </Pressable>
-        </View>
-
         <View
           style={{
             padding: 16,

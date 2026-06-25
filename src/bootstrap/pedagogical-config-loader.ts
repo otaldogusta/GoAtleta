@@ -8,6 +8,7 @@
 import * as Sentry from "@sentry/react-native";
 import type { PedagogicalDimensionsConfig } from "../config/pedagogical-dimensions-config";
 import { isValidPedagogicalConfig } from "../config/pedagogical-dimensions-config";
+import rawPedagogicalConfig from "../config/pedagogical-dimensions.json";
 import {
     PROFILE_A_YOUNG_BEGINNER,
     PROFILE_B_INTERMEDIATE,
@@ -279,9 +280,7 @@ export async function loadPedagogicalConfig(): Promise<{
   error: Error | null;
 }> {
   try {
-    // Import JSON config file
-    const configModule = await import("../config/pedagogical-dimensions.json");
-    const parsed = configModule.default;
+    const parsed = rawPedagogicalConfig as unknown;
 
     // Validate against schema
     if (!isValidPedagogicalConfig(parsed)) {

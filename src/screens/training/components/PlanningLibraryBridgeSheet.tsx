@@ -1,7 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
+import {
+  ImageBackground,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
+import { getLinkKey, requestLinkMetadata, type LinkMetadata } from "../../../api/link-metadata";
+import { getValidAccessToken } from "../../../auth/session";
+import {
+  getExerciseLinkPresentation,
+  matchesExerciseLinkSearch,
+  scoreExerciseLinkForPlanningBlock,
+  scoreExerciseLinkSearchRelevance,
+  shouldRefreshExerciseLinkMetadata,
+} from "../../../core/exercise-link-classifier";
 import type { Exercise } from "../../../core/models";
 import type { TrainingPlanBlockKey } from "../../../core/training-plan-blocks";
 import type { ActivityPatternStage } from "../../../core/volleyball/activity-pattern-engine";
@@ -49,11 +67,120 @@ const defaultPhaseByBlock: Record<TrainingPlanBlockKey, ActivityPatternStage> = 
   cooldown: "cooldown",
 };
 
-const normalize = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
+const exerciseLinkBadgeLabels: Record<string, string> = {
+  aquecimento: "Aquecimento",
+  ataque: "Ataque",
+  bloqueio: "Bloqueio",
+  circuito: "Circuito",
+  coordenacao: "Coordenação",
+  core: "Core",
+  defesa: "Defesa",
+  desenvolvimento: "Desenvolvimento",
+  drill: "Drill",
+  duplas: "Duplas",
+  forca: "Força",
+  grupo: "Grupo",
+  "jogo-aplicacao": "Jogo",
+  "jogo-reduzido": "Jogo reduzido",
+  levantamento: "Levantamento",
+  mobilidade: "Mobilidade",
+  passe: "Passe",
+  prevencao: "Prevenção",
+  queimada: "Queimada",
+  recepcao: "Recepção",
+  saque: "Saque",
+  toque: "Toque",
+  transicao: "Transição",
+  trios: "Trios",
+  "volta-calma": "Volta à calma",
+};
+
+const exerciseLinkBadgePriority = [
+  "queimada",
+  "forca",
+  "core",
+  "mobilidade",
+  "prevencao",
+  "coordenacao",
+  "agilidade",
+  "passe",
+  "toque",
+  "levantamento",
+  "recepcao",
+  "saque",
+  "ataque",
+  "bloqueio",
+  "defesa",
+  "transicao",
+  "aquecimento",
+  "jogo-aplicacao",
+  "jogo-reduzido",
+  "volta-calma",
+  "drill",
+  "circuito",
+  "duplas",
+  "trios",
+  "grupo",
+];
+
+const getExerciseLinkBadges = (tags: string[], sourceLabel?: string) => {
+  const tagSet = new Set(tags);
+  const rankedTags = exerciseLinkBadgePriority.filter((tag) => tagSet.has(tag));
+  const [primaryTag, secondaryTag] = rankedTags;
+  return {
+    primary: (primaryTag && exerciseLinkBadgeLabels[primaryTag]) || "Vídeo/link",
+    secondary: (secondaryTag && exerciseLinkBadgeLabels[secondaryTag]) || sourceLabel || "Link",
+  };
+};
+
+const getExerciseLinkSourceDisplayLabel = (sourceLabel?: string) => {
+  const value = sourceLabel?.trim();
+  if (!value) return "Link";
+
+  const normalized = value.toLowerCase();
+  if (normalized.includes("instagram")) return "Instagram";
+  if (normalized.includes("pinterest")) return "Pinterest";
+  if (normalized.includes("youtube") || normalized.includes("youtu.be")) return "YouTube";
+  if (normalized.includes("tiktok")) return "TikTok";
+  if (normalized.includes("vimeo")) return "Vimeo";
+  if (/^https?:\/\//.test(normalized) || normalized.startsWith("www.") || normalized.includes(".")) {
+    return "Link";
+  }
+
+  return value;
+};
+
+const getMetadataForExercise = (
+  previews: Record<string, LinkMetadata | null>,
+  exercise: Exercise
+) => {
+  const key = getLinkKey(exercise.videoUrl ?? "");
+  if (!key || !Object.prototype.hasOwnProperty.call(previews, key)) return undefined;
+  return previews[key];
+};
+
+const buildExerciseLinkInput = (exercise: Exercise, metadata?: LinkMetadata | null) => ({
+  ...exercise,
+  metadataTitle: metadata?.title,
+  metadataDescription: metadata?.description,
+  metadataAuthor: metadata?.author,
+  metadataHost: metadata?.host,
+});
+
+const buildExerciseForPlanningBlock = (
+  exercise: Exercise,
+  metadata?: LinkMetadata | null
+): Exercise => {
+  const presentation = getExerciseLinkPresentation(buildExerciseLinkInput(exercise, metadata));
+  const sourceLabel = getExerciseLinkSourceDisplayLabel(presentation.sourceLabel);
+  return {
+    ...exercise,
+    title: presentation.title,
+    description: presentation.description,
+    source: sourceLabel,
+    tags: presentation.tags,
+  };
+};
 
 export function PlanningLibraryBridgeSheet({
   visible,
@@ -71,6 +198,7 @@ export function PlanningLibraryBridgeSheet({
     useState<ActivityCatalogListItem | null>(null);
   const [linkQuery, setLinkQuery] = useState("");
   const [links, setLinks] = useState<Exercise[]>([]);
+  const [linkPreviews, setLinkPreviews] = useState<Record<string, LinkMetadata | null>>({});
   const [linksError, setLinksError] = useState("");
   const [loadingLinks, setLoadingLinks] = useState(false);
 
@@ -81,21 +209,39 @@ export function PlanningLibraryBridgeSheet({
     [catalogItems, filters]
   );
   const filteredLinks = useMemo(() => {
-    const query = normalize(linkQuery.trim());
-    if (!query) return links;
-    return links.filter((exercise) =>
-      normalize(
-        [
-          exercise.title,
-          exercise.description,
-          exercise.notes,
-          exercise.source,
-          exercise.tags.join(" "),
-          exercise.videoUrl,
-        ].join(" ")
-      ).includes(query)
-    );
-  }, [linkQuery, links]);
+    const query = linkQuery.trim();
+    const matchingLinks = query
+      ? links.filter((exercise) =>
+          matchesExerciseLinkSearch(
+            buildExerciseLinkInput(exercise, getMetadataForExercise(linkPreviews, exercise)),
+            query
+          )
+        )
+      : links;
+    if (!blockKey && !query) return matchingLinks;
+    return [...matchingLinks].sort((left, right) => {
+      const rightInput = buildExerciseLinkInput(
+        right,
+        getMetadataForExercise(linkPreviews, right)
+      );
+      const leftInput = buildExerciseLinkInput(left, getMetadataForExercise(linkPreviews, left));
+      const queryDelta =
+        scoreExerciseLinkSearchRelevance(rightInput, query) -
+        scoreExerciseLinkSearchRelevance(leftInput, query);
+      if (queryDelta !== 0) return queryDelta;
+
+      if (blockKey) {
+        const blockDelta =
+          scoreExerciseLinkForPlanningBlock(rightInput, blockKey) -
+          scoreExerciseLinkForPlanningBlock(leftInput, blockKey);
+        if (blockDelta !== 0) return blockDelta;
+      }
+
+      const rightTitle = getExerciseLinkPresentation(rightInput).title;
+      const leftTitle = getExerciseLinkPresentation(leftInput).title;
+      return leftTitle.localeCompare(rightTitle, "pt-BR");
+    });
+  }, [blockKey, linkPreviews, linkQuery, links]);
 
   useEffect(() => {
     if (!visible) {
@@ -130,6 +276,50 @@ export function PlanningLibraryBridgeSheet({
       alive = false;
     };
   }, [activeTab, visible]);
+
+  useEffect(() => {
+    if (!visible || activeTab !== "links" || !links.length) return;
+    const candidates = links
+      .filter((exercise) => {
+        const key = getLinkKey(exercise.videoUrl ?? "");
+        if (!key || Object.prototype.hasOwnProperty.call(linkPreviews, key)) return false;
+        return shouldRefreshExerciseLinkMetadata(exercise);
+      })
+      .slice(0, 6);
+    if (!candidates.length) return;
+
+    let alive = true;
+    const loadMetadata = async () => {
+      const accessToken = await getValidAccessToken();
+      if (!accessToken || !alive) return;
+      const entries = await Promise.all(
+        candidates.map(async (exercise) => {
+          const key = getLinkKey(exercise.videoUrl);
+          try {
+            const metadata = await requestLinkMetadata(exercise.videoUrl, accessToken);
+            return [key, metadata] as const;
+          } catch {
+            return [key, null] as const;
+          }
+        })
+      );
+      if (!alive) return;
+      setLinkPreviews((current) => {
+        const next = { ...current };
+        entries.forEach(([key, metadata]) => {
+          if (key && !Object.prototype.hasOwnProperty.call(next, key)) {
+            next[key] = metadata;
+          }
+        });
+        return next;
+      });
+    };
+
+    void loadMetadata();
+    return () => {
+      alive = false;
+    };
+  }, [activeTab, linkPreviews, links, visible]);
 
   if (!visible || !blockKey) return null;
 
@@ -226,11 +416,19 @@ export function PlanningLibraryBridgeSheet({
                 {linksError}
               </Text>
             ) : filteredLinks.length ? (
-              <View style={{ gap: 10 }}>
+              <View
+                style={{
+                  flexDirection: useGridCards ? "row" : "column",
+                  flexWrap: useGridCards ? "wrap" : "nowrap",
+                  gap: 8,
+                }}
+              >
                 {filteredLinks.map((exercise) => (
                   <LinkCard
                     key={exercise.id}
                     exercise={exercise}
+                    grid={useGridCards}
+                    metadata={getMetadataForExercise(linkPreviews, exercise)}
                     onAdd={onAddExerciseLink}
                   />
                 ))}
@@ -537,71 +735,228 @@ function PlanningCatalogCompactCard({
 
 function LinkCard({
   exercise,
+  grid,
+  metadata,
   onAdd,
 }: {
   exercise: Exercise;
+  grid: boolean;
+  metadata?: LinkMetadata | null;
   onAdd: (exercise: Exercise) => void;
 }) {
   const { colors } = useAppTheme();
+  const presentation = getExerciseLinkPresentation(buildExerciseLinkInput(exercise, metadata));
+  const { title, description, sourceLabel, tags } = presentation;
+  const sourceDisplayLabel = getExerciseLinkSourceDisplayLabel(sourceLabel);
+  const linkBadges = getExerciseLinkBadges(tags, sourceDisplayLabel);
+  const exerciseForBlock = buildExerciseForPlanningBlock(exercise, metadata);
+  const previewImage = metadata?.image?.trim();
+  const openLink = () => {
+    const url = exercise.videoUrl?.trim();
+    if (!url) return;
+    void Linking.openURL(url).catch(() => undefined);
+  };
+
   return (
     <View
       testID={`planning-link-card-${exercise.id}`}
       style={{
-        gap: 8,
-        padding: 12,
+        width: grid ? "49%" : "100%",
+        padding: 9,
         borderRadius: 14,
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
       }}
     >
-      <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
-            {exercise.title || "Vídeo/link"}
+      <View style={{ gap: 9 }}>
+        <Pressable
+          testID={`planning-open-link-preview-${exercise.id}`}
+          onPress={openLink}
+          style={{
+            width: "100%",
+            aspectRatio: 16 / 9,
+            borderRadius: 12,
+            overflow: "hidden",
+            backgroundColor: colors.secondaryBg,
+          }}
+        >
+          {previewImage ? (
+            <ImageBackground
+              source={{ uri: previewImage }}
+              resizeMode="cover"
+              style={{ flex: 1, justifyContent: "space-between", padding: 10 }}
+            >
+              <View
+                style={{
+                  ...StyleSheet.absoluteFill,
+                  backgroundColor: "rgba(2, 6, 23, 0.28)",
+                }}
+              />
+              <LinkPreviewOverlay badgeLabel={linkBadges.primary} title={title} />
+            </ImageBackground>
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "space-between",
+                padding: 10,
+                backgroundColor: colors.infoBg,
+              }}
+            >
+              <LinkPreviewOverlay badgeLabel={linkBadges.primary} title={title} />
+            </View>
+          )}
+        </Pressable>
+
+        <View style={{ gap: 7 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text
+              numberOfLines={1}
+              style={{ flex: 1, color: colors.muted, fontSize: 12, fontWeight: "800" }}
+            >
+              {sourceDisplayLabel}
+            </Text>
+            <View
+              style={{
+                paddingHorizontal: 7,
+                paddingVertical: 3,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
+                minHeight: 24,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={{ color: colors.secondaryText, fontSize: 10, fontWeight: "900", textAlign: "center" }}
+              >
+                {linkBadges.secondary}
+              </Text>
+            </View>
+          </View>
+          <Text
+            numberOfLines={2}
+            style={{
+              color: colors.text,
+              fontSize: 14,
+              fontWeight: "900",
+              lineHeight: 18,
+            }}
+          >
+            {title}
           </Text>
-          {exercise.description ? (
-            <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 12 }}>
-              {exercise.description}
+          {description ? (
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
+              {description}
             </Text>
           ) : null}
-          {exercise.source ? (
-            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>
-              {exercise.source}
-            </Text>
-          ) : null}
+
+          <View style={{ flexDirection: "row", gap: 7 }}>
+            <Pressable
+              testID={`planning-open-link-${exercise.id}`}
+              onPress={openLink}
+              style={{
+                flex: 1,
+                minHeight: 34,
+                borderRadius: 11,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 5,
+                backgroundColor: colors.secondaryBg,
+              }}
+            >
+              <Ionicons name="open-outline" size={15} color={colors.secondaryText} />
+              <Text style={{ color: colors.secondaryText, fontSize: 12, fontWeight: "900" }}>
+                Abrir
+              </Text>
+            </Pressable>
+            <Pressable
+              testID={`planning-add-link-${exercise.id}`}
+              onPress={() => onAdd(exerciseForBlock)}
+              style={{
+                flex: 1,
+                minHeight: 34,
+                borderRadius: 11,
+                paddingHorizontal: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 5,
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Ionicons name="add" size={17} color={colors.primaryText} />
+              <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>
+                Adicionar
+              </Text>
+            </Pressable>
+          </View>
         </View>
+      </View>
+    </View>
+  );
+}
+
+function LinkPreviewOverlay({
+  badgeLabel,
+  title,
+}: {
+  badgeLabel: string;
+  title: string;
+}) {
+  const { colors } = useAppTheme();
+
+  return (
+    <>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
         <View
           style={{
+            maxWidth: "72%",
+            minHeight: 30,
             paddingHorizontal: 9,
             paddingVertical: 5,
             borderRadius: 999,
-            backgroundColor: colors.infoBg,
+            backgroundColor: "rgba(2, 6, 23, 0.86)",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          <Text style={{ color: colors.infoText, fontSize: 11, fontWeight: "900" }}>
-            Vídeo/link
+          <Text
+            numberOfLines={1}
+            style={{ color: colors.text, fontSize: 11, fontWeight: "900", textAlign: "center" }}
+          >
+            {badgeLabel}
           </Text>
         </View>
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(2, 6, 23, 0.86)",
+          }}
+        >
+          <Ionicons name="play" size={17} color={colors.text} />
+        </View>
       </View>
-      <Pressable
-        testID={`planning-add-link-${exercise.id}`}
-        onPress={() => onAdd(exercise)}
+      <Text
+        numberOfLines={1}
         style={{
-          minHeight: 38,
-          borderRadius: 12,
-          alignItems: "center",
-          justifyContent: "center",
-          flexDirection: "row",
-          gap: 6,
-          backgroundColor: colors.primaryBg,
+          color: colors.text,
+          fontSize: 12,
+          fontWeight: "900",
+          textShadowColor: "rgba(2, 6, 23, 0.65)",
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 3,
         }}
       >
-        <Ionicons name="add" size={18} color={colors.primaryText} />
-        <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "900" }}>
-          Adicionar ao bloco
-        </Text>
-      </Pressable>
-    </View>
+        {title}
+      </Text>
+    </>
   );
 }

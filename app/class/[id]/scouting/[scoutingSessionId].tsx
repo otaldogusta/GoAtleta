@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { BackTitleHeader } from "../../../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../../../src/components/ui/ScreenPageHeader";
 import type {
   ScoutingAction,
   ScoutingActionFundamental,
@@ -214,13 +214,12 @@ export default function ClassScoutingSessionRoute() {
           alignSelf: "center",
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-          <View style={{ flex: 1, gap: 4 }}>
-            <BackTitleHeader title="Scouting" onBack={goBack} />
-            <View style={{ marginLeft: 36, flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <Text style={{ color: colors.muted }}>
-                {session?.title ?? "Análise da turma"} · {session ? formatDate(session.date) : ""}
-              </Text>
+        <ScreenPageHeader
+          title="Scouting"
+          subtitle={`${session?.title ?? "Análise da turma"}${session ? ` · ${formatDate(session.date)}` : ""}`}
+          onBack={goBack}
+          right={
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
               {session ? (
                 <StatusPill
                   label={isCompleted ? "Concluído" : "Em andamento"}
@@ -228,16 +227,17 @@ export default function ClassScoutingSessionRoute() {
                   colors={colors}
                 />
               ) : null}
+              <Button
+                label={isCompleted ? "Análise finalizada" : "Finalizar análise"}
+                onPress={handleComplete}
+                disabled={!session || isCompleted}
+                loading={saving && !isCompleted}
+                variant={isCompleted ? "secondary" : "primary"}
+              />
             </View>
-          </View>
-          <Button
-            label={isCompleted ? "Análise finalizada" : "Finalizar análise"}
-            onPress={handleComplete}
-            disabled={!session || isCompleted}
-            loading={saving && !isCompleted}
-            variant={isCompleted ? "secondary" : "primary"}
-          />
-        </View>
+          }
+          style={{ marginHorizontal: -24, marginTop: -24 }}
+        />
 
         {loading ? (
           <View style={[getSectionCardStyle(colors, "neutral", { shadow: false }), { alignItems: "center" }]}>

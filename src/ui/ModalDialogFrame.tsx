@@ -15,7 +15,7 @@ type Props = {
   subtitle?: string;
   children: ReactNode;
   footer?: ReactNode;
-  position?: "bottom" | "center";
+  position?: "bottom" | "center" | "right";
   contentContainerStyle?: object;
   bodyStyle?: object;
   footerStyle?: object;
@@ -85,6 +85,7 @@ export function ModalDialogFrame({
             style={[
               {
                 paddingTop: 12,
+                paddingBottom: 12,
                 borderTopWidth: 1,
                 borderTopColor: colors.border,
                 gap: 8,

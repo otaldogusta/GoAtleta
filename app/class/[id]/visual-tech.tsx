@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BackTitleHeader } from "../../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../../src/components/ui/ScreenPageHeader";
 import { VisualCourtCanvas } from "../../../src/components/visual-court/VisualCourtCanvas";
 import { VisualCourtTimelineControls } from "../../../src/components/visual-court/VisualCourtTimelineControls";
 import type { ClassGroup } from "../../../src/core/models";
@@ -37,6 +37,7 @@ import {
   getClassById,
   saveTechnicalVisual,
 } from "../../../src/db/seed";
+import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
 import { Button } from "../../../src/ui/Button";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -831,10 +832,13 @@ export default function ClassVisualTechRoute() {
 
   const goBack = () => {
     if (classId) {
-      router.replace({ pathname: "/class/[id]", params: { id: classId } });
+      navigateBackOrReplace({
+        router,
+        fallback: { pathname: "/class/[id]", params: { id: classId } },
+      });
       return;
     }
-    if (router.canGoBack()) router.back();
+    navigateBackOrReplace({ router, fallback: "/classes" });
   };
 
   const alignButtonLabel = currentStep.passers?.length
@@ -860,25 +864,15 @@ export default function ClassVisualTechRoute() {
         style={{ backgroundColor: colors.background }}
         stickyHeaderIndices={[0]}
       >
-        <View
-          style={{
-            gap: 10,
-            backgroundColor: colors.background,
-            paddingBottom: 10,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.background,
-            zIndex: 20,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <BackTitleHeader title="Quadra visual" onBack={goBack} />
-              <Text style={{ color: colors.muted, marginLeft: 36 }} numberOfLines={2}>
-                {cls?.name
-                  ? `${cls.name} - rodízio, movimentação e desenho técnico`
-                  : "Rodízio, movimentação e desenho técnico da turma"}
-              </Text>
-            </View>
+        <ScreenPageHeader
+          title="Quadra visual"
+          subtitle={
+            cls?.name
+              ? `${cls.name} - rodízio, movimentação e desenho técnico`
+              : "Rodízio, movimentação e desenho técnico da turma"
+          }
+          onBack={goBack}
+          right={
             <Button
               label="Salvar"
               onPress={handleSave}
@@ -886,8 +880,9 @@ export default function ClassVisualTechRoute() {
               disabled={!hasLocalChanges}
               disabledOpacity={0.45}
             />
-          </View>
-        </View>
+          }
+          style={{ marginHorizontal: -16 }}
+        />
 
         {loading ? (
           <View style={[getSectionCardStyle(colors, "neutral", { shadow: false }), { alignItems: "center" }]}>

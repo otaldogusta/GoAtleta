@@ -12,6 +12,7 @@ import type { ClassGroup } from "../src/core/models";
 
 import { useAuth } from "../src/auth/auth";
 import { saveSession, setRememberPreference } from "../src/auth/session";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 
 import { useRole } from "../src/auth/role";
 
@@ -26,6 +27,7 @@ import {
     uploadStudentPhoto,
 } from "../src/api/student-photo-storage";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
 import { useBiometricLock } from "../src/security/biometric-lock";
@@ -551,6 +553,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14 }}
+        stickyHeaderIndices={[0]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -570,13 +573,10 @@ export default function ProfileScreen() {
         }
       >
 
-        <Pressable
-          onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Perfil</Text>
-        </Pressable>
+        <ScreenPageHeader
+          title="Perfil"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        />
 
         <View style={{ gap: 12 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
@@ -1298,9 +1298,6 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-
-
 
 
 

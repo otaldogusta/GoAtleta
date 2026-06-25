@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
     useEffect,
@@ -18,8 +17,9 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import type { ClassGroup } from "../../src/core/models";
 import { getClasses } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { Button } from "../../src/ui/Button";
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 
@@ -204,40 +204,12 @@ export default function AgendaScreen() {
         style={{ flex: 1, padding: 16 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScreenTopChrome
-          style={{
-            gap: 16,
-            paddingBottom: 8,
-            paddingTop: 16,
-            marginBottom: 12,
-          }}
-        >
-          <Pressable
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-                return;
-              }
-              router.replace("/");
-            }}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-              Agenda mensal
-            </Text>
-          </Pressable>
-
-          <View>
-            <Text style={{ color: colors.muted, marginTop: 4 }}>
-              Dias por unidade e turmas
-            </Text>
-          </View>
-        </ScreenTopChrome>
+        <ScreenPageHeader
+          title="Agenda mensal"
+          subtitle="Dias por unidade e turmas"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          style={{ marginHorizontal: -16, marginBottom: 12 }}
+        />
 
       <View
         style={[
@@ -510,6 +482,3 @@ export default function AgendaScreen() {
     </SafeAreaView>
   );
 }
-
-
-

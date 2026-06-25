@@ -91,4 +91,30 @@ describe("buildMonthPlanningSummaries", () => {
     expect(summaries.map((item) => item.monthKey)).toEqual(["2026-08", "2026-12"]);
     expect(summaries[0].estimatedLessonCount).toBe(3);
   });
+
+  it("distribui semanas atravessadas pelos meses das aulas reais", () => {
+    const summaries = buildMonthPlanningSummaries(
+      [
+        plan("june_1", "2026-06-04", 23, 2),
+        plan("boundary_1", "2026-07-02", 27, 2),
+      ],
+      {
+        ...baseClass,
+        daysOfWeek: [2, 4],
+        daysPerWeek: 2,
+      } as ClassGroup,
+      cycle2026
+    );
+
+    expect(summaries.find((item) => item.monthKey === "2026-06")).toMatchObject({
+      hasPlans: true,
+      weekCount: 2,
+      estimatedLessonCount: 3,
+    });
+    expect(summaries.find((item) => item.monthKey === "2026-07")).toMatchObject({
+      hasPlans: true,
+      weekCount: 1,
+      estimatedLessonCount: 1,
+    });
+  });
 });

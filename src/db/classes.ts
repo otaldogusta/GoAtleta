@@ -352,8 +352,9 @@ export async function duplicateClass(base: ClassGroup) {
   const resolvedUnitRow = base.unitId ? { id: base.unitId, name: base.unit } : await ensureUnit(base.unit);
   const resolvedUnit = resolvedUnitRow?.id ?? undefined;
   const activeOrganizationId = base.organizationId ?? (await getActiveOrganizationId());
+  const classId = "c_" + Date.now();
   const payload: Record<string, unknown> = {
-    id: "c_" + Date.now(), name: base.name + " (cópia)", unit: resolvedUnitRow?.name ?? base.unit, unit_id: resolvedUnit,
+    id: classId, name: base.name + " (cópia)", unit: resolvedUnitRow?.name ?? base.unit, unit_id: resolvedUnit,
     color_key: base.colorKey ?? null, modality: base.modality ?? "fitness", ageband: normalizeAgeBand(base.ageBand),
     gender: base.gender, starttime: base.startTime, end_time: computeEndTime(base.startTime, base.durationMinutes),
     duration: base.durationMinutes, days: base.daysOfWeek, daysperweek: base.daysOfWeek.length, goal: base.goal,
@@ -363,6 +364,7 @@ export async function duplicateClass(base: ClassGroup) {
   };
   if (activeOrganizationId) payload.organization_id = activeOrganizationId;
   await supabasePost("/classes", [payload]);
+  return classId;
 }
 
 export async function deleteClass(id: string) {

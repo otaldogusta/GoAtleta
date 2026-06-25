@@ -1586,13 +1586,16 @@ export function HomeProfessorScreen({
 
               style={{
 
-                paddingHorizontal: 12,
+                width: 44,
 
-                paddingVertical: 8,
+                height: 44,
 
                 borderRadius: 999,
 
                 backgroundColor: colors.primaryBg,
+                alignItems: "center",
+
+                justifyContent: "center",
 
               }}
 
@@ -1919,7 +1922,7 @@ export function HomeProfessorScreen({
         <View
           style={{
             padding: 14,
-            borderRadius: 20,
+            borderRadius: 12,
             backgroundColor: colors.card,
             borderWidth: 1,
             borderColor: colors.border,
@@ -1997,7 +2000,7 @@ export function HomeProfessorScreen({
                   flex: 1,
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
-                  borderRadius: 999,
+                  borderRadius: 12,
                   borderWidth: 1,
                   borderColor: colors.primaryBg,
                   backgroundColor: colors.primaryBg,
@@ -2015,7 +2018,7 @@ export function HomeProfessorScreen({
                   flex: 1,
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
-                  borderRadius: 999,
+                  borderRadius: 12,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,
@@ -2031,7 +2034,7 @@ export function HomeProfessorScreen({
                   flex: 1,
                   minWidth: 0,
                   paddingVertical: isWebHome ? 10 : 12,
-                  borderRadius: 999,
+                  borderRadius: 12,
                   borderWidth: 1,
                   borderColor: colors.border,
                   backgroundColor: colors.secondaryBg,

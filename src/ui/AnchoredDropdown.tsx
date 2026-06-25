@@ -87,12 +87,22 @@ export function AnchoredDropdown({
       });
     };
 
+    const isPointInsideTrigger = (event: PointerEvent) => {
+      if (!layout) return false;
+      return (
+        event.clientX >= layout.x &&
+        event.clientX <= layout.x + layout.width &&
+        event.clientY >= layout.y &&
+        event.clientY <= layout.y + layout.height
+      );
+    };
+
     const handleVisibilityOrBlur = () => {
       onRequestClose?.();
     };
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (isEventInsidePanel(event.target)) return;
+      if (isEventInsidePanel(event.target) || isPointInsideTrigger(event)) return;
       onRequestClose?.();
     };
 
@@ -119,7 +129,7 @@ export function AnchoredDropdown({
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [interactiveRefs, onRequestClose, visible]);
+  }, [interactiveRefs, layout, onRequestClose, visible]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || !visible || !layout) return;

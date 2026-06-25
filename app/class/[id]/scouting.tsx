@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { BackTitleHeader } from "../../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../../src/components/ui/ScreenPageHeader";
 import type {
   ClassGroup,
   ScoutingAction,
@@ -26,6 +26,7 @@ import {
   getScoutingSessionsByClass,
   getTrainingSessionsByClass,
 } from "../../../src/db/seed";
+import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
 import { Button } from "../../../src/ui/Button";
 import { DateInput } from "../../../src/ui/DateInput";
 import { ModalDialogFrame } from "../../../src/ui/ModalDialogFrame";
@@ -136,10 +137,13 @@ export default function ClassScoutingRoute() {
 
   const goBack = () => {
     if (classId) {
-      router.replace({ pathname: "/class/[id]", params: { id: classId } });
+      navigateBackOrReplace({
+        router,
+        fallback: { pathname: "/class/[id]", params: { id: classId } },
+      });
       return;
     }
-    if (router.canGoBack()) router.back();
+    navigateBackOrReplace({ router, fallback: "/classes" });
   };
 
   const openSession = (sessionId: string) => {
@@ -181,9 +185,16 @@ export default function ClassScoutingRoute() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenPageHeader
+        title="Scouting"
+        subtitle="Análise técnica, jogo e evolução da equipe"
+        onBack={goBack}
+        right={<Button label="+ Nova análise" onPress={() => setShowCreateModal(true)} />}
+      />
       <ScrollView
         contentContainerStyle={{
-          padding: 20,
+          paddingHorizontal: 20,
+          paddingTop: 2,
           paddingBottom: 96,
           gap: 16,
           width: "100%",
@@ -191,16 +202,6 @@ export default function ClassScoutingRoute() {
           alignSelf: "center",
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-          <View style={{ flex: 1 }}>
-            <BackTitleHeader title="Scouting" onBack={goBack} />
-            <Text style={{ color: colors.muted, marginLeft: 36 }}>
-              Análise técnica, jogo e evolução da equipe
-            </Text>
-          </View>
-          <Button label="+ Nova análise" onPress={() => setShowCreateModal(true)} />
-        </View>
-
         {error ? (
           <View style={getSectionCardStyle(colors, "warning", { shadow: false })}>
             <Text style={{ color: colors.warningText, fontWeight: "800" }}>Atenção</Text>

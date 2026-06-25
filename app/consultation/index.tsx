@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Animated, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import type {
   AvailableEquipment,
   ConsultationGoal,
@@ -34,6 +34,7 @@ import {
   type ConsultationLocalState,
 } from "../../src/db/consultation";
 import { getStudents } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { notifyConsultationEvent } from "../../src/notifications/consultationNotifications";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { radius } from "../../src/theme/tokens";
@@ -760,22 +761,12 @@ export default function ConsultationScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 32 }}>
-        <View style={{ gap: 6 }}>
-          <BackTitleHeader
-            title="Consultoria online"
-            onBack={() => {
-              if (router.canGoBack()) {
-                router.back();
-                return;
-              }
-              router.replace("/");
-            }}
-          />
-          <Text style={{ color: colors.muted }}>
-            Prescrição individual, execução em casa e feedback semanal.
-          </Text>
-        </View>
+      <ScreenPageHeader
+        title="Consultoria online"
+        subtitle="Prescrição individual, execução em casa e feedback semanal."
+        onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+      />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, gap: 14, paddingBottom: 32 }}>
 
         {notice ? (
           <View style={{ padding: 12, borderRadius: radius.card, backgroundColor: colors.successBg }}>

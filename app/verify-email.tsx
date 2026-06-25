@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -128,20 +129,7 @@ export default function VerifyEmailScreen() {
   };
 
   const handleBack = useCallback(() => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      if (window.history.length > 1) {
-        window.history.back();
-        return;
-      }
-      router.replace(session ? "/" : "/login");
-      return;
-    }
-
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.replace(session ? "/" : "/login");
+    navigateBackOrReplace({ router, fallback: session ? "/" : "/login" });
   }, [router, session]);
 
   useEffect(() => {

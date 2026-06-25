@@ -4,7 +4,7 @@ project_id = "hgmdpetpwclucvquoklv"
 verify_jwt = true
 
 [functions.link-metadata]
-verify_jwt = true
+verify_jwt = false
 
 [functions.auto-link-student]
 verify_jwt = false

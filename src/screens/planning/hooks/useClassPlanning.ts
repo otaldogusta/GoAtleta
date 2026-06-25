@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ClassGroup, ClassPlan, PlanningCycle } from "../../../core/models";
+import type { ClassCalendarException, ClassGroup, ClassPlan, PlanningCycle } from "../../../core/models";
 import { ensureActiveCycleForYear, getActivePlanningCycle } from "../../../db/cycles";
-import { getClassById, getClassPlansByClass } from "../../../db/seed";
+import { getClassById, getClassCalendarExceptions, getClassPlansByClass } from "../../../db/seed";
 import { buildMonthPlanningSummaries } from "../application/month-planning-summary";
 
 const toIsoDate = (value: string | null | undefined) => {
@@ -15,6 +15,29 @@ const toIsoDate = (value: string | null | undefined) => {
 
 const isWithinWindow = (date: string, startDate: string, endDate: string) =>
   Boolean(date && startDate && endDate && date >= startDate && date <= endDate);
+
+const OPTIONAL_CLASS_PLANNING_DATA_TIMEOUT_MS = 6000;
+
+const loadOptionalClassPlanningData = async <T,>(label: string, promise: Promise<T>, fallback: T): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`Class planning optional data timed out: ${label}`);
+      resolve(fallback);
+    }, OPTIONAL_CLASS_PLANNING_DATA_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } catch (error) {
+    console.warn(`Class planning optional data failed: ${label}`, error);
+    return fallback;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
 
 const filterPlansByCycleWindow = (plans: ClassPlan[], options: {
   activeCycleId: string;
@@ -57,6 +80,7 @@ export function useClassPlanning(classId: string) {
   const [selectedClass, setSelectedClass] = useState<ClassGroup | null>(null);
   const [activeCycle, setActiveCycle] = useState<PlanningCycle | null>(null);
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
+  const [calendarExceptions, setCalendarExceptions] = useState<ClassCalendarException[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +89,7 @@ export function useClassPlanning(classId: string) {
       setSelectedClass(null);
       setActiveCycle(null);
       setClassPlans([]);
+      setCalendarExceptions([]);
       setError(null);
       setIsLoading(false);
       return;
@@ -84,6 +109,13 @@ export function useClassPlanning(classId: string) {
         cycleId: activeCycle?.id ?? null,
         cycleYear,
       });
+      const exceptions = cls
+        ? await loadOptionalClassPlanningData(
+            "calendar exceptions",
+            getClassCalendarExceptions(classId, { organizationId: cls.organizationId ?? null }),
+            []
+          )
+        : [];
 
       const windowStart = toIsoDate(activeCycle?.startDate);
       const windowEnd = toIsoDate(activeCycle?.endDate);
@@ -96,6 +128,7 @@ export function useClassPlanning(classId: string) {
       setSelectedClass(cls);
       setActiveCycle(activeCycle);
       setClassPlans(dedupeWeeklyPlans(scopedPlans));
+      setCalendarExceptions(exceptions);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Falha ao carregar planejamentos.");
     } finally {
@@ -108,14 +141,15 @@ export function useClassPlanning(classId: string) {
   }, [load]);
 
   const months = useMemo(
-    () => buildMonthPlanningSummaries(classPlans, selectedClass, activeCycle),
-    [activeCycle, classPlans, selectedClass]
+    () => buildMonthPlanningSummaries(classPlans, selectedClass, activeCycle, calendarExceptions),
+    [activeCycle, calendarExceptions, classPlans, selectedClass]
   );
 
   return {
     selectedClass,
     activeCycle,
     classPlans,
+    calendarExceptions,
     months,
     isLoading,
     error,

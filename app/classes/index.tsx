@@ -17,23 +17,30 @@ import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
+import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
-import type { ClassGroup, TrainingSessionIntegrationRule } from "../../src/core/models";
+import type { ClassGroup, Student, TrainingSessionIntegrationRule } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
     deleteClassCascade,
+    duplicateClass,
     getClasses,
     getTrainingIntegrationRules,
     saveClass,
     updateClass,
 } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { getStudents } from "../../src/db/students";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
+import {
+  buildClassCardViewModel,
+  groupStudentsByClassId,
+} from "../../src/screens/classes/application/class-card-view-model";
 import { ClassesListSection } from "../../src/screens/classes/components/ClassesListSection";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
@@ -47,8 +54,6 @@ import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
-import { getUnitPalette } from "../../src/ui/unit-colors";
-import { UnitFilterBar } from "../../src/ui/UnitFilterBar";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
@@ -59,6 +64,159 @@ const ClassEditModalBody = lazy(() =>
     default: module.ClassEditModalBody,
   }))
 );
+
+const CLASS_LIST_PREVIEW_ITEMS: ClassGroup[] = [
+  {
+    id: "preview_cidadania_1",
+    name: "Turma 10-12",
+    organizationId: "preview",
+    unit: "Cidadania Boa Vista",
+    unitId: "preview_cidadania",
+    colorKey: "default",
+    modality: "voleibol",
+    ageBand: "10-12",
+    gender: "misto",
+    startTime: "15:00",
+    endTime: "16:00",
+    durationMinutes: 60,
+    daysOfWeek: [2, 4],
+    daysPerWeek: 2,
+    goal: "Fundamentos",
+    equipment: "quadra",
+    level: 1,
+    mvLevel: "MV1",
+    cycleStartDate: "2026-01-06",
+    cycleLengthWeeks: 52,
+    acwrLow: 0.8,
+    acwrHigh: 1.3,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "preview_cidadania_2",
+    name: "Iniciação Vôlei",
+    organizationId: "preview",
+    unit: "Cidadania Boa Vista",
+    unitId: "preview_cidadania",
+    colorKey: "default",
+    modality: "voleibol",
+    ageBand: "08-11",
+    gender: "misto",
+    startTime: "16:15",
+    endTime: "17:15",
+    durationMinutes: 60,
+    daysOfWeek: [3],
+    daysPerWeek: 1,
+    goal: "Fundamentos",
+    equipment: "quadra",
+    level: 1,
+    mvLevel: "MV1",
+    cycleStartDate: "2026-01-06",
+    cycleLengthWeeks: 52,
+    acwrLow: 0.8,
+    acwrHigh: 1.3,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "preview_rede_1",
+    name: "Turma 07-09",
+    organizationId: "preview",
+    unit: "Rede Esperança",
+    unitId: "preview_rede",
+    colorKey: "default",
+    modality: "voleibol",
+    ageBand: "06-08",
+    gender: "misto",
+    startTime: "13:00",
+    endTime: "14:00",
+    durationMinutes: 60,
+    daysOfWeek: [2, 4],
+    daysPerWeek: 2,
+    goal: "Fundamentos",
+    equipment: "quadra",
+    level: 1,
+    mvLevel: "MV1",
+    cycleStartDate: "2026-01-06",
+    cycleLengthWeeks: 52,
+    acwrLow: 0.8,
+    acwrHigh: 1.3,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "preview_rede_2",
+    name: "Primeiros Saques",
+    organizationId: "preview",
+    unit: "Rede Esperança",
+    unitId: "preview_rede",
+    colorKey: "default",
+    modality: "voleibol",
+    ageBand: "09-11",
+    gender: "misto",
+    startTime: "15:15",
+    endTime: "16:15",
+    durationMinutes: 60,
+    daysOfWeek: [3],
+    daysPerWeek: 1,
+    goal: "Saque",
+    equipment: "quadra",
+    level: 1,
+    mvLevel: "MV1",
+    cycleStartDate: "2026-01-06",
+    cycleLengthWeeks: 52,
+    acwrLow: 0.8,
+    acwrHigh: 1.3,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "preview_unibrasil_1",
+    name: "ElCartel Base",
+    organizationId: "preview",
+    unit: "UniBrasil",
+    unitId: "preview_unibrasil",
+    colorKey: "default",
+    modality: "voleibol",
+    ageBand: "13-15",
+    gender: "masculino",
+    startTime: "16:00",
+    endTime: "17:15",
+    durationMinutes: 75,
+    daysOfWeek: [2, 4],
+    daysPerWeek: 2,
+    goal: "Fundamentos",
+    equipment: "quadra",
+    level: 2,
+    mvLevel: "MV2",
+    cycleStartDate: "2026-01-06",
+    cycleLengthWeeks: 52,
+    acwrLow: 0.8,
+    acwrHigh: 1.3,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+  {
+    id: "preview_unibrasil_2",
+    name: "ElCartel Sub-18",
+    organizationId: "preview",
+    unit: "UniBrasil",
+    unitId: "preview_unibrasil",
+    colorKey: "default",
+    modality: "voleibol",
+    ageBand: "16-18",
+    gender: "feminino",
+    startTime: "19:15",
+    endTime: "20:30",
+    durationMinutes: 75,
+    daysOfWeek: [3],
+    daysPerWeek: 1,
+    goal: "Jogo",
+    equipment: "quadra",
+    level: 2,
+    mvLevel: "MV2",
+    cycleStartDate: "2026-01-06",
+    cycleLengthWeeks: 52,
+    acwrLow: 0.8,
+    acwrHigh: 1.3,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  },
+];
 
 export default function ClassesScreen() {
   markRender("screen.classes.render.root");
@@ -78,10 +236,12 @@ export default function ClassesScreen() {
   const prefillModalityParam = Array.isArray(prefillModality) ? prefillModality[0] : prefillModality;
   const prefillUnitParam = Array.isArray(prefillUnit) ? prefillUnit[0] : prefillUnit;
   const { colors } = useAppTheme();
+  const { session } = useAuth();
   const bottomScrollPadding = insets.bottom + 112;
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
   const getClassId = useCallback((item: ClassGroup) => item.id, []);
   const undoableClassDelete = useUndoableListDelete({
@@ -299,7 +459,6 @@ export default function ClassesScreen() {
   ];
   const [showNewCycleCalendar, setShowNewCycleCalendar] = useState(false);
   const [showEditCycleCalendar, setShowEditCycleCalendar] = useState(false);
-  const [showUnitFilterPicker, setShowUnitFilterPicker] = useState(false);
   const [showCycleLengthPicker, setShowCycleLengthPicker] = useState(false);
   const [showMvLevelPicker, setShowMvLevelPicker] = useState(false);
   const [showAgeBandPicker, setShowAgeBandPicker] = useState(false);
@@ -318,12 +477,6 @@ export default function ClassesScreen() {
       ),
     [colors, editUnit, editingClass]
   );
-  const [unitFilterLayout, setUnitFilterLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
   const [cycleLengthTriggerLayout, setCycleLengthTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -362,17 +515,12 @@ export default function ClassesScreen() {
   } | null>(null);
   const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<View>(null);
-  const unitFilterTriggerRef = useRef<View>(null);
   const cycleLengthTriggerRef = useRef<View>(null);
   const mvLevelTriggerRef = useRef<View>(null);
   const ageBandTriggerRef = useRef<View>(null);
   const genderTriggerRef = useRef<View>(null);
   const modalityTriggerRef = useRef<View>(null);
   const goalTriggerRef = useRef<View>(null);
-  const {
-    animatedStyle: unitFilterAnimStyle,
-    isVisible: showUnitFilterPickerContent,
-  } = useCollapsibleAnimation(showUnitFilterPicker);
   const { animatedStyle: cycleLengthPickerAnimStyle, isVisible: showCycleLengthPickerContent } =
     useCollapsibleAnimation(showCycleLengthPicker);
   const { animatedStyle: mvLevelPickerAnimStyle, isVisible: showMvLevelPickerContent } =
@@ -406,16 +554,6 @@ export default function ClassesScreen() {
     (value: string) => normalizeUnitKey(unitLabel(value)),
     [unitLabel]
   );
-  const units = useMemo(() => {
-    const map = new Map<string, string>();
-    classes.forEach((item) => {
-      const label = unitLabel(item.unit);
-      const key = unitKey(label);
-      if (!map.has(key)) map.set(key, label);
-    });
-    return ["Todas", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
-  }, [classes, unitKey, unitLabel]);
-  const [unitFilter, setUnitFilter] = useState("Todas");
   const chipBaseStyle = useMemo(
     () => ({
       paddingVertical: 6,
@@ -468,11 +606,44 @@ export default function ClassesScreen() {
     options: { value: string; label: string }[]
   ) => options.find((option) => option.value === value)?.label ?? value ?? "";
 
-  const filteredClasses = useMemo(() => {
-    if (unitFilter === "Todas") return classes;
-    const filterKey = normalizeUnitKey(unitFilter);
-    return classes.filter((item) => unitKey(item.unit) === filterKey);
-  }, [classes, unitFilter, unitKey]);
+  const displayClasses = useMemo(() => {
+    if (!__DEV__ || classes.length > 0) return classes;
+    const realIds = new Set(classes.map((item) => item.id));
+    const previewItems = CLASS_LIST_PREVIEW_ITEMS.filter((item) => {
+      return !realIds.has(item.id);
+    });
+    return [...classes, ...previewItems];
+  }, [classes]);
+
+  const studentsByClassId = useMemo(() => groupStudentsByClassId(students), [students]);
+  const currentTeacher = useMemo(() => {
+    const metadata = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
+    const getText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+    const name =
+      getText(metadata.full_name) ||
+      getText(metadata.name) ||
+      getText(metadata.display_name) ||
+      getText(session?.user?.email);
+    const photoUrl = getText(metadata.avatar_url) || getText(metadata.picture);
+    return {
+      name: name || null,
+      photoUrl: photoUrl || null,
+    };
+  }, [session?.user?.email, session?.user?.user_metadata]);
+
+  const classCardViewModelsById = useMemo(() => {
+    return displayClasses.reduce<Record<string, ReturnType<typeof buildClassCardViewModel>>>(
+      (acc, classGroup) => {
+        acc[classGroup.id] = buildClassCardViewModel({
+          classGroup,
+          students: studentsByClassId[classGroup.id] ?? [],
+          teacher: currentTeacher,
+        });
+        return acc;
+      },
+      {}
+    );
+  }, [currentTeacher, displayClasses, studentsByClassId]);
 
   const goalSuggestions = useMemo(() => {
     const key = normalizeUnitKey(newUnit);
@@ -706,7 +877,7 @@ export default function ClassesScreen() {
   const grouped = useMemo(() => {
     const map: Record<string, ClassGroup[]> = {};
     const labels = new Map<string, string>();
-    filteredClasses.forEach((item) => {
+    displayClasses.forEach((item) => {
       const label = unitLabel(item.unit);
       const key = unitKey(label);
       if (!map[key]) map[key] = [];
@@ -718,22 +889,28 @@ export default function ClassesScreen() {
       return [labels.get(unitKeyValue) ?? "Sem unidade", sortedItems] as [string, ClassGroup[]];
     });
     return sortedEntries.sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredClasses, unitKey, unitLabel]);
+  }, [displayClasses, unitKey, unitLabel]);
 
   const loadClasses = useCallback(async (alive?: { current: boolean }) => {
     const isAlive = () => !alive || alive.current;
     setLoading(true);
     try {
-      const [data, rules] = await Promise.all([
+      const [data, rules, studentList] = await Promise.all([
         measureAsync(
           "screen.classes.load.list",
           () => getClasses(),
           { screen: "classes" }
         ),
         getTrainingIntegrationRules(),
+        measureAsync(
+          "screen.classes.load.students",
+          () => getStudents(),
+          { screen: "classes" }
+        ),
       ]);
       if (isAlive()) setClasses(data);
       if (isAlive()) setIntegrationRules(rules);
+      if (isAlive()) setStudents(studentList);
     } finally {
       if (isAlive()) setLoading(false);
     }
@@ -893,7 +1070,7 @@ export default function ClassesScreen() {
       newDays.length > 0 ||
       newMvLevel !== "" ||
       newCycleStartDate.trim() !== "" ||
-      newCycleLengthWeeks !== 0
+      newCycleLengthWeeks !== DEFAULT_CLASS_CYCLE_LENGTH_WEEKS
     );
   }, [
     newName,
@@ -1210,7 +1387,6 @@ export default function ClassesScreen() {
   };
 
   const closeAllPickers = useCallback(() => {
-    setShowUnitFilterPicker(false);
     setShowCycleLengthPicker(false);
     setShowMvLevelPicker(false);
     setShowAgeBandPicker(false);
@@ -1225,16 +1401,6 @@ export default function ClassesScreen() {
     setShowEditGoalPicker(false);
   }, []);
 
-  const toggleUnitFilter = useCallback(() => {
-    setShowCycleLengthPicker(false);
-    setShowMvLevelPicker(false);
-    setShowAgeBandPicker(false);
-    setShowGenderPicker(false);
-    setShowModalityPicker(false);
-    setShowGoalPicker(false);
-    setShowUnitFilterPicker((prev) => !prev);
-  }, []);
-
   const toggleNewPicker = useCallback(
     (
       target:
@@ -1245,7 +1411,6 @@ export default function ClassesScreen() {
         | "modality"
         | "goal"
     ) => {
-      setShowUnitFilterPicker(false);
       setShowCycleLengthPicker((prev) => (target === "cycle" ? !prev : false));
       setShowMvLevelPicker((prev) => (target === "level" ? !prev : false));
       setShowAgeBandPicker((prev) => (target === "age" ? !prev : false));
@@ -1255,11 +1420,6 @@ export default function ClassesScreen() {
     },
     []
   );
-
-  const handleSelectUnit = useCallback((unit: string) => {
-    setUnitFilter(unit);
-    setShowUnitFilterPicker(false);
-  }, []);
 
   const handleSelectCycleLength = useCallback((value: SelectOptionValue) => {
     const parsed = typeof value === "number" ? value : Number(value);
@@ -1468,7 +1628,6 @@ export default function ClassesScreen() {
 
   const syncPickerLayouts = useCallback(() => {
     const hasPickerOpen =
-      showUnitFilterPicker ||
       showCycleLengthPicker ||
       showMvLevelPicker ||
       showAgeBandPicker ||
@@ -1477,11 +1636,6 @@ export default function ClassesScreen() {
       showGoalPicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
-      if (showUnitFilterPicker) {
-        unitFilterTriggerRef.current?.measureInWindow((x, y, width, height) => {
-          setUnitFilterLayout({ x, y, width, height });
-        });
-      }
       if (showCycleLengthPicker) {
         cycleLengthTriggerRef.current?.measureInWindow((x, y, width, height) => {
           setCycleLengthTriggerLayout({ x, y, width, height });
@@ -1517,7 +1671,6 @@ export default function ClassesScreen() {
       });
     });
   }, [
-    showUnitFilterPicker,
     showCycleLengthPicker,
     showMvLevelPicker,
     showAgeBandPicker,
@@ -1529,7 +1682,6 @@ export default function ClassesScreen() {
   useEffect(() => {
     syncPickerLayouts();
   }, [
-    showUnitFilterPicker,
     showCycleLengthPicker,
     showMvLevelPicker,
     showAgeBandPicker,
@@ -1541,6 +1693,7 @@ export default function ClassesScreen() {
 
   const handleOpenClass = useCallback(
     (item: ClassGroup) => {
+      if (item.id.startsWith("preview_")) return;
       router.push({
         pathname: "/class/[id]",
         params: { id: item.id },
@@ -1548,47 +1701,52 @@ export default function ClassesScreen() {
     },
     [router]
   );
+
+  const handleEditClassFromCard = useCallback(
+    (item: ClassGroup) => {
+      if (item.id.startsWith("preview_")) return;
+      openEditModal(item);
+    },
+    [openEditModal]
+  );
+
+  const handleDuplicateClassFromCard = useCallback(
+    async (item: ClassGroup) => {
+      if (item.id.startsWith("preview_")) return;
+      const duplicatedClassId = await measure("duplicateClass", () => duplicateClass(item));
+      logAction("Duplicar turma", { classId: item.id });
+      await loadClasses();
+      confirmDialog({
+        title: "Turma duplicada",
+        message: `Criamos uma cópia de ${item.name}.`,
+        confirmLabel: "Ver cópia",
+        cancelLabel: "Ficar na lista",
+        tone: "default",
+        onConfirm: () => {
+          router.push({
+            pathname: "/class/[id]",
+            params: { id: duplicatedClassId },
+          });
+        },
+      });
+    },
+    [confirmDialog, loadClasses, router]
+  );
+
+  const handleDeleteClassFromCard = useCallback(
+    (item: ClassGroup) => {
+      if (item.id.startsWith("preview_")) return;
+      undoableClassDelete.deleteOne(item);
+    },
+    [undoableClassDelete]
+  );
+
   const handleSelectNewColor = useCallback((value: string | null) => {
     setNewColorKey(value);
   }, []);
   const handleSelectEditColor = useCallback((value: string | null) => {
     setEditColorKey(value);
   }, []);
-
-  const UnitOption = useMemo(
-    () =>
-      memo(function UnitOptionItem({
-        unit,
-        active,
-        palette,
-        onSelect,
-        isFirst,
-      }: {
-        unit: string;
-        active: boolean;
-        palette: { bg: string; text: string };
-        onSelect: (value: string) => void;
-        isFirst: boolean;
-      }) {
-        return (
-          <AnchoredDropdownOption
-            active={active}
-            onPress={() => onSelect(unit)}
-          >
-            <Text
-              style={{
-                color: active ? palette.text : colors.text,
-                fontSize: 14,
-                fontWeight: active ? "700" : "500",
-              }}
-            >
-              {unit}
-            </Text>
-          </AnchoredDropdownOption>
-        );
-      }),
-    [colors]
-  );
 
   const SelectOption = useMemo(
     () =>
@@ -1665,20 +1823,6 @@ export default function ClassesScreen() {
     [colors]
   );
 
-    const isDirty =
-      newName.trim() ||
-      newUnit.trim() ||
-    newModality !== "" ||
-      newStartTime.trim() !== "14:00" ||
-      newEndTime.trim() !== "15:00" ||
-      newAgeBand.trim() !== "08-09" ||
-    newMvLevel.trim() !== "MV1" ||
-    newGender !== "misto" ||
-    newGoal.trim() !== "Fundamentos" ||
-    newDays.length > 0 ||
-    newCycleStartDate.trim() ||
-    newCycleLengthWeeks !== DEFAULT_CLASS_CYCLE_LENGTH_WEEKS;
-
   if (loading && !classes.length) {
     return (
       <SafeAreaView style={{ flex: 1 }}>
@@ -1694,149 +1838,100 @@ export default function ClassesScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View ref={containerRef} style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
-        <ScreenTopChrome
-          style={{
-            gap: 16,
-            paddingBottom: 8,
-            paddingHorizontal: 16,
-            paddingTop: 16,
+        <ScreenPageHeader
+          title="Turmas"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          right={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Criar turma"
+              onPress={() => requestSwitchMainTab("criar")}
+              disabled={mainTab === "criar"}
+              style={{
+                height: 40,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                paddingHorizontal: 13,
+                borderRadius: 999,
+                backgroundColor: colors.primaryBg,
+                opacity: mainTab === "criar" ? 0.7 : 1,
+              }}
+            >
+              <Ionicons name="add" size={16} color={colors.primaryText} />
+              <Text style={{ color: colors.primaryText, fontWeight: "900", fontSize: 12 }}>
+                Criar turma
+              </Text>
+            </Pressable>
+          }
+          contentStyle={{ paddingBottom: 8 }}
+        />
+
+        <ConfirmCloseOverlay
+          visible={showCreateTabConfirm}
+          onCancel={() => {
+            setShowCreateTabConfirm(false);
+            setPendingMainTab(null);
           }}
-        >
-          <BackTitleHeader
-            title="Turmas"
-            onBack={() => {
-              if (router.canGoBack()) {
-                router.back();
-                return;
-              }
-              router.replace("/");
-            }}
-          />
+          onConfirm={() => {
+            setShowCreateTabConfirm(false);
+            resetCreateForm();
+            setMainTab(pendingMainTab ?? "lista");
+            setPendingMainTab(null);
+          }}
+        />
 
-          <ConfirmCloseOverlay
-            visible={showCreateTabConfirm}
-            onCancel={() => {
-              setShowCreateTabConfirm(false);
-              setPendingMainTab(null);
-            }}
-            onConfirm={() => {
-              setShowCreateTabConfirm(false);
-              resetCreateForm();
-              setMainTab(pendingMainTab ?? "lista");
-              setPendingMainTab(null);
-            }}
-          />
-
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 6,
-              padding: 6,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-              {[
-                { id: "lista" as const, label: "Lista" },
-                { id: "criar" as const, label: "Criar turma" },
-              ].map((tab) => {
-                const tabProgress = mainTabAnim[tab.id];
-                const tabScale = tabProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.95, 1],
-                });
-                const tabOpacity = tabProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.68, 1],
-                });
-                const tabBackground = tabProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [colors.card, colors.primaryBg],
-                });
-                const tabTextColor = tabProgress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [colors.text, colors.primaryText],
-                });
-                return (
-                  <Animated.View
-                    key={tab.id}
-                    style={{
-                      flex: 1,
-                      borderRadius: 999,
-                      opacity: tabOpacity,
-                      transform: [{ scale: tabScale }],
-                      backgroundColor: tabBackground,
-                    }}
-                  >
-                  <Pressable
-                    onPress={() => requestSwitchMainTab(tab.id)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 999,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Animated.Text
-                      style={{
-                        color: tabTextColor,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
-                      {tab.label}
-                    </Animated.Text>
-                  </Pressable>
-                  </Animated.View>
-                );
-              })}
-          </View>
-        </ScreenTopChrome>
-
-        {mainTab === "lista" ? (
-          <View style={{ flex: 1, minHeight: 0, gap: 12, paddingHorizontal: 16, paddingTop: 12 }}>
-            <UnitFilterBar
-              units={units}
-              selectedUnit={unitFilter}
-              onSelectUnit={handleSelectUnit}
+        <View style={{ flex: 1, minHeight: 0, gap: 14, paddingHorizontal: 16, paddingTop: 12 }}>
+          <View style={{ flex: 1, minHeight: 0 }}>
+            <ClassesListSection
+              grouped={grouped}
+              conflictsById={conflictsById}
+              dayNames={dayNames}
+              colors={colors}
+              onOpenClass={handleOpenClass}
+              onEditClass={handleEditClassFromCard}
+              onDuplicateClass={handleDuplicateClassFromCard}
+              onDeleteClass={handleDeleteClassFromCard}
+              classCardViewModelsById={classCardViewModelsById}
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                try {
+                  await loadClasses();
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+              onScrollBeginDrag={closeAllPickers}
+              contentContainerStyle={{
+                paddingBottom: bottomScrollPadding,
+                gap: 0,
+              }}
             />
-            <View style={{ flex: 1, minHeight: 0, paddingLeft: 10 }}>
-              <ClassesListSection
-                grouped={grouped}
-                conflictsById={conflictsById}
-                dayNames={dayNames}
-                colors={colors}
-                onOpenClass={handleOpenClass}
-                refreshing={refreshing}
-                onRefresh={async () => {
-                  setRefreshing(true);
-                  try {
-                    await loadClasses();
-                  } finally {
-                    setRefreshing(false);
-                  }
-                }}
-                onScrollBeginDrag={closeAllPickers}
-                contentContainerStyle={{
-                  paddingBottom: bottomScrollPadding,
-                  gap: 0,
-                }}
-              />
-            </View>
           </View>
-        ) : (
-        <ScrollView
-          style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}
-          contentContainerStyle={{
-            gap: 16,
-            paddingBottom: bottomScrollPadding,
-            paddingHorizontal: 16,
-            paddingTop: 12,
-          }}
-          keyboardShouldPersistTaps="handled"
-          onScrollBeginDrag={closeAllPickers}
+        </View>
+
+        <ModalDialogFrame
+          visible={mainTab === "criar"}
+          onClose={() => requestSwitchMainTab("lista")}
+          cardStyle={[
+            editModalCardStyle,
+            {
+              paddingBottom: 0,
+              maxHeight: "88%",
+              height: "auto",
+              minHeight: 0,
+              overflow: "hidden",
+            },
+          ]}
+          position="center"
+          colors={colors}
+          title="Criar turma"
+          subtitle="Cadastre unidade, horários e perfil da turma."
+          contentContainerStyle={{ gap: 12, paddingBottom: 24, paddingHorizontal: 12, paddingTop: 12 }}
         >
-        <View style={{ gap: 12, marginTop: 12 }}>
+        <View style={{ gap: 12 }}>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
@@ -2136,48 +2231,18 @@ export default function ClassesScreen() {
             disabled={saving || !newName.trim()}
           />
         </View>
-        </ScrollView>
-        )}
-
-        <AnchoredDropdown
-          visible={showUnitFilterPickerContent}
-          layout={unitFilterLayout}
-          container={containerWindow}
-          animationStyle={unitFilterAnimStyle}
-          zIndex={300}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          {units.map((unit, index) => {
-            const active = unitFilter === unit;
-            const palette =
-              unit === "Todas"
-                 ? { bg: colors.primaryBg, text: colors.primaryText }
-                : getUnitPalette(unit, colors);
-            return (
-              <UnitOption
-                key={unit}
-                unit={unit}
-                active={active}
-                palette={palette}
-                onSelect={handleSelectUnit}
-                isFirst={index === 0}
-              />
-            );
-          })}
-        </AnchoredDropdown>
+        </ModalDialogFrame>
 
         <AnchoredDropdown
           visible={showCycleLengthPickerContent}
           layout={cycleLengthTriggerLayout}
           container={containerWindow}
           animationStyle={cycleLengthPickerAnimStyle}
-          zIndex={320}
+          zIndex={5200}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[cycleLengthTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {cycleLengthOptions.map((value, index) => (
@@ -2197,10 +2262,11 @@ export default function ClassesScreen() {
           layout={mvLevelTriggerLayout}
           container={containerWindow}
           animationStyle={mvLevelPickerAnimStyle}
-          zIndex={320}
+          zIndex={5201}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[mvLevelTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {mvLevelOptions.map((option, index) => (
@@ -2220,10 +2286,11 @@ export default function ClassesScreen() {
           layout={ageBandTriggerLayout}
           container={containerWindow}
           animationStyle={ageBandPickerAnimStyle}
-          zIndex={320}
+          zIndex={5202}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[ageBandTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {ageBandOptions.map((band, index) => (
@@ -2249,10 +2316,11 @@ export default function ClassesScreen() {
           layout={genderTriggerLayout}
           container={containerWindow}
           animationStyle={genderPickerAnimStyle}
-          zIndex={320}
+          zIndex={5203}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[genderTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {genderOptions.map((option, index) => (
@@ -2272,10 +2340,11 @@ export default function ClassesScreen() {
           layout={modalityTriggerLayout}
           container={containerWindow}
           animationStyle={modalityPickerAnimStyle}
-          zIndex={320}
+          zIndex={5204}
           maxHeight={220}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[modalityTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {modalityOptions.map((option, index) => (
@@ -2295,10 +2364,11 @@ export default function ClassesScreen() {
           layout={goalTriggerLayout}
           container={containerWindow}
           animationStyle={goalPickerAnimStyle}
-          zIndex={320}
+          zIndex={5205}
           maxHeight={260}
           nestedScrollEnabled
           onRequestClose={closeAllPickers}
+          interactiveRefs={[goalTriggerRef]}
           scrollContentStyle={{ padding: 8, gap: 6 }}
         >
           {goalOptions.map((goal, index) => (

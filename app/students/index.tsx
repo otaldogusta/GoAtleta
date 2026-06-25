@@ -33,8 +33,7 @@ import {
 } from "../../src/api/student-photo-storage";
 import { useAuth } from "../../src/auth/auth";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { getClassModalityLabel } from "../../src/core/class-modality";
 import {
     sortClassesBySchedule,
@@ -57,6 +56,7 @@ import {
     saveStudent,
     updateStudent
 } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useIsOnline } from "../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { notifyBirthdays } from "../../src/notifications";
@@ -2030,11 +2030,7 @@ export default function StudentsScreen() {
   );
 
   const goBackFromStudents = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.replace("/");
+    navigateBackOrReplace({ router, fallback: "/prof/home" });
   }, [router]);
 
   if (loading) {
@@ -2048,15 +2044,38 @@ export default function StudentsScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
+        <ScreenPageHeader title="Alunos" onBack={goBackFromStudents}>
+          <AnimatedSegmentedTabs
+            tabs={studentsTabMeta}
+            activeTab={studentsTab}
+            onChange={requestSwitchStudentsTab}
+            style={{ padding: 4, gap: 6 }}
+          />
+        </ScreenPageHeader>
+
+        <ConfirmCloseOverlay
+          visible={showStudentsTabConfirm}
+          onCancel={() => {
+            setShowStudentsTabConfirm(false);
+            setPendingStudentsTab(null);
+          }}
+          onConfirm={() => {
+            setShowStudentsTabConfirm(false);
+            doResetForm();
+            resetPreRegistrationForm();
+            setStudentsTab(pendingStudentsTab ?? "alunos");
+            setPendingStudentsTab(null);
+          }}
+        />
+
       <ScrollView
         contentContainerStyle={{
           paddingBottom: isCadastroTab ? Math.max(insets.bottom + 104, 120) : 24,
           gap: 16,
           paddingHorizontal: 16,
-          paddingTop: 0,
+          paddingTop: 12,
         }}
         keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={[0]}
         onScrollBeginDrag={closeAllPickers}
         refreshControl={
           <RefreshControl
@@ -2074,36 +2093,6 @@ export default function StudentsScreen() {
           />
         }
       >
-        <ScreenTopChrome
-          style={{
-            gap: 10,
-            paddingTop: 16,
-            paddingBottom: 6,
-          }}
-        >
-          <BackTitleHeader title="Alunos" onBack={goBackFromStudents} />
-          <AnimatedSegmentedTabs
-            tabs={studentsTabMeta}
-            activeTab={studentsTab}
-            onChange={requestSwitchStudentsTab}
-            style={{ padding: 4, gap: 6 }}
-          />
-        </ScreenTopChrome>
-
-        <ConfirmCloseOverlay
-          visible={showStudentsTabConfirm}
-          onCancel={() => {
-            setShowStudentsTabConfirm(false);
-            setPendingStudentsTab(null);
-          }}
-          onConfirm={() => {
-            setShowStudentsTabConfirm(false);
-            doResetForm();
-            resetPreRegistrationForm();
-            setStudentsTab(pendingStudentsTab ?? "alunos");
-            setPendingStudentsTab(null);
-          }}
-        />
 
         {studentsTab === "alunos" ? (
           <StudentsOverviewCard
@@ -2811,7 +2800,3 @@ export default function StudentsScreen() {
     </SafeAreaView>
   );
 }
-
-
-
-

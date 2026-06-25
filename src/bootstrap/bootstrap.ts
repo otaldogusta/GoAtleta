@@ -54,8 +54,10 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
         );
       }
       if (configError) {
-        Sentry.captureException(configError, {
-          tags: { bootstrap_phase: "pedagogical-config" },
+        Sentry.addBreadcrumb({
+          category: "bootstrap",
+          message: `loadPedagogicalConfig fallback: ${configError.message}`,
+          level: "warning",
         });
       }
 
