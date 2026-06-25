@@ -17,8 +17,7 @@ import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
@@ -34,6 +33,7 @@ import {
     saveClass,
     updateClass,
 } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { getStudents } from "../../src/db/students";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
@@ -1838,67 +1838,49 @@ export default function ClassesScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
       <View ref={containerRef} style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
-        <ScreenTopChrome
-          style={{
-            gap: 16,
-            paddingBottom: 8,
-            paddingHorizontal: 16,
-            paddingTop: 16,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <BackTitleHeader
-              title="Turmas"
-              onBack={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/");
+        <ScreenPageHeader
+          title="Turmas"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          right={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Criar turma"
+              onPress={() => requestSwitchMainTab("criar")}
+              disabled={mainTab === "criar"}
+              style={{
+                height: 40,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                paddingHorizontal: 13,
+                borderRadius: 999,
+                backgroundColor: colors.primaryBg,
+                opacity: mainTab === "criar" ? 0.7 : 1,
               }}
-              style={{ flexShrink: 1, marginBottom: 0 }}
-            />
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Criar turma"
-                onPress={() => requestSwitchMainTab("criar")}
-                disabled={mainTab === "criar"}
-                style={{
-                  height: 40,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  paddingHorizontal: 13,
-                  borderRadius: 999,
-                  backgroundColor: colors.primaryBg,
-                  opacity: mainTab === "criar" ? 0.7 : 1,
-                }}
-              >
-                <Ionicons name="add" size={16} color={colors.primaryText} />
-                <Text style={{ color: colors.primaryText, fontWeight: "900", fontSize: 12 }}>
-                  Criar turma
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+            >
+              <Ionicons name="add" size={16} color={colors.primaryText} />
+              <Text style={{ color: colors.primaryText, fontWeight: "900", fontSize: 12 }}>
+                Criar turma
+              </Text>
+            </Pressable>
+          }
+          contentStyle={{ paddingBottom: 8 }}
+        />
 
-          <ConfirmCloseOverlay
-            visible={showCreateTabConfirm}
-            onCancel={() => {
-              setShowCreateTabConfirm(false);
-              setPendingMainTab(null);
-            }}
-            onConfirm={() => {
-              setShowCreateTabConfirm(false);
-              resetCreateForm();
-              setMainTab(pendingMainTab ?? "lista");
-              setPendingMainTab(null);
-            }}
-          />
-
-        </ScreenTopChrome>
+        <ConfirmCloseOverlay
+          visible={showCreateTabConfirm}
+          onCancel={() => {
+            setShowCreateTabConfirm(false);
+            setPendingMainTab(null);
+          }}
+          onConfirm={() => {
+            setShowCreateTabConfirm(false);
+            resetCreateForm();
+            setMainTab(pendingMainTab ?? "lista");
+            setPendingMainTab(null);
+          }}
+        />
 
         <View style={{ flex: 1, minHeight: 0, gap: 14, paddingHorizontal: 16, paddingTop: 12 }}>
           <View style={{ flex: 1, minHeight: 0 }}>

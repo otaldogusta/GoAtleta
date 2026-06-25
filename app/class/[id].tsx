@@ -18,7 +18,7 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
-import { ScreenTopChrome } from "../../src/components/ui/ScreenTopChrome";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
 import type { ClassGroup, ScoutingLog, TrainingPlan } from "../../src/core/models";
@@ -49,6 +49,7 @@ import {
     updateClass,
     updateClassColor,
 } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
@@ -1768,79 +1769,32 @@ export default function ClassDetails() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <ScreenTopChrome
-          style={{
-            gap: 8,
-            paddingHorizontal: 16,
-            paddingTop: 20,
-            paddingBottom: 16,
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
-            }}
-          >
+        <ScreenPageHeader
+          title={className}
+          titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
+          onBack={() => navigateBackOrReplace({ router, fallback: "/classes" })}
+          right={
             <Pressable
               onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/classes");
+                resetEditFields();
+                setShowEditModal(true);
               }}
               style={{
-                flexDirection: "row",
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: colors.secondaryBg,
                 alignItems: "center",
-                gap: 8,
-                flexShrink: 1,
-                minHeight: 38,
-                borderRadius: 12,
-                paddingLeft: 4,
-                paddingRight: 10,
-                paddingVertical: 4,
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: colors.border,
               }}
             >
-              <MaterialCommunityIcons name="chevron-left" size={22} color={colors.text} />
-              <Text
-                numberOfLines={1}
-                style={{
-                  fontSize: 28,
-                  fontWeight: "700",
-                  color: colors.text,
-                  maxWidth: 240,
-                }}
-              >
-                {className}
-              </Text>
-              <ClassGenderBadge gender={classGender} size="md" />
+              <MaterialCommunityIcons name="pencil" size={18} color={colors.text} />
             </Pressable>
-
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 }}>
-              <Pressable
-                onPress={() => {
-                  resetEditFields();
-                  setShowEditModal(true);
-                }}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <MaterialCommunityIcons name="pencil" size={18} color={colors.text} />
-              </Pressable>
-            </View>
-          </View>
-        </ScreenTopChrome>
+          }
+          contentStyle={{ paddingTop: 16, paddingBottom: 8 }}
+        />
 
       <ScrollView
         ref={editScrollRef}

@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -7,6 +6,7 @@ import { Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as XLSX from "xlsx";
 import * as cptable from "xlsx/dist/cpexcel.js";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { normalizeAgeBand } from "../../src/core/age-band";
 import type { ClassGroup, TrainingPlan } from "../../src/core/models";
 import { normalizeUnitKey } from "../../src/core/unit-key";
@@ -15,6 +15,7 @@ import {
     getClasses,
     saveTrainingPlan,
 } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { markRender } from "../../src/observability/perf";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -621,7 +622,7 @@ export default function ImportTrainingCsvScreen() {
       } else {
         showSaveToast("Planejamento importado.");
       }
-      router.back();
+      navigateBackOrReplace({ router, fallback: "/training" });
     } finally {
       setLoading(false);
     }
@@ -629,19 +630,12 @@ export default function ImportTrainingCsvScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <View style={{ gap: 4 }}>
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Importar planejamento</Text>
-          </Pressable>
-          <Text style={{ color: colors.muted, fontSize: 13, marginLeft: 26 }}>
-            Selecione planilha (.csv/.xls/.xlsx) ou cole CSV e revise antes de salvar.
-          </Text>
-        </View>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} stickyHeaderIndices={[0]}>
+        <ScreenPageHeader
+          title="Importar planejamento"
+          subtitle="Selecione planilha (.csv/.xls/.xlsx) ou cole CSV e revise antes de salvar."
+          onBack={() => navigateBackOrReplace({ router, fallback: "/training" })}
+        />
 
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -831,6 +825,4 @@ export default function ImportTrainingCsvScreen() {
     </SafeAreaView>
   );
 }
-
-
 

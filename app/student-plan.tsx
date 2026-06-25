@@ -1,12 +1,13 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import type { TrainingPlan } from "../src/core/models";
 import { getLatestTrainingPlanByClass, getTrainingPlans } from "../src/db/seed";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -94,30 +95,11 @@ export default function StudentPlanScreen() {
         contentContainerStyle={{ padding: 16, gap: 12 }}
         stickyHeaderIndices={[0]}
       >
-        <View
-          style={{
-            gap: 8,
-            backgroundColor: colors.background,
-            paddingBottom: 10,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
-            marginBottom: 2,
-          }}
-        >
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text, flexShrink: 1 }}>
-              {isDayMode ? "Planejamento do dia" : "Plano do treino"}
-            </Text>
-          </Pressable>
-
-          {targetDate ? (
-            <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 46 }}>Data: {targetDateLabel}</Text>
-          ) : null}
-        </View>
+        <ScreenPageHeader
+          title={isDayMode ? "Planejamento do dia" : "Plano do treino"}
+          subtitle={targetDate ? `Data: ${targetDateLabel}` : undefined}
+          onBack={() => navigateBackOrReplace({ router, fallback: "/student/home" })}
+        />
 
         {loading ? (
           <Text style={{ color: colors.muted }}>Carregando...</Text>

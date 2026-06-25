@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   useCallback,
@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import type { ClassGroup, TrainingPlan } from "../src/core/models";
 import { createTrainingPlanVersion } from "../src/core/training-plan-factory";
@@ -27,6 +28,7 @@ import {
   getTrainingPlans,
   saveTrainingPlan,
 } from "../src/db/seed";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
@@ -589,76 +591,62 @@ export default function CalendarScreen() {
         {loadingData ? (
           <ScreenLoadingState />
         ) : (
-
-          <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12, gap: 16 }}
-            pointerEvents={showApplyPicker ? "none" : "auto"}
+          <>
+          <ScreenPageHeader
+            title="Calendário semanal"
+            subtitle={weekRangeLabel}
+            onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
           >
-          <View style={{ gap: 2 }}>
-            <Pressable
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/");
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 6,
+                padding: 6,
+                borderRadius: 999,
+                backgroundColor: colors.secondaryBg,
               }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
             >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-              <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-                Calendário semanal
-              </Text>
-            </Pressable>
-            <Text style={{ color: colors.muted, marginTop: 2 }}>
-              {weekRangeLabel}
-            </Text>
-          </View>
-
-          <View
-            style={{
-              flexDirection: "row",
-              gap: 6,
-              padding: 6,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-            }}
-          >
-            {[
-              { id: "prev", label: "Semana anterior" },
-              { id: "current", label: "Semana atual" },
-              { id: "next", label: "Próxima semana" },
-            ].map((tab) => {
-              const selected = activeWeekTab === tab.id;
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => {
-                    const nextTab = tab.id as "prev" | "current" | "next";
-                    setActiveWeekTab(nextTab);
-                  }}
-                  style={{
-                    flex: 1,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    borderRadius: 999,
-                    backgroundColor: selected ? colors.primaryBg : colors.card,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text
+              {[
+                { id: "prev", label: "Semana anterior" },
+                { id: "current", label: "Semana atual" },
+                { id: "next", label: "Próxima semana" },
+              ].map((tab) => {
+                const selected = activeWeekTab === tab.id;
+                return (
+                  <Pressable
+                    key={tab.id}
+                    onPress={() => {
+                      const nextTab = tab.id as "prev" | "current" | "next";
+                      setActiveWeekTab(nextTab);
+                    }}
                     style={{
-                      color: selected ? colors.primaryText : colors.text,
-                      fontWeight: "700",
-                      fontSize: 12,
+                      flex: 1,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                      borderRadius: 999,
+                      backgroundColor: selected ? colors.primaryBg : colors.card,
+                      alignItems: "center",
                     }}
                   >
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+                    <Text
+                      style={{
+                        color: selected ? colors.primaryText : colors.text,
+                        fontWeight: "700",
+                        fontSize: 12,
+                      }}
+                    >
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScreenPageHeader>
+
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 12, gap: 16 }}
+            pointerEvents={showApplyPicker ? "none" : "auto"}
+          >
         {showNoTrainingNotice ? (
             <View
               style={{
@@ -980,6 +968,7 @@ export default function CalendarScreen() {
           );
         })}
       </ScrollView>
+      </>
         )}
       <ModalSheet
         visible={showApplyPicker}

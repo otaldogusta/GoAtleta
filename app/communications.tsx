@@ -1,15 +1,16 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import {
     AppNotification,
     clearNotifications,
     getNotifications,
     markAllRead,
 } from "../src/notificationsInbox";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
@@ -64,15 +65,10 @@ export default function CommunicationsScreen() {
         contentContainerStyle={{ padding: 16, gap: 12 }}
         stickyHeaderIndices={[0]}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.background, paddingBottom: 8 }}>
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Comunicados</Text>
-          </Pressable>
-        </View>
+        <ScreenPageHeader
+          title="Comunicados"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        />
 
         <View style={{ flexDirection: "row", gap: 8 }}>
           <Pressable

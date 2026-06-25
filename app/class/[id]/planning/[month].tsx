@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BackTitleHeader } from "../../../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../../../src/components/ui/ScreenPageHeader";
 import { ScreenLoadingState } from "../../../../src/components/ui/ScreenLoadingState";
 import type { ClassGroup, ClassPlan } from "../../../../src/core/models";
 import { resolveLearningObjectives } from "../../../../src/core/pedagogy/objective-language";
@@ -14,6 +14,7 @@ import {
     listDailyLessonPlansByWeekIds,
     upsertDailyLessonPlan,
 } from "../../../../src/db/seed";
+import { navigateBackOrReplace } from "../../../../src/navigation/safe-router";
 import { exportPdf, safeFileName } from "../../../../src/pdf/export-pdf";
 import { MonthlyLessonPlanDocument } from "../../../../src/pdf/monthly-lesson-plan-document";
 import { SessionPlanDocument } from "../../../../src/pdf/session-plan-document";
@@ -887,20 +888,15 @@ export default function ClassPlanningMonthRoute() {
   ]);
 
   const handleBackToClass = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-
     if (classId) {
-      router.replace({
-        pathname: "/class/[id]",
-        params: { id: classId },
+      navigateBackOrReplace({
+        router,
+        fallback: { pathname: "/class/[id]", params: { id: classId } },
       });
       return;
     }
 
-    router.replace("/");
+    navigateBackOrReplace({ router, fallback: "/classes" });
   };
 
   if (isLoading) {
@@ -913,153 +909,136 @@ export default function ClassPlanningMonthRoute() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScreenPageHeader
+        title={monthTitle}
+        subtitle={selectedClass?.name ? `${selectedClass.name} · calendário de aulas` : "Calendário de aulas"}
+        onBack={handleBackToClass}
+        right={
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Exportar plano mensal"
+              onPress={() => {
+                void handleExportMonthPdf();
+              }}
+              disabled={isExportingMonth || !currentMonthSummary.hasPlans}
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 21,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                opacity: isExportingMonth || !currentMonthSummary.hasPlans ? 0.55 : 1,
+              }}
+            >
+              {isExportingMonth ? (
+                <ActivityIndicator size="small" color={colors.text} />
+              ) : (
+                <Ionicons name="download-outline" size={18} color={colors.text} />
+              )}
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Regenerar mês"
+              onPress={() => {
+                void handleRegenerateMonth();
+              }}
+              disabled={isRegeneratingMonth || isLoading}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                borderRadius: 12,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                opacity: isRegeneratingMonth ? 0.8 : 1,
+              }}
+            >
+              {isRegeneratingMonth ? (
+                <ActivityIndicator size="small" color={colors.text} />
+              ) : (
+                <Ionicons name="refresh" size={14} color={colors.text} />
+              )}
+              <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
+                {isRegeneratingMonth ? "Regenerando..." : "Regenerar mês"}
+              </Text>
+            </Pressable>
+          </View>
+        }
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Mês anterior"
+            onPress={goToPreviousMonth}
+            hitSlop={8}
+            style={{
+              width: 36,
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 18,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.muted} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Escolher mês do calendário"
+            onPress={() => setShowMonthPicker(true)}
+            style={{
+              minWidth: 140,
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 14,
+              borderRadius: 18,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12, textAlign: "center" }}>
+              {toMonthPickerLabel(monthKey)}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Próximo mês"
+            onPress={goToNextMonth}
+            hitSlop={8}
+            style={{
+              width: 36,
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 18,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        </View>
+      </ScreenPageHeader>
       <ScrollView
         contentContainerStyle={{
           gap: 12,
           paddingHorizontal: 16,
-          paddingTop: 12,
+          paddingTop: 2,
           paddingBottom: Math.max(insets.bottom + 104, 128),
         }}
       >
-        <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <View style={{ flex: 1, minWidth: 260, gap: 8 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <BackTitleHeader title={monthTitle} onBack={handleBackToClass} />
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Mês anterior"
-                    onPress={goToPreviousMonth}
-                    hitSlop={8}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Ionicons name="chevron-back" size={18} color={colors.muted} />
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Escolher mês do calendário"
-                    onPress={() => setShowMonthPicker(true)}
-                    style={{
-                      minWidth: 140,
-                      height: 36,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingHorizontal: 14,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12, textAlign: "center" }}>
-                      {toMonthPickerLabel(monthKey)}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Próximo mês"
-                    onPress={goToNextMonth}
-                    hitSlop={8}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-                  </Pressable>
-                </View>
-              </View>
-              <Text style={{ color: colors.muted }}>
-                {selectedClass?.name ? `${selectedClass.name} · calendário de aulas` : "Calendário de aulas"}
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Exportar plano mensal"
-                onPress={() => {
-                  void handleExportMonthPdf();
-                }}
-                disabled={isExportingMonth || !currentMonthSummary.hasPlans}
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 21,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: isExportingMonth || !currentMonthSummary.hasPlans ? 0.55 : 1,
-                }}
-              >
-                {isExportingMonth ? (
-                  <ActivityIndicator size="small" color={colors.text} />
-                ) : (
-                  <Ionicons name="download-outline" size={18} color={colors.text} />
-                )}
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Regenerar mês"
-                onPress={() => {
-                  void handleRegenerateMonth();
-                }}
-                disabled={isRegeneratingMonth || isLoading}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  paddingHorizontal: 10,
-                  paddingVertical: 9,
-                  borderRadius: 12,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: isRegeneratingMonth ? 0.8 : 1,
-                }}
-              >
-                {isRegeneratingMonth ? (
-                  <ActivityIndicator size="small" color={colors.text} />
-                ) : (
-                  <Ionicons name="refresh" size={14} color={colors.text} />
-                )}
-                <Text
-                  style={{
-                    color: colors.text,
-                    fontWeight: "600",
-                    fontSize: 12,
-                  }}
-                >
-                  {isRegeneratingMonth ? "Regenerando..." : "Regenerar mês"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-
         <MonthSummaryPanel
           events={agendaEvents}
           weekCount={weeklyItems.length}

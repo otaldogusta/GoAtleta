@@ -31,7 +31,7 @@ import {
   type LinkMetadata,
 } from "../../src/api/link-metadata";
 import { getValidAccessToken } from "../../src/auth/session";
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import {
   getExerciseLinkPresentation,
   mergeInferredExerciseLinkTags,
@@ -44,6 +44,7 @@ import {
     saveExercise,
     updateExercise,
 } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { ActivityCatalogTab } from "../../src/screens/library/ActivityCatalogTab";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
@@ -637,15 +638,38 @@ export default function ExercisesScreen() {
   const formDescription = description.trim() || formPreview?.description || "";
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        <ScreenPageHeader
+          title="Biblioteca"
+          subtitle="Biblioteca com vídeos, links e catálogo pedagógico."
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        >
+          <AnimatedSegmentedTabs<LibraryTab>
+            tabs={[
+              { id: "links", label: "Meus Links" },
+              { id: "catalog", label: "Catálogo GoAtleta" },
+            ]}
+            activeTab={activeLibraryTab}
+            onChange={setActiveLibraryTab}
+            activeBackgroundColor={colors.card}
+            activeTextColor={colors.text}
+            inactiveTextColor={colors.muted}
+            itemMinHeight={32}
+            itemPaddingVertical={6}
+            style={{
+              padding: 4,
+              backgroundColor: colors.secondaryBg,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          />
+        </ScreenPageHeader>
       <ScrollView
-        contentContainerStyle={{ gap: 12, paddingBottom: 150 }}
+        contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 150 }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -663,42 +687,6 @@ export default function ExercisesScreen() {
           />
         }
       >
-        <View style={{ gap: 6 }}>
-          <BackTitleHeader
-            title="Biblioteca"
-            onBack={() => {
-              if (router.canGoBack()) {
-                router.back();
-                return;
-              }
-              router.replace("/");
-            }}
-          />
-          <Text style={{ color: colors.muted }}>
-            Biblioteca com vídeos, links e catálogo pedagógico.
-          </Text>
-        </View>
-
-        <AnimatedSegmentedTabs<LibraryTab>
-          tabs={[
-            { id: "links", label: "Meus Links" },
-            { id: "catalog", label: "Catálogo GoAtleta" },
-          ]}
-          activeTab={activeLibraryTab}
-          onChange={setActiveLibraryTab}
-          activeBackgroundColor={colors.card}
-          activeTextColor={colors.text}
-          inactiveTextColor={colors.muted}
-          itemMinHeight={32}
-          itemPaddingVertical={6}
-          style={{
-            padding: 4,
-            backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        />
-
         {activeLibraryTab === "links" ? (
           <>
         <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>

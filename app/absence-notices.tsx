@@ -1,16 +1,17 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { AbsenceNotice, ClassGroup, Student } from "../src/core/models";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import {
     getAbsenceNotices,
     getClasses,
     getStudents,
     updateAbsenceNoticeStatus,
 } from "../src/db/seed";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -108,27 +109,11 @@ export default function AbsenceNoticesScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flex: 1, padding: 16, gap: 12 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 10,
-            backgroundColor: colors.background,
-            paddingBottom: 10,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
-            marginBottom: 2,
-          }}
-        >
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Avisos de ausência</Text>
-          </Pressable>
-        </View>
+      <ScreenPageHeader
+        title="Avisos de ausência"
+        onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+      />
+      <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 16, gap: 12 }}>
 
         {loadError ? (
           <View

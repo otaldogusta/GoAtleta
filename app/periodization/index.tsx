@@ -12,7 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { Pressable } from "../../src/ui/Pressable";
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 
 
 import { useCopilotActions, useCopilotContext } from "../../src/copilot/CopilotProvider";
@@ -102,6 +102,7 @@ import {
     saveClassCompetitiveProfile,
     updateClassAcwrLimits
 } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 
 import { ensureActiveCycleForYear, getPlanningCycles } from "../../src/db/cycles";
@@ -3833,50 +3834,21 @@ export default function PeriodizationScreen() {
           }}
         >
 
-        <View
-          style={{
-            gap: 16,
-            backgroundColor: colors.background,
-            paddingBottom: 10,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.background,
-            position: "relative",
-            zIndex: 20,
-          }}
-        >
-
-        <View style={{ gap: 10, position: "relative", zIndex: 40 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, position: "relative", zIndex: 40 }}>
-            <BackTitleHeader
-              title={normalizeText("Periodização")}
-              onBack={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/");
-              }}
-              style={{ flexShrink: 1, marginBottom: 0 }}
-            />
-
-            {selectedClass ? (
+        <ScreenPageHeader
+          title={normalizeText("Periodização")}
+          subtitle={!selectedClass ? normalizeText("Estrutura do ciclo, cargas e foco semanal") : undefined}
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          right={
+            selectedClass ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, position: "relative" }}>
                 <Text numberOfLines={1} style={{ fontSize: 18, fontWeight: "700", color: colors.text, maxWidth: 130 }}>
                   {classNameLabel}
                 </Text>
                 <ClassGenderBadge gender={classGenderLabel} size="md" />
               </View>
-            ) : null}
-          </View>
-
-          {!selectedClass ? (
-            <Text style={{ color: colors.muted }}>
-              {normalizeText("Estrutura do ciclo, cargas e foco semanal")}
-            </Text>
-          ) : null}
-        </View>
-
-
+            ) : null
+          }
+        >
         <AnimatedSegmentedTabs
           tabs={[
             { id: "geral", label: normalizeText("Visão geral") },
@@ -3890,7 +3862,7 @@ export default function PeriodizationScreen() {
           }}
         />
 
-  </View>
+        </ScreenPageHeader>
 
         { activeTab === "geral" ? (
           <OverviewTab

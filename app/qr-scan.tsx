@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
@@ -6,6 +5,8 @@ import { useState } from "react";
 import { Linking, Platform, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
@@ -25,13 +26,10 @@ export default function QrScanScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ padding: 20, gap: 12 }}>
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Escanear QR Code</Text>
-          </Pressable>
+          <ScreenPageHeader
+            title="Escanear QR Code"
+            onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          />
           <Text style={{ color: colors.muted }}>
             O scanner funciona apenas no app mobile.
           </Text>
@@ -54,13 +52,10 @@ export default function QrScanScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ padding: 20, gap: 12 }}>
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Permitir câmera</Text>
-          </Pressable>
+          <ScreenPageHeader
+            title="Permitir câmera"
+            onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          />
           <Text style={{ color: colors.muted }}>
             Precisamos da câmera para escanear QR Code.
           </Text>
@@ -84,18 +79,11 @@ export default function QrScanScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ padding: 16, gap: 10 }}>
-        <Pressable
-          onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
-          <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Escanear QR Code</Text>
-        </Pressable>
-        <Text style={{ color: colors.muted }}>
-          Aponte a câmera para o QR.
-        </Text>
-      </View>
+      <ScreenPageHeader
+        title="Escanear QR Code"
+        subtitle="Aponte a câmera para o QR."
+        onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+      />
 
       <View style={{ flex: 1, paddingHorizontal: 16, paddingBottom: 16 }}>
         <View

@@ -10,6 +10,7 @@ import { LocationBadge } from "./LocationBadge";
 import { Pressable } from "./Pressable";
 import { getUnitPalette } from "./unit-colors";
 import { useIsOnline } from "../hooks/use-is-online";
+import { navigateBackOrReplace } from "../navigation/safe-router";
 import { normalizeDisplayText } from "../utils/text-normalization";
 
 type ClassContextHeaderProps = {
@@ -69,13 +70,7 @@ export function ClassContextHeader({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Voltar de ${safeTitle || "tela"}`}
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-              return;
-            }
-            router.replace("/");
-          }}
+          onPress={() => navigateBackOrReplace({ router, fallback: "/classes" })}
           style={{
             flexDirection: "row",
             alignItems: "center",

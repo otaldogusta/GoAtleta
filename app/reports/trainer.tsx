@@ -10,7 +10,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
@@ -22,6 +22,7 @@ import type {
 } from "../../src/core/models";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import {
     buildAttendanceSummaryByClass,
     buildAvgPresenceByClass,
@@ -349,22 +350,12 @@ export default function ReportsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
-        <View style={{ gap: 6 }}>
-          <BackTitleHeader
-            title="Relatórios"
-            onBack={() => {
-              if (router.canGoBack()) {
-                router.back();
-                return;
-              }
-              router.replace("/");
-            }}
-          />
-          <Text style={{ color: colors.muted }}>
-            Painel de presença e desempenho
-          </Text>
-        </View>
+      <ScreenPageHeader
+        title="Relatórios"
+        subtitle="Painel de presença e desempenho"
+        onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+      />
+      <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 2 }}>
 
         {loadError ? (
           <View

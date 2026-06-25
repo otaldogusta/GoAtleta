@@ -27,8 +27,8 @@ import {
     View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { BackTitleHeader } from "../../src/components/ui/BackTitleHeader";
 import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { Pressable } from "../../src/ui/Pressable";
 
 import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
@@ -59,6 +59,7 @@ import {
     updateTrainingTemplate,
     upsertTrainingSession,
 } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { notifyTrainingSaved } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
@@ -3181,27 +3182,11 @@ export default function TrainingList() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View
-          style={{
-            gap: 16,
-            backgroundColor: colors.background,
-            paddingBottom: 8,
-            paddingHorizontal: 16,
-            paddingTop: 16,
-          }}
+        <ScreenPageHeader
+          title="Planejamento"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          contentStyle={[planningShellStyle, { gap: 16, paddingTop: 16, paddingBottom: 2 }]}
         >
-          <BackTitleHeader
-            title="Planejamento"
-            onBack={() => {
-              if (router.canGoBack()) {
-                router.back();
-                return;
-              }
-              router.replace("/");
-            }}
-            style={[planningShellStyle, { marginBottom: 2 }]}
-          />
-
           <View
             style={[planningShellStyle, {
               flexDirection: "row",
@@ -3243,7 +3228,7 @@ export default function TrainingList() {
               );
             })}
           </View>
-        </View>
+        </ScreenPageHeader>
 
         <ScrollView
           ref={scrollRef}

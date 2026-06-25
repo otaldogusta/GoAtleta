@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRole } from "../src/auth/role";
-import { BackTitleHeader } from "../src/components/ui/BackTitleHeader";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import type { ClassGroup } from "../src/core/models";
 import {
     createEmptyCounts,
@@ -12,6 +12,7 @@ import {
     studentScoutingLimits,
 } from "../src/core/scouting";
 import { getClasses, getStudentScoutingByDate, saveStudentScoutingLog } from "../src/db/seed";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
@@ -135,7 +136,7 @@ export default function StudentScouting() {
         attackSend2: counts.attack_send[2],
         createdAt: new Date().toISOString(),
       });
-      router.back();
+      navigateBackOrReplace({ router, fallback: "/student/home" });
     } finally {
       setSaving(false);
     }
@@ -143,17 +144,11 @@ export default function StudentScouting() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-        <BackTitleHeader
-          title="Meu scouting"
-          onBack={() => {
-            if (router.canGoBack()) {
-              router.back();
-              return;
-            }
-            router.replace("/");
-          }}
-        />
+      <ScreenPageHeader
+        title="Meu scouting"
+        onBack={() => navigateBackOrReplace({ router, fallback: "/student/home" })}
+      />
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, gap: 16 }}>
 
         <View style={{ padding: 16, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 6 }}>
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turma</Text>

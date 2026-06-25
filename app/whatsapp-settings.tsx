@@ -1,7 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useWhatsAppSettings } from "../src/ui/whatsapp-settings-context";
@@ -21,17 +22,11 @@ export default function WhatsAppSettingsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        {/* Header */}
-        <View style={{ marginBottom: 12 }}>
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Configurações WhatsApp</Text>
-          </Pressable>
-        </View>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} stickyHeaderIndices={[0]}>
+        <ScreenPageHeader
+          title="Configurações WhatsApp"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        />
 
         {/* Toggle Card */}
         <View

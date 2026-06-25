@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import type { ReactNode } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 
 import { ptBR } from "../../constants/copy/pt-br";
 import { Pressable } from "../../ui/Pressable";
@@ -9,10 +10,11 @@ import { useAppTheme } from "../../ui/app-theme";
 type BackTitleHeaderProps = {
   title: string;
   onBack: () => void;
+  accessory?: ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) {
+export function BackTitleHeader({ title, onBack, accessory, style }: BackTitleHeaderProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -21,17 +23,33 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
         accessibilityRole="button"
         accessibilityLabel={`${ptBR.common.accessibility.backFromPrefix} ${title}`}
         onPress={onBack}
-        style={{
-          alignSelf: "flex-start",
-          maxWidth: "100%",
-          minHeight: 38,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-          borderRadius: 12,
-          paddingLeft: 4,
-          paddingRight: 10,
-          paddingVertical: 4,
+        suppressWebHoverFeedback
+        style={(state) => {
+          const hovered = Platform.OS === "web" && Boolean((state as typeof state & { hovered?: boolean }).hovered);
+          const pressed = Boolean(state.pressed);
+
+          return {
+            alignSelf: "flex-start",
+            maxWidth: "100%",
+            minHeight: 38,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            borderRadius: 14,
+            paddingLeft: 4,
+            paddingRight: 10,
+            paddingVertical: 4,
+            backgroundColor: hovered || pressed ? "rgba(148, 163, 184, 0.12)" : "transparent",
+            ...(hovered
+              ? {
+                  shadowColor: "#000",
+                  shadowOpacity: 0.1,
+                  shadowRadius: 10,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: 2,
+                }
+              : null),
+          };
         }}
       >
         <View
@@ -51,6 +69,7 @@ export function BackTitleHeader({ title, onBack, style }: BackTitleHeaderProps) 
         >
           {title}
         </Text>
+        {accessory}
       </Pressable>
     </View>
   );

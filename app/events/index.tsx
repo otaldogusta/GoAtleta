@@ -23,8 +23,10 @@ import {
     setEventClasses,
 } from "../../src/api/events";
 import { useAuth } from "../../src/auth/auth";
+import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
@@ -610,24 +612,11 @@ export default function EventsScreen() {
           />
         }
       >
-        <View style={{ backgroundColor: colors.background, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 10 }}>
-          <View style={{ gap: 2 }}>
-            <Pressable
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                  return;
-                }
-                router.replace("/");
-              }}
-              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-            >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
-              <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Eventos</Text>
-            </Pressable>
-            <Text style={{ color: colors.muted }}>Agenda mensal da organização</Text>
-          </View>
-
+        <ScreenPageHeader
+          title="Eventos"
+          subtitle="Agenda mensal da organização"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        >
           {isAdmin ? (
             <View
               style={{
@@ -683,7 +672,7 @@ export default function EventsScreen() {
               </Pressable>
             </View>
           ) : null}
-        </View>
+        </ScreenPageHeader>
 
         {!isAdmin || activeTab === "created" ? (
         <View style={{ gap: 10 }}>

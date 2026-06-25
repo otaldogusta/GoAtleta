@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -23,6 +22,8 @@ import {
     updateRegulationSource,
 } from "../src/api/regulation-sources";
 import { useAuth } from "../src/auth/auth";
+import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
+import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ModalSheet } from "../src/ui/ModalSheet";
@@ -252,16 +253,12 @@ export default function RegulationSourcesScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Pressable
-            onPress={() => { if (router.canGoBack()) { router.back(); return; } router.replace("/"); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>Fontes de regulamento</Text>
-          </Pressable>
-          {isAdmin ? (
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} stickyHeaderIndices={[0]}>
+        <ScreenPageHeader
+          title="Fontes de regulamento"
+          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          right={
+            isAdmin ? (
             <Pressable
               onPress={openCreate}
               style={{
@@ -275,8 +272,9 @@ export default function RegulationSourcesScreen() {
             >
               <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Nova fonte</Text>
             </Pressable>
-          ) : null}
-        </View>
+            ) : null
+          }
+        />
 
         <View
           style={{
