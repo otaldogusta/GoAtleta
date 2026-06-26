@@ -140,10 +140,9 @@ export const AgendaCard = memo(function AgendaCard({
                     ? "rgba(51, 65, 85, 0.58)"
                     : colors.secondaryBg
                   : cardBackground,
-                borderColor: isHovered ? colors.primaryBg : colors.border,
+                borderColor: colors.border,
                 opacity: isPast ? 0.78 : 1,
               },
-              isHovered ? styles.innerCardHovered : null,
             ]}
           >
             <View
@@ -205,12 +204,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     borderWidth: 1,
-  },
-  innerCardHovered: {
-    shadowColor: "#22C55E",
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
   },
   pressableCard: {
     borderRadius: 12,

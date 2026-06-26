@@ -160,7 +160,7 @@ export const ClassCard = memo(function ClassCard({
           },
           isHovered || actionMenuOpen
             ? {
-                borderColor: colors.primaryBg,
+                borderColor: colors.borderSubtle ?? colors.border,
                 ...(Platform.OS === "web"
                   ? { boxShadow: "0px 12px 24px rgba(0, 0, 0, 0.2)" }
                   : null),

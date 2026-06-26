@@ -2379,7 +2379,11 @@ export function HomeProfessorScreen({
 
         >
 
-          <Pressable style={{ flex: 1 }} onPress={closeInbox} />
+          <Pressable
+            suppressWebHoverFeedback
+            style={{ flex: 1 }}
+            onPress={closeInbox}
+          />
 
           <Animated.View
 
