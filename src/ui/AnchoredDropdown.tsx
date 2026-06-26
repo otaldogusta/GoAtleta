@@ -111,6 +111,12 @@ export function AnchoredDropdown({
       onRequestClose?.();
     };
 
+    const handlePageScroll = (event: Event) => {
+      const panelElement = panelRef.current as unknown as HTMLElement | null;
+      if (panelElement?.contains(event.target as Node | null)) return;
+      onRequestClose?.();
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       onRequestClose?.();
@@ -120,6 +126,7 @@ export function AnchoredDropdown({
     document.addEventListener("visibilitychange", handleVisibilityOrBlur);
     document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("scroll", handlePageScroll, true);
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
@@ -127,6 +134,7 @@ export function AnchoredDropdown({
       document.removeEventListener("visibilitychange", handleVisibilityOrBlur);
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("scroll", handlePageScroll, true);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [interactiveRefs, layout, onRequestClose, visible]);

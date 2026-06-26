@@ -851,6 +851,24 @@ export default function ClassVisualTechRoute() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, overflow: "visible" }}>
+      <ScreenPageHeader
+        title="Quadra visual"
+        subtitle={
+          cls?.name
+            ? `${cls.name} - rodízio, movimentação e desenho técnico`
+            : "Rodízio, movimentação e desenho técnico da turma"
+        }
+        onBack={goBack}
+        right={
+          <Button
+            label="Salvar"
+            onPress={handleSave}
+            loading={saving}
+            disabled={!hasLocalChanges}
+            disabledOpacity={0.45}
+          />
+        }
+      />
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: 16,
@@ -862,28 +880,7 @@ export default function ClassVisualTechRoute() {
           alignSelf: "center",
         }}
         style={{ backgroundColor: colors.background }}
-        stickyHeaderIndices={[0]}
       >
-        <ScreenPageHeader
-          title="Quadra visual"
-          subtitle={
-            cls?.name
-              ? `${cls.name} - rodízio, movimentação e desenho técnico`
-              : "Rodízio, movimentação e desenho técnico da turma"
-          }
-          onBack={goBack}
-          right={
-            <Button
-              label="Salvar"
-              onPress={handleSave}
-              loading={saving}
-              disabled={!hasLocalChanges}
-              disabledOpacity={0.45}
-            />
-          }
-          style={{ marginHorizontal: -16 }}
-        />
-
         {loading ? (
           <View style={[getSectionCardStyle(colors, "neutral", { shadow: false }), { alignItems: "center" }]}>
             <ActivityIndicator color={colors.primaryBg} />

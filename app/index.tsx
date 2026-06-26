@@ -1,5 +1,5 @@
 import { Redirect } from "expo-router";
-import { Platform } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { useRole } from "../src/auth/role";
 import { useEffectiveProfile } from "../src/core/effective-profile";
 import { useOptionalOrganization } from "../src/providers/OrganizationProvider";
@@ -27,7 +27,20 @@ export default function Home() {
   // carregar, corrompendo o estado da navegação dos tabs do aluno.
   // No web, o componente index pode montar brevemente durante bootstrap
   // mesmo com deep-link ativo (/class/...); se redirecionar aqui, rouba a rota.
-  if (roleLoading || shouldWaitForOrganization) return null;
+  if (roleLoading || shouldWaitForOrganization) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#0F172A",
+        }}
+      >
+        <ActivityIndicator color="#3DDC84" />
+      </View>
+    );
+  }
   if (isWeb && browserPathname !== "/" && browserPathname !== "/index") return null;
 
   if (profile === "student") return <Redirect href="/student/home" />;

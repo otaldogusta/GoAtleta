@@ -204,6 +204,12 @@ function RootLayoutContent() {
   const oauthInFlightRef = useRef(false);
   const navReady = Boolean(rootState?.key);
   const isAdminProfile = role === "trainer" && (activeOrganization?.role_level ?? 0) >= 50;
+  const appHomeHref =
+    role === "student"
+      ? "/student/home"
+      : isAdminProfile
+        ? "/coord/dashboard"
+        : "/prof/home";
   const bootStatus = resolveBootStatus({
     bootstrapLoading,
     authLoading: loading,
@@ -395,9 +401,9 @@ function RootLayoutContent() {
     const hasSession = Boolean(session);
     hadSessionRef.current = hasSession;
     if (!hadSession && hasSession && normalizedPathname.startsWith("/events")) {
-      router.replace("/");
+      router.replace(appHomeHref);
     }
-  }, [normalizedPathname, router, session]);
+  }, [appHomeHref, normalizedPathname, router, session]);
 
   useEffect(() => {
     if (initialRouteGuardAppliedRef.current) return;
@@ -406,9 +412,9 @@ function RootLayoutContent() {
 
     // Guard against stale deep-link/navigation state restoring users into /events on app boot.
     if (session && normalizedPathname === "/events") {
-      router.replace("/");
+      router.replace(appHomeHref);
     }
-  }, [bootstrapLoading, loading, navReady, normalizedPathname, router, session]);
+  }, [appHomeHref, bootstrapLoading, loading, navReady, normalizedPathname, router, session]);
 
   useEffect(() => {
     if (stuckEventsGuardRef.current) return;
@@ -419,9 +425,9 @@ function RootLayoutContent() {
     const elapsedMs = Date.now() - appStartedAtRef.current;
     if (routeCount <= 1 && elapsedMs < 15_000) {
       stuckEventsGuardRef.current = true;
-      router.replace("/");
+      router.replace(appHomeHref);
     }
-  }, [bootstrapLoading, loading, navReady, normalizedPathname, rootState?.routes, router]);
+  }, [appHomeHref, bootstrapLoading, loading, navReady, normalizedPathname, rootState?.routes, router]);
 
   useEffect(() => {
     // If web OAuth code is present, let the code-exchange effect handle navigation first
@@ -442,9 +448,9 @@ function RootLayoutContent() {
     let redirectTo: string | null = null;
 
     if (normalizedPathname === "/onboarding") {
-      redirectTo = session ? "/" : "/welcome";
+      redirectTo = session ? appHomeHref : "/welcome";
     } else if (session && ["/onboarding", "/welcome", "/login", "/signup"].includes(normalizedPathname)) {
-      redirectTo = "/";
+      redirectTo = appHomeHref;
     } else if (!session && normalizedPathname === "/") {
       redirectTo = "/welcome";
     } else if (!session && !isPublicRoute) {
@@ -493,11 +499,11 @@ function RootLayoutContent() {
       return;
     }
     if (session && role === "trainer" && normalizedPathname === "/pending") {
-      router.replace("/");
+      router.replace(appHomeHref);
       return;
     }
     if (session && role === "student" && normalizedPathname === "/pending") {
-      router.replace("/");
+      router.replace(appHomeHref);
       return;
     }
     if (session && role === "student") {
@@ -505,7 +511,7 @@ function RootLayoutContent() {
         normalizedPathname.startsWith(prefix)
       );
       if (blocked) {
-        router.replace("/");
+        router.replace(appHomeHref);
         return;
       }
     }
@@ -516,7 +522,7 @@ function RootLayoutContent() {
       (studentOnlyRoutes.includes(normalizedPathname) ||
         normalizedPathname.startsWith("/student"))
     ) {
-      router.replace("/");
+      router.replace(appHomeHref);
       return;
     }
     if (session && role === "trainer" && !isAdminProfile) {
@@ -524,7 +530,7 @@ function RootLayoutContent() {
         normalizedPathname.startsWith(item.prefix)
       );
       if (matched && memberPermissions[matched.permissionKey] === false) {
-        router.replace("/");
+        router.replace(appHomeHref);
         return;
       }
     }
@@ -563,6 +569,7 @@ function RootLayoutContent() {
     roleLoading,
     session,
     isAdminProfile,
+    appHomeHref,
   ]);
 
   useEffect(() => {

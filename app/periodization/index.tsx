@@ -3817,23 +3817,6 @@ export default function PeriodizationScreen() {
 
         />
 
-        <ScrollView
-
-          contentContainerStyle={{
-            gap: 16,
-            paddingBottom: Math.max(insets.bottom + 120, 144),
-            paddingHorizontal: 16,
-            paddingTop: 16,
-          }}
-
-          style={{ zIndex: 1, backgroundColor: colors.background }}
-          stickyHeaderIndices={[0]}
-
-          onScrollBeginDrag={() => {
-            closeAllPickers();
-          }}
-        >
-
         <ScreenPageHeader
           title={normalizeText("Periodização")}
           subtitle={!selectedClass ? normalizeText("Estrutura do ciclo, cargas e foco semanal") : undefined}
@@ -3849,20 +3832,35 @@ export default function PeriodizationScreen() {
             ) : null
           }
         >
-        <AnimatedSegmentedTabs
-          tabs={[
-            { id: "geral", label: normalizeText("Visão geral") },
-            { id: "ciclo", label: normalizeText("Ciclo") },
-            { id: "semana", label: normalizeText("Agenda") },
-          ]}
-          activeTab={activeTab}
-          onChange={(tab) => {
-            closeAllPickers();
-            setActiveTab(tab);
-          }}
-        />
-
+          <AnimatedSegmentedTabs
+            tabs={[
+              { id: "geral", label: normalizeText("Visão geral") },
+              { id: "ciclo", label: normalizeText("Ciclo") },
+              { id: "semana", label: normalizeText("Agenda") },
+            ]}
+            activeTab={activeTab}
+            onChange={(tab) => {
+              closeAllPickers();
+              setActiveTab(tab);
+            }}
+          />
         </ScreenPageHeader>
+
+        <ScrollView
+
+          contentContainerStyle={{
+            gap: 16,
+            paddingBottom: Math.max(insets.bottom + 120, 144),
+            paddingHorizontal: 16,
+            paddingTop: 16,
+          }}
+
+          style={{ zIndex: 1, backgroundColor: colors.background }}
+
+          onScrollBeginDrag={() => {
+            closeAllPickers();
+          }}
+        >
 
         { activeTab === "geral" ? (
           <OverviewTab

@@ -11,6 +11,7 @@ type ScreenTopChromeProps = {
   contentStyle?: StyleProp<ViewStyle>;
   fadeHeight?: number;
   horizontalBleed?: number;
+  fullBleed?: boolean;
 };
 
 export function ScreenTopChrome({
@@ -19,6 +20,7 @@ export function ScreenTopChrome({
   contentStyle,
   fadeHeight = 14,
   horizontalBleed = 0,
+  fullBleed = true,
 }: ScreenTopChromeProps) {
   const { colors } = useAppTheme();
   const stickyStyle =
@@ -28,8 +30,21 @@ export function ScreenTopChrome({
           top: 0,
         } as ViewStyle)
       : null;
+  const webFullBleedStyle =
+    Platform.OS === "web" && fullBleed
+      ? ({
+          width: "100vw",
+          maxWidth: "100vw",
+          marginLeft: "calc(50% - 50vw)",
+          marginRight: "calc(50% - 50vw)",
+          boxSizing: "border-box",
+          paddingLeft: horizontalBleed,
+          paddingRight: horizontalBleed,
+          overflow: "visible",
+        } as unknown as ViewStyle)
+      : null;
   const bleedStyle =
-    horizontalBleed > 0
+    Platform.OS !== "web" && horizontalBleed > 0
       ? ({
           marginHorizontal: -horizontalBleed,
           paddingHorizontal: horizontalBleed,
@@ -37,7 +52,15 @@ export function ScreenTopChrome({
       : null;
 
   return (
-    <View style={[{ backgroundColor: colors.background, zIndex: 100, elevation: 8 }, stickyStyle, bleedStyle, style]}>
+    <View
+      style={[
+        { backgroundColor: colors.background, zIndex: 100, elevation: 8 },
+        stickyStyle,
+        webFullBleedStyle,
+        bleedStyle,
+        style,
+      ]}
+    >
       <View style={contentStyle}>{children}</View>
       <LinearGradient
         pointerEvents="none"

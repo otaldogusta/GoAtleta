@@ -17,9 +17,13 @@ export function navigateBackOrReplace({ router, fallback }: SafeBackOptions) {
     return;
   }
 
-  if (router.canGoBack?.()) {
-    router.back();
-    return;
+  try {
+    if (router.canGoBack?.()) {
+      router.back();
+      return;
+    }
+  } catch {
+    // Fall through to the explicit fallback route.
   }
 
   router.replace(fallback);
