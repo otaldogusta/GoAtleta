@@ -1,0 +1,89 @@
+name: UX System Guard
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "src/ui/**"
+      - "src/theme/**"
+      - "src/screens/**"
+      - "src/components/**"
+      - "scripts/check-ux-system.js"
+      - "docs/UX_SYSTEM.md"
+      - ".github/workflows/ux-system-guard.yml"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+      - ".github/ISSUE_TEMPLATE/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+concurrency:
+  group: ux-system-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guardrails:
+    name: UX System Guardrails
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR body
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+            const changed = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            const touchesUi = changed.some((file) =>
+              /^(app|src\/ui|src\/theme|src\/screens|src\/components)\//.test(file.filename)
+            );
+            if (!touchesUi) return;
+            const required = [
+              "## Reuso",
+              "## Stories",
+              "## Screenshots",
+              "## Acessibilidade",
+              "## Regressao visual",
+            ];
+            const missing = required.filter((section) => !body.includes(section));
+            if (missing.length) {
+              core.setFailed(`PR de UI sem secoes obrigatorias: ${missing.join(", ")}`);
+            }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard raw design values
+        run: npm run check:ux-system
+
+      - name: Typecheck core
+        run: npm run typecheck:core
+
+      - name: Test core
+        run: npm run test:core
+
+      - name: Storybook build if configured
+        shell: bash
+        run: |
+          if npm run | grep -q "storybook:build"; then
+            npm run storybook:build
+          else
+            echo "Storybook not configured yet; tracked in docs/UX_SYSTEM.md."
+          fi
