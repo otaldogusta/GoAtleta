@@ -6,6 +6,9 @@ const normalizePath = (value: string) => {
   return trimmed.replace(/\/+$/, "");
 };
 
+const isScopedPath = (path: string, scope: string) =>
+  path === scope || path.startsWith(`${scope}/`);
+
 export const isAssistantRoutePath = (value: string) => {
   const path = normalizePath(value);
   return (
@@ -20,19 +23,23 @@ export const isAssistantRoutePath = (value: string) => {
 
 export const getScopedAssistantPath = (currentPath: string) => {
   const path = normalizePath(currentPath);
-  if (path.startsWith("/prof")) return "/prof/assistant";
-  if (path.startsWith("/coord")) return "/coord/assistant";
+  if (isScopedPath(path, "/prof")) return "/prof/assistant";
+  if (isScopedPath(path, "/coord") || path === "/coordination") return "/coord/assistant";
   return "/assistant";
 };
 
 export const getScopedPlanningPath = (currentPath: string) => {
   const path = normalizePath(currentPath);
-  if (path.startsWith("/prof") || path.startsWith("/coord")) return "/prof/planning";
+  if (isScopedPath(path, "/prof") || isScopedPath(path, "/coord") || path === "/coordination") {
+    return "/prof/planning";
+  }
   return "/training";
 };
 
 export const getScopedProfilePath = (currentPath: string) => {
   const path = normalizePath(currentPath);
-  if (path.startsWith("/student")) return "/student/profile";
+  if (isScopedPath(path, "/student")) return "/student/profile";
+  if (isScopedPath(path, "/prof")) return "/prof/profile";
+  if (isScopedPath(path, "/coord") || path === "/coordination") return "/coord/profile";
   return "/profile";
 };

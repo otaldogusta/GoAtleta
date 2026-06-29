@@ -501,7 +501,7 @@ export default function ReportsScreen() {
       <ScreenPageHeader
         title="Painel de Coordenação"
         subtitle={`Pendências e atividade recente da organização${activeOrganization?.name ? ` • ${activeOrganization.name}` : ""}`}
-        onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        onBack={() => navigateBackOrReplace({ router, fallback: "/coord/dashboard" })}
         right={
           <Pressable
             onPress={() => void loadDashboard()}

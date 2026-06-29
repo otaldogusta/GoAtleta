@@ -348,6 +348,10 @@ export function PlanningLibraryBridgeSheet({
           activeTab={activeTab}
           onChange={setActiveTab}
           itemMinHeight={38}
+          style={{
+            backgroundColor: colors.secondaryBg,
+            padding: 6,
+          }}
         />
 
         {activeTab === "catalog" ? (

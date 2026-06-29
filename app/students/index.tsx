@@ -2049,7 +2049,6 @@ export default function StudentsScreen() {
             tabs={studentsTabMeta}
             activeTab={studentsTab}
             onChange={requestSwitchStudentsTab}
-            style={{ padding: 4, gap: 6 }}
           />
         </ScreenPageHeader>
 

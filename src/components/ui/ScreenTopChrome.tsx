@@ -33,10 +33,8 @@ export function ScreenTopChrome({
   const webFullBleedStyle =
     Platform.OS === "web" && fullBleed
       ? ({
-          width: "100vw",
-          maxWidth: "100vw",
-          marginLeft: "calc(50% - 50vw)",
-          marginRight: "calc(50% - 50vw)",
+          marginLeft: -horizontalBleed,
+          marginRight: -horizontalBleed,
           boxSizing: "border-box",
           paddingLeft: horizontalBleed,
           paddingRight: horizontalBleed,

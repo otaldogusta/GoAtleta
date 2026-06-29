@@ -12,7 +12,7 @@ import type { ClassGroup } from "../src/core/models";
 
 import { useAuth } from "../src/auth/auth";
 import { saveSession, setRememberPreference } from "../src/auth/session";
-import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
+import { BackTitleHeader } from "../src/components/ui/BackTitleHeader";
 
 import { useRole } from "../src/auth/role";
 
@@ -26,7 +26,9 @@ import {
     removeStudentPhotoObject,
     uploadStudentPhoto,
 } from "../src/api/student-photo-storage";
+import { resolveEffectiveProfile } from "../src/core/effective-profile";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
+import type { DevProfilePreview } from "../src/dev/profile-preview";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
@@ -40,6 +42,8 @@ import { SettingsRow } from "../src/ui/SettingsRow";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { radius, shadow } from "../src/theme/tokens";
+
+type ProfilePreviewId = Exclude<DevProfilePreview, "auto">;
 
 
 // perf-check: ignore-render
@@ -63,7 +67,7 @@ export default function ProfileScreen() {
   const { colors, mode, toggleMode } = useAppTheme();
   const { confirm } = useConfirmDialog();
   const { signOut, session, resendSignupCode, signInWithOAuth, unlinkIdentityProvider } = useAuth();
-  const { student, refresh: refreshRole } = useRole();
+  const { role: userRole, student, refresh: refreshRole } = useRole();
   const { organizations, activeOrganization, setActiveOrganizationId, devProfilePreview, setDevProfilePreview } = useOrganization();
   const {
     isEnabled: biometricsEnabled,
@@ -89,6 +93,18 @@ export default function ProfileScreen() {
     maxHeight: "70%",
     radius: 22,
   });
+  const defaultProfile = resolveEffectiveProfile({
+    role: userRole,
+    orgRoleLevel: activeOrganization?.role_level,
+  });
+  const defaultProfilePreview: ProfilePreviewId =
+    defaultProfile === "admin"
+      ? "admin"
+      : defaultProfile === "student"
+        ? "student"
+        : "professor";
+  const selectedProfilePreview: ProfilePreviewId =
+    devProfilePreview === "auto" ? defaultProfilePreview : devProfilePreview;
 
 
   useEffect(() => {
@@ -408,7 +424,7 @@ export default function ProfileScreen() {
     }
   }, [biometricsEnabled, session, setBiometricsEnabled, updatingBiometrics]);
 
-  const applyProfilePreview = useCallback(async (preview: "professor" | "student" | "admin" | "auto") => {
+  const applyProfilePreview = useCallback(async (preview: ProfilePreviewId) => {
     await setDevProfilePreview(preview);
     await refreshRole();
     // Navega diretamente para a rota certa sem passar por index.tsx
@@ -418,8 +434,7 @@ export default function ProfileScreen() {
     } else if (preview === "professor") {
       router.replace("/prof/home" as Parameters<typeof router.replace>[0]);
     } else {
-      // "admin" ou "auto" — deixa index.tsx decidir com delay
-      setTimeout(() => router.replace("/"), 50);
+      router.replace("/coord/dashboard" as Parameters<typeof router.replace>[0]);
     }
   }, [setDevProfilePreview, refreshRole, router]);
 
@@ -553,7 +568,6 @@ export default function ProfileScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14 }}
-        stickyHeaderIndices={[0]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -573,7 +587,7 @@ export default function ProfileScreen() {
         }
       >
 
-        <ScreenPageHeader
+        <BackTitleHeader
           title="Perfil"
           onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
         />
@@ -732,7 +746,7 @@ export default function ProfileScreen() {
                 label="Ver como Professor"
                 onPress={() => applyProfilePreview("professor")}
                 rightContent={
-                  devProfilePreview === "professor" ? (
+                  selectedProfilePreview === "professor" ? (
                     <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
                   ) : undefined
                 }
@@ -743,7 +757,7 @@ export default function ProfileScreen() {
                 label="Ver como Aluno"
                 onPress={() => applyProfilePreview("student")}
                 rightContent={
-                  devProfilePreview === "student" ? (
+                  selectedProfilePreview === "student" ? (
                     <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
                   ) : undefined
                 }
@@ -754,18 +768,7 @@ export default function ProfileScreen() {
                 label="Ver como Coordenação (Admin)"
                 onPress={() => applyProfilePreview("admin")}
                 rightContent={
-                  devProfilePreview === "admin" ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
-                  ) : undefined
-                }
-              />
-              <SettingsRow
-                icon="sync-outline"
-                iconBg="rgba(200, 200, 200, 0.16)"
-                label="Auto (backend)"
-                onPress={() => applyProfilePreview("auto")}
-                rightContent={
-                  devProfilePreview === "auto" ? (
+                  selectedProfilePreview === "admin" ? (
                     <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
                   ) : undefined
                 }
@@ -856,16 +859,6 @@ export default function ProfileScreen() {
                   label="Fontes de regulamento"
                   subtitle="Monitoramento e sync de fontes oficiais"
                   onPress={() => router.push("/regulation-sources")}
-                  rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
-                />
-              ) : null}
-              {!student ? (
-                <SettingsRow
-                  icon="layers-outline"
-                  iconBg="rgba(140, 200, 255, 0.16)"
-                  label="Historico de regulamentos"
-                  subtitle="Comparar versoes e clausulas por ciclo"
-                  onPress={() => router.push("/regulation-history")}
                   rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
                 />
               ) : null}
@@ -1298,8 +1291,5 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-
-
 
 

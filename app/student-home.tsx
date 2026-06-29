@@ -8,7 +8,6 @@ import { NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, Scro
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
-import { setRoleOverride } from "../src/auth/role-override";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import type { ClassGroup } from "../src/core/models";
 import { getClasses } from "../src/db/seed";
@@ -59,7 +58,7 @@ export default function StudentHome() {
   const router = useRouter();
   const profilePath = getScopedProfilePath("/student/home");
   const { colors } = useAppTheme();
-  const { student, refresh: refreshRole } = useRole();
+  const { student } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [inbox, setInbox] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -406,33 +405,6 @@ export default function StudentHome() {
                 </Pressable>
               </View>
             </View>
-        { __DEV__ ? (
-          <Pressable
-            onPress={async () => {
-              await setRoleOverride(null);
-              await refreshRole();
-              router.replace("/");
-            }}
-            style={{
-              alignSelf: "flex-start",
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <Ionicons name="chevron-back" size={14} color={colors.text} />
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-              Professor
-            </Text>
-          </Pressable>
-        ) : null}
-
         <View
           style={{
             padding: 14,

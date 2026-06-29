@@ -15,6 +15,7 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
+import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 import type {
@@ -354,8 +355,14 @@ export default function ReportsScreen() {
         title="Relatórios"
         subtitle="Painel de presença e desempenho"
         onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
-      />
-      <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 2 }}>
+      >
+        <AnimatedSegmentedTabs
+          tabs={reportTabs}
+          activeTab={reportTab}
+          onChange={(tab) => setReportTab(tab)}
+        />
+      </ScreenPageHeader>
+      <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 12 }}>
 
         {loadError ? (
           <View
@@ -374,45 +381,6 @@ export default function ReportsScreen() {
             <Text style={{ color: colors.muted, lineHeight: 20 }}>{loadError}</Text>
           </View>
         ) : null}
-
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 6,
-            backgroundColor: colors.secondaryBg,
-            padding: 6,
-            borderRadius: 999,
-          }}
-        >
-          {reportTabs.map((tab) => {
-            const selected = reportTab === tab.id;
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => setReportTab(tab.id)}
-                style={{
-                  flex: 1,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  borderRadius: 999,
-                  backgroundColor: selected ? colors.primaryBg : colors.card,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: selected ? colors.primaryText : colors.text,
-                    fontWeight: "700",
-                    fontSize: 12,
-                  }}
-                >
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
 
         { reportTab === "month" ? (
         <View style={cardStyle}>

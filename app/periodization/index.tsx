@@ -529,9 +529,14 @@ export default function PeriodizationScreen() {
   markRender("screen.periodization.render.root");
 
   const router = useRouter();
-  const { classId: initialClassId, unit: initialUnit } = useLocalSearchParams<{
+  const {
+    classId: initialClassId,
+    unit: initialUnit,
+    backTo: initialBackTo,
+  } = useLocalSearchParams<{
     classId: string;
     unit: string;
+    backTo?: string;
   }>();
   const hasInitialClass =
     typeof initialClassId === "string" && initialClassId.trim().length > 0;
@@ -1124,6 +1129,22 @@ export default function PeriodizationScreen() {
     [classes, selectedClassId]
 
   );
+  const periodizationBackFallback = useMemo(() => {
+    const explicitBackTo =
+      typeof initialBackTo === "string" &&
+      initialBackTo.startsWith("/") &&
+      !initialBackTo.startsWith("//")
+        ? initialBackTo
+        : "";
+
+    if (explicitBackTo) return explicitBackTo;
+    if (selectedClass?.id) return `/class/${selectedClass.id}`;
+
+    const initialClass =
+      typeof initialClassId === "string" ? initialClassId.trim() : "";
+
+    return initialClass ? `/class/${initialClass}` : "/prof/home";
+  }, [initialBackTo, initialClassId, selectedClass?.id]);
   const periodizationKnowledgeDomain = useMemo(
     () => (selectedClass ? resolveWeeklyAutopilotKnowledgeDomain(selectedClass) : null),
     [
@@ -3820,7 +3841,9 @@ export default function PeriodizationScreen() {
         <ScreenPageHeader
           title={normalizeText("Periodização")}
           subtitle={!selectedClass ? normalizeText("Estrutura do ciclo, cargas e foco semanal") : undefined}
-          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          onBack={() =>
+            navigateBackOrReplace({ router, fallback: periodizationBackFallback })
+          }
           right={
             selectedClass ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, position: "relative" }}>

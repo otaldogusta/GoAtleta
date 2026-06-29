@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -41,8 +41,10 @@ const dateLabel = (value?: string | null) => {
 
 export default function RegulationHistoryScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const { colors } = useAppTheme();
   const { activeOrganization, activeOrganizationId } = useOrganization();
+  const fallbackPath = pathname.startsWith("/coord") ? "/coord/dashboard" : "/prof/home";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +169,7 @@ export default function RegulationHistoryScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} stickyHeaderIndices={[0]}>
         <ScreenPageHeader
           title="Histórico de regulamentos"
-          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          onBack={() => navigateBackOrReplace({ router, fallback: fallbackPath })}
         />
 
         <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, gap: 4 }}>

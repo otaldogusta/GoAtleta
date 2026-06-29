@@ -15,6 +15,7 @@ type AnimatedSegmentedTabsProps<T extends string> = {
   onChange: (tab: T) => void;
   style?: StyleProp<ViewStyle>;
   activeBackgroundColor?: string;
+  inactiveBackgroundColor?: string;
   activeTextColor?: string;
   inactiveTextColor?: string;
   itemMinHeight?: number;
@@ -27,15 +28,16 @@ export function AnimatedSegmentedTabs<T extends string>({
   onChange,
   style,
   activeBackgroundColor,
+  inactiveBackgroundColor,
   activeTextColor,
   inactiveTextColor,
-  itemMinHeight = 36,
-  itemPaddingVertical = 8,
+  itemMinHeight = 40,
+  itemPaddingVertical = 10,
 }: AnimatedSegmentedTabsProps<T>) {
   const { colors } = useAppTheme();
   const animRef = useRef<Record<string, Animated.Value>>({});
-  const containerRadius = 16;
-  const itemRadius = 12;
+  const containerRadius = 999;
+  const itemRadius = 999;
 
   const getProgress = (tabId: T) => {
     if (!animRef.current[tabId]) {
@@ -61,9 +63,9 @@ export function AnimatedSegmentedTabs<T extends string>({
       style={[
         {
           flexDirection: "row",
-          gap: 8,
-          backgroundColor: colors.secondaryBg,
-          padding: 6,
+          gap: 6,
+          backgroundColor: "transparent",
+          padding: 0,
           borderRadius: containerRadius,
           position: "relative",
           zIndex: 1,
@@ -73,17 +75,12 @@ export function AnimatedSegmentedTabs<T extends string>({
     >
       {tabs.map((tab) => {
         const progress = getProgress(tab.id);
-        const tabScale = progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.95, 1],
-        });
-        const tabOpacity = progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.68, 1],
-        });
         const tabBackground = progress.interpolate({
           inputRange: [0, 1],
-          outputRange: ["transparent", activeBackgroundColor ?? colors.primaryBg],
+          outputRange: [
+            inactiveBackgroundColor ?? colors.card,
+            activeBackgroundColor ?? colors.primaryBg,
+          ],
         });
         const tabTextColor = progress.interpolate({
           inputRange: [0, 1],
@@ -98,10 +95,10 @@ export function AnimatedSegmentedTabs<T extends string>({
             key={tab.id}
             style={{
               flex: 1,
+              minWidth: 0,
               borderRadius: itemRadius,
-              opacity: tabOpacity,
-              transform: [{ scale: tabScale }],
               backgroundColor: tabBackground,
+              overflow: "hidden",
             }}
           >
             <Pressable
@@ -115,9 +112,11 @@ export function AnimatedSegmentedTabs<T extends string>({
                 alignItems: "center",
                 justifyContent: "center",
                 minHeight: itemMinHeight,
+                minWidth: 0,
               }}
             >
               <Animated.Text
+                numberOfLines={1}
                 style={{
                   color: tabTextColor,
                   fontWeight: "700",

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image, Platform, StyleSheet, Text, View } from "react-native";
-import { memo, useEffect, useState } from "react";
+import { Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
@@ -84,6 +84,11 @@ const getDomSafeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "_");
 const pressedOrHovered = (state: { pressed: boolean; hovered?: boolean }) =>
   Boolean(state.pressed || state.hovered);
 
+const ACTION_MENU_Z_INDEX = 12000;
+const ACTION_MENU_WIDTH = 132;
+const ACTION_MENU_ESTIMATED_HEIGHT = 150;
+type ActionMenuLayout = { left: number; top: number };
+
 export const ClassCard = memo(function ClassCard({
   item,
   conflicts,
@@ -101,6 +106,8 @@ export const ClassCard = memo(function ClassCard({
   markRender("screen.classes.render.classCard", { classId: item.id });
 
   const [showIntegrationTooltip, setShowIntegrationTooltip] = useState(false);
+  const actionWrapRef = useRef<View | null>(null);
+  const [actionMenuLayout, setActionMenuLayout] = useState<ActionMenuLayout | null>(null);
   const safeConflicts = conflicts ?? [];
   const parsed = parseTime(item.startTime || "");
   const duration = item.durationMinutes || 60;
@@ -116,6 +123,7 @@ export const ClassCard = memo(function ClassCard({
     .join(", ");
   const classInitial = getClassInitial(item.name);
   const actionRootId = `class-card-actions-${getDomSafeId(item.id)}`;
+  const actionMenuId = `${actionRootId}-menu`;
   const menuItems = [
     { label: "Editar", action: () => onEdit?.(item), danger: false },
     { label: "Duplicar", action: () => onDuplicate?.(item), danger: false },
@@ -126,27 +134,157 @@ export const ClassCard = memo(function ClassCard({
   useEffect(() => {
     if (!actionMenuOpen || Platform.OS !== "web") return undefined;
     const doc = (globalThis as typeof globalThis & { document?: Document }).document;
+    const win = (globalThis as typeof globalThis & { window?: Window }).window;
     if (!doc) return undefined;
+
+    const closeMenu = () => {
+      onCloseActionMenu?.();
+    };
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as (EventTarget & { closest?: (selector: string) => Element | null }) | null;
       if (!target?.closest) {
-        onCloseActionMenu?.();
+        closeMenu();
         return;
       }
       if (target.closest(`#${actionRootId}`)) return;
-      onCloseActionMenu?.();
+      if (target.closest(`#${actionMenuId}`)) return;
+      closeMenu();
     };
 
-    doc.addEventListener("pointerdown", handlePointerDown);
-    return () => {
-      doc.removeEventListener("pointerdown", handlePointerDown);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
     };
-  }, [actionMenuOpen, actionRootId, onCloseActionMenu]);
+
+    const handleVisibilityChange = () => {
+      if (doc.visibilityState === "hidden") closeMenu();
+    };
+
+    doc.addEventListener("pointerdown", handlePointerDown, true);
+    doc.addEventListener("scroll", closeMenu, true);
+    doc.addEventListener("wheel", closeMenu, true);
+    doc.addEventListener("touchmove", closeMenu, true);
+    doc.addEventListener("keydown", handleKeyDown);
+    doc.addEventListener("visibilitychange", handleVisibilityChange);
+    win?.addEventListener("resize", closeMenu);
+    win?.addEventListener("blur", closeMenu);
+    return () => {
+      doc.removeEventListener("pointerdown", handlePointerDown, true);
+      doc.removeEventListener("scroll", closeMenu, true);
+      doc.removeEventListener("wheel", closeMenu, true);
+      doc.removeEventListener("touchmove", closeMenu, true);
+      doc.removeEventListener("keydown", handleKeyDown);
+      doc.removeEventListener("visibilitychange", handleVisibilityChange);
+      win?.removeEventListener("resize", closeMenu);
+      win?.removeEventListener("blur", closeMenu);
+    };
+  }, [actionMenuId, actionMenuOpen, actionRootId, onCloseActionMenu]);
+
+  const resolveActionMenuLayout = useCallback((x: number, y: number, width: number, height: number) => {
+    const viewport = Dimensions.get("window");
+    const left = Math.max(12, Math.min(x + width - ACTION_MENU_WIDTH, viewport.width - ACTION_MENU_WIDTH - 12));
+    const defaultTop = y + height + 6;
+    const top =
+      defaultTop + ACTION_MENU_ESTIMATED_HEIGHT > viewport.height - 12
+        ? Math.max(12, y - ACTION_MENU_ESTIMATED_HEIGHT - 6)
+        : defaultTop;
+    return { left, top };
+  }, []);
+
+  const measureActionMenu = useCallback(() => {
+    if (Platform.OS !== "web") return;
+    const element = actionWrapRef.current as unknown as HTMLElement | null;
+    if (element && typeof element.getBoundingClientRect === "function") {
+      const rect = element.getBoundingClientRect();
+      setActionMenuLayout(resolveActionMenuLayout(rect.left, rect.top, rect.width, rect.height));
+      return;
+    }
+
+    actionWrapRef.current?.measureInWindow((x, y, width, height) => {
+      setActionMenuLayout(resolveActionMenuLayout(x, y, width, height));
+    });
+  }, [resolveActionMenuLayout]);
+
+  useEffect(() => {
+    if (!actionMenuOpen || Platform.OS !== "web") return;
+    measureActionMenu();
+  }, [actionMenuOpen, measureActionMenu]);
+
+  useEffect(() => {
+    if (actionMenuOpen) return;
+    setActionMenuLayout(null);
+  }, [actionMenuOpen]);
+
+  const actionMenuContent = (
+    <View
+      nativeID={actionMenuId}
+      style={[
+        styles.actionMenu,
+        Platform.OS === "web" && actionMenuLayout
+          ? ({
+              position: "fixed",
+              left: actionMenuLayout.left,
+              top: actionMenuLayout.top,
+              right: "auto",
+              zIndex: ACTION_MENU_Z_INDEX + 2,
+            } as unknown as object)
+          : null,
+        {
+          backgroundColor: colors.surfaceElevated ?? colors.card,
+          borderColor: colors.borderSubtle ?? colors.border,
+        },
+      ]}
+    >
+      {menuItems.map((menuItem) => (
+        <Pressable
+          key={menuItem.label}
+          onPress={(event) => {
+            event.stopPropagation?.();
+            onCloseActionMenu?.();
+            menuItem.action();
+          }}
+          style={(state) => [
+            styles.actionMenuItem,
+            {
+              backgroundColor: pressedOrHovered(state)
+                ? colors.secondaryBg
+                : "transparent",
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.actionMenuText,
+              { color: menuItem.danger ? colors.dangerText : colors.text },
+            ]}
+          >
+            {menuItem.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  const actionMenuPortal =
+    Platform.OS === "web" &&
+    actionMenuOpen &&
+    actionMenuLayout &&
+    typeof document !== "undefined"
+      ? require("react-dom").createPortal(actionMenuContent, document.body)
+      : null;
 
   return (
     <Pressable
-      onPress={() => {
+      disableWebPressScale
+      onPress={(event) => {
+        if (Platform.OS === "web") {
+          const target = event.target as unknown as (EventTarget & {
+            closest?: (selector: string) => Element | null;
+          }) | null;
+          if (target?.closest?.(`#${actionRootId}`) || target?.closest?.(`#${actionMenuId}`)) {
+            return;
+          }
+        }
         onCloseActionMenu?.();
         onOpen(item);
       }}
@@ -157,6 +295,8 @@ export const ClassCard = memo(function ClassCard({
           {
             backgroundColor: colors.surface ?? colors.background,
             borderColor: colors.borderSubtle ?? colors.border,
+            zIndex: actionMenuOpen ? ACTION_MENU_Z_INDEX : 1,
+            elevation: actionMenuOpen ? ACTION_MENU_Z_INDEX : shadow.card.elevation,
           },
           isHovered || actionMenuOpen
             ? {
@@ -228,12 +368,13 @@ export const ClassCard = memo(function ClassCard({
           ) : null}
         </View>
 
-        <View nativeID={actionRootId} style={styles.actionWrap}>
+        <View ref={actionWrapRef} nativeID={actionRootId} style={styles.actionWrap}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Opções de ${item.name}`}
             onPress={(event) => {
               event.stopPropagation?.();
+              if (!actionMenuOpen) measureActionMenu();
               onToggleActionMenu?.(item.id);
             }}
             style={(state) => {
@@ -252,46 +393,9 @@ export const ClassCard = memo(function ClassCard({
           >
             <Ionicons name="ellipsis-vertical" size={16} color={colors.textMuted ?? colors.muted} />
           </Pressable>
-          {actionMenuOpen ? (
-            <View
-              style={[
-                styles.actionMenu,
-                {
-                  backgroundColor: colors.surfaceElevated ?? colors.card,
-                  borderColor: colors.borderSubtle ?? colors.border,
-                },
-              ]}
-            >
-              {menuItems.map((menuItem) => (
-                <Pressable
-                  key={menuItem.label}
-                  onPress={(event) => {
-                    event.stopPropagation?.();
-                    onCloseActionMenu?.();
-                    menuItem.action();
-                  }}
-                  style={(state) => [
-                    styles.actionMenuItem,
-                    {
-                      backgroundColor: pressedOrHovered(state)
-                        ? colors.secondaryBg
-                        : "transparent",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.actionMenuText,
-                      { color: menuItem.danger ? colors.dangerText : colors.text },
-                    ]}
-                  >
-                    {menuItem.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
+          {actionMenuOpen && Platform.OS !== "web" ? actionMenuContent : null}
         </View>
+        {actionMenuPortal}
       </View>
 
       <View style={styles.metaGrid}>
@@ -499,6 +603,8 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "flex-end",
     flexShrink: 0,
+    zIndex: ACTION_MENU_Z_INDEX + 1,
+    elevation: ACTION_MENU_Z_INDEX + 1,
   },
   actionButton: {
     width: 30,
@@ -523,7 +629,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.internal,
     borderWidth: 1,
     paddingVertical: 5,
-    zIndex: 20,
+    zIndex: ACTION_MENU_Z_INDEX + 2,
+    elevation: ACTION_MENU_Z_INDEX + 2,
     ...(Platform.OS === "web"
       ? { boxShadow: "0px 12px 24px rgba(0, 0, 0, 0.24)" }
       : {

@@ -12,7 +12,6 @@ import { useAppTheme } from "../../ui/app-theme";
 type HomeProfessorBelowFoldProps = {
   canOpenClassesShortcut: boolean;
   canOpenStudentsShortcut: boolean;
-  canSeeCoordination: boolean;
 };
 
 type ShortcutCardProps = {
@@ -91,7 +90,6 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
 function HomeProfessorBelowFoldBase({
   canOpenClassesShortcut,
   canOpenStudentsShortcut,
-  canSeeCoordination,
 }: HomeProfessorBelowFoldProps) {
   const { colors } = useAppTheme();
   const router = useRouter();
@@ -139,15 +137,6 @@ function HomeProfessorBelowFoldBase({
           icon="calendar-outline"
           onPress={() => router.push("/prof/calendar")}
         />
-
-        {canSeeCoordination ? (
-          <ShortcutCard
-            label="Coordenação"
-            description="Dashboard e gerenciar membros"
-            icon="analytics-outline"
-            onPress={() => router.push("/coord/management")}
-          />
-        ) : null}
 
         <ShortcutCard
           label="Avisos de ausência"

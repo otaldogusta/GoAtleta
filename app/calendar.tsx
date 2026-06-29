@@ -29,6 +29,7 @@ import {
   saveTrainingPlan,
 } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
+import { AnimatedSegmentedTabs } from "../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
 import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
@@ -597,50 +598,15 @@ export default function CalendarScreen() {
             subtitle={weekRangeLabel}
             onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
           >
-            <View
-              style={{
-                flexDirection: "row",
-                gap: 6,
-                padding: 6,
-                borderRadius: 999,
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              {[
+            <AnimatedSegmentedTabs
+              tabs={[
                 { id: "prev", label: "Semana anterior" },
                 { id: "current", label: "Semana atual" },
                 { id: "next", label: "Próxima semana" },
-              ].map((tab) => {
-                const selected = activeWeekTab === tab.id;
-                return (
-                  <Pressable
-                    key={tab.id}
-                    onPress={() => {
-                      const nextTab = tab.id as "prev" | "current" | "next";
-                      setActiveWeekTab(nextTab);
-                    }}
-                    style={{
-                      flex: 1,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      borderRadius: 999,
-                      backgroundColor: selected ? colors.primaryBg : colors.card,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: selected ? colors.primaryText : colors.text,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
-                      {tab.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+              ]}
+              activeTab={activeWeekTab}
+              onChange={setActiveWeekTab}
+            />
           </ScreenPageHeader>
 
           <ScrollView

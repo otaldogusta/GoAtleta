@@ -5,6 +5,7 @@ type WebContextMenuHandler = (event: unknown) => void;
 type PressableProps = RNPressableProps & {
   onContextMenu?: WebContextMenuHandler;
   suppressWebHoverFeedback?: boolean;
+  disableWebPressScale?: boolean;
 };
 
 const flattenStyle = (style: unknown): ViewStyle[] => {
@@ -18,10 +19,15 @@ const shouldSkipFeedback = (style: StyleProp<ViewStyle>) => {
   return styles.some((item: ViewStyle) => {
     if (!item) return false;
     const background = item.backgroundColor;
+    const inset = item as ViewStyle & { inset?: number };
+    const fillsViewport =
+      (item.position === "absolute" || item.position === "fixed") &&
+      ((inset.inset === 0) ||
+        (item.top === 0 && item.right === 0 && item.bottom === 0 && item.left === 0));
     const isOverlay =
-      item.flex === 1 &&
+      (item.flex === 1 || fillsViewport) &&
       typeof background === "string" &&
-      background.includes("rgba(0,0,0");
+      (background.includes("rgba(0,0,0") || background.includes("rgba(0, 0, 0"));
     return isOverlay;
   });
 };
@@ -64,7 +70,10 @@ const pickBorderRadius = (style: StyleProp<ViewStyle>) => {
   return defaultWebRadius;
 };
 
-const webClickableStyle = { cursor: "pointer" } as ViewStyle;
+const webClickableStyle = {
+  cursor: "pointer",
+  outlineStyle: "none",
+} as unknown as ViewStyle;
 
 const getWebFallbackHoverStyle = (style: StyleProp<ViewStyle>) =>
   ({
@@ -134,6 +143,7 @@ const darkenColor = (value: string, amount = 0.08) => {
 export function Pressable({
   style,
   disabled,
+  disableWebPressScale,
   suppressWebHoverFeedback,
   ...rest
 }: PressableProps) {
@@ -158,7 +168,7 @@ export function Pressable({
           return [
             base,
             webClickableStyle,
-            state.pressed ? { transform: [{ scale: 0.98 }], opacity: 0.92 } : null,
+            state.pressed && !disableWebPressScale ? { transform: [{ scale: 0.98 }], opacity: 0.92 } : null,
           ];
         }
 
@@ -182,7 +192,7 @@ export function Pressable({
           webClickableStyle,
           hoverStyle,
           fallbackHoverStyle,
-          state.pressed ? { transform: [{ scale: 0.98 }], opacity: 0.92 } : null,
+          state.pressed && !disableWebPressScale ? { transform: [{ scale: 0.98 }], opacity: 0.92 } : null,
         ];
       }}
     />

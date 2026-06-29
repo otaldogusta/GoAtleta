@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../src/auth/auth";
 import { useRole } from "../../src/auth/role";
+import { resolveEffectiveProfile } from "../../src/core/effective-profile";
 import { type DevProfilePreview } from "../../src/dev/profile-preview";
 import { getNotificationsModule, isExpoGo } from "../../src/push/notificationRuntime";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
@@ -17,12 +18,19 @@ import { useAppTheme } from "../../src/ui/app-theme";
 
 const STORAGE_KEY = "notify_settings_v1";
 const isWeb = Platform.OS === "web";
+type ProfilePreviewId = Exclude<DevProfilePreview, "auto">;
+
+const profilePreviewRoutes: Record<ProfilePreviewId, string> = {
+  professor: "/prof/home",
+  admin: "/coord/dashboard",
+  student: "/student/home",
+};
 
 export default function NotificationsScreen() {
   const { colors, mode, toggleMode } = useAppTheme();
   const { signOut } = useAuth();
-  const { refresh: refreshRole } = useRole();
-  const { devProfilePreview, setDevProfilePreview } = useOrganization();
+  const { role: userRole, refresh: refreshRole } = useRole();
+  const { activeOrganization, devProfilePreview, setDevProfilePreview } = useOrganization();
   const router = useRouter();
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<string>("");
@@ -79,10 +87,23 @@ export default function NotificationsScreen() {
     await disableNotifications();
   };
 
-  const applyProfilePreview = async (preview: DevProfilePreview) => {
+  const defaultProfile = resolveEffectiveProfile({
+    role: userRole,
+    orgRoleLevel: activeOrganization?.role_level,
+  });
+  const defaultProfilePreview: ProfilePreviewId =
+    defaultProfile === "admin"
+      ? "admin"
+      : defaultProfile === "student"
+        ? "student"
+        : "professor";
+  const selectedProfilePreview: ProfilePreviewId =
+    devProfilePreview === "auto" ? defaultProfilePreview : devProfilePreview;
+
+  const applyProfilePreview = async (preview: ProfilePreviewId) => {
     await setDevProfilePreview(preview);
     await refreshRole();
-    router.replace("/");
+    router.replace(profilePreviewRoutes[preview] as never);
   };
 
   const SectionTitle = ({ children }: { children: string }) => (
@@ -168,7 +189,7 @@ export default function NotificationsScreen() {
                   label="Ver como Professor"
                   onPress={() => applyProfilePreview("professor")}
                   rightContent={
-                    devProfilePreview === "professor" ? (
+                    selectedProfilePreview === "professor" ? (
                       <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
                     ) : undefined
                   }
@@ -179,7 +200,7 @@ export default function NotificationsScreen() {
                   label="Ver como Aluno"
                   onPress={() => applyProfilePreview("student")}
                   rightContent={
-                    devProfilePreview === "student" ? (
+                    selectedProfilePreview === "student" ? (
                       <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
                     ) : undefined
                   }
@@ -190,18 +211,7 @@ export default function NotificationsScreen() {
                   label="Ver como Coordenação (Admin)"
                   onPress={() => applyProfilePreview("admin")}
                   rightContent={
-                    devProfilePreview === "admin" ? (
-                      <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
-                    ) : undefined
-                  }
-                />
-                <SettingsRow
-                  icon="sync-outline"
-                  iconBg="rgba(200, 200, 200, 0.16)"
-                  label="Auto (backend)"
-                  onPress={() => applyProfilePreview("auto")}
-                  rightContent={
-                    devProfilePreview === "auto" ? (
+                    selectedProfilePreview === "admin" ? (
                       <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
                     ) : undefined
                   }

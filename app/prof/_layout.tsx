@@ -21,6 +21,8 @@ export default function ProfessorTabsLayout() {
         <Tabs.Screen name="exercises" options={{ href: null }} />
         <Tabs.Screen name="periodization" options={{ href: null }} />
         <Tabs.Screen name="assistant" options={{ href: null }} />
+        <Tabs.Screen name="profile" options={{ href: null }} />
+        <Tabs.Screen name="regulation-history" options={{ href: null }} />
         <Tabs.Screen name="home" />
         <Tabs.Screen name="classes" />
         <Tabs.Screen

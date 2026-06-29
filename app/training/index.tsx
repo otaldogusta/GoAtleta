@@ -29,6 +29,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
+import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { Pressable } from "../../src/ui/Pressable";
 
 import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
@@ -3187,47 +3188,16 @@ export default function TrainingList() {
           onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
           contentStyle={[planningShellStyle, { gap: 16, paddingTop: 16, paddingBottom: 2 }]}
         >
-          <View
-            style={[planningShellStyle, {
-              flexDirection: "row",
-              gap: 6,
-              padding: 6,
-              borderRadius: 999,
-              backgroundColor: colors.secondaryBg,
-            }]}
-          >
-            {[
+          <AnimatedSegmentedTabs
+            tabs={[
               { id: "formulario" as const, label: "Planejar" },
               { id: "salvos" as const, label: "Planos salvos" },
               { id: "modelos" as const, label: "Modelos prontos" },
-            ].map((tab) => {
-              const selected = planningTab === tab.id;
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => setPlanningTab(tab.id)}
-                  style={{
-                    flex: 1,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    borderRadius: 999,
-                    backgroundColor: selected ? colors.primaryBg : colors.card,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: selected ? colors.primaryText : colors.text,
-                      fontWeight: "700",
-                      fontSize: 12,
-                    }}
-                  >
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+            ]}
+            activeTab={planningTab}
+            onChange={setPlanningTab}
+            style={planningShellStyle}
+          />
         </ScreenPageHeader>
 
         <ScrollView
@@ -3251,7 +3221,6 @@ export default function TrainingList() {
             style={[planningShellStyle, { gap: 10 }]}
           >
           <View style={{ gap: 10 }}>
-          <Text style={{ color: colors.muted }}>Selecione a turma</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>

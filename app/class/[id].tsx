@@ -1864,7 +1864,11 @@ export default function ClassDetails() {
               onPress={() =>
                 router.push({
                   pathname: "/prof/periodization",
-                  params: { classId: cls?.id ?? "", unit: cls?.unit ?? "" },
+                  params: {
+                    classId: cls?.id ?? "",
+                    unit: cls?.unit ?? "",
+                    backTo: cls?.id ? `/class/${cls.id}` : "",
+                  },
                 })
               }
               style={{

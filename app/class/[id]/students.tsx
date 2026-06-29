@@ -44,6 +44,7 @@ import { useIsOnline } from "../../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../../src/hooks/useDebouncedValue";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
+import { AnimatedSegmentedTabs } from "../../../src/ui/AnimatedSegmentedTabs";
 import { ConfirmCloseOverlay } from "../../../src/ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { Pressable } from "../../../src/ui/Pressable";
@@ -1743,47 +1744,17 @@ export default function ClassStudentsScreen() {
           </View>
         ) : null}
 
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 6,
-            marginTop: 12,
-            padding: 6,
-            borderRadius: 999,
-            backgroundColor: colors.secondaryBg,
-          }}
-        >
-          <Pressable
-            onPress={() => handleScreenTabChange("alunos")}
-            style={{
-              flex: 1,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              backgroundColor: screenTab === "alunos" ? colors.primaryBg : colors.card,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: screenTab === "alunos" ? colors.primaryText : colors.text, fontWeight: "700" }}>
-              Alunos
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleScreenTabChange("cadastro")}
-            style={{
-              flex: 1,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              backgroundColor: screenTab === "cadastro" ? colors.primaryBg : colors.card,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: screenTab === "cadastro" ? colors.primaryText : colors.text, fontWeight: "700" }}>
-              Cadastro
-            </Text>
-          </Pressable>
-        </View>
+        <AnimatedSegmentedTabs
+          tabs={[
+            { id: "alunos", label: "Alunos" },
+            { id: "cadastro", label: "Cadastro" },
+          ]}
+          activeTab={screenTab}
+          onChange={handleScreenTabChange}
+          itemMinHeight={36}
+          itemPaddingVertical={8}
+          style={{ marginTop: 12 }}
+        />
 
         {screenTab === "alunos" ? (
           <>

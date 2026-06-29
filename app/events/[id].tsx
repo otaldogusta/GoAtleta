@@ -23,6 +23,7 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
+import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
@@ -418,12 +419,7 @@ export default function EventDetailsScreen() {
 
   const closeDetails = () => {
     closeDetailDropdowns();
-    const nav = router as unknown as { canGoBack?: () => boolean; back: () => void; replace: (path: string) => void };
-    if (typeof nav.canGoBack === "function" && nav.canGoBack()) {
-      nav.back();
-      return;
-    }
-    nav.replace("/events");
+    navigateBackOrReplace({ router, fallback: "/events" });
   };
 
   useEffect(() => {

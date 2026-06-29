@@ -50,7 +50,6 @@ export function AnimatedBottomTabs({
     /^\/(prof|coord)\/periodization(\/|$)/.test(pathname) ||
     /^\/periodization(\/|$)/.test(pathname);
   const hideForWebShell =
-    role === "prof" &&
     Platform.OS === "web" &&
     width >= WEB_SHELL_MIN_WIDTH &&
     !shouldHideWebShellForPath(pathname);

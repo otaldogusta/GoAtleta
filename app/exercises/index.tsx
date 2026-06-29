@@ -655,17 +655,6 @@ export default function ExercisesScreen() {
             ]}
             activeTab={activeLibraryTab}
             onChange={setActiveLibraryTab}
-            activeBackgroundColor={colors.card}
-            activeTextColor={colors.text}
-            inactiveTextColor={colors.muted}
-            itemMinHeight={32}
-            itemPaddingVertical={6}
-            style={{
-              padding: 4,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
           />
         </ScreenPageHeader>
       <ScrollView

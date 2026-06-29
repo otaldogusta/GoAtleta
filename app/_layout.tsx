@@ -38,6 +38,7 @@ import { resolveBootStatus } from "../src/bootstrap/boot-status";
 import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-context";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
+import { useEffectiveProfile } from "../src/core/effective-profile";
 import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
@@ -180,6 +181,7 @@ function RootLayoutContent() {
   const rootState = useRootNavigationState();
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
   const { role, loading: roleLoading } = useRole();
+  const effectiveProfile = useEffectiveProfile();
   const organization = useOptionalOrganization();
   const {
     activeOrganization,
@@ -475,7 +477,7 @@ function RootLayoutContent() {
     }
 
     if (roleLoading) return;
-    if (session && role === "trainer" && permissionsLoading) return;
+    if (session && role === "trainer" && (permissionsLoading || organizationLoading)) return;
 
     if (
       session &&
@@ -525,6 +527,18 @@ function RootLayoutContent() {
       router.replace(appHomeHref);
       return;
     }
+    if (
+      session &&
+      role === "trainer" &&
+      effectiveProfile !== "admin" &&
+      (normalizedPathname === "/coord" ||
+        normalizedPathname.startsWith("/coord/") ||
+        normalizedPathname === "/coordination" ||
+        normalizedPathname.startsWith("/coordination/"))
+    ) {
+      router.replace("/prof/home");
+      return;
+    }
     if (session && role === "trainer" && !isAdminProfile) {
       const matched = trainerPermissionByPrefix.find((item) =>
         normalizedPathname.startsWith(item.prefix)
@@ -557,6 +571,7 @@ function RootLayoutContent() {
     hasCredentialLoginBypass,
     isUnlocked,
     isDevStudentConsultationPreview,
+    effectiveProfile,
     loading,
     memberPermissions,
     navReady,
@@ -570,6 +585,7 @@ function RootLayoutContent() {
     session,
     isAdminProfile,
     appHomeHref,
+    organizationLoading,
   ]);
 
   useEffect(() => {

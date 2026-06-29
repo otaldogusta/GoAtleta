@@ -24,22 +24,14 @@ export function SessionTabBar({
       style={{
         flexDirection: "row",
         gap: 6,
-        backgroundColor: colors.secondaryBg,
-        padding: 6,
+        backgroundColor: "transparent",
+        padding: 0,
         borderRadius: 999,
         marginBottom: 12,
       }}
     >
       {tabs.map((tab) => {
         const tabProgress = tabAnimations[tab.id];
-        const tabScale = tabProgress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.95, 1],
-        });
-        const tabOpacity = tabProgress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.68, 1],
-        });
         const tabBackground = tabProgress.interpolate({
           inputRange: [0, 1],
           outputRange: [colors.card, colors.primaryBg],
@@ -53,10 +45,10 @@ export function SessionTabBar({
             key={tab.id}
             style={{
               flex: 1,
+              minWidth: 0,
               borderRadius: 999,
-              opacity: tabOpacity,
-              transform: [{ scale: tabScale }],
               backgroundColor: tabBackground,
+              overflow: "hidden",
             }}
           >
             <Pressable
@@ -65,9 +57,12 @@ export function SessionTabBar({
               onPress={() => onSelectTab(tab.id)}
               style={{
                 flex: 1,
-                paddingVertical: 8,
+                paddingVertical: 10,
                 borderRadius: 999,
                 alignItems: "center",
+                justifyContent: "center",
+                minHeight: 40,
+                minWidth: 0,
               }}
             >
               <Animated.Text

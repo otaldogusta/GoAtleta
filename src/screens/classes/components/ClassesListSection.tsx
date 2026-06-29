@@ -16,6 +16,8 @@ type Conflict = { name: string; day: number; modality?: string; kind: "conflict"
 type RowItem =
   | { key: string; kind: "section"; unit: string; count: number; items: ClassGroup[] };
 
+const OPEN_MENU_Z_INDEX = 11000;
+
 type Props = {
   grouped: GroupedClasses;
   conflictsById: Record<string, Conflict[]>;
@@ -68,15 +70,45 @@ export const ClassesListSection = memo(function ClassesListSection({
   const closeActionMenu = useCallback(() => {
     setOpenActionMenuId(null);
   }, []);
+  const closeActionMenuIfOpen = useCallback(() => {
+    if (openActionMenuId) setOpenActionMenuId(null);
+  }, [openActionMenuId]);
   const toggleActionMenu = useCallback((classId: string) => {
     setOpenActionMenuId((current) => (current === classId ? null : classId));
   }, []);
 
+  const renderCell = useCallback(
+    (props: any) => {
+      const { children, item, style: cellStyle, ...rest } = props;
+      const hasOpenMenu = item?.items?.some((classItem: ClassGroup) => classItem.id === openActionMenuId);
+
+      return (
+        <View
+          {...rest}
+          style={[
+            cellStyle,
+            {
+              position: "relative",
+              zIndex: hasOpenMenu ? OPEN_MENU_Z_INDEX : 1,
+              elevation: hasOpenMenu ? OPEN_MENU_Z_INDEX : 1,
+            },
+          ]}
+        >
+          {children}
+        </View>
+      );
+    },
+    [openActionMenuId]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: RowItem }) => {
+      const hasOpenMenu = item.items.some((classItem) => classItem.id === openActionMenuId);
+
       return (
         <View
           style={{
+            position: "relative",
             gap: 12,
             marginBottom: 14,
             padding: 12,
@@ -86,6 +118,8 @@ export const ClassesListSection = memo(function ClassesListSection({
             borderColor: colors.borderSubtle ?? colors.border,
             borderLeftColor: getUnitPalette(item.unit, colors).bg,
             backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+            zIndex: hasOpenMenu ? OPEN_MENU_Z_INDEX : 1,
+            elevation: hasOpenMenu ? OPEN_MENU_Z_INDEX : 1,
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -114,6 +148,7 @@ export const ClassesListSection = memo(function ClassesListSection({
               <View
                 key={classItem.id}
                 style={{
+                  position: "relative",
                   width:
                     columnCount === 1
                       ? "100%"
@@ -121,6 +156,8 @@ export const ClassesListSection = memo(function ClassesListSection({
                         ? "49%"
                         : "32.55%",
                   minWidth: columnCount === 1 ? undefined : 260,
+                  zIndex: openActionMenuId === classItem.id ? OPEN_MENU_Z_INDEX + 1 : 1,
+                  elevation: openActionMenuId === classItem.id ? OPEN_MENU_Z_INDEX + 1 : 1,
                 }}
               >
                 <ClassCard
@@ -187,9 +224,13 @@ export const ClassesListSection = memo(function ClassesListSection({
       removeClippedSubviews={false}
       contentContainerStyle={contentContainerStyle}
       onScrollBeginDrag={() => {
-        closeActionMenu();
+        closeActionMenuIfOpen();
         onScrollBeginDrag?.();
       }}
+      onMomentumScrollBegin={closeActionMenuIfOpen}
+      onScroll={closeActionMenuIfOpen}
+      scrollEventThrottle={16}
+      CellRendererComponent={renderCell}
       refreshControl={
         onRefresh ? (
           <RefreshControl

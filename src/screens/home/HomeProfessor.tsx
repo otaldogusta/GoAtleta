@@ -166,7 +166,12 @@ export function HomeProfessorScreen({
   const { session } = useAuth();
 
   const { role } = useRole();
-  const profilePath = getScopedProfilePath(role === "student" ? "/student/home" : "/prof/home");
+  const profileScopePath = adminMode
+    ? "/coord/dashboard"
+    : role === "student"
+      ? "/student/home"
+      : "/prof/home";
+  const profilePath = getScopedProfilePath(profileScopePath);
   const effectiveProfile = useEffectiveProfile();
 
   const {
@@ -175,7 +180,7 @@ export function HomeProfessorScreen({
     memberPermissions,
   } = useOrganization();
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-  const canSeeCoordination = isOrgAdmin || effectiveProfile === "admin";
+  const canRenderCoordinationDashboard = isOrgAdmin || effectiveProfile === "admin";
   const canOpenClassesShortcut =
     role !== "trainer" ||
     isOrgAdmin ||
@@ -184,7 +189,7 @@ export function HomeProfessorScreen({
     role !== "trainer" ||
     isOrgAdmin ||
     memberPermissions.students === true;
-  const isAdminDashboardContext = adminMode && canSeeCoordination;
+  const isAdminDashboardContext = adminMode && canRenderCoordinationDashboard;
   const upcomingWindowDays = isAdminDashboardContext ? 30 : 7;
 
   const [inbox, setInbox] = useState<AppNotification[]>([]);
@@ -1898,7 +1903,6 @@ export function HomeProfessorScreen({
                   <HomeProfessorBelowFold
                     canOpenClassesShortcut={canOpenClassesShortcut}
                     canOpenStudentsShortcut={canOpenStudentsShortcut}
-                    canSeeCoordination={canSeeCoordination}
                   />
                 </Suspense>
               </View>
@@ -2334,7 +2338,6 @@ export function HomeProfessorScreen({
             <HomeProfessorBelowFold
               canOpenClassesShortcut={canOpenClassesShortcut}
               canOpenStudentsShortcut={canOpenStudentsShortcut}
-              canSeeCoordination={canSeeCoordination}
             />
           </Suspense>
         ) : null}
@@ -2381,7 +2384,12 @@ export function HomeProfessorScreen({
 
           <Pressable
             suppressWebHoverFeedback
-            style={{ flex: 1 }}
+            style={
+              [
+                { flex: 1 },
+                Platform.OS === "web" ? ({ cursor: "default", outlineStyle: "none" } as any) : null,
+              ]
+            }
             onPress={closeInbox}
           />
 
