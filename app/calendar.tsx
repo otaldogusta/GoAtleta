@@ -8,15 +8,18 @@ import {
   useState
 } from "react";
 import {
-  Animated,
   FlatList,
   ScrollView,
   Text,
-  View
+  View,
+  useWindowDimensions
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
+import type { EventListItem } from "../src/api/events";
+import { listEvents } from "../src/api/events";
+import { useAuth } from "../src/auth/auth";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import type { ClassGroup, TrainingPlan } from "../src/core/models";
@@ -29,19 +32,14 @@ import {
   saveTrainingPlan,
 } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
-import { AnimatedSegmentedTabs } from "../src/ui/AnimatedSegmentedTabs";
+import { useOrganization } from "../src/providers/OrganizationProvider";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
-import { ClassGenderBadge } from "../src/ui/ClassGenderBadge";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
-import { usePersistedState } from "../src/ui/use-persisted-state";
-
-const CALENDAR_EXPANDED_DAYS_KEY = "calendar_weekly_expanded_days_v1";
-const CALENDAR_EXPANDED_UNITS_KEY = "calendar_weekly_expanded_units_v1";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -59,6 +57,14 @@ const formatDate = (date: Date) =>
 
 const formatIsoDate = (date: Date) =>
   `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+const formatMonthTitle = (date: Date) => {
+  const label = date.toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
 
 const parseTime = (value: string) => {
   const parts = value.split(":");
@@ -82,18 +88,42 @@ const formatTimeRange = (
   return start + " - " + end;
 };
 
-const BUCKET_ORDER = ["Manhã", "Tarde", "Noite", "Madrugada"] as const;
-const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
-type BucketLabel = (typeof BUCKET_ORDER)[number];
+const getDateSortMinutes = (date: Date) =>
+  date.getHours() * 60 + date.getMinutes();
 
-type GridClassItemModel = {
+const formatEventTimeLabel = (event: EventListItem) => {
+  if (event.allDay) return "Dia todo";
+  const start = new Date(event.startsAt);
+  const end = new Date(event.endsAt);
+  if (Number.isNaN(start.getTime())) return "Horário indefinido";
+  const startLabel = pad2(start.getHours()) + ":" + pad2(start.getMinutes());
+  if (Number.isNaN(end.getTime())) return startLabel;
+  return startLabel + " - " + pad2(end.getHours()) + ":" + pad2(end.getMinutes());
+};
+
+const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
+const MONTH_WEEKDAY_HEADERS = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"] as const;
+const MONTH_GRID_DAY_COUNT = 42;
+
+const eventTypeLabel: Record<EventListItem["eventType"], string> = {
+  torneio: "Torneio",
+  amistoso: "Amistoso",
+  treino: "Evento",
+  reuniao: "Reunião",
+  outro: "Evento",
+};
+
+type AgendaClassItemModel = {
+  kind: "class";
+  id: string;
   classId: string;
-  className: string;
+  title: string;
+  unitLabel: string;
   classGender: ClassGroup["gender"];
   dateIso: string;
   timeLabel: string;
+  sortMinutes: number;
   classPalette: ReturnType<typeof getClassPalette>;
-  isWeekly: boolean;
   hasApplied: boolean;
   cardBackground: string;
   cardBorder: string;
@@ -101,33 +131,47 @@ type GridClassItemModel = {
   titleColor: string;
 };
 
-type GridBucketModel = {
-  label: BucketLabel;
-  items: GridClassItemModel[];
+type AgendaEventItemModel = {
+  kind: "event";
+  id: string;
+  eventId: string;
+  title: string;
+  subtitle: string;
+  dateIso: string;
+  timeLabel: string;
+  sortMinutes: number;
+  typeLabel: string;
+  cardBackground: string;
+  cardBorder: string;
+  dotColor: string;
+  titleColor: string;
 };
 
-type GridUnitModel = {
-  unitKey: string;
-  label: string;
-  countLabel: string;
-  buckets: GridBucketModel[];
-};
+type AgendaItemModel = AgendaClassItemModel | AgendaEventItemModel;
 
-type GridDayModel = {
+type MonthCalendarDayModel = {
   day: number;
+  dayNumber: number;
   dayLabel: string;
   dayKey: string;
   dateIso: string;
   dateLabel: string;
+  isCurrentMonth: boolean;
+  isToday: boolean;
   isPast: boolean;
+  classCount: number;
+  eventCount: number;
   countLabel: string;
-  unitGroups: GridUnitModel[];
+  agendaItems: AgendaItemModel[];
 };
 
 export default function CalendarScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
+  const { width } = useWindowDimensions();
+  const { session } = useAuth();
+  const { activeOrganization } = useOrganization();
   const params = useLocalSearchParams();
   const targetClassId =
     typeof params.targetClassId === "string" ? params.targetClassId : "";
@@ -141,15 +185,13 @@ export default function CalendarScreen() {
     typeof params.openApply === "string" ? params.openApply === "1" : false;
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
+  const [events, setEvents] = useState<EventListItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [unitFilter, setUnitFilter] = useState("Todas");
-  const [activeWeekTab, setActiveWeekTab] = useState<"prev" | "current" | "next">("current");
-  const [expandedPastDays, setExpandedPastDays, expandedPastDaysLoaded] =
-    usePersistedState<Record<string, boolean>>(CALENDAR_EXPANDED_DAYS_KEY, {});
-  const [expandedUnitGroups, setExpandedUnitGroups] = usePersistedState<
-    Record<string, boolean>
-  >(CALENDAR_EXPANDED_UNITS_KEY, {});
-  const expandAnimRef = useRef<Record<string, Animated.Value>>({});
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const seed = targetDate ? new Date(targetDate + "T00:00:00") : new Date();
+    return new Date(seed.getFullYear(), seed.getMonth(), 1);
+  });
   const [showApplyPicker, setShowApplyPicker] = useState(false);
   const [applyPickerClassId, setApplyPickerClassId] = useState("");
   const [applyPickerDate, setApplyPickerDate] = useState("");
@@ -157,29 +199,38 @@ export default function CalendarScreen() {
     gap: 12,
     maxHeight: "100%",
   });
+  const isCompactLayout = width < 840;
   const baseHour = 14;
-  const baseWeekStart = useMemo(
-    () => startOfWeek(targetDate ? new Date(targetDate) : new Date()),
-    [targetDate]
+  const monthStart = useMemo(
+    () => new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1),
+    [visibleMonth]
   );
-  const getWeekStartForTab = useCallback(
-    (tabId: "prev" | "current" | "next") => {
-      const copy = new Date(baseWeekStart);
-      if (tabId === "prev") copy.setDate(copy.getDate() - 7);
-      if (tabId === "next") copy.setDate(copy.getDate() + 7);
-      return copy;
-    },
-    [baseWeekStart]
+  const monthEnd = useMemo(
+    () => new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0),
+    [visibleMonth]
   );
-  const weekStart = useMemo(
-    () => getWeekStartForTab(activeWeekTab),
-    [activeWeekTab, getWeekStartForTab]
-  );
-  const weekRangeLabel = useMemo(() => {
-    const end = new Date(weekStart);
-    end.setDate(end.getDate() + 6);
-    return `${formatDate(weekStart)} - ${formatDate(end)}`;
-  }, [weekStart]);
+  const calendarStart = useMemo(() => startOfWeek(monthStart), [monthStart]);
+  const calendarEnd = useMemo(() => {
+    const end = new Date(calendarStart);
+    end.setDate(end.getDate() + MONTH_GRID_DAY_COUNT - 1);
+    end.setHours(0, 0, 0, 0);
+    return end;
+  }, [calendarStart]);
+  const monthTitle = useMemo(() => formatMonthTitle(visibleMonth), [visibleMonth]);
+  const goToPreviousMonth = useCallback(() => {
+    setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1));
+  }, []);
+  const goToNextMonth = useCallback(() => {
+    setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
+  }, []);
+
+  useEffect(() => {
+    if (!targetDate) return;
+    const seed = new Date(targetDate + "T00:00:00");
+    if (Number.isNaN(seed.getTime())) return;
+    setVisibleMonth(new Date(seed.getFullYear(), seed.getMonth(), 1));
+  }, [targetDate]);
+
   const earliestClassStart = useMemo(() => {
     const parsed = classes
       .map((cls) => cls.cycleStartDate || "")
@@ -188,15 +239,10 @@ export default function CalendarScreen() {
       .sort((a, b) => a.getTime() - b.getTime());
     return parsed[0] ?? null;
   }, [classes]);
-  const weekEnd = useMemo(() => {
-    const end = new Date(weekStart);
-    end.setDate(end.getDate() + 6);
-    return end;
-  }, [weekStart]);
   const showNoTrainingNotice = useMemo(() => {
     if (!earliestClassStart) return false;
-    return weekEnd.getTime() < earliestClassStart.getTime();
-  }, [earliestClassStart, weekEnd]);
+    return monthEnd.getTime() < earliestClassStart.getTime();
+  }, [earliestClassStart, monthEnd]);
   const earliestLabel = earliestClassStart ? formatDate(earliestClassStart) : "";
   const unitLabel = useCallback((value: string) => {
     return value && value.trim() ? value.trim() : "Sem unidade";
@@ -212,14 +258,6 @@ export default function CalendarScreen() {
     });
     return map;
   }, [classes]);
-  useEffect(() => {
-    if (!expandedPastDaysLoaded) return;
-    Object.entries(expandedPastDays).forEach(([key, expanded]) => {
-      const anim = getExpandAnim(key, expanded ? 1 : 0);
-      anim.setValue(expanded ? 1 : 0);
-    });
-  }, [expandedPastDays, expandedPastDaysLoaded]);
-
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -246,24 +284,46 @@ export default function CalendarScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    if (!activeOrganization?.id) {
+      setEvents([]);
+      return () => {
+        alive = false;
+      };
+    }
+
+    const from = new Date(calendarStart);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(calendarEnd);
+    to.setHours(23, 59, 59, 999);
+
+    void listEvents({
+      organizationId: activeOrganization.id,
+      fromIso: from.toISOString(),
+      toIso: to.toISOString(),
+      userId: session?.user?.id,
+    })
+      .then((rows) => {
+        if (alive) setEvents(rows);
+      })
+      .catch(() => {
+        if (alive) setEvents([]);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [activeOrganization?.id, calendarEnd, calendarStart, session?.user?.id]);
+
   const applyTargetHandled = useRef(false);
   useEffect(() => {
     if (!openApply || applyTargetHandled.current) return;
     if (!targetClassId || !targetDate) return;
     const targetClass = classById[targetClassId];
     if (!targetClass) return;
-    const dayKey = targetDate;
     const unitName = unitLabel(targetClass.unit);
     setUnitFilter(unitName);
-    setExpandedPastDays((prev) => ({
-      ...prev,
-      [dayKey]: true,
-    }));
-    setExpandedUnitGroups((prev) => ({
-      ...prev,
-      [`${dayKey}-${unitName}`]: true,
-    }));
-    getExpandAnim(dayKey, 1).setValue(1);
     setApplyPickerClassId(targetClassId);
     setApplyPickerDate(targetDate);
     setShowApplyPicker(true);
@@ -274,8 +334,6 @@ export default function CalendarScreen() {
     targetDate,
     classById,
     unitLabel,
-    setExpandedPastDays,
-    setExpandedUnitGroups,
   ]);
 
   const planLookupByClass = useMemo(() => {
@@ -318,19 +376,6 @@ export default function CalendarScreen() {
     return date;
   }, []);
 
-  const getExpandAnim = (key: string, initial: number) => {
-    const current = expandAnimRef.current[key];
-    if (current) return current;
-    const value = new Animated.Value(initial);
-    expandAnimRef.current[key] = value;
-    return value;
-  };
-  const getBucketLabel = useCallback((hour: number): BucketLabel => {
-    if (hour >= 5 && hour <= 11) return "Manhã";
-    if (hour >= 12 && hour <= 17) return "Tarde";
-    if (hour >= 18 && hour <= 23) return "Noite";
-    return "Madrugada";
-  }, []);
   const filteredClasses = useMemo(() => {
     if (unitFilter === "Todas") return classes;
     const filterKey = normalizeUnitKey(unitFilter);
@@ -351,127 +396,200 @@ export default function CalendarScreen() {
     return grouped;
   }, [filteredClasses, sortByTime]);
 
-  const scheduleDays = useMemo(() => {
-    const days = Object.keys(filteredClassesByDay)
-      .map((day) => Number(day))
-      .sort((a, b) => a - b);
-    if (!days.length) return [{ day: 2 }, { day: 4 }];
-    return days.map((day) => ({ day }));
-  }, [filteredClassesByDay]);
+  const filteredClassIds = useMemo(
+    () => new Set(filteredClasses.map((cls) => cls.id)),
+    [filteredClasses]
+  );
 
-  const weeklyGridModel = useMemo<GridDayModel[]>(() => {
-    return scheduleDays.map((dayInfo) => {
-      const date = new Date(weekStart);
-      const day = dayInfo.day;
-      const offset = day === 0 ? 6 : day - 1;
-      date.setDate(weekStart.getDate() + offset);
+  const visibleEvents = useMemo(() => {
+    if (unitFilter === "Todas") return events;
+    const filterKey = normalizeUnitKey(unitFilter);
+    return events.filter((event) => {
+      if (event.classIds.some((classId) => filteredClassIds.has(classId))) {
+        return true;
+      }
+      return event.locationLabel
+        ? normalizeUnitKey(event.locationLabel) === filterKey
+        : false;
+    });
+  }, [events, filteredClassIds, unitFilter]);
+
+  const eventsByDate = useMemo(() => {
+    const grouped: Record<string, EventListItem[]> = {};
+    visibleEvents.forEach((event) => {
+      const startsAt = new Date(event.startsAt);
+      if (Number.isNaN(startsAt.getTime())) return;
+      const dateKey = formatIsoDate(startsAt);
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(event);
+    });
+    Object.values(grouped).forEach((items) => {
+      items.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    });
+    return grouped;
+  }, [visibleEvents]);
+
+  const monthlyCalendarDays = useMemo<MonthCalendarDayModel[]>(() => {
+    return Array.from({ length: MONTH_GRID_DAY_COUNT }, (_, index) => {
+      const date = new Date(calendarStart);
+      date.setDate(calendarStart.getDate() + index);
       const dayKey = formatIsoDate(date);
       const dateIso = dayKey;
       const dateLabel = formatDate(date);
+      const day = date.getDay();
       const dayLabel = DAY_LABELS[day] ?? "Dia";
       const weekDay = date.getDay() === 0 ? 7 : date.getDay();
+      const isToday = date.getTime() === todayStart.getTime();
       const isPast = date.getTime() < todayStart.getTime();
+      const isCurrentMonth =
+        date.getMonth() === visibleMonth.getMonth() &&
+        date.getFullYear() === visibleMonth.getFullYear();
       const classesForDay = filteredClassesByDay[day] ?? [];
+      const eventsForDay = eventsByDate[dateIso] ?? [];
 
-      const groupedByUnit = classesForDay.reduce<
-        Record<string, { label: string; items: ClassGroup[] }>
-      >((acc, cls) => {
-        const label = unitLabel(cls.unit);
-        const key = unitKey(label);
-        if (!acc[key]) acc[key] = { label, items: [] };
-        acc[key].items.push(cls);
-        return acc;
-      }, {});
+      const classItems: AgendaClassItemModel[] = classesForDay.map((cls, index) => {
+        const parsed = parseTime(cls.startTime || "");
+        const startHour = parsed ? parsed.hour : baseHour + index;
+        const startMinute = parsed ? parsed.minute : 0;
+        const durationMinutes = cls.durationMinutes || 60;
+        const timeLabel = formatTimeRange(startHour, startMinute, durationMinutes);
+        const classUnitLabel = unitLabel(cls.unit);
+        const classPalette = getClassPalette(cls.colorKey, colors, classUnitLabel);
+        const planLookup = planLookupByClass[cls.id];
+        const appliedPlan = planLookup
+          ? planLookup.byDate[dateIso] ?? planLookup.byWeekday[weekDay] ?? null
+          : null;
+        const hasApplied =
+          Boolean(appliedPlan?.applyDate) || (appliedPlan?.applyDays?.length ?? 0) > 0;
+        const cardBackground = isPast
+          ? colors.secondaryBg
+          : hasApplied
+            ? colors.inputBg
+            : colors.card;
+        const cardBorder = isPast ? toRgba(classPalette.bg, 0.35) : classPalette.bg;
+        const dotColor = isPast ? toRgba(classPalette.bg, 0.45) : classPalette.bg;
+        const titleColor = isPast ? colors.muted : colors.text;
 
-      const unitGroups = Object.entries(groupedByUnit)
-        .map(([groupUnitKey, entry]) => {
-          const buckets: Record<BucketLabel, GridClassItemModel[]> = {
-            "Manhã": [],
-            "Tarde": [],
-            "Noite": [],
-            "Madrugada": [],
-          };
+        return {
+          kind: "class",
+          id: `class-${cls.id}-${dateIso}`,
+          classId: cls.id,
+          title: cls.name,
+          unitLabel: classUnitLabel,
+          classGender: cls.gender,
+          dateIso,
+          timeLabel,
+          sortMinutes: startHour * 60 + startMinute,
+          classPalette,
+          hasApplied,
+          cardBackground,
+          cardBorder,
+          dotColor,
+          titleColor,
+        };
+      });
 
-          entry.items.forEach((cls, index) => {
-            const parsed = parseTime(cls.startTime || "");
-            const startHour = parsed ? parsed.hour : baseHour + index;
-            const startMinute = parsed ? parsed.minute : 0;
-            const durationMinutes = cls.durationMinutes || 60;
-            const timeLabel = formatTimeRange(startHour, startMinute, durationMinutes);
-            const classUnitLabel = unitLabel(cls.unit);
-            const classPalette = getClassPalette(cls.colorKey, colors, classUnitLabel);
-            const planLookup = planLookupByClass[cls.id];
-            const appliedPlan = planLookup
-              ? planLookup.byDate[dateIso] ?? planLookup.byWeekday[weekDay] ?? null
-              : null;
-            const isSpecificDate = Boolean(appliedPlan?.applyDate);
-            const isWeekly = !isSpecificDate && (appliedPlan?.applyDays?.length ?? 0) > 0;
-            const hasApplied = Boolean(appliedPlan?.applyDate) || (appliedPlan?.applyDays?.length ?? 0) > 0;
-            const cardBackground = isPast
-              ? colors.secondaryBg
-              : hasApplied
-                ? colors.inputBg
-                : colors.card;
-            const cardBorder = isPast ? toRgba(classPalette.bg, 0.35) : classPalette.bg;
-            const dotColor = isPast ? toRgba(classPalette.bg, 0.45) : classPalette.bg;
-            const titleColor = isPast ? colors.muted : colors.text;
-            const bucketLabel = getBucketLabel(startHour);
+      const eventItems: AgendaEventItemModel[] = eventsForDay.map((event) => {
+        const startsAt = new Date(event.startsAt);
+        const sortMinutes = Number.isNaN(startsAt.getTime())
+          ? 9999
+          : getDateSortMinutes(startsAt);
+        const typeLabel = eventTypeLabel[event.eventType] ?? "Evento";
+        const linkedClassesLabel = event.classIds.length === 1
+          ? "1 turma vinculada"
+          : event.classIds.length > 1
+            ? `${event.classIds.length} turmas vinculadas`
+            : "Evento geral";
+        const subtitle = event.locationLabel || linkedClassesLabel;
 
-            buckets[bucketLabel].push({
-              classId: cls.id,
-              className: cls.name,
-              classGender: cls.gender,
-              dateIso,
-              timeLabel,
-              classPalette,
-              isWeekly,
-              hasApplied,
-              cardBackground,
-              cardBorder,
-              dotColor,
-              titleColor,
-            });
-          });
+        return {
+          kind: "event",
+          id: `event-${event.id}`,
+          eventId: event.id,
+          title: event.title,
+          subtitle,
+          dateIso,
+          timeLabel: formatEventTimeLabel(event),
+          sortMinutes,
+          typeLabel,
+          cardBackground: colors.inputBg,
+          cardBorder: toRgba(colors.warningText, 0.45),
+          dotColor: colors.warningText,
+          titleColor: colors.text,
+        };
+      });
 
-          const orderedBuckets = BUCKET_ORDER.map((label) => ({
-            label,
-            items: buckets[label],
-          })).filter((bucket) => bucket.items.length > 0);
-
-          return {
-            unitKey: groupUnitKey,
-            label: entry.label,
-            countLabel: entry.items.length === 1 ? "1 turma" : `${entry.items.length} turmas`,
-            buckets: orderedBuckets,
-          };
-        })
-        .sort((a, b) => a.label.localeCompare(b.label));
+      const agendaItems = [...classItems, ...eventItems].sort((a, b) => {
+        if (a.sortMinutes !== b.sortMinutes) return a.sortMinutes - b.sortMinutes;
+        return a.title.localeCompare(b.title);
+      });
 
       const classCount = classesForDay.length;
+      const eventCount = eventsForDay.length;
+      const countParts = [
+        classCount === 1 ? "1 aula" : classCount > 1 ? `${classCount} aulas` : "",
+        eventCount === 1 ? "1 evento" : eventCount > 1 ? `${eventCount} eventos` : "",
+      ].filter(Boolean);
 
       return {
         day,
+        dayNumber: date.getDate(),
         dayLabel,
         dayKey,
         dateIso,
         dateLabel,
+        isCurrentMonth,
+        isToday,
         isPast,
-        countLabel: classCount === 1 ? "1 turma" : `${classCount} turmas`,
-        unitGroups,
+        classCount,
+        eventCount,
+        countLabel: countParts.length ? countParts.join(" · ") : "Sem agenda",
+        agendaItems,
       };
     });
   }, [
     baseHour,
     colors,
+    eventsByDate,
     filteredClassesByDay,
-    getBucketLabel,
     planLookupByClass,
-    scheduleDays,
     todayStart,
-    unitKey,
     unitLabel,
-    weekStart,
+    calendarStart,
+    visibleMonth,
   ]);
+
+  const monthlyCalendarRows = useMemo(() => {
+    const rows: MonthCalendarDayModel[][] = [];
+    for (let index = 0; index < monthlyCalendarDays.length; index += 7) {
+      rows.push(monthlyCalendarDays.slice(index, index + 7));
+    }
+    return rows;
+  }, [monthlyCalendarDays]);
+
+  const monthClassCount = useMemo(
+    () =>
+      monthlyCalendarDays.reduce(
+        (total, day) => total + (day.isCurrentMonth ? day.classCount : 0),
+        0
+      ),
+    [monthlyCalendarDays]
+  );
+  const monthEventCount = useMemo(
+    () =>
+      monthlyCalendarDays.reduce(
+        (total, day) => total + (day.isCurrentMonth ? day.eventCount : 0),
+        0
+      ),
+    [monthlyCalendarDays]
+  );
+  const monthSummaryLabel = useMemo(() => {
+    const parts = [
+      monthClassCount === 1 ? "1 aula" : monthClassCount > 1 ? `${monthClassCount} aulas` : "",
+      monthEventCount === 1 ? "1 evento" : monthEventCount > 1 ? `${monthEventCount} eventos` : "",
+    ].filter(Boolean);
+    return parts.length ? parts.join(" · ") : "Sem compromissos";
+  }, [monthClassCount, monthEventCount]);
 
   const sortedPlans = useMemo(() => {
     return plans
@@ -594,346 +712,359 @@ export default function CalendarScreen() {
         ) : (
           <>
           <ScreenPageHeader
-            title="Calendário semanal"
-            subtitle={weekRangeLabel}
+            title="Calendário mensal"
             onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
           >
-            <AnimatedSegmentedTabs
-              tabs={[
-                { id: "prev", label: "Semana anterior" },
-                { id: "current", label: "Semana atual" },
-                { id: "next", label: "Próxima semana" },
-              ]}
-              activeTab={activeWeekTab}
-              onChange={setActiveWeekTab}
-            />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <Pressable
+                accessibilityLabel="Mês anterior"
+                onPress={goToPreviousMonth}
+                style={({ pressed }) => [
+                  {
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  },
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <MaterialCommunityIcons name="chevron-left" size={22} color={colors.text} />
+              </Pressable>
+
+              <View
+                style={{
+                  flex: 1,
+                  minWidth: 180,
+                  minHeight: 40,
+                  borderRadius: 20,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  paddingHorizontal: 14,
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: colors.text,
+                    fontSize: 14,
+                    fontWeight: "900",
+                    textAlign: "center",
+                  }}
+                >
+                  {monthTitle}
+                </Text>
+              </View>
+
+              <Pressable
+                accessibilityLabel="Próximo mês"
+                onPress={goToNextMonth}
+                style={({ pressed }) => [
+                  {
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  },
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <MaterialCommunityIcons name="chevron-right" size={22} color={colors.text} />
+              </Pressable>
+            </View>
           </ScreenPageHeader>
 
           <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 12, gap: 16 }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 12, gap: 14 }}
             pointerEvents={showApplyPicker ? "none" : "auto"}
           >
-        {showNoTrainingNotice ? (
+            {showNoTrainingNotice ? (
+              <View
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
+                  Sem aulas neste mês
+                </Text>
+                <Text style={{ color: colors.muted, marginTop: 4 }}>
+                  Início das aulas em {earliestLabel}.
+                </Text>
+              </View>
+            ) : null}
+
             <View
               style={{
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
+                flexDirection: isCompactLayout ? "column" : "row",
+                alignItems: isCompactLayout ? "stretch" : "center",
+                justifyContent: "space-between",
+                gap: 10,
+                paddingHorizontal: 2,
+                paddingVertical: 4,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                Sem aulas nesta semana
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 4 }}>
-                Início das aulas em {earliestLabel}.
-              </Text>
-            </View>
-          ) : null}
-
-          <View
-            style={{
-              padding: 12,
-              borderRadius: 16,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            shadowColor: "#000",
-            shadowOpacity: 0.05,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 4 },
-            elevation: 2,
-            gap: 8,
-          }}
-        >
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-            Unidade
-          </Text>
-          <FadeHorizontalScroll
-            fadeColor={colors.card}
-            contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-          >
-            {unitOptions.map((unit) => {
-              const active = unitFilter === unit;
-              const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-              const chipBg = active
-                ? (palette ? palette.bg : colors.primaryBg)
-                : colors.secondaryBg;
-              const chipText = active
-                ? (palette ? palette.text : colors.primaryText)
-                : colors.text;
-              return (
-                <Pressable
-                  key={unit}
-                  onPress={() => setUnitFilter(unit)}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <View
                   style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    paddingHorizontal: 9,
                     borderRadius: 999,
-                    backgroundColor: chipBg,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
                   }}
                 >
-                  <Text style={{ color: chipText }}>
-                    {unit}
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>
+                    {monthSummaryLabel}
                   </Text>
-                </Pressable>
-              );
-            })}
-          </FadeHorizontalScroll>
-        </View>
-        {weeklyGridModel.map((dayModel) => {
-          const isExpanded = expandedPastDays[dayModel.dayKey] ?? !dayModel.isPast;
-          const expandAnim = getExpandAnim(dayModel.dayKey, isExpanded ? 1 : 0);
+                </View>
+              </View>
 
-          return (
+              <FadeHorizontalScroll
+                fadeColor={colors.background}
+                contentContainerStyle={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: isCompactLayout ? "flex-start" : "flex-end",
+                  gap: 8,
+                  flexGrow: 1,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "800", color: colors.muted }}>
+                  Unidade
+                </Text>
+                {unitOptions.map((unit) => {
+                  const active = unitFilter === unit;
+                  const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
+                  const chipBg = active
+                    ? (palette ? palette.bg : colors.primaryBg)
+                    : colors.secondaryBg;
+                  const chipText = active
+                    ? (palette ? palette.text : colors.primaryText)
+                    : colors.text;
+                  return (
+                    <Pressable
+                      key={unit}
+                      onPress={() => setUnitFilter(unit)}
+                      style={{
+                        paddingVertical: 7,
+                        paddingHorizontal: 11,
+                        borderRadius: 999,
+                        backgroundColor: chipBg,
+                        borderWidth: 1,
+                        borderColor: active ? chipBg : colors.border,
+                      }}
+                    >
+                      <Text style={{ color: chipText, fontWeight: "700", fontSize: 12 }}>
+                        {unit}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </FadeHorizontalScroll>
+            </View>
+
             <View
-              key={String(dayModel.day)}
               style={{
-                padding: 12,
+                padding: isCompactLayout ? 8 : 12,
                 borderRadius: 18,
                 backgroundColor: colors.card,
                 borderWidth: 1,
                 borderColor: colors.border,
-                gap: 12,
+                gap: 8,
               }}
             >
-              <Pressable
-                onPress={() => {
-                  Animated.timing(expandAnim, {
-                    toValue: isExpanded ? 0 : 1,
-                    duration: 180,
-                    useNativeDriver: false,
-                  }).start();
-                  setExpandedPastDays((prev) => ({
-                    ...prev,
-                    [dayModel.dayKey]: !isExpanded,
-                  }));
-                }}
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
-                  paddingVertical: 6,
-                  paddingHorizontal: 8,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                }}
-              >
-                <View style={{ flex: 1, gap: 6 }}>
-                  <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-                    {dayModel.dayLabel}
+              <View style={{ flexDirection: "row", gap: isCompactLayout ? 4 : 6 }}>
+                {MONTH_WEEKDAY_HEADERS.map((label) => (
+                  <Text
+                    key={label}
+                    style={{
+                      flex: 1,
+                      color: colors.muted,
+                      fontSize: 11,
+                      fontWeight: "900",
+                      textAlign: "center",
+                    }}
+                  >
+                    {label}
                   </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <View
-                      style={{
-                        paddingVertical: 2,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: colors.secondaryBg,
-                      }}
-                    >
-                      <Text
+                ))}
+              </View>
+
+              {monthlyCalendarRows.map((row, rowIndex) => (
+                <View key={`month-row-${rowIndex}`} style={{ flexDirection: "row", gap: isCompactLayout ? 4 : 6 }}>
+                  {row.map((dayModel) => {
+                    const hasAgenda = dayModel.agendaItems.length > 0;
+                    const visibleItemsLimit = isCompactLayout ? 2 : 3;
+                    const hiddenItemsCount = Math.max(0, dayModel.agendaItems.length - visibleItemsLimit);
+                    const dayBackground = !dayModel.isCurrentMonth
+                      ? colors.backgroundSubtle
+                      : hasAgenda
+                        ? colors.secondaryBg
+                        : colors.inputBg;
+                    const dayBorder = dayModel.isToday
+                      ? colors.primaryBg
+                      : hasAgenda
+                        ? colors.successBorder
+                        : colors.border;
+
+                    return (
+                      <View
+                        key={dayModel.dayKey}
                         style={{
-                          color: colors.secondaryText,
-                          fontWeight: "700",
-                          fontSize: 12,
+                          flex: 1,
+                          minWidth: 0,
+                          minHeight: isCompactLayout ? 92 : 132,
+                          gap: isCompactLayout ? 4 : 6,
+                          padding: isCompactLayout ? 5 : 8,
+                          borderRadius: isCompactLayout ? 10 : 12,
+                          backgroundColor: dayBackground,
+                          borderWidth: 1,
+                          borderColor: dayBorder,
+                          opacity: dayModel.isCurrentMonth ? 1 : 0.38,
                         }}
                       >
-                        {dayModel.dateLabel}
-                      </Text>
-                    </View>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>{dayModel.countLabel}</Text>
-                  </View>
-                </View>
-                <MaterialCommunityIcons
-                  name={isExpanded ? "eye-outline" : "eye-off-outline"}
-                  size={18}
-                  color={colors.muted}
-                />
-              </Pressable>
-              <View
-                style={{
-                  height: 1,
-                  backgroundColor: colors.border,
-                  opacity: 0.6,
-                }}
-              />
-              <Animated.View
-                style={{
-                  gap: 10,
-                  opacity: expandAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 1],
-                  }),
-                  maxHeight: expandAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 1200],
-                  }),
-                  overflow: "hidden",
-                }}
-              >
-                <View style={{ gap: 12 }}>
-                  {!dayModel.unitGroups.length ? (
-                    <Text style={{ color: colors.muted }}>Sem turmas nesse dia.</Text>
-                  ) : (
-                    dayModel.unitGroups.map((unitGroup) => {
-                      const expandedUnitKey = `${dayModel.dayKey}-${unitGroup.unitKey}`;
-                      const isUnitExpanded = expandedUnitGroups[expandedUnitKey] ?? true;
-
-                      return (
                         <View
-                          key={unitGroup.unitKey}
                           style={{
-                            borderRadius: 14,
-                            borderWidth: 0,
-                            borderColor: "transparent",
-                            padding: 10,
-                            gap: 10,
-                            backgroundColor: "transparent",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 4,
                           }}
                         >
-                          <Pressable
-                            onPress={() =>
-                              setExpandedUnitGroups((prev) => ({
-                                ...prev,
-                                [expandedUnitKey]: !isUnitExpanded,
-                              }))
-                            }
+                          <Text
                             style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 12,
-                              paddingVertical: 6,
-                              paddingHorizontal: 8,
-                              borderRadius: 10,
-                              backgroundColor: colors.inputBg,
+                              color: hasAgenda || dayModel.isToday ? colors.text : colors.muted,
+                              fontSize: 13,
+                              fontWeight: "900",
                             }}
                           >
-                            <View style={{ flex: 1, gap: 4 }}>
-                              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                                {unitGroup.label}
-                              </Text>
-                              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                                {unitGroup.countLabel}
-                              </Text>
-                            </View>
-                            <MaterialCommunityIcons
-                              name={isUnitExpanded ? "chevron-down" : "chevron-right"}
-                              size={18}
-                              color={colors.muted}
+                            {dayModel.dayNumber}
+                          </Text>
+                          {dayModel.isToday ? (
+                            <View
+                              style={{
+                                width: 7,
+                                height: 7,
+                                borderRadius: 999,
+                                backgroundColor: colors.primaryBg,
+                              }}
                             />
-                          </Pressable>
-                          {isUnitExpanded ? (
-                            <View style={{ gap: 12 }}>
-                              {unitGroup.buckets.map((bucket) => (
-                                <View key={bucket.label} style={{ gap: 8 }}>
-                                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                    <View
-                                      style={{
-                                        paddingVertical: 2,
-                                        paddingHorizontal: 8,
-                                        borderRadius: 999,
-                                        backgroundColor: colors.inputBg,
-                                      }}
-                                    >
-                                      <Text
-                                        style={{
-                                          color: colors.muted,
-                                          fontSize: 11,
-                                          fontWeight: "700",
-                                        }}
-                                      >
-                                        {bucket.label}
-                                      </Text>
-                                    </View>
-                                    <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-                                  </View>
-                                  {bucket.items.map((item) => (
-                                    <Pressable
-                                      key={`${item.classId}-${dayModel.dayKey}`}
-                                      onPress={() =>
-                                        router.push({
-                                          pathname: "/class/[id]/session",
-                                          params: { id: item.classId, date: item.dateIso },
-                                        })
-                                      }
-                                      style={{
-                                        padding: 14,
-                                        borderRadius: 18,
-                                        backgroundColor: item.cardBackground,
-                                        borderWidth: 1,
-                                        borderColor: item.cardBorder,
-                                        borderLeftWidth: 4,
-                                        borderLeftColor: item.classPalette.bg,
-                                        shadowColor: "#000",
-                                        shadowOpacity: dayModel.isPast ? 0.03 : 0.08,
-                                        shadowRadius: dayModel.isPast ? 6 : 12,
-                                        shadowOffset: { width: 0, height: dayModel.isPast ? 4 : 8 },
-                                        elevation: dayModel.isPast ? 1 : 3,
-                                        opacity: dayModel.isPast ? 0.65 : 1,
-                                      }}
-                                    >
-                                      {item.isWeekly ? (
-                                        <View
-                                          style={{
-                                            alignSelf: "flex-start",
-                                            paddingVertical: 2,
-                                            paddingHorizontal: 8,
-                                            borderRadius: 999,
-                                            backgroundColor: colors.infoBg,
-                                            marginBottom: 6,
-                                          }}
-                                        >
-                                          <Text
-                                            style={{
-                                              color: colors.infoText,
-                                              fontWeight: "700",
-                                              fontSize: 11,
-                                            }}
-                                          >
-                                            Semanal
-                                          </Text>
-                                        </View>
-                                      ) : null}
-                                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                        <View
-                                          style={{
-                                            width: 8,
-                                            height: 8,
-                                            borderRadius: 999,
-                                            backgroundColor: item.dotColor,
-                                          }}
-                                        />
-                                        <Text
-                                          style={{
-                                            fontSize: 16,
-                                            fontWeight: "700",
-                                            color: item.titleColor,
-                                          }}
-                                        >
-                                          {item.timeLabel + " - " + item.className}
-                                        </Text>
-                                        <ClassGenderBadge gender={item.classGender} size="sm" />
-                                      </View>
-                                    </Pressable>
-                                  ))}
-                                </View>
-                              ))}
-                            </View>
                           ) : null}
                         </View>
-                      );
-                    })
-                  )}
+
+                        {dayModel.agendaItems.slice(0, visibleItemsLimit).map((item) => {
+                          const isClassItem = item.kind === "class";
+                          return (
+                            <Pressable
+                              key={item.id}
+                              onPress={() => {
+                                if (item.kind === "class") {
+                                  router.push({
+                                    pathname: "/class/[id]",
+                                    params: { id: item.classId },
+                                  });
+                                  return;
+                                }
+                                router.push({
+                                  pathname: "/events/[id]",
+                                  params: { id: item.eventId },
+                                });
+                              }}
+                              style={({ pressed }) => [
+                                {
+                                  gap: 2,
+                                  paddingVertical: isCompactLayout ? 4 : 5,
+                                  paddingHorizontal: isCompactLayout ? 4 : 6,
+                                  borderRadius: 8,
+                                  backgroundColor: item.cardBackground,
+                                  borderWidth: 1,
+                                  borderColor: item.cardBorder,
+                                  borderLeftWidth: 3,
+                                  borderLeftColor: isClassItem ? item.classPalette.bg : item.dotColor,
+                                },
+                                pressed && { opacity: 0.82 },
+                              ]}
+                            >
+                              <Text
+                                numberOfLines={1}
+                                style={{
+                                  color: colors.muted,
+                                  fontSize: isCompactLayout ? 9 : 10,
+                                  fontWeight: "900",
+                                }}
+                              >
+                                {item.timeLabel}
+                              </Text>
+                              <Text
+                                numberOfLines={1}
+                                style={{
+                                  color: item.titleColor,
+                                  fontSize: isCompactLayout ? 10 : 11,
+                                  fontWeight: "900",
+                                  lineHeight: isCompactLayout ? 12 : 14,
+                                }}
+                              >
+                                {item.title}
+                              </Text>
+                              {isClassItem ? null : (
+                                <Text
+                                  numberOfLines={1}
+                                  style={{
+                                    color: colors.warningText,
+                                    fontSize: 9,
+                                    fontWeight: "800",
+                                  }}
+                                >
+                                  {item.typeLabel}
+                                </Text>
+                              )}
+                            </Pressable>
+                          );
+                        })}
+
+                        {hiddenItemsCount > 0 ? (
+                          <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "800" }}>
+                            +{hiddenItemsCount} item{hiddenItemsCount === 1 ? "" : "s"}
+                          </Text>
+                        ) : null}
+                      </View>
+                    );
+                  })}
                 </View>
-              </Animated.View>
+              ))}
             </View>
-          );
-        })}
-      </ScrollView>
+          </ScrollView>
       </>
         )}
       <ModalSheet

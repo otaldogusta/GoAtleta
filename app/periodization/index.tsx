@@ -216,6 +216,11 @@ const volumeToPSE: Record<VolumeLevel, string> = {
 
 };
 
+const getSingleSearchParam = (value: string | string[] | undefined) => {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+};
+
 
 const emptyWeek: WeekPlan = {
 
@@ -531,15 +536,21 @@ export default function PeriodizationScreen() {
   const router = useRouter();
   const {
     classId: initialClassId,
+    id: routeClassId,
     unit: initialUnit,
     backTo: initialBackTo,
   } = useLocalSearchParams<{
-    classId: string;
-    unit: string;
-    backTo?: string;
+    classId?: string | string[];
+    id?: string | string[];
+    unit?: string | string[];
+    backTo?: string | string[];
   }>();
-  const hasInitialClass =
-    typeof initialClassId === "string" && initialClassId.trim().length > 0;
+  const initialClassParam =
+    getSingleSearchParam(initialClassId).trim() ||
+    getSingleSearchParam(routeClassId).trim();
+  const initialUnitParam = getSingleSearchParam(initialUnit).trim();
+  const initialBackToParam = getSingleSearchParam(initialBackTo).trim();
+  const hasInitialClass = initialClassParam.length > 0;
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const organization = useOptionalOrganization();
@@ -1032,9 +1043,9 @@ export default function PeriodizationScreen() {
 
     if (!classes.length) return;
 
-    const classParam = typeof initialClassId === "string" ? initialClassId : "";
+    const classParam = initialClassParam;
 
-    const unitParam = typeof initialUnit === "string" ? initialUnit : "";
+    const unitParam = initialUnitParam;
 
     if (classParam) {
 
@@ -1068,7 +1079,7 @@ export default function PeriodizationScreen() {
 
     setDidApplyParams(true);
 
-  }, [classes, didApplyParams, initialClassId, initialUnit]);
+  }, [classes, didApplyParams, initialClassParam, initialUnitParam]);
 
 
   const unitOptions = useMemo(() => {
@@ -1131,20 +1142,17 @@ export default function PeriodizationScreen() {
   );
   const periodizationBackFallback = useMemo(() => {
     const explicitBackTo =
-      typeof initialBackTo === "string" &&
-      initialBackTo.startsWith("/") &&
-      !initialBackTo.startsWith("//")
-        ? initialBackTo
+      initialBackToParam.startsWith("/") && !initialBackToParam.startsWith("//")
+        ? initialBackToParam
         : "";
 
     if (explicitBackTo) return explicitBackTo;
     if (selectedClass?.id) return `/class/${selectedClass.id}`;
 
-    const initialClass =
-      typeof initialClassId === "string" ? initialClassId.trim() : "";
+    const initialClass = initialClassParam;
 
     return initialClass ? `/class/${initialClass}` : "/prof/home";
-  }, [initialBackTo, initialClassId, selectedClass?.id]);
+  }, [initialBackToParam, initialClassParam, selectedClass?.id]);
   const periodizationKnowledgeDomain = useMemo(
     () => (selectedClass ? resolveWeeklyAutopilotKnowledgeDomain(selectedClass) : null),
     [

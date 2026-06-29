@@ -152,7 +152,13 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
   const canSwitchProfile = __DEV__ && Boolean(setDevProfilePreview);
   const selectedPreview = rolePreview[role];
-  const profilePath = getScopedProfilePath(pathname || `${routePrefix[role]}/home`);
+  const isInCurrentRoleScope =
+    pathname === routePrefix[role] || pathname.startsWith(`${routePrefix[role]}/`);
+  const profileScopePath =
+    pathname && isInCurrentRoleScope
+      ? pathname
+      : `${routePrefix[role]}/home`;
+  const profilePath = getScopedProfilePath(profileScopePath);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -334,7 +340,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
       },
       {
         key: "calendar",
-        label: "Calendário semanal",
+        label: "Calendário mensal",
         href: "/prof/calendar",
         icon: "calendar-outline",
       },
@@ -430,11 +436,16 @@ export function WebSidebar({ role }: WebSidebarProps) {
   };
   const operationalItems = operationalItemsByRole[role];
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`) || (href === "/prof/home" && pathname === "/prof");
+  const isClassRoute =
+    pathname === "/classes" || pathname === "/class" || pathname.startsWith("/class/");
+  const isActiveItem = (item: SidebarItem) =>
+    (isClassRoute && item.key === "classes") ||
+    pathname === item.href ||
+    pathname.startsWith(`${item.href}/`) ||
+    (item.href === "/prof/home" && pathname === "/prof");
 
   const renderCompactNavItem = (item: SidebarItem) => {
-    const active = isActive(item.href);
+    const active = isActiveItem(item);
     const hovered = hoveredCompactItemKey === item.key;
     const showCompactTooltip = (event?: unknown) => {
       setHoveredCompactItemKey(item.key);
@@ -573,6 +584,9 @@ export function WebSidebar({ role }: WebSidebarProps) {
           paddingVertical: 18,
           paddingHorizontal: 10,
           gap: 18,
+          flexShrink: 0,
+          height: "100%",
+          maxHeight: "100%",
           position: "relative",
           zIndex: 1000,
           overflow: "visible",
@@ -698,7 +712,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
   }
 
   const renderNavItem = (item: SidebarItem) => {
-    const active = isActive(item.href);
+    const active = isActiveItem(item);
     return (
       <Pressable
         key={item.key}
@@ -779,6 +793,9 @@ export function WebSidebar({ role }: WebSidebarProps) {
         paddingVertical: 18,
         paddingHorizontal: 14,
         gap: 14,
+        flexShrink: 0,
+        height: "100%",
+        maxHeight: "100%",
         position: "relative",
         zIndex: 1000,
       }}

@@ -127,7 +127,7 @@ export const MEMBER_PERMISSION_OPTIONS: {
   {
     key: "calendar",
     label: "Calend\u00e1rio",
-    description: "Acessar calend\u00e1rio semanal.",
+    description: "Acessar calend\u00e1rio mensal.",
   },
   {
     key: "absence_notices",

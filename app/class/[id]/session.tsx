@@ -3768,8 +3768,13 @@ export default function SessionScreen() {
               setShowMissingPeriodizationModal(false);
               if (!cls) return;
               router.push({
-                pathname: "/prof/periodization",
-                params: { classId: cls.id, unit: cls.unit ?? "" },
+                pathname: "/class/[id]/periodization",
+                params: {
+                  id: cls.id,
+                  classId: cls.id,
+                  unit: cls.unit ?? "",
+                  backTo: `/class/${cls.id}/session`,
+                },
               });
             }}
             style={{
