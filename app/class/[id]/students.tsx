@@ -409,6 +409,14 @@ export default function ClassStudentsScreen() {
     }),
     [colors.border, colors.inputBg]
   );
+  const createSecondaryChevronStyle = useMemo(
+    () => ({
+      transform: [
+        { rotate: createDropKey === "createSecondary" ? "180deg" : "0deg" },
+      ],
+    }),
+    [createDropKey]
+  );
 
   const load = useCallback(async (alive?: { current: boolean }) => {
     if (!id) return;
@@ -2097,7 +2105,7 @@ export default function ClassStudentsScreen() {
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
                         <Pressable onPress={() => setCreateDropKey(createDropKey === "createSecondary" ? null : "createSecondary")} style={selectFieldStyle}>
                           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(createPositionSecondary)}</Text>
-                          <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createSecondary" ? "180deg" : "0deg" }] }} />
+                          <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={createSecondaryChevronStyle} />
                         </Pressable>
                         {createDropKey === "createSecondary" ? (
                           <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: "hidden", backgroundColor: colors.card }}>
