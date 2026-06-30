@@ -1013,10 +1013,16 @@ export function HomeProfessorScreen({
         gap: isUx2CWebHome ? (isUx2CCompact ? 12 : 14) : isWebHome ? 12 : 14,
         paddingBottom: insets.bottom + (isWebHome ? 280 : 240),
         width: "100%",
-        maxWidth: isUx2CWebHome ? (isUx2CUltraWide ? 1600 : isUx2CWideDesktop ? 1460 : undefined) : isWebHome ? 1120 : undefined,
+        maxWidth: isUx2CWebHome
+          ? (isUx2CUltraWide ? 1600 : isUx2CWideDesktop ? 1460 : undefined)
+          : isAdminDashboardContext && isWebHome
+            ? (isUx2CUltraWide ? 1600 : isUx2CWideDesktop ? 1460 : 1320)
+            : isWebHome
+              ? 1120
+              : undefined,
         alignSelf: "center",
       }) as const,
-    [insets.bottom, isUx2CCompact, isUx2CUltraWide, isUx2CWebHome, isUx2CWideDesktop, isWebHome]
+    [insets.bottom, isAdminDashboardContext, isUx2CCompact, isUx2CUltraWide, isUx2CWebHome, isUx2CWideDesktop, isWebHome]
   );
 
   const agendaScrollStyle = useMemo(() => {

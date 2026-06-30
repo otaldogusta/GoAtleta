@@ -2,12 +2,14 @@ import {
   buildAttendanceSummaryByClass,
   buildMonthAttendance,
   buildPerformanceRows,
+  buildTrainerTeamIntelligence,
   buildTrainerReportSummary,
   buildUniqueSessionLogs,
   buildWeeklySummary,
 } from "../trainer-report-selectors";
 import type {
   AttendanceRecord,
+  ClassGroup,
   SessionLog,
   Student,
   StudentScoutingLog,
@@ -42,6 +44,16 @@ describe("trainer-report-selectors", () => {
     ] as SessionLog[];
 
     expect(buildUniqueSessionLogs(logs).map((log) => log.id)).toEqual(["other", "new"]);
+  });
+
+  it("normalizes session attendance percentages for team intelligence", () => {
+    const snapshot = buildTrainerTeamIntelligence(
+      [{ id: "c1", name: "Turma 10-12", unit: "Rede Esportes" }] as ClassGroup[],
+      [{ id: "log1", classId: "c1", attendance: 67, PSE: 5, createdAt: "2026-05-01T10:00:00.000Z" }] as SessionLog[]
+    );
+
+    expect(snapshot.globalAvgAttendance).toBeCloseTo(0.67);
+    expect(snapshot.rankingByAttendance[0]?.avgAttendance).toBeCloseTo(0.67);
   });
 
   it("builds weekly summary for weeks with data", () => {

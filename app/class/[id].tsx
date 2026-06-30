@@ -1861,16 +1861,18 @@ export default function ClassDetails() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() =>
+              onPress={() => {
+                const targetClassId = cls?.id ?? id;
                 router.push({
-                  pathname: "/prof/periodization",
+                  pathname: "/class/[id]/periodization",
                   params: {
-                    classId: cls?.id ?? "",
+                    id: targetClassId,
+                    classId: targetClassId,
                     unit: cls?.unit ?? "",
-                    backTo: cls?.id ? `/class/${cls.id}` : "",
+                    backTo: targetClassId ? `/class/${targetClassId}` : "",
                   },
-                })
-              }
+                });
+              }}
               style={{
                 width: "100%",
                 padding: 14,

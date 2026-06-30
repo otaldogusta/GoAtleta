@@ -39,7 +39,6 @@ import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-c
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { useEffectiveProfile } from "../src/core/effective-profile";
-import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
 import { OrganizationProvider, useOptionalOrganization } from "../src/providers/OrganizationProvider";
@@ -53,6 +52,7 @@ import { AppThemeProvider, useAppTheme } from "../src/ui/app-theme";
 import { ConfirmDialogProvider } from "../src/ui/confirm-dialog";
 import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
+import { RootWebShell } from "../src/ui/RootWebShell";
 import { SaveToastProvider } from "../src/ui/save-toast";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 import { ptBR } from "../src/constants/copy/pt-br";
@@ -831,89 +831,91 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
       <StatusBar
         style={mode === "dark" ? "light" : "dark"}
       />
-      {shouldShowEmailVerifyBanner ? (
-        <View
-          style={{
-            marginHorizontal: 12,
-            marginTop: Platform.OS === "web" ? 10 : 6,
-            marginBottom: 6,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
+      <RootWebShell>
+        {shouldShowEmailVerifyBanner ? (
+          <View
+            style={{
+              marginHorizontal: 12,
+              marginTop: Platform.OS === "web" ? 10 : 6,
+              marginBottom: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <Text style={{ color: colors.muted, flex: 1 }}>
+              Confirme seu e-mail para manter sua conta segura e recuperar acesso com facilidade.
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable
+                onPress={() => {
+                  const email = encodeURIComponent(session?.user?.email ?? "");
+                  router.push(`/verify-email?email=${email}`);
+                }}
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                  Confirmar
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setEmailBannerDismissed(true)}
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                  Depois
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            headerTitleAlign: "center",
+            contentStyle: { backgroundColor: colors.background },
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
           }}
         >
-          <Text style={{ color: colors.muted, flex: 1 }}>
-            Confirme seu e-mail para manter sua conta segura e recuperar acesso com facilidade.
-          </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable
-            onPress={() => {
-                const email = encodeURIComponent(session?.user?.email ?? "");
-                router.push(`/verify-email?email=${email}`);
-              }}
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Confirmar
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setEmailBannerDismissed(true)}
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Depois
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          headerTitleAlign: "center",
-          contentStyle: { backgroundColor: colors.background },
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-        }}
-      >
-        <Stack.Screen
-          name="events/[id]"
-          options={
-            Platform.OS === "web"
-              ? {
-                  presentation: "transparentModal",
-                  animation: "fade",
-                  contentStyle: { backgroundColor: "transparent" },
-                }
-              : {
-                  presentation: "card",
-                  animation: "slide_from_right",
-                }
-          }
-        />
-      </Stack>
+          <Stack.Screen
+            name="events/[id]"
+            options={
+              Platform.OS === "web"
+                ? {
+                    presentation: "transparentModal",
+                    animation: "fade",
+                    contentStyle: { backgroundColor: "transparent" },
+                  }
+                : {
+                    presentation: "card",
+                    animation: "slide_from_right",
+                  }
+            }
+          />
+        </Stack>
+      </RootWebShell>
     </View>
   );
 }
@@ -943,10 +945,9 @@ function RootLayout() {
         const key = message + "_" + String(isFatal ?? false);
         if (key !== lastError) {
           lastError = key;
-          void addNotification(
-            isFatal ? "Erro fatal" : "Erro no app",
-            body
-          );
+          Sentry.captureException(error instanceof Error ? error : new Error(body), {
+            level: isFatal ? "fatal" : "error",
+          });
         }
         if (previous) {
           previous(error, isFatal);

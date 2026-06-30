@@ -30,15 +30,32 @@ export function AppShell({ role, children }: AppShellProps) {
 
   return (
     <View
-      style={{
-        flex: 1,
-        flexDirection: "row",
-        backgroundColor: webShellTokens.background,
-        minHeight: "100%",
-      }}
+      style={[
+        {
+          flex: 1,
+          flexDirection: "row",
+          backgroundColor: webShellTokens.background,
+          minHeight: 0,
+        },
+        {
+          height: "100vh",
+          maxHeight: "100vh",
+          overflow: "hidden",
+        } as any,
+      ]}
     >
       <WebSidebar role={role} />
-      <View style={{ flex: 1, minWidth: 0 }}>{children}</View>
+      <View
+        style={{
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
+          height: "100%",
+          overflow: "hidden",
+        }}
+      >
+        {children}
+      </View>
     </View>
   );
 }

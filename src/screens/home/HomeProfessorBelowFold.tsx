@@ -132,7 +132,7 @@ function HomeProfessorBelowFoldBase({
         ) : null}
 
         <ShortcutCard
-          label="Calendário semanal"
+          label="Calendário mensal"
           description="Aulas e chamada"
           icon="calendar-outline"
           onPress={() => router.push("/prof/calendar")}

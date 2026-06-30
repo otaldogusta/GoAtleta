@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -76,6 +76,7 @@ export default function ProfileScreen() {
     setEnabled: setBiometricsEnabled,
   } = useBiometricLock();
   const router = useRouter();
+  const pathname = usePathname();
   const LEGACY_PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
   const NOTIFY_SETTINGS_KEY = "notify_settings_v1";
   const isWeb = Platform.OS === "web";
@@ -103,8 +104,14 @@ export default function ProfileScreen() {
       : defaultProfile === "student"
         ? "student"
         : "professor";
+  const routeProfilePreview = useMemo<ProfilePreviewId | null>(() => {
+    if (/^\/prof(\/|$)/.test(pathname)) return "professor";
+    if (/^\/coord(\/|$)/.test(pathname) || pathname === "/coordination") return "admin";
+    if (/^\/student(\/|$)/.test(pathname) || pathname === "/student-home") return "student";
+    return null;
+  }, [pathname]);
   const selectedProfilePreview: ProfilePreviewId =
-    devProfilePreview === "auto" ? defaultProfilePreview : devProfilePreview;
+    routeProfilePreview ?? (devProfilePreview === "auto" ? defaultProfilePreview : devProfilePreview);
 
 
   useEffect(() => {
@@ -254,37 +261,26 @@ export default function ProfileScreen() {
   }, [session?.user?.created_at, student?.createdAt]);
 
   const profileDisplay = useMemo(() => {
-    if (isDevUser && devProfilePreview && devProfilePreview !== "auto") {
-      if (devProfilePreview === "professor") {
-        return {
-          icon: "school-outline",
-          label: "Professor",
-          subtitle: "Treinador",
-        };
-      }
-      if (devProfilePreview === "admin") {
-        return {
-          icon: "briefcase-outline",
-          label: "Coordenação",
-          subtitle: "Administrador",
-        };
-      }
-      if (devProfilePreview === "student") {
-        return {
-          icon: "person-outline",
-          label: currentClass?.name || "Sem turma",
-          subtitle: currentClass?.unit || "Sem unidade",
-        };
-      }
+    if (selectedProfilePreview === "professor") {
+      return {
+        icon: "school-outline",
+        label: "Professor",
+        subtitle: "Treinador",
+      };
     }
-
-    // Perfil real (auto ou usuário não-dev)
+    if (selectedProfilePreview === "admin") {
+      return {
+        icon: "briefcase-outline",
+        label: "Coordenação",
+        subtitle: "Administrador",
+      };
+    }
     return {
-      icon: "school-outline",
-      label: currentClass?.name || (student ? "Sem turma" : "Professor"),
-      subtitle: currentClass?.unit || (student ? "Sem unidade" : "Treinador"),
+      icon: "person-outline",
+      label: currentClass?.name || "Sem turma",
+      subtitle: currentClass?.unit || "Sem unidade",
     };
-  }, [isDevUser, devProfilePreview, currentClass, student]);
+  }, [currentClass, selectedProfilePreview]);
 
   const accountSecurity = useMemo(() => {
     const confirmedAt =
@@ -593,7 +589,7 @@ export default function ProfileScreen() {
         />
 
         <View style={{ gap: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
               <View style={{ position: "relative" }}>
                 <Pressable
                   onPress={() => setShowPhotoViewer(true)}
@@ -649,20 +645,22 @@ export default function ProfileScreen() {
                   <Ionicons name="pencil" size={14} color={colors.text} />
                 </Pressable>
               </View>
-              <View>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Entrou</Text>
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {joinedLabel}
-                </Text>
+              <View style={{ flex: 1, minWidth: 220, gap: 12 }}>
+                <View>
+                  <Text style={{ fontSize: 30, fontWeight: "800", color: colors.text }}>
+                    {nameParts.first}
+                  </Text>
+                  { nameParts.last ? (
+                    <Text style={{ fontSize: 22, color: colors.muted }}>{nameParts.last}</Text>
+                  ) : null}
+                </View>
+                <View>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>Entrou</Text>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>
+                    {joinedLabel}
+                  </Text>
+                </View>
               </View>
-            </View>
-            <View>
-              <Text style={{ fontSize: 30, fontWeight: "800", color: colors.text }}>
-                {nameParts.first}
-              </Text>
-              { nameParts.last ? (
-                <Text style={{ fontSize: 22, color: colors.muted }}>{nameParts.last}</Text>
-              ) : null}
             </View>
           </View>
         <View style={{ gap: 8 }}>
@@ -1291,5 +1289,3 @@ export default function ProfileScreen() {
     </SafeAreaView>
   );
 }
-
-
