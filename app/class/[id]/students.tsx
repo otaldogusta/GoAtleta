@@ -56,7 +56,7 @@ import { useSaveToast } from "../../../src/ui/save-toast";
 import { useUndoableListDelete } from "../../../src/ui/useUndoableListDelete";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
-import { measureAsync } from "../../../src/observability/perf";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { maskCpf } from "../../../src/utils/cpf";
 import { formatRgBr } from "../../../src/utils/document-normalization";
 import { normalizeRaDigits, validateStudentRa } from "../../../src/utils/student-ra";
@@ -184,6 +184,7 @@ const matchesClassModality = (modalityLabel: string, classModality: ClassGroup["
 
 export default function ClassStudentsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  markRender("screen.classStudents.render.root", { hasClassId: id ? 1 : 0 });
   const router = useRouter();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();

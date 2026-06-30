@@ -32,6 +32,7 @@ import {
   saveTrainingPlan,
 } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
+import { markRender, measureAsync } from "../src/observability/perf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
@@ -182,6 +183,7 @@ export default function CalendarScreen() {
     targetDateParam && !Number.isNaN(new Date(targetDateParam).getTime())
       ? targetDateParam
       : "";
+  markRender("screen.calendar.render.root", { hasTargetDate: targetDate ? 1 : 0 });
   const openApply =
     typeof params.openApply === "string" ? params.openApply === "1" : false;
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -263,12 +265,20 @@ export default function CalendarScreen() {
     let alive = true;
     (async () => {
       try {
-        const classList = await getClasses();
+        const classList = await measureAsync(
+          "screen.calendar.load.classes",
+          () => getClasses(),
+          { hasTargetDate: targetDate ? 1 : 0 }
+        );
         if (!alive) return;
         setClasses(classList);
         void (async () => {
           try {
-            const planList = await getTrainingPlans();
+            const planList = await measureAsync(
+              "screen.calendar.load.plans",
+              () => getTrainingPlans(),
+              { classCount: classList.length }
+            );
             if (!alive) return;
             setPlans(planList);
           } catch {
