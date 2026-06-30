@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import type { ReactNode } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Platform, View } from "react-native";
+import { Platform, View, useWindowDimensions } from "react-native";
 
 import { useAppTheme } from "../../ui/app-theme";
 
@@ -23,6 +23,9 @@ export function ScreenTopChrome({
   fullBleed = true,
 }: ScreenTopChromeProps) {
   const { colors } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const effectiveHorizontalBleed =
+    Platform.OS === "web" && width < 1200 ? 0 : horizontalBleed;
   const stickyStyle =
     Platform.OS === "web"
       ? ({
@@ -33,19 +36,19 @@ export function ScreenTopChrome({
   const webFullBleedStyle =
     Platform.OS === "web" && fullBleed
       ? ({
-          marginLeft: -horizontalBleed,
-          marginRight: -horizontalBleed,
+          marginLeft: -effectiveHorizontalBleed,
+          marginRight: -effectiveHorizontalBleed,
           boxSizing: "border-box",
-          paddingLeft: horizontalBleed,
-          paddingRight: horizontalBleed,
+          paddingLeft: effectiveHorizontalBleed,
+          paddingRight: effectiveHorizontalBleed,
           overflow: "visible",
         } as unknown as ViewStyle)
       : null;
   const bleedStyle =
-    Platform.OS !== "web" && horizontalBleed > 0
+    Platform.OS !== "web" && effectiveHorizontalBleed > 0
       ? ({
-          marginHorizontal: -horizontalBleed,
-          paddingHorizontal: horizontalBleed,
+          marginHorizontal: -effectiveHorizontalBleed,
+          paddingHorizontal: effectiveHorizontalBleed,
         } as ViewStyle)
       : null;
 

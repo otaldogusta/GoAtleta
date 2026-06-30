@@ -53,7 +53,7 @@ export const ClassesListSection = memo(function ClassesListSection({
 }: Props) {
   markRender("screen.classes.render.listSection");
   const { width } = useWindowDimensions();
-  const columnCount = width >= 1180 ? 3 : width >= 760 ? 2 : 1;
+  const columnCount = width >= 1560 ? 3 : width >= 860 ? 2 : 1;
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
   const rows = useMemo<RowItem[]>(() => {

@@ -39,7 +39,6 @@ import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-c
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { useEffectiveProfile } from "../src/core/effective-profile";
-import { addNotification } from "../src/notificationsInbox";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
 import { OrganizationProvider, useOptionalOrganization } from "../src/providers/OrganizationProvider";
@@ -946,10 +945,9 @@ function RootLayout() {
         const key = message + "_" + String(isFatal ?? false);
         if (key !== lastError) {
           lastError = key;
-          void addNotification(
-            isFatal ? "Erro fatal" : "Erro no app",
-            body
-          );
+          Sentry.captureException(error instanceof Error ? error : new Error(body), {
+            level: isFatal ? "fatal" : "error",
+          });
         }
         if (previous) {
           previous(error, isFatal);

@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -46,6 +46,7 @@ import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { AnimatedSegmentedTabs } from "../../../src/ui/AnimatedSegmentedTabs";
 import { ConfirmCloseOverlay } from "../../../src/ui/ConfirmCloseOverlay";
+import { decorativeIconProps } from "../../../src/ui/decorative-icon-props";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -219,8 +220,6 @@ export default function ClassStudentsScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
-  const [selectionUiVisible, setSelectionUiVisible] = useState(false);
-  const selectionModeAnim = useRef(new Animated.Value(0)).current;
   const debouncedSearch = useDebouncedValue(search, 250);
   const [dropKey, setDropKey] = useState<DropKey>(null);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
@@ -1288,21 +1287,6 @@ export default function ClassStudentsScreen() {
   const isSelectionMode = selectionModeEnabled;
   const allFilteredSelected = filtered.length > 0 && filtered.every((student) => selectedStudentIds.includes(student.id));
 
-  useEffect(() => {
-    if (isSelectionMode) {
-      setSelectionUiVisible(true);
-    }
-    Animated.timing(selectionModeAnim, {
-      toValue: isSelectionMode ? 1 : 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished && !isSelectionMode) {
-        setSelectionUiVisible(false);
-      }
-    });
-  }, [isSelectionMode, selectionModeAnim]);
-
   const toggleSelectedStudent = useCallback((studentId: string) => {
     setSelectedStudentIds((current) =>
       current.includes(studentId)
@@ -1759,121 +1743,124 @@ export default function ClassStudentsScreen() {
         {screenTab === "alunos" ? (
           <>
             <View style={[getSectionCardStyle(colors, "neutral", { radius: 14, padding: 12 }), { marginTop: 12 }]}>
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Buscar aluno"
-                placeholderTextColor={colors.placeholder}
-                style={inputStyle(colors)}
-              />
-              {!isSelectionMode ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TextInput
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Buscar aluno"
+                  placeholderTextColor={colors.placeholder}
+                  style={[inputStyle(colors), { flex: 1 }]}
+                />
                 <Pressable
-                  onPress={enterSelectionMode}
+                  accessibilityLabel={isSelectionMode ? "Cancelar seleção" : "Selecionar alunos"}
+                  onPress={isSelectionMode ? exitSelectionMode : enterSelectionMode}
+                  style={{
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 42,
+                    height: 42,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: isSelectionMode ? colors.primaryBg : colors.border,
+                    backgroundColor: isSelectionMode ? colors.primaryBg : colors.card,
+                  }}
+                >
+                  <Ionicons {...decorativeIconProps}
+                    name={isSelectionMode ? "close" : "people-outline"}
+                    size={18}
+                    color={isSelectionMode ? colors.primaryText : colors.text}
+                  />
+                </Pressable>
+              </View>
+              {isSelectionMode && selectedStudents.length > 0 ? (
+                <View
                   style={{
                     marginTop: 10,
-                    alignSelf: "flex-start",
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    flexWrap: "wrap",
                   }}
                 >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Selecionar alunos
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                    {selectedStudents.length} selecionado{selectedStudents.length === 1 ? "" : "s"}
                   </Text>
-                </Pressable>
-              ) : (
-                <Text style={{ marginTop: 8, color: colors.muted, fontSize: 11 }}>
-                  Toque nos círculos à esquerda para selecionar vários alunos.
-                </Text>
-              )}
-            </View>
-
-            {selectionUiVisible ? (
-              <Animated.View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 14,
-                  backgroundColor: colors.card,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  opacity: selectionModeAnim,
-                  transform: [
-                    {
-                      translateY: selectionModeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-6, 0],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <Pressable
-                    onPress={() => {
-                      if (allFilteredSelected) {
-                        clearSelectedStudents();
-                        return;
-                      }
-                      selectAllStudents();
-                    }}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      borderWidth: 2,
-                      borderColor: allFilteredSelected ? colors.primaryBg : colors.border,
-                      backgroundColor: allFilteredSelected ? colors.primaryBg : colors.card,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transform: [
-                        {
-                          scale: selectionModeAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0.94, 1],
-                          }),
-                        },
-                      ],
-                    }}
-                  >
-                    {allFilteredSelected ? (
-                      <Ionicons name="checkmark" size={16} color={colors.primaryText} />
-                    ) : null}
-                  </Pressable>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                    {selectedStudentIds.length} selecionado(s)
-                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <Pressable
+                      onPress={openMoveClassModal}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.card,
+                      }}
+                      accessibilityLabel="Mover alunos"
+                    >
+                      <Ionicons {...decorativeIconProps} name="swap-horizontal-outline" size={17} color={colors.text} />
+                    </Pressable>
+                    <Pressable
+                      onPress={handleDuplicateSelectedStudents}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.card,
+                      }}
+                      accessibilityLabel="Duplicar alunos"
+                    >
+                      <Ionicons {...decorativeIconProps} name="copy-outline" size={17} color={colors.text} />
+                    </Pressable>
+                    <Pressable
+                      onPress={handleDeleteSelectedStudents}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.dangerSolidBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      accessibilityLabel="Excluir alunos"
+                    >
+                      <Ionicons {...decorativeIconProps} name="trash-outline" size={17} color={colors.dangerSolidText} />
+                    </Pressable>
+                    <Pressable
+                      onPress={handleSelectionMore}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: colors.background,
+                      }}
+                      accessibilityLabel="Mais ações"
+                    >
+                      <Ionicons {...decorativeIconProps} name="ellipsis-horizontal" size={17} color={colors.text} />
+                    </Pressable>
+                  </View>
                 </View>
-                <Pressable
-                  onPress={exitSelectionMode}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    Cancelar
-                  </Text>
-                </Pressable>
-              </Animated.View>
-            ) : null}
+              ) : null}
+            </View>
 
             <ScrollView
               contentContainerStyle={{
                 gap: 10,
                 paddingTop: 12,
-                paddingBottom: Math.max(insets.bottom + (isSelectionMode ? 176 : 24), 36),
+                paddingBottom: Math.max(insets.bottom + 36, 52),
               }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator
@@ -1922,7 +1909,7 @@ export default function ClassStudentsScreen() {
                           }}
                         >
                           {selected ? (
-                            <Ionicons name="checkmark" size={17} color={colors.primaryText} />
+                            <Ionicons {...decorativeIconProps} name="checkmark" size={17} color={colors.primaryText} />
                           ) : null}
                         </View>
                       ) : null}
@@ -1942,7 +1929,7 @@ export default function ClassStudentsScreen() {
                         {s.photoUrl ? (
                           <Image source={{ uri: s.photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                         ) : (
-                          <Ionicons name="person" size={22} color={colors.muted} />
+                          <Ionicons {...decorativeIconProps} name="person" size={22} color={colors.muted} />
                         )}
                       </View>
                       <View style={{ flex: 1, gap: 2 }}>
@@ -1968,7 +1955,7 @@ export default function ClassStudentsScreen() {
                             opacity: hasPhone ? 1 : 0.5,
                           }}
                         >
-                          <Ionicons name="logo-whatsapp" size={20} color={hasPhone ? "#fff" : colors.muted} />
+                          <Ionicons {...decorativeIconProps} name="logo-whatsapp" size={20} color={hasPhone ? "#fff" : colors.muted} />
                         </Pressable>
                       </View>
                     </Pressable>
@@ -1976,119 +1963,6 @@ export default function ClassStudentsScreen() {
                 })
               )}
             </ScrollView>
-            {screenTab === "alunos" && selectionUiVisible ? (
-              <Animated.View
-                style={{
-                  position: "absolute",
-                  left: 16,
-                  right: 16,
-                  bottom: Math.max(insets.bottom + 16, 16),
-                  borderRadius: 18,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  paddingHorizontal: 14,
-                  paddingVertical: 12,
-                  gap: 10,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.12,
-                  shadowRadius: 18,
-                  shadowOffset: { width: 0, height: 8 },
-                  elevation: 8,
-                  opacity: selectionModeAnim,
-                  transform: [
-                    {
-                      translateY: selectionModeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [12, 0],
-                      }),
-                    },
-                    {
-                      scale: selectionModeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.98, 1],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
-                  {selectedStudents.length} selecionado(s)
-                </Text>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    onPress={openMoveClassModal}
-                    style={{
-                      width: 52,
-                      height: 44,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.card,
-                      opacity: selectedStudents.length ? 1 : 0.45,
-                    }}
-                    disabled={!selectedStudents.length}
-                    accessibilityLabel="Mover alunos"
-                  >
-                    <Ionicons name="swap-horizontal-outline" size={17} color={colors.text} />
-                  </Pressable>
-                  <Pressable
-                    onPress={handleDuplicateSelectedStudents}
-                    style={{
-                      width: 52,
-                      height: 44,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.card,
-                      opacity: selectedStudents.length ? 1 : 0.45,
-                    }}
-                    disabled={!selectedStudents.length}
-                    accessibilityLabel="Duplicar alunos"
-                  >
-                    <Ionicons name="copy-outline" size={17} color={colors.text} />
-                  </Pressable>
-                  <Pressable
-                    onPress={handleDeleteSelectedStudents}
-                    style={{
-                      width: 52,
-                      height: 44,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.dangerSolidBg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      opacity: selectedStudents.length ? 1 : 0.45,
-                    }}
-                    disabled={!selectedStudents.length}
-                    accessibilityLabel="Excluir alunos"
-                  >
-                    <Ionicons name="trash-outline" size={17} color={colors.dangerSolidText} />
-                  </Pressable>
-                  <Pressable
-                    onPress={handleSelectionMore}
-                    style={{
-                      width: 52,
-                      height: 44,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.background,
-                    }}
-                    accessibilityLabel="Mais ações"
-                  >
-                    <Ionicons name="ellipsis-horizontal" size={17} color={colors.text} />
-                  </Pressable>
-                </View>
-              </Animated.View>
-            ) : null}
           </>
         ) : (
           <View style={{ flex: 1, marginTop: 12 }}>
@@ -2113,7 +1987,7 @@ export default function ClassStudentsScreen() {
                   {createPhotoUrl ? (
                     <Image source={{ uri: createPhotoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                   ) : (
-                    <Ionicons name="camera-outline" size={24} color={colors.muted} />
+                    <Ionicons {...decorativeIconProps} name="camera-outline" size={24} color={colors.muted} />
                   )}
                 </Pressable>
                 <View style={{ gap: 6 }}>
@@ -2139,7 +2013,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Dados do aluno</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{createStudentDataSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "studentData" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "studentData" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "studentData" || createStudentDataAnim.isVisible) ? (
@@ -2169,7 +2043,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{createAcademicSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "academic" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "academic" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "academic" || createAcademicAnim.isVisible) ? (
@@ -2195,7 +2069,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{createSportSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "sportProfile" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "sportProfile" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "sportProfile" || createSportAnim.isVisible) ? (
@@ -2206,7 +2080,7 @@ export default function ClassStudentsScreen() {
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
                         <Pressable onPress={() => setCreateDropKey(createDropKey === "createPrimary" ? null : "createPrimary")} style={selectFieldStyle}>
                           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(createPositionPrimary)}</Text>
-                          <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createPrimary" ? "180deg" : "0deg" }] }} />
+                          <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createPrimary" ? "180deg" : "0deg" }] }} />
                         </Pressable>
                         {createDropKey === "createPrimary" ? (
                           <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: "hidden", backgroundColor: colors.card }}>
@@ -2222,7 +2096,7 @@ export default function ClassStudentsScreen() {
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
                         <Pressable onPress={() => setCreateDropKey(createDropKey === "createSecondary" ? null : "createSecondary")} style={selectFieldStyle}>
                           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(createPositionSecondary)}</Text>
-                          <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createSecondary" ? "180deg" : "0deg" }] }} />
+                          <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createSecondary" ? "180deg" : "0deg" }] }} />
                         </Pressable>
                         {createDropKey === "createSecondary" ? (
                           <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: "hidden", backgroundColor: colors.card }}>
@@ -2249,7 +2123,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Documentos</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{createDocumentsSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "documents" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "documents" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "documents" || createDocumentsAnim.isVisible) ? (
@@ -2277,7 +2151,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{createHealthSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "health" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "health" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "health" || createHealthAnim.isVisible) ? (
@@ -2330,7 +2204,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Responsável</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{createGuardianSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "guardian" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "guardian" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "guardian" || createGuardianAnim.isVisible) ? (
@@ -2348,7 +2222,7 @@ export default function ClassStudentsScreen() {
                       <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
                       <Pressable onPress={() => setCreateDropKey(createDropKey === "createGuardian" ? null : "createGuardian")} style={selectFieldStyle}>
                         <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{createGuardianRelation || "Selecione"}</Text>
-                        <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createGuardian" ? "180deg" : "0deg" }] }} />
+                        <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createGuardian" ? "180deg" : "0deg" }] }} />
                       </Pressable>
                       {createDropKey === "createGuardian" ? (
                         <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: "hidden", backgroundColor: colors.card }}>
@@ -2374,7 +2248,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Vínculos esportivos</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{createLinksSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "links" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "links" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "links" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "links" || createLinksAnim.isVisible) ? (
@@ -2459,7 +2333,7 @@ export default function ClassStudentsScreen() {
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="close" size={18} color={colors.text} />
+              <Ionicons {...decorativeIconProps} name="close" size={18} color={colors.text} />
             </Pressable>
           </View>
           <ScrollView
@@ -2487,7 +2361,7 @@ export default function ClassStudentsScreen() {
                 {photoUrl ? (
                   <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                 ) : (
-                  <Ionicons name="camera-outline" size={24} color={colors.muted} />
+                  <Ionicons {...decorativeIconProps} name="camera-outline" size={24} color={colors.muted} />
                 )}
               </Pressable>
               <View style={{ gap: 6 }}>
@@ -2514,7 +2388,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Dados do aluno</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{studentDataSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "studentData" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "studentData" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openSection === "studentData" || studentDataAnim.isVisible) ? (
@@ -2575,7 +2449,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{academicSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "academic" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "academic" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openSection === "academic" || academicAnim.isVisible) ? (
@@ -2605,7 +2479,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Documentos</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{documentsSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "documents" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "documents" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openSection === "documents" || documentsAnim.isVisible) ? (
@@ -2643,7 +2517,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{sportSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "sportProfile" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "sportProfile" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openSection === "sportProfile" || sportAnim.isVisible) ? (
@@ -2655,7 +2529,7 @@ export default function ClassStudentsScreen() {
                       <View ref={primaryRef}>
                         <Pressable onPress={() => setDropKey(dropKey === "primary" ? null : "primary")} style={selectFieldStyle}>
                           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(primaryPos)}</Text>
-                          <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "primary" ? "180deg" : "0deg" }] }} />
+                          <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "primary" ? "180deg" : "0deg" }] }} />
                         </Pressable>
                       </View>
                     </View>
@@ -2664,7 +2538,7 @@ export default function ClassStudentsScreen() {
                       <View ref={secondaryRef}>
                         <Pressable onPress={() => setDropKey(dropKey === "secondary" ? null : "secondary")} style={selectFieldStyle}>
                           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(secondaryPos)}</Text>
-                          <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "secondary" ? "180deg" : "0deg" }] }} />
+                          <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "secondary" ? "180deg" : "0deg" }] }} />
                         </Pressable>
                       </View>
                     </View>
@@ -2683,7 +2557,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{healthSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "health" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "health" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openSection === "health" || healthAnim.isVisible) ? (
@@ -2775,7 +2649,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Responsável</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{guardianSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "guardian" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "guardian" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openSection === "guardian" || guardianAnim.isVisible) ? (
@@ -2796,7 +2670,7 @@ export default function ClassStudentsScreen() {
                     <View ref={guardianRef}>
                       <Pressable onPress={() => setDropKey(dropKey === "guardian" ? null : "guardian")} style={selectFieldStyle}>
                         <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{guardianRelation || "Selecione"}</Text>
-                        <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "guardian" ? "180deg" : "0deg" }] }} />
+                        <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "guardian" ? "180deg" : "0deg" }] }} />
                       </Pressable>
                     </View>
                   </View>
@@ -2814,7 +2688,7 @@ export default function ClassStudentsScreen() {
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Vínculos esportivos</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{linksSummary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "links" ? "180deg" : "0deg" }] }} />
+                <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "links" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openSection === "links" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openSection === "links" || linksAnim.isVisible) ? (

@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -15,6 +14,7 @@ import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { brandPalette, radius } from "../theme/tokens";
 import { Pressable } from "./Pressable";
 import { buildWebSidebarViewModel } from "./web-sidebar-view-model";
+import { decorativeIconProps } from "./decorative-icon-props";
 import { webShellTokens } from "./web-shell-tokens";
 
 type WebSidebarProps = {
@@ -124,6 +124,215 @@ const getUserEmail = (session: ReturnType<typeof useAuth>["session"]) => {
   const user = session?.user as { email?: string } | undefined;
   return user?.email ?? "";
 };
+
+function SidebarGlyph({
+  name,
+  color,
+  size = 20,
+}: {
+  name: IoniconName | "football-outline" | "chevron-forward-outline" | "chevron-back-outline" | "chevron-up-outline" | "chevron-down-outline";
+  color: string;
+  size?: number;
+}) {
+  const icon = String(name);
+  const stroke = Math.max(1.6, Math.round(size * 0.1));
+  const line = (extra: Record<string, unknown>) => ({
+    position: "absolute" as const,
+    backgroundColor: color,
+    borderRadius: stroke,
+    ...extra,
+  });
+  const outline = (extra: Record<string, unknown>) => ({
+    position: "absolute" as const,
+    borderColor: color,
+    borderWidth: stroke,
+    ...extra,
+  });
+
+  const chevronRotation = icon.includes("back")
+    ? "-135deg"
+    : icon.includes("up")
+      ? "-45deg"
+      : icon.includes("down")
+        ? "135deg"
+        : "45deg";
+
+  if (icon.includes("chevron")) {
+    return (
+      <View
+        {...decorativeIconProps}
+        style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}
+      >
+        <View
+          style={{
+            width: size * 0.42,
+            height: size * 0.42,
+            borderTopWidth: stroke,
+            borderRightWidth: stroke,
+            borderColor: color,
+            transform: [{ rotate: chevronRotation }],
+          }}
+        />
+      </View>
+    );
+  }
+
+  if (icon.includes("football")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={outline({ inset: size * 0.08, borderRadius: size })} />
+        <View style={line({ width: size * 0.18, height: size * 0.18, left: size * 0.41, top: size * 0.41 })} />
+        <View style={line({ width: size * 0.12, height: size * 0.12, left: size * 0.28, top: size * 0.23 })} />
+        <View style={line({ width: size * 0.12, height: size * 0.12, right: size * 0.25, top: size * 0.28 })} />
+        <View style={line({ width: size * 0.12, height: size * 0.12, left: size * 0.30, bottom: size * 0.24 })} />
+        <View style={line({ width: size * 0.12, height: size * 0.12, right: size * 0.26, bottom: size * 0.22 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("stats") || icon.includes("analytics")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={line({ width: stroke + 1, height: size * 0.42, left: size * 0.22, bottom: size * 0.18 })} />
+        <View style={line({ width: stroke + 1, height: size * 0.64, left: size * 0.45, bottom: size * 0.18 })} />
+        <View style={line({ width: stroke + 1, height: size * 0.52, right: size * 0.22, bottom: size * 0.18 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("people") || icon.includes("person") || icon.includes("members")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={outline({ width: size * 0.24, height: size * 0.24, borderRadius: size, left: size * 0.38, top: size * 0.17 })} />
+        <View style={outline({ width: size * 0.58, height: size * 0.30, borderTopLeftRadius: size, borderTopRightRadius: size, left: size * 0.21, bottom: size * 0.17 })} />
+        <View style={line({ width: size * 0.18, height: stroke, left: size * 0.05, bottom: size * 0.25, opacity: 0.7 })} />
+        <View style={line({ width: size * 0.18, height: stroke, right: size * 0.05, bottom: size * 0.25, opacity: 0.7 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("home")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View
+          style={{
+            ...outline({
+              width: size * 0.50,
+              height: size * 0.50,
+              left: size * 0.25,
+              bottom: size * 0.15,
+              borderRadius: 2,
+            }),
+            borderTopWidth: 0,
+          }}
+        />
+        <View
+          style={{
+            width: size * 0.52,
+            height: size * 0.52,
+            borderTopWidth: stroke,
+            borderLeftWidth: stroke,
+            borderColor: color,
+            position: "absolute",
+            left: size * 0.24,
+            top: size * 0.16,
+            transform: [{ rotate: "45deg" }],
+          }}
+        />
+      </View>
+    );
+  }
+
+  if (icon.includes("calendar") || icon.includes("today")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={outline({ inset: size * 0.14, borderRadius: size * 0.18 })} />
+        <View style={line({ left: size * 0.18, right: size * 0.18, top: size * 0.34, height: stroke })} />
+        <View style={line({ width: stroke, height: size * 0.16, left: size * 0.34, top: size * 0.10 })} />
+        <View style={line({ width: stroke, height: size * 0.16, right: size * 0.34, top: size * 0.10 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("clipboard") || icon.includes("reader")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={outline({ inset: size * 0.16, borderRadius: size * 0.14 })} />
+        <View style={outline({ width: size * 0.34, height: size * 0.14, left: size * 0.33, top: size * 0.08, borderRadius: size * 0.10 })} />
+        <View style={line({ left: size * 0.30, right: size * 0.30, top: size * 0.43, height: stroke, opacity: 0.75 })} />
+        <View style={line({ left: size * 0.30, right: size * 0.36, top: size * 0.57, height: stroke, opacity: 0.75 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("school")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View
+          style={{
+            ...outline({ width: size * 0.52, height: size * 0.52, left: size * 0.24, top: size * 0.20, borderRadius: 2 }),
+            transform: [{ rotate: "45deg" }],
+          }}
+        />
+        <View style={line({ width: size * 0.50, height: stroke, left: size * 0.25, bottom: size * 0.22 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("book")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={outline({ width: size * 0.34, height: size * 0.56, left: size * 0.15, top: size * 0.20, borderRadius: 3 })} />
+        <View style={outline({ width: size * 0.34, height: size * 0.56, right: size * 0.15, top: size * 0.20, borderRadius: 3 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("bell") || icon.includes("notifications")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={outline({ width: size * 0.48, height: size * 0.50, left: size * 0.26, top: size * 0.18, borderTopLeftRadius: size, borderTopRightRadius: size })} />
+        <View style={line({ left: size * 0.22, right: size * 0.22, bottom: size * 0.25, height: stroke })} />
+        <View style={line({ width: size * 0.12, height: size * 0.12, left: size * 0.44, bottom: size * 0.10 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("trending")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={line({ width: size * 0.52, height: stroke, left: size * 0.22, top: size * 0.52, transform: [{ rotate: "-28deg" }] })} />
+        <View style={line({ width: size * 0.20, height: stroke, right: size * 0.18, top: size * 0.30, transform: [{ rotate: "28deg" }] })} />
+        <View style={line({ width: size * 0.20, height: stroke, right: size * 0.16, top: size * 0.39, transform: [{ rotate: "-62deg" }] })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("layers")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={outline({ width: size * 0.56, height: size * 0.30, left: size * 0.22, top: size * 0.18, borderRadius: 3, transform: [{ rotate: "18deg" }] })} />
+        <View style={outline({ width: size * 0.56, height: size * 0.30, left: size * 0.22, top: size * 0.36, borderRadius: 3, transform: [{ rotate: "18deg" }], opacity: 0.75 })} />
+        <View style={outline({ width: size * 0.56, height: size * 0.30, left: size * 0.22, top: size * 0.54, borderRadius: 3, transform: [{ rotate: "18deg" }], opacity: 0.55 })} />
+      </View>
+    );
+  }
+
+  if (icon.includes("briefcase")) {
+    return (
+      <View {...decorativeIconProps} style={{ width: size, height: size }}>
+        <View style={outline({ inset: size * 0.20, borderRadius: size * 0.12 })} />
+        <View style={outline({ width: size * 0.26, height: size * 0.16, left: size * 0.37, top: size * 0.12, borderRadius: size * 0.08 })} />
+      </View>
+    );
+  }
+
+  return (
+    <View {...decorativeIconProps} style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ width: size * 0.58, height: size * 0.58, borderRadius: size, borderWidth: stroke, borderColor: color }} />
+    </View>
+  );
+}
 
 export function WebSidebar({ role }: WebSidebarProps) {
   const router = useRouter();
@@ -510,7 +719,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
             backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
           }}
         >
-          <Ionicons
+          <SidebarGlyph
             name={item.icon}
             size={20}
             color={active ? webShellTokens.primary : "rgba(255,255,255,0.70)"}
@@ -636,7 +845,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
               justifyContent: "center",
             }}
           >
-            <Ionicons name="football-outline" size={22} color={brandPalette.white} />
+            <SidebarGlyph name="football-outline" size={22} color={brandPalette.white} />
           </View>
           <Pressable
             accessibilityLabel="Expandir menu"
@@ -652,7 +861,11 @@ export function WebSidebar({ role }: WebSidebarProps) {
               borderColor: "rgba(255,255,255,0.10)",
             }}
           >
-            <Ionicons name="chevron-forward-outline" size={18} color="rgba(255,255,255,0.76)" />
+            <SidebarGlyph
+              name="chevron-forward-outline"
+              size={18}
+              color="rgba(255,255,255,0.76)"
+            />
           </Pressable>
         </View>
 
@@ -742,7 +955,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
             backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
           }}
         >
-          <Ionicons
+          <SidebarGlyph
             name={item.icon}
             size={17}
             color={active ? webShellTokens.primary : "rgba(255,255,255,0.68)"}
@@ -813,7 +1026,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
             justifyContent: "center",
           }}
         >
-          <Ionicons name="football-outline" size={22} color={brandPalette.white} />
+          <SidebarGlyph name="football-outline" size={22} color={brandPalette.white} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: brandPalette.white, fontSize: 15, fontWeight: "900" }}>
@@ -837,7 +1050,11 @@ export function WebSidebar({ role }: WebSidebarProps) {
             borderColor: "rgba(255,255,255,0.10)",
           }}
         >
-          <Ionicons name="chevron-back-outline" size={18} color="rgba(255,255,255,0.76)" />
+          <SidebarGlyph
+            name="chevron-back-outline"
+            size={18}
+            color="rgba(255,255,255,0.76)"
+          />
         </Pressable>
       </View>
 
@@ -922,7 +1139,11 @@ export function WebSidebar({ role }: WebSidebarProps) {
                 gap: 10,
               }}
             >
-              <Ionicons name="person-circle-outline" size={18} color="rgba(255,255,255,0.78)" />
+              <SidebarGlyph
+                name="person-circle-outline"
+                size={18}
+                color="rgba(255,255,255,0.78)"
+              />
               <Text style={{ flex: 1, color: brandPalette.white, fontSize: 13, fontWeight: "700" }}>
                 Perfil
               </Text>
@@ -958,7 +1179,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
                         backgroundColor: active ? "rgba(255,255,255,0.10)" : "transparent",
                       }}
                     >
-                      <Ionicons
+                      <SidebarGlyph
                         name={option.icon}
                         size={17}
                         color={active ? webShellTokens.primary : "rgba(255,255,255,0.70)"}
@@ -979,7 +1200,15 @@ export function WebSidebar({ role }: WebSidebarProps) {
                         </Text>
                       </View>
                       {active ? (
-                        <Ionicons name="checkmark-circle" size={16} color={webShellTokens.primary} />
+                        <View
+                          {...decorativeIconProps}
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: 6,
+                            backgroundColor: webShellTokens.primary,
+                          }}
+                        />
                       ) : null}
                     </Pressable>
                   );
@@ -1027,7 +1256,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
               {roleProfileLabel[role]}
             </Text>
           </View>
-          <Ionicons
+          <SidebarGlyph
             name={profileMenuOpen ? "chevron-down-outline" : "chevron-up-outline"}
             size={17}
             color="rgba(255,255,255,0.62)"

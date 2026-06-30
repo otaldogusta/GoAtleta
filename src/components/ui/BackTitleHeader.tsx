@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import type { ReactNode } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Platform, Text, View } from "react-native";
@@ -61,7 +60,17 @@ export function BackTitleHeader({ title, onBack, accessory, style }: BackTitleHe
             justifyContent: "center",
           }}
         >
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <View
+            style={{
+              width: 10,
+              height: 10,
+              borderLeftWidth: 2.4,
+              borderBottomWidth: 2.4,
+              borderColor: colors.text,
+              transform: [{ rotate: "45deg" }],
+              marginLeft: 4,
+            }}
+          />
         </View>
         <Text
           numberOfLines={2}

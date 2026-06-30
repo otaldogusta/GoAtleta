@@ -14,7 +14,7 @@ import {
   View,
   useWindowDimensions
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
 import type { EventListItem } from "../src/api/events";
@@ -170,6 +170,7 @@ export default function CalendarScreen() {
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const { activeOrganization } = useOrganization();
   const params = useLocalSearchParams();
@@ -794,7 +795,12 @@ export default function CalendarScreen() {
           </ScreenPageHeader>
 
           <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 12, gap: 14 }}
+            contentContainerStyle={{
+              paddingHorizontal: isCompactLayout ? 12 : 16,
+              paddingTop: 2,
+              paddingBottom: Math.max(insets.bottom + (isCompactLayout ? 104 : 28), 40),
+              gap: 14,
+            }}
             pointerEvents={showApplyPicker ? "none" : "auto"}
           >
             {showNoTrainingNotice ? (
@@ -894,8 +900,18 @@ export default function CalendarScreen() {
               </FadeHorizontalScroll>
             </View>
 
+            <ScrollView
+              horizontal
+              scrollEnabled={isCompactLayout}
+              showsHorizontalScrollIndicator={isCompactLayout}
+              contentContainerStyle={{
+                width: isCompactLayout ? 920 : "100%",
+              }}
+              style={{ width: "100%" }}
+            >
             <View
               style={{
+                width: "100%",
                 padding: isCompactLayout ? 8 : 12,
                 borderRadius: 18,
                 backgroundColor: colors.card,
@@ -1064,6 +1080,7 @@ export default function CalendarScreen() {
                 </View>
               ))}
             </View>
+            </ScrollView>
           </ScrollView>
       </>
         )}

@@ -16,6 +16,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
+import { decorativeIconProps } from "../../src/ui/decorative-icon-props";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 import type {
@@ -439,7 +440,23 @@ export default function ReportsScreen() {
                 <Text style={{ fontSize: 16, color: colors.text }}>{"‹"}</Text>
               </Pressable>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="calendar-outline" size={18} color={colors.muted} />
+                <View
+                  {...decorativeIconProps}
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 5,
+                    borderWidth: 1.5,
+                    borderColor: colors.muted,
+                    overflow: "hidden",
+                  }}
+                >
+                  <View style={{ height: 5, backgroundColor: colors.muted, opacity: 0.35 }} />
+                  <View style={{ flex: 1, padding: 3, gap: 2 }}>
+                    <View style={{ width: 8, height: 1.5, borderRadius: 1, backgroundColor: colors.muted }} />
+                    <View style={{ width: 5, height: 1.5, borderRadius: 1, backgroundColor: colors.muted, opacity: 0.75 }} />
+                  </View>
+                </View>
                 <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
                   {monthLabel(month)}
                 </Text>
@@ -714,7 +731,7 @@ export default function ReportsScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {unitFilter || "Selecione a unidade"}
                   </Text>
-                  <Ionicons name="chevron-down" size={16} color={colors.muted} />
+                  <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} />
                 </Pressable>
                 { unitPickerOpen ? (
                   <View
@@ -786,7 +803,7 @@ export default function ReportsScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {classForUnitById[classId]?.name || "Selecione a turma"}
                   </Text>
-                  <Ionicons name="chevron-down" size={16} color={colors.muted} />
+                  <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} />
                 </Pressable>
                 { classPickerOpen ? (
                   <View
@@ -964,7 +981,7 @@ export default function ReportsScreen() {
                           }}
                         >
                           { slot.rank === 1 ? (
-                            <Ionicons name="trophy" size={30} color={ringColor} />
+                            <Ionicons {...decorativeIconProps} name="trophy" size={30} color={ringColor} />
                           ) : (
                             <View style={{ height: 28 }} />
                           )}
@@ -1019,7 +1036,7 @@ export default function ReportsScreen() {
                             {row.student.name}
                           </Text>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <Ionicons name="star" size={12} color={ringColor} />
+                            <Ionicons {...decorativeIconProps} name="star" size={12} color={ringColor} />
                             <Text style={{ color: ringColor, fontWeight: "700" }}>
                               {row.score} pts
                             </Text>
@@ -1106,10 +1123,14 @@ export default function ReportsScreen() {
                           </Text>
                         </View>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Ionicons
-                            name="star"
-                            size={12}
-                            color={highlight ? colors.primaryText : colors.primaryBg}
+                          <View
+                            {...decorativeIconProps}
+                            style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: 4,
+                              backgroundColor: highlight ? colors.primaryText : colors.primaryBg,
+                            }}
                           />
                           <Text
                             style={{

@@ -15,6 +15,7 @@ import { useOptionalOrganization } from "../../providers/OrganizationProvider";
 import { Pressable } from "../../ui/Pressable";
 import { WEB_SHELL_MIN_WIDTH, shouldHideWebShellForPath } from "../../ui/AppShell";
 import { useAppTheme } from "../../ui/app-theme";
+import { decorativeIconProps } from "../../ui/decorative-icon-props";
 import { radius, shadow } from "../../theme/tokens";
 import { FabRadialMenu } from "./FabRadialMenu";
 import { ROLE_RADIAL_ACTIONS, ROLE_TABS, type AppRole } from "./tab-config";
@@ -158,6 +159,7 @@ export function AnimatedBottomTabs({
             return (
               <Pressable
                 key={tab.key}
+                accessibilityLabel="Abrir ações rápidas"
                 onPress={() => setMenuOpen((current) => !current)}
                 style={{
                   width: 58,
@@ -172,7 +174,7 @@ export function AnimatedBottomTabs({
                 }}
               >
                 <Animated.View style={plusIconStyle}>
-                  <Ionicons name="add" size={24} color={colors.primaryText} />
+                  <Ionicons {...decorativeIconProps} name="add" size={24} color={colors.primaryText} />
                 </Animated.View>
               </Pressable>
             );
@@ -206,6 +208,7 @@ export function AnimatedBottomTabs({
                 }}
               >
                 <Ionicons
+                  {...decorativeIconProps}
                   name={tab.icon}
                   size={18}
                   color={focused ? colors.primaryText : colors.muted}

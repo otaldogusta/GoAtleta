@@ -93,6 +93,7 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
+import { decorativeIconProps } from "../../src/ui/decorative-icon-props";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
@@ -1071,7 +1072,7 @@ export default function TrainingList() {
           setItems([]);
           return;
         }
-        console.error("Training bootstrap load failed:", error);
+        console.warn("Training bootstrap load skipped.", error);
       }
     })();
     return () => {
@@ -1526,7 +1527,7 @@ export default function TrainingList() {
                       backgroundColor: colors.secondaryBg,
                     }}
                   >
-                    <Ionicons name="calendar-outline" size={13} color={colors.muted} />
+                    <Ionicons {...decorativeIconProps} name="calendar-outline" size={13} color={colors.muted} />
                     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                       {appliedInfo.isApplied ? `Aplicado ${dateLine}` : dateLine}
                     </Text>
@@ -1543,7 +1544,7 @@ export default function TrainingList() {
                     backgroundColor: colors.secondaryBg,
                   }}
                 >
-                  <Ionicons name="time-outline" size={13} color={colors.muted} />
+                  <Ionicons {...decorativeIconProps} name="time-outline" size={13} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                     Criado {formatDate(plan.createdAt)}
                   </Text>
@@ -1559,7 +1560,7 @@ export default function TrainingList() {
                     backgroundColor: colors.secondaryBg,
                   }}
                 >
-                  <Ionicons name="list-outline" size={13} color={colors.muted} />
+                  <Ionicons {...decorativeIconProps} name="list-outline" size={13} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                     {activityCount} {activityCount === 1 ? "atividade" : "atividades"}
                   </Text>
@@ -1592,7 +1593,7 @@ export default function TrainingList() {
                   gap: 6,
                 }}
               >
-                <Ionicons name="checkmark-circle-outline" size={16} color={colors.primaryText} />
+                <Ionicons {...decorativeIconProps} name="checkmark-circle-outline" size={16} color={colors.primaryText} />
                 <Text
                   numberOfLines={1}
                   style={{
@@ -1625,7 +1626,7 @@ export default function TrainingList() {
                   gap: 6,
                 }}
               >
-                <Ionicons name="eye-outline" size={16} color={colors.text} />
+                <Ionicons {...decorativeIconProps} name="eye-outline" size={16} color={colors.text} />
                 <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>
                   Ver
                 </Text>
@@ -2168,6 +2169,7 @@ export default function TrainingList() {
     }),
     [viewportWidth]
   );
+  const isPlanningCompact = viewportWidth < 760;
 
   const savePlan = async () => {
     if (!classId) {
@@ -3203,7 +3205,12 @@ export default function TrainingList() {
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{ paddingBottom: 24, gap: 12, paddingHorizontal: 16, paddingTop: 10 }}
+          contentContainerStyle={{
+            paddingBottom: Math.max(insets.bottom + (viewportWidth < 1200 ? 112 : 32), 40),
+            gap: 12,
+            paddingHorizontal: isPlanningCompact ? 12 : 16,
+            paddingTop: 10,
+          }}
           keyboardShouldPersistTaps="handled"
           onScrollBeginDrag={() => {
             closeFormPickers();
@@ -3221,8 +3228,8 @@ export default function TrainingList() {
             style={[planningShellStyle, { gap: 10 }]}
           >
           <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <View style={{ flex: 1, gap: 6 }}>
+          <View style={{ flexDirection: isPlanningCompact ? "column" : "row", gap: 10 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
               <View ref={formUnitTriggerRef}>
                 <Pressable
@@ -3244,7 +3251,7 @@ export default function TrainingList() {
                        ? "Todas as unidades"
                       : formUnit || "Selecione uma unidade"}
                   </Text>
-                  <MaterialCommunityIcons
+                  <MaterialCommunityIcons {...decorativeIconProps}
                     name="chevron-down"
                     size={18}
                     color={colors.muted}
@@ -3257,7 +3264,7 @@ export default function TrainingList() {
                 </Pressable>
               </View>
             </View>
-            <View style={{ flex: 1, gap: 6 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
               <View ref={formClassTriggerRef}>
                 <Pressable
@@ -3283,7 +3290,7 @@ export default function TrainingList() {
                       <ClassGenderBadge gender={selectedFormClass.gender} />
                     ) : null}
                   </View>
-                    <MaterialCommunityIcons
+                    <MaterialCommunityIcons {...decorativeIconProps}
                       name="chevron-down"
                       size={18}
                       color={colors.muted}
@@ -3631,7 +3638,7 @@ export default function TrainingList() {
                 {filteredItems.length}
               </Text>
             </View>
-            <MaterialCommunityIcons
+            <MaterialCommunityIcons {...decorativeIconProps}
               name={showSavedPlans ? "chevron-down" : "chevron-right"}
               size={18}
               color={colors.muted}
@@ -3654,7 +3661,7 @@ export default function TrainingList() {
                     borderColor: colors.border,
                   }}
                 >
-                  <Ionicons name="search" size={18} color={colors.muted} />
+                  <Ionicons {...decorativeIconProps} name="search" size={18} color={colors.muted} />
                   <TextInput
                     value={savedPlanSearch}
                     onChangeText={setSavedPlanSearch}
@@ -3677,7 +3684,7 @@ export default function TrainingList() {
                         { backgroundColor: colors.secondaryBg },
                       ]}
                     >
-                      <Ionicons name="close" size={16} color={colors.text} />
+                      <Ionicons {...decorativeIconProps} name="close" size={16} color={colors.text} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -3814,7 +3821,7 @@ export default function TrainingList() {
                 transform: [{ rotate: trainingFabRotate }, { scale: trainingFabScale }],
               }}
             >
-              <Ionicons name="add" size={24} color={colors.primaryText} />
+              <Ionicons {...decorativeIconProps} name="add" size={24} color={colors.primaryText} />
             </Animated.View>
           </Pressable>
 

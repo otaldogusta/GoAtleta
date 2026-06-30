@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
+import { decorativeIconProps } from "./decorative-icon-props";
 
 export function SettingsRow({
   icon,
@@ -46,7 +47,7 @@ export function SettingsRow({
             justifyContent: "center",
           }}
         >
-          <Ionicons name={icon} size={18} color={colors.text} />
+          <Ionicons {...decorativeIconProps} name={icon} size={18} color={colors.text} />
         </View>
         <View>
           <Text style={{ color: colors.text, fontWeight: "600" }}>{label}</Text>
@@ -70,7 +71,7 @@ export function SettingsRow({
             justifyContent: "center",
           }}
         >
-          <Ionicons name="chevron-forward" size={16} color={colors.text} />
+          <Ionicons {...decorativeIconProps} name="chevron-forward" size={16} color={colors.text} />
         </View>
       )}
     </Pressable>

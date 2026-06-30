@@ -22,6 +22,13 @@ export const formatTrainerReportDateLabel = (iso: string) => {
   return parts.reverse().join("/");
 };
 
+const normalizeAttendanceRatio = (value: unknown) => {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed)) return 0;
+  const ratio = parsed > 1 ? parsed / 100 : parsed;
+  return Math.max(0, Math.min(1, ratio));
+};
+
 export function buildEntityMap<T extends { id: string }>(items: T[]) {
   const map: Record<string, T> = {};
   items.forEach((item) => {
@@ -191,7 +198,7 @@ export function buildTrainerTeamIntelligence(
     classes: classes.map((item) => ({ id: item.id, name: item.name, unit: item.unit })),
     sessionLogs: uniqueSessionLogs.map((item) => ({
       classId: item.classId,
-      attendance: Number(item.attendance || 0),
+      attendance: normalizeAttendanceRatio(item.attendance),
       PSE: Number(item.PSE || 0),
     })),
   });
@@ -205,7 +212,11 @@ export function buildSimulationHighlights(
     .map((cls) => {
       const logs = uniqueSessionLogs
         .filter((item) => item.classId === cls.id)
-        .slice(0, 8);
+        .slice(0, 8)
+        .map((item) => ({
+          ...item,
+          attendance: normalizeAttendanceRatio(item.attendance),
+        }));
       if (!logs.length) return null;
       const simulation = simulateClassEvolution({
         classId: cls.id,
