@@ -31,7 +31,7 @@ const COMMON_CENTER_TAB: TabItemConfig = {
 export const ROLE_TABS: Record<AppRole, TabItemConfig[]> = {
   prof: [
     { key: "home", routeName: "home", label: "Hoje", icon: "home-outline" },
-    { key: "classes", routeName: "classes", label: "Turmas", icon: "people-outline" },
+    { key: "classes", routeName: "classes", label: "Turmas", icon: "school-outline" },
     COMMON_CENTER_TAB,
     { key: "planning", routeName: "planning", label: "Planejamento", icon: "clipboard-outline" },
     { key: "reports", routeName: "reports", label: "Relatórios", icon: "stats-chart-outline" },

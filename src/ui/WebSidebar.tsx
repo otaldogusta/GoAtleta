@@ -545,7 +545,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
         key: "students",
         label: "Alunos",
         href: "/prof/students",
-        icon: "school-outline",
+        icon: "people-outline",
         badge: viewModel.totalStudents ? String(viewModel.totalStudents) : undefined,
       },
       {
