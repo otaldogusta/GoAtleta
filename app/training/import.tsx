@@ -4,8 +4,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as XLSX from "xlsx";
-import * as cptable from "xlsx/dist/cpexcel.js";
+import * as XLSX from "@e965/xlsx";
+import * as cptable from "@e965/xlsx/dist/cpexcel";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { normalizeAgeBand } from "../../src/core/age-band";
 import type { ClassGroup, TrainingPlan } from "../../src/core/models";
@@ -825,4 +825,3 @@ export default function ImportTrainingCsvScreen() {
     </SafeAreaView>
   );
 }
-

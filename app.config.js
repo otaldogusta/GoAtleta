@@ -10,7 +10,7 @@ const useDevClient = buildProfile === "development";
 const sentryDsn =
 	process.env.SENTRY_DSN ||
 	process.env.EXPO_PUBLIC_SENTRY_DSN ||
-	"https://75f40b427f0cc0089243e3a498ab654f@o4510656157777920.ingest.us.sentry.io/4510656167608320";
+	"";
 const enableSocialLogin =
 	process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN || process.env.ENABLE_SOCIAL_LOGIN || "false";
 const enableManualLinking =
@@ -58,8 +58,11 @@ const plugins = [
 	"expo-web-browser",
 	"react-native-nfc-manager",
 	"@react-native-community/datetimepicker",
-	"@sentry/react-native",
-	[
+];
+
+if (sentryDsn) {
+	plugins.push("@sentry/react-native");
+	plugins.push([
 		"@sentry/react-native/expo",
 		{
 			url: "https://sentry.io/",
@@ -67,8 +70,8 @@ const plugins = [
 			organization: "otaldogustas-company",
 			dsn: sentryDsn,
 		},
-	],
-];
+	]);
+}
 
 if (useDevClient) {
 	plugins.unshift("expo-dev-client");

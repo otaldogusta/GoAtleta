@@ -2,7 +2,7 @@
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 
 import type { ClassGroup } from "../../core/models";
 import { markRender } from "../../observability/perf";

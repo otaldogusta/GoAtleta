@@ -1,1 +1,1 @@
-declare module "xlsx/dist/cpexcel.js";
+declare module "@e965/xlsx/dist/cpexcel";

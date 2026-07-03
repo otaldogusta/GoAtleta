@@ -35,7 +35,7 @@
     "postinstall": "patch-package && node scripts/check-yoga-patch.js"
   },
   "dependencies": {
-    "@expo/config-plugins": "^56.0.8",
+    "@e965/xlsx": "^0.20.3",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
@@ -44,36 +44,36 @@
     "@shopify/react-native-skia": "2.6.2",
     "@swc/helpers": "^0.5.18",
     "dotenv": "^17.3.1",
-    "expo": "~56.0.12",
-    "expo-calendar": "~56.0.8",
+    "expo": "~56.0.14",
+    "expo-calendar": "~56.0.9",
     "expo-camera": "~56.0.8",
     "expo-clipboard": "~56.0.4",
     "expo-constants": "~56.0.16",
-    "expo-dev-client": "~56.0.20",
+    "expo-dev-client": "~56.0.22",
     "expo-document-picker": "~56.0.4",
     "expo-file-system": "~56.0.7",
     "expo-font": "~56.0.5",
     "expo-haptics": "~56.0.3",
     "expo-image": "~56.0.11",
-    "expo-image-manipulator": "~56.0.19",
-    "expo-image-picker": "~56.0.18",
+    "expo-image-manipulator": "~56.0.20",
+    "expo-image-picker": "~56.0.19",
     "expo-intent-launcher": "~56.0.4",
     "expo-keep-awake": "~56.0.3",
     "expo-linear-gradient": "~56.0.4",
-    "expo-linking": "~56.0.14",
+    "expo-linking": "~56.0.15",
     "expo-local-authentication": "~56.0.4",
     "expo-network": "~56.0.5",
-    "expo-notifications": "~56.0.18",
+    "expo-notifications": "~56.0.19",
     "expo-print": "~56.0.4",
-    "expo-router": "~56.2.11",
+    "expo-router": "~56.2.13",
     "expo-secure-store": "~56.0.4",
-    "expo-sharing": "~56.0.18",
-    "expo-splash-screen": "~56.0.10",
+    "expo-sharing": "~56.0.20",
+    "expo-splash-screen": "~56.0.12",
     "expo-sqlite": "~56.0.5",
     "expo-status-bar": "~56.0.4",
     "expo-symbols": "~56.0.6",
     "expo-system-ui": "~56.0.5",
-    "expo-updates": "~56.0.19",
+    "expo-updates": "~56.0.21",
     "expo-web-browser": "~56.0.5",
     "lodash": "^4.17.21",
     "lodash.isempty": "^4.4.0",
@@ -87,7 +87,6 @@
     "react-native-screens": "4.25.2",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.8.3",
-    "xlsx": "^0.18.5",
     "yoga-layout": "^3.2.1"
   },
   "devDependencies": {
@@ -100,6 +99,11 @@
     "jest-expo": "~56.0.5",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
+  },
+  "overrides": {
+    "xcode": {
+      "uuid": "^11.1.1"
+    }
   },
   "expo": {
     "doctor": {

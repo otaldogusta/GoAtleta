@@ -3,8 +3,8 @@ import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
-import * as XLSX from "xlsx";
-import * as cptable from "xlsx/dist/cpexcel.js";
+import * as XLSX from "@e965/xlsx";
+import * as cptable from "@e965/xlsx/dist/cpexcel";
 
 import type { ClassGroup } from "../../../core/models";
 import {

@@ -1,3 +1,18 @@
+create table if not exists public.planning_cycles (
+  id text primary key,
+  classid text not null references public.classes(id) on delete cascade,
+  year integer not null,
+  title text not null default '',
+  startdate text not null default '',
+  enddate text not null default '',
+  status text not null default 'active',
+  createdat timestamptz not null default now(),
+  updatedat timestamptz not null default now()
+);
+
+create index if not exists planning_cycles_class_status_idx
+  on public.planning_cycles(classid, status);
+
 alter table public.planning_cycles enable row level security;
 
 drop policy if exists "planning_cycles select staff" on public.planning_cycles;

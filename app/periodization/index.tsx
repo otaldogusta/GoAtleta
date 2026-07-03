@@ -1,6 +1,6 @@
 ﻿import { Ionicons } from "@expo/vector-icons";
-import * as XLSX from "xlsx";
-import * as cptable from "xlsx/dist/cpexcel.js";
+import * as XLSX from "@e965/xlsx";
+import * as cptable from "@e965/xlsx/dist/cpexcel";
 
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 

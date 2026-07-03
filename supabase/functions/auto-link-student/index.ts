@@ -28,7 +28,7 @@ const getHookSecret = () => {
 
 const isAuthorized = (req: Request) => {
   const secret = getHookSecret();
-  if (!secret) return true;
+  if (!secret) return false;
   const header =
     req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
   if (!header) return false;

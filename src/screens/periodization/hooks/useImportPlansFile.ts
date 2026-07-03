@@ -3,7 +3,7 @@ import { useCallback } from "react";
 
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 
 import {
   detectImportDelimiter,

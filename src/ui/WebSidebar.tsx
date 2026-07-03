@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -719,7 +720,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
             backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
           }}
         >
-          <SidebarGlyph
+          <Ionicons
+            {...decorativeIconProps}
             name={item.icon}
             size={20}
             color={active ? webShellTokens.primary : "rgba(255,255,255,0.70)"}
@@ -955,7 +957,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
             backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
           }}
         >
-          <SidebarGlyph
+          <Ionicons
+            {...decorativeIconProps}
             name={item.icon}
             size={17}
             color={active ? webShellTokens.primary : "rgba(255,255,255,0.68)"}
@@ -1179,7 +1182,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
                         backgroundColor: active ? "rgba(255,255,255,0.10)" : "transparent",
                       }}
                     >
-                      <SidebarGlyph
+                      <Ionicons
+                        {...decorativeIconProps}
                         name={option.icon}
                         size={17}
                         color={active ? webShellTokens.primary : "rgba(255,255,255,0.70)"}

@@ -114,10 +114,127 @@ type RetrievalResult = {
   retrievalLatencyMs: number;
 };
 
+type RateLimitResult = {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSec: number;
+};
+
 const RETRIEVAL_CACHE_TTL_MS = 120_000;
 const RETRIEVAL_CACHE_MAX_ITEMS = 120;
 const retrievalCache = new Map<string, { expiresAt: number; docs: KbDocument[] }>();
 const retrievalInFlight = new Map<string, Promise<RetrievalResult>>();
+
+const parsePositiveInt = (value: string | undefined, fallback: number) => {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const ASSISTANT_RATE_LIMIT_PER_MINUTE = parsePositiveInt(
+  Deno.env.get("ASSISTANT_RATE_LIMIT_PER_MINUTE"),
+  20
+);
+const ASSISTANT_MAX_REQUEST_BYTES = parsePositiveInt(
+  Deno.env.get("ASSISTANT_MAX_REQUEST_BYTES"),
+  128_000
+);
+const ASSISTANT_MAX_MESSAGES = parsePositiveInt(Deno.env.get("ASSISTANT_MAX_MESSAGES"), 20);
+const ASSISTANT_MAX_MESSAGE_CHARS = parsePositiveInt(
+  Deno.env.get("ASSISTANT_MAX_MESSAGE_CHARS"),
+  2_000
+);
+const ASSISTANT_MAX_MEMORY_CONTEXT_ITEMS = parsePositiveInt(
+  Deno.env.get("ASSISTANT_MAX_MEMORY_CONTEXT_ITEMS"),
+  6
+);
+const ASSISTANT_MAX_MEMORY_CONTEXT_CHARS = parsePositiveInt(
+  Deno.env.get("ASSISTANT_MAX_MEMORY_CONTEXT_CHARS"),
+  600
+);
+
+const assistantRateLimitStore =
+  (globalThis as unknown as {
+    __assistantRateLimitStore?: Map<string, { count: number; resetAt: number }>;
+  }).__assistantRateLimitStore ?? new Map<string, { count: number; resetAt: number }>();
+
+(globalThis as unknown as {
+  __assistantRateLimitStore?: typeof assistantRateLimitStore;
+}).__assistantRateLimitStore = assistantRateLimitStore;
+
+const checkRateLimit = (
+  key: string,
+  maxRequests: number,
+  windowMs: number
+): RateLimitResult => {
+  const now = Date.now();
+  const previous = assistantRateLimitStore.get(key);
+  if (!previous || now >= previous.resetAt) {
+    assistantRateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
+    return {
+      allowed: true,
+      remaining: Math.max(0, maxRequests - 1),
+      retryAfterSec: Math.ceil(windowMs / 1000),
+    };
+  }
+  if (previous.count >= maxRequests) {
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSec: Math.max(1, Math.ceil((previous.resetAt - now) / 1000)),
+    };
+  }
+  previous.count += 1;
+  assistantRateLimitStore.set(key, previous);
+  return {
+    allowed: true,
+    remaining: Math.max(0, maxRequests - previous.count),
+    retryAfterSec: Math.max(1, Math.ceil((previous.resetAt - now) / 1000)),
+  };
+};
+
+const isDevelopmentRuntime = () => {
+  const runtime = (
+    Deno.env.get("APP_ENV") ??
+    Deno.env.get("ENVIRONMENT") ??
+    Deno.env.get("NODE_ENV") ??
+    Deno.env.get("DENO_ENV") ??
+    ""
+  )
+    .trim()
+    .toLowerCase();
+  return runtime === "development" || runtime === "dev" || runtime === "local" || runtime === "test";
+};
+
+const safeErrorDetail = (error: unknown) =>
+  isDevelopmentRuntime() ? String(error) : "Internal server error";
+
+const normalizeClientMessages = (value: unknown): ChatMessage[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((message): message is Record<string, unknown> =>
+      Boolean(message && typeof message === "object")
+    )
+    .map((message) => {
+      const role: ChatMessage["role"] = message.role === "assistant" ? "assistant" : "user";
+      const content = String(message.content ?? "").trim().slice(0, ASSISTANT_MAX_MESSAGE_CHARS);
+      return { role, content };
+    })
+    .filter((message) => message.content.length > 0)
+    .slice(-ASSISTANT_MAX_MESSAGES);
+};
+
+const normalizeMemoryContext = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .map((item) =>
+          String(item ?? "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, ASSISTANT_MAX_MEMORY_CONTEXT_CHARS)
+        )
+        .filter(Boolean)
+        .slice(0, ASSISTANT_MAX_MEMORY_CONTEXT_ITEMS)
+    : [];
 
 const isPrivateIpv4 = (host: string) => {
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
@@ -845,6 +962,33 @@ Deno.serve(async (req) => {
       });
     }
 
+    const contentLength = Number.parseInt(req.headers.get("content-length") ?? "0", 10);
+    if (Number.isFinite(contentLength) && contentLength > ASSISTANT_MAX_REQUEST_BYTES) {
+      return new Response(
+        JSON.stringify({
+          error: "Payload too large",
+          maxRequestBytes: ASSISTANT_MAX_REQUEST_BYTES,
+        }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const limiter = checkRateLimit(
+      `assistant:${auth.user.id}`,
+      ASSISTANT_RATE_LIMIT_PER_MINUTE,
+      60_000
+    );
+    if (!limiter.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: "Rate limit exceeded",
+          retryAfterSec: limiter.retryAfterSec,
+          maxRequestsPerMinute: ASSISTANT_RATE_LIMIT_PER_MINUTE,
+        }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) {
       console.error("assistant: missing OPENAI_API_KEY");
@@ -855,7 +999,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const messages = normalizeClientMessages(body.messages);
     const classId = typeof body.classId === "string" ? body.classId : "";
     const organizationIdRaw =
       typeof body.organizationId === "string"
@@ -869,9 +1013,7 @@ Deno.serve(async (req) => {
         ? body.sport.trim()
         : "volleyball";
     const debugRequested = Boolean(body.debug);
-    const requestMemoryContext = Array.isArray(body.memoryContext)
-      ? body.memoryContext.map((item: unknown) => String(item || "").trim()).filter(Boolean)
-      : [];
+    const requestMemoryContext = normalizeMemoryContext(body.memoryContext);
     const appSnapshot = normalizeAppSnapshot(body.appSnapshot);
     const debugAllowed = canUseDebugMode(auth.user);
     if (debugRequested && !debugAllowed) {
@@ -924,20 +1066,19 @@ Deno.serve(async (req) => {
     const memoryContext = [
       ...requestMemoryContext,
       ...memoryEntries.map((item) => `${item.role}/${item.scope}: ${item.content}`),
-    ].slice(0, 6);
+    ].slice(0, ASSISTANT_MAX_MEMORY_CONTEXT_ITEMS);
     const ragContext = buildRagContext(kbDocs);
     const scientificEvidenceContext = buildScientificEvidenceContext(kbDocs);
     const appSnapshotContext = buildAppSnapshotContext(appSnapshot);
     console.log(
       JSON.stringify({
         event: "assistant_rag_retrieval",
-        orgId: organizationId,
+        hasOrganizationId: Boolean(organizationId),
         sport: sportHint,
         queryType,
-        classId,
+        hasClassId: Boolean(classId),
         hasAppSnapshot: Boolean(appSnapshot),
         retrieved_chunks_count: kbDocs.length,
-        docIds: kbDocs.map((doc) => doc.id),
         latency_ms_retrieval: retrieval.retrievalLatencyMs,
         cache_hit: retrieval.cacheHit,
       })
@@ -984,7 +1125,7 @@ Deno.serve(async (req) => {
       const errorText = await response.text();
       console.error("assistant: openai error", response.status, errorText);
       return new Response(
-        JSON.stringify({ error: "OpenAI error", detail: errorText }),
+        JSON.stringify({ error: "OpenAI error", detail: safeErrorDetail(errorText) }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -1075,7 +1216,7 @@ Deno.serve(async (req) => {
     console.log(
       JSON.stringify({
         event: "assistant_response",
-        orgId: organizationId,
+        hasOrganizationId: Boolean(organizationId),
         sport: sportHint,
         queryType,
         citations_count: parsed.citations.length,
@@ -1115,7 +1256,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error("assistant: failure", String(error));
     return new Response(
-      JSON.stringify({ error: "Assistant failure", detail: String(error) }),
+      JSON.stringify({ error: "Assistant failure", detail: safeErrorDetail(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

@@ -6,7 +6,7 @@ import {
 } from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 
 export const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

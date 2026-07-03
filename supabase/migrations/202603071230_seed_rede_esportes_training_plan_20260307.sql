@@ -49,7 +49,7 @@ payload as (
     '10 min' as cooldowntime,
     array[6]::int[] as applydays,
     '2026-03-07'::date as applydate,
-    '2026-03-07T10:00:00-03:00' as createdat
+    '2026-03-07T10:00:00-03:00'::timestamptz as createdat
   from target_class
 )
 insert into public.training_plans (
