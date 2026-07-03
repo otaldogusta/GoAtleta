@@ -455,6 +455,7 @@ export default function AttendanceScreen() {
         dateLabel={dateLabel}
         timeLabel={timeLabel}
         notice={loadMessage}
+        backFallback={{ pathname: "/class/[id]", params: { id: cls.id } }}
       />
 
       <View
