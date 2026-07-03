@@ -13,6 +13,8 @@ import { useIsOnline } from "../hooks/use-is-online";
 import { navigateBackOrReplace } from "../navigation/safe-router";
 import { normalizeDisplayText } from "../utils/text-normalization";
 
+type BackFallback = Parameters<typeof navigateBackOrReplace>[0]["fallback"];
+
 type ClassContextHeaderProps = {
   title: string;
   className: string;
@@ -24,6 +26,7 @@ type ClassContextHeaderProps = {
   notice?: string;
   classColorKey: string | null;
   scheduleFormat?: "split" | "combined";
+  backFallback?: BackFallback;
 };
 
 export function ClassContextHeader({
@@ -37,6 +40,7 @@ export function ClassContextHeader({
   notice,
   classColorKey,
   scheduleFormat = "split",
+  backFallback = "/classes",
 }: ClassContextHeaderProps) {
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -70,7 +74,7 @@ export function ClassContextHeader({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Voltar de ${safeTitle || "tela"}`}
-          onPress={() => navigateBackOrReplace({ router, fallback: "/classes" })}
+          onPress={() => navigateBackOrReplace({ router, fallback: backFallback })}
           style={{
             flexDirection: "row",
             alignItems: "center",

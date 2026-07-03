@@ -281,6 +281,7 @@ export default function LogScreen() {
             classColorKey={cls.colorKey}
             dateLabel={dateLabel}
             timeLabel={timeLabel}
+            backFallback={{ pathname: "/class/[id]", params: { id: cls.id } }}
           />
         ) : (
           <View style={{ gap: 6, marginBottom: 12 }}>
