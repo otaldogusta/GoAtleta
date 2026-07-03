@@ -117,7 +117,7 @@ function HomeProfessorBelowFoldBase({
           <ShortcutCard
             label="Turmas"
             description="Cadastros e lista"
-            icon="people-outline"
+            icon="school-outline"
             onPress={() => router.push("/prof/classes")}
           />
         ) : null}
@@ -126,7 +126,7 @@ function HomeProfessorBelowFoldBase({
           <ShortcutCard
             label="Alunos"
             description="Lista e chamada"
-            icon="school-outline"
+            icon="people-outline"
             onPress={() => router.push("/prof/students")}
           />
         ) : null}
@@ -155,7 +155,7 @@ function HomeProfessorBelowFoldBase({
         <ShortcutCard
           label="Exercícios"
           description="Biblioteca com vídeos"
-          icon="fitness-outline"
+          icon="book-outline"
           onPress={() => router.push("/prof/exercises")}
         />
 
