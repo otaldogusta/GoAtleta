@@ -18,6 +18,7 @@ import { AnchoredDropdownOption } from "../../../src/ui/AnchoredDropdownOption";
 import { Button } from "../../../src/ui/Button";
 import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 import { Pressable } from "../../../src/ui/Pressable";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 
@@ -59,6 +60,8 @@ export default function LogScreen() {
     useCollapsibleAnimation(showPsePicker, { translateY: -6 });
   const { animatedStyle: techniquePickerAnimStyle, isVisible: showTechniquePickerContent } =
     useCollapsibleAnimation(showTechniquePicker, { translateY: -6 });
+
+  markRender("screen.classLog.render.root", { hasClassId: id ? 1 : 0 });
 
   const sessionDate =
     typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
@@ -137,11 +140,16 @@ export default function LogScreen() {
         if (alive) setCls(data);
       }
       if (!id) return;
-      const [attendanceResult, studentsResult, logResult] = await Promise.allSettled([
-        getAttendanceByDate(id, sessionDate),
-        getStudentsByClass(id),
-        getSessionLogByDate(id, sessionDate),
-      ]);
+      const [attendanceResult, studentsResult, logResult] = await measureAsync(
+        "screen.classLog.load.initial",
+        () =>
+          Promise.allSettled([
+            getAttendanceByDate(id, sessionDate),
+            getStudentsByClass(id),
+            getSessionLogByDate(id, sessionDate),
+          ]),
+        { hasClassId: 1 }
+      );
       const attendanceRecords =
         attendanceResult.status === "fulfilled" ? attendanceResult.value : [];
       const students =
