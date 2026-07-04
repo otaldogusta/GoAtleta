@@ -122,7 +122,6 @@ const getUserEmail = (session: ReturnType<typeof useAuth>["session"]) => {
 
 function BrandMark({ size = 46 }: { size?: number }) {
   const outerRadius = Math.round(size * 0.36);
-  const innerRadius = Math.max(8, outerRadius - 5);
   return (
     <View
       {...decorativeIconProps}
@@ -130,25 +129,13 @@ function BrandMark({ size = 46 }: { size?: number }) {
         width: size,
         height: size,
         borderRadius: outerRadius,
-        backgroundColor: "rgba(65, 217, 132, 0.14)",
-        borderWidth: 1,
-        borderColor: "rgba(65, 217, 132, 0.36)",
+        backgroundColor: "#000000",
         alignItems: "center",
         justifyContent: "center",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      <View
-        style={{
-          position: "absolute",
-          inset: 5,
-          borderRadius: innerRadius,
-          backgroundColor: "rgba(6, 15, 30, 0.76)",
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.10)",
-        }}
-      />
       <Text
         style={{
           color: brandPalette.white,
