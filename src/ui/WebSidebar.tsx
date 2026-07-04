@@ -159,28 +159,6 @@ function BrandMark({ size = 46 }: { size?: number }) {
       >
         GA
       </Text>
-      <View
-        style={{
-          position: "absolute",
-          right: Math.round(size * 0.18),
-          top: Math.round(size * 0.18),
-          width: Math.round(size * 0.16),
-          height: Math.round(size * 0.16),
-          borderRadius: size,
-          backgroundColor: webShellTokens.primary,
-        }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          left: Math.round(size * 0.26),
-          right: Math.round(size * 0.26),
-          bottom: Math.round(size * 0.18),
-          height: 2,
-          borderRadius: 1,
-          backgroundColor: "rgba(65, 217, 132, 0.72)",
-        }}
-      />
     </View>
   );
 }
@@ -188,9 +166,11 @@ function BrandMark({ size = 46 }: { size?: number }) {
 function BrandWordmark({ role }: { role: AppRole }) {
   return (
     <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-      <Text style={{ fontSize: 16, fontWeight: "900", lineHeight: 19 }} numberOfLines={1}>
-        <Text style={{ color: brandPalette.white }}>Go</Text>
-        <Text style={{ color: webShellTokens.primary }}>Atleta</Text>
+      <Text
+        style={{ color: brandPalette.white, fontSize: 16, fontWeight: "900", lineHeight: 19 }}
+        numberOfLines={1}
+      >
+        GoAtleta
       </Text>
       <Text
         style={{
