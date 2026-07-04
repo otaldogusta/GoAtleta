@@ -32,6 +32,7 @@ import {
   saveTrainingPlan,
 } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
+import { markRender, measureAsync } from "../src/observability/perf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
@@ -182,6 +183,7 @@ export default function CalendarScreen() {
     targetDateParam && !Number.isNaN(new Date(targetDateParam).getTime())
       ? targetDateParam
       : "";
+  markRender("screen.calendar.render.root", { hasTargetDate: targetDate ? 1 : 0 });
   const openApply =
     typeof params.openApply === "string" ? params.openApply === "1" : false;
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -263,12 +265,20 @@ export default function CalendarScreen() {
     let alive = true;
     (async () => {
       try {
-        const classList = await getClasses();
+        const classList = await measureAsync(
+          "screen.calendar.load.classes",
+          () => getClasses(),
+          { hasTargetDate: targetDate ? 1 : 0 }
+        );
         if (!alive) return;
         setClasses(classList);
         void (async () => {
           try {
-            const planList = await getTrainingPlans();
+            const planList = await measureAsync(
+              "screen.calendar.load.plans",
+              () => getTrainingPlans(),
+              { classCount: classList.length }
+            );
             if (!alive) return;
             setPlans(planList);
           } catch {
@@ -706,6 +716,65 @@ export default function CalendarScreen() {
     return ["Todas", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [classes, unitKey, unitLabel]);
 
+  const monthSummaryRowStyle = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 8,
+      flexWrap: "wrap" as const,
+    }),
+    []
+  );
+
+  const unitFilterLabelStyle = useMemo(
+    () => ({
+      fontSize: 12,
+      fontWeight: "800" as const,
+      color: colors.muted,
+    }),
+    [colors.muted]
+  );
+
+  const getUnitFilterChipStyle = useCallback(
+    (active: boolean, chipBg: string) => ({
+      paddingVertical: 7,
+      paddingHorizontal: 11,
+      borderRadius: 999,
+      backgroundColor: chipBg,
+      borderWidth: 1,
+      borderColor: active ? chipBg : colors.border,
+    }),
+    [colors.border]
+  );
+
+  const getUnitFilterChipTextStyle = useCallback(
+    (chipText: string) => ({
+      color: chipText,
+      fontWeight: "700" as const,
+      fontSize: 12,
+    }),
+    []
+  );
+
+  const monthCalendarRowStyle = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      gap: isCompactLayout ? 4 : 6,
+    }),
+    [isCompactLayout]
+  );
+
+  const weekdayHeaderTextStyle = useMemo(
+    () => ({
+      flex: 1,
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: "900" as const,
+      textAlign: "center" as const,
+    }),
+    [colors.muted]
+  );
+
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         {loadingData ? (
@@ -832,14 +901,7 @@ export default function CalendarScreen() {
                 paddingVertical: 4,
               }}
             >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
+              <View style={monthSummaryRowStyle}>
                 <View
                   style={{
                     paddingVertical: 4,
@@ -866,7 +928,7 @@ export default function CalendarScreen() {
                   flexGrow: 1,
                 }}
               >
-                <Text style={{ fontSize: 12, fontWeight: "800", color: colors.muted }}>
+                <Text style={unitFilterLabelStyle}>
                   Unidade
                 </Text>
                 {unitOptions.map((unit) => {
@@ -882,16 +944,9 @@ export default function CalendarScreen() {
                     <Pressable
                       key={unit}
                       onPress={() => setUnitFilter(unit)}
-                      style={{
-                        paddingVertical: 7,
-                        paddingHorizontal: 11,
-                        borderRadius: 999,
-                        backgroundColor: chipBg,
-                        borderWidth: 1,
-                        borderColor: active ? chipBg : colors.border,
-                      }}
+                      style={getUnitFilterChipStyle(active, chipBg)}
                     >
-                      <Text style={{ color: chipText, fontWeight: "700", fontSize: 12 }}>
+                      <Text style={getUnitFilterChipTextStyle(chipText)}>
                         {unit}
                       </Text>
                     </Pressable>
@@ -920,17 +975,11 @@ export default function CalendarScreen() {
                 gap: 8,
               }}
             >
-              <View style={{ flexDirection: "row", gap: isCompactLayout ? 4 : 6 }}>
+              <View style={monthCalendarRowStyle}>
                 {MONTH_WEEKDAY_HEADERS.map((label) => (
                   <Text
                     key={label}
-                    style={{
-                      flex: 1,
-                      color: colors.muted,
-                      fontSize: 11,
-                      fontWeight: "900",
-                      textAlign: "center",
-                    }}
+                    style={weekdayHeaderTextStyle}
                   >
                     {label}
                   </Text>
@@ -938,7 +987,7 @@ export default function CalendarScreen() {
               </View>
 
               {monthlyCalendarRows.map((row, rowIndex) => (
-                <View key={`month-row-${rowIndex}`} style={{ flexDirection: "row", gap: isCompactLayout ? 4 : 6 }}>
+                <View key={`month-row-${rowIndex}`} style={monthCalendarRowStyle}>
                   {row.map((dayModel) => {
                     const hasAgenda = dayModel.agendaItems.length > 0;
                     const visibleItemsLimit = isCompactLayout ? 2 : 3;

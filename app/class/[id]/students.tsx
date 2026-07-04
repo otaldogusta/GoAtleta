@@ -56,7 +56,7 @@ import { useSaveToast } from "../../../src/ui/save-toast";
 import { useUndoableListDelete } from "../../../src/ui/useUndoableListDelete";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
-import { measureAsync } from "../../../src/observability/perf";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { maskCpf } from "../../../src/utils/cpf";
 import { formatRgBr } from "../../../src/utils/document-normalization";
 import { normalizeRaDigits, validateStudentRa } from "../../../src/utils/student-ra";
@@ -184,6 +184,7 @@ const matchesClassModality = (modalityLabel: string, classModality: ClassGroup["
 
 export default function ClassStudentsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  markRender("screen.classStudents.render.root", { hasClassId: id ? 1 : 0 });
   const router = useRouter();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
@@ -407,6 +408,14 @@ export default function ClassStudentsScreen() {
       justifyContent: "space-between" as const,
     }),
     [colors.border, colors.inputBg]
+  );
+  const createSecondaryChevronStyle = useMemo(
+    () => ({
+      transform: [
+        { rotate: createDropKey === "createSecondary" ? "180deg" : "0deg" },
+      ],
+    }),
+    [createDropKey]
   );
 
   const load = useCallback(async (alive?: { current: boolean }) => {
@@ -2096,7 +2105,7 @@ export default function ClassStudentsScreen() {
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
                         <Pressable onPress={() => setCreateDropKey(createDropKey === "createSecondary" ? null : "createSecondary")} style={selectFieldStyle}>
                           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(createPositionSecondary)}</Text>
-                          <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: createDropKey === "createSecondary" ? "180deg" : "0deg" }] }} />
+                          <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} style={createSecondaryChevronStyle} />
                         </Pressable>
                         {createDropKey === "createSecondary" ? (
                           <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, overflow: "hidden", backgroundColor: colors.card }}>
