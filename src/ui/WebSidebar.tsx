@@ -36,12 +36,6 @@ const SIDEBAR_COMPACT_WIDTH = 88;
 const SIDEBAR_EXPANDED_WIDTH = 292;
 const SIDEBAR_EXPANDED_STORAGE_KEY = "goatleta:web-sidebar-expanded";
 
-const roleTitle: Record<AppRole, string> = {
-  prof: "GoAtleta",
-  coord: "GoAtleta",
-  student: "GoAtleta",
-};
-
 const roleSubtitle: Record<AppRole, string> = {
   prof: "Painel do professor",
   coord: "Painel operacional",
@@ -125,6 +119,93 @@ const getUserEmail = (session: ReturnType<typeof useAuth>["session"]) => {
   const user = session?.user as { email?: string } | undefined;
   return user?.email ?? "";
 };
+
+function BrandMark({ size = 46 }: { size?: number }) {
+  const outerRadius = Math.round(size * 0.36);
+  const innerRadius = Math.max(8, outerRadius - 5);
+  return (
+    <View
+      {...decorativeIconProps}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: outerRadius,
+        backgroundColor: "rgba(65, 217, 132, 0.14)",
+        borderWidth: 1,
+        borderColor: "rgba(65, 217, 132, 0.36)",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <View
+        style={{
+          position: "absolute",
+          inset: 5,
+          borderRadius: innerRadius,
+          backgroundColor: "rgba(6, 15, 30, 0.76)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.10)",
+        }}
+      />
+      <Text
+        style={{
+          color: brandPalette.white,
+          fontSize: Math.round(size * 0.30),
+          fontWeight: "900",
+          lineHeight: Math.round(size * 0.34),
+        }}
+      >
+        GA
+      </Text>
+      <View
+        style={{
+          position: "absolute",
+          right: Math.round(size * 0.18),
+          top: Math.round(size * 0.18),
+          width: Math.round(size * 0.16),
+          height: Math.round(size * 0.16),
+          borderRadius: size,
+          backgroundColor: webShellTokens.primary,
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          left: Math.round(size * 0.26),
+          right: Math.round(size * 0.26),
+          bottom: Math.round(size * 0.18),
+          height: 2,
+          borderRadius: 1,
+          backgroundColor: "rgba(65, 217, 132, 0.72)",
+        }}
+      />
+    </View>
+  );
+}
+
+function BrandWordmark({ role }: { role: AppRole }) {
+  return (
+    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+      <Text style={{ fontSize: 16, fontWeight: "900", lineHeight: 19 }} numberOfLines={1}>
+        <Text style={{ color: brandPalette.white }}>Go</Text>
+        <Text style={{ color: webShellTokens.primary }}>Atleta</Text>
+      </Text>
+      <Text
+        style={{
+          color: "rgba(255,255,255,0.56)",
+          fontSize: 11,
+          fontWeight: "600",
+          lineHeight: 14,
+        }}
+        numberOfLines={1}
+      >
+        {roleSubtitle[role]}
+      </Text>
+    </View>
+  );
+}
 
 function SidebarGlyph({
   name,
@@ -835,20 +916,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
           </View>
         ) : null}
         <View style={{ alignItems: "center", gap: 10 }}>
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 16,
-              backgroundColor: webShellTokens.sidebarSoft,
-              borderWidth: 1,
-              borderColor: webShellTokens.sidebarHover,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <SidebarGlyph name="football-outline" size={22} color={brandPalette.white} />
-          </View>
+          <BrandMark size={44} />
           <Pressable
             accessibilityLabel="Expandir menu"
             onPress={() => setSidebarExpanded(true)}
@@ -1016,29 +1084,9 @@ export function WebSidebar({ role }: WebSidebarProps) {
         zIndex: 1000,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <View
-          style={{
-            width: 46,
-            height: 46,
-            borderRadius: 16,
-            backgroundColor: webShellTokens.sidebarSoft,
-            borderWidth: 1,
-            borderColor: webShellTokens.sidebarHover,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <SidebarGlyph name="football-outline" size={22} color={brandPalette.white} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: brandPalette.white, fontSize: 15, fontWeight: "900" }}>
-            {roleTitle[role]}
-          </Text>
-          <Text style={{ color: "rgba(255,255,255,0.58)", fontSize: 11 }}>
-            {roleSubtitle[role]}
-          </Text>
-        </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
+        <BrandMark size={46} />
+        <BrandWordmark role={role} />
         <Pressable
           accessibilityLabel="Recolher menu"
           onPress={() => setSidebarExpanded(false)}
