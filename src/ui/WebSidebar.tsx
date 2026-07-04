@@ -174,6 +174,35 @@ function BrandWordmark({ role }: { role: AppRole }) {
   );
 }
 
+function SidebarToggleButton({
+  expanded,
+  onPress,
+}: {
+  expanded: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={expanded ? "Recolher menu" : "Expandir menu"}
+      onPress={onPress}
+      style={{
+        width: 24,
+        height: 44,
+        alignItems: "center",
+        justifyContent: "center",
+        borderLeftWidth: 1,
+        borderLeftColor: "rgba(255,255,255,0.12)",
+      }}
+    >
+      <SidebarGlyph
+        name={expanded ? "chevron-back-outline" : "chevron-forward-outline"}
+        size={16}
+        color="rgba(255,255,255,0.68)"
+      />
+    </Pressable>
+  );
+}
+
 function SidebarGlyph({
   name,
   color,
@@ -882,28 +911,16 @@ export function WebSidebar({ role }: WebSidebarProps) {
             </Text>
           </View>
         ) : null}
-        <View style={{ alignItems: "center", gap: 10 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
           <BrandMark size={44} />
-          <Pressable
-            accessibilityLabel="Expandir menu"
-            onPress={() => setSidebarExpanded(true)}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 13,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "rgba(255,255,255,0.08)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.10)",
-            }}
-          >
-            <SidebarGlyph
-              name="chevron-forward-outline"
-              size={18}
-              color="rgba(255,255,255,0.76)"
-            />
-          </Pressable>
+          <SidebarToggleButton expanded={false} onPress={() => setSidebarExpanded(true)} />
         </View>
 
         <ScrollView
@@ -1051,29 +1068,10 @@ export function WebSidebar({ role }: WebSidebarProps) {
         zIndex: 1000,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <BrandMark size={46} />
+        <SidebarToggleButton expanded onPress={() => setSidebarExpanded(false)} />
         <BrandWordmark role={role} />
-        <Pressable
-          accessibilityLabel="Recolher menu"
-          onPress={() => setSidebarExpanded(false)}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 14,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(255,255,255,0.08)",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.10)",
-          }}
-        >
-          <SidebarGlyph
-            name="chevron-back-outline"
-            size={18}
-            color="rgba(255,255,255,0.76)"
-          />
-        </Pressable>
       </View>
 
       <ScrollView
