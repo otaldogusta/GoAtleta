@@ -410,6 +410,12 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const operationalItemsByRole: Record<AppRole, SidebarItem[]> = {
     prof: [
       {
+        key: "consultation",
+        label: "Consultoria online",
+        href: "/consultation",
+        icon: "consultation",
+      },
+      {
         key: "students",
         label: "Alunos",
         href: "/prof/students",
@@ -429,8 +435,14 @@ export function WebSidebar({ role }: WebSidebarProps) {
         icon: "absenceNotices",
       },
       {
+        key: "nfc",
+        label: "Presença NFC",
+        href: "/prof/nfc-attendance",
+        icon: "nfc",
+      },
+      {
         key: "exercises",
-        label: "Biblioteca",
+        label: "Exercícios",
         href: "/prof/exercises",
         icon: "exercises",
       },
@@ -445,6 +457,12 @@ export function WebSidebar({ role }: WebSidebarProps) {
         label: "Regulamentos",
         href: "/prof/regulation-history",
         icon: "regulations",
+      },
+      {
+        key: "assistant",
+        label: "Assistente IA",
+        href: "/prof/assistant",
+        icon: "assistant",
       },
     ],
     coord: [
