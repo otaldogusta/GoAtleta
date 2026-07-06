@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -16,6 +15,7 @@ import { useAuth } from "../src/auth/auth";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 const normalizeVerifyError = (message: string) => {
   const raw = String(message ?? "").toLowerCase();
@@ -282,7 +282,7 @@ export default function VerifyEmailScreen() {
                 onPress={handleBack}
                 style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
               >
-                <Ionicons name="chevron-back" size={20} color={colors.text} />
+                <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
                 <Text style={{ fontSize: 15, fontWeight: "600", color: colors.text }}>Voltar</Text>
               </Pressable>
 

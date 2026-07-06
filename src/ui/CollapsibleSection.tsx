@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, type StyleProp, View, type ViewStyle } from "react-native";
 
 import { Pressable } from "./Pressable";
+import { GoAtletaIcon } from "./icon-registry";
 import { useCollapsibleAnimation } from "./use-collapsible";
 
 type Props = {
@@ -72,7 +72,7 @@ export function CollapsibleSection({
             {rightAdornment}
             {showChevron ? (
               <Animated.View style={{ transform: [{ rotate: chevronRotate }] }}>
-                <Ionicons name="chevron-down" size={chevronSize} color={chevronColor} />
+                <GoAtletaIcon name="chevronDown" size={chevronSize} color={chevronColor} />
               </Animated.View>
             ) : null}
           </View>

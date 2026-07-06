@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 // perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
 import { type ReactNode, useEffect, useMemo, useState } from "react";
@@ -46,6 +45,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { SyncStatusBadge } from "../../src/ui/SyncStatusBadge";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 const goalOptions: { value: ConsultationGoal; label: string }[] = [
   { value: "emagrecimento", label: "Emagrecimento" },
@@ -1084,8 +1084,8 @@ export default function ConsultationScreen() {
                   </View>
                 ) : null}
                 {hasSavedProfile ? (
-                  <Ionicons
-                    name={isProfileEditorOpen ? "chevron-down" : "chevron-forward"}
+                  <GoAtletaIcon
+                    name={isProfileEditorOpen ? "chevronDown" : "chevronForward"}
                     size={15}
                     color={colors.muted}
                   />
@@ -1219,7 +1219,7 @@ export default function ConsultationScreen() {
                 width: 36,
               }}
             >
-              <Ionicons name="add" size={19} color={colors.text} />
+              <GoAtletaIcon name="add" size={19} color={colors.text} />
             </Pressable>
           </View>
           {studentWorkouts.length ? (
@@ -1355,7 +1355,7 @@ export default function ConsultationScreen() {
             </View>
           ) : (
             <View style={{ alignItems: "center", gap: 8, padding: 16 }}>
-              <Ionicons name="calendar-outline" size={24} color={colors.muted} />
+              <GoAtletaIcon name="calendar" size={24} color={colors.muted} />
               <Text style={{ color: colors.text, fontWeight: "900", textAlign: "center" }}>Nenhum treino publicado ainda.</Text>
               <Text style={{ color: colors.muted, textAlign: "center" }}>
                 Publique o primeiro treino para a aluna visualizar no celular.
@@ -1445,7 +1445,7 @@ export default function ConsultationScreen() {
             })
           ) : (
             <View style={{ alignItems: "center", gap: 8, padding: 16 }}>
-              <Ionicons name="clipboard-outline" size={24} color={colors.muted} />
+              <GoAtletaIcon name="planning" size={24} color={colors.muted} />
               <Text style={{ color: colors.muted, textAlign: "center" }}>
                 Nenhum feedback recebido ainda. Quando a aluna concluir o treino, aparece aqui.
               </Text>
@@ -1660,7 +1660,7 @@ export default function ConsultationScreen() {
                           width: 30,
                         }}
                       >
-                        <Ionicons name="add" size={17} color={colors.text} />
+                        <GoAtletaIcon name="add" size={17} color={colors.text} />
                       </Pressable>
                     </View>
                     <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
@@ -1778,7 +1778,7 @@ export default function ConsultationScreen() {
                               width: 28,
                             }}
                           >
-                            <Ionicons name="close" size={14} color={colors.muted} />
+                            <GoAtletaIcon name="close" size={14} color={colors.muted} />
                           </Pressable>
                         </View>
                         <TextInput

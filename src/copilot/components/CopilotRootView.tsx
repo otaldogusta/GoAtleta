@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Linking, Text, View } from "react-native";
 
 import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import { Pressable } from "../../ui/Pressable";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import type { OperationalContextResult } from "../operational-context";
 import type { CopilotAction, InsightsCategory, InsightsView } from "../types";
 
@@ -31,18 +31,18 @@ const regulationRelativeLabel = (value: string | null | undefined, nowMs: number
   return d.toLocaleDateString("pt-BR");
 };
 
-const resolveContextActionIcon = (action: { id: string; title: string }): keyof typeof Ionicons.glyphMap => {
+const resolveContextActionIcon = (action: { id: string; title: string }): GoAtletaIconName => {
   const key = normalizeComposerText(`${action.id} ${action.title}`);
-  if (key.includes("treino")) return "sparkles-outline";
-  if (key.includes("resumo")) return "document-text-outline";
-  if (key.includes("engaj") || key.includes("risco")) return "pulse-outline";
-  if (key.includes("pesquisa") || key.includes("cient")) return "search-outline";
-  if (key.includes("mensagem") || key.includes("whatsapp")) return "chatbubble-outline";
-  if (key.includes("checklist")) return "checkmark-done-outline";
-  if (key.includes("regul")) return "shield-checkmark-outline";
-  if (key.includes("duplic")) return "copy-outline";
-  if (key.includes("nfc") || key.includes("presenca")) return "radio-outline";
-  return "flash-outline";
+  if (key.includes("treino")) return "assistant";
+  if (key.includes("resumo")) return "document";
+  if (key.includes("engaj") || key.includes("risco")) return "engagement";
+  if (key.includes("pesquisa") || key.includes("cient")) return "search";
+  if (key.includes("mensagem") || key.includes("whatsapp")) return "message";
+  if (key.includes("checklist")) return "checklist";
+  if (key.includes("regul")) return "shield";
+  if (key.includes("duplic")) return "copy";
+  if (key.includes("nfc") || key.includes("presenca")) return "nfc";
+  return "flash";
 };
 
 const normalizeComposerText = (value: string) =>
@@ -282,7 +282,7 @@ export function CopilotRootView({
                     backgroundColor: colors.card,
                   }}
                 >
-                  <Ionicons name={resolveContextActionIcon(action)} size={16} color={colors.text} />
+                  <GoAtletaIcon name={resolveContextActionIcon(action)} size={16} color={colors.text} />
                 </View>
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14, flexShrink: 1 }}>
                   {state.runningActionId === action.id ? "Executando..." : action.title}
@@ -322,7 +322,7 @@ export function CopilotRootView({
                     backgroundColor: colors.card,
                   }}
                 >
-                  <Ionicons name="add" size={16} color={colors.text} />
+                  <GoAtletaIcon name="add" size={16} color={colors.text} />
                 </View>
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>Ver mais ações</Text>
                 <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>

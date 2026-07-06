@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -22,6 +21,7 @@ import { useOrganization } from "../../../providers/OrganizationProvider";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getGlassCardStyle } from "../../../ui/glass-styles";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 import { SectionLoadingState } from "../../../components/ui/SectionLoadingState";
 
 type LegacyPendingAttendance = Partial<AdminPendingAttendance> & {
@@ -54,7 +54,7 @@ type ManagerAction = {
   id: string;
   label: string;
   route: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: GoAtletaIconName;
 };
 
 const COOLDOWN_MS = 60 * 60 * 1000;
@@ -164,7 +164,7 @@ const AdminQuickActions = memo(function AdminQuickActions({
             { backgroundColor: colors.secondaryBg, borderColor: colors.border },
           ]}
         >
-          <Ionicons name={action.icon} size={14} color={colors.text} />
+          <GoAtletaIcon name={action.icon} size={14} color={colors.text} />
           <Text style={[styles.quickActionText, { color: colors.text }]}>{action.label}</Text>
         </Pressable>
       ))}
@@ -268,11 +268,11 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
 
   const managerActions = useMemo<ManagerAction[]>(
     () => [
-      { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "bar-chart-outline" },
-      { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "people-outline" },
-      { id: "events", label: "Eventos", route: "/coord/events", icon: "calendar-outline" },
-      { id: "nfc", label: "NFC", route: "/prof/nfc-attendance", icon: "radio-outline" },
-      { id: "members", label: "Membros", route: "/coord/org-members", icon: "person-add-outline" },
+      { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "reports" },
+      { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "management" },
+      { id: "events", label: "Eventos", route: "/coord/events", icon: "events" },
+      { id: "nfc", label: "NFC", route: "/prof/nfc-attendance", icon: "nfc" },
+      { id: "members", label: "Membros", route: "/coord/org-members", icon: "members" },
     ],
     []
   );
@@ -545,7 +545,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
             },
           ]}
         >
-          <Ionicons name="notifications-outline" size={14} color={colors.primaryText} />
+          <GoAtletaIcon name="notifications" size={14} color={colors.primaryText} />
           <Text style={[styles.compactPrimaryActionText, { color: colors.primaryText }]}>
             {notifying
               ? "Enviando..."
@@ -617,7 +617,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
               },
             ]}
           >
-            <Ionicons name="notifications-outline" size={16} color={colors.primaryText} />
+            <GoAtletaIcon name="notifications" size={16} color={colors.primaryText} />
             <Text style={[styles.primaryActionText, { color: colors.primaryText }]}>
               {notifying
                 ? "Enviando aviso..."

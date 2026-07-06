@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, Text, TextInput, useWindowDimensions, View } from "react-native";
 
@@ -11,6 +10,7 @@ import { LessonBlocksEditor } from "../../lesson/components/LessonBlocksEditor";
 import { resolveLessonBlocksFromDailyPlan } from "../application/daily-lesson-blocks";
 import type { ProfessorCoachGuidance } from "../application/professor-agenda-events";
 import { PlanningSyncStatusChip } from "./PlanningSyncStatusChip";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type Props = {
   visible: boolean;
@@ -277,7 +277,7 @@ export function DayLessonPlanModal({
                   borderColor: colors.border,
                 }}
               >
-                <Ionicons name="pencil" size={16} color={colors.text} />
+                <GoAtletaIcon name="pencil" size={16} color={colors.text} />
               </Pressable>
             </View>
             <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>{previewObjective}</Text>
@@ -329,7 +329,7 @@ export function DayLessonPlanModal({
                   borderColor: colors.border,
                 }}
               >
-                <Ionicons name="eye-outline" size={14} color={colors.text} />
+                <GoAtletaIcon name="view" size={14} color={colors.text} />
                 <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Resumo</Text>
               </Pressable>
             </View>

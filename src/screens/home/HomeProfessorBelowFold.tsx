@@ -1,13 +1,12 @@
 import { memo } from "react";
 
-import { Ionicons } from "@expo/vector-icons";
-
 import { Platform, Text, View } from "react-native";
 
 import { useRouter } from "expo-router";
 
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 
 type HomeProfessorBelowFoldProps = {
   canOpenClassesShortcut: boolean;
@@ -17,7 +16,7 @@ type HomeProfessorBelowFoldProps = {
 type ShortcutCardProps = {
   label: string;
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: GoAtletaIconName;
   onPress: () => void;
 };
 
@@ -72,7 +71,7 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
             borderColor: colors.border,
           }}
         >
-          <Ionicons name={icon} size={isWeb ? 15 : 17} color={colors.text} />
+          <GoAtletaIcon name={icon} size={isWeb ? 15 : 17} color={colors.text} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: "700", color: colors.text }} numberOfLines={1}>
@@ -102,14 +101,14 @@ function HomeProfessorBelowFoldBase({
         <ShortcutCard
           label="Planejamento"
           description="Modelos e planejamentos"
-          icon="clipboard-outline"
+          icon="planning"
           onPress={() => router.push("/prof/planning")}
         />
 
         <ShortcutCard
           label="Consultoria online"
           description="Prescrição individual"
-          icon="person-outline"
+          icon="consultation"
           onPress={() => router.push("/consultation")}
         />
 
@@ -117,7 +116,7 @@ function HomeProfessorBelowFoldBase({
           <ShortcutCard
             label="Turmas"
             description="Cadastros e lista"
-            icon="school-outline"
+            icon="classes"
             onPress={() => router.push("/prof/classes")}
           />
         ) : null}
@@ -126,7 +125,7 @@ function HomeProfessorBelowFoldBase({
           <ShortcutCard
             label="Alunos"
             description="Lista e chamada"
-            icon="people-outline"
+            icon="students"
             onPress={() => router.push("/prof/students")}
           />
         ) : null}
@@ -134,35 +133,35 @@ function HomeProfessorBelowFoldBase({
         <ShortcutCard
           label="Calendário mensal"
           description="Aulas e chamada"
-          icon="calendar-outline"
+          icon="calendar"
           onPress={() => router.push("/prof/calendar")}
         />
 
         <ShortcutCard
           label="Avisos de ausência"
           description="Alunos ausentes"
-          icon="notifications-outline"
+          icon="absenceNotices"
           onPress={() => router.push("/prof/absence-notices")}
         />
 
         <ShortcutCard
           label="Presença NFC"
           description="Registrar por UID"
-          icon="radio-outline"
+          icon="nfc"
           onPress={() => router.push("/prof/nfc-attendance")}
         />
 
         <ShortcutCard
           label="Exercícios"
           description="Biblioteca com vídeos"
-          icon="book-outline"
+          icon="exercises"
           onPress={() => router.push("/prof/exercises")}
         />
 
         <ShortcutCard
           label="Periodização"
           description="Ciclos e cargas"
-          icon="trending-up-outline"
+          icon="periodization"
           onPress={() => router.push("/prof/periodization")}
         />
       </View>

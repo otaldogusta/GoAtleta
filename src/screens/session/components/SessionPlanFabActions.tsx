@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Animated, Platform, Text, View } from "react-native";
 
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type Props = {
   colors: ThemeColors;
@@ -89,7 +89,7 @@ export function SessionPlanFabActions({
                 gap: 8,
               }}
             >
-              <Ionicons name="play-circle-outline" size={16} color={colors.text} />
+              <GoAtletaIcon name="playCircle" size={16} color={colors.text} />
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 {startTrainingLabel}
               </Text>
@@ -111,7 +111,7 @@ export function SessionPlanFabActions({
                 gap: 8,
               }}
             >
-              <Ionicons name="download-outline" size={16} color={colors.text} />
+              <GoAtletaIcon name="download" size={16} color={colors.text} />
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 {exportLabel}
               </Text>
@@ -134,7 +134,7 @@ export function SessionPlanFabActions({
               opacity: canImportPlan ? 1 : 0.65,
             }}
           >
-            <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
+            <GoAtletaIcon name="upload" size={16} color={colors.text} />
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
               {importPlanLabel}
             </Text>
@@ -180,7 +180,7 @@ export function SessionPlanFabActions({
             ],
           }}
         >
-          <Ionicons name="add" size={24} color={colors.primaryText} />
+          <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
         </Animated.View>
       </Pressable>
     </>

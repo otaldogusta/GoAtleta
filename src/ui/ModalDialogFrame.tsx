@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { type ReactNode } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import type { ThemeColors } from "./app-theme";
+import { GoAtletaIcon } from "./icon-registry";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
 
@@ -64,7 +64,7 @@ export function ModalDialogFrame({
               borderColor: colors.border,
             }}
           >
-            <Ionicons name="close" size={18} color={colors.text} />
+            <GoAtletaIcon name="close" size={18} color={colors.text} />
           </Pressable>
         </View>
 

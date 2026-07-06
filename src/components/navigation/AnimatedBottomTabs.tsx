@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, Text, View, useWindowDimensions } from "react-native";
@@ -15,7 +14,7 @@ import { useOptionalOrganization } from "../../providers/OrganizationProvider";
 import { Pressable } from "../../ui/Pressable";
 import { WEB_SHELL_MIN_WIDTH, shouldHideWebShellForPath } from "../../ui/AppShell";
 import { useAppTheme } from "../../ui/app-theme";
-import { decorativeIconProps } from "../../ui/decorative-icon-props";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { radius, shadow } from "../../theme/tokens";
 import { FabRadialMenu } from "./FabRadialMenu";
 import { ROLE_RADIAL_ACTIONS, ROLE_TABS, type AppRole } from "./tab-config";
@@ -174,7 +173,7 @@ export function AnimatedBottomTabs({
                 }}
               >
                 <Animated.View style={plusIconStyle}>
-                  <Ionicons {...decorativeIconProps} name="add" size={24} color={colors.primaryText} />
+                  <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
                 </Animated.View>
               </Pressable>
             );
@@ -207,8 +206,7 @@ export function AnimatedBottomTabs({
                   transform: [{ translateY: focused ? -3 : 0 }],
                 }}
               >
-                <Ionicons
-                  {...decorativeIconProps}
+                <GoAtletaIcon
                   name={tab.icon}
                   size={18}
                   color={focused ? colors.primaryText : colors.muted}

@@ -1,9 +1,9 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { Pressable } from "./Pressable";
 
 import { useAppTheme } from "./app-theme";
+import { GoAtletaIcon } from "./icon-registry";
 import { ModalSheet } from "./ModalSheet";
 
 type ViewMode = "day" | "month" | "year";
@@ -166,8 +166,8 @@ export function DatePickerModal({
                 backgroundColor: colors.secondaryBg,
               }}
             >
-              <MaterialCommunityIcons
-                name="chevron-left"
+              <GoAtletaIcon
+                name="chevronBack"
                 size={18}
                 color={colors.text}
               />
@@ -282,8 +282,8 @@ export function DatePickerModal({
                 backgroundColor: colors.secondaryBg,
               }}
             >
-              <MaterialCommunityIcons
-                name="chevron-right"
+              <GoAtletaIcon
+                name="chevronForward"
                 size={18}
                 color={colors.text}
               />

@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Animated, ScrollView, Text, TextInput, View } from "react-native";
 
 import { Pressable } from "../../../src/ui/Pressable";
@@ -8,6 +7,7 @@ import type { ConfirmDialogOptions } from "../../../src/ui/confirm-dialog";
 import { getSectionCardStyle } from "../../../src/ui/section-styles";
 
 import type { ClassCalendarException, ClassCompetitiveProfile } from "../../../src/core/models";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 type AnimatedStyle = {
   opacity: Animated.Value;
@@ -169,8 +169,8 @@ export function CompetitiveAgendaCard({
           <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
             {normalizeText("Dados da competição")}
           </Text>
-          <Ionicons
-            name={competitiveBlocksOpen.profile ? "chevron-up" : "chevron-down"}
+          <GoAtletaIcon
+            name={competitiveBlocksOpen.profile ? "chevronUp" : "chevronDown"}
             size={16}
             color={colors.muted}
           />
@@ -378,8 +378,8 @@ export function CompetitiveAgendaCard({
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
             {normalizeText("Calendário da turma")}
           </Text>
-          <Ionicons
-            name={competitiveBlocksOpen.calendar ? "chevron-up" : "chevron-down"}
+          <GoAtletaIcon
+            name={competitiveBlocksOpen.calendar ? "chevronUp" : "chevronDown"}
             size={16}
             color={colors.muted}
           />
@@ -464,8 +464,8 @@ export function CompetitiveAgendaCard({
           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
             {normalizeText(`Exceções cadastradas (${calendarExceptions.length})`)}
           </Text>
-          <Ionicons
-            name={competitiveBlocksOpen.exceptions ? "chevron-up" : "chevron-down"}
+          <GoAtletaIcon
+            name={competitiveBlocksOpen.exceptions ? "chevronUp" : "chevronDown"}
             size={16}
             color={colors.muted}
           />

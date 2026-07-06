@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 // perf-check: ignore-inline-row-style - lista curta de exercicios do piloto; componente dedicado fica para consolidacao apos teste real.
 import { useEffect, useMemo, useState } from "react";
@@ -28,6 +27,7 @@ import { radius } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
 import { Pressable } from "../src/ui/Pressable";
 import { SyncStatusBadge } from "../src/ui/SyncStatusBadge";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 const scaleValues = Array.from({ length: 11 }, (_, index) => index);
 
@@ -251,7 +251,7 @@ export default function StudentConsultationScreen() {
           <Text style={{ color: colors.muted }}>Carregando...</Text>
         ) : !workout ? (
           <View style={{ gap: 8, padding: 16, borderRadius: radius.card, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
-            <Ionicons name="checkmark-circle-outline" size={24} color={colors.successText} />
+            <GoAtletaIcon name="success" size={24} color={colors.successText} />
             <Text style={{ color: colors.text, fontWeight: "900" }}>Nenhum treino publicado para hoje.</Text>
             <Text style={{ color: colors.muted }}>
               Quando o profissional publicar seu treino, ele aparecerá aqui.

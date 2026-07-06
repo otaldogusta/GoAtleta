@@ -1,5 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
-import type { ComponentProps } from "react";
 import { Text, View } from "react-native";
 
 import {
@@ -16,6 +14,7 @@ import {
 } from "../../core/visual-court";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 
 type Props = {
   payload: CourtVisualPayload;
@@ -125,7 +124,7 @@ export function VisualCourtTimelineControls({
       }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <IconButton icon="play-skip-back" label="Passo anterior" onPress={onPrevious} />
+        <IconButton icon="skipBack" label="Passo anterior" onPress={onPrevious} />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
@@ -148,13 +147,13 @@ export function VisualCourtTimelineControls({
             opacity: playDisabled ? 0.54 : 1,
           }}
         >
-          <Ionicons
+          <GoAtletaIcon
             name={isPlaying ? "pause" : "play"}
             size={22}
             color={playDisabled ? colors.muted : colors.primaryText}
           />
         </Pressable>
-        <IconButton icon="play-skip-forward" label="Próximo passo" onPress={onNext} />
+        <IconButton icon="skipForward" label="Próximo passo" onPress={onNext} />
         <View style={{ flex: 1 }}>
           <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>
             {currentStep?.label ?? "Passo"}
@@ -367,7 +366,7 @@ function IconButton({
   label,
   onPress,
 }: {
-  icon: ComponentProps<typeof Ionicons>["name"];
+  icon: GoAtletaIconName;
   label: string;
   onPress: () => void;
 }) {
@@ -388,7 +387,7 @@ function IconButton({
         justifyContent: "center",
       }}
     >
-      <Ionicons name={icon} size={19} color={colors.text} />
+      <GoAtletaIcon name={icon} size={19} color={colors.text} />
     </Pressable>
   );
 }

@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { type RefObject } from "react";
 import { Alert, StyleProp, Text, TextInput, View, ViewStyle } from "react-native";
 import type { ClassGroup, Student } from "../../../core/models";
@@ -13,6 +12,7 @@ import {
     normalizePhoneBR,
     openWhatsApp,
 } from "../../../utils/whatsapp";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import {
     WHATSAPP_TEMPLATES,
     calculateNextClassDate,
@@ -243,8 +243,8 @@ export function WhatsAppModal({
                       ? WHATSAPP_TEMPLATES[selectedTemplateId]?.title
                       : selectedTemplateLabel ?? "Template"}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{

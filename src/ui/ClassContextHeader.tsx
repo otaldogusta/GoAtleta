@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 import type { ClassGender } from "../core/models";
@@ -8,6 +7,7 @@ import { ClassGenderBadge } from "./ClassGenderBadge";
 import { FadeHorizontalScroll } from "./FadeHorizontalScroll";
 import { LocationBadge } from "./LocationBadge";
 import { Pressable } from "./Pressable";
+import { GoAtletaIcon } from "./icon-registry";
 import { getUnitPalette } from "./unit-colors";
 import { useIsOnline } from "../hooks/use-is-online";
 import { navigateBackOrReplace } from "../navigation/safe-router";
@@ -88,7 +88,7 @@ export function ClassContextHeader({
             paddingVertical: 4,
           }}
         >
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
           {safeTitle ? (
             <Text
               numberOfLines={2}

@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import type {
@@ -12,6 +11,7 @@ import { radius } from "../../../theme/tokens";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { useAppTheme } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 const objectiveLabelMap: Record<PedagogicalObjective, string> = {
   controle_bola: "Controle de bola",
@@ -246,7 +246,7 @@ export function PedagogicalPlanPreviewModal({
               borderColor: colors.borderSubtle,
             }}
           >
-            <Ionicons name="close" size={18} color={colors.textPrimary} />
+            <GoAtletaIcon name="close" size={18} color={colors.textPrimary} />
           </Pressable>
         </View>
         {contextWarning ? (
@@ -297,7 +297,7 @@ export function PedagogicalPlanPreviewModal({
                       <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "800" }}>
                         {block.duration} min
                       </Text>
-                      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                      <GoAtletaIcon name="chevronForward" size={16} color={colors.textMuted} />
                     </View>
                   </View>
                   <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
@@ -447,7 +447,7 @@ export function PedagogicalPlanPreviewModal({
                 borderColor: colors.borderSubtle,
               }}
             >
-              <Ionicons name="close" size={16} color={colors.textPrimary} />
+              <GoAtletaIcon name="close" size={16} color={colors.textPrimary} />
             </Pressable>
           </View>
 

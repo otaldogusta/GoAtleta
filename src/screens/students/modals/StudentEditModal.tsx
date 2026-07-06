@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import {
     type NamedExoticComponent,
@@ -31,6 +30,7 @@ import { StudentAcademicFields } from "../components/StudentAcademicFields";
 import { StudentClassDropdownList } from "../components/StudentClassDropdownPanel";
 import { StudentDocumentsFields } from "../components/StudentDocumentsFields";
 import { StudentMultiSelectOption } from "../components/StudentDropdownOptions";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type CollapsibleAnim = {
     animatedStyle: any;
@@ -409,7 +409,7 @@ export function StudentEditModal({
                                 borderColor: colors.border,
                             }}
                         >
-                            <Ionicons name="close" size={18} color={colors.text} />
+                            <GoAtletaIcon name="close" size={18} color={colors.text} />
                         </Pressable>
                     </View>
                     <ScrollView
@@ -441,7 +441,7 @@ export function StudentEditModal({
                                             contentFit="cover"
                                         />
                                     ) : (
-                                        <Ionicons name="camera-outline" size={24} color={colors.text} />
+                                        <GoAtletaIcon name="camera" size={24} color={colors.text} />
                                     )}
                                 </Pressable>
                                 <View style={{ gap: 6 }}>
@@ -468,7 +468,7 @@ export function StudentEditModal({
                                         <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Dados do aluno</Text>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>Nome, contato e login</Text>
                                     </View>
-                                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "studentData" ? "180deg" : "0deg" }] }} />
+                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "studentData" ? "180deg" : "0deg" }] }} />
                                 </Pressable>
                                 {openEditSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
                                 {editStudentDataAnim.isVisible ? (
@@ -530,7 +530,7 @@ export function StudentEditModal({
                                         <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>{editAcademicSummary}</Text>
                                     </View>
-                                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "academic" ? "180deg" : "0deg" }] }} />
+                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "academic" ? "180deg" : "0deg" }] }} />
                                 </Pressable>
                                 {openEditSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
                                 {editAcademicAnim.isVisible ? (
@@ -560,7 +560,7 @@ export function StudentEditModal({
                                         <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Documentos</Text>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>{editDocumentsSummary}</Text>
                                     </View>
-                                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "documents" ? "180deg" : "0deg" }] }} />
+                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "documents" ? "180deg" : "0deg" }] }} />
                                 </Pressable>
                                 {openEditSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
                                 {editDocumentsAnim.isVisible ? (
@@ -597,7 +597,7 @@ export function StudentEditModal({
                                         <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>{editSportSummary}</Text>
                                     </View>
-                                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "sportProfile" ? "180deg" : "0deg" }] }} />
+                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "sportProfile" ? "180deg" : "0deg" }] }} />
                                 </Pressable>
                                 {openEditSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
                                 {editSportAnim.isVisible ? (
@@ -694,7 +694,7 @@ export function StudentEditModal({
                                         </View>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>{editHealthSummary}</Text>
                                     </View>
-                                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "health" ? "180deg" : "0deg" }] }} />
+                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "health" ? "180deg" : "0deg" }] }} />
                                 </Pressable>
                                 {openEditSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
                                 {editHealthAnim.isVisible ? (
@@ -787,7 +787,7 @@ export function StudentEditModal({
                                         <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Responsável</Text>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>{editGuardianSummary}</Text>
                                     </View>
-                                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "guardian" ? "180deg" : "0deg" }] }} />
+                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "guardian" ? "180deg" : "0deg" }] }} />
                                 </Pressable>
                                 {openEditSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
                                 {editGuardianAnim.isVisible ? (
@@ -821,7 +821,7 @@ export function StudentEditModal({
                                                 <View ref={editGuardianRelationTriggerRef}>
                                                     <Pressable onPress={() => toggleEditPicker("guardianRelation")} style={selectFieldStyle as StyleProp<ViewStyle>}>
                                                         <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{guardianRelation || "Selecione"}</Text>
-                                                        <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditGuardianRelationPicker ? "180deg" : "0deg" }] }} />
+                                                        <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditGuardianRelationPicker ? "180deg" : "0deg" }] }} />
                                                     </Pressable>
                                                 </View>
                                             </View>
@@ -839,7 +839,7 @@ export function StudentEditModal({
                                         <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Vínculos esportivos</Text>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>{editLinksSummary}</Text>
                                     </View>
-                                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "links" ? "180deg" : "0deg" }] }} />
+                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "links" ? "180deg" : "0deg" }] }} />
                                 </Pressable>
                                 {openEditSection === "links" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
                                 {editLinksAnim.isVisible ? (
@@ -851,7 +851,7 @@ export function StudentEditModal({
                                                     <View ref={editUnitTriggerRef}>
                                                         <Pressable onPress={() => toggleEditPicker("unit")} style={selectFieldStyle as StyleProp<ViewStyle>}>
                                                             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{selectedUnitFilterLabel}</Text>
-                                                            <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }} />
+                                                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }} />
                                                         </Pressable>
                                                     </View>
                                                     {showEditUnitPickerContent ? (
@@ -898,7 +898,7 @@ export function StudentEditModal({
                                                     <View ref={editClassTriggerRef}>
                                                         <Pressable onPress={() => toggleEditPicker("class")} style={selectFieldStyle as StyleProp<ViewStyle>}>
                                                             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{selectedClassName || "Selecione a turma"}</Text>
-                                                            <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
+                                                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
                                                         </Pressable>
                                                     </View>
                                                     {showEditClassPickerContent ? (

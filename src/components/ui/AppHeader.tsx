@@ -1,9 +1,9 @@
 import { Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
 import { radius } from "../../theme/tokens";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 type AppHeaderProps = {
   title: string;
@@ -41,7 +41,7 @@ export function AppHeader({ title, subtitle }: AppHeaderProps) {
           justifyContent: "center",
         }}
       >
-        <Ionicons name="notifications-outline" size={20} color={colors.text} />
+        <GoAtletaIcon name="notifications" size={20} color={colors.text} />
       </Pressable>
     </View>
   );

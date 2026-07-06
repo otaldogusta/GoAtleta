@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
@@ -29,6 +28,7 @@ import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
 import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 import { usePersistedState } from "../../../ui/use-persisted-state";
 import { loadGoogleFormsSheetImport, type LoadedGoogleFormsSheet } from "../google-forms-sync";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 const FLAG_DETAILS: Record<string, { title: string; hint: string }> = {
   NAME_CONFLICT: {
@@ -1200,7 +1200,7 @@ export function StudentsFormsSyncModal({
             justifyContent: "center",
           }}
         >
-          <Ionicons name="close" size={20} color={colors.text} />
+          <GoAtletaIcon name="close" size={20} color={colors.text} />
         </Pressable>
       </View>
 
@@ -1339,8 +1339,8 @@ export function StudentsFormsSyncModal({
                     <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flex: 1 }} numberOfLines={1}>
                       {selectedUnit || "Todas as unidades"}
                     </Text>
-                    <Ionicons
-                      name="chevron-down"
+                    <GoAtletaIcon
+                      name="chevronDown"
                       size={16}
                       color={colors.muted}
                       style={{ transform: [{ rotate: showUnitDropdown ? "180deg" : "0deg" }] }}
@@ -1374,8 +1374,8 @@ export function StudentsFormsSyncModal({
                           ? getClassLabel(selectedDefaultClass)
                           : "Selecione uma turma"}
                     </Text>
-                    <Ionicons
-                      name="chevron-down"
+                    <GoAtletaIcon
+                      name="chevronDown"
                       size={16}
                       color={colors.muted}
                       style={{ transform: [{ rotate: showClassDropdown ? "180deg" : "0deg" }] }}
@@ -1424,8 +1424,8 @@ export function StudentsFormsSyncModal({
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     Outras modalidades ({nonVolleyballModalities.length})
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{ transform: [{ rotate: showOtherModalities ? "180deg" : "0deg" }] }}
@@ -1514,8 +1514,8 @@ export function StudentsFormsSyncModal({
                     {loadedSheet.rows.length} linhas • ID: {compactSheetId(loadedSheet.sheetId)}
                   </Text>
                 </View>
-                <Ionicons
-                  name={showSheetPreview ? "chevron-up" : "chevron-down"}
+                <GoAtletaIcon
+                  name={showSheetPreview ? "chevronUp" : "chevronDown"}
                   size={16}
                   color={colors.muted}
                 />
@@ -2084,7 +2084,7 @@ export function StudentsFormsSyncModal({
                     <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flex: 1 }} numberOfLines={2}>
                       {getClassLabel(item)}
                     </Text>
-                    {selected ? <Ionicons name="checkmark-circle" size={16} color={colors.primaryBg} /> : null}
+                    {selected ? <GoAtletaIcon name="checkmarkCircle" size={16} color={colors.primaryBg} /> : null}
                   </View>
                 </AnchoredDropdownOption>
               );

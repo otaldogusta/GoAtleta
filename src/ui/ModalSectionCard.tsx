@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { type ReactNode } from "react";
 import { Animated, Text, View } from "react-native";
 
 import type { ThemeColors } from "./app-theme";
+import { GoAtletaIcon } from "./icon-registry";
 import { Pressable } from "./Pressable";
 
 type Props = {
@@ -36,7 +36,7 @@ export function ModalSectionCard({
           <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{title}</Text>
           {summary ? <Text style={{ color: colors.muted, fontSize: 11 }}>{summary}</Text> : null}
         </View>
-        <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }} />
+        <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }} />
       </Pressable>
       {open ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
       {isVisible ? (

@@ -1,6 +1,5 @@
 import { memo, type ReactNode, type RefObject, useState } from "react";
 
-import { Ionicons } from "@expo/vector-icons";
 import { Pressable, Text, TextInput, View } from "react-native";
 
 import { type ClassGroup } from "../../../core/models";
@@ -10,6 +9,7 @@ import { DateInput } from "../../../ui/DateInput";
 import { FadeHorizontalScroll } from "../../../ui/FadeHorizontalScroll";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getSectionCardStyle } from "../../../ui/section-styles";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type PickerLayout = { x: number; y: number; width: number; height: number };
 type WindowPosition = { x: number; y: number };
@@ -172,8 +172,8 @@ const EditSectionCard = memo(function EditSectionCard({
           <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{title}</Text>
           <Text style={{ color: colors.muted, fontSize: 11 }}>{summary}</Text>
         </View>
-        <Ionicons
-          name="chevron-down"
+        <GoAtletaIcon
+          name="chevronDown"
           size={16}
           color={colors.muted}
           style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }}
@@ -438,8 +438,8 @@ function ClassEditModalBodyBase({
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {resolveAgeBandLabel()}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{ transform: [{ rotate: pickers.showEditAgeBandPicker ? "180deg" : "0deg" }] }}
@@ -474,8 +474,8 @@ function ClassEditModalBodyBase({
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {resolveGenderLabel(fields.editGender)}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{ transform: [{ rotate: pickers.showEditGenderPicker ? "180deg" : "0deg" }] }}
@@ -492,8 +492,8 @@ function ClassEditModalBodyBase({
                 <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                   {resolveGoalLabel()}
                 </Text>
-                <Ionicons
-                  name="chevron-down"
+                <GoAtletaIcon
+                  name="chevronDown"
                   size={16}
                   color={colors.muted}
                   style={{ transform: [{ rotate: pickers.showEditGoalPicker ? "180deg" : "0deg" }] }}
@@ -552,8 +552,8 @@ function ClassEditModalBodyBase({
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                       {fields.editCycleLengthWeeks ? formatAnnualCycleLabel(fields.editCycleLengthWeeks) : "Selecione"}
                     </Text>
-                    <Ionicons
-                      name="chevron-down"
+                    <GoAtletaIcon
+                      name="chevronDown"
                       size={16}
                       color={colors.muted}
                       style={{ transform: [{ rotate: pickers.showEditCycleLengthPicker ? "180deg" : "0deg" }] }}
@@ -571,8 +571,8 @@ function ClassEditModalBodyBase({
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                       {fields.editMvLevel || "Selecione"}
                     </Text>
-                    <Ionicons
-                      name="chevron-down"
+                    <GoAtletaIcon
+                      name="chevronDown"
                       size={16}
                       color={colors.muted}
                       style={{ transform: [{ rotate: pickers.showEditMvLevelPicker ? "180deg" : "0deg" }] }}
@@ -590,8 +590,8 @@ function ClassEditModalBodyBase({
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                       {fields.editModality || "Selecione"}
                     </Text>
-                    <Ionicons
-                      name="chevron-down"
+                    <GoAtletaIcon
+                      name="chevronDown"
                       size={16}
                       color={colors.muted}
                       style={{ transform: [{ rotate: pickers.showEditModalityPicker ? "180deg" : "0deg" }] }}

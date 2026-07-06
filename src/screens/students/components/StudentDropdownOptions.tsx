@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import { Text, View } from "react-native";
 
@@ -6,6 +5,7 @@ import type { ClassGroup } from "../../../core/models";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { useAppTheme, type ThemeColors } from "../../../ui/app-theme";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 export type StudentSelectOptionProps = {
   label: string;
@@ -89,8 +89,8 @@ export function StudentMultiSelectOptionContent({
         marginVertical: compact ? 1 : 3,
       }}
       rightAccessory={
-        <Ionicons
-          name={active ? "checkbox" : "square-outline"}
+        <GoAtletaIcon
+          name={active ? "checkbox" : "square"}
           size={compact ? 16 : 18}
           color={active ? colors.primaryText : colors.muted}
         />

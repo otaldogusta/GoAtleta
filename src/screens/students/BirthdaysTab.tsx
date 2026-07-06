@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { memo, type Dispatch, type SetStateAction } from "react";
@@ -8,6 +7,7 @@ import type { ThemeColors } from "../../ui/app-theme";
 import { FadeHorizontalScroll } from "../../ui/FadeHorizontalScroll";
 import { Pressable } from "../../ui/Pressable";
 import { getUnitPalette } from "../../ui/unit-colors";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 const monthNames = [
   "Janeiro",
@@ -128,7 +128,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
           borderColor: colors.border,
         }}
       >
-                <Ionicons name="search" size={16} color={colors.muted} />
+                <GoAtletaIcon name="search" size={16} color={colors.muted} />
         <TextInput
           placeholder="Buscar nomes, datas e meses"
           placeholderTextColor={colors.placeholder}
@@ -150,7 +150,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
             opacity: birthdaySearch ? 1 : 0,
           }}
         >
-          <Ionicons name="close" size={14} color={colors.muted} />
+          <GoAtletaIcon name="close" size={14} color={colors.muted} />
         </Pressable>
       </View>
 
@@ -177,7 +177,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
         />
         <View style={{ padding: 16, gap: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Ionicons name="gift" size={18} color={colors.text} />
+            <GoAtletaIcon name="gift" size={18} color={colors.text} />
             <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>
               Aniversário de hoje 🎉
             </Text>
@@ -217,7 +217,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
                         justifyContent: "center",
                       }}
                     >
-                      <Ionicons name="person" size={20} color={colors.muted} />
+                      <GoAtletaIcon name="personSolid" size={20} color={colors.muted} />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
@@ -228,7 +228,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
                       {age ? `${age} anos` : "Idade não informada"} - {unitName}
                     </Text>
                   </View>
-                  <Ionicons name="balloon" size={18} color={colors.primaryText} />
+                  <GoAtletaIcon name="birthday" size={18} color={colors.primaryText} />
                 </View>
               );
             })
@@ -297,7 +297,7 @@ export const BirthdaysTab = memo(function BirthdaysTab({
                           justifyContent: "center",
                         }}
                       >
-                        <Ionicons name="person" size={26} color={colors.muted} />
+                        <GoAtletaIcon name="personSolid" size={26} color={colors.muted} />
                       </View>
                     )}
                     <View
@@ -333,8 +333,8 @@ export const BirthdaysTab = memo(function BirthdaysTab({
                             gap: 4,
                           }}
                         >
-                          <Ionicons
-                            name="gift-outline"
+                          <GoAtletaIcon
+                            name="giftOutline"
                             size={12}
                             color={colors.primaryText}
                           />
@@ -415,8 +415,8 @@ export const BirthdaysTab = memo(function BirthdaysTab({
           <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
             Todos os aniversários
           </Text>
-          <Ionicons
-            name={showAllBirthdays ? "chevron-up" : "chevron-down"}
+          <GoAtletaIcon
+            name={showAllBirthdays ? "chevronUp" : "chevronDown"}
             size={16}
             color={colors.muted}
           />

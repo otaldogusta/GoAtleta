@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
     TextInput,
@@ -7,6 +6,7 @@ import {
 import { Pressable } from "./Pressable";
 
 import { useAppTheme } from "./app-theme";
+import { GoAtletaIcon } from "./icon-registry";
 
 const formatShortDate = (value: string) => {
   if (!value) return "";
@@ -120,8 +120,8 @@ export function DateInput({
           opacity: canOpenCalendar ? 1 : 0.45,
         }}
       >
-        <Ionicons
-          name="calendar-outline"
+        <GoAtletaIcon
+          name="calendar"
           size={18}
           color={canOpenCalendar ? colors.muted : colors.placeholder}
         />

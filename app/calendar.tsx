@@ -1,4 +1,3 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   useCallback,
@@ -36,6 +35,7 @@ import { useOrganization } from "../src/providers/OrganizationProvider";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { useSaveToast } from "../src/ui/save-toast";
 import { getUnitPalette, toRgba } from "../src/ui/unit-colors";
@@ -742,7 +742,7 @@ export default function CalendarScreen() {
                   pressed && { opacity: 0.8 },
                 ]}
               >
-                <MaterialCommunityIcons name="chevron-left" size={22} color={colors.text} />
+                <GoAtletaIcon name="chevronBack" size={22} color={colors.text} />
               </Pressable>
 
               <View
@@ -789,7 +789,7 @@ export default function CalendarScreen() {
                   pressed && { opacity: 0.8 },
                 ]}
               >
-                <MaterialCommunityIcons name="chevron-right" size={22} color={colors.text} />
+                <GoAtletaIcon name="chevronForward" size={22} color={colors.text} />
               </Pressable>
             </View>
           </ScreenPageHeader>

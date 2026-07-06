@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -15,6 +14,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { SettingsRow } from "../../src/ui/SettingsRow";
 import { Typography } from "../../src/ui/Typography";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 const STORAGE_KEY = "notify_settings_v1";
 const isWeb = Platform.OS === "web";
@@ -119,7 +119,7 @@ export default function NotificationsScreen() {
           <View style={{ gap: 8 }}>
             <SectionTitle>Configurações</SectionTitle>
             <SettingsRow
-              icon="notifications-outline"
+              icon="notifications"
               iconBg="rgba(135, 120, 255, 0.14)"
               label="Notificações"
               onPress={() => setEnabled((prev) => !prev)}
@@ -147,7 +147,7 @@ export default function NotificationsScreen() {
               }
             />
             <SettingsRow
-              icon="moon-outline"
+              icon="darkMode"
               iconBg="rgba(96, 187, 255, 0.16)"
               label="Modo escuro"
               onPress={toggleMode}
@@ -184,35 +184,35 @@ export default function NotificationsScreen() {
               <SectionTitle>Preview de perfil (DEV)</SectionTitle>
               <View style={{ gap: 8 }}>
                 <SettingsRow
-                  icon="school-outline"
+                  icon="professor"
                   iconBg="rgba(255, 210, 150, 0.16)"
                   label="Ver como Professor"
                   onPress={() => applyProfilePreview("professor")}
                   rightContent={
                     selectedProfilePreview === "professor" ? (
-                      <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                      <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
                     ) : undefined
                   }
                 />
                 <SettingsRow
-                  icon="person-outline"
+                  icon="student"
                   iconBg="rgba(150, 200, 255, 0.16)"
                   label="Ver como Aluno"
                   onPress={() => applyProfilePreview("student")}
                   rightContent={
                     selectedProfilePreview === "student" ? (
-                      <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                      <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
                     ) : undefined
                   }
                 />
                 <SettingsRow
-                  icon="briefcase-outline"
+                  icon="coordination"
                   iconBg="rgba(140, 220, 180, 0.16)"
                   label="Ver como Coordenação (Admin)"
                   onPress={() => applyProfilePreview("admin")}
                   rightContent={
                     selectedProfilePreview === "admin" ? (
-                      <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                      <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
                     ) : undefined
                   }
                 />
@@ -223,7 +223,7 @@ export default function NotificationsScreen() {
           <View style={{ gap: 8 }}>
             <SectionTitle>Conta</SectionTitle>
             <SettingsRow
-              icon="log-out-outline"
+              icon="logout"
               iconBg="rgba(255, 130, 130, 0.16)"
               label="Sair"
               onPress={async () => {

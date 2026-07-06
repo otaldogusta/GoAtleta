@@ -1,8 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
-import { decorativeIconProps } from "./decorative-icon-props";
+import { GoAtletaIcon, type GoAtletaIconName } from "./icon-registry";
 
 export function SettingsRow({
   icon,
@@ -12,7 +11,7 @@ export function SettingsRow({
   onPress,
   rightContent,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: GoAtletaIconName;
   iconBg: string;
   label: string;
   subtitle?: string;
@@ -47,7 +46,7 @@ export function SettingsRow({
             justifyContent: "center",
           }}
         >
-          <Ionicons {...decorativeIconProps} name={icon} size={18} color={colors.text} />
+          <GoAtletaIcon name={icon} size={18} color={colors.text} />
         </View>
         <View>
           <Text style={{ color: colors.text, fontWeight: "600" }}>{label}</Text>
@@ -71,7 +70,7 @@ export function SettingsRow({
             justifyContent: "center",
           }}
         >
-          <Ionicons {...decorativeIconProps} name="chevron-forward" size={16} color={colors.text} />
+          <GoAtletaIcon name="chevronForward" size={16} color={colors.text} />
         </View>
       )}
     </Pressable>

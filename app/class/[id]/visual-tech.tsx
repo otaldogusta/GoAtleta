@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
@@ -41,6 +40,7 @@ import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
 import { Button } from "../../../src/ui/Button";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import { getSectionCardStyle } from "../../../src/ui/section-styles";
 
 type VisualHistoryEntry = {
@@ -967,7 +967,7 @@ export default function ClassVisualTechRoute() {
                       backgroundColor: colors.secondaryBg,
                     }}
                   >
-                    <Ionicons name="copy" size={16} color={colors.text} />
+                    <GoAtletaIcon name="copy" size={16} color={colors.text} />
                     <Text style={{ color: colors.text, fontWeight: "900" }}>
                       Duplicar
                     </Text>
@@ -988,7 +988,7 @@ export default function ClassVisualTechRoute() {
                       backgroundColor: colors.dangerSolidBg,
                     }}
                   >
-                    <Ionicons name="trash" size={16} color={colors.dangerSolidText} />
+                    <GoAtletaIcon name="trash" size={16} color={colors.dangerSolidText} />
                     <Text style={{ color: colors.dangerSolidText, fontWeight: "900" }}>
                       Excluir
                     </Text>
@@ -1014,7 +1014,7 @@ export default function ClassVisualTechRoute() {
                     backgroundColor: isPositionEditMode ? colors.primaryBg : colors.secondaryBg,
                   }}
                 >
-                  <Ionicons
+                  <GoAtletaIcon
                     name="pencil"
                     size={17}
                     color={isPositionEditMode ? colors.primaryText : colors.text}
@@ -1046,8 +1046,8 @@ export default function ClassVisualTechRoute() {
                     backgroundColor: isAnimationEditMode ? colors.primaryBg : colors.secondaryBg,
                   }}
                 >
-                  <Ionicons
-                    name="git-compare"
+                  <GoAtletaIcon
+                    name="compare"
                     size={17}
                     color={isAnimationEditMode ? colors.primaryText : colors.text}
                   />
@@ -1078,7 +1078,7 @@ export default function ClassVisualTechRoute() {
                       backgroundColor: colors.secondaryBg,
                     }}
                   >
-                    <Ionicons name="refresh" size={17} color={colors.text} />
+                    <GoAtletaIcon name="refresh" size={17} color={colors.text} />
                     <Text style={{ color: colors.text, fontWeight: "900" }}>
                       Redefinir animações
                     </Text>
@@ -1107,8 +1107,8 @@ export default function ClassVisualTechRoute() {
                       opacity: canAlignCurrentStep ? 1 : 0.45,
                     }}
                   >
-                    <Ionicons
-                      name="reorder-three"
+                    <GoAtletaIcon
+                      name="align"
                       size={18}
                       color={canAlignCurrentStep ? colors.text : colors.muted}
                     />
@@ -1177,7 +1177,7 @@ export default function ClassVisualTechRoute() {
                         gap: 10,
                       }}
                     >
-                      <Ionicons
+                      <GoAtletaIcon
                         name={document.sourceKind === "rotation" ? "repeat" : "map"}
                         size={18}
                         color={activeDocument?.id === document.id ? colors.primaryText : colors.text}
@@ -1239,7 +1239,7 @@ export default function ClassVisualTechRoute() {
                       <Text style={{ color: colors.text, fontWeight: "900", fontSize: 12 }}>
                         {label}
                       </Text>
-                      <Ionicons name="add" size={13} color={colors.text} />
+                      <GoAtletaIcon name="add" size={13} color={colors.text} />
                     </Pressable>
                   ))}
                 </View>

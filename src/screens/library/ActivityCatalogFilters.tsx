@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Text, TextInput, View } from "react-native";
 
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { skillLabels } from "./activity-catalog-labels";
 import {
   hasActiveCatalogFilters,
@@ -59,7 +59,7 @@ export function ActivityCatalogFilters({
           onChangeText={(query) => onChange({ ...filters, query })}
           style={{ flex: 1, paddingVertical: 2, color: colors.inputText }}
         />
-        <Ionicons name="search-outline" size={18} color={colors.muted} />
+        <GoAtletaIcon name="search" size={18} color={colors.muted} />
       </View>
 
       <View style={{ gap: 8 }}>

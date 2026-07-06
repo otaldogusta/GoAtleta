@@ -1,5 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
-import * as Clipboard from "expo-clipboard";
+﻿import * as Clipboard from "expo-clipboard";
 
 import { Link, useFocusEffect, useRouter } from "expo-router";
 
@@ -89,6 +88,7 @@ import { ShimmerBlock } from "../../ui/Shimmer";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { markRender, measureAsync } from "../../observability/perf";
@@ -1522,11 +1522,11 @@ export function HomeProfessorScreen({
   const adminRailActions = useMemo(
     () =>
       [
-        { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "people-outline" },
-        { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "bar-chart-outline" },
-        { id: "events", label: "Eventos", route: "/coord/events", icon: "calendar-outline" },
-        { id: "members", label: "Membros", route: "/coord/org-members", icon: "person-add-outline" },
-        { id: "nfc", label: "Presença NFC", route: "/prof/nfc-attendance", icon: "radio-outline" },
+        { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "management" },
+        { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "reports" },
+        { id: "events", label: "Eventos", route: "/coord/events", icon: "events" },
+        { id: "members", label: "Membros", route: "/coord/org-members", icon: "members" },
+        { id: "nfc", label: "Presença NFC", route: "/prof/nfc-attendance", icon: "nfc" },
       ] as const,
     []
   );
@@ -1612,7 +1612,7 @@ export function HomeProfessorScreen({
 
             >
 
-              <Ionicons name="notifications-outline" size={18} color={colors.primaryText} />
+              <GoAtletaIcon name="notifications" size={18} color={colors.primaryText} />
 
             </Pressable>
 
@@ -1715,7 +1715,7 @@ export function HomeProfessorScreen({
 
             >
 
-              <Ionicons name="person" size={22} color={colors.text} />
+              <GoAtletaIcon name="profile" size={22} color={colors.text} />
 
               { profilePhotoUri ? (
 
@@ -2115,7 +2115,7 @@ export function HomeProfessorScreen({
                         backgroundColor: colors.card,
                       }}
                     >
-                      <Ionicons name={item.icon} size={14} color={colors.text} />
+                      <GoAtletaIcon name={item.icon} size={14} color={colors.text} />
                       <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
                         {item.label}
                       </Text>

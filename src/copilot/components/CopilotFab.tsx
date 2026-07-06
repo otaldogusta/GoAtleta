@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, View } from "react-native";
 
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { Pressable } from "../../ui/Pressable";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 type CopilotFabProps = {
   showPulse: boolean;
@@ -92,40 +93,11 @@ export const CopilotFab = memo(function CopilotFab({
           elevation: 7,
         }}
       >
-        <View
-          accessible={false}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          aria-hidden
-          style={{
-            width: 28,
-            height: 22,
-            borderRadius: 9,
-            borderWidth: 2,
-            borderColor: "#FFFFFF",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "row",
-            gap: 3,
-          } as any}
-        >
-          <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: "#FFFFFF" }} />
-          <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: "#FFFFFF" }} />
-          <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: "#FFFFFF" }} />
-          <View
-            style={{
-              position: "absolute",
-              width: 8,
-              height: 8,
-              right: 2,
-              bottom: -5,
-              borderRightWidth: 2,
-              borderBottomWidth: 2,
-              borderColor: "#FFFFFF",
-              transform: [{ rotate: "28deg" }],
-            }}
-          />
-        </View>
+        <GoAtletaIcon
+          name="chat"
+          size={28}
+          color="#FFFFFF"
+        />
         {showPulse ? (
           <View
             style={{

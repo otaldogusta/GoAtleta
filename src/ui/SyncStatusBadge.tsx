@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "./app-theme";
+import { GoAtletaIcon } from "./icon-registry";
 
 type SyncStatusBadgeProps = {
   status: "saving" | "saved_local" | "synced" | "error";
@@ -24,25 +24,25 @@ export function SyncStatusBadge({
 
   const config = {
     saving: {
-      icon: "cloud-upload-outline" as const,
+      icon: "upload" as const,
       text: message || "Salvando...",
       bg: colors.secondaryBg,
       color: colors.muted,
     },
     saved_local: {
-      icon: "save-outline" as const,
+      icon: "save" as const,
       text: message || "Salvo no dispositivo",
       bg: colors.secondaryBg,
       color: colors.text,
     },
     synced: {
-      icon: "cloud-done-outline" as const,
+      icon: "cloudDone" as const,
       text: message || "Sincronizado",
       bg: colors.primaryBg,
       color: colors.primaryText,
     },
     error: {
-      icon: "alert-circle-outline" as const,
+      icon: "warningCircle" as const,
       text: message || "Erro ao sincronizar",
       bg: "#fee",
       color: "#c33",
@@ -64,7 +64,7 @@ export function SyncStatusBadge({
         alignSelf: "flex-start",
       }}
     >
-      <Ionicons name={icon} size={iconSize} color={textColor} />
+      <GoAtletaIcon name={icon} size={iconSize} color={textColor} />
       <Text
         style={{
           color: textColor,

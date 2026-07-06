@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import {
   ImageBackground,
@@ -45,6 +44,7 @@ import {
   type CatalogFilterState,
 } from "../../library/activity-catalog-view-model";
 import { getPlanningBlockLabel } from "../application/planning-library-bridge";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type LibraryTab = "catalog" | "links";
 
@@ -409,7 +409,7 @@ export function PlanningLibraryBridgeSheet({
                 onChangeText={setLinkQuery}
                 style={{ flex: 1, color: colors.inputText, paddingVertical: 2 }}
               />
-              <Ionicons name="search-outline" size={18} color={colors.muted} />
+              <GoAtletaIcon name="search" size={18} color={colors.muted} />
             </View>
             {loadingLinks ? (
               <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "700" }}>
@@ -517,7 +517,7 @@ function PlanningCatalogControls({
               fontSize: 14,
             }}
           />
-          <Ionicons name="search-outline" size={17} color={colors.muted} />
+          <GoAtletaIcon name="search" size={17} color={colors.muted} />
         </View>
         <Pressable
           testID="planning-catalog-open-filters"
@@ -534,8 +534,8 @@ function PlanningCatalogControls({
             backgroundColor: active ? colors.infoBg : colors.secondaryBg,
           }}
         >
-          <Ionicons
-            name={active ? "options" : "options-outline"}
+          <GoAtletaIcon
+            name={active ? "options" : "options"}
             size={17}
             color={active ? colors.infoText : colors.secondaryText}
           />
@@ -705,7 +705,7 @@ function PlanningCatalogCompactCard({
                 backgroundColor: colors.secondaryBg,
               }}
             >
-              <Ionicons name="eye-outline" size={16} color={colors.secondaryText} />
+              <GoAtletaIcon name="view" size={16} color={colors.secondaryText} />
               <Text style={{ color: colors.secondaryText, fontSize: 12, fontWeight: "900" }}>
                 Ver
               </Text>
@@ -725,7 +725,7 @@ function PlanningCatalogCompactCard({
                 backgroundColor: colors.primaryBg,
               }}
             >
-              <Ionicons name="add" size={17} color={colors.primaryText} />
+              <GoAtletaIcon name="add" size={17} color={colors.primaryText} />
               <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>
                 Adicionar
               </Text>
@@ -872,7 +872,7 @@ function LinkCard({
                 backgroundColor: colors.secondaryBg,
               }}
             >
-              <Ionicons name="open-outline" size={15} color={colors.secondaryText} />
+              <GoAtletaIcon name="open" size={15} color={colors.secondaryText} />
               <Text style={{ color: colors.secondaryText, fontSize: 12, fontWeight: "900" }}>
                 Abrir
               </Text>
@@ -892,7 +892,7 @@ function LinkCard({
                 backgroundColor: colors.primaryBg,
               }}
             >
-              <Ionicons name="add" size={17} color={colors.primaryText} />
+              <GoAtletaIcon name="add" size={17} color={colors.primaryText} />
               <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>
                 Adicionar
               </Text>
@@ -945,7 +945,7 @@ function LinkPreviewOverlay({
             backgroundColor: "rgba(2, 6, 23, 0.86)",
           }}
         >
-          <Ionicons name="play" size={17} color={colors.text} />
+          <GoAtletaIcon name="play" size={17} color={colors.text} />
         </View>
       </View>
       <Text

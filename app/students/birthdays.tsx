@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
@@ -14,6 +13,7 @@ import { getClasses, getStudents } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 const monthNames = [
   "Janeiro",
@@ -218,7 +218,7 @@ export default function BirthdaysScreen() {
               }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="gift" size={20} color={colors.successText} />
+                <GoAtletaIcon name="gift" size={20} color={colors.successText} />
                 <Text style={{ fontSize: 17, fontWeight: "800", color: colors.successText }}>
                   Aniversário de hoje
                 </Text>
@@ -259,7 +259,7 @@ export default function BirthdaysScreen() {
                           justifyContent: "center",
                         }}
                       >
-                        <Ionicons name="person" size={24} color={colors.successText} />
+                        <GoAtletaIcon name="personSolid" size={24} color={colors.successText} />
                       </View>
                     )}
                     <View style={{ flex: 1 }}>
@@ -270,7 +270,7 @@ export default function BirthdaysScreen() {
                         {age ? `${age} anos` : ""} • {unitLabel(cls?.unit ?? "")}
                       </Text>
                     </View>
-                    <Ionicons name="balloon" size={28} color={colors.successText} />
+                    <GoAtletaIcon name="birthday" size={28} color={colors.successText} />
                   </View>
                 );
               })}
@@ -343,7 +343,7 @@ export default function BirthdaysScreen() {
                           alignSelf: "center",
                         }}
                       >
-                        <Ionicons name="person" size={28} color={colors.muted} />
+                        <GoAtletaIcon name="personSolid" size={28} color={colors.muted} />
                       </View>
                     )}
                     <View style={{ gap: 4 }}>
@@ -363,7 +363,7 @@ export default function BirthdaysScreen() {
                       </Text>
                       {age && (
                         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                          <Ionicons name="gift-outline" size={12} color={colors.primaryText} />
+                          <GoAtletaIcon name="giftOutline" size={12} color={colors.primaryText} />
                           <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "600" }}>
                             {age} anos
                           </Text>
@@ -554,7 +554,7 @@ export default function BirthdaysScreen() {
                                           justifyContent: "center",
                                         }}
                                       >
-                                        <Ionicons name="person" size={20} color={colors.muted} />
+                                        <GoAtletaIcon name="personSolid" size={20} color={colors.muted} />
                                       </View>
                                     )}
                                     <View style={{ flex: 1 }}>
@@ -566,8 +566,8 @@ export default function BirthdaysScreen() {
                                         {age ? ` • ${age} anos` : ""}
                                       </Text>
                                     </View>
-                                    <Ionicons
-                                      name={isPast ? "checkmark-circle" : "gift-outline"}
+                                    <GoAtletaIcon
+                                      name={isPast ? "checkmarkCircle" : "giftOutline"}
                                       size={20}
                                       color={isPast ? colors.muted : colors.primaryText}
                                     />
@@ -594,7 +594,7 @@ export default function BirthdaysScreen() {
                 gap: 8,
               }}
             >
-              <Ionicons name="calendar-outline" size={32} color={colors.muted} />
+              <GoAtletaIcon name="calendar" size={32} color={colors.muted} />
               <Text style={{ color: colors.text, fontWeight: "600", fontSize: 14 }}>
                 Sem aniversários
               </Text>

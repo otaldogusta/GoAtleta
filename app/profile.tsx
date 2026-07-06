@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -42,6 +41,7 @@ import { SettingsRow } from "../src/ui/SettingsRow";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { radius, shadow } from "../src/theme/tokens";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 type ProfilePreviewId = Exclude<DevProfilePreview, "auto">;
 
@@ -622,7 +622,7 @@ export default function ProfileScreen() {
                         justifyContent: "center",
                       }}
                     >
-                      <Ionicons name="person" size={40} color={colors.text} />
+                      <GoAtletaIcon name="personSolid" size={40} color={colors.text} />
                     </View>
                   )}
                 </Pressable>
@@ -642,7 +642,7 @@ export default function ProfileScreen() {
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name="pencil" size={14} color={colors.text} />
+                  <GoAtletaIcon name="pencil" size={14} color={colors.text} />
                 </Pressable>
               </View>
               <View style={{ flex: 1, minWidth: 220, gap: 12 }}>
@@ -739,35 +739,35 @@ export default function ProfileScreen() {
             </Text>
             <View style={{ gap: 8 }}>
               <SettingsRow
-                icon="school-outline"
+                icon="professor"
                 iconBg="rgba(255, 210, 150, 0.16)"
                 label="Ver como Professor"
                 onPress={() => applyProfilePreview("professor")}
                 rightContent={
                   selectedProfilePreview === "professor" ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
                   ) : undefined
                 }
               />
               <SettingsRow
-                icon="person-outline"
+                icon="student"
                 iconBg="rgba(150, 200, 255, 0.16)"
                 label="Ver como Aluno"
                 onPress={() => applyProfilePreview("student")}
                 rightContent={
                   selectedProfilePreview === "student" ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
                   ) : undefined
                 }
               />
               <SettingsRow
-                icon="briefcase-outline"
+                icon="coordination"
                 iconBg="rgba(140, 220, 180, 0.16)"
                 label="Ver como Coordenação (Admin)"
                 onPress={() => applyProfilePreview("admin")}
                 rightContent={
                   selectedProfilePreview === "admin" ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.primaryBg} />
+                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
                   ) : undefined
                 }
               />
@@ -781,7 +781,7 @@ export default function ProfileScreen() {
                 Configurações
               </Text>
               <SettingsRow
-                icon="notifications-outline"
+                icon="notifications"
                 iconBg="rgba(135, 120, 255, 0.14)"
                 label="Notificações"
                 onPress={handleToggleNotifications}
@@ -810,7 +810,7 @@ export default function ProfileScreen() {
               />
               {Platform.OS !== "web" ? (
                 <SettingsRow
-                  icon="finger-print-outline"
+                  icon="biometrics"
                   iconBg="rgba(100, 190, 255, 0.16)"
                   label="Entrar com biometria"
                   onPress={() => {
@@ -842,26 +842,26 @@ export default function ProfileScreen() {
               ) : null}
               {!student && Platform.OS !== "web" ? (
                 <SettingsRow
-                  icon="radio-outline"
+                  icon="nfc"
                   iconBg="rgba(120, 220, 180, 0.16)"
                   label="Presença NFC"
                   subtitle="Modo presença por tag UID"
                   onPress={() => router.push("/nfc-attendance")}
-                  rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
+                  rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
                 />
               ) : null}
               {!student && isOrgAdmin ? (
                 <SettingsRow
-                  icon="document-text-outline"
+                  icon="document"
                   iconBg="rgba(255, 210, 140, 0.16)"
                   label="Fontes de regulamento"
                   subtitle="Monitoramento e sync de fontes oficiais"
                   onPress={() => router.push("/regulation-sources")}
-                  rightContent={<Ionicons name="chevron-forward" size={16} color={colors.muted} />}
+                  rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
                 />
               ) : null}
               <SettingsRow
-                icon="moon-outline"
+                icon="darkMode"
                 iconBg="rgba(96, 187, 255, 0.16)"
                 label="Modo escuro"
                 onPress={toggleMode}
@@ -972,8 +972,8 @@ export default function ProfileScreen() {
                       flexShrink: 1,
                     }}
                   >
-                    <Ionicons
-                      name="logo-google"
+                    <GoAtletaIcon
+                      name="google"
                       size={16}
                       color={accountSecurity.googleConnected ? colors.muted : colors.text}
                     />
@@ -1082,7 +1082,7 @@ export default function ProfileScreen() {
                 </View>
               ) : null}
               <SettingsRow
-                icon="log-out-outline"
+                icon="logout"
                 iconBg="rgba(255, 130, 130, 0.16)"
                 label="Sair"
                 onPress={async () => {
@@ -1123,7 +1123,7 @@ export default function ProfileScreen() {
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="chevron-back" size={18} color={colors.text} />
+              <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
             </Pressable>
             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
               Foto do perfil
@@ -1143,7 +1143,7 @@ export default function ProfileScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="create-outline" size={18} color={colors.text} />
+                <GoAtletaIcon name="edit" size={18} color={colors.text} />
               </Pressable>
               <Pressable
                 onPress={() => setShowPhotoViewer(false)}
@@ -1156,7 +1156,7 @@ export default function ProfileScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="share-social-outline" size={18} color={colors.text} />
+                <GoAtletaIcon name="share" size={18} color={colors.text} />
               </Pressable>
             </View>
           </View>
@@ -1178,7 +1178,7 @@ export default function ProfileScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="person" size={96} color={colors.text} />
+                <GoAtletaIcon name="personSolid" size={96} color={colors.text} />
               </View>
             )}
           </View>
@@ -1202,7 +1202,7 @@ export default function ProfileScreen() {
               justifyContent: "center",
             }}
           >
-            <Ionicons name="close" size={18} color={colors.text} />
+            <GoAtletaIcon name="close" size={18} color={colors.text} />
           </Pressable>
           <Text style={{ color: colors.text, fontWeight: "700" }}>Foto do perfil</Text>
           <View style={{ width: 36, height: 36 }} />
@@ -1237,7 +1237,7 @@ export default function ProfileScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name={item.icon as any} size={18} color={colors.text} />
+                <GoAtletaIcon name={item.icon as any} size={18} color={colors.text} />
               </View>
               <Text style={{ color: colors.text, fontWeight: "600" }}>{item.label}</Text>
             </Pressable>
@@ -1277,7 +1277,7 @@ export default function ProfileScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="trash" size={18} color={colors.dangerSolidText} />
+                <GoAtletaIcon name="trash" size={18} color={colors.dangerSolidText} />
               </View>
               <Text style={{ color: colors.dangerSolidText, fontWeight: "600" }}>
                 Remover foto

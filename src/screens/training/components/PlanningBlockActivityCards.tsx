@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import type { TrainingPlanActivity } from "../../../core/models";
@@ -7,6 +6,7 @@ import type { TrainingPlanBlockKey } from "../../../core/training-plan-blocks";
 import { Pressable } from "../../../ui/Pressable";
 import { TimeInput } from "../../../ui/TimeInput";
 import { useAppTheme } from "../../../ui/app-theme";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 import { getPlanningBlockLabel } from "../application/planning-library-bridge";
 
 type Props = {
@@ -107,7 +107,7 @@ export function PlanningBlockActivityCards({
             minHeight: 46,
           }}
         >
-          <Ionicons name="time-outline" size={15} color={colors.muted} />
+          <GoAtletaIcon name="time" size={15} color={colors.muted} />
           <TimeInput
             testID={`planning-duration-${blockKey}`}
             placeholder={durationPlaceholder}
@@ -185,7 +185,7 @@ export function PlanningBlockActivityCards({
                   borderColor: colors.border,
                 }}
               >
-                <Ionicons name="trash-outline" size={18} color={colors.muted} />
+                <GoAtletaIcon name="trash" size={18} color={colors.muted} />
               </Pressable>
             ) : null}
           </View>
@@ -204,7 +204,7 @@ export function PlanningBlockActivityCards({
             gap: 6,
           }}
         >
-          <Ionicons name="add" size={18} color={colors.text} />
+          <GoAtletaIcon name="add" size={18} color={colors.text} />
           <Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
             Adicionar atividade
           </Text>
@@ -267,13 +267,13 @@ export function PlanningBlockActivityCards({
               </View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 <ActionButton
-                  icon="eye-outline"
+                  icon="view"
                   label="Ver"
                   testID={`planning-view-${blockKey}-${index}`}
                   onPress={() => onView(blockKey, index)}
                 />
                 <ActionButton
-                  icon="trash-outline"
+                  icon="trash"
                   label="Remover"
                   danger
                   testID={`planning-remove-${blockKey}-${index}`}
@@ -311,7 +311,7 @@ function AddActivityButton({
         backgroundColor: colors.primaryBg,
       }}
     >
-      <Ionicons name="play-circle-outline" size={22} color={colors.primaryText} />
+      <GoAtletaIcon name="playCircle" size={22} color={colors.primaryText} />
     </Pressable>
   );
 }
@@ -323,7 +323,7 @@ function ActionButton({
   danger,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: GoAtletaIconName;
   label: string;
   testID: string;
   danger?: boolean;
@@ -347,7 +347,7 @@ function ActionButton({
         borderColor: danger ? colors.dangerBorder : colors.border,
       }}
     >
-      <Ionicons
+      <GoAtletaIcon
         name={icon}
         size={16}
         color={danger ? colors.dangerText : colors.text}

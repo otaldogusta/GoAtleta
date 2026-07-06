@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, TextInput, View } from "react-native";
@@ -20,6 +19,7 @@ import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
 import { Pressable } from "../../../src/ui/Pressable";
 import { markRender, measureAsync } from "../../../src/observability/perf";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 
 export default function LogScreen() {
@@ -336,8 +336,8 @@ export default function LogScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {String(PSE)}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{ transform: [{ rotate: showPsePicker ? "180deg" : "0deg" }] }}
@@ -367,8 +367,8 @@ export default function LogScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {technique}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useAppTheme } from "./app-theme";
+import { GoAtletaIcon } from "./icon-registry";
 
 type GuidanceContent = {
   title: string;
@@ -272,7 +272,7 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
                   ],
                 }}
               />
-              <Ionicons name="information" size={18} color={colors.primaryText} />
+              <GoAtletaIcon name="info" size={18} color={colors.primaryText} />
             </Pressable>
           </View>
         </>

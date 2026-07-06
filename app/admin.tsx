@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -16,6 +15,7 @@ import { Button } from "../src/ui/Button";
 import { Pressable } from "../src/ui/Pressable";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { useAppTheme } from "../src/ui/app-theme";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 export default function AdminLoginScreen() {
   const { colors } = useAppTheme();
@@ -76,7 +76,7 @@ export default function AdminLoginScreen() {
               justifyContent: "center",
             }}
           >
-            <Ionicons name="chevron-back" size={18} color={colors.text} />
+            <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -172,7 +172,7 @@ export default function AdminLoginScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="chevron-back" size={18} color={colors.text} />
+                <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
               </Pressable>
             </View>
           </View>

@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import type { RefObject } from "react";
 import { useMemo } from "react";
@@ -19,6 +18,7 @@ import { Pressable } from "../../ui/Pressable";
 import { StudentAcademicFields } from "./components/StudentAcademicFields";
 import { StudentDocumentsFields } from "./components/StudentDocumentsFields";
 import type { StudentFormSection } from "./hooks/useStudentForm";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 const safeText = (value: unknown) => String(value ?? "");
 
@@ -300,7 +300,7 @@ export function StudentRegistrationTab({
                   onPress={() => setShowPhotoSheet(true)}
                   style={{ width: 48, height: 48, borderRadius: radius.full, backgroundColor: colors.backgroundSubtle, borderWidth: 1, borderColor: colors.borderSubtle, alignItems: "center", justifyContent: "center", overflow: "hidden" }}
                 >
-                  {photoUrl ? <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" /> : <Ionicons name="person" size={22} color={colors.textPrimary} />}
+                  {photoUrl ? <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" /> : <GoAtletaIcon name="personSolid" size={22} color={colors.textPrimary} />}
                 </Pressable>
                 <Pressable onPress={() => setShowPhotoSheet(true)} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.internal, backgroundColor: colors.backgroundSubtle, borderWidth: 1, borderColor: colors.borderSubtle }}>
                   <Text style={{ fontSize: 12, fontWeight: "800", color: colors.textPrimary }}>Adicionar foto</Text>
@@ -310,7 +310,7 @@ export function StudentRegistrationTab({
                 <View ref={typeTriggerRef}>
                   <Pressable onPress={() => toggleFormPicker("type")} style={selectFieldStyle}>
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{isExperimental ? "Experimental" : "Aluno regular"}</Text>
-                    <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showTypePicker ? "180deg" : "0deg" }] }} />
+                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showTypePicker ? "180deg" : "0deg" }] }} />
                   </Pressable>
                 </View>
               </View>
@@ -322,7 +322,7 @@ export function StudentRegistrationTab({
                   <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "900" }}>Dados do aluno</Text>
                   <Text style={{ color: colors.textMuted, fontSize: 11 }}>{name.trim() || "Nome, unidade, turma..."}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "studentData" ? "180deg" : "0deg" }] }} />
+                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "studentData" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.borderSubtle, marginHorizontal: 12 }} /> : null}
               {createStudentDataAnim.isVisible ? (
@@ -335,7 +335,7 @@ export function StudentRegistrationTab({
                         <View ref={unitTriggerRef}>
                           <Pressable onPress={() => toggleFormPicker("unit")} style={selectFieldStyle}>
                             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{unit || "Selecione a unidade"}</Text>
-                            <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showUnitPicker ? "180deg" : "0deg" }] }} />
+                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showUnitPicker ? "180deg" : "0deg" }] }} />
                           </Pressable>
                         </View>
                       </View>
@@ -344,7 +344,7 @@ export function StudentRegistrationTab({
                         <View ref={classTriggerRef}>
                           <Pressable onPress={() => toggleFormPicker("class")} style={selectFieldStyle}>
                             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{selectedClassName || "Selecione a turma"}</Text>
-                            <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showClassPicker ? "180deg" : "0deg" }] }} />
+                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showClassPicker ? "180deg" : "0deg" }] }} />
                           </Pressable>
                         </View>
                       </View>
@@ -441,7 +441,7 @@ export function StudentRegistrationTab({
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{[safeText(ra).trim() ? `RA: ${safeText(ra)}` : "", safeText(collegeCourse).trim() ? safeText(collegeCourse) : ""].filter(Boolean).join(" • ") || "RA e curso..."}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "academic" ? "180deg" : "0deg" }] }} />
+                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "academic" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {createAcademicAnim.isVisible ? (
@@ -468,7 +468,7 @@ export function StudentRegistrationTab({
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Documentos</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{[cpfDisplay.trim() ? "CPF" : "", rgDocument.trim() ? "RG" : "", loginEmail.trim() ? "e-mail" : ""].filter(Boolean).join(", ") || "CPF, RG, e-mail..."}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "documents" ? "180deg" : "0deg" }] }} />
+                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "documents" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {createDocumentsAnim.isVisible ? (
@@ -500,7 +500,7 @@ export function StudentRegistrationTab({
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{[positionPrimary, positionSecondary].filter((v) => v && v !== "indefinido").join(", ") || "Posições, objetivo..."}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "sportProfile" ? "180deg" : "0deg" }] }} />
+                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "sportProfile" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {createSportAnim.isVisible ? (
@@ -570,7 +570,7 @@ export function StudentRegistrationTab({
                   </View>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{createHealthAssessment.summary}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "health" ? "180deg" : "0deg" }] }} />
+                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "health" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {createHealthAnim.isVisible ? (
@@ -614,7 +614,7 @@ export function StudentRegistrationTab({
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Responsável</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{guardianName.trim() || "Nome e contato do responsável..."}</Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "guardian" ? "180deg" : "0deg" }] }} />
+                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "guardian" ? "180deg" : "0deg" }] }} />
               </Pressable>
               {openCreateSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {createGuardianAnim.isVisible ? (
@@ -631,7 +631,7 @@ export function StudentRegistrationTab({
                         <View ref={guardianRelationTriggerRef}>
                           <Pressable onPress={() => toggleFormPicker("guardianRelation")} style={selectFieldStyle}>
                             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{guardianRelation || "Selecione"}</Text>
-                            <Ionicons name="chevron-down" size={16} color={colors.muted} style={{ transform: [{ rotate: showGuardianRelationPicker ? "180deg" : "0deg" }] }} />
+                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showGuardianRelationPicker ? "180deg" : "0deg" }] }} />
                           </Pressable>
                         </View>
                       </View>

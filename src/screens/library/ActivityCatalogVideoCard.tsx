@@ -1,8 +1,8 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { ActivityCatalogThumbnail } from "./ActivityCatalogThumbnail";
 import {
   getCatalogActivityPrimaryBadge,
@@ -73,7 +73,7 @@ export function ActivityCatalogVideoCard({ item, onView, onAddToLesson }: Props)
               backgroundColor: colors.primaryBg,
             }}
           >
-            <Ionicons name="add" size={22} color={colors.primaryText} />
+            <GoAtletaIcon name="add" size={22} color={colors.primaryText} />
           </Pressable>
         </View>
       </View>

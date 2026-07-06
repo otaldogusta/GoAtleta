@@ -1,5 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
+import { GoAtletaIcon } from "./icon-registry";
 import type { UnitPalette } from "./unit-colors";
 
 type LocationBadgeProps = {
@@ -37,7 +37,7 @@ export function LocationBadge({
       }}
     >
       {showIcon ? (
-        <Ionicons
+        <GoAtletaIcon
           name="location"
           size={iconSize}
           color={palette?.text ?? "#333"}

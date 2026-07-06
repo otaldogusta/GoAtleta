@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import {
     Animated,
@@ -11,6 +10,7 @@ import {
 
 import type { Signal as CopilotSignal } from "../../ai/signal-engine";
 import type { RegulationUpdate } from "../../api/regulation-updates";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import type { OperationalContextResult } from "../operational-context";
@@ -194,7 +194,7 @@ export const CopilotModal = memo(function CopilotModal({
             justifyContent: "center",
           }}
         >
-          <Ionicons name="time-outline" size={18} color={colors.text} />
+          <GoAtletaIcon name="time" size={18} color={colors.text} />
         </Pressable>
         <Pressable
           onPress={close}
@@ -209,7 +209,7 @@ export const CopilotModal = memo(function CopilotModal({
             justifyContent: "center",
           }}
         >
-          <Ionicons name="close" size={18} color={colors.text} />
+          <GoAtletaIcon name="close" size={18} color={colors.text} />
         </Pressable>
       </View>
 
@@ -381,7 +381,7 @@ export const CopilotModal = memo(function CopilotModal({
               backgroundColor: colors.secondaryBg,
             }}
           >
-            <Ionicons name="add" size={20} color={colors.text} />
+            <GoAtletaIcon name="add" size={20} color={colors.text} />
           </Pressable>
           <TextInput
             value={composerValue}
@@ -450,7 +450,7 @@ export const CopilotModal = memo(function CopilotModal({
               opacity: composerValue.trim() ? 1 : 0.55,
             }}
           >
-            <Ionicons name="arrow-up" size={20} color={colors.primaryText} />
+            <GoAtletaIcon name="arrowUp" size={20} color={colors.primaryText} />
           </Pressable>
         </View>
       </View>

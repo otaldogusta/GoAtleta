@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as IntentLauncher from "expo-intent-launcher";
 import { LinearGradient } from "expo-linear-gradient";
@@ -55,6 +54,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
 import { getFriendlyErrorMessage } from "../src/ui/error-messages";
 import { useSaveToast } from "../src/ui/save-toast";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 type LiveCheckin = {
   id: string;
@@ -1133,8 +1133,8 @@ export default function NfcAttendanceScreen() {
                 </>
               ) : null}
               <Animated.View style={[{ alignItems: "center", justifyContent: "center", gap: 8 }, scanIconTransitionStyle]}>
-                <Ionicons
-                  name={uiScanState === "scanning" ? "radio" : "radio-outline"}
+                <GoAtletaIcon
+                  name={uiScanState === "scanning" ? "radio" : "nfc"}
                   size={56}
                   color={
                     effectiveSupportMessage

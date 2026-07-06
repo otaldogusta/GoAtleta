@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -6,6 +5,7 @@ import { ScreenBackdrop } from "../../../components/ui/ScreenBackdrop";
 import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import type { SessionDataStatus } from "../hooks/useSessionData";
 
 type SessionUnavailableStateProps = {
@@ -52,7 +52,7 @@ export function SessionUnavailableState({
             backgroundColor: colors.secondaryBg,
           }}
         >
-          <Ionicons name="chevron-back" size={16} color={colors.text} />
+          <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
           <Text style={{ color: colors.text, fontWeight: "700" }}>{ptBR.common.actions.back}</Text>
         </Pressable>
 

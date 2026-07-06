@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
@@ -54,6 +53,7 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 import { markRender, measureAsync } from "../../src/observability/perf";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 type LibraryTab = "links" | "catalog";
 
@@ -142,15 +142,15 @@ const getHostLabel = (url: string) => {
 const getLinkProvider = (url: string) => {
   const host = getHostLabel(url).toLowerCase();
   if (host.includes("youtube") || host.includes("youtu.be")) {
-    return { label: "YouTube", icon: "logo-youtube" as const, tint: "#ef4444" };
+    return { label: "YouTube", icon: "youtube" as const, tint: "#ef4444" };
   }
   if (host.includes("instagram")) {
-    return { label: "Instagram", icon: "logo-instagram" as const, tint: "#d946ef" };
+    return { label: "Instagram", icon: "instagram" as const, tint: "#d946ef" };
   }
   if (host.includes("vimeo")) {
-    return { label: "Vimeo", icon: "logo-vimeo" as const, tint: "#38bdf8" };
+    return { label: "Vimeo", icon: "vimeo" as const, tint: "#38bdf8" };
   }
-  return { label: host || "Link", icon: "link-outline" as const, tint: "#38bdf8" };
+  return { label: host || "Link", icon: "link" as const, tint: "#38bdf8" };
 };
 
 const isGenericVideoTitle = (value: string) =>
@@ -699,7 +699,7 @@ export default function ExercisesScreen() {
               onChangeText={setSearchText}
               style={{ flex: 1, paddingVertical: 2, color: colors.inputText }}
             />
-            <Ionicons name="search-outline" size={18} color={colors.muted} />
+            <GoAtletaIcon name="search" size={18} color={colors.muted} />
           </View>
           <Pressable
             onPress={openNewLinkModal}
@@ -715,7 +715,7 @@ export default function ExercisesScreen() {
               justifyContent: "center",
             }}
           >
-            <Ionicons name="link-outline" size={22} color={colors.primaryText} />
+            <GoAtletaIcon name="link" size={22} color={colors.primaryText} />
           </Pressable>
         </View>
 
@@ -769,7 +769,7 @@ export default function ExercisesScreen() {
                         backgroundColor: `${provider.tint}1F`,
                       }}
                     >
-                      <Ionicons
+                      <GoAtletaIcon
                         name={provider.icon}
                         size={30}
                         color={provider.tint}
@@ -790,7 +790,7 @@ export default function ExercisesScreen() {
                       gap: 6,
                     }}
                   >
-                    <Ionicons name={provider.icon} size={14} color={provider.tint} />
+                    <GoAtletaIcon name={provider.icon} size={14} color={provider.tint} />
                     <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12 }}>
                       {provider.label}
                     </Text>
@@ -808,7 +808,7 @@ export default function ExercisesScreen() {
                       backgroundColor: colors.secondaryBg,
                     }}
                   >
-                    <Ionicons name="play" size={18} color={colors.text} />
+                    <GoAtletaIcon name="play" size={18} color={colors.text} />
                   </View>
                 </Pressable>
 
@@ -865,7 +865,7 @@ export default function ExercisesScreen() {
                         gap: 6,
                       }}
                     >
-                      <Ionicons name="open-outline" size={16} color={colors.primaryText} />
+                      <GoAtletaIcon name="open" size={16} color={colors.primaryText} />
                       <Text
                         style={{
                           color: colors.primaryText,
@@ -889,7 +889,7 @@ export default function ExercisesScreen() {
                         justifyContent: "center",
                       }}
                     >
-                      <Ionicons name="share-social-outline" size={18} color={colors.secondaryText} />
+                      <GoAtletaIcon name="share" size={18} color={colors.secondaryText} />
                     </Pressable>
                     <Pressable
                       onPress={() => openEditLinkModal(item)}
@@ -904,7 +904,7 @@ export default function ExercisesScreen() {
                         justifyContent: "center",
                       }}
                     >
-                      <Ionicons name="pencil-outline" size={18} color={colors.secondaryText} />
+                      <GoAtletaIcon name="edit" size={18} color={colors.secondaryText} />
                     </Pressable>
                     <Pressable
                       onPress={() => confirmDelete(item)}
@@ -921,7 +921,7 @@ export default function ExercisesScreen() {
                         justifyContent: "center",
                       }}
                     >
-                      <Ionicons name="trash-outline" size={18} color={colors.dangerText} />
+                      <GoAtletaIcon name="trash" size={18} color={colors.dangerText} />
                     </Pressable>
                   </View>
                 </View>
@@ -990,7 +990,7 @@ export default function ExercisesScreen() {
               backgroundColor: colors.secondaryBg,
             }}
           >
-            <Ionicons name="close" size={20} color={colors.text} />
+            <GoAtletaIcon name="close" size={20} color={colors.text} />
           </Pressable>
         </View>
 
@@ -1015,7 +1015,7 @@ export default function ExercisesScreen() {
                 paddingHorizontal: 12,
               }}
             >
-              <Ionicons name="link-outline" size={18} color={colors.muted} />
+              <GoAtletaIcon name="link" size={18} color={colors.muted} />
               <TextInput
                 placeholder="https://..."
                 placeholderTextColor={colors.placeholder}
@@ -1059,7 +1059,7 @@ export default function ExercisesScreen() {
                       backgroundColor: `${formProvider.tint}22`,
                     }}
                   >
-                    <Ionicons
+                    <GoAtletaIcon
                       name={formProvider.icon}
                       size={32}
                       color={formProvider.tint}
@@ -1080,7 +1080,7 @@ export default function ExercisesScreen() {
                     gap: 6,
                   }}
                 >
-                  <Ionicons name={formProvider.icon} size={14} color={formProvider.tint} />
+                  <GoAtletaIcon name={formProvider.icon} size={14} color={formProvider.tint} />
                   <Text style={{ color: colors.text, fontWeight: "800", fontSize: 12 }}>
                     {formProvider.label}
                   </Text>
@@ -1173,8 +1173,8 @@ export default function ExercisesScreen() {
               gap: 8,
             }}
           >
-            <Ionicons
-              name={editingId ? "checkmark-outline" : "add-outline"}
+            <GoAtletaIcon
+              name={editingId ? "checkmarkOutline" : "add"}
               size={18}
               color={colors.primaryText}
             />

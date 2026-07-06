@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import {
     NativeScrollEvent,
@@ -20,6 +19,7 @@ import {
 import { formatPlannedLoad } from "../../core/periodization-load";
 import { Pressable } from "../../ui/Pressable";
 import { type ThemeColors } from "../../ui/app-theme";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
 import { radius } from "../../theme/tokens";
 
@@ -341,7 +341,7 @@ export function CyclePlanTable({
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
               {normalizeText(cyclePanelTitle)}
             </Text>
-            <Ionicons name="create-outline" size={14} color={colors.muted} />
+            <GoAtletaIcon name="edit" size={14} color={colors.muted} />
           </Pressable>
         ) : (
           <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>

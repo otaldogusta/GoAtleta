@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
@@ -33,6 +32,7 @@ import type { MonthRegenerationProgress } from "../../../../src/screens/planning
 import { regenerateMonthPlans } from "../../../../src/screens/planning/application/regenerate-month-plans";
 import { DayLessonPlanModal } from "../../../../src/screens/planning/components/DayLessonPlanModal";
 import { PlanningSyncStatusChip } from "../../../../src/screens/planning/components/PlanningSyncStatusChip";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../../../src/ui/icon-registry";
 import { useDailyLessonPlan } from "../../../../src/screens/planning/hooks/useDailyLessonPlan";
 import { useMonthlyPlans } from "../../../../src/screens/planning/hooks/useMonthlyPlans";
 import { useAppTheme } from "../../../../src/ui/app-theme";
@@ -218,7 +218,7 @@ function PlanningPill({
   label,
   colors,
 }: {
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: GoAtletaIconName;
   label: string;
   colors: ReturnType<typeof useAppTheme>["colors"];
 }) {
@@ -237,7 +237,7 @@ function PlanningPill({
         borderColor: colors.border,
       }}
     >
-      {icon ? <Ionicons name={icon} size={13} color={colors.muted} /> : null}
+      {icon ? <GoAtletaIcon name={icon} size={13} color={colors.muted} /> : null}
       <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flexShrink: 1 }}>{label}</Text>
     </View>
   );
@@ -275,7 +275,7 @@ function SummaryMetric({
   value,
   colors,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: GoAtletaIconName;
   label: string;
   value: string;
   colors: ReturnType<typeof useAppTheme>["colors"];
@@ -294,7 +294,7 @@ function SummaryMetric({
           borderColor: colors.border,
         }}
       >
-        <Ionicons name={icon} size={15} color={colors.muted} />
+        <GoAtletaIcon name={icon} size={15} color={colors.muted} />
       </View>
       <View style={{ minWidth: 0, flex: 1 }}>
         <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>
@@ -342,19 +342,19 @@ function MonthSummaryPanel({
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
         <SummaryMetric
-          icon="calendar-outline"
+          icon="calendar"
           label="aulas no mês"
           value={`${events.length} aula${events.length === 1 ? "" : "s"}`}
           colors={colors}
         />
         <SummaryMetric
-          icon="today-outline"
+          icon="agenda"
           label="dias com aula"
           value={`${classDayCount} dia${classDayCount === 1 ? "" : "s"}`}
           colors={colors}
         />
-        <SummaryMetric icon="repeat-outline" label="rotina" value={weekdaySummary} colors={colors} />
-        <SummaryMetric icon="flag-outline" label="próxima aula" value={nextEventLabel} colors={colors} />
+        <SummaryMetric icon="repeat" label="rotina" value={weekdaySummary} colors={colors} />
+        <SummaryMetric icon="flag" label="próxima aula" value={nextEventLabel} colors={colors} />
       </View>
 
       <View
@@ -367,7 +367,7 @@ function MonthSummaryPanel({
           borderTopColor: colors.border,
         }}
       >
-        <Ionicons name="chevron-forward-circle-outline" size={16} color={colors.muted} />
+        <GoAtletaIcon name="chevronForwardCircle" size={16} color={colors.muted} />
         <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "800", flex: 1 }}>
           {nextEventTitle}
         </Text>
@@ -937,7 +937,7 @@ export default function ClassPlanningMonthRoute() {
               {isExportingMonth ? (
                 <ActivityIndicator size="small" color={colors.text} />
               ) : (
-                <Ionicons name="download-outline" size={18} color={colors.text} />
+                <GoAtletaIcon name="download" size={18} color={colors.text} />
               )}
             </Pressable>
             <Pressable
@@ -963,7 +963,7 @@ export default function ClassPlanningMonthRoute() {
               {isRegeneratingMonth ? (
                 <ActivityIndicator size="small" color={colors.text} />
               ) : (
-                <Ionicons name="refresh" size={14} color={colors.text} />
+                <GoAtletaIcon name="refresh" size={14} color={colors.text} />
               )}
               <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>
                 {isRegeneratingMonth ? "Regenerando..." : "Regenerar mês"}
@@ -989,7 +989,7 @@ export default function ClassPlanningMonthRoute() {
               borderColor: colors.border,
             }}
           >
-            <Ionicons name="chevron-back" size={18} color={colors.muted} />
+            <GoAtletaIcon name="chevronBack" size={18} color={colors.muted} />
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -1027,7 +1027,7 @@ export default function ClassPlanningMonthRoute() {
               borderColor: colors.border,
             }}
           >
-            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            <GoAtletaIcon name="chevronForward" size={18} color={colors.muted} />
           </Pressable>
         </View>
       </ScreenPageHeader>

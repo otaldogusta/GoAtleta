@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -32,6 +31,7 @@ import { DateInput } from "../../../src/ui/DateInput";
 import { ModalDialogFrame } from "../../../src/ui/ModalDialogFrame";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
+import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import { getSectionCardStyle } from "../../../src/ui/section-styles";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
 
@@ -493,7 +493,7 @@ function ListRow({
         <Text style={{ color: colors.muted, marginTop: 2 }}>{subtitle}</Text>
       </View>
       {badge ? <SmallBadge label={badge} colors={colors} /> : null}
-      {onPress ? <Ionicons name="chevron-forward" size={18} color={colors.muted} /> : null}
+      {onPress ? <GoAtletaIcon name="chevronForward" size={18} color={colors.muted} /> : null}
     </Pressable>
   );
 }

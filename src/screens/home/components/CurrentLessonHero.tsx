@@ -1,11 +1,11 @@
 import { memo } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import { brandPalette, radius, shadow } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import type { HomeScheduleSlot } from "./homeScheduleTypes";
 
 type CurrentLessonHeroProps = {
@@ -61,7 +61,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
           justifyContent: "center",
         }}
       >
-        <Ionicons name="calendar-outline" size={compact ? 23 : 26} color={colors.successText} />
+        <GoAtletaIcon name="calendar" size={compact ? 23 : 26} color={colors.successText} />
       </View>
 
       <View style={{ flex: 1, minWidth: 0, gap: compact ? 5 : 7 }}>
@@ -78,7 +78,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
           {primaryItem?.gender ? <ClassGenderBadge gender={primaryItem.gender} size="sm" /> : null}
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Ionicons name="location" size={16} color={colors.textMuted} />
+          <GoAtletaIcon name="location" size={16} color={colors.textMuted} />
           <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 14, fontWeight: "600" }} numberOfLines={1}>
             {primaryItem?.unit ?? "Escolha um dia na agenda da semana"}
           </Text>
@@ -110,7 +110,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
           <Text style={{ color: brandPalette.navyDeep, fontSize: compact ? 12 : 14, fontWeight: "900" }}>
             Ver aula
           </Text>
-          <Ionicons name="arrow-forward" size={20} color={brandPalette.navyDeep} />
+          <GoAtletaIcon name="arrowForward" size={20} color={brandPalette.navyDeep} />
         </Pressable>
         <Pressable
           onPress={onOpenAttendance}
@@ -127,7 +127,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
             gap: 10,
           }}
         >
-          <Ionicons name="people-outline" size={20} color={primaryItem ? colors.textPrimary : colors.textMuted} />
+          <GoAtletaIcon name="students" size={20} color={primaryItem ? colors.textPrimary : colors.textMuted} />
           <Text style={{ color: primaryItem ? colors.textPrimary : colors.textMuted, fontSize: compact ? 12 : 14, fontWeight: "800" }}>
             Fazer chamada
           </Text>

@@ -1,12 +1,12 @@
 import { memo, type Dispatch, type RefObject, type SetStateAction } from "react";
 
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { DateInput } from "../../../ui/DateInput";
 import { DatePickerModal } from "../../../ui/DatePickerModal";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { useAppTheme } from "../../../ui/app-theme";
 import type { ClassGroup } from "../../../core/models";
 import { TrainingAnchoredDropdownOption } from "./TrainingAnchoredDropdownOption";
@@ -110,8 +110,8 @@ function TrainingApplyModalContentBase({
                       ? "Todas as unidades"
                       : state.applyUnit || "Selecione uma unidade"}
                   </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
+                    <GoAtletaIcon
+                      name="chevronDown"
                       size={18}
                       color={colors.muted}
                       style={{
@@ -149,8 +149,8 @@ function TrainingApplyModalContentBase({
                       <ClassGenderBadge gender={state.selectedApplyClass.gender} />
                     ) : null}
                   </View>
-                    <MaterialCommunityIcons
-                      name="chevron-down"
+                    <GoAtletaIcon
+                      name="chevronDown"
                       size={18}
                       color={colors.muted}
                       style={{

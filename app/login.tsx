@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Linking from "expo-linking";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -33,6 +32,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { Button } from "../src/ui/Button";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 export default function LoginScreen() {
   markRender("screen.login.render.root");
@@ -454,7 +454,7 @@ export default function LoginScreen() {
                   elevation: 3,
                 }}
               >
-                <Ionicons name="chevron-back" size={16} color={colors.text} />
+                <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
               </View>
             </Pressable>
 
@@ -572,8 +572,8 @@ export default function LoginScreen() {
                         opacity: password.length > 0 ? 1 : 0,
                       }}
                     >
-                      <Ionicons
-                        name={showPassword ? "eye-off" : "eye"}
+                      <GoAtletaIcon
+                        name={showPassword ? "eyeOffSolid" : "viewSolid"}
                         size={18}
                         color={colors.muted}
                       />
@@ -631,7 +631,7 @@ export default function LoginScreen() {
                       }}
                     >
                       { rememberMe ? (
-                        <Ionicons name="checkmark" size={12} color={colors.primaryText} />
+                        <GoAtletaIcon name="checkmark" size={12} color={colors.primaryText} />
                       ) : null}
                     </View>
                     <Text style={{ color: colors.muted }}>Lembre de mim</Text>
@@ -721,7 +721,7 @@ export default function LoginScreen() {
                       justifyContent: "center",
                     }}
                   >
-                    <Ionicons name="chevron-back" size={16} color={colors.text} />
+                    <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
                   </Pressable>
                 </View>
               )}
@@ -754,7 +754,7 @@ export default function LoginScreen() {
                       justifyContent: "center",
                     }}
                   >
-                    <Ionicons name="logo-google" size={20} color={colors.text} />
+                    <GoAtletaIcon name="google" size={20} color={colors.text} />
                   </Pressable>
                 </View>
               </View>

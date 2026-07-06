@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps, RefObject } from "react";
 import {
   FlatList,
@@ -19,6 +18,7 @@ import type { ThemeColors } from "../../../ui/app-theme";
 import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 
 type ReportTechnique = "boa" | "ok" | "ruim" | "nenhum";
 type ReportPhotoSource = "camera" | "library";
@@ -27,11 +27,11 @@ type ContainerPoint = { x: number; y: number };
 
 type ReportIconName = "down" | "sparkle" | "loading" | "edit";
 
-const reportIconNames: Record<ReportIconName, ComponentProps<typeof Ionicons>["name"]> = {
-  down: "chevron-down",
-  sparkle: "sparkles-outline",
-  loading: "ellipsis-horizontal",
-  edit: "pencil-outline",
+const reportIconNames: Record<ReportIconName, GoAtletaIconName> = {
+  down: "chevronDown",
+  sparkle: "assistant",
+  loading: "ellipsisHorizontal",
+  edit: "edit",
 };
 
 const ReportIcon = ({
@@ -44,7 +44,7 @@ const ReportIcon = ({
   color: string;
   size?: number;
   style?: TextStyle;
-}) => <Ionicons name={reportIconNames[name]} size={size} color={color} style={style} />;
+}) => <GoAtletaIcon name={reportIconNames[name]} size={size} color={color} style={style} />;
 
 type SessionReportTabProps = {
   colors: ThemeColors;

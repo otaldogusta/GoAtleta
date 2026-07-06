@@ -1,11 +1,11 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import type { ComponentProps, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenPageHeader } from "../../../../src/components/ui/ScreenPageHeader";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../../../src/ui/icon-registry";
 import type {
   ScoutingAction,
   ScoutingActionFundamental,
@@ -267,13 +267,13 @@ export default function ClassScoutingSessionRoute() {
                 gap: 10,
               }}
             >
-              <StatCard icon="calendar-outline" label="Data" value={formatDate(session.date)} colors={colors} />
-              <StatCard icon="fitness-outline" label="Contexto" value={typeLabel(session.type)} colors={colors} />
-              <StatCard icon="radio-outline" label="Amostra" value={sampleStatus} colors={colors} />
-              <StatCard icon="people-outline" label="Atletas" value={String(athletesEvaluated)} colors={colors} />
-              <StatCard icon="analytics-outline" label="Ações" value={String(actions.length)} colors={colors} />
+              <StatCard icon="calendar" label="Data" value={formatDate(session.date)} colors={colors} />
+              <StatCard icon="plan" label="Contexto" value={typeLabel(session.type)} colors={colors} />
+              <StatCard icon="nfc" label="Amostra" value={sampleStatus} colors={colors} />
+              <StatCard icon="students" label="Atletas" value={String(athletesEvaluated)} colors={colors} />
+              <StatCard icon="scouting" label="Ações" value={String(actions.length)} colors={colors} />
               <StatCard
-                icon="trending-up-outline"
+                icon="periodization"
                 label="Positivas"
                 value={positiveRate == null ? "Sem dados" : `${positiveRate}%`}
                 colors={colors}
@@ -600,7 +600,7 @@ function StatCard({
   value,
   colors,
 }: {
-  icon: ComponentProps<typeof Ionicons>["name"];
+  icon: GoAtletaIconName;
   label: string;
   value: string;
   colors: ReturnType<typeof useAppTheme>["colors"];
@@ -629,7 +629,7 @@ function StatCard({
           backgroundColor: colors.card,
         }}
       >
-        <Ionicons name={icon} size={15} color={colors.muted} />
+        <GoAtletaIcon name={icon} size={15} color={colors.muted} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>{label}</Text>
@@ -830,8 +830,8 @@ function ActionRow({
           backgroundColor: action.resultLevel >= 2 ? colors.successBg : colors.warningBg,
         }}
       >
-        <Ionicons
-          name={action.resultLevel >= 2 ? "trending-up" : "alert"}
+        <GoAtletaIcon
+          name={action.resultLevel >= 2 ? "trend" : "warning"}
           size={16}
           color={action.resultLevel >= 2 ? colors.successText : colors.warningText}
         />

@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { ImageBackground, Text, View } from "react-native";
 
 import { useAppTheme } from "../../ui/app-theme";
 import { getCatalogActivityThumbnailSource } from "./activity-catalog-media";
 import type { ActivityCatalogListItem } from "./activity-catalog-view-model";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 type Props = {
   item: ActivityCatalogListItem;
@@ -82,7 +82,7 @@ export function ActivityCatalogThumbnail({
               backgroundColor: "rgba(5, 12, 25, 0.70)",
             }}
           >
-            <Ionicons name="play" size={isDetail ? 22 : 17} color="#FFFFFF" />
+            <GoAtletaIcon name="play" size={isDetail ? 22 : 17} color="#FFFFFF" />
           </View>
         </View>
         {isDetail ? null : (

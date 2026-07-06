@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Text, View } from "react-native";
 
 import { useAppTheme } from "../../../ui/app-theme";
 import { Pressable } from "../../../ui/Pressable";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { brandPalette, radius, shadow } from "../../../theme/tokens";
 
 type TrainingFabMenuProps = {
@@ -136,7 +136,7 @@ export function TrainingFabMenu({
             gap: 6,
           }}
         >
-          <Ionicons name="calendar-outline" size={16} color={colors.primaryText} />
+          <GoAtletaIcon name="calendar" size={16} color={colors.primaryText} />
           <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "700" }}>
             Criar treino
           </Text>
@@ -157,7 +157,7 @@ export function TrainingFabMenu({
             opacity: importBusy ? 0.65 : 1,
           }}
         >
-          <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
+          <GoAtletaIcon name="upload" size={16} color={colors.text} />
           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
             {importBusy ? "Importando..." : "Importar planilha"}
           </Text>

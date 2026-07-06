@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { memo, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
 
@@ -12,6 +11,7 @@ import { TimeInput } from "../../../ui/TimeInput";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getSectionCardStyle } from "../../../ui/section-styles";
 import { TrainingAnchoredDropdownOption } from "./TrainingAnchoredDropdownOption";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type TrainingSessionCreatePayload = {
   classIds: string[];
@@ -200,8 +200,8 @@ function TrainingSessionCreateModalContentBase({
                       active={active}
                       onPress={() => handleToggleClass(item.id)}
                       rightAccessory={
-                        <Ionicons
-                          name={active ? "checkmark-circle" : "ellipse-outline"}
+                        <GoAtletaIcon
+                          name={active ? "checkmarkCircle" : "circleOutline"}
                           size={18}
                           color={active ? colors.primaryText : colors.muted}
                         />

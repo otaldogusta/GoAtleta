@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useEffect,
@@ -23,6 +22,7 @@ import { useAuth } from "../src/auth/auth";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 export default function SignupScreen() {
   const { colors, mode } = useAppTheme();
@@ -229,7 +229,7 @@ export default function SignupScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="chevron-back" size={16} color={colors.text} />
+                <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
               </View>
             </Pressable>
 
@@ -364,8 +364,8 @@ export default function SignupScreen() {
                       opacity: password.length > 0 ? 1 : 0,
                     }}
                   >
-                    <Ionicons
-                      name={showPassword ? "eye-off" : "eye"}
+                    <GoAtletaIcon
+                      name={showPassword ? "eyeOffSolid" : "viewSolid"}
                       size={18}
                       color={colors.muted}
                     />
@@ -450,8 +450,8 @@ export default function SignupScreen() {
                         opacity: confirm.length > 0 ? 1 : 0,
                       }}
                     >
-                      <Ionicons
-                        name={showConfirm ? "eye-off" : "eye"}
+                      <GoAtletaIcon
+                        name={showConfirm ? "eyeOffSolid" : "viewSolid"}
                         size={18}
                         color={colors.muted}
                       />
@@ -513,7 +513,7 @@ export default function SignupScreen() {
                           gap: 6,
                         }}
                       >
-                        <Ionicons
+                        <GoAtletaIcon
                           name={item.ok ? "checkmark" : "close"}
                           size={12}
                           color={item.ok ? colors.successBg : colors.dangerSolidBg}
@@ -533,7 +533,7 @@ export default function SignupScreen() {
               {!hasInviteCodeFromLink ? (
                 <View style={{ gap: 6 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <Ionicons name="key-outline" size={13} color={colors.muted} />
+                    <GoAtletaIcon name="key" size={13} color={colors.muted} />
                     <Text style={{ color: colors.muted, fontSize: 11, letterSpacing: 0.4 }}>
                       Código de convite
                     </Text>
@@ -569,7 +569,7 @@ export default function SignupScreen() {
                     />
                     {inviteCode.length > 0 ? (
                       <Pressable onPress={() => setInviteCode("")} style={{ paddingLeft: 4 }}>
-                        <Ionicons name="close-circle" size={16} color={colors.muted} />
+                        <GoAtletaIcon name="closeCircle" size={16} color={colors.muted} />
                       </Pressable>
                     ) : null}
                   </View>
@@ -653,7 +653,7 @@ export default function SignupScreen() {
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name="logo-google" size={20} color={colors.text} />
+                  <GoAtletaIcon name="google" size={20} color={colors.text} />
                 </Pressable>
               </View>
             </View>

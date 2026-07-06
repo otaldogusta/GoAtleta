@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -54,6 +53,7 @@ import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
@@ -1859,7 +1859,7 @@ export default function ClassesScreen() {
                 opacity: mainTab === "criar" ? 0.7 : 1,
               }}
             >
-              <Ionicons name="add" size={16} color={colors.primaryText} />
+              <GoAtletaIcon name="add" size={16} color={colors.primaryText} />
               <Text style={{ color: colors.primaryText, fontWeight: "900", fontSize: 12 }}>
                 Criar turma
               </Text>
@@ -1981,8 +1981,8 @@ export default function ClassesScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {getOptionLabel(newGender, genderOptions) || "Selecione"}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{
@@ -2004,8 +2004,8 @@ export default function ClassesScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {newGoal || "Selecione"}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{
@@ -2046,8 +2046,8 @@ export default function ClassesScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {getOptionLabel(newModality, modalityOptions) || "Selecione"}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{
@@ -2069,8 +2069,8 @@ export default function ClassesScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {newAgeBand || "Selecione"}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{
@@ -2171,8 +2171,8 @@ export default function ClassesScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {getOptionLabel(newMvLevel, mvLevelOptions) || "Selecione"}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{
@@ -2196,8 +2196,8 @@ export default function ClassesScreen() {
                       ? formatAnnualCycleLabel(newCycleLengthWeeks)
                       : "Selecione"}
                   </Text>
-                  <Ionicons
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={16}
                     color={colors.muted}
                     style={{

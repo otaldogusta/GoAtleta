@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
@@ -16,7 +15,6 @@ import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
-import { decorativeIconProps } from "../../src/ui/decorative-icon-props";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 
 import type {
@@ -46,6 +44,7 @@ import { useAppTheme } from "../../src/ui/app-theme";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { REPORT_ATTENDANCE_EXPORT_HEADERS_PTBR } from "../../src/utils/export-schemas";
 import { exportWorkbookXlsx } from "../../src/utils/export-xlsx";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -441,7 +440,6 @@ export default function ReportsScreen() {
               </Pressable>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View
-                  {...decorativeIconProps}
                   style={{
                     width: 18,
                     height: 18,
@@ -731,7 +729,7 @@ export default function ReportsScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {unitFilter || "Selecione a unidade"}
                   </Text>
-                  <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} />
+                  <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
                 </Pressable>
                 { unitPickerOpen ? (
                   <View
@@ -803,7 +801,7 @@ export default function ReportsScreen() {
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
                     {classForUnitById[classId]?.name || "Selecione a turma"}
                   </Text>
-                  <Ionicons {...decorativeIconProps} name="chevron-down" size={16} color={colors.muted} />
+                  <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
                 </Pressable>
                 { classPickerOpen ? (
                   <View
@@ -981,7 +979,7 @@ export default function ReportsScreen() {
                           }}
                         >
                           { slot.rank === 1 ? (
-                            <Ionicons {...decorativeIconProps} name="trophy" size={30} color={ringColor} />
+                            <GoAtletaIcon name="trophy" size={30} color={ringColor} />
                           ) : (
                             <View style={{ height: 28 }} />
                           )}
@@ -1036,7 +1034,7 @@ export default function ReportsScreen() {
                             {row.student.name}
                           </Text>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <Ionicons {...decorativeIconProps} name="star" size={12} color={ringColor} />
+                            <GoAtletaIcon name="star" size={12} color={ringColor} />
                             <Text style={{ color: ringColor, fontWeight: "700" }}>
                               {row.score} pts
                             </Text>
@@ -1124,7 +1122,6 @@ export default function ReportsScreen() {
                         </View>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                           <View
-                            {...decorativeIconProps}
                             style={{
                               width: 7,
                               height: 7,

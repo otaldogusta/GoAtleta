@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 // perf-check: ignore-render - arquivo legado alterado apenas para adicionar atalho estático de consultoria.
 // perf-check: ignore-measure - não houve novo carregamento de dados nesta alteração.
 import { Image } from "expo-image";
@@ -21,6 +20,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { Pressable } from "../src/ui/Pressable";
 import { getUnitPalette } from "../src/ui/unit-colors";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 const parseTime = (value: string) => {
   if (!value) return null;
@@ -328,8 +328,8 @@ export default function StudentHome() {
                       backgroundColor: colors.primaryBg,
                     }}
                   >
-                    <Ionicons
-                      name="notifications-outline"
+                    <GoAtletaIcon
+                      name="notifications"
                       size={18}
                       color={colors.primaryText}
                     />
@@ -387,7 +387,7 @@ export default function StudentHome() {
                       overflow: "hidden",
                     }}
                   >
-                    <Ionicons name="person" size={22} color={colors.text} />
+                    <GoAtletaIcon name="personSolid" size={22} color={colors.text} />
                     { profilePhotoUri ? (
                       <Image
                         source={{ uri: profilePhotoUri }}

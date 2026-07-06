@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import { ActivityIndicator, Text, TextInput, View } from "react-native";
 
@@ -6,6 +5,7 @@ import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import { maskCpf } from "../../../utils/cpf";
 import { formatRgBr } from "../../../utils/document-normalization";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type Props = {
   cpfDisplay: string;
@@ -81,7 +81,7 @@ export const StudentDocumentsFields = memo(function StudentDocumentsFields({
             {revealCpfBusy ? (
               <ActivityIndicator size="small" color={colors.muted} />
             ) : (
-              <Ionicons name={isCpfVisible ? "eye-off-outline" : "eye-outline"} size={18} color={colors.muted} />
+              <GoAtletaIcon name={isCpfVisible ? "eyeOff" : "view"} size={18} color={colors.muted} />
             )}
           </Pressable>
         </View>

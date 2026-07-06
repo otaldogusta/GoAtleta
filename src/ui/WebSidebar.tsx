@@ -1,11 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
 import { useRole } from "../auth/role";
-import { ROLE_TABS, type AppRole, type IoniconName } from "../components/navigation/tab-config";
+import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import type { ClassGroup } from "../core/models";
 import type { DevProfilePreview } from "../dev/profile-preview";
 import { getClasses } from "../db/classes";
@@ -16,6 +15,7 @@ import { brandPalette, radius } from "../theme/tokens";
 import { Pressable } from "./Pressable";
 import { buildWebSidebarViewModel } from "./web-sidebar-view-model";
 import { decorativeIconProps } from "./decorative-icon-props";
+import { GoAtletaIcon, type GoAtletaIconName } from "./icon-registry";
 import { webShellTokens } from "./web-shell-tokens";
 
 type WebSidebarProps = {
@@ -26,7 +26,7 @@ type SidebarItem = {
   key: string;
   label: string;
   href: string;
-  icon: IoniconName;
+  icon: GoAtletaIconName;
   badge?: string;
 };
 
@@ -70,25 +70,25 @@ const profileSwitchOptions: ReadonlyArray<{
   id: ProfileSwitchId;
   label: string;
   subtitle: string;
-  icon: IoniconName;
+  icon: GoAtletaIconName;
 }> = [
   {
     id: "professor",
     label: "Professor",
     subtitle: "Painel do professor",
-    icon: "school-outline",
+    icon: "professor",
   },
   {
     id: "admin",
     label: "Coordenação",
     subtitle: "Painel operacional",
-    icon: "briefcase-outline",
+    icon: "coordination",
   },
   {
     id: "student",
     label: "Aluno",
     subtitle: "Rotina do atleta",
-    icon: "person-outline",
+    icon: "student",
   },
 ];
 
@@ -150,9 +150,9 @@ function BrandMark({ size = 46 }: { size?: number }) {
   );
 }
 
-function BrandWordmark({ role }: { role: AppRole }) {
+function BrandWordmark({ role, fill = true }: { role: AppRole; fill?: boolean }) {
   return (
-    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+    <View style={{ flex: fill ? 1 : undefined, minWidth: 0, gap: 2 }}>
       <Text
         style={{ color: brandPalette.white, fontSize: 16, fontWeight: "900", lineHeight: 19 }}
         numberOfLines={1}
@@ -194,221 +194,12 @@ function SidebarToggleButton({
         borderLeftColor: "rgba(255,255,255,0.12)",
       }}
     >
-      <SidebarGlyph
-        name={expanded ? "chevron-back-outline" : "chevron-forward-outline"}
+      <GoAtletaIcon
+        name={expanded ? "chevronBack" : "chevronForward"}
         size={16}
         color="rgba(255,255,255,0.68)"
       />
     </Pressable>
-  );
-}
-
-function SidebarGlyph({
-  name,
-  color,
-  size = 20,
-}: {
-  name: IoniconName | "football-outline" | "chevron-forward-outline" | "chevron-back-outline" | "chevron-up-outline" | "chevron-down-outline";
-  color: string;
-  size?: number;
-}) {
-  const icon = String(name);
-  const stroke = Math.max(1.6, Math.round(size * 0.1));
-  const line = (extra: Record<string, unknown>) => ({
-    position: "absolute" as const,
-    backgroundColor: color,
-    borderRadius: stroke,
-    ...extra,
-  });
-  const outline = (extra: Record<string, unknown>) => ({
-    position: "absolute" as const,
-    borderColor: color,
-    borderWidth: stroke,
-    ...extra,
-  });
-
-  const chevronRotation = icon.includes("back")
-    ? "-135deg"
-    : icon.includes("up")
-      ? "-45deg"
-      : icon.includes("down")
-        ? "135deg"
-        : "45deg";
-
-  if (icon.includes("chevron")) {
-    return (
-      <View
-        {...decorativeIconProps}
-        style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}
-      >
-        <View
-          style={{
-            width: size * 0.42,
-            height: size * 0.42,
-            borderTopWidth: stroke,
-            borderRightWidth: stroke,
-            borderColor: color,
-            transform: [{ rotate: chevronRotation }],
-          }}
-        />
-      </View>
-    );
-  }
-
-  if (icon.includes("football")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={outline({ inset: size * 0.08, borderRadius: size })} />
-        <View style={line({ width: size * 0.18, height: size * 0.18, left: size * 0.41, top: size * 0.41 })} />
-        <View style={line({ width: size * 0.12, height: size * 0.12, left: size * 0.28, top: size * 0.23 })} />
-        <View style={line({ width: size * 0.12, height: size * 0.12, right: size * 0.25, top: size * 0.28 })} />
-        <View style={line({ width: size * 0.12, height: size * 0.12, left: size * 0.30, bottom: size * 0.24 })} />
-        <View style={line({ width: size * 0.12, height: size * 0.12, right: size * 0.26, bottom: size * 0.22 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("stats") || icon.includes("analytics")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={line({ width: stroke + 1, height: size * 0.42, left: size * 0.22, bottom: size * 0.18 })} />
-        <View style={line({ width: stroke + 1, height: size * 0.64, left: size * 0.45, bottom: size * 0.18 })} />
-        <View style={line({ width: stroke + 1, height: size * 0.52, right: size * 0.22, bottom: size * 0.18 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("people") || icon.includes("person") || icon.includes("members")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={outline({ width: size * 0.24, height: size * 0.24, borderRadius: size, left: size * 0.38, top: size * 0.17 })} />
-        <View style={outline({ width: size * 0.58, height: size * 0.30, borderTopLeftRadius: size, borderTopRightRadius: size, left: size * 0.21, bottom: size * 0.17 })} />
-        <View style={line({ width: size * 0.18, height: stroke, left: size * 0.05, bottom: size * 0.25, opacity: 0.7 })} />
-        <View style={line({ width: size * 0.18, height: stroke, right: size * 0.05, bottom: size * 0.25, opacity: 0.7 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("home")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View
-          style={{
-            ...outline({
-              width: size * 0.50,
-              height: size * 0.50,
-              left: size * 0.25,
-              bottom: size * 0.15,
-              borderRadius: 2,
-            }),
-            borderTopWidth: 0,
-          }}
-        />
-        <View
-          style={{
-            width: size * 0.52,
-            height: size * 0.52,
-            borderTopWidth: stroke,
-            borderLeftWidth: stroke,
-            borderColor: color,
-            position: "absolute",
-            left: size * 0.24,
-            top: size * 0.16,
-            transform: [{ rotate: "45deg" }],
-          }}
-        />
-      </View>
-    );
-  }
-
-  if (icon.includes("calendar") || icon.includes("today")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={outline({ inset: size * 0.14, borderRadius: size * 0.18 })} />
-        <View style={line({ left: size * 0.18, right: size * 0.18, top: size * 0.34, height: stroke })} />
-        <View style={line({ width: stroke, height: size * 0.16, left: size * 0.34, top: size * 0.10 })} />
-        <View style={line({ width: stroke, height: size * 0.16, right: size * 0.34, top: size * 0.10 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("clipboard") || icon.includes("reader")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={outline({ inset: size * 0.16, borderRadius: size * 0.14 })} />
-        <View style={outline({ width: size * 0.34, height: size * 0.14, left: size * 0.33, top: size * 0.08, borderRadius: size * 0.10 })} />
-        <View style={line({ left: size * 0.30, right: size * 0.30, top: size * 0.43, height: stroke, opacity: 0.75 })} />
-        <View style={line({ left: size * 0.30, right: size * 0.36, top: size * 0.57, height: stroke, opacity: 0.75 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("school")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View
-          style={{
-            ...outline({ width: size * 0.52, height: size * 0.52, left: size * 0.24, top: size * 0.20, borderRadius: 2 }),
-            transform: [{ rotate: "45deg" }],
-          }}
-        />
-        <View style={line({ width: size * 0.50, height: stroke, left: size * 0.25, bottom: size * 0.22 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("book")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={outline({ width: size * 0.34, height: size * 0.56, left: size * 0.15, top: size * 0.20, borderRadius: 3 })} />
-        <View style={outline({ width: size * 0.34, height: size * 0.56, right: size * 0.15, top: size * 0.20, borderRadius: 3 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("bell") || icon.includes("notifications")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={outline({ width: size * 0.48, height: size * 0.50, left: size * 0.26, top: size * 0.18, borderTopLeftRadius: size, borderTopRightRadius: size })} />
-        <View style={line({ left: size * 0.22, right: size * 0.22, bottom: size * 0.25, height: stroke })} />
-        <View style={line({ width: size * 0.12, height: size * 0.12, left: size * 0.44, bottom: size * 0.10 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("trending")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={line({ width: size * 0.52, height: stroke, left: size * 0.22, top: size * 0.52, transform: [{ rotate: "-28deg" }] })} />
-        <View style={line({ width: size * 0.20, height: stroke, right: size * 0.18, top: size * 0.30, transform: [{ rotate: "28deg" }] })} />
-        <View style={line({ width: size * 0.20, height: stroke, right: size * 0.16, top: size * 0.39, transform: [{ rotate: "-62deg" }] })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("layers")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={outline({ width: size * 0.56, height: size * 0.30, left: size * 0.22, top: size * 0.18, borderRadius: 3, transform: [{ rotate: "18deg" }] })} />
-        <View style={outline({ width: size * 0.56, height: size * 0.30, left: size * 0.22, top: size * 0.36, borderRadius: 3, transform: [{ rotate: "18deg" }], opacity: 0.75 })} />
-        <View style={outline({ width: size * 0.56, height: size * 0.30, left: size * 0.22, top: size * 0.54, borderRadius: 3, transform: [{ rotate: "18deg" }], opacity: 0.55 })} />
-      </View>
-    );
-  }
-
-  if (icon.includes("briefcase")) {
-    return (
-      <View {...decorativeIconProps} style={{ width: size, height: size }}>
-        <View style={outline({ inset: size * 0.20, borderRadius: size * 0.12 })} />
-        <View style={outline({ width: size * 0.26, height: size * 0.16, left: size * 0.37, top: size * 0.12, borderRadius: size * 0.08 })} />
-      </View>
-    );
-  }
-
-  return (
-    <View {...decorativeIconProps} style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <View style={{ width: size * 0.58, height: size * 0.58, borderRadius: size, borderWidth: stroke, borderColor: color }} />
-    </View>
   );
 }
 
@@ -622,38 +413,38 @@ export function WebSidebar({ role }: WebSidebarProps) {
         key: "students",
         label: "Alunos",
         href: "/prof/students",
-        icon: "people-outline",
+        icon: "students",
         badge: viewModel.totalStudents ? String(viewModel.totalStudents) : undefined,
       },
       {
         key: "calendar",
         label: "Calendário mensal",
         href: "/prof/calendar",
-        icon: "calendar-outline",
+        icon: "calendar",
       },
       {
         key: "absence",
         label: "Avisos de ausência",
         href: "/prof/absence-notices",
-        icon: "notifications-outline",
+        icon: "absenceNotices",
       },
       {
         key: "exercises",
         label: "Biblioteca",
         href: "/prof/exercises",
-        icon: "book-outline",
+        icon: "exercises",
       },
       {
         key: "periodization",
         label: "Periodização",
         href: "/prof/periodization",
-        icon: "trending-up-outline",
+        icon: "periodization",
       },
       {
         key: "regulation-history",
         label: "Regulamentos",
         href: "/prof/regulation-history",
-        icon: "layers-outline",
+        icon: "regulations",
       },
     ],
     coord: [
@@ -661,37 +452,37 @@ export function WebSidebar({ role }: WebSidebarProps) {
         key: "events",
         label: "Eventos",
         href: "/coord/events",
-        icon: "calendar-clear-outline",
+        icon: "events",
       },
       {
         key: "members",
         label: "Membros",
         href: "/coord/org-members",
-        icon: "people-circle-outline",
+        icon: "members",
       },
       {
         key: "communications",
         label: "Comunicados",
         href: "/coord/communications",
-        icon: "megaphone-outline",
+        icon: "communications",
       },
       {
         key: "periodization",
         label: "Periodização",
         href: "/coord/periodization",
-        icon: "layers-outline",
+        icon: "periodization",
       },
       {
         key: "regulation-history",
         label: "Regulamentos",
         href: "/coord/regulation-history",
-        icon: "reader-outline",
+        icon: "regulations",
       },
       {
         key: "assistant",
         label: "Assistente",
         href: "/coord/assistant",
-        icon: "sparkles-outline",
+        icon: "assistant",
       },
     ],
     student: [
@@ -699,25 +490,25 @@ export function WebSidebar({ role }: WebSidebarProps) {
         key: "plan",
         label: "Plano",
         href: "/student-plan",
-        icon: "fitness-outline",
+        icon: "plan",
       },
       {
         key: "feedback",
         label: "Feedback",
         href: "/absence-report",
-        icon: "chatbox-ellipses-outline",
+        icon: "feedback",
       },
       {
         key: "communications",
         label: "Comunicados",
         href: "/communications",
-        icon: "megaphone-outline",
+        icon: "communications",
       },
       {
         key: "scouting",
         label: "Scouting",
         href: "/student-scouting",
-        icon: "analytics-outline",
+        icon: "scouting",
       },
     ],
   };
@@ -797,8 +588,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
             backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
           }}
         >
-          <Ionicons
-            {...decorativeIconProps}
+          <GoAtletaIcon
             name={item.icon}
             size={20}
             color={active ? webShellTokens.primary : "rgba(255,255,255,0.70)"}
@@ -1009,8 +799,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
             backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
           }}
         >
-          <Ionicons
-            {...decorativeIconProps}
+          <GoAtletaIcon
             name={item.icon}
             size={17}
             color={active ? webShellTokens.primary : "rgba(255,255,255,0.68)"}
@@ -1070,8 +859,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <BrandMark size={46} />
+        <BrandWordmark role={role} fill={false} />
         <SidebarToggleButton expanded onPress={() => setSidebarExpanded(false)} />
-        <BrandWordmark role={role} />
       </View>
 
       <ScrollView
@@ -1155,8 +944,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
                 gap: 10,
               }}
             >
-              <SidebarGlyph
-                name="person-circle-outline"
+              <GoAtletaIcon
+                name="profileCircle"
                 size={18}
                 color="rgba(255,255,255,0.78)"
               />
@@ -1195,8 +984,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
                         backgroundColor: active ? "rgba(255,255,255,0.10)" : "transparent",
                       }}
                     >
-                      <Ionicons
-                        {...decorativeIconProps}
+                      <GoAtletaIcon
                         name={option.icon}
                         size={17}
                         color={active ? webShellTokens.primary : "rgba(255,255,255,0.70)"}
@@ -1273,8 +1061,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
               {roleProfileLabel[role]}
             </Text>
           </View>
-          <SidebarGlyph
-            name={profileMenuOpen ? "chevron-down-outline" : "chevron-up-outline"}
+          <GoAtletaIcon
+            name={profileMenuOpen ? "chevronDown" : "chevronUp"}
             size={17}
             color="rgba(255,255,255,0.62)"
           />

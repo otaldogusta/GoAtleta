@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   Easing,
   interpolate,
@@ -12,6 +11,7 @@ import Animated, {
 
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { radius, shadow } from "../../theme/tokens";
 import type { RadialAction } from "./tab-config";
 
@@ -86,7 +86,7 @@ function RadialActionButton({
           ...shadow.card,
         }}
       >
-        <Ionicons name={action.icon} size={21} color={colors.text} />
+        <GoAtletaIcon name={action.icon} size={21} color={colors.text} />
       </Pressable>
       <Text
         numberOfLines={1}

@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import {
     memo,
@@ -80,6 +79,7 @@ import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { GoAtletaIcon, type GoAtletaIconName } from "../../src/ui/icon-registry";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -135,7 +135,7 @@ const ASSISTANT_CONTEXT_MESSAGES = 24;
 type QuickPromptCard = {
   id: string;
   title: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: GoAtletaIconName;
   description: string;
   prompt: string;
   tint: string;
@@ -233,7 +233,7 @@ const MemoQuickPromptGrid = memo(function QuickPromptGrid({
                 },
               ]}
             >
-              <Ionicons name={item.icon} size={16} color={mode === "dark" ? "#FFFFFF" : item.tint} />
+              <GoAtletaIcon name={item.icon} size={16} color={mode === "dark" ? "#FFFFFF" : item.tint} />
             </View>
             <View
               style={[
@@ -853,7 +853,7 @@ export default function AssistantScreen() {
       {
         id: "generate_training",
         title: "Gerar treino",
-        icon: "sparkles-outline",
+        icon: "assistant",
         description: "Monte sessão completa com foco no contexto ativo.",
         prompt: `Monte um treino completo de 60 minutos para ${classContextTarget}, com aquecimento, parte principal e volta à calma.`,
         tint: colors.primaryBg,
@@ -862,7 +862,7 @@ export default function AssistantScreen() {
       {
         id: "technical_summary",
         title: "Resumo técnico",
-        icon: "document-text-outline",
+        icon: "document",
         description: "Consolide o que já aconteceu e próximas prioridades.",
         prompt: `Crie um resumo executivo para ${classContextTarget}, com principais riscos, pontos fortes e prioridades da semana.`,
         tint: colors.infoText,
@@ -871,7 +871,7 @@ export default function AssistantScreen() {
       {
         id: "engagement_analysis",
         title: "Analisar engajamento",
-        icon: "pulse-outline",
+        icon: "engagement",
         description: "Leia sinais de risco e níveis de consistência.",
         prompt: `Simule a evolução de ${classContextTarget} por 6 semanas com intervenção balanceada e destaque premissas e limites.`,
         tint: colors.warningText,
@@ -880,7 +880,7 @@ export default function AssistantScreen() {
       {
         id: "quick_research",
         title: "Pesquisa rápida",
-        icon: "search-outline",
+        icon: "search",
         description: "Encontre referência científica para a decisão.",
         prompt: selectedClassDisplayName
           ? `Busque evidências científicas recentes para melhorar o próximo treino da turma ${selectedClassDisplayName}.`
@@ -891,7 +891,7 @@ export default function AssistantScreen() {
       {
         id: "family_message",
         title: "Mensagem para pais",
-        icon: "chatbubble-ellipses-outline",
+        icon: "chat",
         description: "Rascunhe comunicação objetiva e profissional.",
         prompt: `Crie uma mensagem curta para pais/responsáveis com orientações da semana de ${classContextTarget}.`,
         tint: colors.successText,
@@ -900,7 +900,7 @@ export default function AssistantScreen() {
       {
         id: "session_checklist",
         title: "Checklist da sessão",
-        icon: "checkmark-done-outline",
+        icon: "attendance",
         description: "Liste itens operacionais antes da aula no contexto ativo.",
         prompt: `Monte um checklist prático para conduzir a próxima sessão de ${classContextTarget}.`,
         tint: colors.primaryBg,
@@ -932,7 +932,7 @@ export default function AssistantScreen() {
           return {
             id,
             title: "Regularizar relatórios",
-            icon: "document-attach-outline",
+            icon: "documentAttach",
             description: "Defina plano curto para reduzir pendências de relatório.",
             prompt: `Crie um plano objetivo para reduzir pendências de relatório em ${classContextTarget} nesta semana.`,
             tint: colors.warningText,
@@ -943,7 +943,7 @@ export default function AssistantScreen() {
           return {
             id,
             title: "Plano para faltas",
-            icon: "people-outline",
+            icon: "students",
             description: "Estruture ações para reduzir faltas consecutivas.",
             prompt: `Crie uma estratégia prática para reduzir faltas consecutivas em ${classContextTarget}.`,
             tint: colors.warningText,
@@ -954,7 +954,7 @@ export default function AssistantScreen() {
           return {
             id,
             title: "Analisar presença NFC",
-            icon: "radio-outline",
+            icon: "nfc",
             description: "Investigue padrão anômalo de presença recente.",
             prompt: `Analise o padrão de presença NFC em ${classContextTarget} e proponha ações corretivas.`,
             tint: colors.warningText,
@@ -964,7 +964,7 @@ export default function AssistantScreen() {
         return {
           id,
           title: "Plano de intervenção",
-          icon: "construct-outline",
+          icon: "construct",
           description: "Monte próximos passos com base no sinal atual.",
           prompt: `Gere um plano de intervenção para o sinal atual de ${classContextTarget}, com ações para 7 dias.`,
           tint: colors.warningText,
@@ -978,7 +978,7 @@ export default function AssistantScreen() {
           {
             id: "recent_action",
             title: "Continuar ação",
-            icon: "play-forward-outline",
+            icon: "playForward",
             description: recentAction.actionTitle,
             prompt: `Continue a ação "${recentAction.actionTitle}" para ${classContextTarget} com próximos passos claros.`,
             tint: colors.primaryBg,
@@ -1752,7 +1752,7 @@ export default function AssistantScreen() {
                       onPress={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
                       style={{ flexDirection: "row", alignItems: "center" }}
                     >
-                      <Ionicons name="chevron-back" size={20} color={colors.text} />
+                      <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
                     </Pressable>
                   </View>
                   <View
@@ -1777,7 +1777,7 @@ export default function AssistantScreen() {
                         opacity: 0.16,
                       }}
                     />
-                    <Ionicons name="sparkles-outline" size={26} color={colors.primaryBg} />
+                    <GoAtletaIcon name="assistant" size={26} color={colors.primaryBg} />
                   </View>
                   <Text style={{ color: colors.text, fontSize: isCompactMobile ? 28 : 42, fontWeight: "800" }}>
                     {greetingLine}
@@ -1835,7 +1835,7 @@ export default function AssistantScreen() {
                 >
                   {strategicBullets.map((bullet) => (
                     <View key={bullet} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Ionicons name="ellipse" size={8} color={colors.primaryBg} />
+                      <GoAtletaIcon name="ellipse" size={8} color={colors.primaryBg} />
                       <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "600", flex: 1 }}>
                         {bullet}
                       </Text>
@@ -2479,7 +2479,7 @@ export default function AssistantScreen() {
                   backgroundColor: colors.secondaryBg,
                 }}
               >
-                <Ionicons name="add" size={20} color={colors.text} />
+                <GoAtletaIcon name="add" size={20} color={colors.text} />
               </Pressable>
               <TextInput
                 ref={composerInputRef}
@@ -2550,8 +2550,8 @@ export default function AssistantScreen() {
                   opacity: hasInputText ? 1 : 0.55,
                 }}
               >
-                <Ionicons
-                  name={loading || assistantTyping ? "hourglass-outline" : "arrow-up"}
+                <GoAtletaIcon
+                  name={loading || assistantTyping ? "hourglass" : "arrowUp"}
                   size={20}
                   color={colors.primaryText}
                 />

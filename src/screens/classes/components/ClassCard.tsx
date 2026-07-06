@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Dimensions, Image, Platform, StyleSheet, Text, View } from "react-native";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 
@@ -8,6 +7,7 @@ import type { ClassCardViewModel } from "../application/class-card-view-model";
 import { radius, shadow } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type Conflict = {
   name: string;
@@ -391,7 +391,7 @@ export const ClassCard = memo(function ClassCard({
               ];
             }}
           >
-            <Ionicons name="ellipsis-vertical" size={16} color={colors.textMuted ?? colors.muted} />
+            <GoAtletaIcon name="ellipsisVertical" size={16} color={colors.textMuted ?? colors.muted} />
           </Pressable>
           {actionMenuOpen && Platform.OS !== "web" ? actionMenuContent : null}
         </View>

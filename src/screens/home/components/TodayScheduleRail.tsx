@@ -1,11 +1,11 @@
 import { memo } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import { FlatList, Text, View } from "react-native";
 
 import { radius, shadow } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import type { HomeScheduleItem, HomeScheduleSlot } from "./homeScheduleTypes";
 
 type TodayScheduleRailProps = {
@@ -98,7 +98,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
                       {lesson.className}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Ionicons name="location" size={15} color={colors.textMuted} />
+                      <GoAtletaIcon name="location" size={15} color={colors.textMuted} />
                       <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "600" }} numberOfLines={1}>
                         {lesson.unit}
                       </Text>
@@ -123,7 +123,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
                       <Text style={{ color: colors.textPrimary, fontSize: compact ? 11 : 12, fontWeight: "800" }}>
                         Ver aula
                       </Text>
-                      <Ionicons name="arrow-forward" size={17} color={colors.textPrimary} />
+                      <GoAtletaIcon name="arrowForward" size={17} color={colors.textPrimary} />
                     </Pressable>
                     <Pressable
                       onPress={() => onOpenAttendance(lesson)}
@@ -140,7 +140,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
                         gap: 8,
                       }}
                     >
-                      <Ionicons name="people-outline" size={17} color={colors.textPrimary} />
+                      <GoAtletaIcon name="students" size={17} color={colors.textPrimary} />
                       <Text style={{ color: colors.textPrimary, fontSize: compact ? 11 : 12, fontWeight: "800" }}>
                         Chamada
                       </Text>
@@ -154,7 +154,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
       )}
 
       <View style={{ padding: compact ? 12 : 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <Ionicons name="calendar-outline" size={22} color={colors.textMuted} />
+        <GoAtletaIcon name="calendar" size={22} color={colors.textMuted} />
         <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "700" }}>
           {slots.reduce((total, slot) => total + slot.items.length, 0)} aulas - {durationHours}h de duração
         </Text>

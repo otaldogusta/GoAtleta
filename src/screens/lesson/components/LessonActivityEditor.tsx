@@ -1,10 +1,10 @@
-import { Ionicons } from "@expo/vector-icons";
 import { ScrollView, Text, TextInput, View } from "react-native";
 
 import { getTrainingPlanActivitySourceLabel } from "../../../core/training-plan-activity-source";
 import type { LessonActivity } from "../../../core/models";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type Props = {
   activities: LessonActivity[];
@@ -76,7 +76,7 @@ export function LessonActivityEditor({
             justifyContent: "center",
           }}
         >
-          <Ionicons name="add" size={16} color={colors.text} />
+          <GoAtletaIcon name="add" size={16} color={colors.text} />
         </Pressable>
       </View>
 
@@ -157,7 +157,7 @@ export function LessonActivityEditor({
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name="close" size={14} color={colors.muted} />
+                  <GoAtletaIcon name="close" size={14} color={colors.muted} />
                 </Pressable>
               </View>
 

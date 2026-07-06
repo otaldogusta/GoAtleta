@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -116,6 +115,7 @@ import { normalizeRaDigits, validateStudentRa } from "../../src/utils/student-ra
 import {
     getContactPhone
 } from "../../src/utils/whatsapp";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import {
     WHATSAPP_TEMPLATES,
     type WhatsAppTemplateId
@@ -2329,7 +2329,7 @@ export default function StudentsScreen() {
                 transform: [{ rotate: studentsFabRotate }, { scale: studentsFabScale }],
               }}
             >
-              <Ionicons name="add" size={24} color={colors.primaryText} />
+              <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
             </Animated.View>
           </Pressable>
 

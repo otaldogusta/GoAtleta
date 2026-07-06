@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type Props = {
   colors: ThemeColors;
@@ -50,7 +50,7 @@ export function SessionDateNavigator({
             justifyContent: "center",
           }}
         >
-          <Ionicons name="chevron-back" size={18} color={colors.text} />
+          <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
         </Pressable>
 
         <View style={{ flex: 1, alignItems: "center", gap: 2 }}>
@@ -77,7 +77,7 @@ export function SessionDateNavigator({
             justifyContent: "center",
           }}
         >
-          <Ionicons name="chevron-forward" size={18} color={colors.text} />
+          <GoAtletaIcon name="chevronForward" size={18} color={colors.text} />
         </Pressable>
       </View>
     </View>

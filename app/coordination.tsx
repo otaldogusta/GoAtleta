@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -69,6 +68,7 @@ import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordinatio
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
 import { useAppTheme } from "../src/ui/app-theme";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
 
 const OrgMembersPanel = lazy(() =>
@@ -1380,7 +1380,7 @@ export default function CoordinationScreen() {
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="chevron-back" size={18} color={colors.text} />
+              <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
             </Pressable>
           </View>
           </View>

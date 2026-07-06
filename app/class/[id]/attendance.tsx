@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useCallback,
@@ -42,6 +41,7 @@ import { DatePickerModal } from "../../../src/ui/DatePickerModal";
 import { FadeHorizontalScroll } from "../../../src/ui/FadeHorizontalScroll";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
+import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
 
 const formatDate = (value: Date) => {
@@ -492,8 +492,8 @@ export default function AttendanceScreen() {
               marginTop: 2,
             }}
           >
-            <Ionicons
-              name="alert-circle-outline"
+            <GoAtletaIcon
+              name="warningCircle"
               size={14}
               color={colors.warningText}
             />
@@ -637,8 +637,8 @@ export default function AttendanceScreen() {
                     borderColor: colors.borderSubtle,
                   }}
                 >
-                  <Ionicons
-                    name={expandedById[item.student.id] ? "chevron-down" : "chevron-forward"}
+                  <GoAtletaIcon
+                    name={expandedById[item.student.id] ? "chevronDown" : "chevronForward"}
                     size={16}
                     color={colors.textMuted}
                   />

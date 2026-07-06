@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { memo, type ReactElement } from "react";
 import { Text, View } from "react-native";
 
@@ -13,6 +12,7 @@ import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme, type ThemeColors } from "../../../ui/app-theme";
 import { StudentsEmptyState } from "./StudentsEmptyState";
 import { StudentsListHeaderContent } from "./StudentsListHeader";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 export type StudentsRenderStudentItemArgs = {
   item: Student;
@@ -128,8 +128,8 @@ export function StudentsUnitGroupBlockContent({
         <Text style={{ fontSize: 14, fontWeight: "900", color: colors.textPrimary }}>
           {unitName}
         </Text>
-        <Ionicons
-          name={unitExpanded ? "chevron-down" : "chevron-forward"}
+        <GoAtletaIcon
+          name={unitExpanded ? "chevronDown" : "chevronForward"}
           size={16}
           color={colors.textMuted}
         />
@@ -206,8 +206,8 @@ export function StudentsClassGroupBlockContent({
         }}
       >
         {StudentsClassHeaderContent({ colors, group, groupPalette })}
-        <Ionicons
-          name={classExpanded ? "chevron-down" : "chevron-forward"}
+        <GoAtletaIcon
+          name={classExpanded ? "chevronDown" : "chevronForward"}
           size={16}
           color={colors.textMuted}
         />

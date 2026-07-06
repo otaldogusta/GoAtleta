@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Animated, FlatList, Text, TextInput, View } from "react-native";
 
 import type { ClassGroup } from "../../core/models";
@@ -7,6 +6,7 @@ import { type ThemeColors } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
 import { CyclePlanTable, type CyclePlanTableProps, type WeekPlan } from "./CyclePlanTable";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
@@ -248,9 +248,9 @@ export function CycleTab({
 
           </Text>
 
-          <Ionicons
+          <GoAtletaIcon
 
-            name={sectionOpen.load ? "chevron-up" : "chevron-down"}
+            name={sectionOpen.load ? "chevronUp" : "chevronDown"}
 
             size={18}
 
@@ -501,9 +501,9 @@ export function CycleTab({
 
           </Text>
 
-          <Ionicons
+          <GoAtletaIcon
 
-            name={sectionOpen.cycle ? "chevron-up" : "chevron-down"}
+            name={sectionOpen.cycle ? "chevronUp" : "chevronDown"}
 
             size={18}
 

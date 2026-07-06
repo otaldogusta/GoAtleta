@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Animated, Text, View } from "react-native";
 import type {
@@ -14,6 +13,7 @@ import type {
 } from "../../db/observability-summaries";
 import { Pressable } from "../../ui/Pressable";
 import { type ThemeColors } from "../../ui/app-theme";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
 import { radius } from "../../theme/tokens";
 import type { WeeklyOperationalTeacherIntent } from "./application/format-weekly-operational-intent-for-teacher";
@@ -300,7 +300,7 @@ export function WeekTab({
                     </Text>
                   ) : null}
                 </View>
-                <Ionicons name="chevron-forward" size={12} color={colors.muted} />
+                <GoAtletaIcon name="chevronForward" size={12} color={colors.muted} />
               </Pressable>
             );
           })}
@@ -356,7 +356,7 @@ export function WeekTab({
                 opacity: !hasWeekPlans || activeWeek.week <= 1 ? 0.45 : 1,
               }}
             >
-              <Ionicons name="chevron-back" size={16} color={colors.text} />
+              <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
             </Pressable>
 
             <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
@@ -378,7 +378,7 @@ export function WeekTab({
                 opacity: !hasWeekPlans || activeWeek.week >= weekPlans.length ? 0.45 : 1,
               }}
             >
-              <Ionicons name="chevron-forward" size={16} color={colors.text} />
+              <GoAtletaIcon name="chevronForward" size={16} color={colors.text} />
             </Pressable>
           </View>
 

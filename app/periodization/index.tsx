@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import * as XLSX from "@e965/xlsx";
 import * as cptable from "@e965/xlsx/dist/cpexcel";
 
@@ -120,6 +119,7 @@ import { periodizationHtml } from "../../src/pdf/templates/periodization";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 
 import { type ThemeColors, useAppTheme } from "../../src/ui/app-theme";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
@@ -3941,7 +3941,7 @@ export default function PeriodizationScreen() {
             ]}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons name="layers-outline" size={18} color={colors.primaryText} />
+              <GoAtletaIcon name="regulations" size={18} color={colors.primaryText} />
               <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                 Contexto da turma
               </Text>
@@ -3992,7 +3992,7 @@ export default function PeriodizationScreen() {
               }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 }}>
-                <Ionicons name="shield-checkmark-outline" size={18} color={colors.primaryText} />
+                <GoAtletaIcon name="shield" size={18} color={colors.primaryText} />
                 <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
                   Revisão do ciclo
                 </Text>
@@ -4215,7 +4215,7 @@ export default function PeriodizationScreen() {
                 opacity: canExportPlans ? 1 : 0.65,
               }}
             >
-              <Ionicons name="document-text-outline" size={16} color={colors.text} />
+              <GoAtletaIcon name="document" size={16} color={colors.text} />
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 Exportar semana
               </Text>
@@ -4240,7 +4240,7 @@ export default function PeriodizationScreen() {
                 opacity: canExportPlans ? 1 : 0.65,
               }}
             >
-              <Ionicons name="download-outline" size={16} color={colors.text} />
+              <GoAtletaIcon name="download" size={16} color={colors.text} />
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 Exportar ciclo
               </Text>
@@ -4265,7 +4265,7 @@ export default function PeriodizationScreen() {
                 opacity: !selectedClass || isImportingPlansFile ? 0.65 : 1,
               }}
             >
-              <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
+              <GoAtletaIcon name="upload" size={16} color={colors.text} />
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
                 {isImportingPlansFile ? "Importando..." : "Importar planejamento"}
               </Text>
@@ -4315,7 +4315,7 @@ export default function PeriodizationScreen() {
               ],
             }}
           >
-            <Ionicons name="add" size={24} color={colors.primaryText} />
+            <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
           </Animated.View>
         </Pressable>
 

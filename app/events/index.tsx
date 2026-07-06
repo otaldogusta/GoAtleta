@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -34,6 +33,7 @@ import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { Pressable as AppPressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import type { ConfirmDialogOptions } from "../../src/ui/confirm-dialog";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
@@ -890,8 +890,8 @@ export default function EventsScreen() {
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
-                        <Ionicons
-                          name={showEventTypeDropdown ? "chevron-up" : "chevron-down"}
+                        <GoAtletaIcon
+                          name={showEventTypeDropdown ? "chevronUp" : "chevronDown"}
                           size={16}
                           color={colors.muted}
                         />
@@ -917,8 +917,8 @@ export default function EventsScreen() {
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
-                        <Ionicons
-                          name={showSportDropdown ? "chevron-up" : "chevron-down"}
+                        <GoAtletaIcon
+                          name={showSportDropdown ? "chevronUp" : "chevronDown"}
                           size={16}
                           color={colors.muted}
                         />
@@ -1026,8 +1026,8 @@ export default function EventsScreen() {
                         <Text style={{ color: colors.text, fontWeight: "700" }}>
                           {notificationChannel === "email" ? "Email" : "WhatsApp"}
                         </Text>
-                        <Ionicons
-                          name={showNotificationDropdown ? "chevron-up" : "chevron-down"}
+                        <GoAtletaIcon
+                          name={showNotificationDropdown ? "chevronUp" : "chevronDown"}
                           size={16}
                           color={colors.muted}
                         />
@@ -1053,8 +1053,8 @@ export default function EventsScreen() {
                         }}
                       >
                         <Text style={{ color: colors.text, fontWeight: "700" }}>{reminderValue}</Text>
-                        <Ionicons
-                          name={showReminderDropdown ? "chevron-up" : "chevron-down"}
+                        <GoAtletaIcon
+                          name={showReminderDropdown ? "chevronUp" : "chevronDown"}
                           size={16}
                           color={colors.muted}
                         />

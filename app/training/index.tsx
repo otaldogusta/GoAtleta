@@ -1,4 +1,3 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -93,7 +92,6 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
-import { decorativeIconProps } from "../../src/ui/decorative-icon-props";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
@@ -105,6 +103,7 @@ import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { radius, shadow } from "../../src/theme/tokens";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 const TemplateEditorModalContent = lazy(() =>
   import("../../src/screens/training/components/TemplateEditorModalContent").then((module) => ({
@@ -1527,7 +1526,7 @@ export default function TrainingList() {
                       backgroundColor: colors.secondaryBg,
                     }}
                   >
-                    <Ionicons {...decorativeIconProps} name="calendar-outline" size={13} color={colors.muted} />
+                    <GoAtletaIcon name="calendar" size={13} color={colors.muted} />
                     <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                       {appliedInfo.isApplied ? `Aplicado ${dateLine}` : dateLine}
                     </Text>
@@ -1544,7 +1543,7 @@ export default function TrainingList() {
                     backgroundColor: colors.secondaryBg,
                   }}
                 >
-                  <Ionicons {...decorativeIconProps} name="time-outline" size={13} color={colors.muted} />
+                  <GoAtletaIcon name="time" size={13} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                     Criado {formatDate(plan.createdAt)}
                   </Text>
@@ -1560,7 +1559,7 @@ export default function TrainingList() {
                     backgroundColor: colors.secondaryBg,
                   }}
                 >
-                  <Ionicons {...decorativeIconProps} name="list-outline" size={13} color={colors.muted} />
+                  <GoAtletaIcon name="list" size={13} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
                     {activityCount} {activityCount === 1 ? "atividade" : "atividades"}
                   </Text>
@@ -1593,7 +1592,7 @@ export default function TrainingList() {
                   gap: 6,
                 }}
               >
-                <Ionicons {...decorativeIconProps} name="checkmark-circle-outline" size={16} color={colors.primaryText} />
+                <GoAtletaIcon name="success" size={16} color={colors.primaryText} />
                 <Text
                   numberOfLines={1}
                   style={{
@@ -1626,7 +1625,7 @@ export default function TrainingList() {
                   gap: 6,
                 }}
               >
-                <Ionicons {...decorativeIconProps} name="eye-outline" size={16} color={colors.text} />
+                <GoAtletaIcon name="view" size={16} color={colors.text} />
                 <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>
                   Ver
                 </Text>
@@ -3251,8 +3250,8 @@ export default function TrainingList() {
                        ? "Todas as unidades"
                       : formUnit || "Selecione uma unidade"}
                   </Text>
-                  <MaterialCommunityIcons {...decorativeIconProps}
-                    name="chevron-down"
+                  <GoAtletaIcon
+                    name="chevronDown"
                     size={18}
                     color={colors.muted}
                     style={{
@@ -3290,8 +3289,8 @@ export default function TrainingList() {
                       <ClassGenderBadge gender={selectedFormClass.gender} />
                     ) : null}
                   </View>
-                    <MaterialCommunityIcons {...decorativeIconProps}
-                      name="chevron-down"
+                    <GoAtletaIcon
+                      name="chevronDown"
                       size={18}
                       color={colors.muted}
                       style={{
@@ -3638,8 +3637,8 @@ export default function TrainingList() {
                 {filteredItems.length}
               </Text>
             </View>
-            <MaterialCommunityIcons {...decorativeIconProps}
-              name={showSavedPlans ? "chevron-down" : "chevron-right"}
+            <GoAtletaIcon
+              name={showSavedPlans ? "chevronDown" : "chevronForward"}
               size={18}
               color={colors.muted}
             />
@@ -3661,7 +3660,7 @@ export default function TrainingList() {
                     borderColor: colors.border,
                   }}
                 >
-                  <Ionicons {...decorativeIconProps} name="search" size={18} color={colors.muted} />
+                  <GoAtletaIcon name="search" size={18} color={colors.muted} />
                   <TextInput
                     value={savedPlanSearch}
                     onChangeText={setSavedPlanSearch}
@@ -3684,7 +3683,7 @@ export default function TrainingList() {
                         { backgroundColor: colors.secondaryBg },
                       ]}
                     >
-                      <Ionicons {...decorativeIconProps} name="close" size={16} color={colors.text} />
+                      <GoAtletaIcon name="close" size={16} color={colors.text} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -3821,7 +3820,7 @@ export default function TrainingList() {
                 transform: [{ rotate: trainingFabRotate }, { scale: trainingFabScale }],
               }}
             >
-              <Ionicons {...decorativeIconProps} name="add" size={24} color={colors.primaryText} />
+              <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
             </Animated.View>
           </Pressable>
 

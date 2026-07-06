@@ -16,7 +16,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
@@ -61,6 +60,7 @@ import {
 } from "../../src/screens/classes/components/ClassEditModalBody";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
@@ -193,8 +193,8 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({
           {contact.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
         </Text>
       </View>
-      <MaterialCommunityIcons
-        name={isSelected ? "check-circle" : "circle-outline"}
+      <GoAtletaIcon
+        name={isSelected ? "checkmarkCircle" : "circleOutline"}
         size={18}
         color={isSelected ? colors.primaryText : mutedColor}
       />
@@ -1790,7 +1790,7 @@ export default function ClassDetails() {
                 borderColor: colors.border,
               }}
             >
-              <MaterialCommunityIcons name="pencil" size={18} color={colors.text} />
+              <GoAtletaIcon name="pencil" size={18} color={colors.text} />
             </Pressable>
           }
           contentStyle={{ paddingTop: 16, paddingBottom: 8 }}
@@ -2138,7 +2138,7 @@ export default function ClassDetails() {
               gap: 8,
             }}
           >
-            <MaterialCommunityIcons name="file-export-outline" size={16} color={colors.text} />
+            <GoAtletaIcon name="download" size={16} color={colors.text} />
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
               Exportar lista de chamada
             </Text>
@@ -2186,7 +2186,7 @@ export default function ClassDetails() {
             ],
           }}
         >
-          <MaterialCommunityIcons name="plus" size={24} color={colors.primaryText} />
+          <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
         </Animated.View>
       </Pressable>
 
@@ -2238,7 +2238,7 @@ export default function ClassDetails() {
                 borderColor: colors.border,
               }}
             >
-              <Ionicons name="close" size={18} color={colors.text} />
+              <GoAtletaIcon name="close" size={18} color={colors.text} />
             </Pressable>
           </View>
 
@@ -2620,8 +2620,8 @@ export default function ClassDetails() {
                       {selectedRosterColumnsLabel}
                     </Text>
                   </View>
-                  <Ionicons
-                    name={showRosterColumnsPicker ? "chevron-up" : "chevron-down"}
+                  <GoAtletaIcon
+                    name={showRosterColumnsPicker ? "chevronUp" : "chevronDown"}
                     size={16}
                     color={colors.muted}
                   />
@@ -2642,7 +2642,7 @@ export default function ClassDetails() {
                   borderColor: colors.border,
                 }}
               >
-                <Ionicons name="close" size={18} color={colors.text} />
+                <GoAtletaIcon name="close" size={18} color={colors.text} />
               </Pressable>
             </View>
           </View>
@@ -2681,7 +2681,7 @@ export default function ClassDetails() {
                   borderColor: colors.border,
                 }}
               >
-                <Ionicons name="chevron-back" size={20} color={colors.muted} />
+                <GoAtletaIcon name="chevronBack" size={20} color={colors.muted} />
               </Pressable>
               <Pressable
                 onPress={openRosterMonthPicker}
@@ -2719,7 +2719,7 @@ export default function ClassDetails() {
                   borderColor: colors.border,
                 }}
               >
-                <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+                <GoAtletaIcon name="chevronForward" size={20} color={colors.muted} />
               </Pressable>
             </View>
           </View>
@@ -3030,8 +3030,8 @@ export default function ClassDetails() {
                   borderColor: active ? colors.primaryBg : colors.border,
                 }}
               >
-                <Ionicons
-                  name={active ? "checkbox" : "square-outline"}
+                <GoAtletaIcon
+                  name={active ? "checkbox" : "square"}
                   size={18}
                   color={active ? colors.primaryText : colors.text}
                 />
@@ -3093,7 +3093,7 @@ export default function ClassDetails() {
                   borderColor: whatsappModalBorder,
                 }}
               >
-                <MaterialCommunityIcons name="chevron-left" size={18} color={colors.text} />
+                <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
               </Pressable>
               <ScrollView
                 horizontal
@@ -3192,7 +3192,7 @@ export default function ClassDetails() {
                   borderColor: whatsappModalBorder,
                 }}
               >
-                <MaterialCommunityIcons name="chevron-right" size={18} color={colors.text} />
+                <GoAtletaIcon name="chevronForward" size={18} color={colors.text} />
               </Pressable>
             </View>
           </View>

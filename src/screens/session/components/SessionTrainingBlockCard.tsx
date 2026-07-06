@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
 
 import { ptBR } from "../../../constants/copy/pt-br";
 import { Pressable } from "../../../ui/Pressable";
 import type { ThemeColors } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import type { SessionTrainingBlockPreview } from "./session-training-ui-types";
 
 type Props = {
@@ -58,7 +58,7 @@ export function SessionTrainingBlockCard({ colors, block, onPress }: Props) {
               </Text>
             </View>
           ) : null}
-          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          <GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />
         </View>
       </View>
       {block.previewItems.length ? (

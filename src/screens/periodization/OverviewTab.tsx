@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Animated, Text, useWindowDimensions, View } from "react-native";
 
 import { type ThemeColors } from "../../ui/app-theme";
 import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
 import { Pressable } from "../../ui/Pressable";
+import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
 
 import type { ClassGroup, ClassPlan, PlanningCycle } from "../../core/models";
@@ -150,7 +150,7 @@ export function OverviewTab({
                 opacity: canRegenerateCycle ? 1 : 0.55,
               }}
             >
-              <Ionicons
+              <GoAtletaIcon
                 name="refresh"
                 size={16}
                 color={canRegenerateCycle ? colors.text : colors.secondaryText}
@@ -180,7 +180,7 @@ export function OverviewTab({
                 backgroundColor: colors.successBg,
               }}
             >
-              <Ionicons name="checkmark-circle" size={12} color={colors.successText} />
+              <GoAtletaIcon name="checkmarkCircle" size={12} color={colors.successText} />
               <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
                 {normalizeText(activeCycle ? `Ciclo ativo · ${activeCycle.title}` : "Ciclo gerado")}
               </Text>
@@ -378,7 +378,7 @@ export function OverviewTab({
 
                     >
 
-                    <Ionicons name="chevron-down" size={16} color={colors.muted} />
+                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
 
                     </Animated.View>
 
@@ -466,7 +466,7 @@ export function OverviewTab({
 
                   >
 
-                    <Ionicons name="chevron-down" size={16} color={colors.muted} />
+                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
 
                   </Animated.View>
 
@@ -495,7 +495,7 @@ export function OverviewTab({
 
           >
 
-            <Ionicons name="alert-circle" size={16} color={colors.warningText} />
+            <GoAtletaIcon name="warningCircle" size={16} color={colors.warningText} />
 
             <Text style={{ color: colors.warningText, fontSize: 12, flex: 1 }}>
 
@@ -569,7 +569,7 @@ export function OverviewTab({
 
                   >
 
-                    <Ionicons name="chevron-down" size={16} color={colors.muted} />
+                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
 
                   </Animated.View>
 
@@ -641,7 +641,7 @@ export function OverviewTab({
 
                   >
 
-                    <Ionicons name="chevron-down" size={16} color={colors.muted} />
+                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
 
                   </Animated.View>
 
@@ -762,7 +762,7 @@ export function OverviewTab({
                 backgroundColor: colors.successBg,
               }}
             >
-              <Ionicons name="checkmark-circle" size={13} color={colors.successText} />
+              <GoAtletaIcon name="checkmarkCircle" size={13} color={colors.successText} />
               <Text style={{ color: colors.successText, fontWeight: "800", fontSize: 11 }}>
                 Gerado
               </Text>
@@ -822,7 +822,7 @@ export function OverviewTab({
                 borderColor: colors.border,
               }}
             >
-              <Ionicons name="refresh" size={13} color={colors.muted} />
+              <GoAtletaIcon name="refresh" size={13} color={colors.muted} />
               <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
                 Para gerar novamente, use o ícone de atualizar na visão geral.
               </Text>
@@ -848,7 +848,7 @@ export function OverviewTab({
                   opacity: canRemoveCycle ? 1 : 0.6,
                 }}
               >
-                <Ionicons name="trash-outline" size={13} color={colors.dangerText} />
+                <GoAtletaIcon name="trash" size={13} color={colors.dangerText} />
                 <Text style={{ color: colors.dangerText, fontWeight: "700", fontSize: 12 }}>
                   {isSavingPlans ? "Removendo..." : "Remover ciclo"}
                 </Text>
@@ -867,7 +867,7 @@ export function OverviewTab({
           ]}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Ionicons name="alert-circle" size={16} color={colors.warningText} />
+            <GoAtletaIcon name="warningCircle" size={16} color={colors.warningText} />
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700", flex: 1 }}>
               Cobertura anual incompleta
             </Text>

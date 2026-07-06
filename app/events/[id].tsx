@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -34,6 +33,7 @@ import { Pressable as AppPressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import type { ConfirmDialogOptions } from "../../src/ui/confirm-dialog";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
@@ -445,7 +445,7 @@ export default function EventDetailsScreen() {
               onPress={closeDetails}
               style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
             >
-              <Ionicons name="chevron-back" size={20} color={colors.text} />
+              <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
               <Text style={{ color: colors.text, fontSize: 26, fontWeight: "700" }}>Detalhes do evento</Text>
             </Pressable>
             <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 26 }}>Início: {startLabel}</Text>
@@ -525,8 +525,8 @@ export default function EventDetailsScreen() {
                       }}
                     >
                       <Text style={{ color: colors.text, fontWeight: "700" }}>{eventTypeLabel[eventType]}</Text>
-                      <Ionicons
-                        name={showEventTypeDropdown ? "chevron-up" : "chevron-down"}
+                      <GoAtletaIcon
+                        name={showEventTypeDropdown ? "chevronUp" : "chevronDown"}
                         size={16}
                         color={colors.muted}
                       />
@@ -553,8 +553,8 @@ export default function EventDetailsScreen() {
                       }}
                     >
                       <Text style={{ color: colors.text, fontWeight: "700" }}>{sportTypeLabel[sport]}</Text>
-                      <Ionicons
-                        name={showSportDropdown ? "chevron-up" : "chevron-down"}
+                      <GoAtletaIcon
+                        name={showSportDropdown ? "chevronUp" : "chevronDown"}
                         size={16}
                         color={colors.muted}
                       />

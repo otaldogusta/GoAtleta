@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -11,6 +10,7 @@ import {
 } from "../src/auth/onboarding";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 type FocusValue = OnboardingProfile["focus"];
 type FrequencyValue = OnboardingProfile["frequency"];
@@ -68,7 +68,7 @@ export default function OnboardingScreen() {
           }}
         >
           <Pressable onPress={prevStep} style={{ paddingVertical: 6, paddingHorizontal: 2 }}>
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
+            <GoAtletaIcon name="chevronBack" size={22} color={colors.text} />
           </Pressable>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             {Array.from({ length: totalSteps }).map((_, index) => (
@@ -114,7 +114,7 @@ export default function OnboardingScreen() {
                     "Atalhos para quem já tem conta",
                   ].map((item) => (
                     <View key={item} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <Ionicons name="checkmark-circle" size={16} color={colors.primaryBg} />
+                      <GoAtletaIcon name="checkmarkCircle" size={16} color={colors.primaryBg} />
                       <Text style={{ color: colors.text }}>{item}</Text>
                     </View>
                   ))}
@@ -136,13 +136,13 @@ export default function OnboardingScreen() {
                       value: "trainer" as const,
                       title: "Treinador",
                       desc: "Planeja sessões, acompanha turmas e indicadores.",
-                      icon: "barbell-outline" as const,
+                      icon: "training" as const,
                     },
                     {
                       value: "student" as const,
                       title: "Aluno",
                       desc: "Acessa plano, presença e comunicados da turma.",
-                      icon: "school-outline" as const,
+                      icon: "classes" as const,
                     },
                   ].map((item) => {
                     const selected = role === item.value;
@@ -160,7 +160,7 @@ export default function OnboardingScreen() {
                         }}
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          <Ionicons name={item.icon} size={18} color={selected ? colors.primaryBg : colors.text} />
+                          <GoAtletaIcon name={item.icon} size={18} color={selected ? colors.primaryBg : colors.text} />
                           <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
                             {item.title}
                           </Text>

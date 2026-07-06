@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import {
     generateTrainerMessage,
     type TrainerMessageResult,
@@ -690,33 +690,33 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     };
   }, [members]);
 
-  const statItems: { key: string; label: string; value: number; icon: string; tint: string }[] = [
+  const statItems: { key: string; label: string; value: number; icon: GoAtletaIconName; tint: string }[] = [
     {
       key: "admin",
       label: "Coordena\u00e7\u00e3o",
       value: memberStats.admins,
-      icon: "shield-checkmark-outline",
+      icon: "shield",
       tint: colors.primaryBg,
     },
     {
       key: "teacher",
       label: "Professor",
       value: memberStats.teachers,
-      icon: "school-outline",
+      icon: "classes",
       tint: "rgba(125, 211, 252, 0.24)",
     },
     {
       key: "intern",
       label: "Estagi\u00e1rio",
       value: memberStats.interns,
-      icon: "sparkles-outline",
+      icon: "assistant",
       tint: "rgba(196, 181, 253, 0.24)",
     },
     {
       key: "total",
       label: "Total",
       value: memberStats.total,
-      icon: "people-outline",
+      icon: "students",
       tint: "rgba(250, 204, 21, 0.2)",
     },
   ];
@@ -743,25 +743,25 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     key: QuickInviteTarget;
     label: string;
     subtitle: string;
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: GoAtletaIconName;
   }[] = [
     {
       key: "collaborator",
       label: "Colaborador",
       subtitle: "Professor ou estagiário para apoiar as turmas.",
-      icon: "people-outline",
+      icon: "students",
     },
     {
       key: "student",
       label: "Aluno",
       subtitle: "Convidar para acesso ao plano e rotina de treino.",
-      icon: "school-outline",
+      icon: "classes",
     },
     {
       key: "moderator",
       label: "Moderador",
       subtitle: "Perfil de coordenação para gestão da organização.",
-      icon: "shield-checkmark-outline",
+      icon: "shield",
     },
   ];
 
@@ -951,7 +951,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                     backgroundColor: colors.secondaryBg,
                   }}
                 >
-                  <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+                  <GoAtletaIcon name="chevronForward" size={14} color={colors.muted} />
                 </View>
               </View>
             </View>
@@ -1068,7 +1068,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                     gap: 8,
                   }}
                 >
-                  <Ionicons name="search" size={16} color={colors.muted} />
+                  <GoAtletaIcon name="search" size={16} color={colors.muted} />
                   <TextInput
                     value={search}
                     onChangeText={setSearch}
@@ -1113,8 +1113,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                             backgroundColor: item.tint,
                           }}
                         >
-                          <Ionicons
-                            name={item.icon as any}
+                          <GoAtletaIcon
+                            name={item.icon}
                             size={13}
                             color={item.key === "admin" ? colors.primaryText : colors.text}
                           />
@@ -1212,7 +1212,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
               }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="alert-circle-outline" size={17} color={colors.warningBg} />
+                <GoAtletaIcon name="warningCircle" size={17} color={colors.warningBg} />
                 <Text style={{ color: colors.text, fontWeight: "700" }}>Erro</Text>
               </View>
               <Text style={{ color: colors.muted }}>{error}</Text>
@@ -1295,7 +1295,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
               backgroundColor: colors.primaryBg,
             }}
           >
-            <Ionicons name="add" size={17} color={colors.primaryText} />
+            <GoAtletaIcon name="add" size={17} color={colors.primaryText} />
           </View>
           <View style={{ gap: 1 }}>
             <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>Convidar</Text>
@@ -1346,7 +1346,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                       backgroundColor: selected ? colors.card : colors.secondaryBg,
                     }}
                   >
-                    <Ionicons
+                    <GoAtletaIcon
                       name={option.icon}
                       size={16}
                       color={selected ? colors.text : colors.muted}
@@ -1460,7 +1460,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name="copy-outline" size={16} color={colors.text} />
+                  <GoAtletaIcon name="copy" size={16} color={colors.text} />
                 </Pressable>
               </View>
             </View>
@@ -1574,8 +1574,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                         Atual: {roleLabel(selectedMember.roleLevel)}
                       </Text>
                     </View>
-                    <Ionicons
-                      name={expandedSections.role ? "chevron-up" : "chevron-down"}
+                    <GoAtletaIcon
+                      name={expandedSections.role ? "chevronUp" : "chevronDown"}
                       size={16}
                       color={colors.muted}
                     />
@@ -1611,8 +1611,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                         <Text style={{ color: colors.text, fontWeight: "700" }}>
                           {roleLabel(selectedMember.roleLevel)}
                         </Text>
-                        <Ionicons
-                          name={showRoleMenu ? "chevron-up" : "chevron-down"}
+                        <GoAtletaIcon
+                          name={showRoleMenu ? "chevronUp" : "chevronDown"}
                           size={16}
                           color={colors.muted}
                         />
@@ -1708,8 +1708,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                         {classHeadDraftIds.length} selecionada(s)
                       </Text>
                     </View>
-                    <Ionicons
-                      name={expandedSections.classes ? "chevron-up" : "chevron-down"}
+                    <GoAtletaIcon
+                      name={expandedSections.classes ? "chevronUp" : "chevronDown"}
                       size={16}
                       color={colors.muted}
                     />
@@ -1806,7 +1806,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                                       }}
                                     >
                                       {checked ? (
-                                        <Ionicons name="checkmark" size={14} color={colors.primaryText} />
+                                        <GoAtletaIcon name="checkmark" size={14} color={colors.primaryText} />
                                       ) : null}
                                     </View>
                                   </View>
@@ -1878,8 +1878,8 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                         {enabledPermissionsCount}/{MEMBER_PERMISSION_OPTIONS.length} ativas
                       </Text>
                     </View>
-                    <Ionicons
-                      name={expandedSections.permissions ? "chevron-up" : "chevron-down"}
+                    <GoAtletaIcon
+                      name={expandedSections.permissions ? "chevronUp" : "chevronDown"}
                       size={16}
                       color={colors.muted}
                     />

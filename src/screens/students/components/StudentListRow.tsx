@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Text, View } from "react-native";
 
@@ -8,6 +7,7 @@ import { FadeHorizontalScroll } from "../../../ui/FadeHorizontalScroll";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme, type ThemeColors } from "../../../ui/app-theme";
 import { getContactPhone } from "../../../utils/whatsapp";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type StudentListRowProps = {
   student: Student;
@@ -98,7 +98,7 @@ export function StudentListRowContent({
                 paddingVertical: 2,
               }}
             >
-              <Ionicons name="alert-circle" size={12} color={colors.dangerText} />
+              <GoAtletaIcon name="warningCircle" size={12} color={colors.dangerText} />
               <Text style={{ color: colors.dangerText, fontSize: 10, fontWeight: "800" }}>
                 Data suspeita
               </Text>
@@ -126,7 +126,7 @@ export function StudentListRowContent({
                   contentFit="cover"
                 />
               ) : (
-                <Ionicons name="person" size={18} color={colors.text} />
+                <GoAtletaIcon name="personSolid" size={18} color={colors.text} />
               )}
             </Pressable>
             <FadeHorizontalScroll
@@ -204,7 +204,7 @@ export function StudentListRowContent({
           }}
           accessibilityLabel="Gerar convite do aluno"
         >
-          <Ionicons name="link-outline" size={16} color={colors.primaryText} />
+          <GoAtletaIcon name="link" size={16} color={colors.primaryText} />
         </Pressable>
         <Pressable
           onPress={() => onWhatsApp(student)}
@@ -218,7 +218,7 @@ export function StudentListRowContent({
           }}
           accessibilityLabel="Abrir WhatsApp do aluno"
         >
-          <Ionicons name="logo-whatsapp" size={18} color={disabled ? colors.muted : "white"} />
+          <GoAtletaIcon name="whatsapp" size={18} color={disabled ? colors.muted : "white"} />
         </Pressable>
       </View>
     </Pressable>

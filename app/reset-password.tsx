@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -21,6 +20,7 @@ import { Pressable } from "../src/ui/Pressable";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/api/config";
 import { useAppTheme } from "../src/ui/app-theme";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 const parseAccessToken = (url: string | null) => {
   if (!url) return "";
@@ -254,8 +254,8 @@ export default function ResetPasswordScreen() {
                     opacity: password.length > 0 ? 1 : 0,
                   }}
                 >
-                  <Ionicons
-                    name={showPassword ? "eye-off" : "eye"}
+                  <GoAtletaIcon
+                    name={showPassword ? "eyeOffSolid" : "viewSolid"}
                     size={18}
                     color={colors.muted}
                   />
@@ -320,7 +320,7 @@ export default function ResetPasswordScreen() {
                           gap: 6,
                         }}
                       >
-                        <Ionicons
+                        <GoAtletaIcon
                           name={item.ok ? "checkmark" : "close"}
                           size={12}
                           color={item.ok ? colors.successBg : colors.dangerSolidBg}
@@ -380,8 +380,8 @@ export default function ResetPasswordScreen() {
                     opacity: confirm.length > 0 ? 1 : 0,
                   }}
                 >
-                  <Ionicons
-                    name={showConfirm ? "eye-off" : "eye"}
+                  <GoAtletaIcon
+                    name={showConfirm ? "eyeOffSolid" : "viewSolid"}
                     size={18}
                     color={colors.muted}
                   />
@@ -421,7 +421,7 @@ export default function ResetPasswordScreen() {
                   justifyContent: "center",
                 }}
               >
-                <Ionicons name="chevron-back" size={16} color={colors.text} />
+                <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
               </Pressable>
             </View>
           </View>

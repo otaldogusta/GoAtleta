@@ -1,9 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform, Text, View } from "react-native";
 
 import { useAppTheme } from "../../../ui/app-theme";
 import { Pressable } from "../../../ui/Pressable";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { brandPalette, radius, shadow } from "../../../theme/tokens";
 
 type StudentsFabMenuProps = {
@@ -138,7 +138,7 @@ export function StudentsFabMenu({
             gap: 6,
           }}
         >
-          <Ionicons name="sync-outline" size={16} color={colors.text} />
+          <GoAtletaIcon name="sync" size={16} color={colors.text} />
           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
             Sincronizar Forms
           </Text>
@@ -158,7 +158,7 @@ export function StudentsFabMenu({
             gap: 6,
           }}
         >
-          <Ionicons name="cloud-upload-outline" size={16} color={colors.text} />
+          <GoAtletaIcon name="upload" size={16} color={colors.text} />
           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
             Importar planilha
           </Text>
@@ -180,7 +180,7 @@ export function StudentsFabMenu({
             opacity: exportBusy ? 0.65 : 1,
           }}
         >
-          <Ionicons name="cloud-download-outline" size={16} color={colors.text} />
+          <GoAtletaIcon name="download" size={16} color={colors.text} />
           <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
             {exportBusy ? "Exportando..." : "Exportar XLSX"}
           </Text>

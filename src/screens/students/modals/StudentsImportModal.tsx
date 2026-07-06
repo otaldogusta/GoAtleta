@@ -1,4 +1,3 @@
-﻿import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,6 +17,7 @@ import { Button } from "../../../ui/Button";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useConfirmDialog } from "../../../ui/confirm-dialog";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 import {
   assertImportAssetWithinLimits,
@@ -570,7 +570,7 @@ export function StudentsImportModal({
             justifyContent: "center",
           }}
         >
-          <Ionicons name="close" size={20} color={colors.text} />
+          <GoAtletaIcon name="close" size={20} color={colors.text} />
         </Pressable>
       </View>
 

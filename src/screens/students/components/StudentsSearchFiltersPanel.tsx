@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { memo } from "react";
 import { TextInput, View } from "react-native";
 
@@ -6,6 +5,7 @@ import { radius } from "../../../theme/tokens";
 import { Pressable } from "../../../ui/Pressable";
 import { UnitFilterBar } from "../../../ui/UnitFilterBar";
 import { useAppTheme, type ThemeColors } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type StudentsSearchFiltersPanelProps = {
   studentsUnitOptions: string[];
@@ -54,7 +54,7 @@ export function StudentsSearchFiltersPanelContent({
           borderColor: colors.borderSubtle,
         }}
       >
-        <Ionicons name="search" size={16} color={colors.textMuted} />
+        <GoAtletaIcon name="search" size={16} color={colors.textMuted} />
         <TextInput
           placeholder={placeholder}
           value={studentsSearch}
@@ -76,7 +76,7 @@ export function StudentsSearchFiltersPanelContent({
             opacity: studentsSearch ? 1 : 0,
           }}
         >
-          <Ionicons name="close" size={14} color={colors.textMuted} />
+          <GoAtletaIcon name="close" size={14} color={colors.textMuted} />
         </Pressable>
       </View>
     </View>

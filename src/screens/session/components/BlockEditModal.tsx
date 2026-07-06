@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, Text, TextInput, View } from "react-native";
 import type { LessonActivity } from "../../../core/models";
@@ -8,6 +7,7 @@ import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
+import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 import { LessonActivityEditor } from "../../lesson/components/LessonActivityEditor";
 
@@ -198,7 +198,7 @@ export function BlockEditModal({
               marginTop: 2,
             }}
           >
-            <Ionicons name="close" size={18} color={colors.textPrimary} />
+            <GoAtletaIcon name="close" size={18} color={colors.textPrimary} />
           </Pressable>
         </View>
 

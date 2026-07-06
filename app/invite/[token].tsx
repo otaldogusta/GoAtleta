@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -25,6 +24,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { ScreenHeader } from "../../src/ui/ScreenHeader";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 export default function StudentInviteScreen() {
   const { colors } = useAppTheme();
@@ -261,7 +261,7 @@ export default function StudentInviteScreen() {
                     justifyContent: "center",
                   }}
                 >
-                  <Ionicons name="chevron-back" size={16} color={colors.text} />
+                  <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
                 </View>
               </Pressable>
 
@@ -385,8 +385,8 @@ export default function StudentInviteScreen() {
                     opacity: password.length > 0 ? 1 : 0,
                   }}
                 >
-                  <Ionicons
-                    name={showPassword ? "eye-off" : "eye"}
+                  <GoAtletaIcon
+                    name={showPassword ? "eyeOffSolid" : "viewSolid"}
                     size={18}
                     color={colors.muted}
                   />
@@ -431,8 +431,8 @@ export default function StudentInviteScreen() {
                       opacity: confirm.length > 0 ? 1 : 0,
                     }}
                   >
-                    <Ionicons
-                      name={showConfirm ? "eye-off" : "eye"}
+                    <GoAtletaIcon
+                      name={showConfirm ? "eyeOffSolid" : "viewSolid"}
                       size={18}
                       color={colors.muted}
                     />
@@ -499,7 +499,7 @@ export default function StudentInviteScreen() {
                           gap: 6,
                         }}
                       >
-                        <Ionicons
+                        <GoAtletaIcon
                           name={item.ok ? "checkmark" : "close"}
                           size={12}
                           color={item.ok ? colors.successBg : colors.dangerSolidBg}
@@ -573,9 +573,9 @@ export default function StudentInviteScreen() {
                   </View>
                   <View style={{ flexDirection: "row", justifyContent: "center", gap: 12 }}>
                     {[
-                      { id: "google" as const, icon: "logo-google" as const },
-                      { id: "facebook" as const, icon: "logo-facebook" as const },
-                      { id: "apple" as const, icon: "logo-apple" as const },
+                      { id: "google" as const, icon: "google" as const },
+                      { id: "facebook" as const, icon: "facebook" as const },
+                      { id: "apple" as const, icon: "apple" as const },
                     ].map((provider) => (
                       <Pressable
                         key={provider.id}
@@ -591,7 +591,7 @@ export default function StudentInviteScreen() {
                           justifyContent: "center",
                         }}
                       >
-                        <Ionicons name={provider.icon} size={20} color={colors.text} />
+                        <GoAtletaIcon name={provider.icon} size={20} color={colors.text} />
                       </Pressable>
                     ))}
                   </View>
