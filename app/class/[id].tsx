@@ -16,6 +16,9 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
+import { InsightCard } from "../../src/components/ui/InsightCard";
+import { useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
+
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
@@ -565,6 +568,26 @@ export default function ClassDetails() {
       [cls?.name, cls?.unit]
     )
   );
+
+  // Proactive AI contextual insight — silent request after screen loads
+  const classSnapshotForInsight = useMemo(
+    () =>
+      cls
+        ? {
+            name: cls.name,
+            ageBand: cls.ageBand,
+            modality: cls.modality,
+            goal: cls.goal,
+            daysOfWeek: cls.daysOfWeek,
+            mvLevel: cls.mvLevel,
+          }
+        : null,
+    [cls]
+  );
+  const {
+    insight: contextualInsight,
+    dismiss: dismissContextualInsight,
+  } = useContextualInsight(cls?.id, classSnapshotForInsight);
   const parseIsoDate = (value?: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -1795,6 +1818,20 @@ export default function ClassDetails() {
           }
           contentStyle={{ paddingTop: 16, paddingBottom: 8 }}
         />
+
+        {/* Proactive AI Insight Card — appears silently after screen loads */}
+        {contextualInsight && (
+          <InsightCard
+            insight={contextualInsight}
+            onDismiss={dismissContextualInsight}
+            onOpenAssistant={() =>
+              router.push({
+                pathname: "/assistant",
+                params: { classId: id, prefilledInsight: contextualInsight.insight },
+              })
+            }
+          />
+        )}
 
       <ScrollView
         ref={editScrollRef}

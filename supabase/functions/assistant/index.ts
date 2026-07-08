@@ -75,6 +75,12 @@ type AssistantMemoryEntryRow = {
   created_at: string;
 };
 
+type ProactiveInsightResponse = {
+  insight: string | null;
+  confidence: number;
+  based_on: string[];
+};
+
 type AssistantResponse = {
   reply: string;
   sources: AssistantSource[];
@@ -877,6 +883,27 @@ const systemPrompt = [
   "Avalie o histórico de aceitação e feedbacks do treinador em FACTS_MEMORY. Se o histórico indicar rejeições ou alterações frequentes de certas dinâmicas, adapte as próximas decisões pedagógicas para respeitar as preferências do treinador.",
 ].join(" ");
 
+const proactiveSystemPrompt = [
+  "Você é um copiloto pedagógico para treinadores esportivos.",
+  "Com base nos dados da turma e na memória do treinador fornecidos, gere UM único insight proativo e cirúrgico.",
+  "Regras: seja direto e específico. Use no máximo 2 frases. Não invente dados.",
+  "Se não houver nada relevante ou a confiança for baixa, retorne insight como null.",
+  "O campo based_on deve listar os dados reais usados: fato de memória, restrição científica ou dado da turma.",
+  "Use português simples e objetivo.",
+  "Retorne apenas JSON válido, sem texto extra.",
+].join(" ");
+
+const proactiveResponseSchema = {
+  type: "object",
+  properties: {
+    insight: { anyOf: [{ type: "string" }, { type: "null" }] },
+    confidence: { type: "number", minimum: 0, maximum: 1 },
+    based_on: { type: "array", items: { type: "string" } },
+  },
+  required: ["insight", "confidence", "based_on"],
+  additionalProperties: false,
+};
+
 const responseSchema = {
   type: "object",
   properties: {
@@ -1017,6 +1044,113 @@ Deno.serve(createEdgeFunction({
     if (!apiKey) {
       console.error("assistant: missing OPENAI_API_KEY");
       return createError(500, "SERVER_ERROR", "Missing OpenAI credentials config");
+    }
+
+    // 0. Detect proactive mode — short-circuit to a lightweight insight-only path
+    const isProactiveMode = body.mode === "proactive";
+    if (isProactiveMode) {
+      const aiContext = await resolveAIContext(supabase, currentUser, body);
+      const organizationId = aiContext.user.organizationId;
+      const classId = typeof body.classId === "string" ? body.classId : "";
+      const sportHint = typeof body.sport === "string" && body.sport.trim().length > 0 ? body.sport.trim() : "volleyball";
+
+      const aiFacts = await resolveAIMemory(supabase, aiContext);
+      const aiFactsPrompt = buildSystemAIMemoryPrompt(aiFacts);
+      const aiWarnings = await resolveAIGovernance(supabase, aiContext, body);
+      const aiConstraintsPrompt = buildSystemAIGovernancePrompt(aiWarnings);
+
+      const classSnapshot = body.classSnapshot && typeof body.classSnapshot === "object"
+        ? body.classSnapshot as Record<string, unknown>
+        : {};
+      const classSnapshotText = [
+        classSnapshot.name ? `Turma: ${classSnapshot.name}` : "",
+        classSnapshot.ageBand ? `Faixa etária: ${classSnapshot.ageBand}` : "",
+        classSnapshot.modality ? `Modalidade: ${classSnapshot.modality}` : "",
+        classSnapshot.goal ? `Objetivo: ${classSnapshot.goal}` : "",
+        classSnapshot.daysOfWeek ? `Dias: ${classSnapshot.daysOfWeek}` : "",
+        classSnapshot.mvLevel ? `Nível: ${classSnapshot.mvLevel}` : "",
+      ].filter(Boolean).join(". ");
+
+      const proactiveUserMessage = classSnapshotText
+        ? `Contexto da turma: ${classSnapshotText}. Gere um insight proativo relevante para agora.`
+        : "Gere um insight proativo para o treinador com base na memória disponível.";
+
+      const proactivePayload = {
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: proactiveSystemPrompt },
+          { role: "system", content: aiFactsPrompt },
+          { role: "system", content: aiConstraintsPrompt },
+          { role: "user", content: proactiveUserMessage },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "proactive_insight_response",
+            schema: proactiveResponseSchema,
+            strict: true,
+          },
+        },
+        temperature: 0.3,
+        max_tokens: 300,
+      };
+
+      const proactiveResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(proactivePayload),
+      });
+
+      if (!proactiveResponse.ok) {
+        return createSuccess({ insight: null, confidence: 0, based_on: [] } as ProactiveInsightResponse);
+      }
+
+      const proactiveData = await proactiveResponse.json();
+      const tokensIn = proactiveData.usage?.prompt_tokens ?? 0;
+      const tokensOut = proactiveData.usage?.completion_tokens ?? 0;
+      const latency = Date.now() - requestStartedAt;
+      const costEstimate = (tokensIn * 0.15 + tokensOut * 0.6) / 1_000_000;
+      metrics.trackAiUsage("openai", "gpt-4o-mini", tokensIn, tokensOut, latency, costEstimate);
+
+      const proactiveContent = proactiveData.choices?.[0]?.message?.content ?? "";
+      let proactiveParsed: ProactiveInsightResponse;
+      try {
+        proactiveParsed = JSON.parse(proactiveContent) as ProactiveInsightResponse;
+      } catch {
+        return createSuccess({ insight: null, confidence: 0, based_on: [] } as ProactiveInsightResponse);
+      }
+
+      // Enforce confidence threshold: suppress low-confidence insights at API level
+      if (!proactiveParsed.insight || proactiveParsed.confidence < 0.60) {
+        return createSuccess({ insight: null, confidence: proactiveParsed.confidence ?? 0, based_on: proactiveParsed.based_on ?? [] } as ProactiveInsightResponse);
+      }
+
+      // Save trace for proactive insight
+      await supabase.from("ai_decision_traces").insert([{
+        request_id: requestId,
+        organization_id: organizationId,
+        user_id: currentUser.id,
+        class_id: classId || null,
+        decision: proactiveParsed.insight,
+        reason: `Proactive insight (confidence ${proactiveParsed.confidence.toFixed(2)})`,
+        confidence: proactiveParsed.confidence,
+        based_on: proactiveParsed.based_on,
+        sources: [],
+      }]);
+
+      console.log(JSON.stringify({
+        event: "assistant_proactive_insight",
+        mode: "proactive",
+        hasOrganizationId: Boolean(organizationId),
+        classId: classId || null,
+        confidence: proactiveParsed.confidence,
+        latency_ms: latency,
+      }));
+
+      return createSuccess(proactiveParsed);
     }
 
     // 1. Resolve AIContext on the backend (Identity + Navigation)

@@ -27,6 +27,7 @@ export const GOATLETA_ICON_NAMES = {
   management: "settings-outline",
   communications: "megaphone-outline",
   assistant: "sparkles-outline",
+  sparkles: "sparkles",
   profile: "person-outline",
   personSolid: "person",
   profileCircle: "person-circle-outline",
