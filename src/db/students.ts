@@ -25,6 +25,7 @@ import { normalizeCpfDigits, validateCpf } from "../utils/cpf";
 import { normalizeRg } from "../utils/document-normalization";
 import { safeJsonParse } from "../utils/safe-json";
 import { deriveRaStartYear, normalizeRaDigits } from "../utils/student-ra";
+import { addNotification } from "../notificationsInbox";
 import { getClassById, getClasses } from "./classes";
 import {
     CACHE_KEYS,
@@ -1720,6 +1721,19 @@ export async function createAbsenceNotice(notice: AbsenceNoticeInput, options?: 
       status: notice.status ?? "pending",
     },
   ]);
+  await addNotification("Aviso de ausência", "Um aviso de ausência foi registrado.", {
+    type: "absence_notice_created",
+    organizationId,
+    actionUrl: "/prof/absence-notices",
+    sourceType: "absence_notice",
+    sourceId: `${notice.studentId}:${notice.classId}:${notice.date}`,
+    metadata: {
+      studentId: notice.studentId,
+      classId: notice.classId,
+      date: notice.date,
+      status: notice.status ?? "pending",
+    },
+  });
 }
 
 export async function updateAbsenceNoticeStatus(
@@ -1736,6 +1750,20 @@ export async function updateAbsenceNoticeStatus(
       : "/absence_notices?id=eq." + encodeURIComponent(id),
     {
       status,
+    }
+  );
+  await addNotification(
+    "Aviso de ausência atualizado",
+    status === "confirmed"
+      ? "Um aviso de ausência foi confirmado."
+      : "Um aviso de ausência foi ignorado.",
+    {
+      type: "absence_notice_status_changed",
+      organizationId,
+      actionUrl: "/prof/absence-notices",
+      sourceType: "absence_notice",
+      sourceId: id,
+      metadata: { status },
     }
   );
 }

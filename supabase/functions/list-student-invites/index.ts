@@ -1,79 +1,37 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createEdgeFunction, createSuccess, createError } from "../_shared/framework.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+Deno.serve(createEdgeFunction({
+  name: "list-student-invites",
+  requireAuth: true,
+  parseJson: false,
+  handler: async ({ supabase, user }) => {
+    const userId = user!.id;
+    const nowIso = new Date().toISOString();
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+    const { data, error } = await supabase
+      .from("student_invites")
+      .select("id, student_id, created_at, expires_at, invited_via, invited_to, revoked, students(name)")
+      .eq("created_by", userId)
+      .eq("revoked", false)
+      .is("used_at", null)
+      .gte("expires_at", nowIso)
+      .order("created_at", { ascending: false })
+      .limit(100);
 
-const createError = (status: number, code: string, error: string) =>
-  new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
+    if (error) {
+      return createError(500, "SERVER_ERROR", "Failed to list invites");
+    }
 
-const getBearerToken = (req: Request) => {
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.slice("Bearer ".length).trim();
-  return token || null;
-};
+    const invites = (data ?? []).map((row) => ({
+      id: row.id,
+      student_id: row.student_id,
+      student_name: (row.students as { name?: string } | null)?.name ?? row.student_id,
+      created_at: row.created_at,
+      expires_at: row.expires_at,
+      invited_via: row.invited_via,
+      invited_to: row.invited_to,
+    }));
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return createSuccess({ invites });
   }
-  if (req.method !== "POST") {
-    return createError(405, "INVALID_REQUEST", "Method not allowed");
-  }
-
-  const token = getBearerToken(req);
-  if (!token) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized");
-  }
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !serviceRoleKey) {
-    return createError(500, "SERVER_ERROR", "Missing Supabase service role config");
-  }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false },
-  });
-
-  const { data: authData, error: authError } = await supabase.auth.getUser(token);
-  const userId = authData?.user?.id ?? "";
-  if (authError || !userId) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized");
-  }
-
-  const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("student_invites")
-    .select("id, student_id, created_at, expires_at, invited_via, invited_to, revoked, students(name)")
-    .eq("created_by", userId)
-    .eq("revoked", false)
-    .is("used_at", null)
-    .gte("expires_at", nowIso)
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (error) {
-    return createError(500, "SERVER_ERROR", "Failed to list invites");
-  }
-
-  const invites = (data ?? []).map((row) => ({
-    id: row.id,
-    student_id: row.student_id,
-    student_name: (row.students as { name?: string } | null)?.name ?? row.student_id,
-    created_at: row.created_at,
-    expires_at: row.expires_at,
-    invited_via: row.invited_via,
-    invited_to: row.invited_to,
-  }));
-
-  return new Response(JSON.stringify({ invites }), { headers: jsonHeaders });
-});
+}));

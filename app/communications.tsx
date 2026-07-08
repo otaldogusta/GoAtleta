@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
@@ -9,6 +9,7 @@ import {
     clearNotifications,
     getNotifications,
     markAllRead,
+    markNotificationRead,
 } from "../src/notificationsInbox";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
@@ -38,6 +39,9 @@ export default function CommunicationsScreen() {
       const data = await getNotifications();
       if (alive) setItems(data);
       await markAllRead();
+      if (alive) {
+        setItems(data.map((item) => ({ ...item, read: true, readAt: item.readAt ?? new Date().toISOString() })));
+      }
     })();
     return () => {
       alive = false;
@@ -107,14 +111,22 @@ export default function CommunicationsScreen() {
           </View>
         ) : (
           items.map((item) => (
-            <View
+            <Pressable
               key={item.id}
+              onPress={() => {
+                void (async () => {
+                  await markNotificationRead(item.id);
+                  if (item.actionUrl) {
+                    router.push(item.actionUrl as never);
+                  }
+                })();
+              }}
               style={{
                 padding: 12,
                 borderRadius: 14,
                 backgroundColor: colors.card,
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor: item.read ? colors.border : colors.primaryBg,
                 gap: 6,
               }}
             >
@@ -125,7 +137,7 @@ export default function CommunicationsScreen() {
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {formatTime(item.createdAt)}
               </Text>
-            </View>
+            </Pressable>
           ))
         )}
       </ScrollView>

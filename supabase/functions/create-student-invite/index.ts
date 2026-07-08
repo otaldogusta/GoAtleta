@@ -40,7 +40,7 @@ const normalizeChannel = (value: string) => {
 // the JWT cryptographically before the function runs. We can safely decode the
 // payload locally without making a second network round-trip to Supabase Auth,
 // which avoids 401s caused by server-side session invalidation.
-const requireUser = (req: Request): { id: string; email?: string } | null => {
+const requireUser = (req: Request): { id: string; email?: string; token: string } | null => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.slice("Bearer ".length).trim();
@@ -55,7 +55,7 @@ const requireUser = (req: Request): { id: string; email?: string } | null => {
     const exp = payload["exp"];
     if (typeof sub !== "string" || !sub) return null;
     if (typeof exp === "number" && exp < Date.now() / 1000) return null;
-    return { id: sub, email: typeof payload["email"] === "string" ? payload["email"] : undefined };
+    return { id: sub, email: typeof payload["email"] === "string" ? payload["email"] : undefined, token };
   } catch {
     return null;
   }
@@ -95,13 +95,18 @@ Deno.serve(async (req) => {
   const studentId = studentIdValidation.data;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !serviceRoleKey) {
-    return createError(500, "SERVER_ERROR", "Missing Supabase service role config");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (!supabaseUrl || !anonKey) {
+    return createError(500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false },
+    global: {
+      headers: {
+        Authorization: `Bearer ${user.token}`,
+      },
+    },
   });
 
   const { data: student, error: studentError } = await supabase
@@ -119,6 +124,8 @@ Deno.serve(async (req) => {
     return createError(404, "STUDENT_NOT_FOUND", "Student not found");
   }
 
+  // Explicit owner check is no longer strictly necessary as RLS will enforce it,
+  // but it's good practice to keep the application-level validation.
   if (student.owner_id && student.owner_id !== user.id) {
     return createError(403, "FORBIDDEN", "Forbidden");
   }

@@ -12,7 +12,7 @@ export type BootstrapResult = {
 };
 
 export async function bootstrapApp(): Promise<BootstrapResult> {
-  const timeoutMs = 12000;
+  const timeoutMs = 30000;
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   const timeout = new Promise<never>((_, reject) => {
     timeoutHandle = setTimeout(() => reject(new Error("Bootstrap timeout")), timeoutMs);
@@ -26,6 +26,13 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
       const sessionMs = Date.now() - sessionStart;
       if (__DEV__) {
         console.log(`[bootstrap] loadSession: ${sessionMs}ms`);
+        try {
+          // expose minimal bootstrap progress for web dev debugging
+          // Avoid logging sensitive session contents.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (globalThis as any).__BOOTSTRAP_LOGS = (globalThis as any).__BOOTSTRAP_LOGS || [];
+          (globalThis as any).__BOOTSTRAP_LOGS.push(`loadSession:${sessionMs}ms`);
+        } catch {}
       }
       Sentry.addBreadcrumb({
         category: "bootstrap",
@@ -38,6 +45,11 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
       const dbMs = Date.now() - dbStart;
       if (__DEV__) {
         console.log(`[bootstrap] initDb: ${dbMs}ms`);
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (globalThis as any).__BOOTSTRAP_LOGS = (globalThis as any).__BOOTSTRAP_LOGS || [];
+          (globalThis as any).__BOOTSTRAP_LOGS.push(`initDb:${dbMs}ms`);
+        } catch {}
       }
       Sentry.addBreadcrumb({
         category: "bootstrap",
@@ -52,6 +64,11 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
         console.log(
           `[bootstrap] loadPedagogicalConfig: ${configMs}ms${configError ? " (with fallback)" : ""}`
         );
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (globalThis as any).__BOOTSTRAP_LOGS = (globalThis as any).__BOOTSTRAP_LOGS || [];
+          (globalThis as any).__BOOTSTRAP_LOGS.push(`loadPedagogicalConfig:${configMs}ms${configError?':fallback':''}`);
+        } catch {}
       }
       if (configError) {
         Sentry.addBreadcrumb({
@@ -84,6 +101,11 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
   const totalMs = Date.now() - started;
   if (__DEV__) {
     console.log(`[bootstrap] total: ${totalMs}ms`);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).__BOOTSTRAP_LOGS = (globalThis as any).__BOOTSTRAP_LOGS || [];
+      (globalThis as any).__BOOTSTRAP_LOGS.push(`total:${totalMs}ms`);
+    } catch {}
   }
   Sentry.addBreadcrumb({
     category: "bootstrap",

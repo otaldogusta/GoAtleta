@@ -178,7 +178,37 @@ const createServiceClient = () => {
   return createClient(url, key, { auth: { persistSession: false } });
 };
 
+const isAllowedUrl = (urlStr: string) => {
+  try {
+    const url = new URL(urlStr);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+    const hostname = url.hostname.toLowerCase();
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "0.0.0.0") return false;
+    if (hostname === "169.254.169.254" || hostname === "169.254.169.253") return false;
+    if (hostname.endsWith(".local") || hostname.endsWith(".internal")) return false;
+    
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const match = hostname.match(ipv4Regex);
+    if (match) {
+      const p1 = parseInt(match[1], 10);
+      const p2 = parseInt(match[2], 10);
+      if (p1 === 10) return false;
+      if (p1 === 172 && p2 >= 16 && p2 <= 31) return false;
+      if (p1 === 192 && p2 === 168) return false;
+      if (p1 === 127) return false;
+      if (p1 === 169 && p2 === 254) return false;
+      if (p1 === 0) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const fetchDocument = async (sourceUrl: string): Promise<FetchDocumentResult> => {
+  if (!isAllowedUrl(sourceUrl)) {
+    throw new Error(`SSRF Prevention: URL not allowed (${sourceUrl})`);
+  }
   let headEtag: string | null = null;
   let headLastModified: string | null = null;
   let headContentType: string | null = null;

@@ -72,6 +72,7 @@ import {
     getNotifications,
 
     markAllRead,
+    markNotificationRead,
 
     subscribeNotifications,
 } from "../../notificationsInbox";
@@ -2687,9 +2688,17 @@ export function HomeProfessorScreen({
                     return (
                       <View>
                         <Pressable
-                          onPress={() =>
-                            setExpandedId((prev) => (prev === item.id ? null : item.id))
-                          }
+                          onPress={() => {
+                            if (item.actionUrl) {
+                              void (async () => {
+                                await markNotificationRead(item.id);
+                                closeInbox();
+                                router.push(item.actionUrl as never);
+                              })();
+                              return;
+                            }
+                            setExpandedId((prev) => (prev === item.id ? null : item.id));
+                          }}
                           onLongPress={async () => {
                             await Clipboard.setStringAsync(item.body);
                           }}

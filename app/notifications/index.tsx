@@ -1,13 +1,20 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../src/auth/auth";
 import { useRole } from "../../src/auth/role";
 import { resolveEffectiveProfile } from "../../src/core/effective-profile";
 import { type DevProfilePreview } from "../../src/dev/profile-preview";
+import {
+  AppNotification,
+  clearNotifications,
+  getNotifications,
+  markAllRead,
+  markNotificationRead,
+} from "../../src/notificationsInbox";
 import { getNotificationsModule, isExpoGo } from "../../src/push/notificationRuntime";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { Pressable } from "../../src/ui/Pressable";
@@ -34,6 +41,7 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<string>("");
+  const [items, setItems] = useState<AppNotification[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -42,6 +50,23 @@ export default function NotificationsScreen() {
       if (!raw || !alive) return;
       const data = JSON.parse(raw) as { enabled: boolean };
       setEnabled(Boolean(data.enabled));
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const nextItems = await getNotifications();
+      if (!alive) return;
+      setItems(nextItems);
+      await markAllRead();
+      if (alive) {
+        const readAt = new Date().toISOString();
+        setItems(nextItems.map((item) => ({ ...item, read: true, readAt: item.readAt ?? readAt })));
+      }
     })();
     return () => {
       alive = false;
@@ -110,12 +135,88 @@ export default function NotificationsScreen() {
     <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>{children}</Text>
   );
 
+  const formatTime = (value: string) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <Typography variant="title">Configurações</Typography>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 24 }}
+        >
+          <Typography variant="title">Notificações</Typography>
 
-        <View style={{ marginTop: 12, gap: 12 }}>
+          <View style={{ marginTop: 12, gap: 12 }}>
+          <View style={{ gap: 8 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+              <SectionTitle>Notificações</SectionTitle>
+              {items.length ? (
+                <Pressable
+                  onPress={() => {
+                    void (async () => {
+                      await clearNotifications();
+                      setItems([]);
+                    })();
+                  }}
+                >
+                  <Text style={{ color: colors.muted, fontWeight: "700" }}>Limpar</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {items.length === 0 ? (
+              <View
+                style={{
+                  padding: 14,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "700" }}>Sem notificações</Text>
+                <Text style={{ color: colors.muted, marginTop: 4 }}>
+                  Treinos, avisos e atualizações vão aparecer aqui.
+                </Text>
+              </View>
+            ) : (
+              items.slice(0, 12).map((item) => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    void (async () => {
+                      await markNotificationRead(item.id);
+                      if (item.actionUrl) router.push(item.actionUrl as never);
+                    })();
+                  }}
+                  style={{
+                    padding: 12,
+                    borderRadius: 14,
+                    backgroundColor: colors.card,
+                    borderWidth: 1,
+                    borderColor: item.read ? colors.border : colors.primaryBg,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{item.title}</Text>
+                  <Text style={{ color: colors.text }}>{item.body}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {formatTime(item.createdAt)}
+                  </Text>
+                </Pressable>
+              ))
+            )}
+          </View>
+
           <View style={{ gap: 8 }}>
             <SectionTitle>Configurações</SectionTitle>
             <SettingsRow
@@ -247,7 +348,8 @@ export default function NotificationsScreen() {
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>Salvar alterações</Text>
           </Pressable>
-        </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

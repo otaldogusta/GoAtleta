@@ -32,6 +32,17 @@ export function BootstrapGate({ children }: { children: React.ReactNode }) {
             color={colors.text}
           />
           <Text style={{ color: colors.text, fontWeight: "600" }}>{ptBR.loading.generic}</Text>
+          {__DEV__ ? (
+            <View style={{ marginTop: 12, maxWidth: 520 }}>
+              <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 6 }}>
+                Debug: bootstrap progress
+              </Text>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {(globalThis as any).__BOOTSTRAP_LOGS ? (globalThis as any).__BOOTSTRAP_LOGS.slice(-5).join(' \n') : ''}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     );

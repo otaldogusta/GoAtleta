@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+    normalizePublicUrl,
+    resolveAndCheckPublicUrl,
+} from "../_shared/url-validation.ts";
+import { securityLogger } from "../_shared/security-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,54 +57,46 @@ const checkRateLimit = (
   };
 };
 
-const isPrivateIpv4 = (host: string) => {
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
-  const parts = host.split(".").map((part) => Number(part));
-  if (parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
-    return true;
-  }
-  const [first, second] = parts;
-  if (first === 10 || first === 127 || first === 0) return true;
-  if (first === 169 && second === 254) return true;
-  if (first === 192 && second === 168) return true;
-  if (first === 172 && second >= 16 && second <= 31) return true;
-  if (first === 100 && second >= 64 && second <= 127) return true;
-  return false;
-};
+const fetchWithRedirectValidation = async (
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> => {
+  let currentUrl = url;
+  const maxRedirects = 5;
 
-const isPrivateIpv6 = (host: string) => {
-  const normalized = host.toLowerCase();
-  if (!normalized.includes(":")) return false;
-  if (normalized === "::1" || normalized === "::") return true;
-  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
-  if (normalized.startsWith("fe80")) return true;
-  return false;
-};
+  for (let redirectCount = 0; redirectCount < maxRedirects; redirectCount += 1) {
+    const response = await fetch(currentUrl, { ...options, redirect: "manual" });
+    if (![301, 302, 303, 307, 308].includes(response.status)) {
+      return response;
+    }
 
-const isPrivateHost = (host: string) => {
-  const normalized = host.toLowerCase();
-  if (
-    normalized === "localhost" ||
-    normalized.endsWith(".localhost") ||
-    normalized.endsWith(".local") ||
-    normalized.endsWith(".internal")
-  ) {
-    return true;
-  }
-  if (isPrivateIpv4(normalized) || isPrivateIpv6(normalized)) return true;
-  return false;
-};
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error("redirect target missing");
+    }
 
-const normalizePublicUrl = (value: string) => {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    if (url.username || url.password) return "";
-    if (!url.hostname || isPrivateHost(url.hostname)) return "";
-    return url.toString();
-  } catch {
-    return "";
+    const nextUrl = new URL(location, currentUrl).toString();
+    const normalizedNext = normalizePublicUrl(nextUrl);
+    if (!normalizedNext) {
+      securityLogger.warn("redirect_blocked", {
+        reason: "invalid_redirect_target",
+        hostname: (() => { try { return new URL(nextUrl).hostname; } catch { return "(unparseable)"; } })(),
+      });
+      throw new Error("redirect target invalid");
+    }
+    const checkedNext = await resolveAndCheckPublicUrl(normalizedNext);
+    if (!checkedNext) {
+      securityLogger.warn("redirect_blocked", {
+        reason: "redirect_resolves_to_private_ip",
+        hostname: new URL(normalizedNext).hostname,
+      });
+      throw new Error("redirect target resolves to private IP");
+    }
+
+    currentUrl = checkedNext;
   }
+
+  throw new Error("too many redirects");
 };
 
 const createSupabaseClient = () => {
@@ -484,6 +481,11 @@ Deno.serve(async (req) => {
       60_000
     );
     if (!limiter.allowed) {
+      securityLogger.warn("rate_limit_exceeded", {
+        userId: user.id.slice(0, 8),
+        maxRequestsPerMinute,
+        retryAfterSec: limiter.retryAfterSec,
+      });
       return new Response(
         JSON.stringify({
           error: "Rate limit exceeded",
@@ -496,8 +498,27 @@ Deno.serve(async (req) => {
     const { url } = await req.json();
     const normalized = normalizePublicUrl(String(url ?? ""));
     if (!normalized) {
+      securityLogger.warn("ssrf_blocked", {
+        reason: "invalid_url",
+        hostname: (() => { try { return new URL(String(url ?? "")).hostname; } catch { return "(unparseable)"; } })(),
+        userId: user.id.slice(0, 8),
+      });
       return new Response(
         JSON.stringify({ error: "URL inválida." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Resolve DNS and ensure the hostname does not resolve to private IPs.
+    const resolved = await resolveAndCheckPublicUrl(normalized);
+    if (!resolved) {
+      securityLogger.warn("ssrf_blocked", {
+        reason: "private_ip_via_dns",
+        hostname: new URL(normalized).hostname,
+        userId: user.id.slice(0, 8),
+      });
+      return new Response(
+        JSON.stringify({ error: "URL inválida ou domínio resolve para IP privado." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -529,7 +550,7 @@ Deno.serve(async (req) => {
     }
 
     if (!title || !author || !image || !description || !publishedAt) {
-      const response = await fetch(normalized, {
+      const response = await fetchWithRedirectValidation(resolved, {
         headers: {
           "User-Agent": "Mozilla/5.0",
         },

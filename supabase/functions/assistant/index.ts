@@ -1,7 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  resolveRegulationAssistantResponse,
+    normalizePublicUrl,
+    resolveAndCheckPublicUrl,
+} from "../_shared/url-validation.ts";
+import { securityLogger } from "../_shared/security-logger.ts";
+import {
+    resolveRegulationAssistantResponse,
 } from "./regulation-resolver.ts";
+import { createEdgeFunction, createSuccess, createError } from "../_shared/framework.ts";
+import { resolveAIContext, buildSystemAIContextPrompt } from "../_shared/ai-context.ts";
+import { resolveAIMemory, buildSystemAIMemoryPrompt } from "../_shared/ai-memory.ts";
+import { resolveAIGovernance, buildSystemAIGovernancePrompt } from "../_shared/ai-governance.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,6 +34,19 @@ type KbDocument = {
   sport: string;
   level: string;
   createdAt: string;
+  scientific_concepts?: {
+    name: string;
+    area: string;
+    description: string;
+    principles: string[];
+  } | null;
+  scientific_sources?: {
+    author: string;
+    title: string;
+    year: number;
+    doi_url: string | null;
+    quality_level: string;
+  } | null;
 };
 
 type ChatMessage = {
@@ -64,6 +86,16 @@ type AssistantResponse = {
   }[];
   assumptions: string[];
   missingData: string[];
+  pedagogicalDecisions?: {
+    decision: string;
+    reason: string;
+    confidence: "high" | "medium" | "low";
+    based_on: string[];
+    sources: {
+      author: string;
+      concept: string;
+    }[];
+  }[];
   _debug?: {
     orgId: string;
     sport: string;
@@ -235,56 +267,6 @@ const normalizeMemoryContext = (value: unknown): string[] =>
         .filter(Boolean)
         .slice(0, ASSISTANT_MAX_MEMORY_CONTEXT_ITEMS)
     : [];
-
-const isPrivateIpv4 = (host: string) => {
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
-  const parts = host.split(".").map((part) => Number(part));
-  if (parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
-    return true;
-  }
-  const [first, second] = parts;
-  if (first === 10 || first === 127 || first === 0) return true;
-  if (first === 169 && second === 254) return true;
-  if (first === 192 && second === 168) return true;
-  if (first === 172 && second >= 16 && second <= 31) return true;
-  if (first === 100 && second >= 64 && second <= 127) return true;
-  return false;
-};
-
-const isPrivateIpv6 = (host: string) => {
-  const normalized = host.toLowerCase();
-  if (!normalized.includes(":")) return false;
-  if (normalized === "::1" || normalized === "::") return true;
-  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
-  if (normalized.startsWith("fe80")) return true;
-  return false;
-};
-
-const isPrivateHost = (host: string) => {
-  const normalized = host.toLowerCase();
-  if (
-    normalized === "localhost" ||
-    normalized.endsWith(".localhost") ||
-    normalized.endsWith(".local") ||
-    normalized.endsWith(".internal")
-  ) {
-    return true;
-  }
-  if (isPrivateIpv4(normalized) || isPrivateIpv6(normalized)) return true;
-  return false;
-};
-
-const normalizePublicUrl = (value: string) => {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    if (url.username || url.password) return "";
-    if (!url.hostname || isPrivateHost(url.hostname)) return "";
-    return url.toString();
-  } catch {
-    return "";
-  }
-};
 
 const createSupabaseClient = () => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -465,14 +447,19 @@ const buildRagContext = (documents: KbDocument[]) => {
   if (!documents.length) return "RAG_CONTEXT: sem documentos relevantes recuperados.";
   const entries = documents.map((document, index) => {
     const excerpt = document.chunk.length > 700 ? `${document.chunk.slice(0, 700)}...` : document.chunk;
+    const conceptLine = document.scientific_concepts ? `concept: ${document.scientific_concepts.name} (${document.scientific_concepts.area})` : "";
+    const sourceLine = document.scientific_sources ? `scientific_source: ${document.scientific_sources.author} (${document.scientific_sources.year}) [Evidence Level: ${document.scientific_sources.quality_level}]` : "";
+    
     return [
       `Doc ${index + 1}`,
       `docId: ${document.id}`,
       `title: ${document.title || "Sem título"}`,
       `source: ${document.source || "Sem fonte"}`,
+      conceptLine,
+      sourceLine,
       `tags: ${(document.tags ?? []).join(", ")}`,
       `chunk: ${excerpt}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   });
   return [
     "RAG_CONTEXT: use apenas estes documentos para evidência e citação.",
@@ -494,14 +481,19 @@ const buildScientificEvidenceContext = (documents: KbDocument[]) => {
       document.chunk.length > 420
         ? `${document.chunk.slice(0, 420)}...`
         : document.chunk;
+    const conceptLine = document.scientific_concepts ? `concept: ${document.scientific_concepts.name} (${document.scientific_concepts.area})` : "";
+    const sourceLine = document.scientific_sources ? `scientific_source: ${document.scientific_sources.author} (${document.scientific_sources.year}) [Evidence Level: ${document.scientific_sources.quality_level}]` : "";
+
     return [
       `Evidence ${index + 1}`,
       `docId: ${document.id}`,
       `title: ${document.title || "Sem título"}`,
       `source: ${document.source || "Sem fonte"}`,
+      conceptLine,
+      sourceLine,
       `createdAt: ${document.createdAt || ""}`,
       `chunk: ${excerpt}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   });
 
   return [
@@ -525,7 +517,15 @@ const getKnowledgeDocuments = async (params: {
 
   let query = supabase
     .from("kb_documents")
-    .select("id,organization_id,title,source,chunk,tags,sport,level,created_at")
+    .select(`
+      id, organization_id, title, source, chunk, tags, sport, level, created_at,
+      scientific_concepts (
+        name, area, description, principles
+      ),
+      scientific_sources (
+        author, title, year, doi_url, quality_level
+      )
+    `)
     .eq("organization_id", params.organizationId)
     .order("created_at", { ascending: false })
     .limit(80);
@@ -537,7 +537,7 @@ const getKnowledgeDocuments = async (params: {
   const { data, error } = await query;
   if (error || !Array.isArray(data)) return [];
 
-  const mapped: KbDocument[] = data.map((row) => ({
+  const mapped: KbDocument[] = data.map((row: any) => ({
     id: String(row.id ?? ""),
     organizationId: String(row.organization_id ?? ""),
     title: String(row.title ?? ""),
@@ -547,6 +547,19 @@ const getKnowledgeDocuments = async (params: {
     sport: String(row.sport ?? ""),
     level: String(row.level ?? ""),
     createdAt: String(row.created_at ?? ""),
+    scientific_concepts: row.scientific_concepts ? {
+      name: String(row.scientific_concepts.name || ""),
+      area: String(row.scientific_concepts.area || ""),
+      description: String(row.scientific_concepts.description || ""),
+      principles: Array.isArray(row.scientific_concepts.principles) ? row.scientific_concepts.principles.map((p: any) => String(p)) : []
+    } : null,
+    scientific_sources: row.scientific_sources ? {
+      author: String(row.scientific_sources.author || ""),
+      title: String(row.scientific_sources.title || ""),
+      year: Number(row.scientific_sources.year || 0),
+      doi_url: row.scientific_sources.doi_url ? String(row.scientific_sources.doi_url) : null,
+      quality_level: String(row.scientific_sources.quality_level || "")
+    } : null
   }));
 
   const byRecency = [...mapped].sort((a, b) => {
@@ -860,6 +873,8 @@ const systemPrompt = [
   "In citations, identify documents by docId in sourceTitle.",
   "If confidence is below 0.55, be explicit that recommendation is limited.",
   "Use simple Portuguese in the reply.",
+  "All training alterations or pedagogical suggestions MUST be detailed in the pedagogicalDecisions field of the response.",
+  "Avalie o histórico de aceitação e feedbacks do treinador em FACTS_MEMORY. Se o histórico indicar rejeições ou alterações frequentes de certas dinâmicas, adapte as próximas decisões pedagógicas para respeitar as preferências do treinador.",
 ].join(" ");
 
 const responseSchema = {
@@ -933,6 +948,35 @@ const responseSchema = {
       type: "array",
       items: { type: "string" },
     },
+    pedagogicalDecisions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          decision: { type: "string" },
+          reason: { type: "string" },
+          confidence: { type: "string", enum: ["high", "medium", "low"] },
+          based_on: {
+            type: "array",
+            items: { type: "string" }
+          },
+          sources: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                author: { type: "string" },
+                concept: { type: "string" }
+              },
+              required: ["author", "concept"],
+              additionalProperties: false
+            }
+          }
+        },
+        required: ["decision", "reason", "confidence", "based_on", "sources"],
+        additionalProperties: false
+      }
+    }
   },
   required: [
     "reply",
@@ -946,130 +990,102 @@ const responseSchema = {
   additionalProperties: false,
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
-  try {
+Deno.serve(createEdgeFunction({
+  name: "assistant",
+  requireAuth: true,
+  parseJson: true,
+  handler: async ({ supabase, user, token, body, metrics, requestId }) => {
     const requestStartedAt = Date.now();
-    console.log("assistant: request received");
-    const auth = await requireUser(req);
-    if (!auth) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const currentUser = user!;
+    const currentToken = token!;
 
-    const contentLength = Number.parseInt(req.headers.get("content-length") ?? "0", 10);
+    const contentLength = Number.parseInt(body ? JSON.stringify(body).length.toString() : "0", 10);
     if (Number.isFinite(contentLength) && contentLength > ASSISTANT_MAX_REQUEST_BYTES) {
-      return new Response(
-        JSON.stringify({
-          error: "Payload too large",
-          maxRequestBytes: ASSISTANT_MAX_REQUEST_BYTES,
-        }),
-        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return createError(413, "PAYLOAD_TOO_LARGE", `Payload too large (max ${ASSISTANT_MAX_REQUEST_BYTES} bytes)`);
     }
 
     const limiter = checkRateLimit(
-      `assistant:${auth.user.id}`,
+      `assistant:${currentUser.id}`,
       ASSISTANT_RATE_LIMIT_PER_MINUTE,
       60_000
     );
     if (!limiter.allowed) {
-      return new Response(
-        JSON.stringify({
-          error: "Rate limit exceeded",
-          retryAfterSec: limiter.retryAfterSec,
-          maxRequestsPerMinute: ASSISTANT_RATE_LIMIT_PER_MINUTE,
-        }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return createError(429, "RATE_LIMIT_EXCEEDED", `Rate limit exceeded. Retry after ${limiter.retryAfterSec}s.`);
     }
 
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) {
       console.error("assistant: missing OPENAI_API_KEY");
-      return new Response(
-        JSON.stringify({ error: "Missing OPENAI_API_KEY" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return createError(500, "SERVER_ERROR", "Missing OpenAI credentials config");
     }
 
-    const body = await req.json();
+    // 1. Resolve AIContext on the backend (Identity + Navigation)
+    const aiContext = await resolveAIContext(supabase, currentUser, body);
+    const organizationId = aiContext.user.organizationId;
+
     const messages = normalizeClientMessages(body.messages);
     const classId = typeof body.classId === "string" ? body.classId : "";
-    const organizationIdRaw =
-      typeof body.organizationId === "string"
-        ? body.organizationId
-        : typeof body.organization_id === "string"
-          ? body.organization_id
-          : "";
-    const organizationId = organizationIdRaw.trim();
-    const sportHint =
-      typeof body.sport === "string" && body.sport.trim().length > 0
-        ? body.sport.trim()
-        : "volleyball";
+    const sportHint = typeof body.sport === "string" && body.sport.trim().length > 0 ? body.sport.trim() : "volleyball";
     const debugRequested = Boolean(body.debug);
     const requestMemoryContext = normalizeMemoryContext(body.memoryContext);
     const appSnapshot = normalizeAppSnapshot(body.appSnapshot);
-    const debugAllowed = canUseDebugMode(auth.user);
+    const debugAllowed = canUseDebugMode(currentUser);
+
     if (debugRequested && !debugAllowed) {
-      return new Response(JSON.stringify({ error: "Debug mode not allowed" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return createError(403, "FORBIDDEN", "Debug mode not allowed");
     }
 
+    // 2. Regulation Resolver
     const regulationDeterministic = await resolveRegulationAssistantResponse({
-      token: auth.token,
+      token: currentToken,
       organizationId,
       sportHint,
       messages,
       appSnapshot,
     });
     if (regulationDeterministic) {
-      return new Response(JSON.stringify(regulationDeterministic), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return createSuccess(regulationDeterministic);
     }
 
+    // 3. Retrieval and Memory using Backend-Derived Org ID
     const queryType = inferQueryType(messages);
-    const userHint = classId ? `Turma selecionada: ${classId}.` : "";
     const retrievalQuery = buildRetrievalQuery(messages);
-    if (!organizationId) {
-      console.warn(
-        JSON.stringify({
-          event: "assistant_rag_missing_org_id",
-          queryType,
-          classId,
-          sport: sportHint,
-        })
-      );
-    }
+    
     const retrieval = await getKnowledgeDocumentsCached({
-      token: auth.token,
+      token: currentToken,
       organizationId,
       sportHint,
       queryText: retrievalQuery,
     });
     const kbDocs = retrieval.docs;
+
     const memoryEntries = await getMemoryContext({
-      token: auth.token,
+      token: currentToken,
       organizationId,
       classId,
-      userId: auth.user.id,
+      userId: currentUser.id,
     });
+
     const memoryContext = [
       ...requestMemoryContext,
       ...memoryEntries.map((item) => `${item.role}/${item.scope}: ${item.content}`),
     ].slice(0, ASSISTANT_MAX_MEMORY_CONTEXT_ITEMS);
+
     const ragContext = buildRagContext(kbDocs);
     const scientificEvidenceContext = buildScientificEvidenceContext(kbDocs);
     const appSnapshotContext = buildAppSnapshotContext(appSnapshot);
+
+    // Build Backend-driven System AI Context Prompt
+    const aiContextPrompt = buildSystemAIContextPrompt(aiContext);
+
+    // 4. Resolve AI Facts Memory Context
+    const aiFacts = await resolveAIMemory(supabase, aiContext);
+    const aiFactsPrompt = buildSystemAIMemoryPrompt(aiFacts);
+
+    // 5. Resolve AI Governance Constraints
+    const aiWarnings = await resolveAIGovernance(supabase, aiContext, body);
+    const aiConstraintsPrompt = buildSystemAIGovernancePrompt(aiWarnings);
+
     console.log(
       JSON.stringify({
         event: "assistant_rag_retrieval",
@@ -1081,14 +1097,19 @@ Deno.serve(async (req) => {
         retrieved_chunks_count: kbDocs.length,
         latency_ms_retrieval: retrieval.retrievalLatencyMs,
         cache_hit: retrieval.cacheHit,
+        ai_facts_count: aiFacts.length,
+        ai_warnings_count: aiWarnings.length
       })
     );
 
+    // 6. OpenAI Payload Construction
     const payload = {
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "system", content: userHint },
+        { role: "system", content: aiContextPrompt }, // Injected backend context!
+        { role: "system", content: aiFactsPrompt }, // Injected structured facts memory!
+        { role: "system", content: aiConstraintsPrompt }, // Injected safety constraints!
         { role: "system", content: scientificEvidenceContext },
         { role: "system", content: ragContext },
         { role: "system", content: appSnapshotContext },
@@ -1124,22 +1145,25 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("assistant: openai error", response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: "OpenAI error", detail: safeErrorDetail(errorText) }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return createError(500, "SERVER_ERROR", "Failed to communicate with OpenAI");
     }
 
     const data = await response.json();
+    
+    // Track AI Usage via Observability Middleware
+    const tokensIn = data.usage?.prompt_tokens ?? 0;
+    const tokensOut = data.usage?.completion_tokens ?? 0;
+    const latency = Date.now() - requestStartedAt;
+    // Standard gpt-4o-mini pricing: $0.150 / 1M input, $0.600 / 1M output
+    const costEstimate = (tokensIn * 0.15 + tokensOut * 0.6) / 1_000_000;
+    metrics.trackAiUsage("openai", "gpt-4o-mini", tokensIn, tokensOut, latency, costEstimate);
+
     const content = data.choices?.[0]?.message?.content ?? "";
     let parsed: AssistantResponse;
     try {
       parsed = JSON.parse(content) as AssistantResponse;
     } catch (_error) {
-      return new Response(
-        JSON.stringify({ error: "Invalid assistant response" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return createError(500, "SERVER_ERROR", "Received malformed response format from model");
     }
 
     if (!parsed || typeof parsed.reply !== "string") {
@@ -1151,6 +1175,7 @@ Deno.serve(async (req) => {
         citations: [],
         assumptions: [],
         missingData: ["Não foi possível interpretar a resposta da IA."],
+        pedagogicalDecisions: []
       };
     }
 
@@ -1159,6 +1184,7 @@ Deno.serve(async (req) => {
     parsed.citations = Array.isArray(parsed.citations) ? parsed.citations : [];
     parsed.assumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
     parsed.missingData = Array.isArray(parsed.missingData) ? parsed.missingData : [];
+    parsed.pedagogicalDecisions = Array.isArray(parsed.pedagogicalDecisions) ? parsed.pedagogicalDecisions : [];
     parsed.confidence =
       Number.isFinite(parsed.confidence) && parsed.confidence >= 0 && parsed.confidence <= 1
         ? parsed.confidence
@@ -1193,38 +1219,58 @@ Deno.serve(async (req) => {
       };
     }
 
+    // SSRF URL Security Validation
     const checkedSources: AssistantSource[] = [];
     for (const source of parsed.sources) {
       const safeUrl = normalizePublicUrl(source.url);
-      if (!safeUrl) continue;
-      try {
-        const head = await fetch(safeUrl, { method: "HEAD", redirect: "follow" });
-        if (head.ok || (head.status >= 300 && head.status < 400)) {
-          checkedSources.push({ ...source, url: safeUrl });
-          continue;
-        }
-        const get = await fetch(safeUrl, { method: "GET", redirect: "follow" });
-        if (get.ok || (get.status >= 300 && get.status < 400)) {
-          checkedSources.push({ ...source, url: safeUrl });
-        }
-      } catch (_error) {
+      if (!safeUrl) {
+        securityLogger.warn("ssrf_blocked", {
+          reason: "invalid_model_url",
+          hostname: (() => { try { return new URL(source.url).hostname; } catch { return "(unparseable)"; } })(),
+        });
         continue;
       }
+      const resolved = await resolveAndCheckPublicUrl(safeUrl);
+      if (!resolved) {
+        securityLogger.warn("ssrf_blocked", {
+          reason: "model_url_resolves_to_private_ip",
+          hostname: new URL(safeUrl).hostname,
+        });
+        continue;
+      }
+      checkedSources.push({ ...source, url: resolved });
     }
     parsed.sources = checkedSources;
 
-    console.log(
-      JSON.stringify({
-        event: "assistant_response",
-        hasOrganizationId: Boolean(organizationId),
-        sport: sportHint,
-        queryType,
-        citations_count: parsed.citations.length,
-        confidence: parsed.confidence,
-        missing_data_count: parsed.missingData.length,
-        latency_ms_total: Date.now() - requestStartedAt,
-      })
-    );
+    // 7. Persist Pedagogical Decision Traces
+    if (parsed.pedagogicalDecisions && parsed.pedagogicalDecisions.length > 0) {
+      const traces = parsed.pedagogicalDecisions.map((d) => {
+        let confFloat = 0.50;
+        if (d.confidence === "high") confFloat = 0.90;
+        else if (d.confidence === "medium") confFloat = 0.70;
+        else if (d.confidence === "low") confFloat = 0.40;
+
+        return {
+          request_id: requestId,
+          organization_id: organizationId,
+          user_id: currentUser.id,
+          class_id: classId || null,
+          decision: d.decision,
+          reason: d.reason,
+          confidence: confFloat,
+          based_on: d.based_on,
+          sources: d.sources,
+        };
+      });
+
+      const { error: tracesError } = await supabase
+        .from("ai_decision_traces")
+        .insert(traces);
+      
+      if (tracesError) {
+        console.error("[Decision Tracing Error]: Failed to save traces:", tracesError);
+      }
+    }
 
     const lastUserMessage = [...messages]
       .reverse()
@@ -1232,32 +1278,24 @@ Deno.serve(async (req) => {
 
     if (lastUserMessage) {
       await saveMemoryEntry({
-        token: auth.token,
+        token: currentToken,
         organizationId,
         classId,
-        userId: auth.user.id,
+        userId: currentUser.id,
         role: "user",
         content: lastUserMessage,
       });
     }
 
     await saveMemoryEntry({
-      token: auth.token,
+      token: currentToken,
       organizationId,
       classId,
-      userId: auth.user.id,
+      userId: currentUser.id,
       role: "assistant",
       content: parsed.reply,
     });
 
-    return new Response(JSON.stringify(parsed), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("assistant: failure", String(error));
-    return new Response(
-      JSON.stringify({ error: "Assistant failure", detail: safeErrorDetail(error) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return createSuccess(parsed);
   }
-});
+}));

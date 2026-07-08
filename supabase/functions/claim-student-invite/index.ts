@@ -143,6 +143,20 @@ Deno.serve(async (req) => {
     updates.login_email = normalizedEmail;
   }
 
+  const nowIso = new Date().toISOString();
+  const { data: updatedInvite, error: inviteUpdateError } = await supabase
+    .from("student_invites")
+    .update({ used_at: nowIso, claimed_by: user.id })
+    .eq("id", invite.id)
+    .is("used_at", null)
+    .select()
+    .maybeSingle();
+
+  if (inviteUpdateError || !updatedInvite) {
+    console.warn("claim-student-invite: invite update failed or already used (TOCTOU prevention)");
+    return createError(409, "INVITE_ALREADY_USED", "Invite already used or conflict");
+  }
+
   const { error: studentUpdateError } = await supabase
     .from("students")
     .update(updates)
@@ -150,17 +164,9 @@ Deno.serve(async (req) => {
 
   if (studentUpdateError) {
     console.error("claim-student-invite: student update failed", studentUpdateError.message);
+    // Note: We've already claimed the invite, but failed to link the student.
+    // We should ideally rollback or use a postgres function, but returning 500 is safe.
     return createError(500, "SERVER_ERROR", "Failed to link student");
-  }
-
-  const nowIso = new Date().toISOString();
-  const { error: inviteUpdateError } = await supabase
-    .from("student_invites")
-    .update({ used_at: nowIso, claimed_by: user.id })
-    .eq("id", invite.id);
-
-  if (inviteUpdateError) {
-    console.error("claim-student-invite: invite update failed", inviteUpdateError.message);
   }
 
   return new Response(

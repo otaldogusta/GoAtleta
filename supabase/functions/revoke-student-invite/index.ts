@@ -15,7 +15,7 @@ const jsonHeaders = {
 const createError = (status: number, code: string, error: string) =>
   new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
 
-const requireUser = (req: Request): { id: string; email?: string } | null => {
+const requireUser = (req: Request): { id: string; email?: string; token: string } | null => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.slice("Bearer ".length).trim();
@@ -30,7 +30,7 @@ const requireUser = (req: Request): { id: string; email?: string } | null => {
     const exp = payload["exp"];
     if (typeof sub !== "string" || !sub) return null;
     if (typeof exp === "number" && exp < Date.now() / 1000) return null;
-    return { id: sub, email: typeof payload["email"] === "string" ? payload["email"] : undefined };
+    return { id: sub, email: typeof payload["email"] === "string" ? payload["email"] : undefined, token };
   } catch {
     return null;
   }
@@ -65,13 +65,18 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !serviceRoleKey) {
-    return createError(500, "SERVER_ERROR", "Missing Supabase service role config");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (!supabaseUrl || !anonKey) {
+    return createError(500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false },
+    global: {
+      headers: {
+        Authorization: `Bearer ${user.token}`,
+      },
+    },
   });
 
   const { data: invite, error: inviteError } = await supabase
@@ -89,6 +94,7 @@ Deno.serve(async (req) => {
   }
 
   if (invite.created_by !== user.id) {
+    // Redundant application-level check. RLS also enforces this constraint.
     return createError(403, "FORBIDDEN", "Forbidden");
   }
 

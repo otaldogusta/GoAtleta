@@ -113,7 +113,15 @@ describe("consultation notifications", () => {
 
     expect(result.internal).toBe("created");
     expect(result.push).toBe("skipped");
-    expect(mockAddNotification).toHaveBeenCalledWith("Treino concluído", "Ana concluiu o treino.");
+    expect(mockAddNotification).toHaveBeenCalledWith(
+      "Treino concluído",
+      "Ana concluiu o treino.",
+      expect.objectContaining({
+        type: "consultation_event",
+        actionUrl: "/consultation",
+        sourceType: "consultation",
+      })
+    );
     expect(mockSendPushToUser).not.toHaveBeenCalled();
   });
 

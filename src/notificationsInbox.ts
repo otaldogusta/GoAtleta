@@ -1,15 +1,15 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { safeJsonParse } from "./utils/safe-json";
+import {
+  AppNotification,
+  CreateNotificationInput,
+  clearMyNotifications,
+  createNotification,
+  getUnreadNotificationCount,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead as markRemoteNotificationRead,
+} from "./api/notifications";
 
-export type AppNotification = {
-  id: string;
-  title: string;
-  body: string;
-  createdAt: string;
-  read: boolean;
-};
-
-const STORAGE_KEY = "notifications_inbox_v1";
+export type { AppNotification, CreateNotificationInput };
 
 type Listener = (items: AppNotification[]) => void;
 
@@ -26,7 +26,7 @@ const TECHNICAL_NOTIFICATION_PATTERNS = [
   "Invariant Violation",
 ];
 
-const isUserVisibleNotification = (item: AppNotification) => {
+const isUserVisibleNotification = (item: Pick<AppNotification, "title" | "body">) => {
   if (TECHNICAL_NOTIFICATION_TITLES.has(item.title)) return false;
   const body = item.body ?? "";
   return !TECHNICAL_NOTIFICATION_PATTERNS.some((pattern) => body.includes(pattern));
@@ -38,15 +38,18 @@ const emit = (items: AppNotification[]) => {
 };
 
 const readAll = async () => {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  const parsed = safeJsonParse<AppNotification[] | null>(raw, null);
-  return Array.isArray(parsed) ? parsed.filter(isUserVisibleNotification) : [];
+  try {
+    const items = await listNotifications();
+    return items.filter(isUserVisibleNotification);
+  } catch {
+    return [];
+  }
 };
 
-const writeAll = async (items: AppNotification[]) => {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+const refreshListeners = async () => {
+  const items = await readAll();
   emit(items);
+  return items;
 };
 
 export const subscribeNotifications = (listener: Listener) => {
@@ -60,36 +63,41 @@ export const getNotifications = async () => {
   return await readAll();
 };
 
-export const addNotification = async (title: string, body: string) => {
-  const candidate: AppNotification = {
-    id: "n_" + Date.now(),
-    title,
-    body,
-    createdAt: new Date().toISOString(),
-    read: false,
-  };
-  if (!isUserVisibleNotification(candidate)) return;
-  const items = await readAll();
-  const next: AppNotification[] = [
-    candidate,
-    ...items,
-  ];
-  await writeAll(next);
+export const addNotification = async (
+  title: string,
+  body: string,
+  options: Omit<CreateNotificationInput, "title" | "body"> = {}
+) => {
+  const candidate = { title, body };
+  if (!isUserVisibleNotification(candidate)) return null;
+  try {
+    const created = await createNotification({
+      ...options,
+      title,
+      body,
+    });
+    await refreshListeners();
+    return created;
+  } catch {
+    return null;
+  }
 };
 
 export const markAllRead = async () => {
-  const items = await readAll();
-  if (!items.length) return;
-  const next = items.map((item) => ({ ...item, read: true }));
-  await writeAll(next);
+  await markAllNotificationsRead();
+  await refreshListeners();
+};
+
+export const markNotificationRead = async (id: string) => {
+  await markRemoteNotificationRead(id);
+  await refreshListeners();
 };
 
 export const clearNotifications = async () => {
-  await AsyncStorage.removeItem(STORAGE_KEY);
+  await clearMyNotifications();
   emit([]);
 };
 
 export const getUnreadCount = async () => {
-  const items = await readAll();
-  return items.filter((item) => !item.read).length;
+  return await getUnreadNotificationCount();
 };

@@ -25,7 +25,7 @@ Quando o nome da aluna nao esta disponivel, a mensagem usa texto neutro: `A alun
 
 ## Inbox interna
 
-Toda notificacao cria uma entrada no inbox local existente via `notificationsInbox`.
+Toda notificacao cria uma entrada no inbox oficial via `notificationsInbox`, que agora atua como ponte para a tabela `notifications` no Supabase.
 
 O adapter usa uma chave idempotente por evento, aluna, treino e execucao para evitar duplicidade quando a mesma acao e repetida.
 
@@ -50,7 +50,6 @@ No fluxo atual da consultoria, ainda nao ha contrato final para descobrir o `tar
 ## Limites
 
 - Nao cria chat.
-- Nao cria tela nova de notificacoes.
 - Nao cria automacao de lembrete.
 - Nao resolve permissoes finas aluno/professor.
 - Push remoto depende de `organizationId` e `targetUserId`, que ficam para o pacote de permissoes e vinculo final.

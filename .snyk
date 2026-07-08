@@ -1,0 +1,17 @@
+{
+  "version": "v1",
+  "ignore": {
+    "SNYK-JS-IMAGESIZE-17295814": [
+      {
+        "reason": "Vulnerabilidade em dependência transitiva image-size usada por metro/react-native e sem correção disponível no momento.",
+        "expires": "2026-12-31"
+      }
+    ],
+    "SNYK-JS-IMAGESIZE-17295816": [
+      {
+        "reason": "Vulnerabilidade em dependência transitiva image-size usada por metro/react-native e sem correção disponível no momento.",
+        "expires": "2026-12-31"
+      }
+    ]
+  }
+}

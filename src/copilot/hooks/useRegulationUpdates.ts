@@ -131,7 +131,17 @@ export function useRegulationUpdates<S extends RegulationStatePatch>(
         const body = topicsPreview
           ? `Mudanças em: ${topicsPreview}.${impactPreview ? ` Impacto: ${impactPreview}.` : ""}`
           : update.diffSummary;
-        await addNotification("Regulamento atualizado", body);
+        await addNotification("Regulamento atualizado", body, {
+          type: "regulation_updated",
+          organizationId,
+          actionUrl: "/regulation-history",
+          sourceType: "regulation_update",
+          sourceId: update.id,
+          metadata: {
+            changedTopics: update.changedTopics.slice(0, 5),
+            impactAreas: update.impactAreas.slice(0, 5),
+          },
+        });
       }
 
       const mergedIds = new Set([...knownIds, ...freshUpdates.map((item) => item.id)]);

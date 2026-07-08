@@ -49,7 +49,24 @@ export async function notifyConsultationEvent(
       return { eventKey, internal: "skipped_duplicate", push: "skipped" };
     }
 
-    await addNotification(notification.title, notification.body);
+    const actionUrl = notification.recipientRole === "student"
+      ? "/student-consultation"
+      : "/consultation";
+    await addNotification(notification.title, notification.body, {
+      type: "consultation_event",
+      organizationId: payload.organizationId,
+      recipientUserId: payload.targetUserId,
+      actionUrl,
+      sourceType: "consultation",
+      sourceId: eventKey,
+      metadata: {
+        event: payload.event,
+        studentId: payload.studentId,
+        workoutId: payload.workoutId ?? null,
+        executionLogId: payload.executionLogId ?? null,
+        recipientRole: notification.recipientRole,
+      },
+    });
 
     let push: ConsultationNotificationDeliveryResult["push"] = "skipped";
     let pushError = "";

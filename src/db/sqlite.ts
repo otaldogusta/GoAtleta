@@ -1,6 +1,28 @@
-import * as SQLite from "expo-sqlite";
+import { Platform } from "react-native";
 
-export const db = SQLite.openDatabaseSync("coachperiod.db");
+let db: any;
+if (Platform.OS === "web") {
+  // On web, the native expo-sqlite module is not available or may block the
+  // main thread during initialization. Provide a lightweight stub that
+  // implements the minimal `execSync` used during bootstrap so the web
+  // dev server can start. This is a safe, temporary fallback for web
+  // development only — production/native behavior uses sqlite.
+  db = {
+    execSync: (sql: string) => {
+      // no-op on web; keep a console warning for debugging
+      // eslint-disable-next-line no-console
+      console.warn("[sqlite stub] execSync called on web; SQL omitted for brevity.");
+    },
+  };
+} else {
+  // Native path: use expo-sqlite as before
+  // Lazy require to avoid bundling native-only module into web build.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const SQLite = require("expo-sqlite");
+  db = SQLite.openDatabaseSync("coachperiod.db");
+}
+
+export { db };
 
 export function initDb() {
   db.execSync(

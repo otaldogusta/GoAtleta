@@ -124,6 +124,19 @@ Deno.serve(async (req) => {
     return createError(400, "INVITE_LIMIT_REACHED", "Invite limit reached");
   }
 
+  const nowIso = new Date().toISOString();
+  const { data: updatedInvite, error: updateError } = await supabase
+    .from("trainer_invites")
+    .update({ uses: invite.uses + 1, claimed_by: user.id, claimed_at: nowIso })
+    .eq("id", invite.id)
+    .eq("uses", invite.uses)
+    .select()
+    .maybeSingle();
+
+  if (updateError || !updatedInvite) {
+    return createError(409, "INVITE_CONFLICT", "Invite update conflict or already used concurrently");
+  }
+
   const { error: trainerError } = await supabase
     .from("trainers")
     .upsert({ user_id: user.id }, { onConflict: "user_id" });
@@ -160,16 +173,6 @@ Deno.serve(async (req) => {
     if (memberUpsertError) {
       return createError(500, "SERVER_ERROR", "Failed to apply organization member role");
     }
-  }
-
-  const nowIso = new Date().toISOString();
-  const { error: updateError } = await supabase
-    .from("trainer_invites")
-    .update({ uses: invite.uses + 1, claimed_by: user.id, claimed_at: nowIso })
-    .eq("id", invite.id);
-
-  if (updateError) {
-    return createError(500, "SERVER_ERROR", "Failed to update invite");
   }
 
   return new Response(JSON.stringify({ status: "ok" }), {
