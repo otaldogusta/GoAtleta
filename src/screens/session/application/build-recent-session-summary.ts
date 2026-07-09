@@ -510,9 +510,19 @@ export const buildRecentSessionSummary = (
         ? resolveTeacherEditedFields(baselinePlan, latestPlan)
         : [];
       const pedagogicalFeedbackSignalEvidence = resolvePedagogicalFeedbackSignalEvidence(group);
+      const latestSessionLog = [...group.sessionLogs].sort(
+        (left, right) => getTimestamp(right.createdAt) - getTimestamp(left.createdAt)
+      )[0];
+      const participantsCount =
+        latestSessionLog?.participantsCount ??
+        (group.attendance.length
+          ? group.attendance.filter((entry) => entry.status === "present").length
+          : undefined);
 
       return {
         sessionDate: group.date,
+        participantsCount,
+        reportConclusion: normalizeText(latestSessionLog?.conclusion) || undefined,
         wasPlanned,
         wasApplied,
         wasEditedByTeacher,

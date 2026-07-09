@@ -109,6 +109,8 @@ const defaultProps = {
   onGenerateCycle: jest.fn(),
   onRemoveCycle: jest.fn(),
   unitMismatchWarning: "",
+  recentSessionSummaries: [],
+  onReviewEvolution: jest.fn(),
 };
 
 const collectText = (node: TestRenderer.ReactTestInstance): string => {
@@ -179,5 +181,38 @@ describe("OverviewTab", () => {
 
     expect(findNodeByText(renderer!.root, "Gerar ciclo")).toBeTruthy();
     expect(enabledGenerateButton).toBeTruthy();
+  });
+
+  it("shows the planned versus completed intelligence view for Rede Esperança 8-11", () => {
+    const onReviewEvolution = jest.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(OverviewTab, {
+          ...defaultProps,
+          selectedClass: {
+            ...selectedClass,
+            name: "Turma 8-11",
+            unit: "Rede Esperança",
+            ageBand: "08-11",
+            gender: "mixed",
+            daysOfWeek: [2, 4],
+          },
+          recentSessionSummaries: [],
+          onReviewEvolution,
+        })
+      );
+    });
+
+    const root = renderer!.root;
+    expect(findNodeByText(root, "Julho 2026")).toBeTruthy();
+    expect(findNodeByText(root, "Recepção direta sem segurar a bola")).toBeTruthy();
+    expect(findNodeByText(root, "Portão de prontidão")).toBeTruthy();
+    expect(findNodeByText(root, "A IA está aprendendo com a sua turma")).toBeTruthy();
+
+    const reviewButton = root.findByProps({ accessibilityLabel: "Revisar evolução da turma" });
+    act(() => reviewButton.props.onPress());
+    expect(onReviewEvolution).toHaveBeenCalledTimes(1);
   });
 });

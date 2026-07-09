@@ -807,6 +807,8 @@ export type TrainingPlan = {
 
 export type RecentSessionSummary = {
   sessionDate: string;
+  participantsCount?: number;
+  reportConclusion?: string;
   wasPlanned: boolean;
   wasApplied: boolean;
   wasEditedByTeacher: boolean;

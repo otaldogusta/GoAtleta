@@ -65,6 +65,7 @@ import { useWeekEditor } from "../../src/screens/periodization/hooks/useWeekEdit
 import { getPlansWithinCycle, useWeekPlans } from "../../src/screens/periodization/hooks/useWeekPlans";
 import { buildMonthSegments, buildMonthWeekNumbers } from "../../src/screens/periodization/month-segments";
 import { buildRecentSessionSummary } from "../../src/screens/session/application/build-recent-session-summary";
+import { isRedeEsperancaEightToElevenClass } from "../../src/core/pedagogy/rede-esperanca-july-2026-alignment";
 
   const DEFAULT_ANNUAL_CYCLE_LENGTH = annualCycleOptions[annualCycleOptions.length - 1];
 
@@ -3848,7 +3849,13 @@ export default function PeriodizationScreen() {
 
         <ScreenPageHeader
           title={normalizeText("Periodização")}
-          subtitle={!selectedClass ? normalizeText("Estrutura do ciclo, cargas e foco semanal") : undefined}
+          subtitle={
+            !selectedClass
+              ? normalizeText("Estrutura do ciclo, cargas e foco semanal")
+              : isRedeEsperancaEightToElevenClass(selectedClass)
+                ? normalizeText("Rede Esperança — Turma 8-11 — Misto · Gustavo Ribeiro · Ter e Qui · 14:00–15:00")
+                : undefined
+          }
           onBack={() =>
             navigateBackOrReplace({ router, fallback: periodizationBackFallback })
           }
@@ -3865,7 +3872,14 @@ export default function PeriodizationScreen() {
         >
           <AnimatedSegmentedTabs
             tabs={[
-              { id: "geral", label: normalizeText("Visão geral") },
+              {
+                id: "geral",
+                label: normalizeText(
+                  isRedeEsperancaEightToElevenClass(selectedClass)
+                    ? "Planejado versus realizado com IA"
+                    : "Visão geral"
+                ),
+              },
               { id: "ciclo", label: normalizeText("Ciclo") },
               { id: "semana", label: normalizeText("Agenda") },
             ]}
@@ -3930,10 +3944,12 @@ export default function PeriodizationScreen() {
             onGenerateCycle={handleGenerateCycle}
             onRemoveCycle={handleRemoveCycle}
             unitMismatchWarning={unitMismatchWarning}
+            recentSessionSummaries={recentSessionSummaries}
+            onReviewEvolution={() => setActiveTab("ciclo")}
           />
         ) : null}
 
-        {activeTab === "geral" && selectedClass ? (
+        {activeTab === "geral" && selectedClass && !isRedeEsperancaEightToElevenClass(selectedClass) ? (
           <View
             style={[
               getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
@@ -3977,7 +3993,7 @@ export default function PeriodizationScreen() {
           </View>
         ) : null}
 
-        {activeTab === "geral" && selectedClass && (isLoadingPeriodizationKnowledge || periodizationKnowledgeSnapshot) ? (
+        {activeTab === "geral" && selectedClass && !isRedeEsperancaEightToElevenClass(selectedClass) && (isLoadingPeriodizationKnowledge || periodizationKnowledgeSnapshot) ? (
           <View
             style={[
               getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
