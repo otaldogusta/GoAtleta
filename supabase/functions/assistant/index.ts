@@ -1047,6 +1047,7 @@ const responseSchema = {
     "citations",
     "assumptions",
     "missingData",
+    "pedagogicalDecisions",
   ],
   additionalProperties: false,
 };

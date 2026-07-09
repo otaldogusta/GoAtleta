@@ -1,28 +1,26 @@
 import { createClient, SupabaseClient, User } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildCorsHeaders } from "./cors.ts";
 import { getBearerToken, validateAuth } from "./middlewares/auth.ts";
 import { logRequestEnd } from "./middlewares/logger.ts";
 import { createMetricsTracker, MetricsTracker } from "./middlewares/metrics.ts";
 
-const ALLOWED_ORIGINS = [
-  "https://go-atleta.vercel.app",
-  "https://goatleta.com",
-  "https://www.goatleta.com",
-];
-
-// For Edge Functions that are called from the mobile app (not a browser), there is no
-// Origin header, so we fall back to the first allowed origin.
-export const resolveCorsOrigin = (req: Request): string => {
-  const origin = req.headers.get("Origin") ?? "";
-  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+const jsonHeaders = {
+  "Content-Type": "application/json",
 };
 
-export const getCorsHeaders = (req: Request) => ({
-  "Access-Control-Allow-Origin": resolveCorsOrigin(req),
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
-});
+const withCors = (req: Request, response: Response): Response => {
+  const headers = new Headers(response.headers);
+  const corsHeaders = buildCorsHeaders(req);
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    headers.set(key, value);
+  });
 
-
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+};
 
 export interface EdgeContext<TBody = any> {
   req: Request;
@@ -68,7 +66,7 @@ export function createEdgeFunction<TBody = any>(config: EdgeFunctionConfig<TBody
     try {
       // 1. CORS Preflight
       if (req.method === "OPTIONS") {
-        return new Response("ok", { headers: corsHeaders });
+        return new Response("ok", { headers: buildCorsHeaders(req) });
       }
 
       if (!supabaseUrl || !anonKey) {
@@ -88,7 +86,7 @@ export function createEdgeFunction<TBody = any>(config: EdgeFunctionConfig<TBody
       if (authResult.error) {
         responseStatusCode = authResult.status;
         securityIssue = authResult.error;
-        return createError(authResult.status, "UNAUTHORIZED", authResult.error);
+        return withCors(req, createError(authResult.status, "UNAUTHORIZED", authResult.error));
       }
       authUser = authResult.user;
 
@@ -102,7 +100,7 @@ export function createEdgeFunction<TBody = any>(config: EdgeFunctionConfig<TBody
           body = await req.json();
         } catch (e) {
           responseStatusCode = 400;
-          return createError(400, "BAD_REQUEST", "Invalid JSON payload");
+          return withCors(req, createError(400, "BAD_REQUEST", "Invalid JSON payload"));
         }
       }
 
@@ -111,7 +109,7 @@ export function createEdgeFunction<TBody = any>(config: EdgeFunctionConfig<TBody
       const response = await config.handler(ctx);
       
       responseStatusCode = response.status;
-      return response;
+      return withCors(req, response);
 
     } catch (error: any) {
       // Log full error server-side for observability, never expose internals to client.
@@ -119,7 +117,7 @@ export function createEdgeFunction<TBody = any>(config: EdgeFunctionConfig<TBody
       responseStatusCode = 500;
       const isDev = Deno.env.get("SUPABASE_ENV") === "local" || Deno.env.get("EDGE_FUNCTION_ENV") === "development";
       const safeMessage = isDev ? (error?.message ?? "An unexpected error occurred") : "An unexpected error occurred";
-      return createError(500, "INTERNAL_ERROR", safeMessage);
+      return withCors(req, createError(500, "INTERNAL_ERROR", safeMessage));
     } finally {
       // 7. Flush Metrics
       if (metricsTracker) {

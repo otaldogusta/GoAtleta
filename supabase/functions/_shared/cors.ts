@@ -19,6 +19,11 @@ const PRODUCTION_ORIGINS = [
   "https://www.goatleta.com",
 ];
 
+const LOCAL_WEB_ORIGINS = [
+  "http://localhost:8081",
+  "http://127.0.0.1:8081",
+];
+
 const isLocalDev = () => Deno.env.get("SUPABASE_ENV") === "local";
 const isPreviewAllowed = () => Deno.env.get("CORS_ALLOW_PREVIEW") === "true";
 
@@ -35,6 +40,8 @@ export const resolveCorsOrigin = (req: Request): string => {
   const origin = req.headers.get("Origin") ?? "";
 
   if (PRODUCTION_ORIGINS.includes(origin)) return origin;
+
+  if (LOCAL_WEB_ORIGINS.includes(origin)) return origin;
 
   if (isLocalDev() && isLocalhostOrigin(origin)) return origin;
 

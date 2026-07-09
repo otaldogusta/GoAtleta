@@ -37,18 +37,12 @@ import {
     volleyballLessonPlanToDraft,
     type AutoFixSuggestion,
 } from "../../src/core/ai-operations";
-import {
-    buildWeeklyAutopilotProposal,
-    resolveWeeklyAutopilotKnowledgeDomain,
-} from "../../src/core/autopilot/weekly-autopilot";
 import { buildNextClassSuggestion, type NextClassSuggestion } from "../../src/core/intelligence/suggestion-engine";
 import type {
   ClassGroup,
   EvolutionSimulationResult,
   SessionLog,
-  WeeklyAutopilotPlanReview,
   TrainingPlan,
-  WeeklyAutopilotProposal,
 } from "../../src/core/models";
 import { buildNextVolleyballLessonPlan } from "../../src/core/progression-engine";
 import { simulateClassEvolution } from "../../src/core/simulator/evolution-simulator";
@@ -62,14 +56,10 @@ import {
     buildSyncHealthReport,
     clearPendingWritesDeadLetterCandidates,
     getClasses,
-    getKnowledgeBaseSnapshot,
     getSessionLogsByRange,
     getTrainingPlans,
-    listWeeklyAutopilotProposals,
     reprocessPendingWritesNetworkFailures,
     saveTrainingPlan,
-    saveWeeklyAutopilotProposal,
-    updateWeeklyAutopilotProposalStatus,
 } from "../../src/db/seed";
 import { getScopedPlanningPath } from "../../src/navigation/profile-routes";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
@@ -505,7 +495,6 @@ export default function AssistantScreen() {
   const [assumptions, setAssumptions] = useState<string[]>([]);
   const [autoFixSuggestions, setAutoFixSuggestions] = useState<AutoFixSuggestion[]>([]);
   const [nextClassSuggestion, setNextClassSuggestion] = useState<NextClassSuggestion | null>(null);
-  const [autopilotProposal, setAutopilotProposal] = useState<WeeklyAutopilotProposal | null>(null);
   const [simulationResult, setSimulationResult] = useState<EvolutionSimulationResult | null>(null);
   const [memoryContextHints, setMemoryContextHints] = useState<string[]>([]);
   const [composerHeight, setComposerHeight] = useState(0);
@@ -556,33 +545,6 @@ export default function AssistantScreen() {
       alive = false;
     };
   }, [activeOrganization?.id]);
-
-  useEffect(() => {
-    let alive = true;
-    if (!classId) {
-      setAutopilotProposal(null);
-      return () => {
-        alive = false;
-      };
-    }
-
-    const timer = setTimeout(() => {
-      void (async () => {
-        const list = await listWeeklyAutopilotProposals({
-          classId,
-          organizationId: activeOrganization?.id,
-          limit: 1,
-        });
-        if (!alive) return;
-        setAutopilotProposal(list[0] ?? null);
-      })();
-    }, 0);
-
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [activeOrganization?.id, classId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -651,101 +613,6 @@ export default function AssistantScreen() {
   const hasInputText = input.trim().length > 0;
 
   const className = selectedClass?.name ?? "Turma";
-  const knowledgeDomainLabel = (value: string | null | undefined) => {
-    if (value === "youth_training") return "Treinamento jovem";
-    if (value === "general_fitness") return "Fitness geral";
-    if (value === "clinical") return "Clinico";
-    if (value === "performance") return "Performance";
-    return "Geral";
-  };
-
-  const formatPlanReviewValue = (value: unknown): string => {
-    if (Array.isArray(value)) {
-      return value.map((item) => formatPlanReviewValue(item)).join(", ");
-    }
-    if (value === null || value === undefined || value === "") return "vazio";
-    if (typeof value === "number") return value.toFixed(2).replace(/\.00$/, "");
-    if (typeof value === "boolean") return value ? "sim" : "nao";
-    return String(value);
-  };
-
-  const planReviewFieldLabel = (field: string) => {
-    if (field === "phase") return "Fase";
-    if (field === "objective") return "Objetivo";
-    if (field === "loadTarget") return "Carga";
-    if (field === "intensityTarget") return "Intensidade";
-    if (field === "technicalFocus") return "Foco tecnico";
-    if (field === "physicalFocus") return "Foco fisico";
-    if (field === "constraints") return "Restricoes";
-    if (field === "progressionModel") return "Progressao";
-    return field;
-  };
-
-  const renderPlanReviewSummary = (review: WeeklyAutopilotPlanReview | null | undefined) => {
-    if (!review) return null;
-    const firstDiff = review.diffs[0];
-    const visibleChanges = firstDiff?.changes.slice(0, 4) ?? [];
-    return (
-      <View style={{ gap: 8 }}>
-        <Text style={{ color: colors.text, fontWeight: "700" }}>Mudancas do motor</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          <View
-            style={{
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.secondaryBg,
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-              {review.ok ? "Sem alertas" : `${review.issues.length} alerta(s)`}
-            </Text>
-          </View>
-          {review.versionLabel ? (
-            <View
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                Base: {review.versionLabel}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-        {visibleChanges.length > 0 ? (
-          <View style={{ gap: 4 }}>
-            {visibleChanges.map((change) => (
-              <Text key={`${firstDiff?.weekStart ?? "week"}-${change.field}`} style={{ color: colors.muted }}>
-                - {planReviewFieldLabel(change.field)}: {formatPlanReviewValue(change.before)} →{" "}
-                {formatPlanReviewValue(change.after)}
-              </Text>
-            ))}
-          </View>
-        ) : (
-          <Text style={{ color: colors.muted }}>Sem ajustes estruturais no plano base.</Text>
-        )}
-        {review.issues.length > 0 ? (
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Alertas do motor</Text>
-            {review.issues.slice(0, 3).map((issue) => (
-              <Text key={`${issue.weekStart}-${issue.code}-${issue.ruleId ?? "rule"}`} style={{ color: colors.muted }}>
-                - {issue.message}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-      </View>
-    );
-  };
-
   const scientificReferences = useMemo<ScientificReference[]>(() => {
     if (!sources.length) return [];
 
@@ -1155,7 +1022,6 @@ export default function AssistantScreen() {
     setAssumptions([]);
     setAutoFixSuggestions([]);
     setNextClassSuggestion(null);
-    setAutopilotProposal(null);
     setSimulationResult(null);
     setMemoryContextHints([]);
     setShowSavedLink(false);
@@ -1511,86 +1377,12 @@ export default function AssistantScreen() {
 
   const applyNextClassSuggestion = useCallback(() => {
     if (!nextClassSuggestion) return;
-    if (autopilotProposal && autopilotProposal.status !== "approved") {
-      Alert.alert(
-        "Aprovação obrigatória",
-        `A proposta semanal está com status \"${autopilotProposal.status}\". Nada aplica sem aprovação explícita.`
-      );
-      return;
-    }
     setInput(nextClassSuggestion.nextTrainingPrompt);
     pushAssistantMessage("Sugestão aplicada no composer. Revise e gere o próximo treino quando estiver pronto.");
     requestAnimationFrame(() => {
       composerInputRef.current?.focus();
     });
-  }, [autopilotProposal, nextClassSuggestion, pushAssistantMessage]);
-
-  const handleWeeklyAutopilot = useCallback(async () => {
-    if (!selectedClass || !activeOrganization?.id || !session?.user?.id) return;
-    setLoading(true);
-    try {
-      const logs = await getRecentLogs();
-      const knowledgeDomain = resolveWeeklyAutopilotKnowledgeDomain(selectedClass);
-      const knowledgeContext = await getKnowledgeBaseSnapshot({
-        organizationId: activeOrganization.id,
-        domain: knowledgeDomain,
-      });
-      const proposal = buildWeeklyAutopilotProposal({
-        classGroup: selectedClass,
-        logs: logs as SessionLog[],
-        organizationId: activeOrganization.id,
-        createdBy: session.user.id,
-        knowledgeContext,
-      });
-
-      await saveWeeklyAutopilotProposal(proposal);
-      setAutopilotProposal(proposal);
-      setAssumptions([
-        proposal.knowledgeBaseVersionLabel
-          ? `Base cientifica aplicada: ${proposal.knowledgeBaseVersionLabel}.`
-          : `Base cientifica aplicada: ${knowledgeDomainLabel(proposal.knowledgeDomain)}.`,
-        "Autopilot semanal é apenas proposta: só entra em vigor após aprovação humana explícita.",
-      ]);
-      pushAssistantMessage(
-        proposal.knowledgeBaseVersionLabel
-          ? `Autopilot semanal proposto para ${selectedClass.name} com base ${proposal.knowledgeBaseVersionLabel}. Revise e aprove/rejeite.`
-          : `Autopilot semanal proposto para ${selectedClass.name}. Revise e aprove/rejeite.`
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [activeOrganization?.id, getRecentLogs, pushAssistantMessage, selectedClass, session?.user?.id]);
-
-  const handleApproveAutopilot = useCallback(() => {
-    if (!autopilotProposal) return;
-    confirmDialog({
-      title: "Aprovar autopilot semanal?",
-      message: "Esta ação confirma o plano semanal sugerido para execução humana.",
-      confirmLabel: "Aprovar",
-      cancelLabel: "Cancelar",
-      onConfirm: async () => {
-        await updateWeeklyAutopilotProposalStatus(autopilotProposal.id, "approved");
-        setAutopilotProposal((prev) => (prev ? { ...prev, status: "approved", updatedAt: new Date().toISOString() } : null));
-        pushAssistantMessage("Autopilot semanal aprovado. Próximo passo: gerar/validar treinos da semana.");
-      },
-    });
-  }, [autopilotProposal, confirmDialog, pushAssistantMessage]);
-
-  const handleRejectAutopilot = useCallback(() => {
-    if (!autopilotProposal) return;
-    confirmDialog({
-      title: "Rejeitar autopilot semanal?",
-      message: "A proposta será mantida em histórico com status rejeitado.",
-      confirmLabel: "Rejeitar",
-      cancelLabel: "Cancelar",
-      tone: "danger",
-      onConfirm: async () => {
-        await updateWeeklyAutopilotProposalStatus(autopilotProposal.id, "rejected");
-        setAutopilotProposal((prev) => (prev ? { ...prev, status: "rejected", updatedAt: new Date().toISOString() } : null));
-        pushAssistantMessage("Autopilot semanal rejeitado. Ajuste manual recomendado antes de nova proposta.");
-      },
-    });
-  }, [autopilotProposal, confirmDialog, pushAssistantMessage]);
+  }, [nextClassSuggestion, pushAssistantMessage]);
 
   const handleRunEvolutionSimulation = useCallback(async () => {
     if (!selectedClass) return;
@@ -1694,9 +1486,6 @@ export default function AssistantScreen() {
       )),
     [colors.background, colors.border, colors.primaryBg, colors.primaryText, colors.text, messages]
   );
-  const autopilotPlanReviewSection = autopilotProposal
-    ? renderPlanReviewSummary(autopilotProposal.planReview)
-    : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1721,7 +1510,47 @@ export default function AssistantScreen() {
             gap: 12,
           }}
         >
-
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: isDesktopLayout ? 4 : 0,
+              paddingBottom: 4,
+            }}
+          >
+            <Pressable
+              onPress={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+              accessibilityLabel="Voltar"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 999,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: colors.text,
+                  fontSize: isCompactMobile ? 22 : 28,
+                  fontWeight: "800",
+                }}
+              >
+                Assistente IA
+              </Text>
+              <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
+                {assistantScopeLabel}
+              </Text>
+            </View>
+          </View>
           <ScrollView
             contentContainerStyle={{
               gap: 10,
@@ -1747,14 +1576,6 @@ export default function AssistantScreen() {
                 }}
               >
                 <View style={{ alignItems: "center", gap: 10 }}>
-                  <View style={{ width: "100%", alignItems: "flex-start" }}>
-                    <Pressable
-                      onPress={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
-                      style={{ flexDirection: "row", alignItems: "center" }}
-                    >
-                      <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
-                    </Pressable>
-                  </View>
                   <View
                     style={{
                       width: 70,
@@ -2101,57 +1922,6 @@ export default function AssistantScreen() {
               </View>
             ) : null}
 
-            {citations.length > 0 || assumptions.length > 0 || missingData.length > 0 ? (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 18,
-                  backgroundColor: colors.background,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 8,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>Justificativa</Text>
-                {citations.length > 0 ? (
-                  <View style={{ gap: 6 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Evidências</Text>
-                    <View style={{ gap: 6 }}>
-                      {citations.map((item, index) => (
-                        <Text key={`citation-${index}`} style={{ color: colors.muted }}>
-                          - {item.sourceTitle}: {item.evidence}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-                {assumptions.length > 0 ? (
-                  <View style={{ gap: 6 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Premissas</Text>
-                    <View style={{ gap: 6 }}>
-                      {assumptions.map((item, index) => (
-                        <Text key={`assumption-${index}`} style={{ color: colors.muted }}>
-                          - {item}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-                {missingData.length > 0 ? (
-                  <View style={{ gap: 6 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Dados faltantes</Text>
-                    <View style={{ gap: 6 }}>
-                      {missingData.map((item, index) => (
-                        <Text key={`missing-${index}`} style={{ color: colors.muted }}>
-                          - {item}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-
             {autoFixSuggestions.length > 0 ? (
               <View
                 style={{
@@ -2228,7 +1998,6 @@ export default function AssistantScreen() {
                   </View>
                 </View>
                 <Pressable
-                  disabled={Boolean(autopilotProposal && autopilotProposal.status !== "approved")}
                   onPress={applyNextClassSuggestion}
                   style={{
                     alignSelf: "flex-start",
@@ -2238,157 +2007,10 @@ export default function AssistantScreen() {
                     borderColor: colors.border,
                     paddingVertical: 6,
                     paddingHorizontal: 12,
-                    opacity: autopilotProposal && autopilotProposal.status !== "approved" ? 0.6 : 1,
                   }}
                 >
                   <Text style={{ color: colors.text, fontWeight: "700" }}>Aplicar no próximo treino</Text>
                 </Pressable>
-                {autopilotProposal && autopilotProposal.status !== "approved" ? (
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    Bloqueado até aprovação do autopilot semanal.
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-
-            {autopilotProposal ? (
-              <View
-                style={{
-                  padding: 14,
-                  borderRadius: 18,
-                  backgroundColor: colors.background,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  gap: 8,
-                }}
-              >
-                <Text style={{ fontWeight: "700", color: colors.text }}>Autopilot semanal</Text>
-                <Text style={{ color: colors.muted }}>Status: {autopilotProposal.status}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Contrato: nada aplica sem status aprovado.
-                </Text>
-                <Text style={{ color: colors.text }}>{autopilotProposal.summary}</Text>
-                {(autopilotProposal.knowledgeBaseVersionLabel || autopilotProposal.knowledgeDomain) ? (
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {autopilotProposal.knowledgeBaseVersionLabel ? (
-                      <View
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.secondaryBg,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                          Base cientifica: {autopilotProposal.knowledgeBaseVersionLabel}
-                        </Text>
-                      </View>
-                    ) : null}
-                    <View
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        Dominio: {knowledgeDomainLabel(autopilotProposal.knowledgeDomain)}
-                      </Text>
-                    </View>
-                  </View>
-                ) : null}
-                {autopilotProposal.knowledgeRuleHighlights.length > 0 ? (
-                  <View style={{ gap: 6 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Diretrizes da base</Text>
-                    {autopilotProposal.knowledgeRuleHighlights.map((item, index) => (
-                      <Text key={`autopilot-rule-${index}`} style={{ color: colors.muted }}>
-                        - {item}
-                      </Text>
-                    ))}
-                  </View>
-                ) : null}
-                {autopilotProposal.knowledgeReferences.length > 0 ? (
-                  <View style={{ gap: 6 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Referencias da base</Text>
-                    {autopilotProposal.knowledgeReferences.map((reference) => (
-                      <Pressable
-                        key={reference.sourceId}
-                        onPress={() => {
-                          if (reference.url) void openReferenceLink(reference.url);
-                        }}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                          borderRadius: 14,
-                          padding: 10,
-                          gap: 4,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "700" }}>
-                          {reference.title}
-                        </Text>
-                        <Text style={{ color: colors.muted }}>
-                          {reference.authors || "Autor nao informado"}
-                          {reference.sourceYear ? ` . ${reference.sourceYear}` : ""}
-                        </Text>
-                        {reference.citationText ? (
-                          <Text style={{ color: colors.muted }} numberOfLines={2}>
-                            {reference.citationText}
-                          </Text>
-                        ) : null}
-                        {reference.url ? (
-                          <Text style={{ color: colors.primaryBg, textDecorationLine: "underline" }}>
-                            Abrir referencia
-                          </Text>
-                        ) : null}
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-                {autopilotPlanReviewSection ? <View style={{ gap: 6 }}>{autopilotPlanReviewSection}</View> : null}
-                {autopilotProposal.actions.map((item, index) => (
-                  <Text key={`autopilot-action-${index}`} style={{ color: colors.muted }}>
-                    - {item}
-                  </Text>
-                ))}
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    disabled={autopilotProposal.status === "approved"}
-                    onPress={handleApproveAutopilot}
-                    style={{
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingVertical: 6,
-                      paddingHorizontal: 12,
-                      opacity: autopilotProposal.status === "approved" ? 0.6 : 1,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Aprovar</Text>
-                  </Pressable>
-                  <Pressable
-                    disabled={autopilotProposal.status === "rejected"}
-                    onPress={handleRejectAutopilot}
-                    style={{
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      paddingVertical: 6,
-                      paddingHorizontal: 12,
-                      opacity: autopilotProposal.status === "rejected" ? 0.6 : 1,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>Rejeitar</Text>
-                  </Pressable>
-                </View>
               </View>
             ) : null}
 
