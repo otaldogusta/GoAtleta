@@ -501,115 +501,131 @@ export default function ReportsScreen() {
             ))}
           </View>
 
-          <View style={insetCardStyle}>
-            <Text style={sectionTitleStyle}>Comparativo da equipe</Text>
-            <Text style={{ color: colors.muted }}>
-              Presença média global: {(teamIntelligence.globalAvgAttendance * 100).toFixed(0)}% • PSE médio global: {teamIntelligence.globalAvgPse.toFixed(1)}
-            </Text>
-            {teamIntelligence.rankingByAttendance.length === 0 ? (
-              <Text style={{ color: colors.muted }}>Sem sessões suficientes para ranking no período.</Text>
-            ) : (
-              <View style={{ gap: 6 }}>
+          {teamIntelligence.rankingByAttendance.length > 0 && (
+            <View style={insetCardStyle}>
+              <Text style={sectionTitleStyle}>Comparativo da equipe</Text>
+              <Text style={{ color: colors.muted }}>
+                Presença média global: {(teamIntelligence.globalAvgAttendance * 100).toFixed(0)}% • PSE médio global: {teamIntelligence.globalAvgPse.toFixed(1)}
+              </Text>
+              <View style={{ gap: 6, marginTop: 4 }}>
                 {teamIntelligence.rankingByAttendance.map((item, index) => (
                   <Text key={`team-ranking-${item.classId}`} style={{ color: colors.text }}>
                     {index + 1}. {item.className} • {(item.avgAttendance * 100).toFixed(0)}% • PSE {item.avgPse.toFixed(1)}
                   </Text>
                 ))}
               </View>
-            )}
-          </View>
+            </View>
+          )}
 
-          <View style={insetCardStyle}>
-            <Text style={sectionTitleStyle}>Simulação de evolução (6 semanas)</Text>
-            <Text style={{ color: colors.muted }}>
-              Projeção assistiva e determinística. Aplicação real exige validação humana.
-            </Text>
-            {simulationHighlights.length === 0 ? (
+          {simulationHighlights.length > 0 && (
+            <View style={insetCardStyle}>
+              <Text style={sectionTitleStyle}>Simulação de evolução (6 semanas)</Text>
               <Text style={{ color: colors.muted }}>
-                Sem histórico suficiente para simular no período atual.
+                Projeção assistiva e determinística. Aplicação real exige validação humana.
               </Text>
-            ) : (
-              <View style={{ gap: 6 }}>
+              <View style={{ gap: 6, marginTop: 4 }}>
                 {simulationHighlights.map((item) => (
                   <Text key={`sim-${item.classId}`} style={{ color: colors.text }}>
                     {item.className} • {Math.round(item.baseline * 100)}% → {Math.round(item.projected * 100)}% • confiança {Math.round(item.confidence * 100)}%
                   </Text>
                 ))}
               </View>
-            )}
-          </View>
+            </View>
+          )}
 
-          <View style={insetCardStyle}>
-            <Text style={sectionTitleStyle}>Presença geral</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-              <View
-                style={{
-                  width: 88,
-                  height: 88,
-                  borderRadius: 44,
-                  borderWidth: 8,
-                  borderColor: colors.primaryBg,
+          {summary.total === 0 ? (
+            <View
+              style={[
+                insetCardStyle,
+                {
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: colors.card,
-                }}
-              >
-                <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
-                  {summary.percent}%
-                </Text>
-              </View>
-              <View style={{ gap: 6, flex: 1 }}>
-                <Text style={{ color: colors.text }}>
-                  Presenças: {summary.present}
-                </Text>
-                <Text style={{ color: colors.text }}>
-                  Faltas: {summary.absent}
-                </Text>
-                <Text style={{ color: colors.muted }}>
-                  Total registrado: {summary.total}
-                </Text>
-              </View>
-            </View>
-            <View style={dividerStyle} />
-            <View style={{ gap: 8 }}>
-              <Text style={sectionTitleStyle}>Evolução semanal</Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "flex-end",
+                  paddingVertical: 32,
                   gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                {weeklySummary.map((week) => (
-                  <View key={week.label} style={{ alignItems: "center", gap: 6 }}>
-                    <View
-                      style={{
-                        width: 18,
-                        height: 64,
-                        borderRadius: 10,
-                        backgroundColor: colors.secondaryBg,
-                        overflow: "hidden",
-                      }}
-                    >
+                },
+              ]}
+            >
+              <GoAtletaIcon name="warning" size={24} color={colors.muted} />
+              <Text style={{ color: colors.text, fontWeight: "700", textAlign: "center" }}>
+                Nenhum dado registrado
+              </Text>
+              <Text style={{ color: colors.muted, textAlign: "center", fontSize: 13, lineHeight: 18 }}>
+                Não há chamadas ou sessões de aula finalizadas para as suas turmas neste período.
+              </Text>
+            </View>
+          ) : (
+            <View style={insetCardStyle}>
+              <Text style={sectionTitleStyle}>Presença geral</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                <View
+                  style={{
+                    width: 88,
+                    height: 88,
+                    borderRadius: 44,
+                    borderWidth: 8,
+                    borderColor: colors.primaryBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.card,
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
+                    {summary.percent}%
+                  </Text>
+                </View>
+                <View style={{ gap: 6, flex: 1 }}>
+                  <Text style={{ color: colors.text }}>
+                    Presenças: {summary.present}
+                  </Text>
+                  <Text style={{ color: colors.text }}>
+                    Faltas: {summary.absent}
+                  </Text>
+                  <Text style={{ color: colors.muted }}>
+                    Total registrado: {summary.total}
+                  </Text>
+                </View>
+              </View>
+              <View style={dividerStyle} />
+              <View style={{ gap: 8 }}>
+                <Text style={sectionTitleStyle}>Evolução semanal</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-end",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {weeklySummary.map((week) => (
+                    <View key={week.label} style={{ alignItems: "center", gap: 6 }}>
                       <View
                         style={{
-                          position: "absolute",
-                          bottom: 0,
-                          width: "100%",
-                          height: `${week.percent}%`,
-                          backgroundColor: colors.primaryBg,
+                          width: 18,
+                          height: 64,
+                          borderRadius: 10,
+                          backgroundColor: colors.secondaryBg,
+                          overflow: "hidden",
                         }}
-                      />
+                      >
+                        <View
+                          style={{
+                            position: "absolute",
+                            bottom: 0,
+                            width: "100%",
+                            height: `${week.percent}%`,
+                            backgroundColor: colors.primaryBg,
+                          }}
+                        />
+                      </View>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        {week.label}
+                      </Text>
                     </View>
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>
-                      {week.label}
-                    </Text>
-                  </View>
-                ))}
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
+          )}
         </View>
         ) : null}
 

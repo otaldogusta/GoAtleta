@@ -3948,29 +3948,28 @@ export default function PeriodizationScreen() {
             </View>
             <View style={{ gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {normalizeText(
-                  `${formatPeriodizationContextModel(periodizationContext.model)} · ${
-                    periodizationContext.objective || "Sem objetivo definido"
-                  }`
-                )}
+                {(() => {
+                  const modelStr = formatPeriodizationContextModel(periodizationContext.model);
+                  const objectiveStr = periodizationContext.objective || "";
+                  const focusStr = periodizationContext.focus || "";
+                  const loadStr = formatPeriodizationContextLoad(periodizationContext) || "";
+                  const phaseStr = periodizationContext.cyclePhase || "";
+
+                  const rawParts = [modelStr, objectiveStr, focusStr, loadStr, phaseStr];
+                  const uniqueParts: string[] = [];
+                  rawParts.forEach(p => {
+                    const clean = p.trim();
+                    if (clean && !uniqueParts.includes(clean)) {
+                      uniqueParts.push(clean);
+                    }
+                  });
+                  return normalizeText(uniqueParts.join(" · "));
+                })()}
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {normalizeText(
-                  `${periodizationContext.focus || "Sem foco"}${
-                    formatPeriodizationContextLoad(periodizationContext)
-                      ? ` · ${formatPeriodizationContextLoad(periodizationContext)}`
-                      : ""
-                  }${
-                    periodizationContext.cyclePhase
-                      ? ` · ${periodizationContext.cyclePhase}`
-                      : ""
-                  }`
-                )}
-              </Text>
-              {periodizationContext.constraints?.length ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {periodizationContext.constraints && periodizationContext.constraints.length > 0 ? (
+                <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
                   {normalizeText(
-                    `${periodizationContext.constraints.length} restrição(ões) ativas no momento`
+                    `Restrições: ${periodizationContext.constraints.join(" · ")}`
                   )}
                 </Text>
               ) : null}
@@ -3978,7 +3977,7 @@ export default function PeriodizationScreen() {
           </View>
         ) : null}
 
-        {activeTab === "geral" && selectedClass ? (
+        {activeTab === "geral" && selectedClass && (isLoadingPeriodizationKnowledge || periodizationKnowledgeSnapshot) ? (
           <View
             style={[
               getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
@@ -4057,11 +4056,7 @@ export default function PeriodizationScreen() {
                     : normalizeText("Base ativa, sem resumo de revisão disponível neste momento.")}
                 </Text>
               </>
-            ) : (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Nenhuma base de referência ativa para esta turma.
-              </Text>
-            )}
+            ) : null}
           </View>
         ) : null}
 
