@@ -83,7 +83,7 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
           ...(Platform.OS === "web" ? { boxShadow: "0 2px 12px rgba(124,58,237,0.08)" } : {}),
         }}
       >
-        {/* Header row */}
+        {/* Main Content row */}
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
           <View
             style={{
@@ -100,24 +100,13 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
             <GoAtletaIcon name="sparkles" size={16} color="#fff" />
           </View>
 
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: "600",
-                color: accentColor,
-                letterSpacing: 0.5,
-                textTransform: "uppercase",
-              }}
-            >
-              Copiloto · Insight
-            </Text>
+          <View style={{ flex: 1, gap: 2, justifyContent: "center" }}>
             <Text
               style={{
                 fontSize: 14,
                 color: colors.text,
                 lineHeight: 20,
-                fontWeight: "400",
+                fontWeight: "600",
               }}
             >
               {insight.insight}
@@ -150,17 +139,6 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
               gap: 6,
             }}
           >
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: "600",
-                color: colors.muted,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}
-            >
-              Baseado em fatos:
-            </Text>
             {insight.based_on.map((fact, idx) => (
               <View key={idx} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 4 }}>
                 <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: accentColor }} />
@@ -196,18 +174,8 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
         )}
 
         {/* Footer row */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Text
-              style={{
-                fontSize: 11,
-                color: confidenceColor(insight.confidence, colors),
-                fontWeight: "500",
-              }}
-            >
-              {confidenceLabel(insight.confidence)}
-            </Text>
-
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
             {insight.based_on && insight.based_on.length > 0 && (
               <Pressable
                 onPress={() => setShowJustification(!showJustification)}
@@ -221,7 +189,7 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
                 accessibilityRole="button"
               >
                 <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "500" }}>
-                  {showJustification ? "Ocultar justificativa" : "Ver justificativa"}
+                  {showJustification ? "Ocultar" : "Por quê?"}
                 </Text>
                 <GoAtletaIcon
                   name={showJustification ? "chevronUp" : "chevronDown"}
@@ -261,4 +229,3 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
     </Animated.View>
   );
 }
-
