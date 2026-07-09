@@ -852,11 +852,17 @@ export default function ProfileScreen() {
               ) : null}
               {!student && isOrgAdmin ? (
                 <SettingsRow
-                  icon="document"
+                  icon="regulations"
                   iconBg="rgba(255, 210, 140, 0.16)"
-                  label="Fontes de regulamento"
-                  subtitle="Monitoramento e sync de fontes oficiais"
-                  onPress={() => router.push("/regulation-sources")}
+                  label="Regulamentos"
+                  subtitle="Fontes oficiais, versões e atualizações"
+                  onPress={() =>
+                    router.push(
+                      pathname.startsWith("/coord")
+                        ? "/coord/regulation-history"
+                        : "/prof/regulation-history"
+                    )
+                  }
                   rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
                 />
               ) : null}

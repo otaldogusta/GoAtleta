@@ -1,19 +1,15 @@
 import { usePathname, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
 import { useRole } from "../auth/role";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
-import type { ClassGroup } from "../core/models";
 import type { DevProfilePreview } from "../dev/profile-preview";
-import { getClasses } from "../db/classes";
-import { getStudents } from "../db/students";
 import { getScopedProfilePath } from "../navigation/profile-routes";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { brandPalette, radius } from "../theme/tokens";
 import { Pressable } from "./Pressable";
-import { buildWebSidebarViewModel } from "./web-sidebar-view-model";
 import { decorativeIconProps } from "./decorative-icon-props";
 import { GoAtletaIcon, type GoAtletaIconName } from "./icon-registry";
 import { webShellTokens } from "./web-shell-tokens";
@@ -209,10 +205,6 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const { session } = useAuth();
   const { refresh: refreshRole } = useRole();
   const organizationContext = useOptionalOrganization();
-  const organizationId =
-    organizationContext?.activeOrganizationId ?? organizationContext?.activeOrganization?.id ?? null;
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [studentCount, setStudentCount] = useState(0);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpandedState] = useState(false);
   const [hoveredCompactItemKey, setHoveredCompactItemKey] = useState<string | null>(null);
@@ -259,35 +251,6 @@ export function WebSidebar({ role }: WebSidebarProps) {
       nextExpanded ? "expanded" : "compact"
     );
   }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    if (role !== "prof") {
-      setClasses([]);
-      setStudentCount(0);
-      return () => {
-        mounted = false;
-      };
-    }
-
-    const loadSidebarData = async () => {
-      const [nextClasses, nextStudents] = await Promise.all([
-        getClasses({ organizationId }).catch(() => [] as ClassGroup[]),
-        getStudents({ organizationId }).catch(() => []),
-      ]);
-
-      if (!mounted) return;
-      setClasses(nextClasses);
-      setStudentCount(nextStudents.length);
-    };
-
-    void loadSidebarData();
-
-    return () => {
-      mounted = false;
-    };
-  }, [organizationId, role]);
 
   useEffect(() => {
     setProfileMenuOpen(false);
@@ -353,16 +316,6 @@ export function WebSidebar({ role }: WebSidebarProps) {
     };
   }, [profileMenuOpen]);
 
-  const viewModel = useMemo(
-    () =>
-      buildWebSidebarViewModel({
-        classes,
-        studentCount,
-        unreadCount: 0,
-      }),
-    [classes, studentCount]
-  );
-
   const applyProfilePreview = useCallback(
     async (preview: ProfileSwitchId) => {
       if (!setDevProfilePreview) return;
@@ -382,30 +335,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
     icon: tab.icon,
   }));
 
-  const mainItems: SidebarItem[] =
-    role === "prof"
-      ? tabItems.map((item) => {
-          if (item.key === "home") {
-            return {
-              ...item,
-              badge: viewModel.todayClassCount ? String(viewModel.todayClassCount) : undefined,
-            };
-          }
-          if (item.key === "classes") {
-            return {
-              ...item,
-              badge: viewModel.totalClasses ? String(viewModel.totalClasses) : undefined,
-            };
-          }
-          return item;
-        })
-      : role === "coord"
-        ? tabItems.map((item) =>
-            item.key === "classes" && viewModel.totalClasses
-              ? { ...item, badge: String(viewModel.totalClasses) }
-              : item
-          )
-        : tabItems;
+  const mainItems: SidebarItem[] = tabItems;
 
   const operationalItemsByRole: Record<AppRole, SidebarItem[]> = {
     prof: [
@@ -420,7 +350,6 @@ export function WebSidebar({ role }: WebSidebarProps) {
         label: "Alunos",
         href: "/prof/students",
         icon: "students",
-        badge: viewModel.totalStudents ? String(viewModel.totalStudents) : undefined,
       },
       {
         key: "calendar",
@@ -585,8 +514,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
           router.push(item.href as never);
         }}
         style={{
-          width: 58,
-          minHeight: 52,
+          width: 52,
+          minHeight: 46,
           borderRadius: radius.card,
           alignSelf: "center",
           alignItems: "center",
@@ -598,9 +527,9 @@ export function WebSidebar({ role }: WebSidebarProps) {
       >
         <View
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 14,
+            width: 30,
+            height: 30,
+            borderRadius: 12,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: active ? "rgba(65, 217, 132, 0.16)" : webShellTokens.sidebarSoft,
@@ -608,7 +537,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
         >
           <GoAtletaIcon
             name={item.icon}
-            size={20}
+            size={17}
             color={active ? webShellTokens.primary : "rgba(255,255,255,0.70)"}
           />
         </View>
@@ -732,8 +661,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
         </View>
 
         <ScrollView
-          style={{ flex: 1, minHeight: 0, overflow: "visible" } as any}
-          contentContainerStyle={{ gap: 8, alignItems: "center", paddingVertical: 2 }}
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ gap: 6, alignItems: "center", paddingVertical: 2, paddingBottom: 6 }}
           showsVerticalScrollIndicator={false}
         >
           {mainItems.map(renderCompactNavItem)}
@@ -743,7 +672,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
                 width: 34,
                 height: 1,
                 backgroundColor: "rgba(255,255,255,0.10)",
-                marginVertical: 4,
+                marginVertical: 2,
               }}
             />
           ) : null}

@@ -1,6 +1,6 @@
 import { useFocusEffect, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -11,12 +11,57 @@ import {
     type RegulationRuleSet,
     type RegulationRuleSetDiff,
 } from "../src/api/regulation-rule-sets";
+import {
+    createRegulationSource,
+    deleteRegulationSource,
+    listRegulationSources,
+    type RegulationAuthority,
+    type RegulationSource,
+    syncRegulationSourceNow,
+    toggleRegulationSource,
+    updateRegulationSource,
+} from "../src/api/regulation-sources";
 import { listRegulationUpdates, type RegulationUpdate } from "../src/api/regulation-updates";
+import { useAuth } from "../src/auth/auth";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/OrganizationProvider";
+import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { useConfirmDialog } from "../src/ui/confirm-dialog";
+
+type FormState = {
+  label: string;
+  authority: RegulationAuthority;
+  sourceUrl: string;
+  sport: string;
+  topicHintsText: string;
+  checkIntervalHours: string;
+  enabled: boolean;
+};
+
+const authorityOptions: RegulationAuthority[] = ["FIVB", "FPV", "PARANAENSE", "OUTRO"];
+
+const emptyForm: FormState = {
+  label: "",
+  authority: "FIVB",
+  sourceUrl: "",
+  sport: "volleyball",
+  topicHintsText: "",
+  checkIntervalHours: "6",
+  enabled: true,
+};
+
+const parseTopics = (value: string) =>
+  Array.from(
+    new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
 
 const statusLabel: Record<RegulationRuleSet["status"], string> = {
   draft: "Rascunho",
@@ -43,11 +88,20 @@ export default function RegulationHistoryScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const { colors } = useAppTheme();
+  const { session } = useAuth();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const { activeOrganization, activeOrganizationId } = useOrganization();
   const fallbackPath = pathname.startsWith("/coord") ? "/coord/dashboard" : "/prof/home";
+  const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sources, setSources] = useState<RegulationSource[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [syncingSourceId, setSyncingSourceId] = useState<string | null>(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [ruleSets, setRuleSets] = useState<RegulationRuleSet[]>([]);
   const [updates, setUpdates] = useState<RegulationUpdate[]>([]);
   const [leftRuleSetId, setLeftRuleSetId] = useState<string>("");
@@ -63,9 +117,41 @@ export default function RegulationHistoryScreen() {
     [ruleSets, selectedRuleSetId]
   );
 
+  const editingSource = useMemo(
+    () => sources.find((item) => item.id === editingSourceId) ?? null,
+    [editingSourceId, sources]
+  );
+
+  const closeSheet = useCallback(() => {
+    setSheetVisible(false);
+    setEditingSourceId(null);
+    setForm(emptyForm);
+  }, []);
+
+  const openCreate = useCallback(() => {
+    setEditingSourceId(null);
+    setForm(emptyForm);
+    setSheetVisible(true);
+  }, []);
+
+  const openEdit = useCallback((source: RegulationSource) => {
+    setEditingSourceId(source.id);
+    setForm({
+      label: source.label,
+      authority: source.authority,
+      sourceUrl: source.sourceUrl,
+      sport: source.sport || "volleyball",
+      topicHintsText: source.topicHints.join(", "),
+      checkIntervalHours: String(source.checkIntervalHours || 6),
+      enabled: source.enabled,
+    });
+    setSheetVisible(true);
+  }, []);
+
   const loadData = useCallback(async () => {
     const organizationId = activeOrganizationId ?? "";
     if (!organizationId) {
+      setSources([]);
       setRuleSets([]);
       setUpdates([]);
       setDiffs([]);
@@ -76,10 +162,12 @@ export default function RegulationHistoryScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [ruleSetRows, updatesResult] = await Promise.all([
+      const [sourceRows, ruleSetRows, updatesResult] = await Promise.all([
+        isAdmin ? listRegulationSources(organizationId) : Promise.resolve([] as RegulationSource[]),
         listRegulationRuleSets({ organizationId, limit: 120 }),
         listRegulationUpdates({ organizationId, unreadOnly: false, limit: 50 }),
       ]);
+      setSources(sourceRows);
       setRuleSets(ruleSetRows);
       setUpdates(updatesResult.items);
       const firstId = ruleSetRows[0]?.id ?? "";
@@ -92,7 +180,7 @@ export default function RegulationHistoryScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeOrganizationId]);
+  }, [activeOrganizationId, isAdmin]);
 
   useFocusEffect(
     useCallback(() => {
@@ -164,21 +252,209 @@ export default function RegulationHistoryScreen() {
     }
   }, []);
 
+  const handleSaveSource = useCallback(async () => {
+    const organizationId = activeOrganizationId ?? "";
+    if (!organizationId) return;
+
+    const label = form.label.trim();
+    const sourceUrl = form.sourceUrl.trim();
+    if (!label || !sourceUrl) {
+      Alert.alert("Campos obrigatórios", "Preencha nome da fonte e URL.");
+      return;
+    }
+
+    const checkIntervalHours = Math.max(1, Math.min(Number(form.checkIntervalHours || 6), 168));
+    if (!Number.isFinite(checkIntervalHours)) {
+      Alert.alert("Intervalo inválido", "Informe um número de horas entre 1 e 168.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingSourceId) {
+        await updateRegulationSource(editingSourceId, organizationId, {
+          label,
+          authority: form.authority,
+          sourceUrl,
+          sport: form.sport || "volleyball",
+          topicHints: parseTopics(form.topicHintsText),
+          checkIntervalHours,
+          enabled: form.enabled,
+        });
+      } else {
+        await createRegulationSource({
+          organizationId,
+          label,
+          authority: form.authority,
+          sourceUrl,
+          sport: form.sport || "volleyball",
+          topicHints: parseTopics(form.topicHintsText),
+          checkIntervalHours,
+          enabled: form.enabled,
+          createdBy: session?.user?.id ?? null,
+        });
+      }
+      closeSheet();
+      await loadData();
+    } catch (saveError) {
+      Alert.alert("Erro", saveError instanceof Error ? saveError.message : "Falha ao salvar fonte.");
+    } finally {
+      setSaving(false);
+    }
+  }, [activeOrganizationId, closeSheet, editingSourceId, form, loadData, session?.user?.id]);
+
+  const handleToggleSource = useCallback(
+    async (source: RegulationSource) => {
+      const organizationId = activeOrganizationId ?? "";
+      if (!organizationId) return;
+      try {
+        await toggleRegulationSource(source.id, organizationId, !source.enabled);
+        await loadData();
+      } catch (toggleError) {
+        Alert.alert("Erro", toggleError instanceof Error ? toggleError.message : "Falha ao atualizar status.");
+      }
+    },
+    [activeOrganizationId, loadData]
+  );
+
+  const handleDeleteSource = useCallback(
+    async (source: RegulationSource) => {
+      const organizationId = activeOrganizationId ?? "";
+      if (!organizationId) return;
+      confirmDialog({
+        title: "Remover fonte?",
+        message: `Deseja remover "${source.label}"?`,
+        confirmLabel: "Remover",
+        cancelLabel: "Cancelar",
+        tone: "danger",
+        onConfirm: async () => {
+          try {
+            await deleteRegulationSource(source.id, organizationId);
+            await loadData();
+          } catch (deleteError) {
+            Alert.alert("Erro", deleteError instanceof Error ? deleteError.message : "Falha ao remover.");
+          }
+        },
+      });
+    },
+    [activeOrganizationId, confirmDialog, loadData]
+  );
+
+  const handleSyncSource = useCallback(
+    async (source: RegulationSource) => {
+      const organizationId = activeOrganizationId ?? "";
+      if (!organizationId) return;
+      setSyncingSourceId(source.id);
+      try {
+        const report = await syncRegulationSourceNow({
+          organizationId,
+          sourceId: source.id,
+          force: true,
+        });
+        await loadData();
+        Alert.alert(
+          "Sincronização concluída",
+          `Verificadas: ${report.checked}\nNovos documentos: ${report.newDocuments}\nNovos avisos: ${report.newUpdates}`
+        );
+      } catch (syncError) {
+        Alert.alert("Erro", syncError instanceof Error ? syncError.message : "Falha ao sincronizar fonte.");
+      } finally {
+        setSyncingSourceId(null);
+      }
+    },
+    [activeOrganizationId, loadData]
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} stickyHeaderIndices={[0]}>
         <ScreenPageHeader
-          title="Histórico de regulamentos"
+          title="Regulamentos"
           onBack={() => navigateBackOrReplace({ router, fallback: fallbackPath })}
         />
 
         <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, gap: 4 }}>
           <Text style={{ color: colors.text, fontWeight: "700" }}>{activeOrganization?.name ?? "Organizacao"}</Text>
-          <Text style={{ color: colors.muted }}>Comparador de versoes e historico institucional.</Text>
+          <Text style={{ color: colors.muted }}>Fontes oficiais, versões e atualizações institucionais.</Text>
         </View>
 
         {loading ? <ActivityIndicator color={colors.text} /> : null}
         {!loading && error ? <Text style={{ color: colors.dangerText }}>{error}</Text> : null}
+
+        {!loading ? (
+          <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>Fontes oficiais</Text>
+                <Text style={{ color: colors.muted }}>Monitoramento e sincronização de fontes de regulamento.</Text>
+              </View>
+              {isAdmin ? (
+                <Pressable
+                  onPress={openCreate}
+                  style={{ borderRadius: 999, borderWidth: 1, borderColor: colors.primaryBg, backgroundColor: colors.primaryBg, paddingHorizontal: 14, paddingVertical: 8 }}
+                >
+                  <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Nova fonte</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {!isAdmin ? (
+              <Text style={{ color: colors.muted }}>
+                Somente administradores da organização podem gerenciar fontes de regulamento.
+              </Text>
+            ) : null}
+
+            {isAdmin && sources.length ? sources.map((source) => (
+              <View key={source.id} style={{ borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg, padding: 12, gap: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>{source.label}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{source.sourceUrl}</Text>
+                  </View>
+                  <View style={{ borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 5 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 11 }}>{source.authority}</Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>Intervalo: {source.checkIntervalHours}h</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{source.enabled ? "Ativa" : "Pausada"}</Text>
+                    <Switch value={source.enabled} onValueChange={() => void handleToggleSource(source)} />
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  <Pressable
+                    onPress={() => void handleSyncSource(source)}
+                    disabled={syncingSourceId === source.id}
+                    style={{ borderRadius: 10, borderWidth: 1, borderColor: colors.primaryBg, backgroundColor: colors.primaryBg, paddingHorizontal: 10, paddingVertical: 8, opacity: syncingSourceId === source.id ? 0.7 : 1 }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
+                      {syncingSourceId === source.id ? "Sincronizando..." : "Sincronizar agora"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => openEdit(source)}
+                    style={{ borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 8 }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>Editar</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void handleDeleteSource(source)}
+                    style={{ borderRadius: 10, borderWidth: 1, borderColor: colors.dangerBg, backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 8 }}
+                  >
+                    <Text style={{ color: colors.dangerText, fontWeight: "700", fontSize: 12 }}>Remover</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )) : null}
+
+            {isAdmin && !sources.length ? (
+              <Text style={{ color: colors.muted }}>
+                Nenhuma fonte cadastrada. Adicione uma fonte oficial para monitorar adendos e atualizações.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {!loading ? (
           <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 14, gap: 8 }}>
@@ -282,6 +558,128 @@ export default function RegulationHistoryScreen() {
           </View>
         ) : null}
       </ScrollView>
+
+      <ModalSheet
+        visible={sheetVisible}
+        onClose={closeSheet}
+        cardStyle={{
+          borderRadius: 18,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.background,
+          padding: 14,
+          gap: 10,
+        }}
+      >
+        <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+          {editingSource ? "Editar fonte" : "Nova fonte"}
+        </Text>
+
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Nome da fonte</Text>
+          <TextInput
+            value={form.label}
+            onChangeText={(value) => setForm((prev) => ({ ...prev, label: value }))}
+            placeholder="Ex: Regulamento FIVB 2026"
+            placeholderTextColor={colors.muted}
+            style={{ borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.inputText, paddingHorizontal: 12, paddingVertical: 10 }}
+          />
+        </View>
+
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Autoridade</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {authorityOptions.map((authority) => {
+              const active = authority === form.authority;
+              return (
+                <Pressable
+                  key={authority}
+                  onPress={() => setForm((prev) => ({ ...prev, authority }))}
+                  style={{ borderRadius: 999, borderWidth: 1, borderColor: active ? colors.primaryBg : colors.border, backgroundColor: active ? colors.primaryBg : colors.secondaryBg, paddingHorizontal: 10, paddingVertical: 7 }}
+                >
+                  <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700", fontSize: 12 }}>
+                    {authority}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>URL da fonte</Text>
+          <TextInput
+            value={form.sourceUrl}
+            onChangeText={(value) => setForm((prev) => ({ ...prev, sourceUrl: value }))}
+            placeholder="https://..."
+            autoCapitalize="none"
+            placeholderTextColor={colors.muted}
+            style={{ borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.inputText, paddingHorizontal: 12, paddingVertical: 10 }}
+          />
+        </View>
+
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Tópicos sugeridos</Text>
+          <TextInput
+            value={form.topicHintsText}
+            onChangeText={(value) => setForm((prev) => ({ ...prev, topicHintsText: value }))}
+            placeholder="Substituições, Líbero, Disputa"
+            placeholderTextColor={colors.muted}
+            style={{ borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.inputText, paddingHorizontal: 12, paddingVertical: 10 }}
+          />
+        </View>
+
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Esporte</Text>
+            <TextInput
+              value={form.sport}
+              onChangeText={(value) => setForm((prev) => ({ ...prev, sport: value }))}
+              placeholder="volleyball"
+              autoCapitalize="none"
+              placeholderTextColor={colors.muted}
+              style={{ borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.inputText, paddingHorizontal: 12, paddingVertical: 10 }}
+            />
+          </View>
+          <View style={{ width: 120, gap: 6 }}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Intervalo (h)</Text>
+            <TextInput
+              value={form.checkIntervalHours}
+              onChangeText={(value) => setForm((prev) => ({ ...prev, checkIntervalHours: value }))}
+              keyboardType="number-pad"
+              placeholder="6"
+              placeholderTextColor={colors.muted}
+              style={{ borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.inputText, paddingHorizontal: 12, paddingVertical: 10 }}
+            />
+          </View>
+        </View>
+
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>Fonte ativa</Text>
+          <Switch
+            value={form.enabled}
+            onValueChange={(value) => setForm((prev) => ({ ...prev, enabled: value }))}
+          />
+        </View>
+
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={closeSheet}
+            style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg, alignItems: "center", paddingVertical: 11 }}
+          >
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => void handleSaveSource()}
+            disabled={saving}
+            style={{ flex: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.primaryBg, backgroundColor: colors.primaryBg, alignItems: "center", paddingVertical: 11, opacity: saving ? 0.7 : 1 }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+              {saving ? "Salvando..." : "Salvar"}
+            </Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
     </SafeAreaView>
   );
 }

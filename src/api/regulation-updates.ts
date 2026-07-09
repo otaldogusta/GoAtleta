@@ -126,8 +126,7 @@ const deriveRegulationImpact = (topics: string[]) => {
   if (!areas.size) {
     addArea("Regulamento");
   }
-  addAction({ label: "Ver histórico", route: "/regulation-history" });
-  addAction({ label: "Ver fontes", route: "/regulation-sources" });
+  addAction({ label: "Ver regulamentos", route: "/regulation-history" });
 
   return {
     areas: Array.from(areas),
