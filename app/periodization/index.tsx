@@ -3853,7 +3853,7 @@ export default function PeriodizationScreen() {
             !selectedClass
               ? normalizeText("Estrutura do ciclo, cargas e foco semanal")
               : isRedeEsperancaEightToElevenClass(selectedClass)
-                ? normalizeText("Rede Esperança — Turma 8-11 — Misto · Gustavo Ribeiro · Ter e Qui · 14:00–15:00")
+                ? normalizeText("Rede Esperança · Ter e Qui · 14h")
                 : undefined
           }
           onBack={() =>

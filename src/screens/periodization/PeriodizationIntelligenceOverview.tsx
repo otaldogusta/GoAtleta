@@ -28,9 +28,9 @@ const formatSessionDate = (iso: string) => {
 
 const stateLabel = {
   completed: "Realizado",
-  adapted: "Plano adaptado pela IA",
-  gate: "Plano adaptado pela IA",
-  conditional: "Plano adaptado pela IA",
+  adapted: "Plano ajustado",
+  gate: "Plano ajustado",
+  conditional: "Plano ajustado",
   upcoming: "Próximo",
 } as const;
 
@@ -82,7 +82,10 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                 ? colors.warningText
                 : colors.infoText;
             return (
-              <View key={session.date} style={{ width: compact ? 242 : 158, gap: 7 }}>
+              <View
+                key={session.date}
+                style={{ width: compact ? 242 : 158, gap: 7, opacity: completed ? 0.62 : 1 }}
+              >
                 <View style={{ flexDirection: "row", alignItems: "center", minHeight: 28 }}>
                   <View
                     style={{
@@ -166,9 +169,6 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                       </Text>
                     </View>
                   ) : null}
-                  <Text style={{ color: colors.infoText, fontSize: 9, marginTop: "auto" }}>
-                    Clique para ver tudo
-                  </Text>
                 </Pressable>
               </View>
             );
@@ -181,11 +181,11 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <GoAtletaIcon name="sparkles" size={19} color={colors.successText} />
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-              A IA está aprendendo com a sua turma
+              Evolução recente
             </Text>
           </View>
           <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-            Usou {alignment.evidenceCount} relatórios recentes. Dados de participação, execução e comportamento estão sendo considerados.
+            {alignment.evidenceCount} relatórios recentes considerados com dados de participação, execução e comportamento.
           </Text>
           <View style={{ gap: 8 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
@@ -356,7 +356,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                   ) : null}
                   {selectedSession.adjustments?.length ? (
                     <View>
-                      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Ajustes recomendados pela IA</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Ajustes recomendados</Text>
                       {selectedSession.adjustments.map((adjustment) => (
                         <View key={adjustment} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7, marginTop: 7 }}>
                           <GoAtletaIcon name="checkmarkCircle" size={15} color={colors.successText} />

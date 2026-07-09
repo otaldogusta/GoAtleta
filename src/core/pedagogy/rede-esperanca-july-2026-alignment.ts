@@ -138,7 +138,7 @@ export const buildRedeEsperancaJulyAlignment = (
       "Atenção e comportamento dentro do esperado",
     ],
     aiSummary:
-      "Os relatórios indicam que a recepção direta ainda precisa de estabilidade. A IA mantém o 1x1, reduz variáveis e só libera o mini 2x2 após o portão de prontidão.",
+      "Os relatórios indicam que a recepção direta ainda precisa de estabilidade. A recomendação é manter o 1x1, reduzir variáveis e liberar o mini 2x2 somente após o portão de prontidão.",
   };
 };
 

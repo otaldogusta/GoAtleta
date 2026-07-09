@@ -209,7 +209,9 @@ describe("OverviewTab", () => {
     expect(findNodeByText(root, "Julho 2026")).toBeTruthy();
     expect(findNodeByText(root, "Recepção direta sem segurar a bola")).toBeTruthy();
     expect(findNodeByText(root, "Portão de prontidão")).toBeTruthy();
-    expect(findNodeByText(root, "A IA está aprendendo com a sua turma")).toBeTruthy();
+    expect(findNodeByText(root, "Evolução recente")).toBeTruthy();
+    expect(collectText(root)).not.toContain("pela IA");
+    expect(collectText(root)).not.toContain("Clique para ver tudo");
 
     const reviewButton = root.findByProps({ accessibilityLabel: "Revisar evolução da turma" });
     act(() => reviewButton.props.onPress());
@@ -220,7 +222,7 @@ describe("OverviewTab", () => {
     });
     act(() => sessionCard.props.onPress());
     expect(findNodeByText(root, "Foco planejado")).toBeTruthy();
-    expect(findNodeByText(root, "Ajustes recomendados pela IA")).toBeTruthy();
+    expect(findNodeByText(root, "Ajustes recomendados")).toBeTruthy();
     expect(root.findByProps({ accessibilityLabel: "Fechar" })).toBeTruthy();
   });
 });

@@ -48,6 +48,13 @@ The implementation preserves the selected visual hierarchy: periodization header
 - The primary tab label was restored to `Visão geral`.
 - The detail dialog was opened and closed in the browser, and the adapted-session adjustments were fully readable.
 
+### Pass 4 — copy and completed-state annotations
+
+- Removed the redundant card affordance text; cards remain accessible buttons and still open their complete detail.
+- Replaced explicit AI self-reference with outcome-focused copy while retaining the sparkles icon as provenance.
+- Reduced the page subtitle to unit, training days, and start time.
+- Completed sessions use a faded visual state while remaining clickable.
+
 ## Implementation checklist
 
 - [x] Preserve Cycle tab and annual visualization.
