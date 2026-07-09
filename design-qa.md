@@ -41,6 +41,13 @@ The implementation preserves the selected visual hierarchy: periodization header
 - No actionable P0, P1, or P2 findings remain.
 - P3: the final conditional mini-2x2 card may require a short horizontal scroll at some desktop zoom levels; this is intentional and preserves readable card content.
 
+### Pass 3 — browser annotations
+
+- Cards now use the same measured height (238px), truncate overflowing summaries, and expose a complete detail dialog on click.
+- Future/adapted state labels now use a light information color on the dark surface; browser-computed color was `rgb(191, 219, 254)`.
+- The primary tab label was restored to `Visão geral`.
+- The detail dialog was opened and closed in the browser, and the adapted-session adjustments were fully readable.
+
 ## Implementation checklist
 
 - [x] Preserve Cycle tab and annual visualization.

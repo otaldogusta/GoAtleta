@@ -3874,11 +3874,7 @@ export default function PeriodizationScreen() {
             tabs={[
               {
                 id: "geral",
-                label: normalizeText(
-                  isRedeEsperancaEightToElevenClass(selectedClass)
-                    ? "Planejado versus realizado com IA"
-                    : "Visão geral"
-                ),
+                label: normalizeText("Visão geral"),
               },
               { id: "ciclo", label: normalizeText("Ciclo") },
               { id: "semana", label: normalizeText("Agenda") },

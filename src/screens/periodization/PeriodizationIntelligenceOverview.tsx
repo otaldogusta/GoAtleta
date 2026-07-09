@@ -1,7 +1,11 @@
-import { ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { Modal, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { useState } from "react";
 
 import type { RecentSessionSummary } from "../../core/models";
-import { buildRedeEsperancaJulyAlignment } from "../../core/pedagogy/rede-esperanca-july-2026-alignment";
+import {
+  buildRedeEsperancaJulyAlignment,
+  type JulyAlignmentSession,
+} from "../../core/pedagogy/rede-esperanca-july-2026-alignment";
 import type { ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
@@ -31,11 +35,18 @@ const stateLabel = {
 } as const;
 
 export function PeriodizationIntelligenceOverview({ colors, recentSessions, onReviewEvolution }: Props) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const [selectedSession, setSelectedSession] = useState<JulyAlignmentSession | null>(null);
   const compact = width < 900;
   const alignment = buildRedeEsperancaJulyAlignment(recentSessions);
   const visibleSessions = alignment.sessions.slice(0, 6);
-  const completedSessions = visibleSessions.filter((session) => session.state === "completed");
+  const detailBodyHeight = selectedSession
+    ? selectedSession.state === "gate" || selectedSession.state === "conditional"
+      ? Math.min(360, height * 0.44)
+      : selectedSession.adjustments?.length
+        ? 190
+        : 230
+    : 230;
 
   return (
     <View style={{ gap: 14 }}>
@@ -69,7 +80,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
               ? colors.successText
               : isGate
                 ? colors.warningText
-                : colors.primaryText;
+                : colors.infoText;
             return (
               <View key={session.date} style={{ width: compact ? 242 : 158, gap: 7 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", minHeight: 28 }}>
@@ -96,19 +107,23 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                   ) : null}
                 </View>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>{formatSessionDate(session.date)}</Text>
-                <View
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Abrir detalhes da aula de ${formatSessionDate(session.date)}`}
+                  accessibilityHint="Mostra todas as informações desta aula."
+                  onPress={() => setSelectedSession(session)}
                   style={[
                     getSectionCardStyle(colors, "neutral", { padding: 10, radius: 14, shadow: false }),
-                    { minHeight: 174, borderColor: isGate ? colors.warningText : colors.border },
+                    { height: 238, borderColor: isGate ? colors.warningText : colors.border },
                   ]}
                 >
-                  <Text style={{ color: accent, fontSize: 11, fontWeight: "700" }}>
+                  <Text numberOfLines={1} style={{ color: accent, fontSize: 11, fontWeight: "700" }}>
                     {stateLabel[session.state]}
                   </Text>
-                  <Text style={{ color: colors.text, fontSize: 12, lineHeight: 17, fontWeight: "800", marginTop: 6 }}>
+                  <Text numberOfLines={2} style={{ color: colors.text, fontSize: 12, lineHeight: 17, fontWeight: "800", marginTop: 6 }}>
                     {session.plannedTitle}
                   </Text>
-                  <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 5 }}>
+                  <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 5 }}>
                     {session.plannedFocus}
                   </Text>
 
@@ -119,14 +134,14 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                         {session.participantsCount} participantes
                       </Text>
                       {typeof session.completedSequenceCount === "number" ? (
-                        <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>
+                        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>
                           {session.completedSequenceCount} concluíram a sequência esperada
                         </Text>
                       ) : null}
                       {session.observation ? (
                         <View style={{ flexDirection: "row", gap: 6, marginTop: 9 }}>
                           <GoAtletaIcon name="warning" size={13} color={colors.dangerText} />
-                          <Text style={{ color: colors.muted, fontSize: 9, lineHeight: 13, flex: 1 }} numberOfLines={3}>
+                          <Text style={{ color: colors.muted, fontSize: 9, lineHeight: 13, flex: 1 }} numberOfLines={2}>
                             {session.observation}
                           </Text>
                         </View>
@@ -137,23 +152,24 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                   {session.adjustments?.length ? (
                     <View style={{ marginTop: 12, gap: 4 }}>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>Ajustes</Text>
-                      {session.adjustments.map((adjustment) => (
-                        <Text key={adjustment} style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>
-                          · {adjustment}
-                        </Text>
-                      ))}
+                      <Text numberOfLines={3} style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>
+                        {session.adjustments.map((adjustment) => `· ${adjustment}`).join("\n")}
+                      </Text>
                     </View>
                   ) : null}
 
                   {conditional ? (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 }}>
                       <GoAtletaIcon name="info" size={14} color={colors.infoText} />
-                      <Text style={{ color: colors.muted, fontSize: 10, flex: 1 }}>
+                      <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 10, flex: 1 }}>
                         Liberado apenas após o portão de prontidão.
                       </Text>
                     </View>
                   ) : null}
-                </View>
+                  <Text style={{ color: colors.infoText, fontSize: 9, marginTop: "auto" }}>
+                    Clique para ver tudo
+                  </Text>
+                </Pressable>
               </View>
             );
           })}
@@ -249,6 +265,123 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
           </Text>
         </View>
       </View>
+
+      <Modal
+        visible={Boolean(selectedSession)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedSession(null)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(2, 6, 23, 0.78)",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar detalhes da aula"
+            onPress={() => setSelectedSession(null)}
+            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+          />
+          <View
+            style={[
+              getSectionCardStyle(colors, "neutral", { padding: 18, radius: 18 }),
+              {
+                width: "100%",
+                maxWidth: 560,
+                maxHeight: "84%",
+                gap: 0,
+                overflow: "hidden",
+                backgroundColor: colors.inputBg,
+              },
+            ]}
+          >
+            {selectedSession ? (
+              <>
+                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.infoText, fontSize: 12, fontWeight: "800" }}>
+                      {stateLabel[selectedSession.state]}
+                    </Text>
+                    <Text style={{ color: colors.text, fontSize: 20, lineHeight: 26, fontWeight: "800", marginTop: 5 }}>
+                      {selectedSession.plannedTitle}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 12, marginTop: 5 }}>
+                      {formatSessionDate(selectedSession.date)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Fechar"
+                    onPress={() => setSelectedSession(null)}
+                    style={{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg }}
+                  >
+                    <GoAtletaIcon name="close" size={20} color={colors.text} />
+                  </Pressable>
+                </View>
+                <ScrollView
+                  style={{ marginTop: 16, height: detailBodyHeight }}
+                  contentContainerStyle={{ gap: 14, paddingBottom: 4 }}
+                >
+                  <View>
+                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Foco planejado</Text>
+                    <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20, marginTop: 4 }}>
+                      {selectedSession.plannedFocus}
+                    </Text>
+                  </View>
+                  {typeof selectedSession.participantsCount === "number" ? (
+                    <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
+                      <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "800" }}>Resultado realizado</Text>
+                      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800", marginTop: 4 }}>
+                        {selectedSession.participantsCount} participantes
+                      </Text>
+                      {typeof selectedSession.completedSequenceCount === "number" ? (
+                        <Text style={{ color: colors.text, fontSize: 13, marginTop: 5 }}>
+                          {selectedSession.completedSequenceCount} concluíram a sequência esperada.
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  {selectedSession.observation ? (
+                    <View>
+                      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Observação do relatório</Text>
+                      <Text style={{ color: colors.text, fontSize: 13, lineHeight: 19, marginTop: 4 }}>
+                        {selectedSession.observation}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {selectedSession.adjustments?.length ? (
+                    <View>
+                      <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Ajustes recomendados pela IA</Text>
+                      {selectedSession.adjustments.map((adjustment) => (
+                        <View key={adjustment} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7, marginTop: 7 }}>
+                          <GoAtletaIcon name="checkmarkCircle" size={15} color={colors.successText} />
+                          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18, flex: 1 }}>{adjustment}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                  {selectedSession.state === "gate" || selectedSession.state === "conditional" ? (
+                    <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, gap: 7 }}>
+                      <Text style={{ color: colors.warningText, fontSize: 11, fontWeight: "800" }}>Portão de prontidão</Text>
+                      {alignment.gateCriteria.map((criterion) => (
+                        <View key={criterion} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}>
+                          <GoAtletaIcon name="checkmarkCircle" size={15} color={colors.warningText} />
+                          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18, flex: 1 }}>{criterion}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                </ScrollView>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

@@ -214,5 +214,13 @@ describe("OverviewTab", () => {
     const reviewButton = root.findByProps({ accessibilityLabel: "Revisar evolução da turma" });
     act(() => reviewButton.props.onPress());
     expect(onReviewEvolution).toHaveBeenCalledTimes(1);
+
+    const sessionCard = root.findByProps({
+      accessibilityLabel: "Abrir detalhes da aula de Ter · 14/07 · 14:00",
+    });
+    act(() => sessionCard.props.onPress());
+    expect(findNodeByText(root, "Foco planejado")).toBeTruthy();
+    expect(findNodeByText(root, "Ajustes recomendados pela IA")).toBeTruthy();
+    expect(root.findByProps({ accessibilityLabel: "Fechar" })).toBeTruthy();
   });
 });
