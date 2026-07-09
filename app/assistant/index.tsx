@@ -2101,7 +2101,7 @@ export default function AssistantScreen() {
               </View>
             ) : null}
 
-            {(confidence !== null && confidence > 0) || citations.length > 0 || assumptions.length > 0 || missingData.length > 0 ? (
+            {citations.length > 0 || assumptions.length > 0 || missingData.length > 0 ? (
               <View
                 style={{
                   padding: 14,
@@ -2112,12 +2112,7 @@ export default function AssistantScreen() {
                   gap: 8,
                 }}
               >
-                <Text style={{ fontWeight: "700", color: colors.text }}>Qualidade da resposta</Text>
-                {confidence !== null && confidence > 0 ? (
-                  <Text style={{ color: colors.muted }}>
-                    Confiança: {(confidence * 100).toFixed(0)}%
-                  </Text>
-                ) : null}
+                <Text style={{ fontWeight: "700", color: colors.text }}>Justificativa</Text>
                 {citations.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.text, fontWeight: "700" }}>Evidências</Text>
