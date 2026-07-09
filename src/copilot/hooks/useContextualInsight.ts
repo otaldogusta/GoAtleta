@@ -1,4 +1,4 @@
-﻿import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getValidAccessToken } from "../../auth/session";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../api/config";
@@ -7,6 +7,14 @@ export type ContextualInsight = {
   insight: string;
   confidence: number;
   based_on: string[];
+  action?: {
+    type: string;
+    label: string;
+    params: {
+      phone: string;
+      message: string;
+    };
+  } | null;
 };
 
 type ClassSnapshot = {
@@ -115,6 +123,7 @@ export function useContextualInsight(
           insight: payload.insight,
           confidence: payload.confidence,
           based_on: Array.isArray(payload.based_on) ? payload.based_on : [],
+          action: payload.action || null,
         });
       }
     } catch (err: unknown) {

@@ -79,6 +79,14 @@ type ProactiveInsightResponse = {
   insight: string | null;
   confidence: number;
   based_on: string[];
+  action: {
+    type: string;
+    label: string;
+    params: {
+      phone: string;
+      message: string;
+    };
+  } | null;
 };
 
 type AssistantResponse = {
@@ -885,9 +893,14 @@ const systemPrompt = [
 
 const proactiveSystemPrompt = [
   "Você é um copiloto pedagógico para treinadores esportivos sob o Princípio da Compressão Cognitiva.",
-  "Seu objetivo é comprimir centenas de regras, memórias e dados em uma única recomendação acionável e focada na decisão imediata do treinador.",
-  "O campo 'insight' deve conter apenas uma recomendação imperativa ou de alerta claro, começando com verbos de ação ou emojis apropriados (ex: '⚠️ Evite aumentar a carga hoje', '🎯 Priorize exercícios em pequenos grupos', '🌧️ Ajuste a quadra disponível').",
-  "Nunca explique a justificativa dentro do campo 'insight'. A justificativa deve ser detalhada unicamente no array 'based_on' como fatos objetivos e concisos (ex: ['3 atletas retornando de lesão', '28 alunos confirmados', 'quadra externa indisponível']).",
+  "Seu objetivo é produzir recomendações acionáveis focadas na decisão imediata do treinador.",
+  "O campo 'insight' deve conter a recomendação ou alerta claro (ex: '⚠️ Evite saltos para o João hoje', '🌧️ Ajuste a quadra disponível').",
+  "O array 'based_on' detalha os fatos objetivos (ex: ['João treinou areia ontem']).",
+  "Se houver uma ação operacional pendente elegível (como aluno sem liberação médica, ou falta de contatos na turma), preencha o objeto 'action':",
+  " - type: 'whatsapp_reminder'",
+  " - label: o texto do botão de ação (ex: 'Enviar lembrete')",
+  " - params: um objeto com 'phone' (número de celular limpo do aluno/responsável se disponível; caso todos estejam sem contato, retorne 'phone' como string vazia '') e 'message' (a mensagem pronta e amigável direcionada ao responsável do aluno ou pedindo a atualização cadastral geral para o grupo de responsáveis).",
+  "Se não houver ação operacional elegível, retorne 'action' como null.",
   "Se não houver recomendação altamente relevante ou a confiança for baixa, retorne 'insight' como null.",
   "Use português simples, conciso e profissional. Retorne apenas JSON válido.",
 ].join(" ");
@@ -898,8 +911,31 @@ const proactiveResponseSchema = {
     insight: { anyOf: [{ type: "string" }, { type: "null" }] },
     confidence: { type: "number", minimum: 0, maximum: 1 },
     based_on: { type: "array", items: { type: "string" } },
+    action: {
+      anyOf: [
+        { type: "null" },
+        {
+          type: "object",
+          properties: {
+            type: { type: "string" },
+            label: { type: "string" },
+            params: {
+              type: "object",
+              properties: {
+                phone: { type: "string" },
+                message: { type: "string" }
+              },
+              required: ["phone", "message"],
+              additionalProperties: false
+            }
+          },
+          required: ["type", "label", "params"],
+          additionalProperties: false
+        }
+      ]
+    }
   },
-  required: ["insight", "confidence", "based_on"],
+  required: ["insight", "confidence", "based_on", "action"],
   additionalProperties: false,
 };
 
@@ -1070,9 +1106,38 @@ Deno.serve(createEdgeFunction({
         classSnapshot.mvLevel ? `Nível: ${classSnapshot.mvLevel}` : "",
       ].filter(Boolean).join(". ");
 
-      const proactiveUserMessage = classSnapshotText
-        ? `Contexto da turma: ${classSnapshotText}. Gere um insight proativo relevante para agora.`
-        : "Gere um insight proativo para o treinador com base na memória disponível.";
+      // Fetch class students and their intake clearances to construct the individual context (Pilar 8)
+      let studentsContextText = "";
+      if (classId) {
+        try {
+          const { data: students } = await supabase
+            .from("students")
+            .select("id, name, phone, guardian_phone, guardian_name, is_experimental")
+            .eq("classid", classId);
+
+          const { data: intakes } = await supabase
+            .from("athlete_intakes")
+            .select("id, student_id, needs_medical_clearance")
+            .eq("class_id", classId);
+
+          if (students && students.length > 0) {
+            studentsContextText = students.map((s: any) => {
+              const intake = (intakes || []).find((i: any) => i.student_id === s.id);
+              const hasPendingMedical = intake ? Boolean(intake.needs_medical_clearance) : false;
+              const contact = s.phone || s.guardian_phone || "";
+              return `- Aluno: ${s.name}${s.is_experimental ? " (Aula experimental)" : ""}. Contato: ${contact || "Não cadastrado"}. Pendência de liberação médica: ${hasPendingMedical ? "Sim" : "Não"}.`;
+            }).join("\n");
+          }
+        } catch (e) {
+          console.error("Erro ao carregar estudantes para proatividade:", e);
+        }
+      }
+
+      const proactiveUserMessage = [
+        classSnapshotText ? `Contexto da turma: ${classSnapshotText}.` : "",
+        studentsContextText ? `Estudantes na turma:\n${studentsContextText}` : "",
+        "Gere um insight proativo relevante focado em decisões e ações para hoje.",
+      ].filter(Boolean).join("\n");
 
       const proactivePayload = {
         model: "gpt-4o-mini",

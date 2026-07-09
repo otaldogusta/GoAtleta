@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, Text, View } from "react-native";
+import { Animated, Linking, Platform, Pressable, Text, View } from "react-native";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import type { ContextualInsight } from "../../copilot/hooks/useContextualInsight";
@@ -27,6 +27,16 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
   const [showJustification, setShowJustification] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-8)).current;
+
+  const handleActionPress = () => {
+    if (!insight.action) return;
+    if (insight.action.type === "whatsapp_reminder") {
+      const cleanPhone = insight.action.params.phone.replace(/\D/g, "");
+      const formattedPhone = cleanPhone.length <= 11 && cleanPhone.length > 0 ? "55" + cleanPhone : cleanPhone;
+      const url = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(insight.action.params.message)}`;
+      void Linking.openURL(url);
+    }
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -160,6 +170,29 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
               </View>
             ))}
           </View>
+        )}
+
+        {/* Action Button */}
+        {insight.action && (
+          <Pressable
+            onPress={handleActionPress}
+            style={({ pressed }) => ({
+              backgroundColor: accentColor,
+              borderRadius: 10,
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              alignItems: "center",
+              justifyContent: "center",
+              marginTop: 4,
+              opacity: pressed ? 0.8 : 1,
+            })}
+            accessibilityLabel={insight.action.label}
+            accessibilityRole="button"
+          >
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
+              {insight.action.label}
+            </Text>
+          </Pressable>
         )}
 
         {/* Footer row */}
