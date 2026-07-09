@@ -1,19 +1,12 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateStringField } from "../_shared/input-validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
-const createError = (status: number, code: string, error: string) =>
-  new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
+const createError = (req: Request, status: number, code: string, error: string) =>
+  new Response(JSON.stringify({ code, error }), { status, headers: makeJsonHeaders(req) });
 
 const getBearerToken = (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
@@ -24,15 +17,15 @@ const getBearerToken = (req: Request) => {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
   if (req.method !== "POST") {
-    return createError(405, "INVALID_REQUEST", "Method not allowed");
+    return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
   const token = getBearerToken(req);
   if (!token) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized");
+    return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
   let payload: { inviteId: string; organizationId: string } = {
@@ -42,7 +35,7 @@ Deno.serve(async (req) => {
   try {
     payload = (await req.json()) as typeof payload;
   } catch {
-    return createError(400, "INVALID_REQUEST", "Invalid JSON");
+    return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
 
   const inviteIdValidation = validateStringField(payload.inviteId, {
@@ -54,13 +47,13 @@ Deno.serve(async (req) => {
     maxLength: 36,
   });
   if (!inviteIdValidation.ok || !orgValidation.ok) {
-    return createError(400, "INVALID_REQUEST", "Invalid inviteId or organizationId");
+    return createError(req, 400, "INVALID_REQUEST", "Invalid inviteId or organizationId");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   if (!supabaseUrl || !anonKey) {
-    return createError(500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
   }
 
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -75,7 +68,7 @@ Deno.serve(async (req) => {
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
   const userId = authData?.user?.id ?? "";
   if (authError || !userId) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized");
+    return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
   const { data: adminRow, error: adminError } = await supabase
@@ -86,15 +79,15 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (adminError) {
-    return createError(500, "SERVER_ERROR", "Organization lookup failed");
+    return createError(req, 500, "SERVER_ERROR", "Organization lookup failed");
   }
 
   if (!adminRow) {
-    return createError(404, "ORG_NOT_FOUND", "Organization not found");
+    return createError(req, 404, "ORG_NOT_FOUND", "Organization not found");
   }
 
   if ((adminRow.role_level ?? 0) < 50) {
-    return createError(403, "ORG_FORBIDDEN", "Forbidden");
+    return createError(req, 403, "ORG_FORBIDDEN", "Forbidden");
   }
 
   const { data: invite, error: inviteError } = await supabase
@@ -105,15 +98,15 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (inviteError) {
-    return createError(500, "SERVER_ERROR", "Invite lookup failed");
+    return createError(req, 500, "SERVER_ERROR", "Invite lookup failed");
   }
 
   if (!invite) {
-    return createError(404, "INVITE_INVALID", "Invite not found");
+    return createError(req, 404, "INVITE_INVALID", "Invite not found");
   }
 
   if (invite.revoked) {
-    return new Response(JSON.stringify({ status: "ok" }), { headers: jsonHeaders });
+    return new Response(JSON.stringify({ status: "ok" }), { headers: makeJsonHeaders(req) });
   }
 
   const { error: updateError } = await supabase
@@ -122,8 +115,8 @@ Deno.serve(async (req) => {
     .eq("id", inviteIdValidation.data);
 
   if (updateError) {
-    return createError(500, "SERVER_ERROR", "Failed to revoke invite");
+    return createError(req, 500, "SERVER_ERROR", "Failed to revoke invite");
   }
 
-  return new Response(JSON.stringify({ status: "ok" }), { headers: jsonHeaders });
+  return new Response(JSON.stringify({ status: "ok" }), { headers: makeJsonHeaders(req) });
 });

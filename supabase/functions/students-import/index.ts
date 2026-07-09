@@ -1,3 +1,4 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
     validateArrayLength,
@@ -22,16 +23,8 @@ import type {
     StudentImportRow,
 } from "./engine/types.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
 type RateLimitResult = {
   allowed: boolean;
@@ -134,7 +127,7 @@ const normalizeText = (value: string) =>
     .trim();
 
 const asJson = (status: number, body: Record<string, unknown>) =>
-  new Response(JSON.stringify(body), { status, headers: jsonHeaders });
+  new Response(JSON.stringify(body), { status, headers: makeJsonHeaders(req) });
 
 const createServiceClient = () => {
   const url = Deno.env.get("SUPABASE_URL") ?? "";
@@ -436,7 +429,7 @@ const choosePrimaryRowsForDuplicateIdentity = (
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
 
   if (request.method !== "POST") {

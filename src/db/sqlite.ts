@@ -1,6 +1,14 @@
 import { Platform } from "react-native";
 
-let db: any;
+/** Minimal typed interface for the SQLite database handle used across the app. */
+export interface TypedDatabase {
+  execSync(sql: string): void;
+  runAsync(sql: string, params?: unknown[]): Promise<void>;
+  getAllAsync<T = unknown>(sql: string, params?: unknown[]): Promise<T[]>;
+  getFirstAsync<T = unknown>(sql: string, params?: unknown[]): Promise<T | null>;
+}
+
+let db: TypedDatabase;
 if (Platform.OS === "web") {
   // On web, the native expo-sqlite module is not available or may block the
   // main thread during initialization. Provide a lightweight stub that
@@ -13,7 +21,11 @@ if (Platform.OS === "web") {
       // eslint-disable-next-line no-console
       console.warn("[sqlite stub] execSync called on web; SQL omitted for brevity.");
     },
-  };
+    // Async methods are no-ops on web — SQLite is only used on native
+    runAsync: async () => {},
+    getAllAsync: async () => [],
+    getFirstAsync: async () => null,
+  } satisfies TypedDatabase;
 } else {
   // Native path: use expo-sqlite as before
   // Lazy require to avoid bundling native-only module into web build.
@@ -1040,15 +1052,11 @@ export function initDb() {
     db.execSync(
       "ALTER TABLE units ADD COLUMN organizationId TEXT NOT NULL DEFAULT ''"
     );
-    // Fix existing units: assign them to the first available organization
-    // This prevents orphaned units from disappearing
-    const orgs = db.getAllSync<{ id: string }>("SELECT id FROM organizations LIMIT 1");
-    if (orgs.length > 0) {
-      const escapedOrgId = orgs[0].id.replace(/'/g, "''");
-      db.execSync(
-        `UPDATE units SET organizationId = '${escapedOrgId}' WHERE organizationId = ''`
-      );
-    }
+    // Fix existing units: assign them to the first available organization.
+    // Uses a SQL subquery to stay synchronous (no await needed in migration).
+    db.execSync(
+      "UPDATE units SET organizationId = (SELECT id FROM organizations LIMIT 1) WHERE organizationId = ''"
+    );
   } catch {}
   try {
     db.execSync(

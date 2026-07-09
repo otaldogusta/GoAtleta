@@ -1,3 +1,4 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
     normalizePublicUrl,
@@ -5,11 +6,6 @@ import {
 } from "../_shared/url-validation.ts";
 import { securityLogger } from "../_shared/security-logger.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
 type RateLimitResult = {
   allowed: boolean;
@@ -460,7 +456,7 @@ const isYouTube = (value: string) =>
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
 
   try {
@@ -468,7 +464,7 @@ Deno.serve(async (req) => {
     if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
     const maxRequestsPerMinute = Math.max(
@@ -492,7 +488,7 @@ Deno.serve(async (req) => {
           retryAfterSec: limiter.retryAfterSec,
           maxRequestsPerMinute,
         }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 429, headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
     const { url } = await req.json();
@@ -505,7 +501,7 @@ Deno.serve(async (req) => {
       });
       return new Response(
         JSON.stringify({ error: "URL inválida." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -519,7 +515,7 @@ Deno.serve(async (req) => {
       });
       return new Response(
         JSON.stringify({ error: "URL inválida ou domínio resolve para IP privado." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -607,13 +603,13 @@ Deno.serve(async (req) => {
         host,
         url: normalized,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido.";
     return new Response(
       JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

@@ -1,18 +1,11 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
-const createError = (status: number, code: string, error: string) =>
-  new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
+const createError = (req: Request, status: number, code: string, error: string) =>
+  new Response(JSON.stringify({ code, error }), { status, headers: makeJsonHeaders(req) });
 
 const toHex = (buffer: ArrayBuffer) => {
   const bytes = new Uint8Array(buffer);
@@ -46,33 +39,33 @@ const requireUser = async (req: Request) => {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
   if (req.method !== "POST") {
-    return createError(405, "INVALID_REQUEST", "Method not allowed");
+    return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
   const user = await requireUser(req);
   if (!user) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized");
+    return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
   let payload: { token: string } = {};
   try {
     payload = (await req.json()) as { token: string };
   } catch {
-    return createError(400, "INVALID_REQUEST", "Invalid JSON");
+    return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
 
   const token = (payload.token ?? "").trim();
   if (!token) {
-    return createError(400, "INVALID_REQUEST", "Missing token");
+    return createError(req, 400, "INVALID_REQUEST", "Missing token");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
-    return createError(500, "SERVER_ERROR", "Missing Supabase service role config");
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase service role config");
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -89,30 +82,30 @@ Deno.serve(async (req) => {
 
   if (inviteError) {
     console.error("claim-student-invite: lookup failed", inviteError.message);
-    return createError(500, "SERVER_ERROR", "Invite lookup failed");
+    return createError(req, 500, "SERVER_ERROR", "Invite lookup failed");
   }
 
   if (!invite) {
-    return createError(400, "INVITE_INVALID", "Invalid invite");
+    return createError(req, 400, "INVITE_INVALID", "Invalid invite");
   }
 
   if (invite.revoked) {
-    return createError(400, "INVITE_REVOKED", "Invite revoked");
+    return createError(req, 400, "INVITE_REVOKED", "Invite revoked");
   }
 
   if (invite.used_at) {
     if (invite.claimed_by === user.id) {
       return new Response(JSON.stringify({ status: "ok", student_id: invite.student_id }), {
-        headers: jsonHeaders,
+        headers: makeJsonHeaders(req),
       });
     }
-    return createError(400, "INVITE_ALREADY_USED", "Invite already used");
+    return createError(req, 400, "INVITE_ALREADY_USED", "Invite already used");
   }
 
   if (invite.expires_at) {
     const expiresAt = new Date(invite.expires_at);
     if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-      return createError(400, "INVITE_EXPIRED", "Invite expired");
+      return createError(req, 400, "INVITE_EXPIRED", "Invite expired");
     }
   }
 
@@ -124,15 +117,15 @@ Deno.serve(async (req) => {
 
   if (studentError) {
     console.error("claim-student-invite: student lookup failed", studentError.message);
-    return createError(500, "SERVER_ERROR", "Student lookup failed");
+    return createError(req, 500, "SERVER_ERROR", "Student lookup failed");
   }
 
   if (!student) {
-    return createError(404, "STUDENT_NOT_FOUND", "Student not found");
+    return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
   }
 
   if (student.student_user_id && student.student_user_id !== user.id) {
-    return createError(409, "STUDENT_ALREADY_LINKED", "Student already linked");
+    return createError(req, 409, "STUDENT_ALREADY_LINKED", "Student already linked");
   }
 
   const normalizedEmail = (user.email ?? "").trim().toLowerCase();
@@ -154,7 +147,7 @@ Deno.serve(async (req) => {
 
   if (inviteUpdateError || !updatedInvite) {
     console.warn("claim-student-invite: invite update failed or already used (TOCTOU prevention)");
-    return createError(409, "INVITE_ALREADY_USED", "Invite already used or conflict");
+    return createError(req, 409, "INVITE_ALREADY_USED", "Invite already used or conflict");
   }
 
   const { error: studentUpdateError } = await supabase
@@ -166,11 +159,11 @@ Deno.serve(async (req) => {
     console.error("claim-student-invite: student update failed", studentUpdateError.message);
     // Note: We've already claimed the invite, but failed to link the student.
     // We should ideally rollback or use a postgres function, but returning 500 is safe.
-    return createError(500, "SERVER_ERROR", "Failed to link student");
+    return createError(req, 500, "SERVER_ERROR", "Failed to link student");
   }
 
   return new Response(
     JSON.stringify({ status: "ok", student_id: invite.student_id }),
-    { headers: jsonHeaders }
+    { headers: makeJsonHeaders(req) }
   );
 });

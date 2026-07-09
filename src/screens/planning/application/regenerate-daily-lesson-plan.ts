@@ -248,8 +248,27 @@ const normalizePhaseBucket = (phase: string | undefined, theme: string | undefin
 const alignLessonKindToPeriodization = (params: {
   initialKind: LessonKind;
   weeklyPlan: ClassPlan;
+  sessionRole?: WeekSessionRole;
 }): LessonKind => {
-  const { initialKind, weeklyPlan } = params;
+  const { initialKind, weeklyPlan, sessionRole } = params;
+
+  if (sessionRole) {
+    switch (sessionRole) {
+      case "introducao_exploracao":
+        return "introducao";
+      case "retomada_consolidacao":
+        return "revisao";
+      case "consolidacao_orientada":
+        return "pratica_guiada";
+      case "pressao_decisao":
+        return "aplicacao";
+      case "transferencia_jogo":
+        return "aplicacao";
+      case "sintese_fechamento":
+        return "revisao";
+    }
+  }
+
   const phaseBucket = normalizePhaseBucket(weeklyPlan.phase, weeklyPlan.theme);
   const rpeValue = parseRpeTargetValue(weeklyPlan.rpeTarget);
 
@@ -408,16 +427,16 @@ const COACH_VOICE_HINTS = [
 
 const sentenceLimitByProfile: Record<LanguageProfile, Record<DailySection, number>> = {
   kids_8_11: {
-    warmup: 2,
-    mainPart: 3,
-    cooldown: 2,
-    observations: 2,
+    warmup: 4,
+    mainPart: 5,
+    cooldown: 4,
+    observations: 4,
   },
   geral: {
-    warmup: 2,
-    mainPart: 3,
-    cooldown: 2,
-    observations: 2,
+    warmup: 4,
+    mainPart: 5,
+    cooldown: 4,
+    observations: 4,
   },
 };
 
@@ -587,19 +606,66 @@ const postProcessDailyText = (value: string): string => {
 const buildCanonicalSectionText = (params: {
   section: "warmup" | "main" | "cooldown";
   step: NextPedagogicalStep;
+  sessionRole?: WeekSessionRole;
 }): string => {
-  const { section, step } = params;
+  const { section, step, sessionRole } = params;
   const listed = renderBlockRecommendationSummary(step, section);
   const gameForm = renderGameFormLabel(step);
 
   if (section === "warmup") {
+    if (sessionRole === "introducao_exploracao") {
+      return `No aquecimento (exploração), a turma inicia com ${listed.replace(/[.]$/, "")}, experimentando o movimento de forma livre e com alto contato com a bola, preparando a turma para ${gameForm}.`;
+    }
+    if (sessionRole === "retomada_consolidacao" || sessionRole === "consolidacao_orientada") {
+      return `No aquecimento (consolidação), a turma inicia com ${listed.replace(/[.]$/, "")}, focando em deslocamentos controlados e variação de ritmo para preparar para ${gameForm}.`;
+    }
+    if (sessionRole === "pressao_decisao") {
+      return `No aquecimento (pressão), a turma inicia com ${listed.replace(/[.]$/, "")}, focando em tempo de reação rápido e agilidade mental sob limite de tempo para ${gameForm}.`;
+    }
+    if (sessionRole === "transferencia_jogo") {
+      return `No aquecimento (transferência), a turma inicia com ${listed.replace(/[.]$/, "")}, simulando a dinâmica e a movimentação espacial de ${gameForm}.`;
+    }
+    if (sessionRole === "sintese_fechamento") {
+      return `No aquecimento (síntese), a turma inicia com ${listed.replace(/[.]$/, "")}, com ativação física e mental completa voltada para o desafio final.`;
+    }
     return `No aquecimento, a turma inicia com ${listed.replace(/[.]$/, "")}, preparando a turma para ${gameForm}.`;
   }
 
   if (section === "main") {
+    if (sessionRole === "introducao_exploracao") {
+      return `Na parte principal (exploração), a turma trabalha com ${listed.replace(/[.]$/, "")} em situação de ${gameForm}, com ênfase em vivenciar a tarefa aberta e experimentar soluções motoras sem pressão de erro.`;
+    }
+    if (sessionRole === "retomada_consolidacao" || sessionRole === "consolidacao_orientada") {
+      return `Na parte principal (consolidação), a turma trabalha com ${listed.replace(/[.]$/, "")} em situação de ${gameForm}, estabilizando o padrão técnico através de repetição orientada com foco em controle de direção e ritmo.`;
+    }
+    if (sessionRole === "pressao_decisao") {
+      return `Na parte principal (pressão), a turma trabalha com ${listed.replace(/[.]$/, "")} em situação de ${gameForm}, sob limite de tempo e pontuação condicionada para forçar a tomada de decisão rápida sob estresse.`;
+    }
+    if (sessionRole === "transferencia_jogo") {
+      return `Na parte principal (transferência), a turma trabalha com ${listed.replace(/[.]$/, "")} em situação de jogo reduzido em ${gameForm}, focando na aplicação dos fundamentos em dinâmica tática e coletiva com rodízio.`;
+    }
+    if (sessionRole === "sintese_fechamento") {
+      return `Na parte principal (síntese), a turma trabalha com ${listed.replace(/[.]$/, "")} em situação de ${gameForm}, executando um desafio final avaliativo com critério de êxito claro para fechamento do ciclo.`;
+    }
     return `Na parte principal, a turma trabalha com ${listed.replace(/[.]$/, "")} em situação de ${gameForm}, com progressão simples e orientação direta do professor.`;
   }
 
+  // cooldown
+  if (sessionRole === "introducao_exploracao") {
+    return `No fechamento (exploração), a turma realiza ${listed.replace(/[.]$/, "")}, compartilhando as primeiras sensações do movimento e anotando dúvidas para a próxima aula.`;
+  }
+  if (sessionRole === "retomada_consolidacao" || sessionRole === "consolidacao_orientada") {
+    return `No fechamento (consolidação), a turma realiza ${listed.replace(/[.]$/, "")}, com feedback individual sobre a consistência dos contatos e soltura muscular lenta.`;
+  }
+  if (sessionRole === "pressao_decisao") {
+    return `No fechamento (pressão), a turma realiza ${listed.replace(/[.]$/, "")}, discutindo de forma curta como o estresse do tempo afetou a precisão dos passes e levantamentos.`;
+  }
+  if (sessionRole === "transferencia_jogo") {
+    return `No fechamento (transferência), a turma realiza ${listed.replace(/[.]$/, "")}, avaliando o comportamento e a comunicação coletiva no jogo.`;
+  }
+  if (sessionRole === "sintese_fechamento") {
+    return `No fechamento (síntese), a turma realiza ${listed.replace(/[.]$/, "")}, avaliando se os critérios de êxito do ciclo foram cumpridos e celebrando a progressão da turma.`;
+  }
   return `No fechamento, a turma faz ${listed.replace(/[.]$/, "")}, registra um ajuste e encerra com comunicação curta de quadra.`;
 };
 
@@ -654,30 +720,83 @@ const buildFallbackSectionText = (params: {
   section: DailySection;
   decision: PedagogicalDecision;
   profile: LanguageProfile;
+  sessionRole?: WeekSessionRole;
 }): string => {
-  const { section, decision, profile } = params;
+  const { section, decision, profile, sessionRole } = params;
   const orgPhrase = normalizeOrganizationPhrase(
     section === "warmup" ? resolveWarmupOrganization(decision) : decision.organization
   );
 
   if (section === "warmup") {
-    return profile === "kids_8_11"
-      ? `Dividir a turma em ${orgPhrase}. ${buildWarmupLine(decision, profile)}`
-      : `Dividir a turma em ${orgPhrase}. ${buildWarmupLine(decision, profile)}`;
+    let baseWarmup = buildWarmupLine(decision, profile);
+    if (sessionRole === "introducao_exploracao") {
+      baseWarmup = `${baseWarmup} A atividade foca em experimentação livre e alto volume de contato.`;
+    } else if (sessionRole === "retomada_consolidacao" || sessionRole === "consolidacao_orientada") {
+      baseWarmup = `${baseWarmup} Foco em repetições controladas e consistência técnica.`;
+    } else if (sessionRole === "pressao_decisao") {
+      baseWarmup = `${baseWarmup} Com foco em tempo de reação rápido e tomada de decisão dinâmica.`;
+    } else if (sessionRole === "transferencia_jogo") {
+      baseWarmup = `${baseWarmup} Simulando a movimentação e ocupação tática do jogo reduzido.`;
+    } else if (sessionRole === "sintese_fechamento") {
+      baseWarmup = `${baseWarmup} Com ativação completa voltada para o desafio final avaliativo.`;
+    }
+    return `Dividir a turma em ${orgPhrase}. ${baseWarmup}`;
   }
 
   if (section === "mainPart") {
     const actionHasApplication = /disputa|mini\s*jogo|jogo|aplica/i.test(decision.mainAction);
-    return profile === "kids_8_11"
-      ? actionHasApplication
+    const mainBase = profile === "kids_8_11"
+      ? (actionHasApplication
         ? `${buildKidsMainPartLine(decision)} A cada rodada, entra um desafio novo.`
-        : `${buildKidsMainPartLine(decision)} Depois, aplicam em mini jogo curto com regra simples. A cada rodada, entra um desafio novo.`
-      : actionHasApplication
+        : `${buildKidsMainPartLine(decision)} Depois, aplicam em mini jogo curto com regra simples. A cada rodada, entra um desafio novo.`)
+      : (actionHasApplication
         ? `${decision.mainAction}. A cada rodada, o professor adiciona um desafio.`
-        : `${decision.mainAction}. Depois, aplicam em disputa curta. A cada rodada, o professor adiciona um desafio.`;
+        : `${decision.mainAction}. Depois, aplicam em disputa curta. A cada rodada, o professor adiciona um desafio.`);
+
+    if (sessionRole === "introducao_exploracao") {
+      return `${mainBase} Foco em experimentar o movimento sem pressão defensiva ou de erros.`;
+    }
+    if (sessionRole === "retomada_consolidacao" || sessionRole === "consolidacao_orientada") {
+      return `${mainBase} Foco em estabilização técnica através de repetição com alvo.`;
+    }
+    if (sessionRole === "pressao_decisao") {
+      return `${mainBase} Foco em tomada de decisão rápida sob limite de tempo e pontuação.`;
+    }
+    if (sessionRole === "transferencia_jogo") {
+      return `${mainBase} Foco em dinâmica tática e transferência coletiva para situação real.`;
+    }
+    if (sessionRole === "sintese_fechamento") {
+      return `${mainBase} Desafio avaliativo com critério de êxito claro para encerramento do ciclo.`;
+    }
+    return mainBase;
   }
 
   if (section === "cooldown") {
+    if (sessionRole === "introducao_exploracao") {
+      return profile === "kids_8_11"
+        ? `No final, cada aluno compartilha o que achou de experimentar a atividade. A turma encerra em roda rápida.`
+        : `No final, os alunos analisam suas primeiras sensações do movimento. A turma encerra com conversa rápida em roda.`;
+    }
+    if (sessionRole === "retomada_consolidacao" || sessionRole === "consolidacao_orientada") {
+      return profile === "kids_8_11"
+        ? `No final, cada aluno sinaliza se conseguiu controlar a bola. Fechamento com alongamento muscular leve.`
+        : `No final, feedback individual rápido sobre a consistência dos contatos. Fechamento com soltura articular lenta.`;
+    }
+    if (sessionRole === "pressao_decisao") {
+      return profile === "kids_8_11"
+        ? `No final, conversa curta sobre como decidir rápido sob o tempo. A turma fecha em roda rápida.`
+        : `No final, reflexão sobre como o estresse do tempo afetou a precisão técnica. A turma encerra em roda.`;
+    }
+    if (sessionRole === "transferencia_jogo") {
+      return profile === "kids_8_11"
+        ? `No final, a turma conversa sobre cooperação e trabalho em equipe no jogo. Roda rápida para fechar.`
+        : `No final, avaliação do comportamento coletivo e comunicação em quadra. Roda rápida para fechar.`;
+    }
+    if (sessionRole === "sintese_fechamento") {
+      return profile === "kids_8_11"
+        ? `No final, a turma avalia se alcançou o desafio do ciclo. Celebração e roda rápida para fechar.`
+        : `No final, avaliação conjunta se os critérios de êxito do ciclo foram atingidos. Celebração e encerramento.`;
+    }
     return profile === "kids_8_11"
       ? `No final, cada aluno fala o que melhorou e o que quer continuar treinando. A turma fecha com uma conversa rápida em roda.`
       : `No final, cada aluno fala o que melhorou e o que ainda precisa treinar. A turma encerra com uma conversa rápida sobre o próximo ajuste.`;
@@ -770,8 +889,9 @@ const enforceConcretenessAndQa = (params: {
   decision: PedagogicalDecision;
   profile: LanguageProfile;
   minimumScore?: number;
+  sessionRole?: WeekSessionRole;
 }): { text: string; qa: QaResult } => {
-  const { section, decision, profile, minimumScore = 5 } = params;
+  const { section, decision, profile, minimumScore = 5, sessionRole } = params;
   let candidate = params.text;
 
   const missingAction = !hasActionVerb(candidate);
@@ -779,16 +899,17 @@ const enforceConcretenessAndQa = (params: {
   const missingProgression = section !== "observations" && !hasProgressionHint(candidate);
 
   if (missingAction || missingOrganization || missingProgression) {
-    candidate = buildFallbackSectionText({ section, decision, profile });
+    candidate = buildFallbackSectionText({ section, decision, profile, sessionRole });
   }
 
+  // Se for observations, remover prefixes de forma segura
   candidate = removeSectionLabelPrefix(candidate, section);
   candidate = postProcessDailyText(candidate);
   candidate = limitSentences(candidate, sentenceLimitByProfile[profile][section]);
 
   const translationResult = runTranslationTest({ section, text: candidate });
   if (!translationResult.ok) {
-    candidate = buildFallbackSectionText({ section, decision, profile });
+    candidate = buildFallbackSectionText({ section, decision, profile, sessionRole });
     candidate = removeSectionLabelPrefix(candidate, section);
     candidate = postProcessDailyText(candidate);
     candidate = limitSentences(candidate, sentenceLimitByProfile[profile][section]);
@@ -796,7 +917,7 @@ const enforceConcretenessAndQa = (params: {
 
   let qa = scoreSectionQuality({ section, text: candidate, profile });
   if (qa.score < minimumScore) {
-    candidate = buildFallbackSectionText({ section, decision, profile });
+    candidate = buildFallbackSectionText({ section, decision, profile, sessionRole });
     candidate = removeSectionLabelPrefix(candidate, section);
     candidate = postProcessDailyText(candidate);
     candidate = limitSentences(candidate, sentenceLimitByProfile[profile][section]);
@@ -837,52 +958,87 @@ const decidePedagogy = (params: {
   weeklyPlan: ClassPlan;
   session: WeekSessionPreview;
   context?: DailyGenerationContext;
+  sessionRole?: WeekSessionRole;
 }): PedagogicalDecision => {
-  const { weeklyPlan, session, context } = params;
+  const { weeklyPlan, session, context, sessionRole } = params;
   const theme = normalizeFocus(weeklyPlan.theme, "Fundamentos da semana");
   const focus = normalizeFocus(weeklyPlan.technicalFocus, "toque e manchete");
   const pickedKind = pickLessonKind({ weeklyPlan, session, recentPlans: context?.recentPlans });
-  const lessonKind = alignLessonKindToPeriodization({ initialKind: pickedKind, weeklyPlan });
+  const lessonKind = alignLessonKindToPeriodization({ initialKind: pickedKind, weeklyPlan, sessionRole });
 
   if (lessonKind === "introducao") {
+    const isExploration = sessionRole === "introducao_exploracao";
     return {
       lessonKind,
-      titleTag: "introdução",
+      titleTag: isExploration ? "introdução (exploração)" : "introdução",
       organization: "em duplas e trios, com metade da quadra",
       warmupOrganization: "em duplas",
-      progression: "começa com bola lançada, depois entra o auto-lançamento e termina com troca contínua",
-      purpose: `dar segurança no primeiro contato e melhorar ${focus}`,
-      warmupAction: "troca de passes em dupla, com mudança de parceiro a cada rodada",
-      mainAction: "circuito em 3 estações para trabalhar manchete, toque e saque curto em alvo",
-      cooldownAction: "alongamento leve em roda e cada aluno fala um ponto para lembrar na próxima aula",
+      progression: isExploration
+        ? "começa com bola lançada de forma aberta, depois entra o auto-lançamento e termina com exploração livre do contato"
+        : "começa com bola lançada, depois entra o auto-lançamento e termina com troca contínua",
+      purpose: isExploration
+        ? `experimentar o movimento e dar segurança no primeiro contato com ${focus}`
+        : `dar segurança no primeiro contato e melhorar ${focus}`,
+      warmupAction: "troca de passes em dupla, com mudança de parceiro a cada rodada para experimentar o contato",
+      mainAction: isExploration
+        ? "atividades abertas sem pressão defensiva para experimentar a trajetória da bola e as posições corporais"
+        : "circuito em 3 estações para trabalhar manchete, toque e saque curto em alvo",
+      cooldownAction: isExploration
+        ? "conversar em roda sobre as primeiras sensações do movimento e o que acharam mais fácil ou difícil"
+        : "alongamento leve em roda e cada aluno fala um ponto para lembrar na próxima aula",
     };
   }
 
   if (lessonKind === "pratica_guiada") {
+    const isConsolidation = sessionRole === "consolidacao_orientada";
     return {
       lessonKind,
-      titleTag: "prática guiada",
+      titleTag: isConsolidation ? "prática guiada (consolidação)" : "prática guiada",
       organization: "em trios por corredor de quadra",
       warmupOrganization: "em duplas",
-      progression: "começa mais controlado e depois pede escolha de direção e ritmo",
-      purpose: `melhorar a repetição de ${theme} com mais controle`,
-      warmupAction: "deslocamento com bola e passe curto em movimento, trocando função a cada rodada",
-      mainAction: "sequência guiada de recepção, levantamento simples e envio para alvo",
-      cooldownAction: "respiração, soltura de ombro e conversa rápida sobre o que saiu melhor",
+      progression: isConsolidation
+        ? "repetição com variação controlada de direção e foco em estabilizar a técnica antes de acelerar"
+        : "começa mais controlado e depois pede escolha de direção e ritmo",
+      purpose: isConsolidation
+        ? `estabilizar o padrão de repetição de ${theme} com foco em direção e controle`
+        : `melhorar a repetição de ${theme} com mais controle`,
+      warmupAction: "deslocamento com bola e passe curto com foco no controle de plataforma de toque e manchete",
+      mainAction: isConsolidation
+        ? "repetição orientada de recepção direcionada para levantador na posição marcada"
+        : "sequência guiada de recepção, levantamento simples e envio para alvo",
+      cooldownAction: isConsolidation
+        ? "roda de feedback técnico curto focada na estabilidade do movimento e alongamento leve"
+        : "respiração, soltura de ombro e conversa rápida sobre o que saiu melhor",
     };
   }
 
   if (lessonKind === "aplicacao") {
+    const isPressure = sessionRole === "pressao_decisao";
+    const isTransfer = sessionRole === "transferencia_jogo";
     return {
       lessonKind,
-      titleTag: "aplicação",
+      titleTag: isPressure
+        ? "aplicação (pressão)"
+        : isTransfer
+        ? "aplicação (transferência)"
+        : "aplicação",
       organization: "em equipes reduzidas, com rodízio por tempo",
       warmupOrganization: "em duplas",
-      progression: "começa no 2x2, passa para 3x3 e ganha uma regra nova no meio da atividade",
-      purpose: `usar ${focus} em situação de jogo`,
-      warmupAction: "troca de bola em dupla tentando manter a sequência por mais tempo",
-      mainAction: "jogo curto com ponto extra quando a equipe cumpre a jogada combinada",
-      cooldownAction: "fechamento em roda sobre o que funcionou melhor no jogo e o que ajustar na próxima aula",
+      progression: isPressure
+        ? "começa controlado sob limite de tempo e evolui para jogo condicionado com pontuação baseada em tempo"
+        : "começa no 2x2 e evolui para 3x3 com foco na dinâmica de jogo real e rodízio rápido",
+      purpose: isPressure
+        ? `forçar tomada de decisão e uso de ${focus} sob limite de tempo e pressão`
+        : `transferir o fundamento de ${focus} para dinâmica de jogo reduzido`,
+      warmupAction: isPressure
+        ? "desafios de reação rápida em duplas com bola lançada no limite do alcance"
+        : "troca de bola em dupla tentando simular deslocamentos rápidos de jogo",
+      mainAction: isPressure
+        ? "jogo reduzido com tempo limite para definir o ponto ou com pontuação extra para ataques rápidos"
+        : "jogo curto 3x3 com rodízio rápido e ponto extra quando cumprem a jogada combinada de passe e ataque",
+      cooldownAction: isPressure
+        ? "conversa curta sobre como o estresse do tempo influenciou a escolha técnica"
+        : "fechamento em roda avaliando o comportamento e a cooperação coletiva das equipes",
     };
   }
 
@@ -900,16 +1056,26 @@ const decidePedagogy = (params: {
     };
   }
 
+  // revisao / sintese_fechamento
+  const isSynthesis = sessionRole === "sintese_fechamento";
   return {
     lessonKind: "revisao",
-    titleTag: "revisão",
+    titleTag: isSynthesis ? "revisão (síntese)" : "revisão",
     organization: "estações com grupos pequenos",
     warmupOrganization: "em duplas",
-    progression: "retoma os fundamentos da semana e fecha com atividade final curta",
-    purpose: `consolidar ${theme} antes da próxima aula`,
-    warmupAction: "revisão dos movimentos básicos em dupla, com orientações rápidas do professor",
-    mainAction: "os alunos passam por estações para repetir os fundamentos e depois fazem uma atividade curta em situação de jogo",
-    cooldownAction: "cada aluno fala o que melhorou e o que quer continuar treinando",
+    progression: isSynthesis
+      ? "desafio coletivo final estruturado com foco em um critério claro de êxito para fechar o ciclo"
+      : "retoma os fundamentos da semana e fecha com atividade final curta",
+    purpose: isSynthesis
+      ? `sintetizar e avaliar o progresso da turma em ${theme} sob um critério de êxito coletivo`
+      : `consolidar ${theme} antes da próxima aula`,
+    warmupAction: "revisão rápida dos movimentos básicos e ativação mental completa para o desafio",
+    mainAction: isSynthesis
+      ? "desafio final coletivo onde a turma precisa atingir um número de trocas bem-sucedidas ou passes certeiros"
+      : "os alunos passam por estações para repetir os fundamentos e depois fazem uma atividade curta em situação de jogo",
+    cooldownAction: isSynthesis
+      ? "conversa final avaliando se os critérios do ciclo foram cumpridos e celebração conjunta da evolução"
+      : "cada aluno fala o que melhorou e o que quer continuar treinando",
   };
 };
 
@@ -919,6 +1085,7 @@ const renderDailyText = (params: {
   weeklyPlan: ClassPlan;
   session: WeekSessionPreview;
   nextPedagogicalStep?: NextPedagogicalStep | null;
+  sessionRole?: WeekSessionRole;
 }): Pick<DailyLessonPlan, "title" | "warmup" | "mainPart" | "cooldown" | "observations"> & {
   qaSummary: {
     planScore: number;
@@ -926,7 +1093,7 @@ const renderDailyText = (params: {
     translationTestPassed: boolean;
   };
 } => {
-  const { profile, decision, weeklyPlan, session, nextPedagogicalStep } = params;
+  const { profile, decision, weeklyPlan, session, nextPedagogicalStep, sessionRole } = params;
   const theme = normalizeFocus(weeklyPlan.theme, "Fundamentos da semana");
   const pedagogicalRule = (weeklyPlan.pedagogicalRule ?? "").trim();
   const canonicalObjective = nextPedagogicalStep
@@ -937,49 +1104,47 @@ const renderDailyText = (params: {
     : buildLessonTitle(theme, decision);
 
   const rawWarmup = nextPedagogicalStep
-    ? buildCanonicalSectionText({ section: "warmup", step: nextPedagogicalStep })
-    : profile === "kids_8_11"
-      ? `Dividir a turma ${resolveWarmupOrganization(decision)}. ${buildWarmupLine(decision, profile)}`
-      : `Dividir a turma ${resolveWarmupOrganization(decision)}. ${buildWarmupLine(decision, profile)}`;
+    ? buildCanonicalSectionText({ section: "warmup", step: nextPedagogicalStep, sessionRole })
+    : buildFallbackSectionText({ section: "warmup", decision, profile, sessionRole });
   const rawMainPart = nextPedagogicalStep
-    ? buildCanonicalSectionText({ section: "main", step: nextPedagogicalStep })
-    : profile === "kids_8_11"
-      ? `${buildKidsMainPartLine(decision)} A atividade começa mais simples e depois ganha um desafio novo.`
-      : `${decision.mainAction}. A atividade começa mais simples e depois ganha um desafio novo.`;
+    ? buildCanonicalSectionText({ section: "main", step: nextPedagogicalStep, sessionRole })
+    : buildFallbackSectionText({ section: "mainPart", decision, profile, sessionRole });
   const rawCooldown = nextPedagogicalStep
-    ? buildCanonicalSectionText({ section: "cooldown", step: nextPedagogicalStep })
-    : `${decision.cooldownAction}.`;
+    ? buildCanonicalSectionText({ section: "cooldown", step: nextPedagogicalStep, sessionRole })
+    : buildFallbackSectionText({ section: "cooldown", decision, profile, sessionRole });
   const rawObservations = pedagogicalRule
     ? `Objetivo da aula: ${canonicalObjective || "manter progressão da etapa da turma"}. Retomar a regra da semana: ${pedagogicalRule}. Fazer demonstração curta e uma correção por vez.`
     : canonicalObjective
       ? `Objetivo da aula: ${canonicalObjective}. Registrar uma evidência curta de progresso ao final da sessão.`
-    : profile === "kids_8_11"
-      ? "Anotar o principal ponto que a turma ainda precisa melhorar para retomar na próxima aula."
-      : "Anotar o principal ponto que a turma ainda precisa melhorar para retomar na próxima aula.";
+      : buildFallbackSectionText({ section: "observations", decision, profile, sessionRole });
 
   const warmupResult = enforceConcretenessAndQa({
     section: "warmup",
     text: rawWarmup,
     decision,
     profile,
+    sessionRole,
   });
   const mainResult = enforceConcretenessAndQa({
     section: "mainPart",
     text: rawMainPart,
     decision,
     profile,
+    sessionRole,
   });
   const cooldownResult = enforceConcretenessAndQa({
     section: "cooldown",
     text: rawCooldown,
     decision,
     profile,
+    sessionRole,
   });
   const observationsResult = enforceConcretenessAndQa({
     section: "observations",
     text: rawObservations,
     decision,
     profile,
+    sessionRole,
   });
 
   const sectionScores = {
@@ -998,22 +1163,22 @@ const renderDailyText = (params: {
     runTranslationTest({ section: "observations", text: observationsResult.text }).ok;
 
   const fallbackWarmup = limitSentences(
-    postProcessDailyText(buildFallbackSectionText({ section: "warmup", decision, profile })),
+    postProcessDailyText(buildFallbackSectionText({ section: "warmup", decision, profile, sessionRole })),
     sentenceLimitByProfile[profile].warmup
   );
   const fallbackMain = limitSentences(
-    postProcessDailyText(buildFallbackSectionText({ section: "mainPart", decision, profile })),
+    postProcessDailyText(buildFallbackSectionText({ section: "mainPart", decision, profile, sessionRole })),
     sentenceLimitByProfile[profile].mainPart
   );
   const fallbackCooldown = limitSentences(
-    postProcessDailyText(buildFallbackSectionText({ section: "cooldown", decision, profile })),
+    postProcessDailyText(buildFallbackSectionText({ section: "cooldown", decision, profile, sessionRole })),
     sentenceLimitByProfile[profile].cooldown
   );
   const fallbackObs = limitSentences(
     postProcessDailyText(
       canonicalObjective
-        ? `Objetivo da aula: ${canonicalObjective}. ${buildFallbackSectionText({ section: "observations", decision, profile })}`
-        : buildFallbackSectionText({ section: "observations", decision, profile })
+        ? `Objetivo da aula: ${canonicalObjective}. ${buildFallbackSectionText({ section: "observations", decision, profile, sessionRole })}`
+        : buildFallbackSectionText({ section: "observations", decision, profile, sessionRole })
     ),
     sentenceLimitByProfile[profile].observations
   );
@@ -1041,6 +1206,12 @@ export const buildAutoDailyLessonPlan = (
   existing?: DailyLessonPlan | null,
   context?: DailyGenerationContext
 ): DailyLessonPlan => {
+  const weeklyDecision = parseWeeklyOperationalDecision(
+    weeklyPlan.generationContextSnapshotJson,
+    session.sessionIndex
+  );
+  const sessionRole = weeklyDecision?.sessionRole as WeekSessionRole | undefined;
+
   const nextPedagogicalStep = (() => {
     const rawAgeBand = context?.ageBand ?? "";
     const ageBandKey = normalizeAgeBandKey(rawAgeBand);
@@ -1057,7 +1228,7 @@ export const buildAutoDailyLessonPlan = (
       historicalConfidence: signals.historicalConfidence,
     });
   })();
-  const decision = decidePedagogy({ weeklyPlan, session, context });
+  const decision = decidePedagogy({ weeklyPlan, session, context, sessionRole });
   const profile = inferLanguageProfile(context);
   const blockTimes = getLessonBlockTimes(context?.durationMinutes ?? 60);
   const rendered = renderDailyText({
@@ -1066,6 +1237,7 @@ export const buildAutoDailyLessonPlan = (
     weeklyPlan,
     session,
     nextPedagogicalStep,
+    sessionRole,
   });
   const alignmentCheck = checkLessonAlignmentWithPeriodization({
     weeklyPlan: {
@@ -1127,6 +1299,7 @@ export const buildAutoDailyLessonPlan = (
       organization: decision.organization,
       progression: decision.progression,
       purpose: decision.purpose,
+      sessionRole,
     },
   };
 

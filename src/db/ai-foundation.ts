@@ -1,4 +1,4 @@
-import type {
+﻿import type {
     AssistantMemoryEntry,
     ClassProfile,
     KnowledgeDocument,
@@ -45,24 +45,16 @@ export async function listKnowledgeDocumentsBySport(
   sport: string,
   limit = 40
 ) {
-  const rows = await db.getAllAsync<{
-    id: string;
-    organizationId: string;
-    title: string;
-    source: string;
-    chunk: string;
-    embedding: string;
-    tags: string;
-    sport: string;
-    level: string;
-    createdAt: string;
-  }>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawRows = await (db.getAllAsync as (sql: string, params: unknown[]) => Promise<any[]>)(
     `SELECT * FROM kb_documents
      WHERE organizationId = ? AND sport = ?
      ORDER BY createdAt DESC
      LIMIT ?`,
     [organizationId, sport, Math.max(1, limit)]
   );
+  type KbRow = { id: string; organizationId: string; title: string; source: string; chunk: string; embedding: string; tags: string; sport: string; level: string; createdAt: string };
+  const rows = rawRows as KbRow[];
 
   return rows.map((row) => ({
     id: row.id,

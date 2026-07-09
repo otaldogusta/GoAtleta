@@ -1,15 +1,8 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
 const getHookSecret = () => {
   const secret =
@@ -54,13 +47,13 @@ const extractRecord = (payload: unknown) => {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -68,7 +61,7 @@ Deno.serve(async (req) => {
     if (!isAuthorized(req)) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: jsonHeaders,
+        headers: makeJsonHeaders(req),
       });
     }
   } catch (error) {
@@ -76,7 +69,7 @@ Deno.serve(async (req) => {
     console.error("auto-link-student auth check failed:", message);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -86,7 +79,7 @@ Deno.serve(async (req) => {
   } catch (_error) {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
       status: 400,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -107,7 +100,7 @@ Deno.serve(async (req) => {
   if (!userId || !normalizedEmail) {
     return new Response(
       JSON.stringify({ status: "skipped", reason: "missing_user_or_email" }),
-      { headers: jsonHeaders }
+      { headers: makeJsonHeaders(req) }
     );
   }
 
@@ -116,7 +109,7 @@ Deno.serve(async (req) => {
   if (!supabaseUrl || !serviceRoleKey) {
     return new Response(
       JSON.stringify({ error: "Missing Supabase service role config" }),
-      { status: 500, headers: jsonHeaders }
+      { status: 500, headers: makeJsonHeaders(req) }
     );
   }
 
@@ -135,12 +128,12 @@ Deno.serve(async (req) => {
     console.error("auto-link-student: update failed", error.message);
     return new Response(JSON.stringify({ error: "Update failed" }), {
       status: 500,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
   
   return new Response(
     JSON.stringify({ status: "ok", linked: data ? data.length : 0 }),
-    { headers: jsonHeaders }
+    { headers: makeJsonHeaders(req) }
   );
 });

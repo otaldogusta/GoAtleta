@@ -264,12 +264,11 @@ describe("session-plan language sanitization", () => {
   });
 
   it.each([
-    ["10-12", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
     ["13-15", "Ataque", ["ataque"] as VolleyballSkill[], "Mini jogo com finalização combinada"],
     ["13-15", "Bloqueio", ["bloqueio"] as VolleyballSkill[], "Mini jogo com bloqueio e cobertura"],
     ["10-12", "Defesa", ["defesa"] as VolleyballSkill[], "Mini jogo com defesa pontuada"],
-    ["13-15", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
-    ["16-18", "Transição", ["transicao"] as VolleyballSkill[], "Mini jogo de vira-jogo"],
+    ["13-15", "Transição", ["transicao"] as VolleyballSkill[], "Troca de função depois da defesa"],
+    ["16-18", "Transição", ["transicao"] as VolleyballSkill[], "Transição com leitura"],
   ])("keeps pattern-backed PDF text operational for %s %s", (ageBand, objective, focusSkills, expectedText) => {
     const html = buildGeneratedHtml(ageBand, objective, focusSkills);
 

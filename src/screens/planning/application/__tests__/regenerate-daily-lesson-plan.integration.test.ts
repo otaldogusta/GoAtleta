@@ -321,4 +321,71 @@ describe("buildAutoDailyLessonPlan integration fields", () => {
     expect(dailySnapshot.pedagogicalDecisionSupport.capIntent.conceitual.length).toBeGreaterThan(0);
     expect(dailySnapshot.pedagogicalDecisionSupport.teacherFacingSummary).toContain("Intenção:");
   });
+
+  describe("SessionRole impact on daily plan generation", () => {
+    const buildPlanWithRole = (role: string) => {
+      const weeklyPlan = {
+        id: "wp-role-test",
+        classId: "class-1",
+        weekNumber: 1,
+        phase: "Base",
+        theme: "Passe",
+        technicalFocus: "Manchete",
+        rpeTarget: "PSE 5",
+        generationVersion: 1,
+        generationContextSnapshotJson: JSON.stringify({
+          weeklyOperationalStrategy: {
+            decisions: [
+              {
+                sessionIndexInWeek: 1,
+                sessionRole: role,
+              },
+            ],
+          },
+        }),
+      } as any;
+
+      const session = {
+        sessionIndex: 1,
+        weekday: 2,
+        date: "2026-07-07",
+      } as any;
+
+      return buildAutoDailyLessonPlan(
+        weeklyPlan,
+        session,
+        "2026-07-07T12:00:00.000Z",
+      );
+    };
+
+    it("generates custom exploration texts for introducao_exploracao", () => {
+      const plan = buildPlanWithRole("introducao_exploracao");
+      expect(plan.warmup).toContain("experimentação livre");
+      expect(plan.mainPart).toContain("sem pressão defensiva");
+      expect(plan.mainPart).toContain("experimentar");
+      expect(plan.cooldown).toContain("sensações");
+      const snap = JSON.parse(plan.generationContextSnapshotJson ?? "{}");
+      expect(snap.dailyDecision.sessionRole).toBe("introducao_exploracao");
+    });
+
+    it("generates custom pressure texts for pressao_decisao", () => {
+      const plan = buildPlanWithRole("pressao_decisao");
+      expect(plan.warmup).toContain("tempo de reação rápido");
+      expect(plan.mainPart).toContain("tempo limite");
+      expect(plan.mainPart).toContain("tomada de decisão");
+      expect(plan.cooldown).toContain("estresse do tempo");
+      const snap = JSON.parse(plan.generationContextSnapshotJson ?? "{}");
+      expect(snap.dailyDecision.sessionRole).toBe("pressao_decisao");
+    });
+
+    it("generates custom synthesis texts for sintese_fechamento", () => {
+      const plan = buildPlanWithRole("sintese_fechamento");
+      expect(plan.warmup).toContain("desafio final avaliativo");
+      expect(plan.mainPart).toContain("Desafio avaliativo");
+      expect(plan.mainPart).toContain("critério de êxito");
+      expect(plan.cooldown).toContain("critérios de êxito");
+      const snap = JSON.parse(plan.generationContextSnapshotJson ?? "{}");
+      expect(snap.dailyDecision.sessionRole).toBe("sintese_fechamento");
+    });
+  });
 });

@@ -1,17 +1,10 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { runRulesSync } from "../_shared/regulation-sync-core.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
 type RateLimitResult = {
   allowed: boolean;
@@ -89,13 +82,13 @@ const requireUser = async (request: Request) => {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
 
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -103,7 +96,7 @@ Deno.serve(async (request) => {
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -113,7 +106,7 @@ Deno.serve(async (request) => {
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -121,7 +114,7 @@ Deno.serve(async (request) => {
   if (!sourceId) {
     return new Response(JSON.stringify({ error: "sourceId is required" }), {
       status: 400,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -131,7 +124,7 @@ Deno.serve(async (request) => {
       JSON.stringify({ error: "Missing Supabase service role config" }),
       {
         status: 500,
-        headers: jsonHeaders,
+        headers: makeJsonHeaders(req),
       }
     );
   }
@@ -145,13 +138,13 @@ Deno.serve(async (request) => {
   if (sourceError) {
     return new Response(JSON.stringify({ error: sourceError.message }), {
       status: 500,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
   if (!source) {
     return new Response(JSON.stringify({ error: "Source not found" }), {
       status: 404,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -159,7 +152,7 @@ Deno.serve(async (request) => {
   if (expectedOrganizationId && expectedOrganizationId !== String(source.organization_id)) {
     return new Response(JSON.stringify({ error: "Source does not belong to organizationId" }), {
       status: 400,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -173,14 +166,14 @@ Deno.serve(async (request) => {
   if (memberError) {
     return new Response(JSON.stringify({ error: memberError.message }), {
       status: 500,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
   if (!memberRow || Number(memberRow.role_level ?? 0) < 50) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -205,7 +198,7 @@ Deno.serve(async (request) => {
       }),
       {
         status: 429,
-        headers: jsonHeaders,
+        headers: makeJsonHeaders(req),
       }
     );
   }
@@ -218,7 +211,7 @@ Deno.serve(async (request) => {
     });
     return new Response(JSON.stringify({ status: "ok", ...report }), {
       status: 200,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   } catch (error) {
     return new Response(
@@ -227,7 +220,7 @@ Deno.serve(async (request) => {
       }),
       {
         status: 500,
-        headers: jsonHeaders,
+        headers: makeJsonHeaders(req),
       }
     );
   }

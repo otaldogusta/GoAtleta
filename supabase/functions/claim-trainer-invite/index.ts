@@ -1,21 +1,14 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateStringField } from "../_shared/input-validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
-const createError = (status: number, code: string, error: string) =>
+const createError = (req: Request, status: number, code: string, error: string) =>
   new Response(JSON.stringify({ code, error }), {
     status,
-    headers: jsonHeaders,
+    headers: makeJsonHeaders(req),
   });
 
 const normalizeCode = (value: string) => value.trim().toUpperCase();
@@ -52,22 +45,22 @@ const requireUser = async (req: Request) => {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
   if (req.method !== "POST") {
-    return createError(405, "INVALID_REQUEST", "Method not allowed");
+    return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
   const user = await requireUser(req);
   if (!user) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized");
+    return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
   let payload: { code: string } = {};
   try {
     payload = (await req.json()) as { code: string };
   } catch {
-    return createError(400, "INVALID_REQUEST", "Invalid JSON");
+    return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
 
   const codeValidation = validateStringField(payload.code, {
@@ -76,17 +69,17 @@ Deno.serve(async (req) => {
     pattern: /^[a-zA-Z0-9-]+$/,
   });
   if (!codeValidation.ok) {
-    return createError(400, "INVALID_REQUEST", `Invalid code: ${codeValidation.error}`);
+    return createError(req, 400, "INVALID_REQUEST", `Invalid code: ${codeValidation.error}`);
   }
   const normalized = normalizeCode(codeValidation.data);
   if (!normalized) {
-    return createError(400, "INVALID_REQUEST", "Missing code");
+    return createError(req, 400, "INVALID_REQUEST", "Missing code");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   if (!supabaseUrl || !serviceRoleKey) {
-    return createError(500, "SERVER_ERROR", "Missing Supabase service role config");
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase service role config");
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -102,26 +95,26 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (inviteError) {
-    return createError(500, "SERVER_ERROR", "Invite lookup failed");
+    return createError(req, 500, "SERVER_ERROR", "Invite lookup failed");
   }
 
   if (!invite) {
-    return createError(400, "INVITE_INVALID", "Invalid invite");
+    return createError(req, 400, "INVITE_INVALID", "Invalid invite");
   }
 
   if (invite.revoked) {
-    return createError(400, "INVITE_REVOKED", "Invite revoked");
+    return createError(req, 400, "INVITE_REVOKED", "Invite revoked");
   }
 
   if (invite.expires_at) {
     const expiresAt = new Date(invite.expires_at);
     if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-      return createError(400, "INVITE_EXPIRED", "Invite expired");
+      return createError(req, 400, "INVITE_EXPIRED", "Invite expired");
     }
   }
 
   if (invite.uses >= invite.max_uses) {
-    return createError(400, "INVITE_LIMIT_REACHED", "Invite limit reached");
+    return createError(req, 400, "INVITE_LIMIT_REACHED", "Invite limit reached");
   }
 
   const nowIso = new Date().toISOString();
@@ -134,7 +127,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (updateError || !updatedInvite) {
-    return createError(409, "INVITE_CONFLICT", "Invite update conflict or already used concurrently");
+    return createError(req, 409, "INVITE_CONFLICT", "Invite update conflict or already used concurrently");
   }
 
   const { error: trainerError } = await supabase
@@ -142,7 +135,7 @@ Deno.serve(async (req) => {
     .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
   if (trainerError) {
-    return createError(500, "SERVER_ERROR", "Failed to create trainer");
+    return createError(req, 500, "SERVER_ERROR", "Failed to create trainer");
   }
 
   if (invite.organization_id) {
@@ -155,7 +148,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (memberLookupError) {
-      return createError(500, "SERVER_ERROR", "Failed to lookup organization member");
+      return createError(req, 500, "SERVER_ERROR", "Failed to lookup organization member");
     }
 
     const nextRoleLevel = Math.max(Number(existingMember?.role_level ?? 0), targetRoleLevel);
@@ -171,11 +164,11 @@ Deno.serve(async (req) => {
       );
 
     if (memberUpsertError) {
-      return createError(500, "SERVER_ERROR", "Failed to apply organization member role");
+      return createError(req, 500, "SERVER_ERROR", "Failed to apply organization member role");
     }
   }
 
   return new Response(JSON.stringify({ status: "ok" }), {
-    headers: jsonHeaders,
+    headers: makeJsonHeaders(req),
   });
 });

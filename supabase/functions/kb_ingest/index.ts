@@ -1,3 +1,4 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   validateArrayLength,
@@ -5,11 +6,6 @@ import {
   validateStringField,
 } from "../_shared/input-validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
 type UserContext = {
   userId: string;
@@ -62,7 +58,7 @@ const createSupabaseClientWithToken = (token: string) => {
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" },
   });
 
 const parseJson = async (req: Request) => {
@@ -466,7 +462,7 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
 
   if (req.method !== "POST") {

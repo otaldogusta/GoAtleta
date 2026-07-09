@@ -1,27 +1,20 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
-const createError = (status: number, code: string, error: string) =>
-  new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
+const createError = (req: Request, status: number, code: string, error: string) =>
+  new Response(JSON.stringify({ code, error }), { status, headers: makeJsonHeaders(req) });
 
 // This edge function is meant to be called securely either via a backend cron 
 // or an authenticated admin request. We enforce a service role or a specific shared secret if called via cron.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
   if (req.method !== "POST") {
-    return createError(405, "INVALID_REQUEST", "Method not allowed");
+    return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
   // We require the Authorization header to be the service_role key or an admin token.
@@ -31,7 +24,7 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   
   if (!token || token !== serviceRoleKey) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized request");
+    return createError(req, 401, "UNAUTHORIZED", "Unauthorized request");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -48,11 +41,11 @@ Deno.serve(async (req) => {
     .limit(10); // Batch process
 
   if (reqError) {
-    return createError(500, "SERVER_ERROR", "Failed to fetch pending requests");
+    return createError(req, 500, "SERVER_ERROR", "Failed to fetch pending requests");
   }
 
   if (!pendingRequests || pendingRequests.length === 0) {
-    return new Response(JSON.stringify({ status: "ok", processed: 0 }), { headers: jsonHeaders });
+    return new Response(JSON.stringify({ status: "ok", processed: 0 }), { headers: makeJsonHeaders(req) });
   }
 
   // Lock requests by transitioning status to 'processing'
@@ -65,7 +58,7 @@ Deno.serve(async (req) => {
     .select("*");
 
   if (lockError || !processingRequests || processingRequests.length === 0) {
-    return new Response(JSON.stringify({ status: "ok", processed: 0, note: "No requests locked" }), { headers: jsonHeaders });
+    return new Response(JSON.stringify({ status: "ok", processed: 0, note: "No requests locked" }), { headers: makeJsonHeaders(req) });
   }
 
   let processedCount = 0;
@@ -154,6 +147,6 @@ Deno.serve(async (req) => {
   }
 
   return new Response(JSON.stringify({ status: "ok", processed: processedCount }), {
-    headers: jsonHeaders,
+    headers: makeJsonHeaders(req),
   });
 });

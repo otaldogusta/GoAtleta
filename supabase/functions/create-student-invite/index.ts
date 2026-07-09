@@ -1,19 +1,12 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateStringField } from "../_shared/input-validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
-const createError = (status: number, code: string, error: string) =>
-  new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
+const createError = (req: Request, status: number, code: string, error: string) =>
+  new Response(JSON.stringify({ code, error }), { status, headers: makeJsonHeaders(req) });
 
 const INVITE_TTL_DAYS = 30;
 const ALLOWED_CHANNELS = new Set(["whatsapp", "email", "link"]);
@@ -63,15 +56,15 @@ const requireUser = (req: Request): { id: string; email?: string; token: string 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
   if (req.method !== "POST") {
-    return createError(405, "INVALID_REQUEST", "Method not allowed");
+    return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
   const user = requireUser(req);
   if (!user) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized");
+    return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
   let payload: { studentId: string; invitedVia: string; invitedTo: string } = {};
@@ -82,7 +75,7 @@ Deno.serve(async (req) => {
       invitedTo: string;
     };
   } catch {
-    return createError(400, "INVALID_REQUEST", "Invalid JSON");
+    return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
 
   const studentIdValidation = validateStringField(payload.studentId, {
@@ -90,14 +83,14 @@ Deno.serve(async (req) => {
     maxLength: 128,
   });
   if (!studentIdValidation.ok) {
-    return createError(400, "INVALID_REQUEST", `Invalid studentId: ${studentIdValidation.error}`);
+    return createError(req, 400, "INVALID_REQUEST", `Invalid studentId: ${studentIdValidation.error}`);
   }
   const studentId = studentIdValidation.data;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   if (!supabaseUrl || !anonKey) {
-    return createError(500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
   }
 
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -117,21 +110,21 @@ Deno.serve(async (req) => {
 
   if (studentError) {
     console.error("create-student-invite: student lookup failed", studentError.message);
-    return createError(500, "SERVER_ERROR", "Student lookup failed");
+    return createError(req, 500, "SERVER_ERROR", "Student lookup failed");
   }
 
   if (!student) {
-    return createError(404, "STUDENT_NOT_FOUND", "Student not found");
+    return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
   }
 
   // Explicit owner check is no longer strictly necessary as RLS will enforce it,
   // but it's good practice to keep the application-level validation.
   if (student.owner_id && student.owner_id !== user.id) {
-    return createError(403, "FORBIDDEN", "Forbidden");
+    return createError(req, 403, "FORBIDDEN", "Forbidden");
   }
 
   if (student.student_user_id && student.student_user_id !== user.id) {
-    return createError(409, "STUDENT_ALREADY_LINKED", "Student already linked");
+    return createError(req, 409, "STUDENT_ALREADY_LINKED", "Student already linked");
   }
 
   const token = crypto.randomUUID();
@@ -154,7 +147,7 @@ Deno.serve(async (req) => {
 
   if (insertError) {
     console.error("create-student-invite: insert failed", insertError.message);
-    return createError(500, "SERVER_ERROR", "Failed to create invite");
+    return createError(req, 500, "SERVER_ERROR", "Failed to create invite");
   }
 
   return new Response(
@@ -163,6 +156,6 @@ Deno.serve(async (req) => {
       expires_at: expiresAt.toISOString(),
       student_id: studentId,
     }),
-    { headers: jsonHeaders }
+    { headers: makeJsonHeaders(req) }
   );
 });

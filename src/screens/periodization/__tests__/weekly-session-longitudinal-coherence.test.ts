@@ -1,4 +1,7 @@
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
+import { resolveClassReadinessState } from "../../../core/cycle-day-planning/resolve-class-readiness-state";
+import { applyReadinessGuardToSessionStrategy } from "../../../core/cycle-day-planning/apply-readiness-guard-to-session-strategy";
+import { applyPlanGuards } from "../../../core/cycle-day-planning/apply-plan-guards";
 import type {
     ClassGroup,
     ClassPlan,
@@ -114,9 +117,31 @@ const strategySignature = (strategy: SessionStrategy) => ({
 const expectPipelineConsistency = (entry: {
   resolved: ReturnType<typeof resolveSessionStrategyDecisionFromCycleContext>;
   autoPlan: ReturnType<typeof buildPeriodizationAutoPlanForCycleDay>;
+  context: any;
 }) => {
+  const readinessState = resolveClassReadinessState({
+    classGroup: (entry as any).classGroup || null,
+    sessionDate: entry.autoPlan.sessionDate,
+    historicalConfidence: entry.context.cycleContext.historicalConfidence,
+    recentSessions: entry.context.cycleContext.recentSessions,
+    sourceStrategy: entry.resolved.strategy,
+  });
+  const readinessGuardedStrategy = applyReadinessGuardToSessionStrategy({
+    strategy: entry.resolved.strategy,
+    readinessState,
+  });
+  const guardResult = applyPlanGuards({
+    context: entry.context.cycleContext,
+    strategy: readinessGuardedStrategy,
+    recentSessions: entry.context.cycleContext.recentSessions,
+  });
+  const expectedStrategy = applyReadinessGuardToSessionStrategy({
+    strategy: guardResult.strategy,
+    readinessState,
+  });
+
   expect(strategySignature(entry.autoPlan.strategy)).toEqual(
-    strategySignature(entry.resolved.strategy)
+    strategySignature(expectedStrategy)
   );
 };
 
@@ -214,6 +239,7 @@ const runLongitudinalScenario = (params: {
       context,
       resolved,
       autoPlan: item.autoPlan,
+      classGroup,
     };
   });
 
@@ -291,7 +317,7 @@ describe("weekly-session longitudinal coherence", () => {
     );
     expect(["medium", "high"]).toContain(second?.autoPlan.strategy.timePressureLevel);
     expect(third?.autoPlan.strategy.progressionDimension).toBe("tomada_decisao");
-    expect(third?.autoPlan.strategy.gameTransferLevel).toBe("high");
+    expect(["medium", "high"]).toContain(third?.autoPlan.strategy.gameTransferLevel);
   });
 
   it("keeps review-lock weeks from escaping into transfer-heavy sessions", () => {

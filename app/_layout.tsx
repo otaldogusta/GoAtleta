@@ -925,7 +925,7 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
 function RootLayout() {
   useEffect(() => {
     setSentryBaseTags();
-    const globalHandler = (global as unknown as {
+    const globalHandler = (globalThis as unknown as {
       ErrorUtils: {
         setGlobalHandler: (
           handler: (error: unknown, isFatal: boolean) => void

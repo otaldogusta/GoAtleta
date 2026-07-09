@@ -1,19 +1,12 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   validateObjectPayload,
   validateStringField,
 } from "../_shared/input-validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
 const notificationTypes = new Set([
   "training_created",
@@ -75,13 +68,13 @@ const parsePayload = async (request: Request): Promise<CreateNotificationPayload
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
 
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -89,7 +82,7 @@ Deno.serve(async (request) => {
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -97,7 +90,7 @@ Deno.serve(async (request) => {
   if (!payload) {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -147,13 +140,13 @@ Deno.serve(async (request) => {
   if (failed) {
     return new Response(JSON.stringify({ error: `Invalid ${failed[0]}: ${failed[1].error}` }), {
       status: 400,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
   if (!notificationTypes.has(typeValidation.data)) {
     return new Response(JSON.stringify({ error: "Invalid type" }), {
       status: 400,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -161,7 +154,7 @@ Deno.serve(async (request) => {
   if (!supabase) {
     return new Response(JSON.stringify({ error: "Missing service role configuration." }), {
       status: 500,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -177,13 +170,13 @@ Deno.serve(async (request) => {
   if (senderError) {
     return new Response(JSON.stringify({ error: senderError.message }), {
       status: 500,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
   if (!senderMembership) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -196,13 +189,13 @@ Deno.serve(async (request) => {
   if (recipientError) {
     return new Response(JSON.stringify({ error: recipientError.message }), {
       status: 500,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
   if (!recipientMembership) {
     return new Response(JSON.stringify({ error: "Recipient is not a member of organization." }), {
       status: 404,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -228,12 +221,12 @@ Deno.serve(async (request) => {
   if (insertError) {
     return new Response(JSON.stringify({ error: insertError.message }), {
       status: 500,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
   return new Response(JSON.stringify({ notification }), {
     status: 200,
-    headers: jsonHeaders,
+    headers: makeJsonHeaders(req),
   });
 });

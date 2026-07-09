@@ -1,13 +1,6 @@
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-};
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
 const buildTargetUrl = (token: string) => {
   const appBase = (Deno.env.get("APP_INVITE_URL") ?? Deno.env.get("APP_URL") ?? "").trim();
@@ -19,12 +12,12 @@ const buildTargetUrl = (token: string) => {
 
 Deno.serve((req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
   if (req.method !== "GET") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -33,7 +26,7 @@ Deno.serve((req) => {
   if (!token) {
     return new Response(JSON.stringify({ error: "Missing token" }), {
       status: 400,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 

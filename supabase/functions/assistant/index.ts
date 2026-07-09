@@ -11,12 +11,9 @@ import { createEdgeFunction, createSuccess, createError } from "../_shared/frame
 import { resolveAIContext, buildSystemAIContextPrompt } from "../_shared/ai-context.ts";
 import { resolveAIMemory, buildSystemAIMemoryPrompt } from "../_shared/ai-memory.ts";
 import { resolveAIGovernance, buildSystemAIGovernancePrompt } from "../_shared/ai-governance.ts";
+import { resolveAIPeriodizationContext, buildSystemAIPeriodizationPrompt } from "../_shared/ai-periodization-context.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+
 
 type AssistantSource = {
   title: string;
@@ -1095,6 +1092,9 @@ Deno.serve(createEdgeFunction({
       const aiFactsPrompt = buildSystemAIMemoryPrompt(aiFacts);
       const aiWarnings = await resolveAIGovernance(supabase, aiContext, body);
       const aiConstraintsPrompt = buildSystemAIGovernancePrompt(aiWarnings);
+      const todayDate = new Date().toISOString().slice(0, 10);
+      const aiPeriodization = await resolveAIPeriodizationContext(supabase, classId, todayDate);
+      const aiPeriodizationPrompt = buildSystemAIPeriodizationPrompt(aiPeriodization);
 
       const classSnapshot = body.classSnapshot && typeof body.classSnapshot === "object"
         ? body.classSnapshot as Record<string, unknown>
@@ -1211,7 +1211,7 @@ Deno.serve(createEdgeFunction({
         event: "assistant_proactive_insight",
         mode: "proactive",
         hasOrganizationId: Boolean(organizationId),
-        classId: classId || null,
+        hasClassId: Boolean(classId),
         confidence: proactiveParsed.confidence,
         latency_ms: latency,
       }));
@@ -1286,6 +1286,11 @@ Deno.serve(createEdgeFunction({
     const aiWarnings = await resolveAIGovernance(supabase, aiContext, body);
     const aiConstraintsPrompt = buildSystemAIGovernancePrompt(aiWarnings);
 
+    // 6. Resolve Periodization Context (read-only snapshot — AI interprets, not replaces)
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const aiPeriodization = await resolveAIPeriodizationContext(supabase, classId, todayDate);
+    const aiPeriodizationPrompt = buildSystemAIPeriodizationPrompt(aiPeriodization);
+
     console.log(
       JSON.stringify({
         event: "assistant_rag_retrieval",
@@ -1307,9 +1312,10 @@ Deno.serve(createEdgeFunction({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "system", content: aiContextPrompt }, // Injected backend context!
-        { role: "system", content: aiFactsPrompt }, // Injected structured facts memory!
-        { role: "system", content: aiConstraintsPrompt }, // Injected safety constraints!
+        { role: "system", content: aiContextPrompt },        // Identity + navigation
+        { role: "system", content: aiFactsPrompt },          // Structured facts memory
+        { role: "system", content: aiConstraintsPrompt },    // Safety constraints
+        { role: "system", content: aiPeriodizationPrompt },  // Periodization cycle context
         { role: "system", content: scientificEvidenceContext },
         { role: "system", content: ragContext },
         { role: "system", content: appSnapshotContext },

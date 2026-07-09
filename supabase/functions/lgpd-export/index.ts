@@ -1,19 +1,12 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateStringField } from "../_shared/input-validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
-const createError = (status: number, code: string, error: string) =>
-  new Response(JSON.stringify({ code, error }), { status, headers: jsonHeaders });
+const createError = (req: Request, status: number, code: string, error: string) =>
+  new Response(JSON.stringify({ code, error }), { status, headers: makeJsonHeaders(req) });
 
 const requireUser = (req: Request): { id: string; email?: string; token: string } | null => {
   const authHeader = req.headers.get("Authorization") ?? "";
@@ -38,33 +31,33 @@ const requireUser = (req: Request): { id: string; email?: string; token: string 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
   if (req.method !== "POST") {
-    return createError(405, "INVALID_REQUEST", "Method not allowed");
+    return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
   const user = requireUser(req);
   if (!user) {
-    return createError(401, "UNAUTHORIZED", "Unauthorized");
+    return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
   let payload: { studentId: string } = { studentId: "" };
   try {
     payload = (await req.json()) as typeof payload;
   } catch {
-    return createError(400, "INVALID_REQUEST", "Invalid JSON");
+    return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
 
   const studentId = payload.studentId?.trim();
   if (!studentId) {
-    return createError(400, "INVALID_REQUEST", "Missing studentId");
+    return createError(req, 400, "INVALID_REQUEST", "Missing studentId");
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   if (!supabaseUrl || !anonKey) {
-    return createError(500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
   }
 
   // Use the authenticated user's token so RLS enforces access
@@ -85,7 +78,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (studentError || !student) {
-    return createError(404, "NOT_FOUND", "Student not found or access denied");
+    return createError(req, 404, "NOT_FOUND", "Student not found or access denied");
   }
 
   // Fetch all related personal data
@@ -131,7 +124,7 @@ Deno.serve(async (req) => {
   return new Response(JSON.stringify(exportPayload), {
     status: 200,
     headers: {
-      ...jsonHeaders,
+      ...makeJsonHeaders(req),
       // Forcing download as file
       "Content-Disposition": `attachment; filename="goatleta_export_${studentId}.json"`,
     },

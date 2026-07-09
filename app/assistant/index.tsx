@@ -1183,7 +1183,7 @@ export default function AssistantScreen() {
           userId: session?.user?.id,
           limit: 4,
         });
-        memoryContext = memoryEntries.map((item) => item.content);
+        memoryContext = memoryEntries.map((item: { content: string }) => item.content);
       } catch {
         memoryContext = [];
       }
@@ -1442,10 +1442,10 @@ export default function AssistantScreen() {
       ]);
 
       const classPlans = trainingPlans.filter(
-        (plan) =>
+        (plan: { classId?: unknown }) =>
           Boolean(plan) &&
-          typeof (plan as { classId?: unknown }).classId === "string" &&
-          (plan as { classId: string }).classId === classId
+          typeof plan.classId === "string" &&
+          plan.classId === classId
       );
       const summary = buildExecutiveSummary({
         className: selectedClass.name,

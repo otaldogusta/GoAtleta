@@ -1,15 +1,8 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { runRulesSync } from "../_shared/regulation-sync-core.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, x-rules-sync-secret",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
 type RulesSyncRequest = {
   organizationId?: string | null;
@@ -26,20 +19,20 @@ const isAuthorized = (request: Request) => {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
 
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
   if (!isAuthorized(request)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   }
 
@@ -59,14 +52,14 @@ Deno.serve(async (request) => {
 
     return new Response(JSON.stringify({ status: "ok", ...report }), {
       status: 200,
-      headers: jsonHeaders,
+      headers: makeJsonHeaders(req),
     });
   } catch (error) {
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : "Rules sync failed.",
       }),
-      { status: 500, headers: jsonHeaders }
+      { status: 500, headers: makeJsonHeaders(req) }
     );
   }
 });

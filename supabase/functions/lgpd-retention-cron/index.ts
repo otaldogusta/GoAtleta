@@ -1,22 +1,15 @@
+﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 
-const jsonHeaders = {
-  ...corsHeaders,
-  "Content-Type": "application/json",
-};
+const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return corsPreflight(req);
   }
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: jsonHeaders });
+    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: makeJsonHeaders(req) });
   }
 
   const authHeader = req.headers.get("Authorization") ?? "";
@@ -24,7 +17,7 @@ Deno.serve(async (req) => {
   const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
   
   if (!token || token !== cronSecret) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: jsonHeaders });
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: makeJsonHeaders(req) });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -38,7 +31,7 @@ Deno.serve(async (req) => {
     .select("*");
 
   if (polError) {
-    return new Response(JSON.stringify({ error: "Failed to fetch policies" }), { status: 500, headers: jsonHeaders });
+    return new Response(JSON.stringify({ error: "Failed to fetch policies" }), { status: 500, headers: makeJsonHeaders(req) });
   }
 
   let deletedCount = 0;
@@ -70,5 +63,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return new Response(JSON.stringify({ status: "ok", deletedCount }), { headers: jsonHeaders });
+  return new Response(JSON.stringify({ status: "ok", deletedCount }), { headers: makeJsonHeaders(req) });
 });

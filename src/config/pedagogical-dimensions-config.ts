@@ -218,8 +218,10 @@ export async function loadPedagogicalConfig(
   filePath: string
 ): Promise<PedagogicalDimensionsConfig> {
   try {
-    const fs = await import("fs").then((m) => m.promises);
-    const fileContent = await fs.readFile(filePath, "utf-8");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fsPromises: { readFile(path: string, enc: string): Promise<string> } =
+      await (new Function('m', 'return import(m)'))('node:fs').then((m: any) => m.promises);
+    const fileContent = await fsPromises.readFile(filePath, "utf-8");
     const parsed = JSON.parse(fileContent);
 
     if (!isValidPedagogicalConfig(parsed)) {

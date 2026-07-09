@@ -8,6 +8,7 @@ Norte atual:
 - a periodizacao precisa ser perceptivel no plano
 - QA observa e orienta leitura interna, mas nao controla o motor
 - professor continua como autoridade final
+- **Princípio de Fusão Contextual**: O relatório da turma é uma evidência forte da realidade da aula, mas nunca atua isoladamente. A IA deve fundir relatório, presença, periodização, memória, eventos, carga, histórico e contexto atual para gerar uma recomendação única, simples e acionável (mais contexto para a IA, menos informação final na tela para o professor).
 
 ## Prioridade por trilha
 

@@ -24,7 +24,7 @@ export function useLocations(organizationId: string | undefined) {
         const units = await getUnitsByOrg(organizationId);
         if (!alive) return;
         setLocations(
-          units.map((u) => ({
+          units.map((u: { id: string; name: string; organizationId: string; address: string | null; notes: string | null; createdAt: string }) => ({
             id: u.id,
             name: u.name,
             organizationId: u.organizationId,
