@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, Text, View } from "react-native";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -24,6 +24,7 @@ const confidenceColor = (confidence: number, colors: ReturnType<typeof useAppThe
 
 export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCardProps) {
   const { colors, mode } = useAppTheme();
+  const [showJustification, setShowJustification] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-8)).current;
 
@@ -128,17 +129,75 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
           </Pressable>
         </View>
 
-        {/* Footer row */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text
+        {/* Expanded Justification View (Progressive Disclosure) */}
+        {showJustification && insight.based_on && insight.based_on.length > 0 && (
+          <View
             style={{
-              fontSize: 11,
-              color: confidenceColor(insight.confidence, colors),
-              fontWeight: "500",
+              marginTop: 4,
+              paddingTop: 10,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              gap: 6,
             }}
           >
-            {confidenceLabel(insight.confidence)}
-          </Text>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "600",
+                color: colors.muted,
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+              }}
+            >
+              Baseado em fatos:
+            </Text>
+            {insight.based_on.map((fact, idx) => (
+              <View key={idx} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 4 }}>
+                <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: accentColor }} />
+                <Text style={{ fontSize: 13, color: colors.text }}>
+                  {fact}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Footer row */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Text
+              style={{
+                fontSize: 11,
+                color: confidenceColor(insight.confidence, colors),
+                fontWeight: "500",
+              }}
+            >
+              {confidenceLabel(insight.confidence)}
+            </Text>
+
+            {insight.based_on && insight.based_on.length > 0 && (
+              <Pressable
+                onPress={() => setShowJustification(!showJustification)}
+                style={({ pressed }) => ({
+                  opacity: pressed ? 0.6 : 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 3,
+                })}
+                accessibilityLabel="Ver justificativa"
+                accessibilityRole="button"
+              >
+                <Text style={{ fontSize: 11, color: colors.muted, fontWeight: "500" }}>
+                  {showJustification ? "Ocultar justificativa" : "Ver justificativa"}
+                </Text>
+                <GoAtletaIcon
+                  name={showJustification ? "chevronUp" : "chevronDown"}
+                  size={10}
+                  color={colors.muted}
+                />
+              </Pressable>
+            )}
+          </View>
 
           {onOpenAssistant && (
             <Pressable
@@ -169,3 +228,4 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
     </Animated.View>
   );
 }
+
