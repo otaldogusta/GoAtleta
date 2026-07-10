@@ -213,6 +213,11 @@ describe("OverviewTab", () => {
     expect(collectText(root)).not.toContain("pela IA");
     expect(collectText(root)).not.toContain("Clique para ver tudo");
 
+    const completedCard = root.findByProps({
+      accessibilityLabel: "Abrir detalhes da aula de Qui · 09/07 · 14:00",
+    });
+    expect(collectText(completedCard).match(/Realizado/g)).toHaveLength(1);
+
     const reviewButton = root.findByProps({ accessibilityLabel: "Revisar evolução da turma" });
     act(() => reviewButton.props.onPress());
     expect(onReviewEvolution).toHaveBeenCalledTimes(1);
@@ -224,5 +229,9 @@ describe("OverviewTab", () => {
     expect(findNodeByText(root, "Foco planejado")).toBeTruthy();
     expect(findNodeByText(root, "Ajustes recomendados")).toBeTruthy();
     expect(root.findByProps({ accessibilityLabel: "Fechar" })).toBeTruthy();
+
+    act(() => root.findByProps({ accessibilityLabel: "Fechar" }).props.onPress());
+    act(() => completedCard.props.onPress());
+    expect(collectText(root)).not.toContain("Resultado realizado");
   });
 });

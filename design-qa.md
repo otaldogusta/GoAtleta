@@ -63,6 +63,13 @@ The implementation preserves the selected visual hierarchy: periodization header
 - Interaction check: the faded 09/07 card still opens and closes its complete detail; browser console has zero errors.
 - Post-fix evidence: `annotation-pass5-aligned-grid.png`.
 
+### Pass 6 — completed-state copy deduplication
+
+- Removed the repeated `Realizado` label from the participation block inside completed cards.
+- Removed `Resultado realizado` from the completed-session detail, since the modal header already communicates the state.
+- Participation counts and evidence remain visible directly below the divider.
+- Post-fix modal evidence: `annotation-pass6-no-duplicate-status.png`; browser console has zero errors.
+
 ## Implementation checklist
 
 - [x] Preserve Cycle tab and annual visualization.

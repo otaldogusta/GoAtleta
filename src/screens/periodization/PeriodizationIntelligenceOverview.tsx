@@ -139,8 +139,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
 
                   {typeof session.participantsCount === "number" ? (
                     <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 8, paddingTop: 8 }}>
-                      <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>Realizado</Text>
-                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800", marginTop: 3 }}>
+                      <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
                         {session.participantsCount} participantes
                       </Text>
                       {typeof session.completedSequenceCount === "number" ? (
@@ -360,8 +359,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                   </View>
                   {typeof selectedSession.participantsCount === "number" ? (
                     <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
-                      <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "800" }}>Resultado realizado</Text>
-                      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800", marginTop: 4 }}>
+                      <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
                         {selectedSession.participantsCount} participantes
                       </Text>
                       {typeof selectedSession.completedSequenceCount === "number" ? (
