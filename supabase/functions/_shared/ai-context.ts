@@ -3,7 +3,7 @@ import { requireActiveWorkspaceId } from "./ai-workspace-scope.ts";
 import {
   AIInstitutionalProfile,
   buildInstitutionalProfilePrompt,
-  resolveInstitutionalProfile,
+  resolveHierarchicalInstitutionalProfile,
 } from "./ai-institutional-profile.ts";
 
 export interface AIUserContext {
@@ -55,13 +55,35 @@ export async function resolveAIContext(
   const roleLevel = activeMembership?.role_level ?? 0;
   const role = roleLevel >= 50 ? "admin" : roleLevel >= 30 ? "coach" : "member";
 
-  const [{ data: organization }, { data: institutionalRow, error: institutionalError }] =
+  const classId = typeof body.classId === "string" ? body.classId.trim() : "";
+
+  const [
+    { data: organization },
+    { data: classRow, error: classError },
+    { data: institutionalRows, error: institutionalError },
+    { data: legacyInstitutionalRow, error: legacyInstitutionalError },
+  ] =
     await Promise.all([
       supabase
         .from("organizations")
         .select("id, name")
         .eq("id", organizationId)
         .maybeSingle(),
+      classId
+        ? supabase
+          .from("classes")
+          .select("id, unit_id, unit, modality")
+          .eq("id", classId)
+          .eq("organization_id", organizationId)
+          .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      supabase
+        .from("institutional_profiles")
+        .select(
+          "scope_type, scope_id, scope_label, organization_type, city, state, priorities, pedagogical_bias, pillar_weights, philosophy, constraints, goals, equipment_notes, communication_preferences, active"
+        )
+        .eq("organization_id", organizationId)
+        .eq("active", true),
       supabase
         .from("organization_ai_profiles")
         .select(
@@ -71,14 +93,32 @@ export async function resolveAIContext(
         .maybeSingle(),
     ]);
 
-  if (institutionalError && institutionalError.code !== "42P01") {
-    console.error("[AIContext]: Failed to load institutional profile", institutionalError);
+  if (classId && (classError || !classRow)) {
+    throw new Error("Class does not belong to the active organization or access is denied.");
   }
 
-  const institutionalProfile = resolveInstitutionalProfile(
-    String(organization?.name ?? "Workspace ativo"),
-    institutionalRow as Record<string, unknown> | null
-  );
+  if (institutionalError && institutionalError.code !== "42P01") {
+    console.error("[AIContext]: Failed to load hierarchical institutional profiles", institutionalError);
+  }
+  if (legacyInstitutionalError && legacyInstitutionalError.code !== "42P01") {
+    console.error("[AIContext]: Failed to load legacy institutional profile", legacyInstitutionalError);
+  }
+
+  const institutionalProfile = resolveHierarchicalInstitutionalProfile({
+    organizationName: String(organization?.name ?? "Workspace ativo"),
+    rows: institutionalError
+      ? []
+      : institutionalRows as Array<Record<string, unknown>> | null,
+    classContext: classRow
+      ? {
+        id: String(classRow.id),
+        unitId: classRow.unit_id,
+        unit: classRow.unit,
+        modality: classRow.modality,
+      }
+      : null,
+    legacyRow: legacyInstitutionalRow as Record<string, unknown> | null,
+  });
 
   // 2. Resolve Active Permissions
   const { data: permsData, error: permsError } = await supabase.rpc("get_my_member_permissions", {
