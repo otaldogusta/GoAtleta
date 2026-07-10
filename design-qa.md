@@ -85,6 +85,12 @@ The implementation preserves the selected visual hierarchy: periodization header
 - Browser check: the backdrop remains visually unchanged under the pointer, click-outside closes the modal, and `Escape` closes it after reopening.
 - Post-fix evidence: `annotation-pass9-clickable-backdrop-no-hover.png`.
 
+### Pass 9 — modal exit artifact
+
+- The empty rounded bar was the modal card shell remaining during the fade-out after its session content had already been cleared.
+- The modal now unmounts as a single unit when the selected session is cleared, so backdrop, shell, and content disappear together without an empty intermediate state.
+- Immediate post-close browser capture contains no backdrop, close control, empty shell, or console error: `annotation-pass10-no-exit-bar.png`.
+
 ## Implementation checklist
 
 - [x] Preserve Cycle tab and annual visualization.

@@ -315,12 +315,13 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
         </View>
       </View>
 
-      <Modal
-        visible={Boolean(selectedSession)}
-        transparent
-        animationType="fade"
-        onRequestClose={closeDetails}
-      >
+      {selectedSession ? (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={closeDetails}
+        >
         <View
           style={{
             flex: 1,
@@ -448,7 +449,8 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
             ) : null}
           </View>
         </View>
-      </Modal>
+        </Modal>
+      ) : null}
     </View>
   );
 }
