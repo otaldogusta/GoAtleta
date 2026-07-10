@@ -206,7 +206,6 @@ export default function ProfileScreen() {
   const loadingProfile = loadingClasses || loadingPhoto;
   const showWorkspaceSwitcher = !student && organizations.length > 1;
   const isDevUser = session?.user?.email === "gusantinho753@gmail.com";
-  const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
 
   const currentClass = useMemo(() => {
     if (!student || !student.classId) return null;
@@ -847,22 +846,6 @@ export default function ProfileScreen() {
                   label="Presença NFC"
                   subtitle="Modo presença por tag UID"
                   onPress={() => router.push("/nfc-attendance")}
-                  rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
-                />
-              ) : null}
-              {!student && isOrgAdmin ? (
-                <SettingsRow
-                  icon="regulations"
-                  iconBg="rgba(255, 210, 140, 0.16)"
-                  label="Regulamentos"
-                  subtitle="Fontes oficiais, versões e atualizações"
-                  onPress={() =>
-                    router.push(
-                      pathname.startsWith("/coord")
-                        ? "/coord/regulation-history"
-                        : "/prof/regulation-history"
-                    )
-                  }
                   rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
                 />
               ) : null}
