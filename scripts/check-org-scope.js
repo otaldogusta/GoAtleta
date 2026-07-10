@@ -28,7 +28,7 @@ const hierarchicalProfilesMigration = readProjectFile(
 const legacyReadonlyMigration = readProjectFile(
   "supabase",
   "migrations",
-  "20260710174444_make_organization_ai_profiles_read_only.sql"
+  "20260710175839_make_organization_ai_profiles_read_only.sql"
 );
 
 const collectRuntimeFiles = (directory) =>
