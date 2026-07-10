@@ -11,6 +11,12 @@ export type JulyAlignmentSession = {
   adjustments?: string[];
 };
 
+export type ReadinessCriterion = {
+  id: string;
+  label: string;
+  isMet: boolean;
+};
+
 export type RedeEsperancaJulyAlignment = {
   monthLabel: string;
   sessions: JulyAlignmentSession[];
@@ -18,7 +24,7 @@ export type RedeEsperancaJulyAlignment = {
   attendanceSequence: number[];
   attentionSummary: string;
   currentStage: string;
-  gateCriteria: string[];
+  gateCriteria: ReadinessCriterion[];
   aiSummary: string;
 };
 
@@ -124,6 +130,20 @@ export const buildRedeEsperancaJulyAlignment = (
   const attendanceSequence = completed
     .map((session) => session.participantsCount)
     .filter((value): value is number => typeof value === "number");
+  const latestCompletedWithSequence = [...completed]
+    .reverse()
+    .find(
+      (session) =>
+        typeof session.participantsCount === "number" &&
+        typeof session.completedSequenceCount === "number"
+    );
+  const latestParticipantsCount = latestCompletedWithSequence?.participantsCount;
+  const latestCompletedSequenceCount = latestCompletedWithSequence?.completedSequenceCount;
+  const firstContactCompletionMet =
+    typeof latestParticipantsCount === "number" &&
+    latestParticipantsCount > 0 &&
+    typeof latestCompletedSequenceCount === "number" &&
+    latestCompletedSequenceCount / latestParticipantsCount >= 0.7;
 
   return {
     monthLabel: "Julho 2026",
@@ -133,9 +153,21 @@ export const buildRedeEsperancaJulyAlignment = (
     attentionSummary: "Atenção e transições ainda impactam a qualidade das execuções.",
     currentStage: "Consolidar 1x1",
     gateCriteria: [
-      "Pelo menos 70% da turma conclui a sequência do 1º contato",
-      "No máximo 3 perdas por sequência, em média",
-      "Atenção e comportamento dentro do esperado",
+      {
+        id: "first-contact-completion",
+        label: "Pelo menos 70% da turma conclui a sequência do 1º contato",
+        isMet: firstContactCompletionMet,
+      },
+      {
+        id: "average-losses",
+        label: "No máximo 3 perdas por sequência, em média",
+        isMet: false,
+      },
+      {
+        id: "attention-behavior",
+        label: "Atenção e comportamento dentro do esperado",
+        isMet: false,
+      },
     ],
     aiSummary:
       "Os relatórios indicam que a recepção direta ainda precisa de estabilidade. A recomendação é manter o 1x1, reduzir variáveis e liberar o mini 2x2 somente após o portão de prontidão.",

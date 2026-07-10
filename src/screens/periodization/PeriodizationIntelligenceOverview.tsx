@@ -278,9 +278,15 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
           <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, gap: 6 }}>
             <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Critérios para avançar</Text>
             {alignment.gateCriteria.map((criterion) => (
-              <View key={criterion} style={{ flexDirection: "row", gap: 7, alignItems: "flex-start" }}>
-                <GoAtletaIcon name="checkmarkCircle" size={14} color={colors.successText} />
-                <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16, flex: 1 }}>{criterion}</Text>
+              <View key={criterion.id} style={{ flexDirection: "row", gap: 7, alignItems: "flex-start" }}>
+                <GoAtletaIcon
+                  name={criterion.isMet ? "checkbox" : "square"}
+                  size={14}
+                  color={criterion.isMet ? colors.successText : colors.secondaryText}
+                />
+                <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16, flex: 1 }}>
+                  {criterion.label}
+                </Text>
               </View>
             ))}
           </View>
@@ -392,9 +398,15 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                     <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, gap: 7 }}>
                       <Text style={{ color: colors.warningText, fontSize: 11, fontWeight: "800" }}>Portão de prontidão</Text>
                       {alignment.gateCriteria.map((criterion) => (
-                        <View key={criterion} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}>
-                          <GoAtletaIcon name="checkmarkCircle" size={15} color={colors.warningText} />
-                          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18, flex: 1 }}>{criterion}</Text>
+                        <View key={criterion.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}>
+                          <GoAtletaIcon
+                            name={criterion.isMet ? "checkbox" : "square"}
+                            size={15}
+                            color={criterion.isMet ? colors.successText : colors.secondaryText}
+                          />
+                          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 18, flex: 1 }}>
+                            {criterion.label}
+                          </Text>
                         </View>
                       ))}
                     </View>

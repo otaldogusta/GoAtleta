@@ -70,6 +70,13 @@ The implementation preserves the selected visual hierarchy: periodization header
 - Participation counts and evidence remain visible directly below the divider.
 - Post-fix modal evidence: `annotation-pass6-no-duplicate-status.png`; browser console has zero errors.
 
+### Pass 7 — readiness criteria state
+
+- Readiness criteria now render as empty checkboxes while pending in both the progression map and the session detail.
+- A checkbox only becomes marked when its criterion data reports `isMet: true`.
+- Current evidence leaves all three criteria pending, consistent with the readiness gate remaining closed.
+- Post-fix evidence: `annotation-pass7-pending-gate-overview.png` and `annotation-pass7-pending-gate-modal.png`; browser console has zero errors.
+
 ## Implementation checklist
 
 - [x] Preserve Cycle tab and annual visualization.

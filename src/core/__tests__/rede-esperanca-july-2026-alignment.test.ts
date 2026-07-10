@@ -13,6 +13,7 @@ describe("Rede Esperança July 2026 alignment", () => {
     expect(gate?.date).toBe("2026-07-16");
     expect(mini2x2?.date).toBe("2026-07-21");
     expect(alignment.gateCriteria).toHaveLength(3);
+    expect(alignment.gateCriteria.every((criterion) => !criterion.isMet)).toBe(true);
     expect(redeEsperancaJulyAiContext.mustAvoid).toContain(
       "avançar automaticamente para o mini 2x2"
     );
