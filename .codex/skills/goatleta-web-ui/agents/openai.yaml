@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Web UI"
+  short_description: "Diretrizes web responsivas do GoAtleta"
+  default_prompt: "Use $goatleta-web-ui para criar ou refatorar uma tela web responsiva do GoAtleta."
