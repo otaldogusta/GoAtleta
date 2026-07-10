@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getValidAccessToken } from "../../auth/session";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../api/config";
+import { buildWorkspaceScopeKey } from "../../core/ai-workspace-context";
 
 export type ContextualInsight = {
   insight: string;
@@ -35,12 +36,12 @@ type UseContextualInsightResult = {
 const ASSISTANT_URL = `${SUPABASE_URL}/functions/v1/assistant`;
 const PROACTIVE_DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
-const buildDismissKey = (classId: string) =>
-  `contextual_insight_dismissed_v1:${classId}`;
+const buildDismissKey = (scopeKey: string) =>
+  `contextual_insight_dismissed_v2:${scopeKey}`;
 
-const isDismissedToday = async (classId: string): Promise<boolean> => {
+const isDismissedToday = async (scopeKey: string): Promise<boolean> => {
   try {
-    const raw = await AsyncStorage.getItem(buildDismissKey(classId));
+    const raw = await AsyncStorage.getItem(buildDismissKey(scopeKey));
     if (!raw) return false;
     const parsed = JSON.parse(raw) as { dismissedAt: number; insight: string };
     return Date.now() - parsed.dismissedAt < PROACTIVE_DISMISS_TTL_MS;
@@ -49,10 +50,10 @@ const isDismissedToday = async (classId: string): Promise<boolean> => {
   }
 };
 
-const persistDismiss = async (classId: string, insight: string): Promise<void> => {
+const persistDismiss = async (scopeKey: string, insight: string): Promise<void> => {
   try {
     await AsyncStorage.setItem(
-      buildDismissKey(classId),
+      buildDismissKey(scopeKey),
       JSON.stringify({ dismissedAt: Date.now(), insight })
     );
   } catch {
@@ -61,6 +62,7 @@ const persistDismiss = async (classId: string, insight: string): Promise<void> =
 };
 
 export function useContextualInsight(
+  organizationId: string | null | undefined,
   classId: string | null | undefined,
   classSnapshot: ClassSnapshot | null | undefined
 ): UseContextualInsightResult {
@@ -69,11 +71,16 @@ export function useContextualInsight(
   const abortRef = useRef<AbortController | null>(null);
   const fetchedForRef = useRef<string | null>(null);
 
-  const fetchInsight = useCallback(async (id: string, snapshot: ClassSnapshot) => {
-    if (fetchedForRef.current === id) return;
-    fetchedForRef.current = id;
+  const fetchInsight = useCallback(async (
+    workspaceId: string,
+    id: string,
+    snapshot: ClassSnapshot
+  ) => {
+    const scopeKey = buildWorkspaceScopeKey(workspaceId, id);
+    if (fetchedForRef.current === scopeKey) return;
+    fetchedForRef.current = scopeKey;
 
-    const alreadyDismissed = await isDismissedToday(id);
+    const alreadyDismissed = await isDismissedToday(scopeKey);
     if (alreadyDismissed) return;
 
     const token = await getValidAccessToken();
@@ -94,6 +101,7 @@ export function useContextualInsight(
         },
         body: JSON.stringify({
           mode: "proactive",
+          organizationId: workspaceId,
           classId: id,
           sport: "volleyball",
           classSnapshot: {
@@ -134,12 +142,17 @@ export function useContextualInsight(
   }, []);
 
   useEffect(() => {
-    if (!classId || !classSnapshot) return;
+    abortRef.current?.abort();
+    setInsight(null);
+    setLoading(false);
+    fetchedForRef.current = null;
+
+    if (!organizationId || !classId || !classSnapshot) return;
     const timer = setTimeout(() => {
-      void fetchInsight(classId, classSnapshot);
+      void fetchInsight(organizationId, classId, classSnapshot);
     }, 1500);
     return () => clearTimeout(timer);
-  }, [classId, classSnapshot, fetchInsight]);
+  }, [organizationId, classId, classSnapshot, fetchInsight]);
 
   useEffect(() => {
     return () => {
@@ -148,11 +161,12 @@ export function useContextualInsight(
   }, []);
 
   const dismiss = useCallback(() => {
-    if (insight && classId) {
-      void persistDismiss(classId, insight.insight);
+    if (insight && organizationId && classId) {
+      const scopeKey = buildWorkspaceScopeKey(organizationId, classId);
+      void persistDismiss(scopeKey, insight.insight);
     }
     setInsight(null);
-  }, [insight, classId]);
+  }, [insight, organizationId, classId]);
 
   return { insight, loading, dismiss };
 }

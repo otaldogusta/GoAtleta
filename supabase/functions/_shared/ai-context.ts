@@ -1,4 +1,5 @@
 import { SupabaseClient, User } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireActiveWorkspaceId } from "./ai-workspace-scope.ts";
 
 export interface AIUserContext {
   id: string;
@@ -29,9 +30,8 @@ export async function resolveAIContext(
 ): Promise<AIContext> {
   const userId = user.id;
   
-  // 1. Resolve Organization ID
-  // If not provided in the body, try to resolve the first organization the user is a member of.
-  let organizationId = String(body.organizationId || body.organization_id || "").trim();
+  // 1. Resolve the explicit active workspace. Never infer one from another membership.
+  const requestedOrganizationId = body.organizationId || body.organization_id;
   
   const { data: memberOrgs, error: orgsError } = await supabase
     .from("organization_members")
@@ -41,11 +41,8 @@ export async function resolveAIContext(
     throw new Error("User belongs to no organization or access is denied.");
   }
 
-  // Fallback to first membership if none specified or requested is invalid
   const allowedOrgIds = memberOrgs.map(m => String(m.organization_id));
-  if (!organizationId || !allowedOrgIds.includes(organizationId)) {
-    organizationId = String(memberOrgs[0].organization_id);
-  }
+  const organizationId = requireActiveWorkspaceId(requestedOrganizationId, allowedOrgIds);
 
   // Resolve user role
   const activeMembership = memberOrgs.find(m => String(m.organization_id) === organizationId);

@@ -2139,13 +2139,18 @@ export default function SessionScreen() {
     });
 
     try {
-      const { rewrittenText } = await rewriteReportText({
-        field,
-        text: trimmed,
-        mode: "projeto_social",
-        maxChars: REPORT_REWRITE_MAX_CHARS,
-        classId: typeof id === "string" ? id : undefined,
-      });
+      const { rewrittenText } = await rewriteReportText(
+        {
+          field,
+          text: trimmed,
+          mode: "projeto_social",
+          maxChars: REPORT_REWRITE_MAX_CHARS,
+          classId: typeof id === "string" ? id : undefined,
+        },
+        {
+          organizationId: cls?.organizationId,
+        }
+      );
 
       const currentText = normalizeRewriteInput(
         field === "activity" ? activity : conclusion
