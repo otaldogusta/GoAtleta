@@ -79,10 +79,11 @@ The implementation preserves the selected visual hierarchy: periodization header
 
 ### Pass 8 — modal backdrop affordance
 
-- The backdrop is now a non-interactive visual layer: it has no button role, pointer cursor, hover feedback, or click-to-close behavior.
-- The explicit close button remains the only pointer action and uses the shared Pressable hover treatment to become lighter on hover.
-- Browser check: clicking the backdrop keeps the modal open; no `Fechar detalhes da aula` button exists. Component coverage verifies the close background changes from `secondaryBg` to the lighter `border` token on hover.
-- Post-fix evidence: `annotation-pass8-noninteractive-backdrop.png`.
+- The backdrop keeps click-to-close and `Esc` dismissal, but suppresses web hover feedback so the overlay does not become lighter under the pointer.
+- The explicit close button continues to use the shared hover treatment and becomes lighter on hover.
+- Component coverage verifies the backdrop opts out of hover feedback and still closes the modal; the close control changes from `secondaryBg` to the lighter `border` token on hover.
+- Browser check: the backdrop remains visually unchanged under the pointer, click-outside closes the modal, and `Escape` closes it after reopening.
+- Post-fix evidence: `annotation-pass9-clickable-backdrop-no-hover.png`.
 
 ## Implementation checklist
 

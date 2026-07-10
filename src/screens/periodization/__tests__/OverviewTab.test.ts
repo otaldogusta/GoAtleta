@@ -233,7 +233,8 @@ describe("OverviewTab", () => {
     act(() => root.findByProps({ accessibilityLabel: "Fechar" }).props.onPress());
     act(() => completedCard.props.onPress());
     expect(collectText(root)).not.toContain("Resultado realizado");
-    expect(root.findAllByProps({ accessibilityLabel: "Fechar detalhes da aula" })).toHaveLength(0);
+    const backdrop = root.findByProps({ accessibilityLabel: "Fechar detalhes da aula" });
+    expect(backdrop.props.suppressWebHoverFeedback).toBe(true);
 
     let closeButton = root.findByProps({ accessibilityLabel: "Fechar" });
     expect(closeButton.props.style.backgroundColor).toBe(colors.secondaryBg);
@@ -243,5 +244,8 @@ describe("OverviewTab", () => {
     act(() => closeButton.props.onHoverOut());
     closeButton = root.findByProps({ accessibilityLabel: "Fechar" });
     expect(closeButton.props.style.backgroundColor).toBe(colors.secondaryBg);
+
+    act(() => backdrop.props.onPress());
+    expect(root.findAllByProps({ accessibilityLabel: "Fechar" })).toHaveLength(0);
   });
 });

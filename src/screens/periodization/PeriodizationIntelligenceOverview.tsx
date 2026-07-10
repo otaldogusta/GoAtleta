@@ -1,5 +1,5 @@
-import { Modal, ScrollView, Text, useWindowDimensions, View } from "react-native";
-import { useState } from "react";
+import { Modal, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { useEffect, useState } from "react";
 
 import type { RecentSessionSummary } from "../../core/models";
 import {
@@ -54,6 +54,18 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
     setIsCloseFocused(false);
     setSelectedSession(null);
   };
+
+  useEffect(() => {
+    if (!selectedSession || Platform.OS !== "web" || typeof document === "undefined") return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setIsCloseHovered(false);
+      setIsCloseFocused(false);
+      setSelectedSession(null);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedSession]);
 
   return (
     <View style={{ gap: 14 }}>
@@ -318,6 +330,13 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
             padding: 20,
           }}
         >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar detalhes da aula"
+            onPress={closeDetails}
+            suppressWebHoverFeedback
+            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+          />
           <View
             style={[
               getSectionCardStyle(colors, "neutral", { padding: 18, radius: 18 }),
