@@ -104,6 +104,16 @@ export async function resolveAIContext(
     console.error("[AIContext]: Failed to load legacy institutional profile", legacyInstitutionalError);
   }
 
+  const usesLegacyInstitutionalProfile =
+    (!institutionalRows || institutionalRows.length === 0 || Boolean(institutionalError)) &&
+    Boolean(legacyInstitutionalRow) &&
+    !legacyInstitutionalError;
+  if (usesLegacyInstitutionalProfile) {
+    console.info("[AIContext]: Legacy institutional profile fallback used", {
+      organizationId,
+    });
+  }
+
   const institutionalProfile = resolveHierarchicalInstitutionalProfile({
     organizationName: String(organization?.name ?? "Workspace ativo"),
     rows: institutionalError

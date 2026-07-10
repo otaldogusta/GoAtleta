@@ -131,8 +131,21 @@ herdados da camada anterior, e todos são normalizados entre `0,5` e `1,5`. Perf
 alteram a ênfase e a linguagem, mas nunca ampliam autorização, substituem
 evidências, ignoram governança, prontidão ou restrições de saúde.
 
-`organization_ai_profiles` permanece temporariamente como fallback legado durante a
-transição, sem ser a fonte principal da resolução.
+`institutional_profiles` é a fonte canônica e gravável.
+`organization_ai_profiles` permanece temporariamente como fallback legado somente
+leitura durante a transição. O único consumidor permitido é a resolução de contexto
+em `supabase/functions/_shared/ai-context.ts`; novas escritas e novos consumidores
+são bloqueados pela migração e pelo `check:org-scope`. Cada uso do fallback gera o
+evento operacional `Legacy institutional profile fallback used` nos logs da Edge
+Function, sem incluir conteúdo pedagógico ou dados pessoais.
+
+O fallback e a tabela legada poderão ser removidos quando:
+
+1. nenhum consumidor de aplicação consultar `organization_ai_profiles`;
+2. todos os workspaces tiverem perfil canônico em `institutional_profiles`;
+3. o fallback não for acionado durante pelo menos duas releases;
+4. uma verificação automatizada confirmar a ausência de referências legadas; e
+5. uma auditoria de dados confirmar que não existem registros exclusivamente legados.
 
 ### Níveis de memória
 
