@@ -79,7 +79,6 @@ const pickBorderRadius = (style: StyleProp<ViewStyle>) => {
 
 const webClickableStyle = {
   cursor: "pointer",
-  outlineStyle: "none",
 } as unknown as ViewStyle;
 
 const getWebFallbackHoverStyle = (style: StyleProp<ViewStyle>) =>
