@@ -242,13 +242,24 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
 
     try {
       const cls = await loadRequiredMonthlyData("dados da turma", getClassById(classId));
+      if (!cls?.organizationId) {
+        throw new Error("Turma sem workspace ativo.");
+      }
       const currentYear = new Date().getFullYear();
       const classStartDate = cls?.cycleStartDate || cls?.createdAt || null;
       await loadRequiredMonthlyData(
         "ciclo ativo",
-        ensureActiveCycleForYear(classId, currentYear, classStartDate)
+        ensureActiveCycleForYear(
+          classId,
+          cls.organizationId,
+          currentYear,
+          classStartDate
+        )
       );
-      const activeCycle = await loadRequiredMonthlyData("ciclo ativo", getActivePlanningCycle(classId));
+      const activeCycle = await loadRequiredMonthlyData(
+        "ciclo ativo",
+        getActivePlanningCycle(classId, cls.organizationId)
+      );
       const cycleYear = activeCycle?.year ?? null;
       const plans = await loadRequiredMonthlyData(
         "semanas do ciclo",

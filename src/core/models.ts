@@ -1291,6 +1291,7 @@ export type ScoutingAction = {
 
 export type PlanningCycle = {
   id: string;
+  organizationId: string;
   classId: string;
   year: number;
   title: string;

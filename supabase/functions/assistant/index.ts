@@ -1125,6 +1125,7 @@ Deno.serve(createEdgeFunction({
 
       const aiFacts = await resolveAIMemory(supabase, aiContext);
       const aiFactsPrompt = buildSystemAIMemoryPrompt(aiFacts);
+      const aiContextPrompt = buildSystemAIContextPrompt(aiContext);
       const aiWarnings = await resolveAIGovernance(supabase, aiContext, body);
       const aiConstraintsPrompt = buildSystemAIGovernancePrompt(aiWarnings);
       const todayDate = new Date().toISOString().slice(0, 10);
@@ -1180,6 +1181,7 @@ Deno.serve(createEdgeFunction({
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: proactiveSystemPrompt },
+          { role: "system", content: aiContextPrompt },
           { role: "system", content: aiFactsPrompt },
           { role: "system", content: aiConstraintsPrompt },
           { role: "system", content: aiPeriodizationPrompt },

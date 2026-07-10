@@ -13,6 +13,13 @@ const contextualInsight = readProjectFile(
   "hooks",
   "useContextualInsight.ts"
 );
+const aiMemory = readProjectFile("supabase", "functions", "_shared", "ai-memory.ts");
+const planningCycles = readProjectFile("src", "db", "cycles.ts");
+const workspaceAiMigration = readProjectFile(
+  "supabase",
+  "migrations",
+  "20260710145948_add_workspace_ai_profiles_and_global_memory.sql"
+);
 
 const checks = [
   {
@@ -57,6 +64,28 @@ const aiChecks = [
     name: "proactive insight workspace scope",
     content: contextualInsight,
     required: ["organizationId: workspaceId", "buildWorkspaceScopeKey"],
+  },
+  {
+    name: "AI global and workspace memory separation",
+    content: aiMemory,
+    required: ["ai_user_global_facts", 'memory_scope: "user_global"', 'memory_scope: "workspace"'],
+  },
+  {
+    name: "planning cycle workspace scope",
+    content: planningCycles,
+    required: ["organizationId = ?", "cycle.organizationId"],
+  },
+  {
+    name: "workspace AI schema RLS",
+    content: workspaceAiMigration,
+    required: [
+      "organization_ai_profiles",
+      "ai_user_global_facts",
+      "alter table public.organization_ai_profiles enable row level security",
+      "alter table public.ai_user_global_facts enable row level security",
+      "planning_cycles_class_workspace_fk",
+      "private.workspace_scope_quarantine",
+    ],
   },
 ];
 

@@ -7,6 +7,27 @@ export type WorkspaceOrganizationType =
   | "club"
   | "personal";
 
+export type InstitutionalPillarId =
+  | "reports"
+  | "attendance"
+  | "periodization"
+  | "preferences"
+  | "calendar"
+  | "physical_load"
+  | "feedback_history"
+  | "individual_context";
+
+export type WorkspaceInstitutionalProfile = {
+  organizationType: WorkspaceOrganizationType;
+  priorities: string[];
+  pedagogicalBias: string[];
+  pillarWeights: Record<InstitutionalPillarId, number>;
+  philosophy: string;
+  constraints: string[];
+  goals: string[];
+  equipmentNotes: string;
+};
+
 export type WorkspaceContext = {
   workspaceId: string;
   organizationName: string;
@@ -15,6 +36,7 @@ export type WorkspaceContext = {
     city: string;
     state: string;
   };
+  institutionalProfile?: WorkspaceInstitutionalProfile;
   activeClassId?: string;
   activeStudentId?: string;
 };

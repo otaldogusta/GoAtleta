@@ -1025,12 +1025,20 @@ export default function PeriodizationScreen() {
       try {
         const year = new Date().getFullYear();
         const classStartDate = currentClass.cycleStartDate || currentClass.createdAt || null;
-        await ensureActiveCycleForYear(currentClass.id, year, classStartDate);
+        await ensureActiveCycleForYear(
+          currentClass.id,
+          currentClass.organizationId,
+          year,
+          classStartDate
+        );
       } catch {
         // Non-blocking; we still load the current cycle list.
       }
 
-      const cycles = await getPlanningCycles(currentClass.id);
+      const cycles = await getPlanningCycles(
+        currentClass.id,
+        currentClass.organizationId
+      );
       if (!alive) return;
       setPlanningCycles(cycles);
     })();
@@ -3263,8 +3271,16 @@ export default function PeriodizationScreen() {
       const year = new Date().getFullYear();
       const classStartDate = selectedClass.cycleStartDate || selectedClass.createdAt || null;
       try {
-        await ensureActiveCycleForYear(selectedClass.id, year, classStartDate);
-        const cycles = await getPlanningCycles(selectedClass.id);
+        await ensureActiveCycleForYear(
+          selectedClass.id,
+          selectedClass.organizationId,
+          year,
+          classStartDate
+        );
+        const cycles = await getPlanningCycles(
+          selectedClass.id,
+          selectedClass.organizationId
+        );
         setPlanningCycles(cycles);
       } catch {
         // Non-blocking — cycle creation is best-effort

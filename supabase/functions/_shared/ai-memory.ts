@@ -3,9 +3,10 @@ import { AIContext } from "./ai-context.ts";
 
 export interface AIFact {
   id: string;
-  subject_type: "student" | "class" | "coach" | "organization";
+  memory_scope: "user_global" | "workspace";
+  subject_type: "user" | "student" | "class" | "coach" | "organization";
   subject_id: string;
-  fact_type: "motor_skill" | "class_pattern" | "coach_preference" | "general";
+  fact_type: "motor_skill" | "class_pattern" | "coach_preference" | "interface_preference" | "general";
   content: Record<string, any>;
   confidence: number;
 }
@@ -45,12 +46,42 @@ export async function resolveAIMemory(
     .or(targets.join(","))
     .or(`expires_at.is.null,expires_at.gt.${nowIso}`);
 
-  if (error || !data) {
+  if (error) {
     console.error("[AIMemory Error]: Failed to fetch facts:", error);
-    return [];
   }
 
-  const factsList = data as AIFact[];
+  const factsList = ((data ?? []) as Omit<AIFact, "memory_scope">[]).map((fact) => ({
+    ...fact,
+    memory_scope: "workspace" as const,
+  }));
+
+  // User-global facts are intentionally stored outside ai_facts so operational
+  // workspace data can never cross organizations through a broad query.
+  const { data: globalData, error: globalError } = await supabase
+    .from("ai_user_global_facts")
+    .select("id, user_id, fact_type, content, confidence")
+    .eq("user_id", user.id)
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  if (globalError && globalError.code !== "42P01") {
+    console.error("[AIMemory Error]: Failed to fetch user-global facts:", globalError);
+  }
+
+  if (Array.isArray(globalData)) {
+    globalData.forEach((fact) => {
+      factsList.push({
+        id: String(fact.id),
+        memory_scope: "user_global",
+        subject_type: "user",
+        subject_id: String(fact.user_id),
+        fact_type: fact.fact_type,
+        content: fact.content ?? {},
+        confidence: Number(fact.confidence ?? 0.5),
+      } as AIFact);
+    });
+  }
 
   // 4. Query recent Decision Outcomes to aggregate behavior/feedback
   const { data: outcomes, error: outcomesError } = await supabase
@@ -81,6 +112,7 @@ export async function resolveAIMemory(
 
     factsList.push({
       id: "synthetic-coach-feedback-summary",
+      memory_scope: "workspace",
       subject_type: "coach",
       subject_id: user.id,
       fact_type: "coach_preference",
@@ -100,7 +132,7 @@ export function buildSystemAIMemoryPrompt(facts: AIFact[]): string {
     return "FACTS_MEMORY: No structured facts found for active targets.";
   }
 
-  const lines = facts.map(f => {
+  const formatFact = (f: AIFact) => {
     const formattedContent = Object.entries(f.content)
       .map(([k, v]) => `${k}: ${v}`)
       .join(", ");
@@ -108,10 +140,19 @@ export function buildSystemAIMemoryPrompt(facts: AIFact[]): string {
     let subjectLabel = f.subject_type.toUpperCase();
     
     return `- [${subjectLabel} FACT] (${f.fact_type}): ${formattedContent} (Confidence: ${f.confidence.toFixed(2)})`;
-  });
+  };
+
+  const globalLines = facts
+    .filter((fact) => fact.memory_scope === "user_global")
+    .map(formatFact);
+  const workspaceLines = facts
+    .filter((fact) => fact.memory_scope === "workspace")
+    .map(formatFact);
 
   return [
-    "FACTS_MEMORY: Prioritize these structured facts during decision making and recommendations.",
-    ...lines
+    "USER_GLOBAL_MEMORY: Use only for stable communication and general coaching preferences. Never treat it as operational evidence about a workspace, class or student.",
+    ...(globalLines.length ? globalLines : ["- No user-global preferences found."]),
+    "WORKSPACE_MEMORY: These facts belong exclusively to the active workspace and may support decisions only inside it.",
+    ...(workspaceLines.length ? workspaceLines : ["- No workspace facts found for active targets."]),
   ].join("\n");
 }

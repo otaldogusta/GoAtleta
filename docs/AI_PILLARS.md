@@ -103,6 +103,11 @@ O contrato compartilhado fica em
 `src/core/ai-workspace-context.ts`; a barreira do backend fica em
 `supabase/functions/_shared/ai-workspace-scope.ts`.
 
+O perfil institucional persistido fica em `organization_ai_profiles`. O motor
+normaliza os pesos dos pilares entre `0,5` e `1,5` e aplica uma regra invariável:
+os pesos alteram a ênfase e a linguagem, mas nunca substituem evidências,
+governança, prontidão ou restrições de saúde.
+
 ### Níveis de memória
 
 | Escopo | Pode atravessar workspace? | Exemplos |
@@ -111,6 +116,11 @@ O contrato compartilhado fica em
 | `workspace` | Não | prioridades, calendário e regras institucionais |
 | `class` | Não | etapa do ciclo, dificuldade e comportamento recente |
 | `student` | Não | evolução, frequência e restrições individuais autorizadas |
+
+Preferências `user_global` são armazenadas separadamente em
+`ai_user_global_facts`, com RLS vinculada diretamente ao usuário. Memória
+operacional continua em `ai_facts` e exige `organization_id`, evitando que uma
+consulta global recupere dados de turma, participante ou instituição.
 
 ### Perfil institucional
 
