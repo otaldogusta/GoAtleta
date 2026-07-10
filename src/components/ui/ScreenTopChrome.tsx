@@ -31,7 +31,7 @@ export function ScreenTopChrome({
       ? ({
           position: "sticky",
           top: 0,
-        } as ViewStyle)
+        } as unknown as ViewStyle)
       : null;
   const webFullBleedStyle =
     Platform.OS === "web" && fullBleed

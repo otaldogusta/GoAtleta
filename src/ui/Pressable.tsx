@@ -2,6 +2,10 @@ import { Platform, Pressable as RNPressable } from "react-native";
 import type { PressableProps as RNPressableProps, StyleProp, ViewStyle } from "react-native";
 
 type WebContextMenuHandler = (event: unknown) => void;
+type WebPositionedStyle = Omit<ViewStyle, "position"> & {
+  position?: ViewStyle["position"] | "fixed";
+  inset?: number;
+};
 type PressableProps = RNPressableProps & {
   onContextMenu?: WebContextMenuHandler;
   suppressWebHoverFeedback?: boolean;
@@ -19,11 +23,14 @@ const shouldSkipFeedback = (style: StyleProp<ViewStyle>) => {
   return styles.some((item: ViewStyle) => {
     if (!item) return false;
     const background = item.backgroundColor;
-    const inset = item as ViewStyle & { inset?: number };
+    const webItem = item as WebPositionedStyle;
     const fillsViewport =
-      (item.position === "absolute" || item.position === "fixed") &&
-      ((inset.inset === 0) ||
-        (item.top === 0 && item.right === 0 && item.bottom === 0 && item.left === 0));
+      (webItem.position === "absolute" || webItem.position === "fixed") &&
+      ((webItem.inset === 0) ||
+        (webItem.top === 0 &&
+          webItem.right === 0 &&
+          webItem.bottom === 0 &&
+          webItem.left === 0));
     const isOverlay =
       (item.flex === 1 || fillsViewport) &&
       typeof background === "string" &&
