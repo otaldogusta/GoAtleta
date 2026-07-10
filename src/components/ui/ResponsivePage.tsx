@@ -25,9 +25,11 @@ export function ResponsivePage({
       style={[
         {
           width: "100%",
+          minWidth: 0,
           maxWidth: layout.maxContentWidth + layout.gutter * 2,
           alignSelf: "center",
           paddingHorizontal: layout.gutter,
+          boxSizing: "border-box",
           gap,
         },
         style,

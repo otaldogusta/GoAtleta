@@ -4,8 +4,13 @@
 
 ### `ResponsivePage`
 
-Controla largura máxima, gutter e centralização. Não aplica cor, card, dados ou
-regra de domínio. Variantes: `content` e `dashboard`.
+Controla largura máxima, gutter e centralização. No web, a largura inclui o
+gutter (`border-box`) para não criar rolagem horizontal. Não aplica cor, card,
+dados ou regra de domínio. Variantes: `content` e `dashboard`.
+
+Filhos com conteúdo longo ou largura mínima não podem expandir a página:
+`ResponsivePage` e as regiões do grid preservam `minWidth: 0`, e o conteúdo
+deve truncar ou quebrar dentro da própria região.
 
 ### `ResponsiveGrid`
 
@@ -25,6 +30,10 @@ superfícies automaticamente.
 
 - `ScreenPageHeader`: título, retorno, descrição e ação contextual.
 - `Button` e `Pressable`: ações e estados interativos.
+- Controles web preservam um foco visível por teclado; nunca remova o contorno
+  sem oferecer um anel ou mudança de borda equivalente.
+- Ações que não existem para o nível de permissão atual são ocultadas; não são
+  renderizadas apenas como controles desabilitados sem utilidade.
 - `ModalSheet`: formulários e detalhes temporários.
 - `ScreenLoadingState` e `SectionLoadingState`: carregamento consistente.
 

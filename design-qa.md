@@ -1,102 +1,61 @@
-# Design QA — Rede Esperança 8-11 periodization overview
+# Design QA — Regulamentos desktop
 
-- source visual truth path: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-408deaf5-c480-4611-8202-75b248f73582.png`
-- implementation screenshot path: `C:\Users\gusta\Downloads\GoAtleta\tmp\product-design\rede-esperanca-qa\annotation-pass5-aligned-grid.png`
-- combined comparison evidence: `C:\Users\gusta\Downloads\GoAtleta\tmp\product-design\rede-esperanca-qa\source-vs-implementation-final.png`
-- viewport: 1209 x 812 CSS pixels
-- state: Rede Esperança / Turma 8-11 / Visão geral
-- browser-rendered evidence: localhost:8081, authenticated professor flow
-- primary interactions tested: open overview, switch to Cycle, preserve annual cycle visualization
-- console errors checked: yes, zero errors
+## Evidências
 
-## Full-view comparison evidence
+- Verdade visual: `C:\Users\gusta\AppData\Local\Temp\goatleta-web-foundation-audit\01-home-desktop.png`
+- Comparação consolidada: `C:\Users\gusta\AppData\Local\Temp\goatleta-pr70-admin-qa\final-comparison.png`
+- Desktop escuro: `C:\Users\gusta\AppData\Local\Temp\goatleta-pr70-admin-qa\admin-dark-1440x1024-final2.png`
+- Desktop claro: `C:\Users\gusta\AppData\Local\Temp\goatleta-pr70-admin-qa\admin-light-1440x1024-final2.png`
+- Tablet claro/escuro: `admin-light-834x1194.png` e `admin-dark-834x1194-final.png`
+- Mobile claro/escuro: `admin-light-390x844.png` e `admin-dark-390x844-final.png`
+- Modal mobile com foco: `admin-dark-modal-focus-390x844-final.png`
+- Viewports solicitados: 1440×1024, 834×1194 e 390×844. O navegador interno aplicou sua escala mínima, e os limites foram conferidos pelo DOM no viewport efetivo.
+- Estado: sessão administrativa real, Gustavo Workspace, fonte FIVB, uma versão e três cláusulas.
 
-The implementation preserves the selected visual hierarchy: periodization header, planned-versus-completed timeline, recent evidence, AI learning explanation, readiness gate, and 1x1-to-2x2 progression. It uses the existing GoAtleta navigation, typography, spacing system, theme tokens, and icon registry instead of introducing a parallel visual system.
+## Comparação visual
 
-## Focused region comparison evidence
+A Home e Regulamentos mantêm tipografia, superfícies, bordas, raios, contraste e densidade operacional da mesma família. A composição usa 8/4 e 6/6 no desktop e empilha antes de 1200 px. A comparação consolidada foi aberta como uma única imagem; os detalhes de foco e modal também foram inspecionados em captura dedicada.
 
-- Timeline: completed dates, attendance, observed difficulty, adapted session, readiness gate, and conditional mini 2x2 are visible and ordered correctly.
-- Tabs: the tailored overview label is shown while the existing Cycle and Agenda navigation remains functional.
-- Intelligence panels: recent evidence and readiness criteria use the same visual roles as the source, with responsive stacking at narrower widths.
+## Histórico de iteração
 
-## Required fidelity surfaces
+1. P1 — overflow horizontal no mobile e bleed no cabeçalho.
+   - Correção: `ResponsivePage` usa `border-box` e `minWidth: 0`; o cabeçalho compartilha largura/gutter do resolver.
+   - Pós-correção: `scrollWidth <= innerWidth` nos três viewports e nos dois temas.
+2. P2 — foco de teclado não era visível.
+   - Correção: `Pressable` deixou de remover o outline web e os campos do modal ganharam borda primária de 2 px durante o foco.
+   - Pós-correção: campo ativo medido com borda `rgb(61, 220, 132)` e captura mobile dedicada.
+3. P2 — cláusulas eram apenas informativas e não podiam ser abertas.
+   - Correção: cards viraram controles semânticos com modal de tipo, chave e valor base.
+   - Pós-correção: abertura e fechamento da cláusula real foram exercitados no navegador.
+4. P2 — URL longa dependia de largura implícita.
+   - Correção: controle da URL ocupa a região disponível e mantém truncamento em uma linha.
+   - Pós-correção: ausência de overflow confirmada nos três viewports.
 
-- Fonts and typography: existing GoAtleta font stack and weight hierarchy preserved; compact card type remains readable.
-- Spacing and layout rhythm: timeline density was reduced after the first comparison; horizontal overflow is limited to the intentional timeline scroller.
-- Colors and visual tokens: only existing theme tokens are used; completed, pending, warning, and primary states remain semantic.
-- Image quality and asset fidelity: the source contains no raster assets. All interface icons use the existing Ionicons-backed GoAtleta icon registry.
-- Copy and content: Portuguese labels, dates, attendance counts, readiness criteria, and teacher-facing AI explanation match the selected concept and July evidence.
+## Superfícies obrigatórias
 
-## Comparison history
+- Tipografia: família, pesos, hierarquia, wrapping e truncamento coerentes com a Home.
+- Espaçamento: gutters oficiais, grids 8/4 e 6/6, empilhamento em tablet/mobile e ritmo de 16 px.
+- Cores: tokens existentes verificados em claro e escuro; estados primário, sucesso e destrutivo preservados.
+- Imagens/ativos: não aplicável; nenhum ativo visual foi substituído ou simulado.
+- Copy: português brasileiro e rótulos operacionais.
+- Acessibilidade: foco visível, controles semânticos para URL/cláusulas, modal utilizável e ações de permissão ocultadas.
 
-### Pass 1
+## Interações e console
 
-- P2: Legacy context and cycle-review cards remained below the new overview and diluted the selected hierarchy.
-- P2: Timeline cards were too wide and tall, hiding too much of the intelligence panels above the fold.
-- Fixes: legacy blocks were hidden only for the tailored cohort; card widths, typography, padding, and minimum heights were reduced; class metadata moved to the page subtitle.
+- Sincronização acionada com a fonte real.
+- Edição aberta, campo focado, salvamento sem alteração e cancelamento exercitados.
+- Remoção abriu confirmação e foi cancelada, preservando o dado real.
+- Versão real selecionada; três cláusulas carregadas e uma aberta em detalhe.
+- URL longa abriu a fonte oficial em nova aba.
+- Comparação visual entre versões não apareceu porque o workspace possui somente uma versão; nenhum dado de produção foi fabricado. A condição de uma versão permaneceu estável.
+- Console verificado sem erros.
 
-### Pass 2
+## Findings
 
-- Post-fix evidence: `implementation-overview-final.png`.
-- No actionable P0, P1, or P2 findings remain.
-- P3: the final conditional mini-2x2 card may require a short horizontal scroll at some desktop zoom levels; this is intentional and preserves readable card content.
+Nenhum P0, P1 ou P2 permanece. A única limitação ambiental é não haver uma segunda versão real para exibir a comparação; isso não bloqueia o layout ou os fluxos disponíveis.
 
-### Pass 3 — browser annotations
+## Follow-up polish
 
-- Cards now use the same measured height (238px), truncate overflowing summaries, and expose a complete detail dialog on click.
-- Future/adapted state labels now use a light information color on the dark surface; browser-computed color was `rgb(191, 219, 254)`.
-- The primary tab label was restored to `Visão geral`.
-- The detail dialog was opened and closed in the browser, and the adapted-session adjustments were fully readable.
-
-### Pass 4 — copy and completed-state annotations
-
-- Removed the redundant card affordance text; cards remain accessible buttons and still open their complete detail.
-- Replaced explicit AI self-reference with outcome-focused copy while retaining the sparkles icon as provenance.
-- Reduced the page subtitle to unit, training days, and start time.
-- Completed sessions use a faded visual state while remaining clickable.
-
-### Pass 5 — internal card grid alignment
-
-- P2: the status and detail rows shifted vertically when a card had denser completed-session content.
-- Fix: title and focus now use fixed, non-shrinking tracks; detail sections share the same divider, top spacing, and baseline.
-- Post-fix browser measurements: all six cards remain 238px high; every status label begins at the same Y coordinate; `Realizado` and `Ajustes` detail headings begin at the same Y coordinate across the first four cards.
-- Interaction check: the faded 09/07 card still opens and closes its complete detail; browser console has zero errors.
-- Post-fix evidence: `annotation-pass5-aligned-grid.png`.
-
-### Pass 6 — completed-state copy deduplication
-
-- Removed the repeated `Realizado` label from the participation block inside completed cards.
-- Removed `Resultado realizado` from the completed-session detail, since the modal header already communicates the state.
-- Participation counts and evidence remain visible directly below the divider.
-- Post-fix modal evidence: `annotation-pass6-no-duplicate-status.png`; browser console has zero errors.
-
-### Pass 7 — readiness criteria state
-
-- Readiness criteria now render as empty checkboxes while pending in both the progression map and the session detail.
-- A checkbox only becomes marked when its criterion data reports `isMet: true`.
-- Current evidence leaves all three criteria pending, consistent with the readiness gate remaining closed.
-- Post-fix evidence: `annotation-pass7-pending-gate-overview.png` and `annotation-pass7-pending-gate-modal.png`; browser console has zero errors.
-
-### Pass 8 — modal backdrop affordance
-
-- The backdrop keeps click-to-close and `Esc` dismissal, but suppresses web hover feedback so the overlay does not become lighter under the pointer.
-- The explicit close button continues to use the shared hover treatment and becomes lighter on hover.
-- Component coverage verifies the backdrop opts out of hover feedback and still closes the modal; the close control changes from `secondaryBg` to the lighter `border` token on hover.
-- Browser check: the backdrop remains visually unchanged under the pointer, click-outside closes the modal, and `Escape` closes it after reopening.
-- Post-fix evidence: `annotation-pass9-clickable-backdrop-no-hover.png`.
-
-### Pass 9 — modal exit artifact
-
-- The empty rounded bar was the modal card shell remaining during the fade-out after its session content had already been cleared.
-- The modal now unmounts as a single unit when the selected session is cleared, so backdrop, shell, and content disappear together without an empty intermediate state.
-- Immediate post-close browser capture contains no backdrop, close control, empty shell, or console error: `annotation-pass10-no-exit-bar.png`.
-
-## Implementation checklist
-
-- [x] Preserve Cycle tab and annual visualization.
-- [x] Replace only the Rede Esperança 8-11 overview.
-- [x] Connect recent app reports to displayed evidence.
-- [x] Put mini 2x2 behind a readiness gate.
-- [x] Validate responsive layout and console.
+- P3 operacional: repetir apenas a comparação entre duas versões quando uma segunda versão real existir.
 
 final result: passed
