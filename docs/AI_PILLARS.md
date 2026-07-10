@@ -103,10 +103,36 @@ O contrato compartilhado fica em
 `src/core/ai-workspace-context.ts`; a barreira do backend fica em
 `supabase/functions/_shared/ai-workspace-scope.ts`.
 
-O perfil institucional persistido fica em `organization_ai_profiles`. O motor
-normaliza os pesos dos pilares entre `0,5` e `1,5` e aplica uma regra invariável:
-os pesos alteram a ênfase e a linguagem, mas nunca substituem evidências,
-governança, prontidão ou restrições de saúde.
+> O workspace determina quais dados a IA pode acessar; a unidade, modalidade e
+> turma determinam como esses dados devem ser interpretados.
+
+O perfil institucional persistido fica em `institutional_profiles`. Isolamento e
+interpretação são responsabilidades diferentes: `organization_id` continua sendo a
+fronteira de segurança, enquanto os perfis apenas refinam ênfase pedagógica e
+comunicação dentro dos dados já autorizados.
+
+### Resolução hierárquica do perfil
+
+O perfil efetivo é produzido por uma fusão controlada, do mais geral para o mais
+específico:
+
+```txt
+workspace → programa/unidade → modalidade → turma
+```
+
+- `workspace`: base institucional; pode ser neutra (`multi_context`) quando reúne
+  trabalhos diferentes.
+- `program`: contexto da unidade ou programa, como Rede Esperança.
+- `modality`: refinamento esportivo reutilizável, como natação ou voleibol.
+- `class`: exceções estritamente necessárias para uma turma.
+
+Cada camada sobrescreve somente os campos que declara. Pesos não informados são
+herdados da camada anterior, e todos são normalizados entre `0,5` e `1,5`. Perfis
+alteram a ênfase e a linguagem, mas nunca ampliam autorização, substituem
+evidências, ignoram governança, prontidão ou restrições de saúde.
+
+`organization_ai_profiles` permanece temporariamente como fallback legado durante a
+transição, sem ser a fonte principal da resolução.
 
 ### Níveis de memória
 
@@ -124,8 +150,10 @@ consulta global recupere dados de turma, participante ou instituição.
 
 ### Perfil institucional
 
-O perfil do workspace pode ponderar os oito pilares de forma diferente sem trocar o
-motor e sem eliminar dimensões pedagógicas. Um projeto social pode priorizar
-participação, cooperação e contexto sociocultural; uma escola esportiva pode dar maior
-peso à aprendizagem técnica e à progressão. A decisão continua baseada em evidências,
-governança e prontidão, e a interface mostra apenas a orientação operacional.
+O perfil efetivo pode ponderar os oito pilares de forma diferente sem trocar o motor
+e sem eliminar dimensões pedagógicas. No Gustavo Workspace, por exemplo, a base é
+neutra; Rede Esperança aplica o contexto de projeto social no nível de programa; e
+natação possui um refinamento de modalidade. A Rede Esportes Pinhais pode continuar
+com perfil de escola esportiva no nível do workspace, pois ali o workspace já
+corresponde à instituição. A decisão continua baseada em evidências, governança e
+prontidão, e a interface mostra apenas a orientação operacional.

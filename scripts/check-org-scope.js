@@ -20,6 +20,11 @@ const workspaceAiMigration = readProjectFile(
   "migrations",
   "20260710145948_add_workspace_ai_profiles_and_global_memory.sql"
 );
+const hierarchicalProfilesMigration = readProjectFile(
+  "supabase",
+  "migrations",
+  "20260710160903_add_hierarchical_institutional_profiles.sql"
+);
 
 const checks = [
   {
@@ -57,7 +62,12 @@ const aiChecks = [
   {
     name: "backend explicit workspace guard",
     content: aiContext,
-    required: ["requireActiveWorkspaceId"],
+    required: [
+      "requireActiveWorkspaceId",
+      ".from(\"institutional_profiles\")",
+      '.eq("organization_id", organizationId)',
+      '.eq("id", classId)',
+    ],
     forbidden: ["memberOrgs[0]"],
   },
   {
@@ -85,6 +95,19 @@ const aiChecks = [
       "alter table public.ai_user_global_facts enable row level security",
       "planning_cycles_class_workspace_fk",
       "private.workspace_scope_quarantine",
+    ],
+  },
+  {
+    name: "hierarchical institutional profile schema RLS",
+    content: hierarchicalProfilesMigration,
+    required: [
+      "institutional_profiles",
+      "scope_type in ('workspace', 'program', 'modality', 'class')",
+      "institutional_profiles_one_active_scope_idx",
+      "alter table public.institutional_profiles enable row level security",
+      "public.is_org_member(organization_id)",
+      "public.is_org_admin(organization_id)",
+      "validate_institutional_profile_scope",
     ],
   },
 ];

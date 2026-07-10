@@ -1,5 +1,7 @@
 import {
+  buildModalityScopeId,
   buildInstitutionalProfilePrompt,
+  resolveHierarchicalInstitutionalProfile,
   resolveInstitutionalProfile,
 } from "../../_shared/ai-institutional-profile";
 
@@ -28,8 +30,72 @@ describe("AI institutional profile", () => {
       resolveInstitutionalProfile("Workspace sem perfil")
     );
 
-    expect(prompt).toContain("Weights change emphasis, never facts");
+    expect(prompt).toContain("never authorization or facts");
     expect(prompt).toContain("governance");
     expect(prompt).toContain("readiness");
+    expect(prompt).toContain("workspace determines which data you may access");
+  });
+
+  test("merges workspace, program, modality and class without replacing absent fields", () => {
+    const profile = resolveHierarchicalInstitutionalProfile({
+      organizationName: "Gustavo Workspace",
+      classContext: {
+        id: "c_1",
+        unitId: "u_rede",
+        unit: "Rede Esperança",
+        modality: "voleibol",
+      },
+      rows: [
+        {
+          scope_type: "workspace",
+          scope_id: "workspace:org_1",
+          scope_label: "Gustavo Workspace",
+          organization_type: "multi_context",
+          pillar_weights: { reports: 1 },
+          active: true,
+        },
+        {
+          scope_type: "program",
+          scope_id: "unit:u_rede",
+          scope_label: "Rede Esperança",
+          organization_type: "social_project",
+          priorities: ["participacao"],
+          pillar_weights: { attendance: 1.2, periodization: 0.9 },
+          active: true,
+        },
+        {
+          scope_type: "modality",
+          scope_id: "modality:voleibol",
+          scope_label: "Voleibol",
+          pillar_weights: { physical_load: 1.1 },
+          active: true,
+        },
+        {
+          scope_type: "class",
+          scope_id: "class:c_1",
+          scope_label: "Turma 8-11",
+          pillar_weights: { individual_context: 1.3 },
+          active: true,
+        },
+      ],
+    });
+
+    expect(profile.organizationType).toBe("social_project");
+    expect(profile.priorities).toEqual(["participacao"]);
+    expect(profile.pillarWeights.reports).toBe(1);
+    expect(profile.pillarWeights.attendance).toBe(1.2);
+    expect(profile.pillarWeights.periodization).toBe(0.9);
+    expect(profile.pillarWeights.physical_load).toBe(1.1);
+    expect(profile.pillarWeights.individual_context).toBe(1.3);
+    expect(profile.appliedScopes.map((scope) => scope.scopeType)).toEqual([
+      "workspace",
+      "program",
+      "modality",
+      "class",
+    ]);
+  });
+
+  test("keeps a future swimming profile addressable without a registered class", () => {
+    expect(buildModalityScopeId("Natação")).toBe("modality:natacao");
   });
 });
