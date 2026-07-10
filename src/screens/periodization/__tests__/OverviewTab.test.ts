@@ -233,5 +233,15 @@ describe("OverviewTab", () => {
     act(() => root.findByProps({ accessibilityLabel: "Fechar" }).props.onPress());
     act(() => completedCard.props.onPress());
     expect(collectText(root)).not.toContain("Resultado realizado");
+    expect(root.findAllByProps({ accessibilityLabel: "Fechar detalhes da aula" })).toHaveLength(0);
+
+    let closeButton = root.findByProps({ accessibilityLabel: "Fechar" });
+    expect(closeButton.props.style.backgroundColor).toBe(colors.secondaryBg);
+    act(() => closeButton.props.onHoverIn());
+    closeButton = root.findByProps({ accessibilityLabel: "Fechar" });
+    expect(closeButton.props.style.backgroundColor).toBe(colors.border);
+    act(() => closeButton.props.onHoverOut());
+    closeButton = root.findByProps({ accessibilityLabel: "Fechar" });
+    expect(closeButton.props.style.backgroundColor).toBe(colors.secondaryBg);
   });
 });

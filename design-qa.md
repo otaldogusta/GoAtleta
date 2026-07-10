@@ -77,6 +77,13 @@ The implementation preserves the selected visual hierarchy: periodization header
 - Current evidence leaves all three criteria pending, consistent with the readiness gate remaining closed.
 - Post-fix evidence: `annotation-pass7-pending-gate-overview.png` and `annotation-pass7-pending-gate-modal.png`; browser console has zero errors.
 
+### Pass 8 — modal backdrop affordance
+
+- The backdrop is now a non-interactive visual layer: it has no button role, pointer cursor, hover feedback, or click-to-close behavior.
+- The explicit close button remains the only pointer action and uses the shared Pressable hover treatment to become lighter on hover.
+- Browser check: clicking the backdrop keeps the modal open; no `Fechar detalhes da aula` button exists. Component coverage verifies the close background changes from `secondaryBg` to the lighter `border` token on hover.
+- Post-fix evidence: `annotation-pass8-noninteractive-backdrop.png`.
+
 ## Implementation checklist
 
 - [x] Preserve Cycle tab and annual visualization.

@@ -37,6 +37,8 @@ const stateLabel = {
 export function PeriodizationIntelligenceOverview({ colors, recentSessions, onReviewEvolution }: Props) {
   const { width, height } = useWindowDimensions();
   const [selectedSession, setSelectedSession] = useState<JulyAlignmentSession | null>(null);
+  const [isCloseHovered, setIsCloseHovered] = useState(false);
+  const [isCloseFocused, setIsCloseFocused] = useState(false);
   const compact = width < 900;
   const alignment = buildRedeEsperancaJulyAlignment(recentSessions);
   const visibleSessions = alignment.sessions.slice(0, 6);
@@ -47,6 +49,11 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
         ? 190
         : 230
     : 230;
+  const closeDetails = () => {
+    setIsCloseHovered(false);
+    setIsCloseFocused(false);
+    setSelectedSession(null);
+  };
 
   return (
     <View style={{ gap: 14 }}>
@@ -300,7 +307,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
         visible={Boolean(selectedSession)}
         transparent
         animationType="fade"
-        onRequestClose={() => setSelectedSession(null)}
+        onRequestClose={closeDetails}
       >
         <View
           style={{
@@ -311,12 +318,6 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
             padding: 20,
           }}
         >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Fechar detalhes da aula"
-            onPress={() => setSelectedSession(null)}
-            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-          />
           <View
             style={[
               getSectionCardStyle(colors, "neutral", { padding: 18, radius: 18 }),
@@ -344,12 +345,24 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                       {formatSessionDate(selectedSession.date)}
                     </Text>
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Fechar"
-                    onPress={() => setSelectedSession(null)}
-                    style={{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg }}
-                  >
+                   <Pressable
+                     accessibilityRole="button"
+                     accessibilityLabel="Fechar"
+                     onPress={closeDetails}
+                     onHoverIn={() => setIsCloseHovered(true)}
+                     onHoverOut={() => setIsCloseHovered(false)}
+                     onFocus={() => setIsCloseFocused(true)}
+                     onBlur={() => setIsCloseFocused(false)}
+                     suppressWebHoverFeedback
+                     style={{
+                       width: 36,
+                       height: 36,
+                       borderRadius: 18,
+                       alignItems: "center",
+                       justifyContent: "center",
+                       backgroundColor: isCloseHovered || isCloseFocused ? colors.border : colors.secondaryBg,
+                     }}
+                   >
                     <GoAtletaIcon name="close" size={20} color={colors.text} />
                   </Pressable>
                 </View>
