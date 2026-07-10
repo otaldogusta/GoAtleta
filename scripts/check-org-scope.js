@@ -25,6 +25,24 @@ const hierarchicalProfilesMigration = readProjectFile(
   "migrations",
   "20260710160903_add_hierarchical_institutional_profiles.sql"
 );
+const legacyReadonlyMigration = readProjectFile(
+  "supabase",
+  "migrations",
+  "20260710174444_make_organization_ai_profiles_read_only.sql"
+);
+
+const collectRuntimeFiles = (directory) =>
+  fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) return collectRuntimeFiles(entryPath);
+    return /\.(?:js|jsx|ts|tsx)$/.test(entry.name) ? [entryPath] : [];
+  });
+
+const projectRoot = path.join(__dirname, "..");
+const legacyRuntimeReferences = ["app", "src", path.join("supabase", "functions")]
+  .flatMap((directory) => collectRuntimeFiles(path.join(projectRoot, directory)))
+  .filter((filePath) => fs.readFileSync(filePath, "utf8").includes("organization_ai_profiles"))
+  .map((filePath) => path.relative(projectRoot, filePath).replaceAll("\\", "/"));
 
 const checks = [
   {
@@ -67,8 +85,9 @@ const aiChecks = [
       ".from(\"institutional_profiles\")",
       '.eq("organization_id", organizationId)',
       '.eq("id", classId)',
+      "Legacy institutional profile fallback used",
     ],
-    forbidden: ["memberOrgs[0]"],
+    forbidden: ["memberOrgs[0]", ".insert(", ".update(", ".delete("],
   },
   {
     name: "proactive insight workspace scope",
@@ -110,6 +129,20 @@ const aiChecks = [
       "validate_institutional_profile_scope",
     ],
   },
+  {
+    name: "legacy institutional profile is read only",
+    content: legacyReadonlyMigration,
+    required: [
+      "drop policy if exists organization_ai_profiles_insert_admin",
+      "drop policy if exists organization_ai_profiles_update_admin",
+      "drop policy if exists organization_ai_profiles_delete_admin",
+      "revoke all privileges on table public.organization_ai_profiles",
+      "from anon, authenticated, service_role",
+      "grant select on table public.organization_ai_profiles",
+      "to authenticated, service_role",
+    ],
+    forbidden: ["grant select, insert", "create policy organization_ai_profiles_insert_admin"],
+  },
 ];
 
 aiChecks.forEach((check) => {
@@ -119,6 +152,13 @@ aiChecks.forEach((check) => {
     missing.push({ name: check.name });
   }
 });
+
+if (
+  legacyRuntimeReferences.length !== 1 ||
+  legacyRuntimeReferences[0] !== "supabase/functions/_shared/ai-context.ts"
+) {
+  missing.push({ name: "legacy institutional profile has a single read-only consumer" });
+}
 
 if (missing.length > 0) {
   console.error("Org scope checks failed:");
