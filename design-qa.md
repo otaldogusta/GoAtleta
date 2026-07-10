@@ -1,10 +1,10 @@
 # Design QA — Rede Esperança 8-11 periodization overview
 
 - source visual truth path: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-408deaf5-c480-4611-8202-75b248f73582.png`
-- implementation screenshot path: `C:\Users\gusta\Downloads\GoAtleta\tmp\product-design\rede-esperanca-qa\implementation-overview-final.png`
+- implementation screenshot path: `C:\Users\gusta\Downloads\GoAtleta\tmp\product-design\rede-esperanca-qa\annotation-pass5-aligned-grid.png`
 - combined comparison evidence: `C:\Users\gusta\Downloads\GoAtleta\tmp\product-design\rede-esperanca-qa\source-vs-implementation-final.png`
-- viewport: 1440 x 1024 CSS pixels
-- state: Rede Esperança / Turma 8-11 / Planejado versus realizado com IA
+- viewport: 1209 x 812 CSS pixels
+- state: Rede Esperança / Turma 8-11 / Visão geral
 - browser-rendered evidence: localhost:8081, authenticated professor flow
 - primary interactions tested: open overview, switch to Cycle, preserve annual cycle visualization
 - console errors checked: yes, zero errors
@@ -54,6 +54,14 @@ The implementation preserves the selected visual hierarchy: periodization header
 - Replaced explicit AI self-reference with outcome-focused copy while retaining the sparkles icon as provenance.
 - Reduced the page subtitle to unit, training days, and start time.
 - Completed sessions use a faded visual state while remaining clickable.
+
+### Pass 5 — internal card grid alignment
+
+- P2: the status and detail rows shifted vertically when a card had denser completed-session content.
+- Fix: title and focus now use fixed, non-shrinking tracks; detail sections share the same divider, top spacing, and baseline.
+- Post-fix browser measurements: all six cards remain 238px high; every status label begins at the same Y coordinate; `Realizado` and `Ajustes` detail headings begin at the same Y coordinate across the first four cards.
+- Interaction check: the faded 09/07 card still opens and closes its complete detail; browser console has zero errors.
+- Post-fix evidence: `annotation-pass5-aligned-grid.png`.
 
 ## Implementation checklist
 

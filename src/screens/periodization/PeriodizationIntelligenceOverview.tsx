@@ -120,15 +120,22 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                     { height: 238, borderColor: isGate ? colors.warningText : colors.border },
                   ]}
                 >
-                  <Text numberOfLines={1} style={{ color: accent, fontSize: 11, fontWeight: "700" }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{ color: accent, fontSize: 11, lineHeight: 14, fontWeight: "700", flexShrink: 0 }}
+                  >
                     {stateLabel[session.state]}
                   </Text>
-                  <Text numberOfLines={2} style={{ color: colors.text, fontSize: 12, lineHeight: 17, fontWeight: "800", marginTop: 6 }}>
-                    {session.plannedTitle}
-                  </Text>
-                  <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 5 }}>
-                    {session.plannedFocus}
-                  </Text>
+                  <View style={{ height: 34, marginTop: 6, flexShrink: 0 }}>
+                    <Text numberOfLines={2} style={{ color: colors.text, fontSize: 12, lineHeight: 17, fontWeight: "800" }}>
+                      {session.plannedTitle}
+                    </Text>
+                  </View>
+                  <View style={{ height: 30, marginTop: 5, flexShrink: 0 }}>
+                    <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>
+                      {session.plannedFocus}
+                    </Text>
+                  </View>
 
                   {typeof session.participantsCount === "number" ? (
                     <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 8, paddingTop: 8 }}>
@@ -153,7 +160,15 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                   ) : null}
 
                   {session.adjustments?.length ? (
-                    <View style={{ marginTop: 12, gap: 4 }}>
+                    <View
+                      style={{
+                        borderTopWidth: 1,
+                        borderTopColor: colors.border,
+                        marginTop: 8,
+                        paddingTop: 8,
+                        gap: 4,
+                      }}
+                    >
                       <Text style={{ color: colors.muted, fontSize: 11 }}>Ajustes</Text>
                       <Text numberOfLines={3} style={{ color: colors.muted, fontSize: 10, lineHeight: 14 }}>
                         {session.adjustments.map((adjustment) => `· ${adjustment}`).join("\n")}
@@ -162,7 +177,17 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                   ) : null}
 
                   {conditional ? (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        borderTopWidth: 1,
+                        borderTopColor: colors.border,
+                        marginTop: 8,
+                        paddingTop: 8,
+                      }}
+                    >
                       <GoAtletaIcon name="info" size={14} color={colors.infoText} />
                       <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 10, flex: 1 }}>
                         Liberado apenas após o portão de prontidão.
