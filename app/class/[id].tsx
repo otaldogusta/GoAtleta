@@ -587,7 +587,11 @@ export default function ClassDetails() {
   const {
     insight: contextualInsight,
     dismiss: dismissContextualInsight,
-  } = useContextualInsight(cls?.id, classSnapshotForInsight);
+  } = useContextualInsight(
+    cls?.organizationId,
+    cls?.id,
+    classSnapshotForInsight
+  );
   const parseIsoDate = (value?: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);

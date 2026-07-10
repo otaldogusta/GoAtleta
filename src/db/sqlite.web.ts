@@ -108,20 +108,22 @@ export const db = {
     }
 
     // Query for active planning_cycle by classId
-    if (normalized.startsWith("select * from planning_cycles where classid = ? and status = 'active'")) {
+    if (normalized.startsWith("select * from planning_cycles where classid = ? and organizationid = ? and status = 'active'")) {
       const classId = String(params[0] ?? "");
+      const organizationId = String(params[1] ?? "");
       const found = planningCycles
-        .filter((c) => c.classId === classId && c.status === "active")
+        .filter((c) => c.classId === classId && c.organizationId === organizationId && c.status === "active")
         .sort((a, b) => b.year - a.year)[0];
       return (found ?? null) as T;
     }
 
     // Query for planning_cycle by classId + year + status
-    if (normalized.startsWith("select * from planning_cycles where classid = ? and year = ?")) {
+    if (normalized.startsWith("select * from planning_cycles where classid = ? and organizationid = ? and year = ?")) {
       const classId = String(params[0] ?? "");
-      const year = Number(params[1] ?? 0);
+      const organizationId = String(params[1] ?? "");
+      const year = Number(params[2] ?? 0);
       const found = planningCycles.find(
-        (c) => c.classId === classId && c.year === year && c.status === "active"
+        (c) => c.classId === classId && c.organizationId === organizationId && c.year === year && c.status === "active"
       );
       return (found ?? null) as T;
     }
@@ -186,8 +188,9 @@ export const db = {
     // Query for all planning_cycles by classId
     if (normalized.startsWith("select * from planning_cycles where classid =")) {
       const classId = String(params[0] ?? "");
+      const organizationId = String(params[1] ?? "");
       return planningCycles
-        .filter((c) => c.classId === classId)
+        .filter((c) => c.classId === classId && c.organizationId === organizationId)
         .sort((a, b) => b.year - a.year) as T[];
     }
 
@@ -390,14 +393,15 @@ export const db = {
     if (normalized.startsWith("insert or replace into planning_cycles")) {
       const cycle = {
         id: String(params[0] ?? ""),
-        classId: String(params[1] ?? ""),
-        year: Number(params[2] ?? 0),
-        title: String(params[3] ?? ""),
-        startDate: String(params[4] ?? ""),
-        endDate: String(params[5] ?? ""),
-        status: String(params[6] ?? "active"),
-        createdAt: String(params[7] ?? ""),
-        updatedAt: String(params[8] ?? ""),
+        organizationId: String(params[1] ?? ""),
+        classId: String(params[2] ?? ""),
+        year: Number(params[3] ?? 0),
+        title: String(params[4] ?? ""),
+        startDate: String(params[5] ?? ""),
+        endDate: String(params[6] ?? ""),
+        status: String(params[7] ?? "active"),
+        createdAt: String(params[8] ?? ""),
+        updatedAt: String(params[9] ?? ""),
       };
       const idx = planningCycles.findIndex((c) => c.id === cycle.id);
       if (idx !== -1) {
@@ -414,14 +418,16 @@ export const db = {
       // Determine if filtering by id or by classId+status
       if (normalized.includes("where id =")) {
         const id = String(params[1] ?? "");
+        const organizationId = String(params[2] ?? "");
         planningCycles.forEach((c) => {
-          if (c.id === id) { c.status = "archived"; c.updatedAt = updatedAt; }
+          if (c.id === id && c.organizationId === organizationId) { c.status = "archived"; c.updatedAt = updatedAt; }
         });
       } else {
         // Archive all active cycles for a classId
         const classId = String(params[1] ?? "");
+        const organizationId = String(params[2] ?? "");
         planningCycles.forEach((c) => {
-          if (c.classId === classId && c.status === "active") {
+          if (c.classId === classId && c.organizationId === organizationId && c.status === "active") {
             c.status = "archived";
             c.updatedAt = updatedAt;
           }

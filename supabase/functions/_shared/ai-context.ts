@@ -1,4 +1,10 @@
 import { SupabaseClient, User } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireActiveWorkspaceId } from "./ai-workspace-scope.ts";
+import {
+  AIInstitutionalProfile,
+  buildInstitutionalProfilePrompt,
+  resolveInstitutionalProfile,
+} from "./ai-institutional-profile.ts";
 
 export interface AIUserContext {
   id: string;
@@ -16,6 +22,7 @@ export interface AINavigationContext {
 export interface AIContext {
   user: AIUserContext;
   navigation: AINavigationContext;
+  institutionalProfile: AIInstitutionalProfile;
 }
 
 /**
@@ -29,9 +36,8 @@ export async function resolveAIContext(
 ): Promise<AIContext> {
   const userId = user.id;
   
-  // 1. Resolve Organization ID
-  // If not provided in the body, try to resolve the first organization the user is a member of.
-  let organizationId = String(body.organizationId || body.organization_id || "").trim();
+  // 1. Resolve the explicit active workspace. Never infer one from another membership.
+  const requestedOrganizationId = body.organizationId || body.organization_id;
   
   const { data: memberOrgs, error: orgsError } = await supabase
     .from("organization_members")
@@ -41,16 +47,38 @@ export async function resolveAIContext(
     throw new Error("User belongs to no organization or access is denied.");
   }
 
-  // Fallback to first membership if none specified or requested is invalid
   const allowedOrgIds = memberOrgs.map(m => String(m.organization_id));
-  if (!organizationId || !allowedOrgIds.includes(organizationId)) {
-    organizationId = String(memberOrgs[0].organization_id);
-  }
+  const organizationId = requireActiveWorkspaceId(requestedOrganizationId, allowedOrgIds);
 
   // Resolve user role
   const activeMembership = memberOrgs.find(m => String(m.organization_id) === organizationId);
   const roleLevel = activeMembership?.role_level ?? 0;
   const role = roleLevel >= 50 ? "admin" : roleLevel >= 30 ? "coach" : "member";
+
+  const [{ data: organization }, { data: institutionalRow, error: institutionalError }] =
+    await Promise.all([
+      supabase
+        .from("organizations")
+        .select("id, name")
+        .eq("id", organizationId)
+        .maybeSingle(),
+      supabase
+        .from("organization_ai_profiles")
+        .select(
+          "organization_type, city, state, priorities, pedagogical_bias, pillar_weights, philosophy, constraints, goals, equipment_notes"
+        )
+        .eq("organization_id", organizationId)
+        .maybeSingle(),
+    ]);
+
+  if (institutionalError && institutionalError.code !== "42P01") {
+    console.error("[AIContext]: Failed to load institutional profile", institutionalError);
+  }
+
+  const institutionalProfile = resolveInstitutionalProfile(
+    String(organization?.name ?? "Workspace ativo"),
+    institutionalRow as Record<string, unknown> | null
+  );
 
   // 2. Resolve Active Permissions
   const { data: permsData, error: permsError } = await supabase.rpc("get_my_member_permissions", {
@@ -81,7 +109,8 @@ export async function resolveAIContext(
       organizationId,
       permissions
     },
-    navigation
+    navigation,
+    institutionalProfile,
   };
 }
 
@@ -91,6 +120,7 @@ export function buildSystemAIContextPrompt(ctx: AIContext): string {
     `They are in Organization "${ctx.user.organizationId}".`,
     `Their explicit permissions are: [${ctx.user.permissions.join(", ")}].`,
     `Current navigation context: Screen is "${ctx.navigation.screen}".` + 
-      (ctx.navigation.entityType ? ` Viewing entity "${ctx.navigation.entityType}" with ID "${ctx.navigation.entityId}".` : "")
+      (ctx.navigation.entityType ? ` Viewing entity "${ctx.navigation.entityType}" with ID "${ctx.navigation.entityId}".` : ""),
+    buildInstitutionalProfilePrompt(ctx.institutionalProfile),
   ].join("\n");
 }

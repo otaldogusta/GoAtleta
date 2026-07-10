@@ -34,6 +34,7 @@ type AiCacheContext = {
 };
 
 type AiRequestOptions = {
+  organizationId?: string | null;
   cache?: AiCacheContext;
 };
 
@@ -404,7 +405,21 @@ const structuredActivitiesEnvelopeSchema = z.object({
   activities: z.array(structuredActivitySchema).default([]),
 });
 
-const postAssistant = async (messages: AssistantMessage[], classId?: string) => {
+const resolveRequestOrganizationId = (options?: AiRequestOptions): string => {
+  const organizationId = String(
+    options?.organizationId ?? options?.cache?.organizationId ?? ""
+  ).trim();
+  if (!organizationId) {
+    throw new Error("Missing active workspace context");
+  }
+  return organizationId;
+};
+
+const postAssistant = async (
+  messages: AssistantMessage[],
+  options?: AiRequestOptions & { classId?: string }
+) => {
+  const organizationId = resolveRequestOrganizationId(options);
   const token = await getValidAccessToken();
   if (!token) {
     throw new Error("Missing auth token");
@@ -424,7 +439,8 @@ const postAssistant = async (messages: AssistantMessage[], classId?: string) => 
       },
       body: JSON.stringify({
         messages,
-        classId: classId ?? "",
+        organizationId,
+        classId: options?.classId ?? "",
       }),
       signal: controller.signal,
     });
@@ -485,7 +501,7 @@ export async function generateExecutiveSummary(
       "{ \"headline\": string, \"highlights\": string[], \"risks\": string[], \"recommendedActions\": string[] }"
     );
 
-    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const response = await postAssistant([{ role: "user", content: prompt }], options);
     const json = extractJsonObject(response.reply) ?? {};
 
     return {
@@ -513,7 +529,7 @@ export async function generateTrainerMessage(
       "{ \"whatsapp\": string, \"email\": string, \"subject\": string, \"oneLiner\": string }"
     );
 
-    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const response = await postAssistant([{ role: "user", content: prompt }], options);
     const json = extractJsonObject(response.reply) ?? {};
 
     return {
@@ -539,7 +555,7 @@ export async function classifySyncError(
       "{ \"probableCause\": string, \"recommendedAction\": string, \"severity\": \"low\"|\"medium\"|\"high\"|\"critical\", \"supportHint\": string }"
     );
 
-    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const response = await postAssistant([{ role: "user", content: prompt }], options);
     const json = extractJsonObject(response.reply) ?? {};
     const severity = String(json.severity ?? "medium");
 
@@ -569,7 +585,7 @@ export async function suggestDataFixes(
       "{ \"summary\": string, \"suggestions\": [{ \"issueType\": string, \"explanation\": string, \"options\": string[], \"recommended\": string }] }"
     );
 
-    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const response = await postAssistant([{ role: "user", content: prompt }], options);
     const json = extractJsonObject(response.reply) ?? {};
     const suggestionsRaw = Array.isArray(json.suggestions) ? json.suggestions : [];
 
@@ -634,7 +650,10 @@ export async function rewriteReportText(
       '{ "rewrittenText": string }'
     );
 
-    const response = await postAssistant([{ role: "user", content: prompt }], input.classId);
+    const response = await postAssistant(
+      [{ role: "user", content: prompt }],
+      { ...options, classId: input.classId }
+    );
     const json = extractJsonObject(response.reply) ?? {};
     let rewrittenText = String(json.rewrittenText ?? "").trim();
     if (!rewrittenText) {
@@ -694,7 +713,7 @@ export async function generateStructuredActivitiesWithAI(
       '{ "activities": [{ "name": string, "description": string, "objective": string, "criteria": [{ "type": "consistencia|precisao|decisao|eficiencia", "description": string, "threshold": number }] }] }'
     );
 
-    const response = await postAssistant([{ role: "user", content: prompt }]);
+    const response = await postAssistant([{ role: "user", content: prompt }], options);
     const json = extractJsonObject(response.reply) ?? {};
     const parsed = structuredActivitiesEnvelopeSchema.safeParse(json);
 

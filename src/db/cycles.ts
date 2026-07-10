@@ -5,6 +5,7 @@ import { db } from "./sqlite";
 function mapRow(row: Record<string, unknown>): PlanningCycle {
   return {
     id: String(row.id ?? ""),
+    organizationId: String(row.organizationId ?? ""),
     classId: String(row.classId ?? ""),
     year: Number(row.year ?? 0),
     title: String(row.title ?? ""),
@@ -16,11 +17,14 @@ function mapRow(row: Record<string, unknown>): PlanningCycle {
   };
 }
 
-export async function getPlanningCycles(classId: string): Promise<PlanningCycle[]> {
+export async function getPlanningCycles(
+  classId: string,
+  organizationId: string
+): Promise<PlanningCycle[]> {
   try {
     const rows = await db.getAllAsync<Record<string, unknown>>(
-      "SELECT * FROM planning_cycles WHERE classId = ? ORDER BY year DESC",
-      [classId]
+      "SELECT * FROM planning_cycles WHERE classId = ? AND organizationId = ? ORDER BY year DESC",
+      [classId, organizationId]
     );
     return rows.map(mapRow);
   } catch {
@@ -28,11 +32,14 @@ export async function getPlanningCycles(classId: string): Promise<PlanningCycle[
   }
 }
 
-export async function getActivePlanningCycle(classId: string): Promise<PlanningCycle | null> {
+export async function getActivePlanningCycle(
+  classId: string,
+  organizationId: string
+): Promise<PlanningCycle | null> {
   try {
     const row = await db.getFirstAsync<Record<string, unknown>>(
-      "SELECT * FROM planning_cycles WHERE classId = ? AND status = 'active' ORDER BY year DESC LIMIT 1",
-      [classId]
+      "SELECT * FROM planning_cycles WHERE classId = ? AND organizationId = ? AND status = 'active' ORDER BY year DESC LIMIT 1",
+      [classId, organizationId]
     );
     return row ? mapRow(row) : null;
   } catch {
@@ -43,10 +50,11 @@ export async function getActivePlanningCycle(classId: string): Promise<PlanningC
 export async function upsertPlanningCycle(cycle: PlanningCycle): Promise<void> {
   await db.runAsync(
     `INSERT OR REPLACE INTO planning_cycles
-       (id, classId, year, title, startDate, endDate, status, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, organizationId, classId, year, title, startDate, endDate, status, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       cycle.id,
+      cycle.organizationId,
       cycle.classId,
       cycle.year,
       cycle.title,
@@ -59,11 +67,14 @@ export async function upsertPlanningCycle(cycle: PlanningCycle): Promise<void> {
   );
 }
 
-export async function archivePlanningCycle(cycleId: string): Promise<void> {
+export async function archivePlanningCycle(
+  cycleId: string,
+  organizationId: string
+): Promise<void> {
   const now = new Date().toISOString();
   await db.runAsync(
-    "UPDATE planning_cycles SET status = 'archived', updatedAt = ? WHERE id = ?",
-    [now, cycleId]
+    "UPDATE planning_cycles SET status = 'archived', updatedAt = ? WHERE id = ? AND organizationId = ?",
+    [now, cycleId, organizationId]
   );
 }
 
@@ -73,6 +84,7 @@ export async function archivePlanningCycle(cycleId: string): Promise<void> {
  */
 export async function ensureActiveCycleForYear(
   classId: string,
+  organizationId: string,
   year: number,
   classStartDate?: string | null
 ): Promise<PlanningCycle> {
@@ -80,8 +92,8 @@ export async function ensureActiveCycleForYear(
   const window = resolvePlanningCycleWindow(classStartDate, year);
 
   const existing = await db.getFirstAsync<Record<string, unknown>>(
-    "SELECT * FROM planning_cycles WHERE classId = ? AND year = ? AND status = 'active' LIMIT 1",
-    [classId, year]
+    "SELECT * FROM planning_cycles WHERE classId = ? AND organizationId = ? AND year = ? AND status = 'active' LIMIT 1",
+    [classId, organizationId, year]
   );
   if (existing) {
     const existingCycle = mapRow(existing);
@@ -105,12 +117,13 @@ export async function ensureActiveCycleForYear(
 
   // Archive any other active cycles for this class (from prior years)
   await db.runAsync(
-    "UPDATE planning_cycles SET status = 'archived', updatedAt = ? WHERE classId = ? AND status = 'active'",
-    [now, classId]
+    "UPDATE planning_cycles SET status = 'archived', updatedAt = ? WHERE classId = ? AND organizationId = ? AND status = 'active'",
+    [now, classId, organizationId]
   );
 
   const cycle: PlanningCycle = {
     id: `pc_${classId}_${year}`,
+    organizationId,
     classId,
     year,
     title: window.label,

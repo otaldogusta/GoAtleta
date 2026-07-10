@@ -6,8 +6,10 @@ import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
 
-import type { ClassGroup, ClassPlan, PlanningCycle } from "../../core/models";
+import type { ClassGroup, ClassPlan, PlanningCycle, RecentSessionSummary } from "../../core/models";
 import { isAnnualCycle } from "../../core/periodization-basics";
+import { isRedeEsperancaEightToElevenClass } from "../../core/pedagogy/rede-esperanca-july-2026-alignment";
+import { PeriodizationIntelligenceOverview } from "./PeriodizationIntelligenceOverview";
 
 type OverviewTabProps = {
   colors: ThemeColors;
@@ -45,6 +47,8 @@ type OverviewTabProps = {
   onGenerateCycle: () => void;
   onRemoveCycle: () => void;
   unitMismatchWarning: string;
+  recentSessionSummaries: RecentSessionSummary[];
+  onReviewEvolution: () => void;
 };
 
 export function OverviewTab({
@@ -83,8 +87,19 @@ export function OverviewTab({
   onGenerateCycle,
   onRemoveCycle,
   unitMismatchWarning,
+  recentSessionSummaries,
+  onReviewEvolution,
 }: OverviewTabProps) {
   const { width } = useWindowDimensions();
+  if (selectedClass && isRedeEsperancaEightToElevenClass(selectedClass)) {
+    return (
+      <PeriodizationIntelligenceOverview
+        colors={colors}
+        recentSessions={recentSessionSummaries}
+        onReviewEvolution={onReviewEvolution}
+      />
+    );
+  }
   const reserveFloatingActionSpace = width < 760;
   const coveredWeeks = new Set(
     classPlans

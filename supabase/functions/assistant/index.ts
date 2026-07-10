@@ -9,6 +9,7 @@ import {
 } from "./regulation-resolver.ts";
 import { createEdgeFunction, createSuccess, createError } from "../_shared/framework.ts";
 import { resolveAIContext, buildSystemAIContextPrompt } from "../_shared/ai-context.ts";
+import { AIWorkspaceScopeError } from "../_shared/ai-workspace-scope.ts";
 import { resolveAIMemory, buildSystemAIMemoryPrompt } from "../_shared/ai-memory.ts";
 import { resolveAIGovernance, buildSystemAIGovernancePrompt } from "../_shared/ai-governance.ts";
 import { resolveAIPeriodizationContext, buildSystemAIPeriodizationPrompt } from "../_shared/ai-periodization-context.ts";
@@ -1081,16 +1082,50 @@ Deno.serve(createEdgeFunction({
       return createError(500, "SERVER_ERROR", "Missing OpenAI credentials config");
     }
 
+    // Workspace is an explicit organizational boundary for every AI path.
+    let aiContext: Awaited<ReturnType<typeof resolveAIContext>>;
+    try {
+      aiContext = await resolveAIContext(supabase, currentUser, body);
+    } catch (error) {
+      if (error instanceof AIWorkspaceScopeError) {
+        return createError(error.status, error.code, error.message);
+      }
+      throw error;
+    }
+
+    const organizationId = aiContext.user.organizationId;
+    const classId = typeof body.classId === "string" ? body.classId.trim() : "";
+
+    if (classId) {
+      const { data: scopedClass, error: scopedClassError } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("id", classId)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+
+      if (scopedClassError) {
+        console.error("assistant: failed to validate class workspace scope", scopedClassError);
+        return createError(500, "SERVER_ERROR", "Nao foi possivel validar o contexto da turma.");
+      }
+
+      if (!scopedClass) {
+        return createError(
+          403,
+          "CLASS_WORKSPACE_MISMATCH",
+          "A turma informada nao pertence ao workspace ativo."
+        );
+      }
+    }
+
     // 0. Detect proactive mode — short-circuit to a lightweight insight-only path
     const isProactiveMode = body.mode === "proactive";
     if (isProactiveMode) {
-      const aiContext = await resolveAIContext(supabase, currentUser, body);
-      const organizationId = aiContext.user.organizationId;
-      const classId = typeof body.classId === "string" ? body.classId : "";
       const sportHint = typeof body.sport === "string" && body.sport.trim().length > 0 ? body.sport.trim() : "volleyball";
 
       const aiFacts = await resolveAIMemory(supabase, aiContext);
       const aiFactsPrompt = buildSystemAIMemoryPrompt(aiFacts);
+      const aiContextPrompt = buildSystemAIContextPrompt(aiContext);
       const aiWarnings = await resolveAIGovernance(supabase, aiContext, body);
       const aiConstraintsPrompt = buildSystemAIGovernancePrompt(aiWarnings);
       const todayDate = new Date().toISOString().slice(0, 10);
@@ -1146,8 +1181,10 @@ Deno.serve(createEdgeFunction({
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: proactiveSystemPrompt },
+          { role: "system", content: aiContextPrompt },
           { role: "system", content: aiFactsPrompt },
           { role: "system", content: aiConstraintsPrompt },
+          { role: "system", content: aiPeriodizationPrompt },
           { role: "user", content: proactiveUserMessage },
         ],
         response_format: {
@@ -1220,12 +1257,7 @@ Deno.serve(createEdgeFunction({
       return createSuccess(proactiveParsed);
     }
 
-    // 1. Resolve AIContext on the backend (Identity + Navigation)
-    const aiContext = await resolveAIContext(supabase, currentUser, body);
-    const organizationId = aiContext.user.organizationId;
-
     const messages = normalizeClientMessages(body.messages);
-    const classId = typeof body.classId === "string" ? body.classId : "";
     const sportHint = typeof body.sport === "string" && body.sport.trim().length > 0 ? body.sport.trim() : "volleyball";
     const debugRequested = Boolean(body.debug);
     const requestMemoryContext = normalizeMemoryContext(body.memoryContext);

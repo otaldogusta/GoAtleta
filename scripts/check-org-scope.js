@@ -1,8 +1,25 @@
 const fs = require("fs");
 const path = require("path");
 
-const target = path.join(__dirname, "..", "src", "api", "reports.ts");
-const content = fs.readFileSync(target, "utf8");
+const readProjectFile = (...segments) =>
+  fs.readFileSync(path.join(__dirname, "..", ...segments), "utf8");
+
+const reportsApi = readProjectFile("src", "api", "reports.ts");
+const aiApi = readProjectFile("src", "api", "ai.ts");
+const aiContext = readProjectFile("supabase", "functions", "_shared", "ai-context.ts");
+const contextualInsight = readProjectFile(
+  "src",
+  "copilot",
+  "hooks",
+  "useContextualInsight.ts"
+);
+const aiMemory = readProjectFile("supabase", "functions", "_shared", "ai-memory.ts");
+const planningCycles = readProjectFile("src", "db", "cycles.ts");
+const workspaceAiMigration = readProjectFile(
+  "supabase",
+  "migrations",
+  "20260710145948_add_workspace_ai_profiles_and_global_memory.sql"
+);
 
 const checks = [
   {
@@ -28,8 +45,57 @@ const checks = [
 ];
 
 const missing = checks.filter(
-  (check) => !content.includes(check.endpoint) || !content.includes(check.required)
+  (check) => !reportsApi.includes(check.endpoint) || !reportsApi.includes(check.required)
 );
+
+const aiChecks = [
+  {
+    name: "assistant request workspace scope",
+    content: aiApi,
+    required: ["organizationId,", "Missing active workspace context"],
+  },
+  {
+    name: "backend explicit workspace guard",
+    content: aiContext,
+    required: ["requireActiveWorkspaceId"],
+    forbidden: ["memberOrgs[0]"],
+  },
+  {
+    name: "proactive insight workspace scope",
+    content: contextualInsight,
+    required: ["organizationId: workspaceId", "buildWorkspaceScopeKey"],
+  },
+  {
+    name: "AI global and workspace memory separation",
+    content: aiMemory,
+    required: ["ai_user_global_facts", 'memory_scope: "user_global"', 'memory_scope: "workspace"'],
+  },
+  {
+    name: "planning cycle workspace scope",
+    content: planningCycles,
+    required: ["organizationId = ?", "cycle.organizationId"],
+  },
+  {
+    name: "workspace AI schema RLS",
+    content: workspaceAiMigration,
+    required: [
+      "organization_ai_profiles",
+      "ai_user_global_facts",
+      "alter table public.organization_ai_profiles enable row level security",
+      "alter table public.ai_user_global_facts enable row level security",
+      "planning_cycles_class_workspace_fk",
+      "private.workspace_scope_quarantine",
+    ],
+  },
+];
+
+aiChecks.forEach((check) => {
+  const lacksRequired = check.required.some((value) => !check.content.includes(value));
+  const hasForbidden = (check.forbidden ?? []).some((value) => check.content.includes(value));
+  if (lacksRequired || hasForbidden) {
+    missing.push({ name: check.name });
+  }
+});
 
 if (missing.length > 0) {
   console.error("Org scope checks failed:");

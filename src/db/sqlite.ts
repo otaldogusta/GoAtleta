@@ -264,6 +264,7 @@ export function initDb() {
 
     CREATE TABLE IF NOT EXISTS planning_cycles (
       id TEXT PRIMARY KEY NOT NULL,
+      organizationId TEXT NOT NULL DEFAULT '',
       classId TEXT NOT NULL,
       year INTEGER NOT NULL,
       title TEXT NOT NULL DEFAULT '',
@@ -284,7 +285,7 @@ export function initDb() {
       ON daily_lesson_plans(weeklyPlanId);
 
     CREATE INDEX IF NOT EXISTS idx_planning_cycles_class_status
-      ON planning_cycles(classId, status);
+      ON planning_cycles(organizationId, classId, status);
 
     CREATE INDEX IF NOT EXISTS idx_class_plans_class_cycle_start
       ON class_plans(classId, cycleId, startDate);
@@ -597,32 +598,55 @@ export function initDb() {
     );
   } catch {}
 
-    try {
-      db.execSync(
-        "CREATE INDEX IF NOT EXISTS idx_kb_documents_org_sport ON kb_documents (organizationId, sport)"
-      );
-    } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE planning_cycles ADD COLUMN organizationId TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
 
-    try {
-      db.execSync(
-        "CREATE INDEX IF NOT EXISTS idx_kb_documents_org_version ON kb_documents (organizationId, knowledgeBaseVersionId)"
-      );
-    } catch {}
+  try {
+    db.execSync(
+      `UPDATE planning_cycles
+       SET organizationId = COALESCE(
+         (SELECT organizationId FROM classes WHERE classes.id = planning_cycles.classId),
+         ''
+       )
+       WHERE organizationId = ''`
+    );
+  } catch {}
 
-    try {
-      db.execSync(
-        "CREATE INDEX IF NOT EXISTS idx_kb_documents_source ON kb_documents (knowledgeSourceId)"
-      );
-    } catch {}
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_planning_cycles_org_class_status ON planning_cycles (organizationId, classId, status)"
+    );
+  } catch {}
 
-    try {
-      db.execSync(
-        "CREATE INDEX IF NOT EXISTS idx_knowledge_base_versions_org_domain ON knowledge_base_versions (organizationId, domain)"
-      );
-    } catch {}
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_kb_documents_org_sport ON kb_documents (organizationId, sport)"
+    );
+  } catch {}
 
-    try {
-      db.execSync(
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_kb_documents_org_version ON kb_documents (organizationId, knowledgeBaseVersionId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_kb_documents_source ON kb_documents (knowledgeSourceId)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_knowledge_base_versions_org_domain ON knowledge_base_versions (organizationId, domain)"
+    );
+  } catch {}
+
+  try {
+    db.execSync(
         "CREATE INDEX IF NOT EXISTS idx_knowledge_sources_version ON knowledge_sources (knowledgeBaseVersionId)"
       );
     } catch {}

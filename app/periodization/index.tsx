@@ -65,6 +65,7 @@ import { useWeekEditor } from "../../src/screens/periodization/hooks/useWeekEdit
 import { getPlansWithinCycle, useWeekPlans } from "../../src/screens/periodization/hooks/useWeekPlans";
 import { buildMonthSegments, buildMonthWeekNumbers } from "../../src/screens/periodization/month-segments";
 import { buildRecentSessionSummary } from "../../src/screens/session/application/build-recent-session-summary";
+import { isRedeEsperancaEightToElevenClass } from "../../src/core/pedagogy/rede-esperanca-july-2026-alignment";
 
   const DEFAULT_ANNUAL_CYCLE_LENGTH = annualCycleOptions[annualCycleOptions.length - 1];
 
@@ -1024,12 +1025,20 @@ export default function PeriodizationScreen() {
       try {
         const year = new Date().getFullYear();
         const classStartDate = currentClass.cycleStartDate || currentClass.createdAt || null;
-        await ensureActiveCycleForYear(currentClass.id, year, classStartDate);
+        await ensureActiveCycleForYear(
+          currentClass.id,
+          currentClass.organizationId,
+          year,
+          classStartDate
+        );
       } catch {
         // Non-blocking; we still load the current cycle list.
       }
 
-      const cycles = await getPlanningCycles(currentClass.id);
+      const cycles = await getPlanningCycles(
+        currentClass.id,
+        currentClass.organizationId
+      );
       if (!alive) return;
       setPlanningCycles(cycles);
     })();
@@ -3262,8 +3271,16 @@ export default function PeriodizationScreen() {
       const year = new Date().getFullYear();
       const classStartDate = selectedClass.cycleStartDate || selectedClass.createdAt || null;
       try {
-        await ensureActiveCycleForYear(selectedClass.id, year, classStartDate);
-        const cycles = await getPlanningCycles(selectedClass.id);
+        await ensureActiveCycleForYear(
+          selectedClass.id,
+          selectedClass.organizationId,
+          year,
+          classStartDate
+        );
+        const cycles = await getPlanningCycles(
+          selectedClass.id,
+          selectedClass.organizationId
+        );
         setPlanningCycles(cycles);
       } catch {
         // Non-blocking — cycle creation is best-effort
@@ -3848,7 +3865,13 @@ export default function PeriodizationScreen() {
 
         <ScreenPageHeader
           title={normalizeText("Periodização")}
-          subtitle={!selectedClass ? normalizeText("Estrutura do ciclo, cargas e foco semanal") : undefined}
+          subtitle={
+            !selectedClass
+              ? normalizeText("Estrutura do ciclo, cargas e foco semanal")
+              : isRedeEsperancaEightToElevenClass(selectedClass)
+                ? normalizeText("Rede Esperança · Ter e Qui · 14h")
+                : undefined
+          }
           onBack={() =>
             navigateBackOrReplace({ router, fallback: periodizationBackFallback })
           }
@@ -3865,7 +3888,10 @@ export default function PeriodizationScreen() {
         >
           <AnimatedSegmentedTabs
             tabs={[
-              { id: "geral", label: normalizeText("Visão geral") },
+              {
+                id: "geral",
+                label: normalizeText("Visão geral"),
+              },
               { id: "ciclo", label: normalizeText("Ciclo") },
               { id: "semana", label: normalizeText("Agenda") },
             ]}
@@ -3930,10 +3956,12 @@ export default function PeriodizationScreen() {
             onGenerateCycle={handleGenerateCycle}
             onRemoveCycle={handleRemoveCycle}
             unitMismatchWarning={unitMismatchWarning}
+            recentSessionSummaries={recentSessionSummaries}
+            onReviewEvolution={() => setActiveTab("ciclo")}
           />
         ) : null}
 
-        {activeTab === "geral" && selectedClass ? (
+        {activeTab === "geral" && selectedClass && !isRedeEsperancaEightToElevenClass(selectedClass) ? (
           <View
             style={[
               getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),
@@ -3977,7 +4005,7 @@ export default function PeriodizationScreen() {
           </View>
         ) : null}
 
-        {activeTab === "geral" && selectedClass && (isLoadingPeriodizationKnowledge || periodizationKnowledgeSnapshot) ? (
+        {activeTab === "geral" && selectedClass && !isRedeEsperancaEightToElevenClass(selectedClass) && (isLoadingPeriodizationKnowledge || periodizationKnowledgeSnapshot) ? (
           <View
             style={[
               getSectionCardStyle(colors, "info", { padding: 12, radius: 16, shadow: false }),

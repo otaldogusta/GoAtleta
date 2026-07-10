@@ -36,13 +36,16 @@ describe("ai api - rewriteReportText", () => {
         }),
     } as Response);
 
-    const result = await rewriteReportText({
-      field: "activity",
-      text: "texto base",
-      mode: "projeto_social",
-      maxChars: 1200,
-      classId: "class_1",
-    });
+    const result = await rewriteReportText(
+      {
+        field: "activity",
+        text: "texto base",
+        mode: "projeto_social",
+        maxChars: 1200,
+        classId: "class_1",
+      },
+      { organizationId: "org_1" }
+    );
 
     expect(result).toEqual({ rewrittenText: "Texto final profissional." });
     expect(global.fetch).toHaveBeenCalledWith(
@@ -55,6 +58,11 @@ describe("ai api - rewriteReportText", () => {
         }),
       })
     );
+    const request = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual(expect.objectContaining({
+      organizationId: "org_1",
+      classId: "class_1",
+    }));
   });
 
   test("parses json inside code fence", async () => {
@@ -68,12 +76,15 @@ describe("ai api - rewriteReportText", () => {
         }),
     } as Response);
 
-    const result = await rewriteReportText({
-      field: "conclusion",
-      text: "texto base 2",
-      mode: "projeto_social",
-      maxChars: 1200,
-    });
+    const result = await rewriteReportText(
+      {
+        field: "conclusion",
+        text: "texto base 2",
+        mode: "projeto_social",
+        maxChars: 1200,
+      },
+      { organizationId: "org_1" }
+    );
 
     expect(result.rewrittenText).toBe("Texto com cerca semântica.");
   });
@@ -90,12 +101,15 @@ describe("ai api - rewriteReportText", () => {
     } as Response);
 
     await expect(
-      rewriteReportText({
-        field: "activity",
-        text: "texto base 3",
-        mode: "projeto_social",
-        maxChars: 1200,
-      })
+      rewriteReportText(
+        {
+          field: "activity",
+          text: "texto base 3",
+          mode: "projeto_social",
+          maxChars: 1200,
+        },
+        { organizationId: "org_1" }
+      )
     ).rejects.toThrow("Nao foi possivel gerar sugestao de texto agora.");
   });
 
@@ -110,12 +124,15 @@ describe("ai api - rewriteReportText", () => {
         }),
     } as Response);
 
-    const result = await rewriteReportText({
-      field: "conclusion",
-      text: "texto base 4",
-      mode: "projeto_social",
-      maxChars: 1200,
-    });
+    const result = await rewriteReportText(
+      {
+        field: "conclusion",
+        text: "texto base 4",
+        mode: "projeto_social",
+        maxChars: 1200,
+      },
+      { organizationId: "org_1" }
+    );
 
     expect(result.rewrittenText).toBe("Texto reescrito em formato profissional.");
   });
@@ -138,6 +155,19 @@ describe("ai api - rewriteReportText", () => {
         maxChars: 1200,
       })
     ).rejects.toThrow("Limite de 1200 caracteres excedido.");
+
+    expect(global.fetch).toBe(originalFetch);
+  });
+
+  test("blocks a valid AI request without an active workspace", async () => {
+    await expect(
+      rewriteReportText({
+        field: "activity",
+        text: "texto valido",
+        mode: "projeto_social",
+        maxChars: 1200,
+      })
+    ).rejects.toThrow("Missing active workspace context");
 
     expect(global.fetch).toBe(originalFetch);
   });

@@ -100,10 +100,18 @@ export function useClassPlanning(classId: string) {
 
     try {
       const cls = await getClassById(classId);
+      if (!cls?.organizationId) {
+        throw new Error("Turma sem workspace ativo.");
+      }
       const currentYear = new Date().getFullYear();
       const classStartDate = cls?.cycleStartDate || cls?.createdAt || null;
-      await ensureActiveCycleForYear(classId, currentYear, classStartDate);
-      const activeCycle = await getActivePlanningCycle(classId);
+      await ensureActiveCycleForYear(
+        classId,
+        cls.organizationId,
+        currentYear,
+        classStartDate
+      );
+      const activeCycle = await getActivePlanningCycle(classId, cls.organizationId);
       const cycleYear = activeCycle?.year ?? null;
       const plans = await getClassPlansByClass(classId, {
         cycleId: activeCycle?.id ?? null,
