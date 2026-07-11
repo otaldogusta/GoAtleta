@@ -1844,7 +1844,7 @@ export default function PeriodizationScreen() {
     [competitivePreviewPlans, effectiveCycleLength]
   );
 
-  const hasWeekPlans = visibleClassPlans.length > 0;
+  const hasWeekPlans = visibleClassPlans.length > 0 && weekPlans.length > 0;
   const displayedCyclePanelTitle = hasWeekPlans
     ? cyclePanelTitle
     : normalizeText("Painel do ciclo");
@@ -2260,7 +2260,7 @@ export default function PeriodizationScreen() {
       )
     : 0;
 
-  const activeWeek = hasWeekPlans ? weekPlans[activeWeekIndex] : emptyWeek;
+  const activeWeek = hasWeekPlans ? (weekPlans[activeWeekIndex] ?? emptyWeek) : emptyWeek;
   const activeClassPlan = hasWeekPlans
     ? visibleClassPlans.find((plan) => plan.weekNumber === activeWeek.week) ?? null
     : null;
