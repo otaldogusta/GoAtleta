@@ -1034,8 +1034,15 @@ export default function ClassPlanningMonthRoute() {
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Abrir sincronização inteligente"
-            onPress={() => router.push({ pathname: "/class/[id]/document-sync", params: { id: classId, month: monthKey } })}
+            accessibilityLabel="Abrir sincronização no Assistente"
+            onPress={() => router.push({
+              pathname: "/assistant",
+              params: {
+                classId,
+                month: monthKey,
+                source: "planning-document-sync",
+              },
+            })}
             style={{
               flexDirection: "row",
               alignItems: "center",
