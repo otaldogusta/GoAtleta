@@ -369,12 +369,26 @@ export function CycleTab({
 
         </View>
 
-        <View style={{ gap: 10 }}>
-
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-            Limites de alerta de carga
-
+        <View
+          style={{
+            gap: 10,
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+              Faixa segura de carga
+            </Text>
+            <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.inputBg }}>
+              <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>Configuração avançada</Text>
+            </View>
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
+            Compara a carga recente com a carga habitual da turma. A referência recomendada fica entre 0,8 e 1,3.
           </Text>
 
           <View style={{ flexDirection: "row", gap: 12 }}>
@@ -383,7 +397,7 @@ export function CycleTab({
 
               <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
 
-                Alto
+                Alerta acima de
 
               </Text>
 
@@ -425,7 +439,7 @@ export function CycleTab({
 
               <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
 
-                Baixo
+                Alerta abaixo de
 
               </Text>
 
@@ -464,6 +478,10 @@ export function CycleTab({
             </View>
 
           </View>
+
+          <Text style={{ color: colors.muted, fontSize: 10 }}>
+            Os valores são salvos automaticamente para esta turma.
+          </Text>
 
           { acwrLimitError ? (
 
