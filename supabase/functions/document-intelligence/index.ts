@@ -125,9 +125,30 @@ const listFiles = async (externalId: string, token: string): Promise<DriveFile[]
   const fields = "files(id,name,mimeType,modifiedTime,version,size,webViewLink,capabilities(canDownload))";
   const meta = await (await driveFetch(`files/${externalId}?fields=id,name,mimeType,modifiedTime,version,size,webViewLink,capabilities(canDownload)`, token)).json() as DriveFile;
   if (meta.mimeType !== "application/vnd.google-apps.folder") return [meta];
-  const query = encodeURIComponent(`'${externalId}' in parents and trashed=false`);
-  const result = await (await driveFetch(`files?q=${query}&fields=${encodeURIComponent(fields)}&pageSize=1000`, token)).json();
-  return result.files ?? [];
+  const discovered: DriveFile[] = [];
+  const pendingFolders = [externalId];
+  const visitedFolders = new Set<string>();
+  const maxFolders = 100;
+  const maxFiles = 1000;
+  while (pendingFolders.length) {
+    const folderId = pendingFolders.shift()!;
+    if (visitedFolders.has(folderId)) continue;
+    visitedFolders.add(folderId);
+    if (visitedFolders.size > maxFolders) throw new Error("drive_folder_limit_exceeded");
+    const query = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    let pageToken = "";
+    do {
+      const page = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+      const result = await (await driveFetch(`files?q=${query}&fields=${encodeURIComponent(`nextPageToken,${fields}`)}&pageSize=100${page}`, token)).json();
+      for (const file of (result.files ?? []) as DriveFile[]) {
+        if (file.mimeType === "application/vnd.google-apps.folder") pendingFolders.push(file.id);
+        else discovered.push(file);
+        if (discovered.length > maxFiles) throw new Error("drive_file_limit_exceeded");
+      }
+      pageToken = String(result.nextPageToken ?? "");
+    } while (pageToken);
+  }
+  return discovered;
 };
 const decodeXmlText = (value: string) => value
   .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
