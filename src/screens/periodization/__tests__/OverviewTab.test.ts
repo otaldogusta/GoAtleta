@@ -133,8 +133,7 @@ const findNodeByText = (root: TestRenderer.ReactTestInstance, text: string) =>
   root.findAll((node) => collectText(node).includes(text))[0];
 
 describe("OverviewTab", () => {
-  it("hides the large generation action when a cycle already exists", () => {
-    const onGenerateCycle = jest.fn();
+  it("uses the intelligence overview globally when a cycle exists", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -143,44 +142,27 @@ describe("OverviewTab", () => {
           ...defaultProps,
           activeCycle,
           hasWeekPlans: true,
-          classPlans: [{ weekNumber: 1 } as any],
-          onGenerateCycle,
+          classPlans: [{ weekNumber: 1, startDate: "2026-06-13", theme: "Fundamentos", technicalFocus: "Recepção" } as any],
         })
       );
     });
 
     const root = renderer!.root;
-    const disabledGenerateButtons = root.findAll(
-      (node) => node.props.disabled === true && collectText(node).includes("Ciclo já gerado")
-    );
-    const regenerateIcon = root.findByProps({ accessibilityLabel: "Gerar ciclo novamente" });
-
-    expect(disabledGenerateButtons).toHaveLength(0);
-    expect(regenerateIcon.props.disabled).toBe(false);
-    expect(findNodeByText(root, "Gerado")).toBeTruthy();
-    expect(findNodeByText(root, "Para gerar novamente")).toBeTruthy();
-    expect(findNodeByText(root, "Remover ciclo")).toBeTruthy();
-
-    act(() => {
-      regenerateIcon.props.onPress();
-    });
-
-    expect(onGenerateCycle).toHaveBeenCalledTimes(1);
+    expect(findNodeByText(root, "Fundamentos")).toBeTruthy();
+    expect(findNodeByText(root, "Mapa de progressão pedagógica")).toBeTruthy();
+    expect(collectText(root)).not.toContain("Planejamento da turma");
   });
 
-  it("keeps the main generate button enabled when there is no generated cycle", () => {
+  it("keeps the global overview cards visible when the class has no data", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
       renderer = TestRenderer.create(React.createElement(OverviewTab, defaultProps));
     });
 
-    const enabledGenerateButton = renderer!.root.findAll(
-      (node) => node.props.disabled === false && collectText(node).includes("Gerar ciclo")
-    )[0];
-
-    expect(findNodeByText(renderer!.root, "Gerar ciclo")).toBeTruthy();
-    expect(enabledGenerateButton).toBeTruthy();
+    expect(findNodeByText(renderer!.root, "Sem aula planejada")).toBeTruthy();
+    expect(findNodeByText(renderer!.root, "Sem dados de participação")).toBeTruthy();
+    expect(findNodeByText(renderer!.root, "Etapa não definida")).toBeTruthy();
   });
 
   it("shows the planned versus completed intelligence view for Rede Esperança 8-11", () => {

@@ -1,14 +1,12 @@
 import { Animated, Text, useWindowDimensions, View } from "react-native";
 
 import { type ThemeColors } from "../../ui/app-theme";
-import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
 
 import type { ClassGroup, ClassPlan, PlanningCycle, RecentSessionSummary } from "../../core/models";
 import { isAnnualCycle } from "../../core/periodization-basics";
-import { isRedeEsperancaEightToElevenClass } from "../../core/pedagogy/rede-esperanca-july-2026-alignment";
 import { PeriodizationIntelligenceOverview } from "./PeriodizationIntelligenceOverview";
 
 type OverviewTabProps = {
@@ -91,10 +89,12 @@ export function OverviewTab({
   onReviewEvolution,
 }: OverviewTabProps) {
   const { width } = useWindowDimensions();
-  if (selectedClass && isRedeEsperancaEightToElevenClass(selectedClass)) {
+  if (selectedClass) {
     return (
       <PeriodizationIntelligenceOverview
         colors={colors}
+        selectedClass={selectedClass}
+        classPlans={classPlans}
         recentSessions={recentSessionSummaries}
         onReviewEvolution={onReviewEvolution}
       />
@@ -371,15 +371,9 @@ export function OverviewTab({
 
                       <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
 
-                        {normalizeText(selectedClass?.name ?? "Selecione")}
+                        {normalizeText("Selecione")}
 
                       </Text>
-
-                      { selectedClass ? (
-
-                        <ClassGenderBadge gender={selectedClass?.gender ?? "misto"} />
-
-                      ) : null}
 
                     </View>
 
@@ -465,9 +459,7 @@ export function OverviewTab({
 
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
 
-                    {selectedUnit
-                      ? normalizeText(selectedClass?.unit ?? selectedUnit)
-                      : normalizeText("Selecione")}
+                    {selectedUnit ? normalizeText(selectedUnit) : normalizeText("Selecione")}
 
                   </Text>
 

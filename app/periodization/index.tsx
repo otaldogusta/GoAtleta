@@ -614,9 +614,9 @@ export default function PeriodizationScreen() {
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
 
-  const [selectedUnit, setSelectedUnit] = useState("");
+  const [selectedUnit, setSelectedUnit] = useState(initialUnitParam);
 
-  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState(initialClassParam);
 
   const [competitiveProfile, setCompetitiveProfile] = useState<ClassCompetitiveProfile | null>(
     null
@@ -3919,7 +3919,7 @@ export default function PeriodizationScreen() {
           }}
         >
 
-        { activeTab === "geral" ? (
+        {activeTab === "geral" && (!hasInitialClass || didApplyParams) ? (
           <OverviewTab
             colors={colors}
             normalizeText={normalizeText}

@@ -1,10 +1,12 @@
 import { Modal, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { useEffect, useState } from "react";
 
-import type { RecentSessionSummary } from "../../core/models";
+import type { ClassGroup, ClassPlan, RecentSessionSummary } from "../../core/models";
 import {
   buildRedeEsperancaJulyAlignment,
+  isRedeEsperancaEightToElevenClass,
   type JulyAlignmentSession,
+  type RedeEsperancaJulyAlignment,
 } from "../../core/pedagogy/rede-esperanca-july-2026-alignment";
 import type { ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -13,6 +15,8 @@ import { getSectionCardStyle } from "../../ui/section-styles";
 
 type Props = {
   colors: ThemeColors;
+  selectedClass: ClassGroup;
+  classPlans: ClassPlan[];
   recentSessions: RecentSessionSummary[];
   onReviewEvolution: () => void;
 };
@@ -34,14 +38,72 @@ const stateLabel = {
   upcoming: "Próximo",
 } as const;
 
-export function PeriodizationIntelligenceOverview({ colors, recentSessions, onReviewEvolution }: Props) {
+const monthLabel = (dateValue?: string) => {
+  const date = dateValue ? new Date(`${dateValue.slice(0, 10)}T12:00:00`) : new Date();
+  const value = date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  return value.replace(/^./, (letter) => letter.toUpperCase());
+};
+
+const buildGenericAlignment = (
+  classPlans: ClassPlan[],
+  recentSessions: RecentSessionSummary[]
+): RedeEsperancaJulyAlignment => {
+  const plans = [...classPlans]
+    .filter((plan) => Boolean(plan.startDate))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+  const evidenceByDate = new Map(recentSessions.map((session) => [session.sessionDate, session]));
+  const sessions: JulyAlignmentSession[] = plans.slice(0, 6).map((plan) => {
+    const evidence = evidenceByDate.get(plan.startDate);
+    return {
+      date: plan.startDate,
+      plannedTitle: plan.theme || plan.technicalFocus || "Aula planejada",
+      plannedFocus: plan.generalObjective || plan.technicalFocus || "Foco ainda não informado",
+      state: evidence ? "completed" : "upcoming",
+      participantsCount: evidence?.participantsCount,
+      observation: evidence?.reportConclusion,
+    };
+  });
+  const unplannedEvidence = recentSessions
+    .filter((session) => !plans.some((plan) => plan.startDate === session.sessionDate))
+    .slice(0, Math.max(0, 6 - sessions.length))
+    .map<JulyAlignmentSession>((evidence) => ({
+      date: evidence.sessionDate,
+      plannedTitle: evidence.dominantBlock || "Sessão realizada",
+      plannedFocus: evidence.reportConclusion || "Evidência registrada pelo professor",
+      state: "completed",
+      participantsCount: evidence.participantsCount,
+      observation: evidence.reportConclusion,
+    }));
+  const mergedSessions = [...sessions, ...unplannedEvidence].sort((a, b) => a.date.localeCompare(b.date));
+  const attendanceSequence = recentSessions
+    .map((session) => session.participantsCount)
+    .filter((count): count is number => typeof count === "number");
+  return {
+    monthLabel: monthLabel(mergedSessions[0]?.date || plans[0]?.startDate),
+    sessions: mergedSessions,
+    evidenceCount: recentSessions.length,
+    attendanceSequence,
+    attentionSummary: recentSessions[0]?.reportConclusion || "Nenhuma observação registrada.",
+    currentStage: plans[0]?.phase || "Sem etapa definida",
+    gateCriteria: [],
+    aiSummary: "",
+  };
+};
+
+export function PeriodizationIntelligenceOverview({ colors, selectedClass, classPlans, recentSessions, onReviewEvolution }: Props) {
   const { width, height } = useWindowDimensions();
   const [selectedSession, setSelectedSession] = useState<JulyAlignmentSession | null>(null);
   const [isCloseHovered, setIsCloseHovered] = useState(false);
   const [isCloseFocused, setIsCloseFocused] = useState(false);
   const compact = width < 900;
-  const alignment = buildRedeEsperancaJulyAlignment(recentSessions);
+  const alignment = isRedeEsperancaEightToElevenClass(selectedClass)
+    ? buildRedeEsperancaJulyAlignment(recentSessions)
+    : buildGenericAlignment(classPlans, recentSessions);
   const visibleSessions = alignment.sessions.slice(0, 6);
+  const progressionSteps = classPlans
+    .filter((plan, index, plans) => index === 0 || plan.theme !== plans[index - 1]?.theme)
+    .slice(0, 3)
+    .map((plan) => ({ label: plan.theme || plan.phase, detail: plan.technicalFocus || plan.generalObjective || "" }));
   const detailBodyHeight = selectedSession
     ? selectedSession.state === "gate" || selectedSession.state === "conditional"
       ? Math.min(360, height * 0.44)
@@ -91,7 +153,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 9, paddingTop: 12, paddingBottom: 2 }}
         >
-          {visibleSessions.map((session, index) => {
+          {visibleSessions.length ? visibleSessions.map((session, index) => {
             const completed = session.state === "completed";
             const isGate = session.state === "gate";
             const conditional = session.state === "conditional";
@@ -215,7 +277,18 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                 </Pressable>
               </View>
             );
-          })}
+          }) : [0, 1, 2].map((index) => (
+            <View key={`empty-session-${index}`} style={{ width: compact ? 242 : 158, gap: 7 }}>
+              <View style={{ height: 28, flexDirection: "row", alignItems: "center" }}>
+                <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.secondaryBg }} />
+                {index < 2 ? <View style={{ flex: 1, height: 2, backgroundColor: colors.border }} /> : null}
+              </View>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Data não definida</Text>
+              <View style={[getSectionCardStyle(colors, "neutral", { padding: 10, radius: 14, shadow: false }), { height: 150 }]}>
+                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Sem aula planejada</Text>
+              </View>
+            </View>
+          ))}
         </ScrollView>
       </View>
 
@@ -236,7 +309,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Participação</Text>
                 <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-                  {alignment.attendanceSequence.join(" → ")} participantes
+                  {alignment.attendanceSequence.length ? `${alignment.attendanceSequence.join(" → ")} participantes` : "Sem dados de participação"}
                 </Text>
               </View>
             </View>
@@ -277,12 +350,17 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
         <View style={[getSectionCardStyle(colors, "neutral", { padding: 16, radius: 18 }), { flex: 1.15, gap: 14 }]}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Mapa de progressão pedagógica</Text>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: compact ? "wrap" : "nowrap" }}>
-            {[
+            {(isRedeEsperancaEightToElevenClass(selectedClass) ? [
               { icon: "personSolid" as const, label: "1x1", detail: "Recepção direta sem segurar a bola", color: colors.successText },
               { icon: "lock" as const, label: "Portão de prontidão", detail: "Critérios técnicos e comportamentais", color: colors.warningText },
               { icon: "members" as const, label: "2x2", detail: "Mini jogo com decisão e cooperação", color: colors.successText },
-            ].map((step, index) => (
-              <View key={step.label} style={{ flexDirection: "row", alignItems: "center", flex: compact ? undefined : 1, minWidth: compact ? "100%" : 0 }}>
+            ] : [0, 1, 2].map((index) => ({
+              icon: (index === 0 ? "personSolid" : index === 1 ? "circle" : "members") as "personSolid" | "circle" | "members",
+              label: progressionSteps[index]?.label || "Etapa não definida",
+              detail: progressionSteps[index]?.detail || "",
+              color: colors.secondaryText,
+            }))).map((step, index) => (
+              <View key={`${step.label}-${index}`} style={{ flexDirection: "row", alignItems: "center", flex: compact ? undefined : 1, minWidth: compact ? "100%" : 0 }}>
                 <View style={{ flex: 1, alignItems: "center", gap: 7 }}>
                   <View style={{ width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: step.color, backgroundColor: colors.secondaryBg }}>
                     <GoAtletaIcon name={step.icon} size={26} color={step.color} />
@@ -296,7 +374,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
           </View>
           <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, gap: 6 }}>
             <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Critérios para avançar</Text>
-            {alignment.gateCriteria.map((criterion) => (
+            {alignment.gateCriteria.length ? alignment.gateCriteria.map((criterion) => (
               <View key={criterion.id} style={{ flexDirection: "row", gap: 7, alignItems: "flex-start" }}>
                 <GoAtletaIcon
                   name={criterion.isMet ? "checkbox" : "square"}
@@ -307,7 +385,7 @@ export function PeriodizationIntelligenceOverview({ colors, recentSessions, onRe
                   {criterion.label}
                 </Text>
               </View>
-            ))}
+            )) : <Text style={{ color: colors.muted, fontSize: 11 }}>Nenhum critério de avanço registrado.</Text>}
           </View>
           <Text style={{ color: colors.muted, fontSize: 11, textAlign: "center" }}>
             Progredimos juntos. Avançamos apenas quando a turma demonstra prontidão.
