@@ -60,6 +60,15 @@ const getVolumePalette = (level: VolumeLevel, colors: ThemeColors) => {
   return { bg: colors.dangerBg, text: colors.dangerText, border: colors.dangerBorder };
 };
 
+const normalizeAcwrInput = (value: string, maximum: number) => {
+  const normalized = value.replace(",", ".").trim();
+  if (!/^\d?(?:\.\d?)?$/.test(normalized)) return null;
+  if (!normalized || normalized === ".") return normalized;
+  const numericValue = Number(normalized);
+  if (!Number.isFinite(numericValue) || numericValue > maximum) return null;
+  return normalized;
+};
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type SectionOpenState = {
@@ -405,9 +414,11 @@ export function CycleTab({
 
                 value={acwrLimits.high}
 
-                onChangeText={(value) =>
-                  setAcwrLimits({ ...acwrLimits, high: value.replace(",", ".") })
-                }
+                onChangeText={(value) => {
+                  const normalized = normalizeAcwrInput(value, 2);
+                  if (normalized == null) return;
+                  setAcwrLimits({ ...acwrLimits, high: normalized });
+                }}
 
                 keyboardType="numeric"
 
@@ -447,9 +458,11 @@ export function CycleTab({
 
                 value={acwrLimits.low}
 
-                onChangeText={(value) =>
-                  setAcwrLimits({ ...acwrLimits, low: value.replace(",", ".") })
-                }
+                onChangeText={(value) => {
+                  const normalized = normalizeAcwrInput(value, 1);
+                  if (normalized == null) return;
+                  setAcwrLimits({ ...acwrLimits, low: normalized });
+                }}
 
                 keyboardType="numeric"
 

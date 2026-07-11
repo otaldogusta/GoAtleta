@@ -1684,7 +1684,10 @@ export default function PeriodizationScreen() {
 
       typeof selectedClass.acwrLow === "number" ? String(selectedClass.acwrLow) : "0.8";
 
-    const next = { high: nextHigh, low: nextLow };
+    const candidate = { high: nextHigh, low: nextLow };
+    const next = validateAcwrLimits(candidate).ok
+      ? candidate
+      : { high: "1.3", low: "0.8" };
 
     setAcwrLimits(next);
 
