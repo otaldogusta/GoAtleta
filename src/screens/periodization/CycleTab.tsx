@@ -1,4 +1,4 @@
-import { Animated, FlatList, Text, TextInput, View } from "react-native";
+import { Animated, FlatList, ScrollView, Text, TextInput, View } from "react-native";
 
 import type { ClassGroup } from "../../core/models";
 import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
@@ -270,7 +270,20 @@ export function CycleTab({
 
           <Animated.View style={[{ gap: 12 }, loadAnimStyle]}>
 
-            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator
+              style={{ width: "100%", maxWidth: "100%" }}
+              contentContainerStyle={{
+                minWidth: "100%",
+                flexDirection: "row",
+                alignItems: "flex-end",
+                gap: 8,
+                paddingRight: 8,
+                paddingBottom: 4,
+              }}
+            >
 
           {progressBars.map((ratio, index) => {
 
@@ -314,7 +327,7 @@ export function CycleTab({
 
             })}
 
-        </View>
+        </ScrollView>
 
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
 
