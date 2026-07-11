@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Document Intelligence"
+  short_description: "Coordena a inteligencia documental segura"
+  default_prompt: "Use $goatleta-document-intelligence para planejar um fluxo documental seguro e confirmado no GoAtleta."

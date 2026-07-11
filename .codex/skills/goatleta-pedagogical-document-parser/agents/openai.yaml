@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Pedagogical Parser"
+  short_description: "Interpreta documentos com evidencias"
+  default_prompt: "Use $goatleta-pedagogical-document-parser para extrair dados pedagogicos com confianca e origem."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Institutional Workflows"
+  short_description: "Modela prazos institucionais configuraveis"
+  default_prompt: "Use $goatleta-institutional-workflows para modelar obrigacoes documentais sem hardcode institucional."

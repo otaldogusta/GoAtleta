@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Document Security"
+  short_description: "Protege a ingestao e o uso de documentos"
+  default_prompt: "Use $goatleta-document-security para revisar ameacas e isolamento no fluxo documental."

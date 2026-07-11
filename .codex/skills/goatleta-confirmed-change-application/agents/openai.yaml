@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Confirmed Changes"
+  short_description: "Aplica somente mudancas aprovadas"
+  default_prompt: "Use $goatleta-confirmed-change-application para projetar mudancas confirmadas, auditaveis e reversiveis."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Document Intelligence QA"
+  short_description: "Valida o arco documental ponta a ponta"
+  default_prompt: "Use $goatleta-document-intelligence-qa para criar testes seguros do arco de inteligencia documental."
