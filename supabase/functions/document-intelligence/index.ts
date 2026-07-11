@@ -315,7 +315,15 @@ Deno.serve(async (request) => {
         new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)))
       );
       const state = randomValue(32);
-      await service.from("google_drive_oauth_states").insert({ state, organization_id: organizationId, user_id: user.id, code_verifier: verifier, redirect_to: String(body.redirectTo ?? "") });
+      await service.from("google_drive_oauth_states").delete().eq("user_id", user.id).lte("expires_at", new Date().toISOString());
+      await service.from("google_drive_oauth_states").insert({
+        state,
+        organization_id: organizationId,
+        user_id: user.id,
+        code_verifier: verifier,
+        redirect_to: String(body.redirectTo ?? ""),
+        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      });
       const auth = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       Object.entries({ client_id: GOOGLE_CLIENT_ID, redirect_uri: CALLBACK_URL, response_type: "code", scope: DRIVE_SCOPE, access_type: "offline", include_granted_scopes: "true", prompt: "consent", state, code_challenge: challenge, code_challenge_method: "S256" }).forEach(([key, value]) => auth.searchParams.set(key, value));
       return json({ connected: false, authorizationUrl: auth.toString() });
