@@ -181,6 +181,17 @@ describe("OverviewTab", () => {
             gender: "mixed",
             daysOfWeek: [2, 4],
           },
+          classPlans: [
+            {
+              id: "pilot-week",
+              classId: "class-1",
+              startDate: "2026-07-02",
+              weekNumber: 1,
+              phase: "Fundamentos",
+              theme: "Recepção direta",
+              technicalFocus: "Primeiro contato",
+            } as any,
+          ],
           recentSessionSummaries: [],
           onReviewEvolution,
         })
@@ -229,5 +240,32 @@ describe("OverviewTab", () => {
 
     act(() => backdrop.props.onPress());
     expect(root.findAllByProps({ accessibilityLabel: "Fechar" })).toHaveLength(0);
+  });
+
+  it("does not keep pilot future planning after the cycle is removed", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(OverviewTab, {
+          ...defaultProps,
+          selectedClass: {
+            ...selectedClass,
+            name: "Turma 8-11",
+            unit: "Rede Esperança",
+            ageBand: "08-11",
+            daysOfWeek: [2, 4],
+          },
+          classPlans: [],
+          hasWeekPlans: false,
+          recentSessionSummaries: [],
+        })
+      );
+    });
+
+    const content = collectText(renderer!.root);
+    expect(content).toContain("Sem aula planejada");
+    expect(content).not.toContain("Mini 2x2");
+    expect(content).not.toContain("Portão de prontidão");
   });
 });

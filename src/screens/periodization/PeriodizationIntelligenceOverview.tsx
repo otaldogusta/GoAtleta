@@ -96,7 +96,9 @@ export function PeriodizationIntelligenceOverview({ colors, selectedClass, class
   const [isCloseHovered, setIsCloseHovered] = useState(false);
   const [isCloseFocused, setIsCloseFocused] = useState(false);
   const compact = width < 900;
-  const alignment = isRedeEsperancaEightToElevenClass(selectedClass)
+  const hasPlannedCycle = classPlans.length > 0;
+  const usePilotAlignment = hasPlannedCycle && isRedeEsperancaEightToElevenClass(selectedClass);
+  const alignment = usePilotAlignment
     ? buildRedeEsperancaJulyAlignment(recentSessions)
     : buildGenericAlignment(classPlans, recentSessions);
   const visibleSessions = alignment.sessions.slice(0, 6);
@@ -350,7 +352,7 @@ export function PeriodizationIntelligenceOverview({ colors, selectedClass, class
         <View style={[getSectionCardStyle(colors, "neutral", { padding: 16, radius: 18 }), { flex: 1.15, gap: 14 }]}>
           <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Mapa de progressão pedagógica</Text>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: compact ? "wrap" : "nowrap" }}>
-            {(isRedeEsperancaEightToElevenClass(selectedClass) ? [
+            {(usePilotAlignment ? [
               { icon: "personSolid" as const, label: "1x1", detail: "Recepção direta sem segurar a bola", color: colors.successText },
               { icon: "lock" as const, label: "Portão de prontidão", detail: "Critérios técnicos e comportamentais", color: colors.warningText },
               { icon: "members" as const, label: "2x2", detail: "Mini jogo com decisão e cooperação", color: colors.successText },
