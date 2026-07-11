@@ -55,6 +55,12 @@ export default function DocumentSyncScreen() {
   const categoryTitleStyle = useMemo(() => [styles.categoryTitle, { color: colors.text }], [colors.text]);
   const itemTitleStyle = useMemo(() => [styles.itemTitle, { color: colors.text }], [colors.text]);
   const itemReasonStyle = useMemo(() => [styles.itemReason, { color: colors.muted }], [colors.muted]);
+  const returnToPlanning = () => {
+    router.replace({
+      pathname: "/class/[id]/planning/[month]",
+      params: { id: classId, month },
+    });
+  };
 
   const groups = useMemo(() => {
     const result = new Map<DocumentMergeItem["category"], DocumentMergeItem[]>();
@@ -146,7 +152,7 @@ export default function DocumentSyncScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ width: "100%", maxWidth: 1040, alignSelf: "center", padding: 16, gap: 16, paddingBottom: 48 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={returnToPlanning}>
             <Text style={{ color: colors.text, fontSize: 24 }}>‹</Text>
           </Pressable>
           <View style={{ flex: 1 }}>
@@ -211,7 +217,7 @@ export default function DocumentSyncScreen() {
             <View style={{ gap: 8 }}>
               <Button label="Aplicar recomendados" onPress={() => void applySelected()} disabled={busy} />
               <Button label="Somente complementar" variant="secondary" onPress={() => void applySelected(true)} disabled={busy} />
-              <Button label="Cancelar" variant="ghost" onPress={() => router.back()} disabled={busy} />
+              <Button label="Cancelar" variant="ghost" onPress={returnToPlanning} disabled={busy} />
             </View>
           </>
         ) : null}
@@ -221,7 +227,7 @@ export default function DocumentSyncScreen() {
             <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{receipt.undoneAt ? "Atualização desfeita" : "Planejamento atualizado"}</Text>
             <Text style={{ color: colors.muted }}>{receipt.appliedItemIds.length} item(ns) registrado(s) no histórico.</Text>
             {!receipt.undoneAt ? <Button label="Desfazer atualização" variant="secondary" onPress={() => void undo()} disabled={busy} /> : null}
-            <Button label="Voltar ao planejamento" onPress={() => router.back()} />
+            <Button label="Voltar ao planejamento" onPress={returnToPlanning} />
           </View>
         ) : null}
 
