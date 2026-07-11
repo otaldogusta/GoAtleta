@@ -1,4 +1,5 @@
 import { Animated, FlatList, ScrollView, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
 
 import type { ClassGroup } from "../../core/models";
 import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
@@ -181,6 +182,14 @@ export function CycleTab({
   selectedClass,
   filteredWeekPlans,
 }: CycleTabProps) {
+  const [visibleWeekCount, setVisibleWeekCount] = useState(6);
+  const visibleFilteredWeekPlans = filteredWeekPlans.slice(0, visibleWeekCount);
+  const hasMoreWeeks = visibleWeekCount < filteredWeekPlans.length;
+
+  useEffect(() => {
+    setVisibleWeekCount(6);
+  }, [cycleFilter, selectedClass?.id]);
+
   return (
     <>
 
@@ -632,8 +641,9 @@ export function CycleTab({
 
           ) : filteredWeekPlans.length ? (
 
+            <View style={{ gap: 10 }}>
             <FlatList
-              data={filteredWeekPlans}
+              data={visibleFilteredWeekPlans}
               keyExtractor={(week, index) => `${week.week}-${index}`}
               scrollEnabled={false}
               contentContainerStyle={{ gap: 10 }}
@@ -762,6 +772,31 @@ export function CycleTab({
                 );
               }}
             />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {`Exibindo ${visibleFilteredWeekPlans.length} de ${filteredWeekPlans.length} semanas`}
+              </Text>
+              {hasMoreWeeks ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Mostrar mais semanas"
+                  onPress={() => setVisibleWeekCount((count) => Math.min(count + 6, filteredWeekPlans.length))}
+                  style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Mostrar mais</Text>
+                </Pressable>
+              ) : filteredWeekPlans.length > 6 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Mostrar menos semanas"
+                  onPress={() => setVisibleWeekCount(6)}
+                  style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Mostrar menos</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            </View>
 
           ) : (
 
