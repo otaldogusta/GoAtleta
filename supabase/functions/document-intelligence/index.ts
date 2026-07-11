@@ -21,8 +21,11 @@ const MAX_BYTES = 25 * 1024 * 1024;
 const service = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 const base64Url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-const fromBase64 = (value: string) =>
-  Uint8Array.from(atob(value.replace(/-/g, "+").replace(/_/g, "/")), (char) => char.charCodeAt(0));
+const fromBase64 = (value: string) => {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+};
 const randomValue = (size = 32) => base64Url(crypto.getRandomValues(new Uint8Array(size)));
 const sha256 = async (value: string | Uint8Array) => {
   const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
@@ -91,6 +94,12 @@ const accessTokenFor = async (organizationId: string, userId: string) => {
   return response.ok ? String(payload.access_token ?? "") : null;
 };
 
+const assertDocumentStaff = async (organizationId: string, userId: string) => {
+  const { data } = await service.from("organization_members").select("role_level")
+    .eq("organization_id", organizationId).eq("user_id", userId).maybeSingle();
+  if (!data || Number(data.role_level ?? 0) < 40) throw new Error("organization_access_denied");
+};
+
 const extractDriveId = (sourceUrl: string) => {
   const url = new URL(sourceUrl);
   if (!url.hostname.endsWith("google.com")) throw new Error("invalid_drive_url");
@@ -136,6 +145,7 @@ const processAnalyze = async (body: Record<string, unknown>, userId: string) => 
   const organizationId = String(body.organizationId ?? "");
   const classId = String(body.classId ?? "");
   const sourceUrl = String(body.sourceUrl ?? "");
+  await assertDocumentStaff(organizationId, userId);
   const externalId = extractDriveId(sourceUrl);
   const token = await accessTokenFor(organizationId, userId);
   if (!token) return json({ connected: false, error: "drive_connection_required" }, 409);
@@ -195,6 +205,7 @@ Deno.serve(async (request) => {
     const action = String(body.action ?? "");
     if (action === "drive_connection") {
       const organizationId = String(body.organizationId ?? "");
+      await assertDocumentStaff(organizationId, user.id);
       const { data: existing } = await service.from("google_drive_connections").select("id").eq("organization_id", organizationId).eq("user_id", user.id).maybeSingle();
       if (existing) return json({ connected: true });
       if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !TOKEN_KEY) return json({ error: "google_drive_not_configured" }, 503);
