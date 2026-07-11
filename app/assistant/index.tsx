@@ -85,6 +85,8 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../src/ui/icon-registry"
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  contextChoices?: Array<{ id: string; name: string }>;
+  pendingDocumentUrl?: string;
   document?: {
     proposal?: DocumentSyncProposal;
     receipt?: DocumentApplicationReceipt;
@@ -1041,7 +1043,7 @@ export default function AssistantScreen() {
 
   const replaceDocumentMessage = useCallback((messageIndex: number, document: ChatMessage["document"], content: string) => {
     setMessages((current) => current.map((message, index) => index === messageIndex
-      ? { ...message, content, document }
+      ? { ...message, content, document, contextChoices: undefined, pendingDocumentUrl: undefined }
       : message));
   }, []);
 
@@ -1076,6 +1078,36 @@ export default function AssistantScreen() {
     setDocumentReview({ messageIndex, proposal });
     setDocumentReviewIds(new Set(proposal.items.filter((item) => item.recommendation === "apply").map((item) => item.id)));
   }, []);
+
+  const analyzeDocumentForClass = useCallback(async (messageIndex: number, driveUrl: string, targetClassId: string) => {
+    if (!activeOrganization?.id) return;
+    setLoading(true);
+    try {
+      const documentMonth = String(params.month ?? "").trim() || new Date().toISOString().slice(0, 7);
+      const redirectTo = ExpoLinking.createURL("/assistant", {
+        queryParams: { classId: targetClassId, month: documentMonth, documentUrl: driveUrl },
+      });
+      const connection = await getDriveConnection(activeOrganization.id, redirectTo);
+      if (!connection.connected) {
+        if (!connection.authorizationUrl) throw new Error("Conexão com o Drive indisponível.");
+        replaceDocumentMessage(messageIndex, undefined, "Conecte sua conta Google para eu ler esse documento com segurança.");
+        await Linking.openURL(connection.authorizationUrl);
+        return;
+      }
+      const result = await analyzeDriveDocument({
+        organizationId: activeOrganization.id,
+        classId: targetClassId,
+        month: documentMonth,
+        sourceUrl: driveUrl,
+      });
+      if (!result.proposal) throw new Error("O documento ainda não gerou uma proposta revisável.");
+      replaceDocumentMessage(messageIndex, { proposal: result.proposal }, result.proposal.summary);
+    } catch (cause) {
+      replaceDocumentMessage(messageIndex, undefined, cause instanceof Error ? cause.message : "Não foi possível analisar o documento.");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeOrganization?.id, params.month, replaceDocumentMessage]);
 
   const undoAssistantDocumentApplication = useCallback(async (messageIndex: number, proposal: DocumentSyncProposal, receipt: DocumentApplicationReceipt) => {
     setLoading(true);
@@ -1112,8 +1144,17 @@ export default function AssistantScreen() {
     const driveUrl = input.trim().match(/https:\/\/drive\.google\.com\/[^\s]+/i)?.[0] ?? "";
     if (driveUrl) {
       try {
-        if (!activeOrganization?.id || !classId || !documentContextConfirmed) {
-          throw new Error("Antes de analisar, selecione a turma onde este documento deve ser comparado.");
+        if (!activeOrganization?.id) throw new Error("Selecione um workspace antes de analisar o documento.");
+        if (!classId || !documentContextConfirmed) {
+          const availableClasses = classes.length ? classes : await getClasses();
+          if (!classes.length) setClasses(availableClasses);
+          setMessages((current) => [...current, {
+            role: "assistant",
+            content: "Em qual turma devo comparar este documento?",
+            contextChoices: availableClasses.map((item) => ({ id: item.id, name: normalizeClassNameLabel(item.name) || item.name })),
+            pendingDocumentUrl: driveUrl,
+          }]);
+          return;
         }
         const documentMonth = String(params.month ?? "").trim() || new Date().toISOString().slice(0, 7);
         const redirectTo = ExpoLinking.createURL("/assistant", {
@@ -1614,6 +1655,24 @@ export default function AssistantScreen() {
             <Text style={{ color: message.role === "user" ? colors.primaryText : colors.text }}>
               {message.content}
             </Text>
+            {message.contextChoices?.length && message.pendingDocumentUrl ? (
+              <View style={{ gap: 8, paddingTop: 6 }}>
+                {message.contextChoices.map((choice) => (
+                  <Pressable
+                    key={choice.id}
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setClassId(choice.id);
+                      setDocumentContextConfirmed(true);
+                      void analyzeDocumentForClass(index, message.pendingDocumentUrl!, choice.id);
+                    }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{choice.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             {proposal ? (
               <View style={{ gap: 10, paddingTop: 4 }}>
                 <View style={{ gap: 3 }}>
@@ -1644,7 +1703,7 @@ export default function AssistantScreen() {
           </View>
         );
       }),
-    [applyAssistantDocumentProposal, classId, colors.background, colors.border, colors.muted, colors.primaryBg, colors.primaryText, colors.text, isDesktopLayout, loading, messages, openDocumentReview, params.month, replaceDocumentMessage, router, undoAssistantDocumentApplication]
+    [analyzeDocumentForClass, applyAssistantDocumentProposal, classId, colors.background, colors.border, colors.inputBg, colors.muted, colors.primaryBg, colors.primaryText, colors.text, isDesktopLayout, loading, messages, openDocumentReview, params.month, replaceDocumentMessage, router, undoAssistantDocumentApplication]
   );
 
   return (
