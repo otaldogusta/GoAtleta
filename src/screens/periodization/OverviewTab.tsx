@@ -95,7 +95,7 @@ export function OverviewTab({
       .filter((weekNumber) => Number.isFinite(weekNumber) && weekNumber >= 1 && weekNumber <= cycleLength)
   ).size;
   const missingWeeks = Math.max(0, cycleLength - coveredWeeks);
-  const hasGeneratedCycle = Boolean(activeCycle || hasWeekPlans);
+  const hasGeneratedCycle = hasWeekPlans;
   const weekdayLabels = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
   const classScheduleLabel = selectedClass?.daysOfWeek?.length
     ? selectedClass.daysOfWeek.map((day) => weekdayLabels[day] ?? "dia definido").join(" e ")
