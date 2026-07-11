@@ -214,7 +214,7 @@ describe("OverviewTab", () => {
     });
     expect(collectText(completedCard).match(/Realizado/g)).toHaveLength(1);
 
-    expect(findNodeByText(root, "Histórico considerado")).toBeTruthy();
+    expect(findNodeByText(root, "Eventos considerados")).toBeTruthy();
     expect(findNodeByText(root, "A turma ainda precisa consolidar o primeiro contato.")).toBeTruthy();
     expect(collectText(root)).not.toContain("Revisar evolução da turma");
 

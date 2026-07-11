@@ -113,6 +113,12 @@ export function PeriodizationIntelligenceOverview({ colors, selectedClass, class
     .filter((plan, index, plans) => index === 0 || plan.theme !== plans[index - 1]?.theme)
     .slice(0, 3)
     .map((plan) => ({ label: plan.theme || plan.phase, detail: plan.technicalFocus || plan.generalObjective || "" }));
+  const detailedEvidence = [...recentSessions]
+    .filter(
+      (session) =>
+        typeof session.participantsCount === "number" || Boolean(session.reportConclusion?.trim())
+    )
+    .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
   const detailBodyHeight = selectedSession
     ? selectedSession.state === "gate" || selectedSession.state === "conditional"
       ? Math.min(360, height * 0.44)
@@ -312,37 +318,33 @@ export function PeriodizationIntelligenceOverview({ colors, selectedClass, class
           <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
             {alignment.evidenceCount} relatórios recentes considerados com dados de participação, execução e comportamento.
           </Text>
-          <View style={{ gap: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
-              <GoAtletaIcon name="members" size={18} color={colors.secondaryText} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Participação</Text>
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-                  {alignment.attendanceSequence.length ? `${alignment.attendanceSequence.join(" → ")} participantes` : "Sem dados de participação"}
-                </Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
-              <GoAtletaIcon name="warningCircle" size={18} color={colors.warningText} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Comportamento</Text>
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-                  {alignment.attentionSummary}
-                </Text>
-              </View>
-            </View>
-          </View>
           <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10, gap: 7 }}>
-            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Histórico considerado</Text>
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Eventos considerados</Text>
             <ScrollView
               nestedScrollEnabled
               showsVerticalScrollIndicator
               style={{ maxHeight: 180 }}
               contentContainerStyle={{ gap: 8, paddingRight: 6, paddingBottom: 2 }}
             >
-              {recentSessions.length ? [...recentSessions]
-                .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate))
-                .map((session, index) => (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
+                <GoAtletaIcon name="members" size={18} color={colors.secondaryText} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Participação</Text>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
+                    {alignment.attendanceSequence.length ? `${alignment.attendanceSequence.join(" → ")} participantes` : "Sem dados de participação"}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
+                <GoAtletaIcon name="warningCircle" size={18} color={colors.warningText} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Comportamento</Text>
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
+                    {alignment.attentionSummary}
+                  </Text>
+                </View>
+              </View>
+              {detailedEvidence.map((session, index) => (
                   <View
                     key={`${session.sessionDate}-${index}`}
                     style={{ padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg, gap: 4 }}
@@ -354,18 +356,14 @@ export function PeriodizationIntelligenceOverview({ colors, selectedClass, class
                       <Text style={{ color: colors.muted, fontSize: 11 }}>
                         {typeof session.participantsCount === "number"
                           ? `${session.participantsCount} participantes`
-                          : "Participação não informada"}
+                          : "Relatório da sessão"}
                       </Text>
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
-                      {session.reportConclusion || "Nenhuma observação registrada."}
+                      {session.reportConclusion || "Participação registrada pelo professor."}
                     </Text>
                   </View>
-                )) : (
-                <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Nenhuma evidência registrada para esta turma.</Text>
-                </View>
-              )}
+                ))}
             </ScrollView>
           </View>
         </View>
