@@ -113,12 +113,43 @@ export function PeriodizationIntelligenceOverview({ colors, selectedClass, class
     .filter((plan, index, plans) => index === 0 || plan.theme !== plans[index - 1]?.theme)
     .slice(0, 3)
     .map((plan) => ({ label: plan.theme || plan.phase, detail: plan.technicalFocus || plan.generalObjective || "" }));
-  const detailedEvidence = [...recentSessions]
-    .filter(
-      (session) =>
-        typeof session.participantsCount === "number" || Boolean(session.reportConclusion?.trim())
-    )
-    .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
+  const unmetReadinessCriteria = alignment.gateCriteria.filter((criterion) => !criterion.isMet).length;
+  const intelligenceEvents = [
+    alignment.attendanceSequence.length
+      ? {
+          icon: "members" as const,
+          label: "Participação",
+          detail: `${alignment.attendanceSequence.join(" → ")} participantes`,
+          color: colors.secondaryText,
+        }
+      : null,
+    alignment.attentionSummary && alignment.attentionSummary !== "Nenhuma observação registrada."
+      ? {
+          icon: "warningCircle" as const,
+          label: "Comportamento",
+          detail: alignment.attentionSummary,
+          color: colors.warningText,
+        }
+      : null,
+    alignment.gateCriteria.length
+      ? {
+          icon: "lock" as const,
+          label: "Prontidão",
+          detail: unmetReadinessCriteria
+            ? `${unmetReadinessCriteria} ${unmetReadinessCriteria === 1 ? "critério ainda precisa" : "critérios ainda precisam"} ser atendido${unmetReadinessCriteria === 1 ? "" : "s"} antes de avançar.`
+            : "A turma atende aos critérios definidos para avançar.",
+          color: unmetReadinessCriteria ? colors.warningText : colors.successText,
+        }
+      : null,
+    alignment.aiSummary
+      ? {
+          icon: "sparkles" as const,
+          label: "Ajuste recomendado",
+          detail: alignment.aiSummary,
+          color: colors.successText,
+        }
+      : null,
+  ].filter((event): event is NonNullable<typeof event> => Boolean(event));
   const detailBodyHeight = selectedSession
     ? selectedSession.state === "gate" || selectedSession.state === "conditional"
       ? Math.min(360, height * 0.44)
@@ -326,44 +357,21 @@ export function PeriodizationIntelligenceOverview({ colors, selectedClass, class
               style={{ maxHeight: 180 }}
               contentContainerStyle={{ gap: 8, paddingRight: 6, paddingBottom: 2 }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
-                <GoAtletaIcon name="members" size={18} color={colors.secondaryText} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Participação</Text>
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-                    {alignment.attendanceSequence.length ? `${alignment.attendanceSequence.join(" → ")} participantes` : "Sem dados de participação"}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
-                <GoAtletaIcon name="warningCircle" size={18} color={colors.warningText} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Comportamento</Text>
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-                    {alignment.attentionSummary}
-                  </Text>
-                </View>
-              </View>
-              {detailedEvidence.map((session, index) => (
-                  <View
-                    key={`${session.sessionDate}-${index}`}
-                    style={{ padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg, gap: 4 }}
-                  >
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                        {session.sessionDate.slice(8, 10)}/{session.sessionDate.slice(5, 7)}/{session.sessionDate.slice(0, 4)}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>
-                        {typeof session.participantsCount === "number"
-                          ? `${session.participantsCount} participantes`
-                          : "Relatório da sessão"}
-                      </Text>
-                    </View>
-                    <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
-                      {session.reportConclusion || "Participação registrada pelo professor."}
+              {intelligenceEvents.length ? intelligenceEvents.map((event) => (
+                <View key={event.label} style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
+                  <GoAtletaIcon name={event.icon} size={18} color={event.color} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>{event.label}</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", lineHeight: 17, marginTop: 2 }}>
+                      {event.detail}
                     </Text>
                   </View>
-                ))}
+                </View>
+              )) : (
+                <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Ainda não há evidências suficientes para gerar eventos.</Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>

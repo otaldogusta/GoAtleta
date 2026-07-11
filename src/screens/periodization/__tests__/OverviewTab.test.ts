@@ -160,7 +160,7 @@ describe("OverviewTab", () => {
     });
 
     expect(findNodeByText(renderer!.root, "Sem aula planejada")).toBeTruthy();
-    expect(findNodeByText(renderer!.root, "Sem dados de participação")).toBeTruthy();
+    expect(findNodeByText(renderer!.root, "Ainda não há evidências suficientes para gerar eventos.")).toBeTruthy();
     expect(findNodeByText(renderer!.root, "Etapa não definida")).toBeTruthy();
   });
 
@@ -215,7 +215,8 @@ describe("OverviewTab", () => {
     expect(collectText(completedCard).match(/Realizado/g)).toHaveLength(1);
 
     expect(findNodeByText(root, "Eventos considerados")).toBeTruthy();
-    expect(findNodeByText(root, "A turma ainda precisa consolidar o primeiro contato.")).toBeTruthy();
+    expect(findNodeByText(root, "Prontidão")).toBeTruthy();
+    expect(findNodeByText(root, "Ajuste recomendado")).toBeTruthy();
     expect(collectText(root)).not.toContain("Revisar evolução da turma");
 
     const sessionCard = root.findByProps({
