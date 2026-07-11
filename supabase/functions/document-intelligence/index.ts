@@ -70,7 +70,11 @@ const oauthCallback = async (url: URL) => {
   });
   const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   const tokens = await response.json();
-  if (!response.ok || !tokens.refresh_token) return json({ error: "google_token_exchange_failed" }, 400);
+  if (!response.ok || !tokens.refresh_token) {
+    const oauthError = typeof tokens.error === "string" ? tokens.error : "unknown";
+    console.error("google_token_exchange_failed", { status: response.status, oauthError });
+    return json({ error: "google_token_exchange_failed", oauthError }, 400);
+  }
   const encrypted = await encryptToken(tokens.refresh_token);
   await service.from("google_drive_connections").upsert({
     organization_id: stored.organization_id, user_id: stored.user_id,
