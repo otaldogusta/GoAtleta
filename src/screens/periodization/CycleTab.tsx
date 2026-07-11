@@ -1,4 +1,5 @@
 import { Animated, ScrollView, Text, TextInput, View } from "react-native";
+import { useState } from "react";
 
 import type { ClassGroup } from "../../core/models";
 import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
@@ -191,6 +192,8 @@ export function CycleTab({
   selectedClass,
   filteredWeekPlans,
 }: CycleTabProps) {
+  const [showAcwrReference, setShowAcwrReference] = useState(false);
+
   return (
     <>
 
@@ -393,13 +396,48 @@ export function CycleTab({
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
               Faixa segura de carga
             </Text>
-            <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.inputBg }}>
-              <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>Configuração avançada</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.inputBg }}>
+                <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>Configuração avançada</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Entender referência de carga"
+                onPress={() => setShowAcwrReference((visible) => !visible)}
+                style={{ width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningText }}
+              >
+                <Text style={{ color: colors.warningText, fontSize: 13, fontWeight: "900" }}>!</Text>
+              </Pressable>
             </View>
           </View>
           <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
             Compara a carga recente com a carga habitual da turma. A referência recomendada fica entre 0,8 e 1,3.
           </Text>
+          {showAcwrReference ? (
+            <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, gap: 10 }}>
+              <View style={{ gap: 3 }}>
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>Referência de ACWR · {selectedClass?.ageBand || "faixa etária não informada"}</Text>
+                <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+                  Não existe um corte validado exclusivamente para esta faixa etária. O gráfico usa a referência geral mais estudada como apoio ao monitoramento.
+                </Text>
+              </View>
+              <View style={{ gap: 5 }}>
+                <View style={{ height: 16, borderRadius: 8, overflow: "hidden", flexDirection: "row" }}>
+                  <View style={{ flex: 0.8, backgroundColor: colors.infoBg }} />
+                  <View style={{ flex: 0.5, backgroundColor: colors.successBg }} />
+                  <View style={{ flex: 0.7, backgroundColor: colors.warningBg }} />
+                </View>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                  <Text style={{ color: colors.muted, fontSize: 9 }}>Abaixo de 0,8</Text>
+                  <Text style={{ color: colors.successText, fontSize: 9, fontWeight: "800" }}>Referência 0,8–1,3</Text>
+                  <Text style={{ color: colors.warningText, fontSize: 9 }}>Acima de 1,3</Text>
+                </View>
+              </View>
+              <Text style={{ color: colors.muted, fontSize: 9, lineHeight: 14 }}>
+                Use junto com dor, recuperação, participação e observação do professor. ACWR isolado não prevê lesão.
+              </Text>
+            </View>
+          ) : null}
 
           <View style={{ flexDirection: "row", gap: 12 }}>
 
