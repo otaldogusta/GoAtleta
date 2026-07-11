@@ -43,6 +43,7 @@ import { useSaveToast } from "../../../../src/ui/save-toast";
 import { getSectionCardStyle } from "../../../../src/ui/section-styles";
 import { useSingleAccordion } from "../../../../src/ui/use-single-accordion";
 import { getLessonBlockTimes } from "../../../../src/utils/lesson-block-times";
+import { markRender } from "../../../../src/observability/perf";
 
 const toMonthTitle = (monthKey: string) => {
   const [yearText, monthText] = monthKey.split("-");
@@ -559,6 +560,8 @@ function MonthCalendarGrid({
 }
 
 export default function ClassPlanningMonthRoute() {
+  // perf-check: ignore-measure — a carga real é instrumentada dentro de useMonthlyPlans.
+  markRender("screen.planningMonth.render.root");
   const { id, month } = useLocalSearchParams<{ id: string; month: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();

@@ -1,7 +1,7 @@
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -13,7 +13,7 @@ import {
   type DocumentSyncProposal,
 } from "../../../src/api/document-intelligence";
 import { getClassById } from "../../../src/db/seed";
-import { markRender } from "../../../src/observability/perf";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { Button } from "../../../src/ui/Button";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -30,8 +30,17 @@ const categoryLabels: Record<DocumentMergeItem["category"], string> = {
 const createIdempotencyKey = () =>
   `document-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
+const styles = StyleSheet.create({
+  categoryGroup: { gap: 8 },
+  categoryTitle: { fontWeight: "800", fontSize: 17 },
+  itemTitle: { fontWeight: "700" },
+  itemReason: { marginTop: 4 },
+  itemUnselected: { opacity: 0.68 },
+  itemSelected: { opacity: 1 },
+});
+
 export default function DocumentSyncScreen() {
-  markRender("screen.document-sync");
+  markRender("screen.documentSync.render.root");
   const router = useRouter();
   const { colors } = useAppTheme();
   const params = useLocalSearchParams<{ id: string; month?: string }>();
@@ -43,6 +52,9 @@ export default function DocumentSyncScreen() {
   const [receipt, setReceipt] = useState<DocumentApplicationReceipt | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const categoryTitleStyle = useMemo(() => [styles.categoryTitle, { color: colors.text }], [colors.text]);
+  const itemTitleStyle = useMemo(() => [styles.itemTitle, { color: colors.text }], [colors.text]);
+  const itemReasonStyle = useMemo(() => [styles.itemReason, { color: colors.muted }], [colors.muted]);
 
   const groups = useMemo(() => {
     const result = new Map<DocumentMergeItem["category"], DocumentMergeItem[]>();
@@ -56,21 +68,24 @@ export default function DocumentSyncScreen() {
     setBusy(true);
     setError("");
     try {
-      const cls = await getClassById(classId);
-      if (!cls?.organizationId) throw new Error("Turma sem workspace ativo.");
-      const redirectTo = Linking.createURL(`/class/${classId}/document-sync`, { queryParams: { month } });
-      const connection = await getDriveConnection(cls.organizationId, redirectTo);
-      if (!connection.connected) {
-        if (!connection.authorizationUrl) throw new Error("Conexão com o Drive indisponível.");
-        await Linking.openURL(connection.authorizationUrl);
-        return;
-      }
-      const result = await analyzeDriveDocument({
-        organizationId: cls.organizationId,
-        classId,
-        month,
-        sourceUrl: sourceUrl.trim(),
+      const result = await measureAsync("screen.documentSync.load.proposal", async () => {
+        const cls = await getClassById(classId);
+        if (!cls?.organizationId) throw new Error("Turma sem workspace ativo.");
+        const redirectTo = Linking.createURL(`/class/${classId}/document-sync`, { queryParams: { month } });
+        const connection = await getDriveConnection(cls.organizationId, redirectTo);
+        if (!connection.connected) {
+          if (!connection.authorizationUrl) throw new Error("Conexão com o Drive indisponível.");
+          await Linking.openURL(connection.authorizationUrl);
+          return null;
+        }
+        return analyzeDriveDocument({
+          organizationId: cls.organizationId,
+          classId,
+          month,
+          sourceUrl: sourceUrl.trim(),
+        });
       });
+      if (!result) return;
       if (!result.proposal) throw new Error("O documento ainda não gerou uma proposta revisável.");
       setProposal(result.proposal);
       setSelectedIds(
@@ -165,8 +180,8 @@ export default function DocumentSyncScreen() {
             </View>
             {([...groups.entries()] as Array<[DocumentMergeItem["category"], DocumentMergeItem[]]>).map(([category, items]) =>
               items.length ? (
-                <View key={category} style={{ gap: 8 }}>
-                  <Text style={{ color: colors.text, fontWeight: "800", fontSize: 17 }}>{categoryLabels[category]}</Text>
+                <View key={category} style={styles.categoryGroup}>
+                  <Text style={categoryTitleStyle}>{categoryLabels[category]}</Text>
                   {items.map((item) => {
                     const selectable = category === "complement" || category === "adjust";
                     const selected = selectedIds.has(item.id);
@@ -180,10 +195,13 @@ export default function DocumentSyncScreen() {
                           if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
                           return next;
                         }) : undefined}
-                        style={[getSectionCardStyle(colors, "neutral", { padding: 12, radius: 12, shadow: false }), { opacity: selectable && !selected ? 0.68 : 1 }]}
+                        style={[
+                          getSectionCardStyle(colors, "neutral", { padding: 12, radius: 12, shadow: false }),
+                          selectable && !selected ? styles.itemUnselected : styles.itemSelected,
+                        ]}
                       >
-                        <Text style={{ color: colors.text, fontWeight: "700" }}>{String(item.proposedValue ?? item.currentValue ?? "")}</Text>
-                        <Text style={{ color: colors.muted, marginTop: 4 }}>{item.reason}</Text>
+                        <Text style={itemTitleStyle}>{String(item.proposedValue ?? item.currentValue ?? "")}</Text>
+                        <Text style={itemReasonStyle}>{item.reason}</Text>
                       </Pressable>
                     );
                   })}
