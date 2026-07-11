@@ -46,7 +46,6 @@ type OverviewTabProps = {
   onRemoveCycle: () => void;
   unitMismatchWarning: string;
   recentSessionSummaries: RecentSessionSummary[];
-  onReviewEvolution: () => void;
 };
 
 export function OverviewTab({
@@ -86,7 +85,6 @@ export function OverviewTab({
   onRemoveCycle,
   unitMismatchWarning,
   recentSessionSummaries,
-  onReviewEvolution,
 }: OverviewTabProps) {
   const { width } = useWindowDimensions();
   const coveredWeeks = new Set(
@@ -109,7 +107,6 @@ export function OverviewTab({
           selectedClass={selectedClass}
           classPlans={classPlans}
           recentSessions={recentSessionSummaries}
-          onReviewEvolution={onReviewEvolution}
         />
         <View style={[getSectionCardStyle(colors, "info", { padding: 16, radius: 18 }), { gap: 12 }]}>
           <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>

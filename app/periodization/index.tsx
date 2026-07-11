@@ -3961,7 +3961,6 @@ export default function PeriodizationScreen() {
             onRemoveCycle={handleRemoveCycle}
             unitMismatchWarning={unitMismatchWarning}
             recentSessionSummaries={recentSessionSummaries}
-            onReviewEvolution={() => setActiveTab("ciclo")}
           />
         ) : null}
 

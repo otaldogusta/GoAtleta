@@ -110,7 +110,6 @@ const defaultProps = {
   onRemoveCycle: jest.fn(),
   unitMismatchWarning: "",
   recentSessionSummaries: [],
-  onReviewEvolution: jest.fn(),
 };
 
 const collectText = (node: TestRenderer.ReactTestInstance): string => {
@@ -166,7 +165,6 @@ describe("OverviewTab", () => {
   });
 
   it("shows the planned versus completed intelligence view for Rede Esperança 8-11", () => {
-    const onReviewEvolution = jest.fn();
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -192,8 +190,13 @@ describe("OverviewTab", () => {
               technicalFocus: "Primeiro contato",
             } as any,
           ],
-          recentSessionSummaries: [],
-          onReviewEvolution,
+          recentSessionSummaries: [
+            {
+              sessionDate: "2026-07-09",
+              participantsCount: 14,
+              reportConclusion: "A turma ainda precisa consolidar o primeiro contato.",
+            } as any,
+          ],
         })
       );
     });
@@ -211,9 +214,9 @@ describe("OverviewTab", () => {
     });
     expect(collectText(completedCard).match(/Realizado/g)).toHaveLength(1);
 
-    const reviewButton = root.findByProps({ accessibilityLabel: "Revisar evolução da turma" });
-    act(() => reviewButton.props.onPress());
-    expect(onReviewEvolution).toHaveBeenCalledTimes(1);
+    expect(findNodeByText(root, "Histórico considerado")).toBeTruthy();
+    expect(findNodeByText(root, "A turma ainda precisa consolidar o primeiro contato.")).toBeTruthy();
+    expect(collectText(root)).not.toContain("Revisar evolução da turma");
 
     const sessionCard = root.findByProps({
       accessibilityLabel: "Abrir detalhes da aula de Ter · 14/07 · 14:00",

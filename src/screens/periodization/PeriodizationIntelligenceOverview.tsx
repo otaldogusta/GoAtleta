@@ -18,7 +18,6 @@ type Props = {
   selectedClass: ClassGroup;
   classPlans: ClassPlan[];
   recentSessions: RecentSessionSummary[];
-  onReviewEvolution: () => void;
 };
 
 const formatSessionDate = (iso: string) => {
@@ -98,7 +97,7 @@ const buildGenericAlignment = (
   };
 };
 
-export function PeriodizationIntelligenceOverview({ colors, selectedClass, classPlans, recentSessions, onReviewEvolution }: Props) {
+export function PeriodizationIntelligenceOverview({ colors, selectedClass, classPlans, recentSessions }: Props) {
   const { width, height } = useWindowDimensions();
   const [selectedSession, setSelectedSession] = useState<JulyAlignmentSession | null>(null);
   const [isCloseHovered, setIsCloseHovered] = useState(false);
@@ -333,28 +332,42 @@ export function PeriodizationIntelligenceOverview({ colors, selectedClass, class
               </View>
             </View>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Revisar evolução da turma"
-            onPress={onReviewEvolution}
-            style={{
-              marginTop: "auto",
-              minHeight: 48,
-              borderRadius: 16,
-              backgroundColor: colors.primaryBg,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              paddingHorizontal: 16,
-            }}
-          >
-            <GoAtletaIcon name="sparkles" size={17} color={colors.primaryText} />
-            <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 14 }}>
-              Revisar evolução da turma
-            </Text>
-            <GoAtletaIcon name="chevronForward" size={16} color={colors.primaryText} />
-          </Pressable>
+          <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10, gap: 7 }}>
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Histórico considerado</Text>
+            <ScrollView
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+              style={{ maxHeight: 180 }}
+              contentContainerStyle={{ gap: 8, paddingRight: 6, paddingBottom: 2 }}
+            >
+              {recentSessions.length ? [...recentSessions]
+                .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate))
+                .map((session, index) => (
+                  <View
+                    key={`${session.sessionDate}-${index}`}
+                    style={{ padding: 10, borderRadius: 14, backgroundColor: colors.secondaryBg, gap: 4 }}
+                  >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                        {session.sessionDate.slice(8, 10)}/{session.sessionDate.slice(5, 7)}/{session.sessionDate.slice(0, 4)}
+                      </Text>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>
+                        {typeof session.participantsCount === "number"
+                          ? `${session.participantsCount} participantes`
+                          : "Participação não informada"}
+                      </Text>
+                    </View>
+                    <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
+                      {session.reportConclusion || "Nenhuma observação registrada."}
+                    </Text>
+                  </View>
+                )) : (
+                <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>Nenhuma evidência registrada para esta turma.</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
         </View>
 
         <View style={[getSectionCardStyle(colors, "neutral", { padding: 16, radius: 18 }), { flex: 1.15, gap: 14 }]}>
