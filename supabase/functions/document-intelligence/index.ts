@@ -169,12 +169,12 @@ const extractDocxText = (bytes: Uint8Array) => {
   const blocks: string[] = [];
   let cursor = 0;
   while (cursor < body.length) {
-    const paragraphAt = body.indexOf("<w:p", cursor);
-    const tableAt = body.indexOf("<w:tbl", cursor);
-    const starts = [paragraphAt, tableAt].filter((position) => position >= 0);
-    if (!starts.length) break;
-    const start = Math.min(...starts);
-    const tag = start === tableAt ? "tbl" : "p";
+    const opening = /<w:(p|tbl)(?:\s[^>]*)?>/g;
+    opening.lastIndex = cursor;
+    const match = opening.exec(body);
+    if (!match) break;
+    const start = match.index;
+    const tag = match[1];
     const end = body.indexOf(`</w:${tag}>`, start);
     if (end < 0) throw new Error("docx_structure_invalid");
     const blockEnd = end + tag.length + 5;
@@ -242,7 +242,13 @@ const processAnalyze = async (body: Record<string, unknown>, userId: string) => 
   const candidates = files.filter((file) => /planejamento|relat[oó]rio/i.test(file.name));
   const processed: Array<{ file: DriveFile; text: string; revisionId: string; duplicateBlocksIgnored: number }> = [];
   for (const file of candidates) {
-    const extracted = await extractText(file, token);
+    let extracted;
+    try {
+      extracted = await extractText(file, token);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`${detail}:${file.name}`);
+    }
     const normalized = extracted.text.replace(/\r\n?/g, "\n").trim();
     const hash = await sha256(normalized || `${file.id}:${file.version ?? file.modifiedTime ?? ""}`);
     const { data: source } = await service.from("document_sources").upsert({
@@ -263,17 +269,22 @@ const processAnalyze = async (body: Record<string, unknown>, userId: string) => 
   if (!plan) return json({ error: "planning_document_not_found" }, 422);
   const dates = [...plan.text.matchAll(/(\d{2})\/(\d{2})\/(20\d{2})/g)].map((m) => `${m[3]}-${m[2]}-${m[1]}`);
   const uniqueDates = [...new Set(dates)];
+  const month = /^\d{4}-\d{2}$/.test(String(body.month ?? "")) ? String(body.month) : uniqueDates[0]?.slice(0, 7);
+  if (!month) return json({ error: "document_period_not_found" }, 422);
+  const periodStart = `${month}-01`;
+  const [year, monthNumber] = month.split("-").map(Number);
+  const periodEnd = new Date(Date.UTC(year, monthNumber, 1)).toISOString().slice(0, 10);
   const { data: classRow } = await service.from("classes").select("id,name,organization_id,unit_id,modality").eq("id", classId).eq("organization_id", organizationId).single();
   if (!classRow) return json({ error: "class_scope_invalid" }, 403);
   const stateQueries = await Promise.all([
-    service.from("class_plans").select("*").eq("organization_id", organizationId).eq("classid", classId).order("weeknumber"),
-    service.from("training_plans").select("*").eq("organization_id", organizationId).eq("classid", classId).order("applydate"),
+    service.from("class_plans").select("*").eq("organization_id", organizationId).eq("classid", classId).gte("startdate", periodStart).lt("startdate", periodEnd).order("weeknumber"),
+    service.from("training_plans").select("*").eq("organization_id", organizationId).eq("classid", classId).gte("applydate", periodStart).lt("applydate", periodEnd).order("applydate"),
     service.from("training_sessions").select("id,title,start_at,end_at,status,type,source,plan_id,updated_at,training_session_classes!inner(class_id)")
-      .eq("organization_id", organizationId).eq("training_session_classes.class_id", classId).order("start_at"),
+      .eq("organization_id", organizationId).eq("training_session_classes.class_id", classId).gte("start_at", periodStart).lt("start_at", periodEnd).order("start_at"),
     service.from("session_logs").select("id,createdat,activity,conclusion,participants_count,rpe,technique")
-      .eq("organization_id", organizationId).eq("classid", classId).order("createdat"),
+      .eq("organization_id", organizationId).eq("classid", classId).gte("createdat", periodStart).lt("createdat", periodEnd).order("createdat"),
     service.from("ai_decision_traces").select("id,decision,reason,confidence,based_on,created_at")
-      .eq("organization_id", organizationId).eq("class_id", classId).order("created_at"),
+      .eq("organization_id", organizationId).eq("class_id", classId).gte("created_at", periodStart).lt("created_at", periodEnd).order("created_at"),
   ]);
   const stateQueryError = stateQueries.find((result) => result.error)?.error;
   if (stateQueryError) throw new Error("planning_state_unavailable");
@@ -297,8 +308,19 @@ const processAnalyze = async (body: Record<string, unknown>, userId: string) => 
     organization_id: organizationId, class_id: classId, period: String(body.month ?? ""),
     state_version: stateVersion, state, captured_by: userId,
   }).select("id").single()).data;
-  const target = plans?.[0];
-  const lowReadiness = (reports ?? []).find((row) => /apenas dois participantes|dois participantes/i.test(row.conclusion ?? ""));
+  const target = plans?.find((entry) => /1x1|2x2/i.test(`${entry.technical_focus ?? ""} ${entry.constraints ?? ""}`)) ?? plans?.[0];
+  const monthNames = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  const targetMonthName = monthNames[monthNumber - 1];
+  const reportDocuments = processed.filter((entry) =>
+    /relat[oó]rio/i.test(entry.file.name) &&
+    (entry.file.name.toLocaleLowerCase("pt-BR").includes(targetMonthName) ||
+      entry.text.toLocaleLowerCase("pt-BR").includes(`mês: ${targetMonthName}`))
+  );
+  const reportText = reportDocuments.map((entry) => entry.text).join("\n");
+  const reportDates = [...new Set([...reportText.matchAll(/(\d{2})\/(\d{2})\/(20\d{2})/g)]
+    .map((match) => `${match[1]}/${match[2]}`))];
+  const lowReadiness = (reports ?? []).find((row) => /apenas dois participantes|dois participantes/i.test(row.conclusion ?? ""))
+    ?? (/apenas dois participantes|dois participantes/i.test(reportText) ? { conclusion: reportText } : undefined);
   const items = [
     { id: crypto.randomUUID(), kind: "complement", target_type: "cycle", target_id: target?.id, target_field: "technical_focus", category: "keep", current_value: target?.technical_focus ?? "Recepção direta", proposed_value: target?.technical_focus ?? "Recepção direta", recommendation: "keep_current", reason: "O foco atual é sustentado pelas evidências realizadas.", recommendation_confidence: .96 },
     ...(target && lowReadiness ? [{ id: crypto.randomUUID(), kind: "conflict", target_type: "cycle", target_id: target.id, target_field: "constraints", category: "adjust", current_value: target.constraints ?? "", proposed_value: "Mini 2x2 condicionado a nova evidência de prontidão.", recommendation: "apply", reason: "Apenas dois participantes executaram a recepção direta adequadamente em 09/07; o avanço deve depender de nova evidência de estabilidade.", recommendation_confidence: .98 }] : []),
@@ -314,7 +336,8 @@ const processAnalyze = async (body: Record<string, unknown>, userId: string) => 
   const proposal = (await service.from("document_merge_proposals").insert({ organization_id: organizationId, class_id: classId, binding_id: binding?.id, snapshot_id: snapshot?.id, snapshot_version: stateVersion, status: "draft", created_by: userId }).select("id").single()).data;
   await service.from("document_merge_items").insert(items.map((entry) => ({ ...entry, organization_id: organizationId, proposal_id: proposal?.id, source_evidence: [{ sourceId: plan.file.id, revisionId: plan.revisionId }] })));
   const completedDates = (sessions ?? []).filter((entry) => entry.status === "completed").map((entry) => String(entry.start_at).slice(8, 10));
-  return json({ proposal: { proposalId: proposal?.id, snapshotVersion: stateVersion, sourceTitle: plan.file.name, className: classRow.name, periodLabel: String(body.month ?? ""), summary: `Encontrei um planejamento com ${uniqueDates.length} aulas. O GoAtleta possui ${plans?.length ?? 0} ciclos, ${sessions?.length ?? 0} sessões e relatórios realizados${completedDates.length ? ` em ${completedDates.join(", ")}` : ""}. Compare as diferenças antes de atualizar.`, items: items.map((entry) => ({ id: entry.id, kind: entry.kind, targetType: entry.target_type, category: entry.category, currentValue: entry.current_value, proposedValue: entry.proposed_value, recommendation: entry.recommendation, reason: entry.reason, recommendationConfidence: entry.recommendation_confidence })) } });
+  const evidenceSummary = reportDates.length ? ` O relatório documental registra evidências em ${reportDates.join(", ")}.` : "";
+  return json({ proposal: { proposalId: proposal?.id, snapshotVersion: stateVersion, sourceTitle: plan.file.name, className: classRow.name, periodLabel: String(body.month ?? ""), summary: `Encontrei um planejamento com ${uniqueDates.length} aulas. No período, o GoAtleta possui ${plans?.length ?? 0} ciclos e ${sessions?.length ?? 0} sessões${completedDates.length ? ` realizadas em ${completedDates.join(", ")}` : ""}.${evidenceSummary} Compare as diferenças antes de atualizar.`, items: items.map((entry) => ({ id: entry.id, kind: entry.kind, targetType: entry.target_type, category: entry.category, currentValue: entry.current_value, proposedValue: entry.proposed_value, recommendation: entry.recommendation, reason: entry.reason, recommendationConfidence: entry.recommendation_confidence })) } });
 };
 
 Deno.serve(async (request) => {
@@ -364,6 +387,10 @@ Deno.serve(async (request) => {
     return json({ error: "unsupported_action" }, 400);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.error("document_intelligence_failed", {
+      message,
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
     return json({ error: message === "unauthorized" ? "unauthorized" : "document_intelligence_failed" }, message === "unauthorized" ? 401 : 500);
   }
 });
