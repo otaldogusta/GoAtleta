@@ -84,11 +84,23 @@ create table public.document_context_bindings (
   created_at timestamptz not null default now()
 );
 
+create table public.document_app_state_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  class_id text not null references public.classes(id) on delete restrict,
+  period text not null,
+  state_version text not null check (state_version ~ '^[a-f0-9]{64}$'),
+  state jsonb not null,
+  captured_by uuid not null references auth.users(id),
+  captured_at timestamptz not null default now()
+);
+
 create table public.document_merge_proposals (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   class_id text not null references public.classes(id) on delete restrict,
   binding_id uuid not null references public.document_context_bindings(id) on delete cascade,
+  snapshot_id uuid not null references public.document_app_state_snapshots(id) on delete restrict,
   snapshot_version text not null,
   status text not null check (status in ('draft','approved','partially_approved','rejected','applied','expired')),
   created_by uuid not null references auth.users(id),
@@ -144,6 +156,7 @@ create table public.document_change_application_items (
 create index document_sources_org_class on public.document_sources(organization_id, class_id);
 create index document_revisions_source_created on public.document_source_revisions(source_id, created_at desc);
 create index document_proposals_org_class on public.document_merge_proposals(organization_id, class_id, created_at desc);
+create index document_snapshots_org_class on public.document_app_state_snapshots(organization_id, class_id, captured_at desc);
 create index document_items_proposal on public.document_merge_items(proposal_id);
 create index document_applications_proposal on public.document_change_applications(proposal_id, applied_at desc);
 
@@ -169,6 +182,16 @@ create trigger document_sources_validate_scope before insert or update on public
 for each row execute function public.validate_document_context_scope();
 create trigger document_bindings_validate_scope before insert or update on public.document_context_bindings
 for each row execute function public.validate_document_context_scope();
+create or replace function public.validate_document_snapshot_scope()
+returns trigger language plpgsql security invoker set search_path = public as $$
+begin
+  if not exists (select 1 from public.classes c where c.id = new.class_id and c.organization_id = new.organization_id) then
+    raise exception 'class does not belong to organization';
+  end if;
+  return new;
+end $$;
+create trigger document_snapshots_validate_scope before insert or update on public.document_app_state_snapshots
+for each row execute function public.validate_document_snapshot_scope();
 
 alter table public.google_drive_connections enable row level security;
 alter table public.google_drive_oauth_states enable row level security;
@@ -176,6 +199,7 @@ alter table public.document_sources enable row level security;
 alter table public.document_source_revisions enable row level security;
 alter table public.document_interpretations enable row level security;
 alter table public.document_context_bindings enable row level security;
+alter table public.document_app_state_snapshots enable row level security;
 alter table public.document_merge_proposals enable row level security;
 alter table public.document_merge_items enable row level security;
 alter table public.document_change_applications enable row level security;
@@ -196,7 +220,7 @@ declare t text;
 begin
   foreach t in array array[
     'google_drive_connections','document_sources','document_source_revisions',
-    'document_interpretations','document_context_bindings','document_merge_proposals',
+    'document_interpretations','document_context_bindings','document_app_state_snapshots','document_merge_proposals',
     'document_merge_items','document_change_applications','document_change_application_items'
   ] loop
     execute format('create policy %I on public.%I for select to authenticated using (public.can_manage_document_org(organization_id))', t || '_select', t);
@@ -217,17 +241,25 @@ revoke all on table public.google_drive_connections from authenticated;
 grant select (id, organization_id, user_id, scopes, google_account_email, expires_at, created_at, updated_at)
   on table public.google_drive_connections to authenticated;
 grant select, insert on table public.document_sources, public.document_source_revisions,
-  public.document_interpretations, public.document_context_bindings,
+  public.document_interpretations, public.document_context_bindings, public.document_app_state_snapshots,
   public.document_merge_proposals, public.document_merge_items,
   public.document_change_applications, public.document_change_application_items to authenticated;
 
 create or replace function public.document_planning_state_version(_organization_id uuid, _class_id text)
 returns text language sql stable security invoker set search_path = public as $$
-  select encode(digest(coalesce(string_agg(
-    cp.id || ':' || coalesce(cp.updated_at::text, cp.updatedat::text, cp.createdat::text, ''),
-    '|' order by cp.id), ''), 'sha256'), 'hex')
-  from public.class_plans cp
-  where cp.organization_id = _organization_id and cp.classid = _class_id;
+  select encode(digest(jsonb_build_object(
+    'cycles', coalesce((select jsonb_agg(to_jsonb(cp) order by cp.id) from public.class_plans cp
+      where cp.organization_id = _organization_id and cp.classid = _class_id), '[]'::jsonb),
+    'planning', coalesce((select jsonb_agg(to_jsonb(tp) order by tp.id) from public.training_plans tp
+      where tp.organization_id = _organization_id and tp.classid = _class_id), '[]'::jsonb),
+    'sessions', coalesce((select jsonb_agg(to_jsonb(ts) order by ts.id) from public.training_sessions ts
+      join public.training_session_classes tsc on tsc.session_id = ts.id
+      where ts.organization_id = _organization_id and tsc.class_id = _class_id), '[]'::jsonb),
+    'reports', coalesce((select jsonb_agg(to_jsonb(sl) order by sl.id) from public.session_logs sl
+      where sl.organization_id = _organization_id and sl.classid = _class_id), '[]'::jsonb),
+    'decisions', coalesce((select jsonb_agg(to_jsonb(dt) order by dt.id) from public.ai_decision_traces dt
+      where dt.organization_id = _organization_id and dt.class_id = _class_id), '[]'::jsonb)
+  )::text, 'sha256'), 'hex');
 $$;
 
 create or replace function public.apply_approved_document_changes(
