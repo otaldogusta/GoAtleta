@@ -44,6 +44,14 @@ const monthLabel = (dateValue?: string) => {
   return value.replace(/^./, (letter) => letter.toUpperCase());
 };
 
+const formatDominantBlock = (value?: string) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (normalized === "main") return "Parte principal";
+  if (normalized === "warmup") return "Aquecimento";
+  if (normalized === "cooldown") return "Volta à calma";
+  return String(value ?? "").trim() || "Sessão realizada";
+};
+
 const buildGenericAlignment = (
   classPlans: ClassPlan[],
   recentSessions: RecentSessionSummary[]
@@ -68,7 +76,7 @@ const buildGenericAlignment = (
     .slice(0, Math.max(0, 6 - sessions.length))
     .map<JulyAlignmentSession>((evidence) => ({
       date: evidence.sessionDate,
-      plannedTitle: evidence.dominantBlock || "Sessão realizada",
+      plannedTitle: formatDominantBlock(evidence.dominantBlock),
       plannedFocus: evidence.reportConclusion || "Evidência registrada pelo professor",
       state: "completed",
       participantsCount: evidence.participantsCount,

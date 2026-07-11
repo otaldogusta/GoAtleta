@@ -268,4 +268,29 @@ describe("OverviewTab", () => {
     expect(content).not.toContain("Mini 2x2");
     expect(content).not.toContain("Portão de prontidão");
   });
+
+  it("translates internal session block names for professors", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(OverviewTab, {
+          ...defaultProps,
+          classPlans: [],
+          hasWeekPlans: false,
+          recentSessionSummaries: [
+            {
+              sessionDate: "2026-04-14",
+              dominantBlock: "main",
+              participantsCount: 12,
+            } as any,
+          ],
+        })
+      );
+    });
+
+    const content = collectText(renderer!.root);
+    expect(content).toContain("Parte principal");
+    expect(content).not.toMatch(/\bmain\b/);
+  });
 });
