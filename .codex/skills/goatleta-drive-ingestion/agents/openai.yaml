@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Drive Ingestion"
+  short_description: "Projeta ingestao documental rastreavel"
+  default_prompt: "Use $goatleta-drive-ingestion para projetar fontes e sincronizacao documental do GoAtleta."

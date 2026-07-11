@@ -1,0 +1,4 @@
+interface:
+  display_name: "GoAtleta Context Reconciliation"
+  short_description: "Compara documentos com o estado atual"
+  default_prompt: "Use $goatleta-context-reconciliation para classificar diferencas entre documentos e o GoAtleta."
