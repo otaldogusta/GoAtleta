@@ -156,7 +156,7 @@ export default function DocumentSyncScreen() {
         </View>
 
         {!proposal && !receipt ? (
-          <View style={[getSectionCardStyle(colors, "primary", { padding: 16, radius: 16 }), { gap: 12 }]}>
+          <View style={[getSectionCardStyle(colors, "neutral", { padding: 16, radius: 16, shadow: false }), { gap: 12 }]}>
             <Text style={{ color: colors.text, fontWeight: "700" }}>Link da pasta ou documento</Text>
             <TextInput
               value={sourceUrl}
@@ -217,7 +217,7 @@ export default function DocumentSyncScreen() {
         ) : null}
 
         {receipt ? (
-          <View style={[getSectionCardStyle(colors, "primary", { padding: 16, radius: 16 }), { gap: 10 }]}>
+          <View style={[getSectionCardStyle(colors, "neutral", { padding: 16, radius: 16, shadow: false }), { gap: 10 }]}>
             <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{receipt.undoneAt ? "Atualização desfeita" : "Planejamento atualizado"}</Text>
             <Text style={{ color: colors.muted }}>{receipt.appliedItemIds.length} item(ns) registrado(s) no histórico.</Text>
             {!receipt.undoneAt ? <Button label="Desfazer atualização" variant="secondary" onPress={() => void undo()} disabled={busy} /> : null}

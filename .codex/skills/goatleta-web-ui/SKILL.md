@@ -21,6 +21,8 @@ description: Criar, revisar ou refatorar interfaces web responsivas do GoAtleta.
 - Usar tokens de cor, spacing, radius e sombra; não criar equivalentes locais.
 - Manter uma ação primária por região e ocultar ações sem utilidade para o papel atual.
 - Não repetir atribuição à IA quando um marcador visual já estabelece o contexto.
+- Superfícies de IA seguem os mesmos cards neutros do produto; não usar borda neon, glow, gradiente ou contorno decorativo permanente para comunicar inteligência.
+- Preservar foco visível por teclado com o padrão acessível dos controles; não confundir foco funcional com destaque decorativo de IA.
 - Manter componentes de domínio sem consultas diretas; receber dados e callbacks por props.
 
 ## Validação
