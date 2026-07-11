@@ -1688,7 +1688,22 @@ export default function AssistantScreen() {
                   <View style={{ gap: 8 }}>
                     <Text style={{ color: colors.muted, fontSize: 13 }}>{receipt.appliedItemIds.length} item(ns) registrado(s) no histórico.</Text>
                     {!receipt.undoneAt ? <Button label="Desfazer" variant="secondary" onPress={() => void undoAssistantDocumentApplication(index, proposal, receipt)} disabled={loading} /> : null}
-                    <Button label="Ver alterações" variant="outline" onPress={() => openDocumentReview(index, proposal, receipt)} />
+                    <Button
+                      label="Ver alterações"
+                      variant="outline"
+                      onPress={() => {
+                        if (!classId) return;
+                        router.push({
+                          pathname: "/class/[id]/periodization",
+                          params: {
+                            id: classId,
+                            classId,
+                            unit: selectedClass?.unit ?? "",
+                            backTo: `/class/${classId}`,
+                          },
+                        });
+                      }}
+                    />
                   </View>
                 ) : (
                   <View style={{ gap: 8 }}>
@@ -1703,7 +1718,7 @@ export default function AssistantScreen() {
           </View>
         );
       }),
-    [analyzeDocumentForClass, applyAssistantDocumentProposal, classId, colors.background, colors.border, colors.inputBg, colors.muted, colors.primaryBg, colors.primaryText, colors.text, isDesktopLayout, loading, messages, openDocumentReview, params.month, replaceDocumentMessage, router, undoAssistantDocumentApplication]
+    [analyzeDocumentForClass, applyAssistantDocumentProposal, classId, colors.background, colors.border, colors.inputBg, colors.muted, colors.primaryBg, colors.primaryText, colors.text, isDesktopLayout, loading, messages, openDocumentReview, params.month, replaceDocumentMessage, router, selectedClass?.unit, undoAssistantDocumentApplication]
   );
 
   return (

@@ -1040,7 +1040,7 @@ export default function ClassPlanningMonthRoute() {
               params: {
                 classId,
                 month: monthKey,
-                source: "planning-document-sync",
+                source: "planning-document-assistant",
               },
             })}
             style={{
