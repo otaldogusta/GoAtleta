@@ -515,7 +515,7 @@ export default function AssistantScreen() {
   const [nextClassSuggestion, setNextClassSuggestion] = useState<NextClassSuggestion | null>(null);
   const [simulationResult, setSimulationResult] = useState<EvolutionSimulationResult | null>(null);
   const [memoryContextHints, setMemoryContextHints] = useState<string[]>([]);
-  const [documentReview, setDocumentReview] = useState<{ messageIndex: number; proposal: DocumentSyncProposal } | null>(null);
+  const [documentReview, setDocumentReview] = useState<{ messageIndex: number; proposal: DocumentSyncProposal; receipt?: DocumentApplicationReceipt } | null>(null);
   const [documentReviewIds, setDocumentReviewIds] = useState<Set<string>>(new Set());
   const [composerHeight, setComposerHeight] = useState(0);
   const [composerInputHeight, setComposerInputHeight] = useState(COMPOSER_MIN_HEIGHT);
@@ -1074,9 +1074,9 @@ export default function AssistantScreen() {
     }
   }, [replaceDocumentMessage]);
 
-  const openDocumentReview = useCallback((messageIndex: number, proposal: DocumentSyncProposal) => {
-    setDocumentReview({ messageIndex, proposal });
-    setDocumentReviewIds(new Set(proposal.items.filter((item) => item.recommendation === "apply").map((item) => item.id)));
+  const openDocumentReview = useCallback((messageIndex: number, proposal: DocumentSyncProposal, receipt?: DocumentApplicationReceipt) => {
+    setDocumentReview({ messageIndex, proposal, receipt });
+    setDocumentReviewIds(new Set(receipt?.appliedItemIds ?? proposal.items.filter((item) => item.recommendation === "apply").map((item) => item.id)));
   }, []);
 
   const analyzeDocumentForClass = useCallback(async (messageIndex: number, driveUrl: string, targetClassId: string) => {
@@ -1688,7 +1688,7 @@ export default function AssistantScreen() {
                   <View style={{ gap: 8 }}>
                     <Text style={{ color: colors.muted, fontSize: 13 }}>{receipt.appliedItemIds.length} item(ns) registrado(s) no histórico.</Text>
                     {!receipt.undoneAt ? <Button label="Desfazer" variant="secondary" onPress={() => void undoAssistantDocumentApplication(index, proposal, receipt)} disabled={loading} /> : null}
-                    <Button label="Ver alterações" variant="outline" onPress={() => router.push({ pathname: "/class/[id]/document-sync", params: { id: classId, month: String(params.month ?? proposal.periodLabel) } })} />
+                    <Button label="Ver alterações" variant="outline" onPress={() => openDocumentReview(index, proposal, receipt)} />
                   </View>
                 ) : (
                   <View style={{ gap: 8 }}>
@@ -2409,7 +2409,7 @@ export default function AssistantScreen() {
           <View style={{ width: isDesktopLayout ? 520 : "100%", maxHeight: "88%", backgroundColor: colors.card, borderRadius: isDesktopLayout ? 18 : 20, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 12 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>Revisar item por item</Text>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{documentReview?.receipt ? "Alterações aplicadas" : "Revisar item por item"}</Text>
                 <Text style={{ color: colors.muted, fontSize: 13 }}>{documentReviewIds.size} alteração(ões) selecionada(s)</Text>
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="Fechar revisão" onPress={() => setDocumentReview(null)}>
@@ -2418,7 +2418,7 @@ export default function AssistantScreen() {
             </View>
             <ScrollView contentContainerStyle={{ gap: 8 }}>
               {documentReview?.proposal.items.map((item) => {
-                const selectable = item.recommendation === "apply" || item.recommendation === "review";
+                const selectable = !documentReview.receipt && (item.recommendation === "apply" || item.recommendation === "review");
                 const selected = documentReviewIds.has(item.id);
                 return (
                   <Pressable
@@ -2442,14 +2442,16 @@ export default function AssistantScreen() {
                 );
               })}
             </ScrollView>
-            <Button
-              label="Aplicar itens selecionados"
-              disabled={loading || documentReviewIds.size === 0 || !documentReview}
-              onPress={() => {
-                if (!documentReview) return;
-                void applyAssistantDocumentProposal(documentReview.messageIndex, documentReview.proposal, false, [...documentReviewIds]).then(() => setDocumentReview(null));
-              }}
-            />
+            {!documentReview?.receipt ? (
+              <Button
+                label="Aplicar itens selecionados"
+                disabled={loading || documentReviewIds.size === 0 || !documentReview}
+                onPress={() => {
+                  if (!documentReview) return;
+                  void applyAssistantDocumentProposal(documentReview.messageIndex, documentReview.proposal, false, [...documentReviewIds]).then(() => setDocumentReview(null));
+                }}
+              />
+            ) : null}
             <Button
               label="Ver análise completa"
               variant="outline"
