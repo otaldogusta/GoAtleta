@@ -1,7 +1,7 @@
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -31,17 +31,29 @@ const createIdempotencyKey = () =>
   `document-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 const styles = StyleSheet.create({
-  categoryGroup: { gap: 8 },
-  categoryTitle: { fontWeight: "800", fontSize: 17 },
+  page: { maxWidth: 1120, alignSelf: "center", padding: 24, gap: 20, paddingBottom: 48 },
+  pageCompact: { padding: 16, gap: 16 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12 },
+  proposalGrid: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
+  proposalColumn: { flex: 1, gap: 16, minWidth: 0 },
+  proposalAside: { width: 340, gap: 16 },
+  categoryGroup: { gap: 12 },
+  categoryTitle: { fontWeight: "800", fontSize: 16 },
+  categoryCount: { fontWeight: "700", fontSize: 12 },
+  item: { paddingVertical: 12, paddingHorizontal: 12, borderRadius: 10 },
   itemTitle: { fontWeight: "700" },
   itemReason: { marginTop: 4 },
   itemUnselected: { opacity: 0.68 },
   itemSelected: { opacity: 1 },
+  actionGroup: { gap: 8 },
 });
 
 export default function DocumentSyncScreen() {
   markRender("screen.documentSync.render.root");
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 1500;
+  const contentWidth = width >= 900 ? Math.min(1120, width - 360) : width;
   const { colors } = useAppTheme();
   const params = useLocalSearchParams<{ id: string; month?: string }>();
   const classId = typeof params.id === "string" ? params.id : "";
@@ -148,10 +160,50 @@ export default function DocumentSyncScreen() {
     }
   };
 
+  const renderCategory = (category: DocumentMergeItem["category"]) => {
+    const items = groups.get(category) ?? [];
+    if (!items.length) return null;
+    return (
+      <View key={category} style={[getSectionCardStyle(colors, "neutral", { padding: 14, radius: 14, shadow: false }), styles.categoryGroup]}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Text style={categoryTitleStyle}>{categoryLabels[category]}</Text>
+          <Text style={[styles.categoryCount, { color: colors.muted }]}>{items.length} {items.length === 1 ? "item" : "itens"}</Text>
+        </View>
+        {items.map((item) => {
+          const selectable = category === "complement" || category === "adjust";
+          const selected = selectedIds.has(item.id);
+          return (
+            <Pressable
+              key={item.id}
+              accessibilityRole={selectable ? "checkbox" : undefined}
+              accessibilityState={selectable ? { checked: selected } : undefined}
+              onPress={selectable ? () => setSelectedIds((current) => {
+                const next = new Set(current);
+                if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                return next;
+              }) : undefined}
+              style={[
+                styles.item,
+                { backgroundColor: selectable && selected ? colors.inputBg : "transparent" },
+                selectable && !selected ? styles.itemUnselected : styles.itemSelected,
+              ]}
+            >
+              <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                <Text style={[itemTitleStyle, { flex: 1 }]}>{String(item.proposedValue ?? item.currentValue ?? "")}</Text>
+                {selectable ? <Text style={{ color: selected ? colors.primaryBg : colors.muted, fontSize: 12, fontWeight: "800" }}>{selected ? "Selecionado" : "Selecionar"}</Text> : null}
+              </View>
+              <Text style={itemReasonStyle}>{item.reason}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ width: "100%", maxWidth: 1040, alignSelf: "center", padding: 16, gap: 16, paddingBottom: 48 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+      <ScrollView contentContainerStyle={[styles.page, { width: contentWidth }, !isWide && styles.pageCompact]}>
+        <View style={styles.header}>
           <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={returnToPlanning}>
             <Text style={{ color: colors.text, fontSize: 24 }}>‹</Text>
           </Pressable>
@@ -179,45 +231,28 @@ export default function DocumentSyncScreen() {
 
         {proposal && !receipt ? (
           <>
-            <View style={[getSectionCardStyle(colors, "neutral", { padding: 14, radius: 14 }), { gap: 5 }]}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>{proposal.sourceTitle}</Text>
+            <View style={[getSectionCardStyle(colors, "neutral", { padding: 16, radius: 14, shadow: false }), { gap: 6 }]}>
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800", textTransform: "uppercase" }}>Documento analisado</Text>
+              <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{proposal.sourceTitle}</Text>
               <Text style={{ color: colors.muted }}>{proposal.className} · {proposal.periodLabel}</Text>
-              <Text style={{ color: colors.text }}>{proposal.summary}</Text>
+              <Text style={{ color: colors.text, lineHeight: 22 }}>{proposal.summary}</Text>
             </View>
-            {([...groups.entries()] as Array<[DocumentMergeItem["category"], DocumentMergeItem[]]>).map(([category, items]) =>
-              items.length ? (
-                <View key={category} style={styles.categoryGroup}>
-                  <Text style={categoryTitleStyle}>{categoryLabels[category]}</Text>
-                  {items.map((item) => {
-                    const selectable = category === "complement" || category === "adjust";
-                    const selected = selectedIds.has(item.id);
-                    return (
-                      <Pressable
-                        key={item.id}
-                        accessibilityRole={selectable ? "checkbox" : undefined}
-                        accessibilityState={selectable ? { checked: selected } : undefined}
-                        onPress={selectable ? () => setSelectedIds((current) => {
-                          const next = new Set(current);
-                          if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
-                          return next;
-                        }) : undefined}
-                        style={[
-                          getSectionCardStyle(colors, "neutral", { padding: 12, radius: 12, shadow: false }),
-                          selectable && !selected ? styles.itemUnselected : styles.itemSelected,
-                        ]}
-                      >
-                        <Text style={itemTitleStyle}>{String(item.proposedValue ?? item.currentValue ?? "")}</Text>
-                        <Text style={itemReasonStyle}>{item.reason}</Text>
-                      </Pressable>
-                    );
-                  })}
+            <View style={isWide ? styles.proposalGrid : styles.proposalColumn}>
+              <View style={styles.proposalColumn}>
+                {renderCategory("keep")}
+                {renderCategory("complement")}
+                {renderCategory("ignore")}
+              </View>
+              <View style={isWide ? styles.proposalAside : styles.proposalColumn}>
+                {renderCategory("adjust")}
+                <View style={[getSectionCardStyle(colors, "neutral", { padding: 14, radius: 14, shadow: false }), styles.actionGroup]}>
+                  <Text style={{ color: colors.text, fontWeight: "800" }}>{selectedIds.size} {selectedIds.size === 1 ? "alteração selecionada" : "alterações selecionadas"}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Revise a seleção antes de atualizar o planejamento.</Text>
+                  <Button label="Aplicar selecionados" onPress={() => void applySelected()} disabled={busy || selectedIds.size === 0} />
+                  <Button label="Somente complementar" variant="secondary" onPress={() => void applySelected(true)} disabled={busy} />
+                  <Button label="Cancelar" variant="ghost" onPress={returnToPlanning} disabled={busy} />
                 </View>
-              ) : null
-            )}
-            <View style={{ gap: 8 }}>
-              <Button label="Aplicar recomendados" onPress={() => void applySelected()} disabled={busy} />
-              <Button label="Somente complementar" variant="secondary" onPress={() => void applySelected(true)} disabled={busy} />
-              <Button label="Cancelar" variant="ghost" onPress={returnToPlanning} disabled={busy} />
+              </View>
             </View>
           </>
         ) : null}
