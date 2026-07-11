@@ -5,6 +5,7 @@ import type { ClassGroup } from "../../core/models";
 import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
 import { type ThemeColors } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
+import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
 import { getSectionCardStyle } from "../../ui/section-styles";
 import { CyclePlanTable, type CyclePlanTableProps, type WeekPlan } from "./CyclePlanTable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -196,6 +197,39 @@ export function CycleTab({
 
   return (
     <>
+
+      <ModalDialogFrame
+        visible={showAcwrReference}
+        onClose={() => setShowAcwrReference(false)}
+        cardStyle={{ width: "100%", maxWidth: 520, padding: 18 }}
+        position="center"
+        colors={colors}
+        title="Como interpretar o ACWR"
+        subtitle={`Referência para ${selectedClass?.ageBand || "faixa etária não informada"}`}
+      >
+        <View style={{ gap: 14 }}>
+          <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+            Não existe um corte validado exclusivamente para esta faixa etária. O gráfico usa a referência geral mais estudada como apoio ao monitoramento.
+          </Text>
+          <View style={{ gap: 7 }}>
+            <View style={{ height: 20, borderRadius: 10, overflow: "hidden", flexDirection: "row" }}>
+              <View style={{ flex: 0.8, backgroundColor: colors.infoBg }} />
+              <View style={{ flex: 0.5, backgroundColor: colors.successBg }} />
+              <View style={{ flex: 0.7, backgroundColor: colors.warningBg }} />
+            </View>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+              <Text style={{ color: colors.muted, fontSize: 10 }}>Abaixo de 0,8</Text>
+              <Text style={{ color: colors.successText, fontSize: 10, fontWeight: "800" }}>Referência 0,8–1,3</Text>
+              <Text style={{ color: colors.warningText, fontSize: 10 }}>Acima de 1,3</Text>
+            </View>
+          </View>
+          <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
+            <Text style={{ color: colors.text, fontSize: 11, lineHeight: 17 }}>
+              Use junto com dor, recuperação, participação e observação do professor. ACWR isolado não prevê lesão.
+            </Text>
+          </View>
+        </View>
+      </ModalDialogFrame>
 
       <CyclePlanTable
         colors={colors}
@@ -406,38 +440,13 @@ export function CycleTab({
                 onPress={() => setShowAcwrReference((visible) => !visible)}
                 style={{ width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningText }}
               >
-                <Text style={{ color: colors.warningText, fontSize: 13, fontWeight: "900" }}>!</Text>
+                <Text style={{ color: colors.warningText, fontSize: 13, fontWeight: "900" }}>?</Text>
               </Pressable>
             </View>
           </View>
           <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
             Compara a carga recente com a carga habitual da turma. A referência recomendada fica entre 0,8 e 1,3.
           </Text>
-          {showAcwrReference ? (
-            <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border, gap: 10 }}>
-              <View style={{ gap: 3 }}>
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>Referência de ACWR · {selectedClass?.ageBand || "faixa etária não informada"}</Text>
-                <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
-                  Não existe um corte validado exclusivamente para esta faixa etária. O gráfico usa a referência geral mais estudada como apoio ao monitoramento.
-                </Text>
-              </View>
-              <View style={{ gap: 5 }}>
-                <View style={{ height: 16, borderRadius: 8, overflow: "hidden", flexDirection: "row" }}>
-                  <View style={{ flex: 0.8, backgroundColor: colors.infoBg }} />
-                  <View style={{ flex: 0.5, backgroundColor: colors.successBg }} />
-                  <View style={{ flex: 0.7, backgroundColor: colors.warningBg }} />
-                </View>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-                  <Text style={{ color: colors.muted, fontSize: 9 }}>Abaixo de 0,8</Text>
-                  <Text style={{ color: colors.successText, fontSize: 9, fontWeight: "800" }}>Referência 0,8–1,3</Text>
-                  <Text style={{ color: colors.warningText, fontSize: 9 }}>Acima de 1,3</Text>
-                </View>
-              </View>
-              <Text style={{ color: colors.muted, fontSize: 9, lineHeight: 14 }}>
-                Use junto com dor, recuperação, participação e observação do professor. ACWR isolado não prevê lesão.
-              </Text>
-            </View>
-          ) : null}
 
           <View style={{ flexDirection: "row", gap: 12 }}>
 
