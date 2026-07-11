@@ -427,21 +427,23 @@ export function CycleTab({
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
-              Faixa segura de carga
-            </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.inputBg }}>
-                <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>Configuração avançada</Text>
-              </View>
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                Faixa segura de carga
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Entender referência de carga"
                 onPress={() => setShowAcwrReference((visible) => !visible)}
-                style={{ width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.warningBg, borderWidth: 1, borderColor: colors.warningText }}
+                style={{ width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }}
               >
-                <Text style={{ color: colors.warningText, fontSize: 13, fontWeight: "900" }}>?</Text>
+                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "900" }}>?</Text>
               </Pressable>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.inputBg }}>
+                <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>Configuração avançada</Text>
+              </View>
             </View>
           </View>
           <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
