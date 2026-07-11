@@ -53,6 +53,19 @@ export type DocumentMergeTarget =
   | "student_enrollment"
   | "student_progression";
 
+export type OrganizationalRecommendation = {
+  type:
+    | "split_class"
+    | "move_student"
+    | "trial_in_another_class"
+    | "keep_and_adapt"
+    | "observe_longer";
+  evidence: string[];
+  confidence: number;
+  observationCount: number;
+  status: "detected" | "under_review" | "accepted" | "dismissed";
+};
+
 export type ReconciliationKind =
   | "new_information"
   | "complement"

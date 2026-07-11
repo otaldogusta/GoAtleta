@@ -4,13 +4,25 @@ create table public.google_drive_connections (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
-  refresh_token_secret_id uuid not null,
+  refresh_token_secret_id uuid,
+  refresh_token_ciphertext text,
+  refresh_token_iv text,
   scopes text[] not null default array['https://www.googleapis.com/auth/drive.readonly'],
   google_account_email text,
   expires_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (organization_id, user_id)
+);
+
+create table public.google_drive_oauth_states (
+  state text primary key,
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  code_verifier text not null,
+  redirect_to text not null,
+  expires_at timestamptz not null default (now() + interval '10 minutes'),
+  created_at timestamptz not null default now()
 );
 
 create table public.document_sources (
@@ -159,6 +171,7 @@ create trigger document_bindings_validate_scope before insert or update on publi
 for each row execute function public.validate_document_context_scope();
 
 alter table public.google_drive_connections enable row level security;
+alter table public.google_drive_oauth_states enable row level security;
 alter table public.document_sources enable row level security;
 alter table public.document_source_revisions enable row level security;
 alter table public.document_interpretations enable row level security;
@@ -201,7 +214,8 @@ with check (public.can_manage_document_org(organization_id));
 grant update on table public.document_merge_proposals, public.document_change_applications to authenticated;
 
 revoke all on table public.google_drive_connections from authenticated;
-grant select, insert on table public.google_drive_connections to authenticated;
+grant select (id, organization_id, user_id, scopes, google_account_email, expires_at, created_at, updated_at)
+  on table public.google_drive_connections to authenticated;
 grant select, insert on table public.document_sources, public.document_source_revisions,
   public.document_interpretations, public.document_context_bindings,
   public.document_merge_proposals, public.document_merge_items,
