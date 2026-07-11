@@ -61,7 +61,8 @@ const getVolumePalette = (level: VolumeLevel, colors: ThemeColors) => {
 };
 
 const normalizeAcwrInput = (value: string, maximum: number) => {
-  const normalized = value.replace(",", ".").trim();
+  const raw = value.replace(",", ".").trim();
+  const normalized = /^\d{2}$/.test(raw) ? `${raw[0]}.${raw[1]}` : raw;
   if (!/^\d?(?:\.\d?)?$/.test(normalized)) return null;
   if (!normalized || normalized === ".") return normalized;
   const numericValue = Number(normalized);
@@ -493,7 +494,7 @@ export function CycleTab({
           </View>
 
           <Text style={{ color: colors.muted, fontSize: 10 }}>
-            Os valores são salvos automaticamente para esta turma.
+            Digite 13 para 1,3 ou 08 para 0,8. Os valores são salvos automaticamente para esta turma.
           </Text>
 
           { acwrLimitError ? (
