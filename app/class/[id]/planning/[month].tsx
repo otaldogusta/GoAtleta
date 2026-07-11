@@ -917,6 +917,25 @@ export default function ClassPlanningMonthRoute() {
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Abrir sincronização inteligente"
+              onPress={() => router.push({ pathname: "/class/[id]/document-sync", params: { id: classId, month: monthKey } })}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                borderRadius: 12,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <GoAtletaIcon name="sparkles" size={14} color={colors.text} />
+              <Text style={{ color: colors.text, fontWeight: "600", fontSize: 12 }}>Sincronizar</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel="Exportar plano mensal"
               onPress={() => {
                 void handleExportMonthPdf();
