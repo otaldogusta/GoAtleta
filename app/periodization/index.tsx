@@ -3286,8 +3286,12 @@ export default function PeriodizationScreen() {
         // Non-blocking — cycle creation is best-effort
       }
     }
-    handleGenerateAction("all");
-  }, [handleGenerateAction, selectedClass]);
+    if (hasWeekPlans) {
+      handleGenerateAction("all");
+      return;
+    }
+    handleGenerateMode("all");
+  }, [handleGenerateAction, handleGenerateMode, hasWeekPlans, selectedClass]);
 
   const handleRemoveCycle = useCallback(() => {
     if (!selectedClass || isSavingPlans) return;
