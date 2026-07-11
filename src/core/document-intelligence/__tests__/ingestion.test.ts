@@ -73,6 +73,9 @@ describe("document intelligence ingestion", () => {
   it("detects unchanged revisions and updated content", () => {
     expect(classifyDocumentSync({ ...baseSource }, baseSource)).toBe("unchanged");
     expect(
+      classifyDocumentSync({ ...baseSource, externalRevisionId: "rev-2" }, baseSource)
+    ).toBe("unchanged");
+    expect(
       classifyDocumentSync(
         { ...baseSource, externalRevisionId: "rev-2", contentHash: HASH_B },
         baseSource
@@ -80,10 +83,64 @@ describe("document intelligence ingestion", () => {
     ).toBe("updated");
   });
 
+  it("rejects comparisons between different sources in the same workspace", () => {
+    expect(() =>
+      classifyDocumentSync(
+        { ...baseSource, id: "source-2", externalId: "doc-2" },
+        baseSource
+      )
+    ).toThrow(/fontes documentais diferentes/);
+  });
+
+  it("accepts the same external source when the internal id changes", () => {
+    expect(classifyDocumentSync({ ...baseSource, id: "source-2" }, baseSource)).toBe(
+      "unchanged"
+    );
+  });
+
   it("blocks cross-workspace comparisons", () => {
     expect(() =>
       classifyDocumentSync({ ...baseSource, organizationId: "org-2" }, baseSource)
     ).toThrow(/workspaces diferentes/);
+  });
+
+  it.each([
+    ["programId", "programBelongsToOrganization", "programa"],
+    ["modalityId", "modalityBelongsToOrganization", "modalidade"],
+    ["classId", "classBelongsToOrganization", "turma"],
+  ] as const)("requires validation when %s is present", async (idKey, validatorKey, label) => {
+    await expect(
+      ingestDocumentSource(
+        {
+          id: "source-1",
+          organizationId: "org-1",
+          [idKey]: "context-1",
+          provider: "pasted_text",
+          filename: "texto.txt",
+          mimeType: "text/plain",
+          content: "conteúdo",
+        },
+        { sha256: async () => HASH_A }
+      )
+    ).rejects.toThrow(new RegExp(`pertencimento (?:do|da) ${label}`));
+
+    await expect(
+      ingestDocumentSource(
+        {
+          id: "source-1",
+          organizationId: "org-1",
+          [idKey]: "context-1",
+          provider: "pasted_text",
+          filename: "texto.txt",
+          mimeType: "text/plain",
+          content: "conteúdo",
+        },
+        {
+          sha256: async () => HASH_A,
+          [validatorKey]: async () => false,
+        }
+      )
+    ).rejects.toThrow(new RegExp(`${label} não pertence`));
   });
 
   it.each([
