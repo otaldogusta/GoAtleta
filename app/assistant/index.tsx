@@ -2452,15 +2452,6 @@ export default function AssistantScreen() {
                 }}
               />
             ) : null}
-            <Button
-              label="Ver análise completa"
-              variant="outline"
-              onPress={() => {
-                if (!documentReview) return;
-                router.push({ pathname: "/class/[id]/document-sync", params: { id: classId, month: String(params.month ?? documentReview.proposal.periodLabel) } });
-                setDocumentReview(null);
-              }}
-            />
           </View>
         </View>
       </Modal>
