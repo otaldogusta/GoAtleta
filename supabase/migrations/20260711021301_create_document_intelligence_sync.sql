@@ -205,6 +205,9 @@ alter table public.document_merge_items enable row level security;
 alter table public.document_change_applications enable row level security;
 alter table public.document_change_application_items enable row level security;
 
+create policy google_drive_oauth_states_server_only on public.google_drive_oauth_states
+for all to authenticated using (false) with check (false);
+
 create or replace function public.can_manage_document_org(_organization_id uuid)
 returns boolean language sql stable security invoker set search_path = public as $$
   select exists (
@@ -247,7 +250,7 @@ grant select, insert on table public.document_sources, public.document_source_re
 
 create or replace function public.document_planning_state_version(_organization_id uuid, _class_id text)
 returns text language sql stable security invoker set search_path = public as $$
-  select encode(digest(jsonb_build_object(
+  select encode(extensions.digest(jsonb_build_object(
     'cycles', coalesce((select jsonb_agg(to_jsonb(cp) order by cp.id) from public.class_plans cp
       where cp.organization_id = _organization_id and cp.classid = _class_id), '[]'::jsonb),
     'planning', coalesce((select jsonb_agg(to_jsonb(tp) order by tp.id) from public.training_plans tp
