@@ -3238,13 +3238,13 @@ export default function PeriodizationScreen() {
 
         confirmDialog({
 
-          title: "Regerar tudo?",
+          title: "Recriar o ciclo?",
 
           message:
 
-            "Isso substitui semanas AUTO e MANUAL. Use apenas se quiser recriar todo o ciclo.",
+            "O planejamento atual será substituído por um novo ciclo baseado nas informações da turma.",
 
-          confirmLabel: "Regerar tudo",
+          confirmLabel: "Recriar ciclo",
 
           cancelLabel: "Cancelar",
 

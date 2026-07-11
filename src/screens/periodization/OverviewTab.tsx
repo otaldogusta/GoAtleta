@@ -96,6 +96,10 @@ export function OverviewTab({
   ).size;
   const missingWeeks = Math.max(0, cycleLength - coveredWeeks);
   const hasGeneratedCycle = Boolean(activeCycle || hasWeekPlans);
+  const weekdayLabels = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+  const classScheduleLabel = selectedClass?.daysOfWeek?.length
+    ? selectedClass.daysOfWeek.map((day) => weekdayLabels[day] ?? "dia definido").join(" e ")
+    : `${sessionsPerWeek} ${sessionsPerWeek === 1 ? "dia" : "dias"} por semana`;
 
   if (selectedClass) {
     return (
@@ -112,7 +116,7 @@ export function OverviewTab({
             <View style={{ flex: 1, minWidth: 220 }}>
               <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Planejamento do ciclo</Text>
               <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
-                {`${cycleLength} semanas · ${sessionsPerWeek} ${sessionsPerWeek === 1 ? "dia" : "dias"} por semana`}
+                {`Configuração da turma · ${cycleLength} semanas · ${classScheduleLabel}`}
               </Text>
             </View>
             {hasGeneratedCycle ? (
