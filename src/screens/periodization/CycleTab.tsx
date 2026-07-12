@@ -1,9 +1,11 @@
-import { Animated, FlatList, Text, TextInput, View } from "react-native";
+import { Animated, ScrollView, Text, TextInput, View } from "react-native";
+import { useState } from "react";
 
 import type { ClassGroup } from "../../core/models";
 import { type VolumeLevel, volumeOrder } from "../../core/periodization-basics";
 import { type ThemeColors } from "../../ui/app-theme";
 import { Pressable } from "../../ui/Pressable";
+import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
 import { getSectionCardStyle } from "../../ui/section-styles";
 import { CyclePlanTable, type CyclePlanTableProps, type WeekPlan } from "./CyclePlanTable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -58,6 +60,16 @@ const getVolumePalette = (level: VolumeLevel, colors: ThemeColors) => {
     return { bg: colors.warningBg, text: colors.warningText, border: colors.warningBg };
   }
   return { bg: colors.dangerBg, text: colors.dangerText, border: colors.dangerBorder };
+};
+
+const normalizeAcwrInput = (value: string, maximum: number) => {
+  const raw = value.replace(",", ".").trim();
+  const normalized = /^\d{2}$/.test(raw) ? `${raw[0]}.${raw[1]}` : raw;
+  if (!/^\d?(?:\.\d?)?$/.test(normalized)) return null;
+  if (!normalized || normalized === ".") return normalized;
+  const numericValue = Number(normalized);
+  if (!Number.isFinite(numericValue) || numericValue > maximum) return null;
+  return normalized;
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -181,8 +193,43 @@ export function CycleTab({
   selectedClass,
   filteredWeekPlans,
 }: CycleTabProps) {
+  const [showAcwrReference, setShowAcwrReference] = useState(false);
+
   return (
     <>
+
+      <ModalDialogFrame
+        visible={showAcwrReference}
+        onClose={() => setShowAcwrReference(false)}
+        cardStyle={{ width: "100%", maxWidth: 520, padding: 18 }}
+        position="center"
+        colors={colors}
+        title="Como interpretar o ACWR"
+        subtitle={`Referência para ${selectedClass?.ageBand || "faixa etária não informada"}`}
+      >
+        <View style={{ gap: 14 }}>
+          <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+            Não existe um corte validado exclusivamente para esta faixa etária. O gráfico usa a referência geral mais estudada como apoio ao monitoramento.
+          </Text>
+          <View style={{ gap: 7 }}>
+            <View style={{ height: 20, borderRadius: 10, overflow: "hidden", flexDirection: "row" }}>
+              <View style={{ flex: 0.8, backgroundColor: colors.infoBg }} />
+              <View style={{ flex: 0.5, backgroundColor: colors.successBg }} />
+              <View style={{ flex: 0.7, backgroundColor: colors.warningBg }} />
+            </View>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+              <Text style={{ color: colors.muted, fontSize: 10 }}>Abaixo de 0,8</Text>
+              <Text style={{ color: colors.successText, fontSize: 10, fontWeight: "800" }}>Referência 0,8–1,3</Text>
+              <Text style={{ color: colors.warningText, fontSize: 10 }}>Acima de 1,3</Text>
+            </View>
+          </View>
+          <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.secondaryBg }}>
+            <Text style={{ color: colors.text, fontSize: 11, lineHeight: 17 }}>
+              Use junto com dor, recuperação, participação e observação do professor. ACWR isolado não prevê lesão.
+            </Text>
+          </View>
+        </View>
+      </ModalDialogFrame>
 
       <CyclePlanTable
         colors={colors}
@@ -270,7 +317,20 @@ export function CycleTab({
 
           <Animated.View style={[{ gap: 12 }, loadAnimStyle]}>
 
-            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+            <ScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator
+              style={{ width: "100%", maxWidth: "100%" }}
+              contentContainerStyle={{
+                minWidth: "100%",
+                flexDirection: "row",
+                alignItems: "flex-end",
+                gap: 8,
+                paddingRight: 8,
+                paddingBottom: 4,
+              }}
+            >
 
           {progressBars.map((ratio, index) => {
 
@@ -314,7 +374,7 @@ export function CycleTab({
 
             })}
 
-        </View>
+        </ScrollView>
 
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
 
@@ -356,12 +416,38 @@ export function CycleTab({
 
         </View>
 
-        <View style={{ gap: 10 }}>
-
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-            Limites de alerta de carga
-
+        <View
+          style={{
+            gap: 10,
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: colors.secondaryBg,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                Faixa segura de carga
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Entender referência de carga"
+                onPress={() => setShowAcwrReference((visible) => !visible)}
+                style={{ width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "900" }}>?</Text>
+              </Pressable>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.inputBg }}>
+                <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>Configuração avançada</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
+            Compara a carga recente com a carga habitual da turma. A referência recomendada fica entre 0,8 e 1,3.
           </Text>
 
           <View style={{ flexDirection: "row", gap: 12 }}>
@@ -370,7 +456,7 @@ export function CycleTab({
 
               <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
 
-                Alto
+                Alerta acima de
 
               </Text>
 
@@ -378,9 +464,11 @@ export function CycleTab({
 
                 value={acwrLimits.high}
 
-                onChangeText={(value) =>
-                  setAcwrLimits({ ...acwrLimits, high: value.replace(",", ".") })
-                }
+                onChangeText={(value) => {
+                  const normalized = normalizeAcwrInput(value, 2);
+                  if (normalized == null) return;
+                  setAcwrLimits({ ...acwrLimits, high: normalized });
+                }}
 
                 keyboardType="numeric"
 
@@ -412,7 +500,7 @@ export function CycleTab({
 
               <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
 
-                Baixo
+                Alerta abaixo de
 
               </Text>
 
@@ -420,9 +508,11 @@ export function CycleTab({
 
                 value={acwrLimits.low}
 
-                onChangeText={(value) =>
-                  setAcwrLimits({ ...acwrLimits, low: value.replace(",", ".") })
-                }
+                onChangeText={(value) => {
+                  const normalized = normalizeAcwrInput(value, 1);
+                  if (normalized == null) return;
+                  setAcwrLimits({ ...acwrLimits, low: normalized });
+                }}
 
                 keyboardType="numeric"
 
@@ -452,6 +542,10 @@ export function CycleTab({
 
           </View>
 
+          <Text style={{ color: colors.muted, fontSize: 10 }}>
+            Digite 13 para 1,3 ou 08 para 0,8. Os valores são salvos automaticamente para esta turma.
+          </Text>
+
           { acwrLimitError ? (
 
             <Text style={{ color: colors.dangerText, fontSize: 12 }}>
@@ -480,311 +574,6 @@ export function CycleTab({
 
         </View>
 
-        <View
-          style={[
-            getSectionCardStyle(colors, "primary"),
-            { borderLeftWidth: 1, borderLeftColor: colors.border },
-          ]}
-        >
-
-        <Pressable
-
-          onPress={() => toggleSection("cycle")}
-
-          style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
-
-        >
-
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-
-            {normalizeText("Agenda do ciclo")}
-
-          </Text>
-
-          <GoAtletaIcon
-
-            name={sectionOpen.cycle ? "chevronUp" : "chevronDown"}
-
-            size={18}
-
-            color={colors.muted}
-
-          />
-
-        </Pressable>
-
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-          {normalizeText("Semanas com foco e volume definido")}
-
-        </Text>
-
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-
-          {([
-
-            { id: "all", label: "Todas" },
-
-            { id: "auto", label: "Automáticas" },
-
-            { id: "manual", label: "Ajustadas" },
-
-          ] as const).map((item) => {
-
-            const active = cycleFilter === item.id;
-
-            return (
-
-              <Pressable
-
-                key={item.id}
-
-                onPress={() => setCycleFilter(item.id)}
-
-                style={{
-
-                  paddingVertical: 8,
-
-                  paddingHorizontal: 12,
-
-                  borderRadius: 999,
-
-                  backgroundColor: active ? colors.primaryBg : colors.background,
-
-                  borderWidth: 1,
-
-                  borderColor: active ? colors.primaryBg : colors.border,
-
-                }}
-
-              >
-
-                <Text
-
-                  style={{
-
-                    color: active ? colors.primaryText : colors.text,
-
-                    fontSize: 12,
-
-                    fontWeight: active ? "700" : "500",
-
-                  }}
-
-                >
-
-                  {item.label}
-
-                </Text>
-
-              </Pressable>
-
-            );
-
-          })}
-
-        </View>
-
-        { showCycleContent ? (
-
-          <Animated.View style={[{ gap: 10 }, cycleAnimStyle]}>
-
-          { !selectedClass ? (
-
-            <View
-
-              style={{
-
-                padding: 12,
-
-                borderRadius: 14,
-
-                backgroundColor: colors.inputBg,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-
-              }}
-
-            >
-
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-                {normalizeText("Selecione uma turma para editar o ciclo.")}
-
-              </Text>
-
-            </View>
-
-          ) : filteredWeekPlans.length ? (
-
-            <FlatList
-              data={filteredWeekPlans}
-              keyExtractor={(week, index) => `${week.week}-${index}`}
-              scrollEnabled={false}
-              contentContainerStyle={{ gap: 10 }}
-              renderItem={({ item: week }) => {
-                const palette = getVolumePalette(week.volume, colors);
-                return (
-                  <Pressable
-                    onPress={() => openWeekEditor(week.week)}
-                    style={{
-                      padding: 12,
-                      borderRadius: 14,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      gap: 10,
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        {normalizeText("Semana " + week.week + " - " + week.title)}
-                      </Text>
-                      <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-                        <View
-                          style={{
-                            paddingVertical: 6,
-                            paddingHorizontal: 10,
-                            borderRadius: 999,
-                            backgroundColor: palette.bg,
-                          }}
-                        >
-                          <Text style={{ color: palette.text, fontSize: 11, fontWeight: "700" }}>
-                            {normalizeText(week.volume)}
-                          </Text>
-                        </View>
-                        <View
-                          style={{
-                            paddingVertical: 6,
-                            paddingHorizontal: 10,
-                            borderRadius: 10,
-                            backgroundColor: colors.background,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                          }}
-                        >
-                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                            Abrir editor
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {normalizeText("Foco: " + week.focus)}
-                    </Text>
-
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                      <View
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: colors.background,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 11 }}>
-                          {sessionsPerWeek + " dias"}
-                        </Text>
-                      </View>
-
-                      <View
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: colors.background,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 11 }}>
-                          {normalizeText(volumeToPSE[week.volume])}
-                        </Text>
-                      </View>
-
-                      <View
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: colors.background,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 11 }}>
-                          {normalizeText(`PSE alvo: ${week.PSETarget}`)}
-                        </Text>
-                      </View>
-
-                      <View
-                        style={{
-                          paddingVertical: 6,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor: colors.background,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 11 }}>
-                          {normalizeText("Saltos: " + week.jumpTarget)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={{ gap: 4 }}>
-                      {week.notes.map((note) => (
-                        <Text key={note} style={{ color: colors.muted, fontSize: 12 }}>
-                          {normalizeText("- " + note)}
-                        </Text>
-                      ))}
-                    </View>
-                  </Pressable>
-                );
-              }}
-            />
-
-          ) : (
-
-            <View
-
-              style={{
-
-                padding: 12,
-
-                borderRadius: 14,
-
-                backgroundColor: colors.inputBg,
-
-                borderWidth: 1,
-
-                borderColor: colors.border,
-
-              }}
-
-            >
-
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-
-                {normalizeText("Nenhuma semana encontrada para esse filtro.")}
-
-              </Text>
-
-            </View>
-
-          )}
-
-          </Animated.View>
-
-        ) : null}
-
-      </View>
 
         </>
       )}

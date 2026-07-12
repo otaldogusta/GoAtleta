@@ -38,8 +38,8 @@ export function GenerateModal({
       title={annual ? "Gerar ciclo anual" : "Gerar ciclo"}
       subtitle={
         annual
-          ? "Escolha como preencher as semanas do macro anual da turma."
-          : "Escolha como preencher as semanas do ciclo."
+          ? "Use os dados da turma para completar ou recriar o planejamento anual."
+          : "Use os dados da turma para completar ou recriar o planejamento."
       }
     >
       <View style={{ gap: 10 }}>
@@ -61,7 +61,7 @@ export function GenerateModal({
         </Pressable>
 
         <Pressable
-          onPress={() => onGenerateAction("auto")}
+          onPress={() => onGenerateAction("all")}
           disabled={isSavingPlans}
           style={{
             paddingVertical: 12,
@@ -70,21 +70,8 @@ export function GenerateModal({
             backgroundColor: colors.primaryBg,
           }}
         >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>Regerar apenas automáticos</Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => onGenerateAction("all")}
-          disabled={isSavingPlans}
-          style={{
-            paddingVertical: 12,
-            borderRadius: 12,
-            alignItems: "center",
-            backgroundColor: colors.dangerSolidBg,
-          }}
-        >
-          <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
-            Regerar tudo (automáticos + manuais)
+          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+            Recriar ciclo
           </Text>
         </Pressable>
       </View>

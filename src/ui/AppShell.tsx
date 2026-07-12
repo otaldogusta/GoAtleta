@@ -13,8 +13,7 @@ type AppShellProps = {
 
 export const WEB_SHELL_MIN_WIDTH = 1200;
 
-export const shouldHideWebShellForPath = (pathname: string) =>
-  /\/(assistant)(\/|$)/.test(pathname);
+export const shouldHideWebShellForPath = (_pathname: string) => false;
 
 export function AppShell({ role, children }: AppShellProps) {
   const pathname = usePathname();

@@ -110,7 +110,6 @@ const defaultProps = {
   onRemoveCycle: jest.fn(),
   unitMismatchWarning: "",
   recentSessionSummaries: [],
-  onReviewEvolution: jest.fn(),
 };
 
 const collectText = (node: TestRenderer.ReactTestInstance): string => {
@@ -133,8 +132,7 @@ const findNodeByText = (root: TestRenderer.ReactTestInstance, text: string) =>
   root.findAll((node) => collectText(node).includes(text))[0];
 
 describe("OverviewTab", () => {
-  it("hides the large generation action when a cycle already exists", () => {
-    const onGenerateCycle = jest.fn();
+  it("uses the intelligence overview globally when a cycle exists", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -143,48 +141,30 @@ describe("OverviewTab", () => {
           ...defaultProps,
           activeCycle,
           hasWeekPlans: true,
-          classPlans: [{ weekNumber: 1 } as any],
-          onGenerateCycle,
+          classPlans: [{ weekNumber: 1, startDate: "2026-06-13", theme: "Fundamentos", technicalFocus: "Recepção" } as any],
         })
       );
     });
 
     const root = renderer!.root;
-    const disabledGenerateButtons = root.findAll(
-      (node) => node.props.disabled === true && collectText(node).includes("Ciclo já gerado")
-    );
-    const regenerateIcon = root.findByProps({ accessibilityLabel: "Gerar ciclo novamente" });
-
-    expect(disabledGenerateButtons).toHaveLength(0);
-    expect(regenerateIcon.props.disabled).toBe(false);
-    expect(findNodeByText(root, "Gerado")).toBeTruthy();
-    expect(findNodeByText(root, "Para gerar novamente")).toBeTruthy();
-    expect(findNodeByText(root, "Remover ciclo")).toBeTruthy();
-
-    act(() => {
-      regenerateIcon.props.onPress();
-    });
-
-    expect(onGenerateCycle).toHaveBeenCalledTimes(1);
+    expect(findNodeByText(root, "Fundamentos")).toBeTruthy();
+    expect(findNodeByText(root, "Mapa de progressão pedagógica")).toBeTruthy();
+    expect(collectText(root)).not.toContain("Planejamento da turma");
   });
 
-  it("keeps the main generate button enabled when there is no generated cycle", () => {
+  it("keeps the global overview cards visible when the class has no data", () => {
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
       renderer = TestRenderer.create(React.createElement(OverviewTab, defaultProps));
     });
 
-    const enabledGenerateButton = renderer!.root.findAll(
-      (node) => node.props.disabled === false && collectText(node).includes("Gerar ciclo")
-    )[0];
-
-    expect(findNodeByText(renderer!.root, "Gerar ciclo")).toBeTruthy();
-    expect(enabledGenerateButton).toBeTruthy();
+    expect(findNodeByText(renderer!.root, "Sem aula planejada")).toBeTruthy();
+    expect(findNodeByText(renderer!.root, "Ainda não há evidências suficientes para gerar eventos.")).toBeTruthy();
+    expect(findNodeByText(renderer!.root, "Etapa não definida")).toBeTruthy();
   });
 
   it("shows the planned versus completed intelligence view for Rede Esperança 8-11", () => {
-    const onReviewEvolution = jest.fn();
     let renderer: TestRenderer.ReactTestRenderer;
 
     act(() => {
@@ -199,8 +179,24 @@ describe("OverviewTab", () => {
             gender: "mixed",
             daysOfWeek: [2, 4],
           },
-          recentSessionSummaries: [],
-          onReviewEvolution,
+          classPlans: [
+            {
+              id: "pilot-week",
+              classId: "class-1",
+              startDate: "2026-07-02",
+              weekNumber: 1,
+              phase: "Fundamentos",
+              theme: "Recepção direta",
+              technicalFocus: "Primeiro contato",
+            } as any,
+          ],
+          recentSessionSummaries: [
+            {
+              sessionDate: "2026-07-09",
+              participantsCount: 14,
+              reportConclusion: "A turma ainda precisa consolidar o primeiro contato.",
+            } as any,
+          ],
         })
       );
     });
@@ -218,9 +214,10 @@ describe("OverviewTab", () => {
     });
     expect(collectText(completedCard).match(/Realizado/g)).toHaveLength(1);
 
-    const reviewButton = root.findByProps({ accessibilityLabel: "Revisar evolução da turma" });
-    act(() => reviewButton.props.onPress());
-    expect(onReviewEvolution).toHaveBeenCalledTimes(1);
+    expect(findNodeByText(root, "Eventos considerados")).toBeTruthy();
+    expect(findNodeByText(root, "Prontidão")).toBeTruthy();
+    expect(findNodeByText(root, "Ajuste recomendado")).toBeTruthy();
+    expect(collectText(root)).not.toContain("Revisar evolução da turma");
 
     const sessionCard = root.findByProps({
       accessibilityLabel: "Abrir detalhes da aula de Ter · 14/07 · 14:00",
@@ -247,5 +244,57 @@ describe("OverviewTab", () => {
 
     act(() => backdrop.props.onPress());
     expect(root.findAllByProps({ accessibilityLabel: "Fechar" })).toHaveLength(0);
+  });
+
+  it("does not keep pilot future planning after the cycle is removed", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(OverviewTab, {
+          ...defaultProps,
+          selectedClass: {
+            ...selectedClass,
+            name: "Turma 8-11",
+            unit: "Rede Esperança",
+            ageBand: "08-11",
+            daysOfWeek: [2, 4],
+          },
+          classPlans: [],
+          hasWeekPlans: false,
+          recentSessionSummaries: [],
+        })
+      );
+    });
+
+    const content = collectText(renderer!.root);
+    expect(content).toContain("Sem aula planejada");
+    expect(content).not.toContain("Mini 2x2");
+    expect(content).not.toContain("Portão de prontidão");
+  });
+
+  it("translates internal session block names for professors", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(OverviewTab, {
+          ...defaultProps,
+          classPlans: [],
+          hasWeekPlans: false,
+          recentSessionSummaries: [
+            {
+              sessionDate: "2026-04-14",
+              dominantBlock: "main",
+              participantsCount: 12,
+            } as any,
+          ],
+        })
+      );
+    });
+
+    const content = collectText(renderer!.root);
+    expect(content).toContain("Parte principal");
+    expect(content).not.toMatch(/\bmain\b/);
   });
 });

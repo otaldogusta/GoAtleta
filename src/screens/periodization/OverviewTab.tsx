@@ -1,14 +1,12 @@
 import { Animated, Text, useWindowDimensions, View } from "react-native";
 
 import { type ThemeColors } from "../../ui/app-theme";
-import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
 
 import type { ClassGroup, ClassPlan, PlanningCycle, RecentSessionSummary } from "../../core/models";
 import { isAnnualCycle } from "../../core/periodization-basics";
-import { isRedeEsperancaEightToElevenClass } from "../../core/pedagogy/rede-esperanca-july-2026-alignment";
 import { PeriodizationIntelligenceOverview } from "./PeriodizationIntelligenceOverview";
 
 type OverviewTabProps = {
@@ -48,7 +46,6 @@ type OverviewTabProps = {
   onRemoveCycle: () => void;
   unitMismatchWarning: string;
   recentSessionSummaries: RecentSessionSummary[];
-  onReviewEvolution: () => void;
 };
 
 export function OverviewTab({
@@ -88,29 +85,96 @@ export function OverviewTab({
   onRemoveCycle,
   unitMismatchWarning,
   recentSessionSummaries,
-  onReviewEvolution,
 }: OverviewTabProps) {
   const { width } = useWindowDimensions();
-  if (selectedClass && isRedeEsperancaEightToElevenClass(selectedClass)) {
-    return (
-      <PeriodizationIntelligenceOverview
-        colors={colors}
-        recentSessions={recentSessionSummaries}
-        onReviewEvolution={onReviewEvolution}
-      />
-    );
-  }
-  const reserveFloatingActionSpace = width < 760;
   const coveredWeeks = new Set(
     classPlans
       .map((plan) => plan.weekNumber)
       .filter((weekNumber) => Number.isFinite(weekNumber) && weekNumber >= 1 && weekNumber <= cycleLength)
   ).size;
   const missingWeeks = Math.max(0, cycleLength - coveredWeeks);
+  const hasGeneratedCycle = hasWeekPlans;
+  const weekdayLabels = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+  const classScheduleLabel = selectedClass?.daysOfWeek?.length
+    ? selectedClass.daysOfWeek.map((day) => weekdayLabels[day] ?? "dia definido").join(" e ")
+    : `${sessionsPerWeek} ${sessionsPerWeek === 1 ? "dia" : "dias"} por semana`;
+
+  if (selectedClass) {
+    return (
+      <View style={{ gap: 14 }}>
+        <PeriodizationIntelligenceOverview
+          colors={colors}
+          selectedClass={selectedClass}
+          classPlans={classPlans}
+          recentSessions={recentSessionSummaries}
+        />
+        <View style={[getSectionCardStyle(colors, "info", { padding: 16, radius: 18 }), { gap: 12 }]}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <View style={{ flex: 1, minWidth: 220 }}>
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>Planejamento do ciclo</Text>
+              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+                {`Configuração da turma · ${cycleLength} semanas · ${classScheduleLabel}`}
+              </Text>
+            </View>
+            {hasGeneratedCycle ? (
+              <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.successBg }}>
+                <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "800" }}>Ciclo ativo</Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {!hasGeneratedCycle ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Gerar ciclo"
+                disabled={isSavingPlans}
+                onPress={onGenerateCycle}
+                style={{ minHeight: 44, paddingHorizontal: 16, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: isSavingPlans ? 0.55 : 1 }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{isSavingPlans ? "Salvando..." : "Gerar ciclo"}</Text>
+              </Pressable>
+            ) : (
+              <>
+                {missingWeeks > 0 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Completar semanas faltantes"
+                    disabled={isSavingPlans}
+                    onPress={onCompleteMissingCoverage}
+                    style={{ minHeight: 44, paddingHorizontal: 16, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg, opacity: isSavingPlans ? 0.55 : 1 }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontWeight: "800" }}>Completar faltantes</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Gerar ciclo novamente"
+                  disabled={isSavingPlans}
+                  onPress={onGenerateCycle}
+                  style={{ minHeight: 44, paddingHorizontal: 16, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg, opacity: isSavingPlans ? 0.55 : 1 }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Gerar novamente</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Remover ciclo"
+                  disabled={isSavingPlans}
+                  onPress={onRemoveCycle}
+                  style={{ minHeight: 44, paddingHorizontal: 16, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.dangerBg, opacity: isSavingPlans ? 0.55 : 1 }}
+                >
+                  <Text style={{ color: colors.dangerText, fontWeight: "700" }}>Remover ciclo</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }
+  const reserveFloatingActionSpace = width < 760;
   const showAnnualCoverageWarning = Boolean(
     selectedClass && isAnnualCycle(cycleLength) && missingWeeks > 0
   );
-  const hasGeneratedCycle = Boolean(activeCycle || hasWeekPlans);
   const canGenerateCycle = Boolean(selectedClass) && !isSavingPlans && !hasGeneratedCycle;
   const canRegenerateCycle = Boolean(selectedClass) && !isSavingPlans && hasGeneratedCycle;
   const canRemoveCycle = Boolean(selectedClass) && !isSavingPlans;
@@ -371,15 +435,9 @@ export function OverviewTab({
 
                       <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
 
-                        {normalizeText(selectedClass?.name ?? "Selecione")}
+                        {normalizeText("Selecione")}
 
                       </Text>
-
-                      { selectedClass ? (
-
-                        <ClassGenderBadge gender={selectedClass?.gender ?? "misto"} />
-
-                      ) : null}
 
                     </View>
 
@@ -465,9 +523,7 @@ export function OverviewTab({
 
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
 
-                    {selectedUnit
-                      ? normalizeText(selectedClass?.unit ?? selectedUnit)
-                      : normalizeText("Selecione")}
+                    {selectedUnit ? normalizeText(selectedUnit) : normalizeText("Selecione")}
 
                   </Text>
 

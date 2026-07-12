@@ -1,4 +1,6 @@
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
+import * as ExpoLinking from "expo-linking";
+import { Ionicons } from "@expo/vector-icons";
 import {
     memo,
     useCallback,
@@ -12,6 +14,7 @@ import {
     Animated,
     Keyboard,
     Linking,
+    Modal,
     Platform,
     ScrollView,
     StyleSheet,
@@ -24,6 +27,14 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Pressable } from "../../src/ui/Pressable";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
+import {
+  analyzeDriveDocument,
+  applyDocumentProposal,
+  getDriveConnection,
+  undoDocumentApplication,
+  type DocumentApplicationReceipt,
+  type DocumentSyncProposal,
+} from "../../src/api/document-intelligence";
 import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
 import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
@@ -74,6 +85,12 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../src/ui/icon-registry"
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  contextChoices?: Array<{ id: string; name: string }>;
+  pendingDocumentUrl?: string;
+  document?: {
+    proposal?: DocumentSyncProposal;
+    receipt?: DocumentApplicationReceipt;
+  };
 };
 
 type AssistantSource = {
@@ -472,7 +489,7 @@ export default function AssistantScreen() {
 
   const router = useRouter();
   const pathname = usePathname();
-  const params = useLocalSearchParams<{ prompt?: string; source?: string }>();
+  const params = useLocalSearchParams<{ prompt?: string; source?: string; classId?: string; month?: string; documentUrl?: string }>();
   const { session } = useAuth();
   const optionalCopilot = useOptionalCopilot();
   const { activeOrganization } = useOrganization();
@@ -482,6 +499,7 @@ export default function AssistantScreen() {
   const { width, height } = useWindowDimensions();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [classId, setClassId] = useState("");
+  const [documentContextConfirmed, setDocumentContextConfirmed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -497,6 +515,8 @@ export default function AssistantScreen() {
   const [nextClassSuggestion, setNextClassSuggestion] = useState<NextClassSuggestion | null>(null);
   const [simulationResult, setSimulationResult] = useState<EvolutionSimulationResult | null>(null);
   const [memoryContextHints, setMemoryContextHints] = useState<string[]>([]);
+  const [documentReview, setDocumentReview] = useState<{ messageIndex: number; proposal: DocumentSyncProposal; receipt?: DocumentApplicationReceipt } | null>(null);
+  const [documentReviewIds, setDocumentReviewIds] = useState<Set<string>>(new Set());
   const [composerHeight, setComposerHeight] = useState(0);
   const [composerInputHeight, setComposerInputHeight] = useState(COMPOSER_MIN_HEIGHT);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -508,6 +528,7 @@ export default function AssistantScreen() {
     [messages]
   );
   const appliedPromptRef = useRef("");
+  const appliedClassContextRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
   const thinkingPulse = useRef(new Animated.Value(0)).current;
 
@@ -521,6 +542,18 @@ export default function AssistantScreen() {
       composerInputRef.current?.focus();
     });
   }, [params.prompt]);
+
+  useEffect(() => {
+    const incomingClassId = String(params.classId ?? "").trim();
+    if (!incomingClassId || incomingClassId === appliedClassContextRef.current) return;
+    appliedClassContextRef.current = incomingClassId;
+    setClassId(incomingClassId);
+    setDocumentContextConfirmed(true);
+    const incomingMonth = String(params.month ?? "").trim();
+    const incomingDocumentUrl = String(params.documentUrl ?? "").trim();
+    if (incomingDocumentUrl) setInput(incomingDocumentUrl);
+    else if (incomingMonth) setInput(`Envie ou cole o link do planejamento ou relatório que deseja comparar com ${incomingMonth}.`);
+  }, [params.classId, params.documentUrl, params.month]);
 
   useEffect(() => {
     let alive = true;
@@ -695,6 +728,7 @@ export default function AssistantScreen() {
     if (!contextClassId) return;
     if (!classes.some((item) => item.id === contextClassId)) return;
     setClassId((current) => (current === contextClassId ? current : contextClassId));
+    setDocumentContextConfirmed(true);
   }, [classes, optionalCopilot?.appSnapshot?.activeSignal?.classId]);
 
   const assistantScopeLabel = selectedClassDisplayName
@@ -1007,6 +1041,87 @@ export default function AssistantScreen() {
     });
   }, []);
 
+  const replaceDocumentMessage = useCallback((messageIndex: number, document: ChatMessage["document"], content: string) => {
+    setMessages((current) => current.map((message, index) => index === messageIndex
+      ? { ...message, content, document, contextChoices: undefined, pendingDocumentUrl: undefined }
+      : message));
+  }, []);
+
+  const applyAssistantDocumentProposal = useCallback(async (
+    messageIndex: number,
+    proposal: DocumentSyncProposal,
+    onlyComplement = false,
+    approvedOverride?: string[]
+  ) => {
+    const approvedItemIds = approvedOverride ?? proposal.items
+      .filter((item) => item.recommendation === "apply" && (!onlyComplement || item.category === "complement"))
+      .map((item) => item.id);
+    if (!approvedItemIds.length) return;
+    setLoading(true);
+    try {
+      const result = await applyDocumentProposal({
+        proposalId: proposal.proposalId,
+        approvedItemIds,
+        expectedStateVersion: proposal.snapshotVersion,
+        idempotencyKey: `assistant-document-${proposal.proposalId}-${onlyComplement ? "complement" : "recommended"}`,
+      });
+      if (!result.receipt) throw new Error("A aplicação não retornou um recibo.");
+      replaceDocumentMessage(messageIndex, { proposal, receipt: result.receipt }, "Atualização concluída. Somente os itens confirmados foram aplicados.");
+    } catch (cause) {
+      Alert.alert("Não foi possível atualizar", cause instanceof Error ? cause.message : "Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
+  }, [replaceDocumentMessage]);
+
+  const openDocumentReview = useCallback((messageIndex: number, proposal: DocumentSyncProposal, receipt?: DocumentApplicationReceipt) => {
+    setDocumentReview({ messageIndex, proposal, receipt });
+    setDocumentReviewIds(new Set(receipt?.appliedItemIds ?? proposal.items.filter((item) => item.recommendation === "apply").map((item) => item.id)));
+  }, []);
+
+  const analyzeDocumentForClass = useCallback(async (messageIndex: number, driveUrl: string, targetClassId: string) => {
+    if (!activeOrganization?.id) return;
+    setLoading(true);
+    try {
+      const documentMonth = String(params.month ?? "").trim() || new Date().toISOString().slice(0, 7);
+      const redirectTo = ExpoLinking.createURL("/assistant", {
+        queryParams: { classId: targetClassId, month: documentMonth, documentUrl: driveUrl },
+      });
+      const connection = await getDriveConnection(activeOrganization.id, redirectTo);
+      if (!connection.connected) {
+        if (!connection.authorizationUrl) throw new Error("Conexão com o Drive indisponível.");
+        replaceDocumentMessage(messageIndex, undefined, "Conecte sua conta Google para eu ler esse documento com segurança.");
+        await Linking.openURL(connection.authorizationUrl);
+        return;
+      }
+      const result = await analyzeDriveDocument({
+        organizationId: activeOrganization.id,
+        classId: targetClassId,
+        month: documentMonth,
+        sourceUrl: driveUrl,
+      });
+      if (!result.proposal) throw new Error("O documento ainda não gerou uma proposta revisável.");
+      replaceDocumentMessage(messageIndex, { proposal: result.proposal }, result.proposal.summary);
+    } catch (cause) {
+      replaceDocumentMessage(messageIndex, undefined, cause instanceof Error ? cause.message : "Não foi possível analisar o documento.");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeOrganization?.id, params.month, replaceDocumentMessage]);
+
+  const undoAssistantDocumentApplication = useCallback(async (messageIndex: number, proposal: DocumentSyncProposal, receipt: DocumentApplicationReceipt) => {
+    setLoading(true);
+    try {
+      const result = await undoDocumentApplication(receipt.applicationId);
+      if (!result.receipt) throw new Error("O desfazer não retornou um recibo.");
+      replaceDocumentMessage(messageIndex, { proposal, receipt: result.receipt }, "Atualização desfeita. O estado anterior foi restaurado e o histórico foi preservado.");
+    } catch (cause) {
+      Alert.alert("Não foi possível desfazer", cause instanceof Error ? cause.message : "Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
+  }, [replaceDocumentMessage]);
+
   const sendMessage = async () => {
     if (!input.trim() || loading || assistantTyping) return;
     const nextMessages = [...messages, { role: "user" as const, content: input.trim() }];
@@ -1025,6 +1140,57 @@ export default function AssistantScreen() {
     setSimulationResult(null);
     setMemoryContextHints([]);
     setShowSavedLink(false);
+
+    const driveUrl = input.trim().match(/https:\/\/drive\.google\.com\/[^\s]+/i)?.[0] ?? "";
+    if (driveUrl) {
+      try {
+        if (!activeOrganization?.id) throw new Error("Selecione um workspace antes de analisar o documento.");
+        if (!classId || !documentContextConfirmed) {
+          const availableClasses = classes.length ? classes : await getClasses();
+          if (!classes.length) setClasses(availableClasses);
+          setMessages((current) => [...current, {
+            role: "assistant",
+            content: "Em qual turma devo comparar este documento?",
+            contextChoices: availableClasses.map((item) => ({ id: item.id, name: normalizeClassNameLabel(item.name) || item.name })),
+            pendingDocumentUrl: driveUrl,
+          }]);
+          return;
+        }
+        const documentMonth = String(params.month ?? "").trim() || new Date().toISOString().slice(0, 7);
+        const redirectTo = ExpoLinking.createURL("/assistant", {
+          queryParams: { classId, month: documentMonth, documentUrl: driveUrl },
+        });
+        const connection = await getDriveConnection(activeOrganization.id, redirectTo);
+        if (!connection.connected) {
+          if (!connection.authorizationUrl) throw new Error("Conexão com o Drive indisponível.");
+          setMessages((current) => [...current, { role: "assistant", content: "Conecte sua conta Google para eu ler esse documento com segurança." }]);
+          await Linking.openURL(connection.authorizationUrl);
+          return;
+        }
+        const result = await analyzeDriveDocument({
+          organizationId: activeOrganization.id,
+          classId,
+          month: documentMonth,
+          sourceUrl: driveUrl,
+        });
+        if (!result.proposal) throw new Error("O documento ainda não gerou uma proposta revisável.");
+        const documentProposal = result.proposal;
+        setMessages((current) => [...current, {
+          role: "assistant",
+          content: documentProposal.summary,
+          document: { proposal: documentProposal },
+        }]);
+        return;
+      } catch (cause) {
+        setMessages((current) => [...current, {
+          role: "assistant",
+          content: cause instanceof Error ? cause.message : "Não foi possível analisar o documento.",
+        }]);
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
 
     try {
       const accessToken = await getValidAccessToken();
@@ -1466,25 +1632,93 @@ export default function AssistantScreen() {
 
   const messageBubbles = useMemo(
     () =>
-      messages.map((message, index) => (
-        <View
-          key={String(index)}
-          style={{
-            alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-            maxWidth: "85%",
-            padding: 12,
-            borderRadius: 16,
-            backgroundColor: message.role === "user" ? colors.primaryBg : colors.background,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Text style={{ color: message.role === "user" ? colors.primaryText : colors.text }}>
-            {message.content}
-          </Text>
-        </View>
-      )),
-    [colors.background, colors.border, colors.primaryBg, colors.primaryText, colors.text, messages]
+      messages.map((message, index) => {
+        const proposal = message.document?.proposal;
+        const receipt = message.document?.receipt;
+        const adjustCount = proposal?.items.filter((item) => item.category === "adjust").length ?? 0;
+        const complementCount = proposal?.items.filter((item) => item.category === "complement").length ?? 0;
+        const keepCount = proposal?.items.filter((item) => item.category === "keep").length ?? 0;
+        return (
+          <View
+            key={String(index)}
+            style={{
+              alignSelf: message.role === "user" ? "flex-end" : "flex-start",
+              maxWidth: proposal ? (isDesktopLayout ? 620 : "96%") : "85%",
+              padding: 12,
+              gap: proposal ? 10 : 0,
+              borderRadius: 16,
+              backgroundColor: message.role === "user" ? colors.primaryBg : colors.background,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
+          >
+            <Text style={{ color: message.role === "user" ? colors.primaryText : colors.text }}>
+              {message.content}
+            </Text>
+            {message.contextChoices?.length && message.pendingDocumentUrl ? (
+              <View style={{ gap: 8, paddingTop: 6 }}>
+                {message.contextChoices.map((choice) => (
+                  <Pressable
+                    key={choice.id}
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setClassId(choice.id);
+                      setDocumentContextConfirmed(true);
+                      void analyzeDocumentForClass(index, message.pendingDocumentUrl!, choice.id);
+                    }}
+                    style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg }}
+                  >
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>{choice.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            {proposal ? (
+              <View style={{ gap: 10, paddingTop: 4 }}>
+                <View style={{ gap: 3 }}>
+                  <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>{proposal.sourceTitle.replace(/\.docx$/i, "")}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>Google Drive · {proposal.periodLabel} · {proposal.className}</Text>
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{adjustCount} ajuste</Text>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>{complementCount} complemento</Text>
+                  <Text style={{ color: colors.muted }}>{keepCount} mantido</Text>
+                </View>
+                {receipt ? (
+                  <View style={{ gap: 8 }}>
+                    <Text style={{ color: colors.muted, fontSize: 13 }}>{receipt.appliedItemIds.length} item(ns) registrado(s) no histórico.</Text>
+                    {!receipt.undoneAt ? <Button label="Desfazer" variant="secondary" onPress={() => void undoAssistantDocumentApplication(index, proposal, receipt)} disabled={loading} /> : null}
+                    <Button
+                      label="Ver alterações"
+                      variant="outline"
+                      onPress={() => {
+                        if (!classId) return;
+                        router.push({
+                          pathname: "/class/[id]/periodization",
+                          params: {
+                            id: classId,
+                            classId,
+                            unit: selectedClass?.unit ?? "",
+                            backTo: `/class/${classId}`,
+                          },
+                        });
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <View style={{ gap: 8 }}>
+                    <Button label="Aplicar recomendados" onPress={() => void applyAssistantDocumentProposal(index, proposal)} disabled={loading} />
+                    <Button label="Somente complementar" variant="secondary" onPress={() => void applyAssistantDocumentProposal(index, proposal, true)} disabled={loading} />
+                    <Button label="Revisar item por item" variant="outline" onPress={() => openDocumentReview(index, proposal)} />
+                    <Button label="Não atualizar" variant="ghost" onPress={() => replaceDocumentMessage(index, undefined, "Tudo bem. Nenhuma alteração foi aplicada.")} />
+                  </View>
+                )}
+              </View>
+            ) : null}
+          </View>
+        );
+      }),
+    [analyzeDocumentForClass, applyAssistantDocumentProposal, classId, colors.background, colors.border, colors.inputBg, colors.muted, colors.primaryBg, colors.primaryText, colors.text, isDesktopLayout, loading, messages, openDocumentReview, params.month, replaceDocumentMessage, router, selectedClass?.unit, undoAssistantDocumentApplication]
   );
 
   return (
@@ -1618,7 +1852,10 @@ export default function AssistantScreen() {
                         return (
                           <Pressable
                             key={`context-class-${item.id}`}
-                            onPress={() => setClassId(item.id)}
+                            onPress={() => {
+                              setClassId(item.id);
+                              setDocumentContextConfirmed(true);
+                            }}
                             style={{
                               borderRadius: 999,
                               borderWidth: 1,
@@ -2177,6 +2414,62 @@ export default function AssistantScreen() {
           </View>
         </View>
       </View>
+      <Modal
+        visible={Boolean(documentReview)}
+        transparent
+        animationType={isDesktopLayout ? "fade" : "slide"}
+        onRequestClose={() => setDocumentReview(null)}
+      >
+        <View style={{ flex: 1, justifyContent: isDesktopLayout ? "center" : "flex-end", alignItems: isDesktopLayout ? "flex-end" : "stretch", backgroundColor: "rgba(0,0,0,0.48)", padding: isDesktopLayout ? 20 : 0 }}>
+          <View style={{ width: isDesktopLayout ? 520 : "100%", maxHeight: "88%", backgroundColor: colors.card, borderRadius: isDesktopLayout ? 18 : 20, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 18 }}>{documentReview?.receipt ? "Alterações aplicadas" : "Revisar item por item"}</Text>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>{documentReviewIds.size} alteração(ões) selecionada(s)</Text>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Fechar revisão" onPress={() => setDocumentReview(null)}>
+                <Ionicons name="close" size={22} color={colors.text} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ gap: 8 }}>
+              {documentReview?.proposal.items.map((item) => {
+                const selectable = !documentReview.receipt && (item.recommendation === "apply" || item.recommendation === "review");
+                const selected = documentReviewIds.has(item.id);
+                return (
+                  <Pressable
+                    key={item.id}
+                    disabled={!selectable}
+                    accessibilityRole={selectable ? "checkbox" : undefined}
+                    accessibilityState={selectable ? { checked: selected } : undefined}
+                    onPress={() => setDocumentReviewIds((current) => {
+                      const next = new Set(current);
+                      if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+                      return next;
+                    })}
+                    style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: selected ? colors.primaryBg : colors.border, backgroundColor: selected ? colors.inputBg : colors.background, opacity: selectable ? 1 : 0.7 }}
+                  >
+                    <Ionicons name={selected ? "checkbox" : selectable ? "square-outline" : "remove-circle-outline"} size={22} color={selected ? colors.primaryBg : colors.muted} />
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>{String(item.proposedValue ?? item.currentValue ?? "")}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 13 }}>{item.reason}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {!documentReview?.receipt ? (
+              <Button
+                label="Aplicar itens selecionados"
+                disabled={loading || documentReviewIds.size === 0 || !documentReview}
+                onPress={() => {
+                  if (!documentReview) return;
+                  void applyAssistantDocumentProposal(documentReview.messageIndex, documentReview.proposal, false, [...documentReviewIds]).then(() => setDocumentReview(null));
+                }}
+              />
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

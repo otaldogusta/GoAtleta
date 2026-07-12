@@ -614,9 +614,9 @@ export default function PeriodizationScreen() {
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
 
-  const [selectedUnit, setSelectedUnit] = useState("");
+  const [selectedUnit, setSelectedUnit] = useState(initialUnitParam);
 
-  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState(initialClassParam);
 
   const [competitiveProfile, setCompetitiveProfile] = useState<ClassCompetitiveProfile | null>(
     null
@@ -1684,7 +1684,10 @@ export default function PeriodizationScreen() {
 
       typeof selectedClass.acwrLow === "number" ? String(selectedClass.acwrLow) : "0.8";
 
-    const next = { high: nextHigh, low: nextLow };
+    const candidate = { high: nextHigh, low: nextLow };
+    const next = validateAcwrLimits(candidate).ok
+      ? candidate
+      : { high: "1.3", low: "0.8" };
 
     setAcwrLimits(next);
 
@@ -1844,7 +1847,7 @@ export default function PeriodizationScreen() {
     [competitivePreviewPlans, effectiveCycleLength]
   );
 
-  const hasWeekPlans = visibleClassPlans.length > 0;
+  const hasWeekPlans = visibleClassPlans.length > 0 && weekPlans.length > 0;
   const displayedCyclePanelTitle = hasWeekPlans
     ? cyclePanelTitle
     : normalizeText("Painel do ciclo");
@@ -2260,7 +2263,7 @@ export default function PeriodizationScreen() {
       )
     : 0;
 
-  const activeWeek = hasWeekPlans ? weekPlans[activeWeekIndex] : emptyWeek;
+  const activeWeek = hasWeekPlans ? (weekPlans[activeWeekIndex] ?? emptyWeek) : emptyWeek;
   const activeClassPlan = hasWeekPlans
     ? visibleClassPlans.find((plan) => plan.weekNumber === activeWeek.week) ?? null
     : null;
@@ -3238,13 +3241,13 @@ export default function PeriodizationScreen() {
 
         confirmDialog({
 
-          title: "Regerar tudo?",
+          title: "Recriar o ciclo?",
 
           message:
 
-            "Isso substitui semanas AUTO e MANUAL. Use apenas se quiser recriar todo o ciclo.",
+            "O planejamento atual será substituído por um novo ciclo baseado nas informações da turma.",
 
-          confirmLabel: "Regerar tudo",
+          confirmLabel: "Recriar ciclo",
 
           cancelLabel: "Cancelar",
 
@@ -3286,8 +3289,12 @@ export default function PeriodizationScreen() {
         // Non-blocking — cycle creation is best-effort
       }
     }
-    handleGenerateAction("all");
-  }, [handleGenerateAction, selectedClass]);
+    if (hasWeekPlans) {
+      handleGenerateAction("all");
+      return;
+    }
+    handleGenerateMode("all");
+  }, [handleGenerateAction, handleGenerateMode, hasWeekPlans, selectedClass]);
 
   const handleRemoveCycle = useCallback(() => {
     if (!selectedClass || isSavingPlans) return;
@@ -3919,7 +3926,7 @@ export default function PeriodizationScreen() {
           }}
         >
 
-        { activeTab === "geral" ? (
+        {activeTab === "geral" && (!hasInitialClass || didApplyParams) ? (
           <OverviewTab
             colors={colors}
             normalizeText={normalizeText}
@@ -3957,7 +3964,6 @@ export default function PeriodizationScreen() {
             onRemoveCycle={handleRemoveCycle}
             unitMismatchWarning={unitMismatchWarning}
             recentSessionSummaries={recentSessionSummaries}
-            onReviewEvolution={() => setActiveTab("ciclo")}
           />
         ) : null}
 

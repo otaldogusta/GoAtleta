@@ -27,6 +27,7 @@ import {
   buildProfessorAgendaEvents,
   buildProfessorMonthCalendar,
 } from "../application/professor-agenda-events";
+import { measureAsync } from "../../../observability/perf";
 
 export type WeeklyPlanningItem = {
   plan: ClassPlan;
@@ -241,7 +242,11 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     setError(null);
 
     try {
-      const cls = await loadRequiredMonthlyData("dados da turma", getClassById(classId));
+      const cls = await measureAsync(
+        "screen.planningMonth.load.monthlyData",
+        () => loadRequiredMonthlyData("dados da turma", getClassById(classId)),
+        { classId }
+      );
       if (!cls?.organizationId) {
         throw new Error("Turma sem workspace ativo.");
       }

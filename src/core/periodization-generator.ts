@@ -736,6 +736,12 @@ export const validateAcwrLimits = (next: {
   if (highValue <= 0 || lowValue <= 0) {
     return { ok: false, message: "Limites do ACWR devem ser maiores que zero." };
   }
+  if (lowValue < 0.5 || lowValue > 1) {
+    return { ok: false, message: "O alerta inferior deve ficar entre 0,5 e 1,0." };
+  }
+  if (highValue < 1 || highValue > 2) {
+    return { ok: false, message: "O alerta superior deve ficar entre 1,0 e 2,0." };
+  }
   if (lowValue >= highValue) {
     return { ok: false, message: "O limite baixo deve ser menor que o limite alto." };
   }

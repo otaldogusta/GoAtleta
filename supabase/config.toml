@@ -47,3 +47,6 @@ verify_jwt = true
 
 [functions.students-import]
 verify_jwt = true
+
+[functions.document-intelligence]
+verify_jwt = false

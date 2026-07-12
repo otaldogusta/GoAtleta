@@ -31,7 +31,7 @@ const getExplicitRoleForPath = (pathname: string): AppRole | null => {
 const shouldWrapSharedRoute = (pathname: string) => {
   const path = normalizePath(pathname);
   if (shouldHideWebShellForPath(path)) return false;
-  return path === "/classes" || path === "/class" || path.startsWith("/class/");
+  return path === "/assistant" || path.startsWith("/assistant/") || path === "/classes" || path === "/class" || path.startsWith("/class/");
 };
 
 const getFallbackRole = (effectiveProfile: EffectiveProfile): AppRole => {

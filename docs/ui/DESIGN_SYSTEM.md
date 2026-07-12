@@ -22,6 +22,10 @@ produto operacional.
 - Preferir uma superfície principal com seções e separadores a cards aninhados.
 - Cards operacionais usam 16 px no mobile e 20 px no desktop.
 - Sombras são último recurso; borda e contraste de superfície vêm primeiro.
+- Recursos de IA usam as mesmas superfícies neutras do produto. Não usar borda
+  neon, glow, gradiente ou contorno decorativo permanente como marcador de IA.
+- O foco visível de teclado continua obrigatório e deve usar o padrão acessível
+  dos controles, aparecendo somente durante a interação.
 
 ## Ações
 
