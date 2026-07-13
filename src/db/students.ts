@@ -25,7 +25,9 @@ import { normalizeCpfDigits, validateCpf } from "../utils/cpf";
 import { normalizeRg } from "../utils/document-normalization";
 import { safeJsonParse } from "../utils/safe-json";
 import { deriveRaStartYear, normalizeRaDigits } from "../utils/student-ra";
-import { addNotification } from "../notificationsInbox";
+import { getSessionUserId } from "../auth/session";
+import { listClassHeadsByClassIds } from "../api/class-responsibles";
+import { createNotification } from "../api/notifications";
 import { getClassById, getClasses } from "./classes";
 import {
     CACHE_KEYS,
@@ -271,6 +273,96 @@ const mapAbsenceNotice = (row: AbsenceNoticeRow): AbsenceNotice => ({
       : "pending",
   createdAt: row.created_at,
 });
+
+const formatAbsenceNotificationDate = (value: string) => {
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("pt-BR");
+};
+
+const getAbsenceNoticeById = async (
+  id: string,
+  organizationId: string | null | undefined
+) => {
+  const rows = await supabaseGet<AbsenceNoticeRow[]>(
+    organizationId
+      ? `/absence_notices?select=*&id=eq.${encodeURIComponent(
+          id
+        )}&organization_id=eq.${encodeURIComponent(organizationId)}&limit=1`
+      : `/absence_notices?select=*&id=eq.${encodeURIComponent(id)}&limit=1`
+  );
+  const row = rows?.[0];
+  return row ? mapAbsenceNotice(row) : null;
+};
+
+const resolveAbsenceNotificationContext = async (
+  notice: Pick<AbsenceNotice, "studentId" | "classId" | "date">,
+  organizationId: string | null | undefined
+) => {
+  const [students, classes] = await Promise.all([
+    getStudents({ organizationId }),
+    getClasses({ organizationId }),
+  ]);
+  const studentName =
+    students.find((student) => student.id === notice.studentId)?.name ?? "Aluno";
+  const cls = classes.find((item) => item.id === notice.classId);
+  const className = cls?.name ?? "Turma";
+  const classLabel = cls?.unit ? `${cls.unit} • ${className}` : className;
+  return {
+    studentName,
+    className,
+    classLabel,
+    dateLabel: formatAbsenceNotificationDate(notice.date),
+  };
+};
+
+const notifyAbsenceNoticeRecipients = async (params: {
+  notice: AbsenceNotice;
+  organizationId: string | null | undefined;
+  type: "absence_notice_created" | "absence_notice_status_changed";
+  title: string;
+  body: string;
+  metadata: Record<string, unknown>;
+  skipUserId?: string | null;
+}) => {
+  const organizationId = String(params.organizationId ?? "").trim();
+  if (!organizationId) return;
+
+  try {
+    const heads = await listClassHeadsByClassIds({
+      organizationId,
+      classIds: [params.notice.classId],
+    });
+    const notified = new Set<string>();
+    await Promise.all(
+      heads
+        .filter((head) => {
+          if (!head.userId || head.userId === params.skipUserId || notified.has(head.userId)) {
+            return false;
+          }
+          notified.add(head.userId);
+          return true;
+        })
+        .map((head) =>
+          createNotification({
+            organizationId,
+            recipientUserId: head.userId,
+            type: params.type,
+            title: params.title,
+            body: params.body,
+            actionUrl: "/prof/absence-notices",
+            sourceType: "absence_notice",
+            sourceId: params.notice.id,
+            metadata: params.metadata,
+            sendPush: true,
+            dedupe: true,
+          }).catch(() => null)
+        )
+    );
+  } catch {
+    // Notification/push is best-effort and must not block absence workflows.
+  }
+};
 
 const normalizeStudentPreRegistrationStatus = (
   value: string | null | undefined
@@ -1131,6 +1223,95 @@ export async function moveStudentsToClass(
   }
 }
 
+export async function getStudentClassIds(
+  studentId: string,
+  options: { organizationId?: string | null } = {}
+): Promise<string[]> {
+  const organizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "getStudentClassIds"
+  );
+  if (!organizationId) return [];
+  const student = await getStudentById(studentId, { organizationId });
+  if (!student) throw new Error("Aluno não encontrado nesta organização.");
+  const rows = await supabaseGet<StudentClassEnrollmentRow[]>(
+    `/student_class_enrollments?select=*&student_id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(organizationId)}&status=eq.active`
+  ).catch((error) => {
+    if (isMissingRelation(error, "student_class_enrollments")) return [];
+    throw error;
+  });
+  return Array.from(
+    new Set([student.classId, ...rows.map((row) => row.class_id)].filter(Boolean))
+  );
+}
+
+export async function setStudentClassIds(
+  studentId: string,
+  requestedClassIds: string[],
+  options: { organizationId?: string | null } = {}
+): Promise<{ before: string[]; after: string[] }> {
+  const organizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "setStudentClassIds"
+  );
+  if (!organizationId) throw new Error("Organização ativa não encontrada.");
+  const student = await getStudentById(studentId, { organizationId });
+  if (!student) throw new Error("Aluno não encontrado nesta organização.");
+
+  const availableClasses = await getClasses({ organizationId });
+  const classById = new Map(availableClasses.map((item) => [item.id, item]));
+  const after = Array.from(new Set(requestedClassIds.map((id) => id.trim()).filter(Boolean)));
+  if (!after.length) throw new Error("O aluno precisa permanecer em pelo menos uma turma.");
+  if (after.some((classId) => !classById.has(classId))) {
+    throw new Error("Uma das turmas não pertence à organização ativa.");
+  }
+
+  const before = await getStudentClassIds(studentId, { organizationId });
+  const nextPrimaryClassId = after.includes(student.classId) ? student.classId : after[0];
+  const existingRows = await supabaseGet<StudentClassEnrollmentRow[]>(
+    `/student_class_enrollments?select=*&student_id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(organizationId)}`
+  ).catch((error) => {
+    if (isMissingRelation(error, "student_class_enrollments")) return [];
+    throw error;
+  });
+  const existingByClassId = new Map(existingRows.map((row) => [row.class_id, row]));
+
+  for (const classId of after) {
+    const targetClass = classById.get(classId)!;
+    const existing = existingByClassId.get(classId);
+    if (existing) {
+      if (existing.status === "active" && existing.modality === targetClass.modality) continue;
+      await supabasePatch(
+        `/student_class_enrollments?id=eq.${encodeURIComponent(existing.id)}&organization_id=eq.${encodeURIComponent(organizationId)}`,
+        { status: "active", modality: targetClass.modality, updated_at: new Date().toISOString() }
+      );
+      continue;
+    }
+    await createStudentClassEnrollment(
+      studentId,
+      classId,
+      targetClass.modality,
+      organizationId
+    );
+  }
+
+  await supabasePatch(
+    `/students?id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(organizationId)}`,
+    { classid: nextPrimaryClassId }
+  );
+
+  for (const row of existingRows) {
+    if (after.includes(row.class_id) || row.status === "inactive") continue;
+    await supabasePatch(
+      `/student_class_enrollments?id=eq.${encodeURIComponent(row.id)}&organization_id=eq.${encodeURIComponent(organizationId)}`
+      ,
+      { status: "inactive", updated_at: new Date().toISOString() }
+    );
+  }
+
+  return { before, after };
+}
+
 // ---------------------------------------------------------------------------
 // Pre-registrations
 // ---------------------------------------------------------------------------
@@ -1710,7 +1891,7 @@ export async function getAbsenceNotices(
 
 export async function createAbsenceNotice(notice: AbsenceNoticeInput, options?: { organizationId?: string }) {
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
-  await supabasePost("/absence_notices", [
+  const insertedRows = await supabasePost<AbsenceNoticeRow[]>("/absence_notices", [
     {
       student_id: notice.studentId,
       class_id: notice.classId,
@@ -1720,19 +1901,27 @@ export async function createAbsenceNotice(notice: AbsenceNoticeInput, options?: 
       note: notice.note?.trim() || null,
       status: notice.status ?? "pending",
     },
+  ], { Prefer: "return=representation" });
+  const createdNotice = insertedRows?.[0] ? mapAbsenceNotice(insertedRows[0]) : null;
+  if (!createdNotice) return;
+
+  const [context, currentUserId] = await Promise.all([
+    resolveAbsenceNotificationContext(createdNotice, organizationId),
+    getSessionUserId(),
   ]);
-  await addNotification("Aviso de ausência", "Um aviso de ausência foi registrado.", {
-    type: "absence_notice_created",
+  await notifyAbsenceNoticeRecipients({
+    notice: createdNotice,
     organizationId,
-    actionUrl: "/prof/absence-notices",
-    sourceType: "absence_notice",
-    sourceId: `${notice.studentId}:${notice.classId}:${notice.date}`,
+    type: "absence_notice_created",
+    title: "Novo aviso de ausência",
+    body: `${context.studentName} avisou ausência em ${context.className} (${context.dateLabel}).`,
     metadata: {
-      studentId: notice.studentId,
-      classId: notice.classId,
-      date: notice.date,
-      status: notice.status ?? "pending",
+      studentId: createdNotice.studentId,
+      classId: createdNotice.classId,
+      date: createdNotice.date,
+      status: createdNotice.status,
     },
+    skipUserId: currentUserId,
   });
 }
 
@@ -1752,20 +1941,30 @@ export async function updateAbsenceNoticeStatus(
       status,
     }
   );
-  await addNotification(
-    "Aviso de ausência atualizado",
-    status === "confirmed"
-      ? "Um aviso de ausência foi confirmado."
-      : "Um aviso de ausência foi ignorado.",
-    {
-      type: "absence_notice_status_changed",
-      organizationId,
-      actionUrl: "/prof/absence-notices",
-      sourceType: "absence_notice",
-      sourceId: id,
-      metadata: { status },
-    }
-  );
+  const updatedNotice = await getAbsenceNoticeById(id, organizationId);
+  if (!updatedNotice) return;
+
+  const [context, currentUserId] = await Promise.all([
+    resolveAbsenceNotificationContext(updatedNotice, organizationId),
+    getSessionUserId(),
+  ]);
+  await notifyAbsenceNoticeRecipients({
+    notice: updatedNotice,
+    organizationId,
+    type: "absence_notice_status_changed",
+    title: "Aviso de ausência atualizado",
+    body:
+      status === "confirmed"
+        ? `${context.studentName} teve ausência confirmada em ${context.className} (${context.dateLabel}).`
+        : `${context.studentName} teve ausência ignorada em ${context.className} (${context.dateLabel}).`,
+    metadata: {
+      studentId: updatedNotice.studentId,
+      classId: updatedNotice.classId,
+      date: updatedNotice.date,
+      status,
+    },
+    skipUserId: currentUserId,
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -30,11 +30,13 @@ import {
     getAthleteIntakesByClass,
     getClassById,
     getClasses,
+    getStudentClassIds,
     getStudentsByClass,
     linkExistingStudentByIdentity,
     moveStudentsToClass,
     revealStudentCpf,
     saveStudent,
+    setStudentClassIds,
     updateStudent,
     updateStudentPhoto,
 } from "../../../src/db/seed";
@@ -55,13 +57,14 @@ import { useSaveToast } from "../../../src/ui/save-toast";
 import { useUndoableListDelete } from "../../../src/ui/useUndoableListDelete";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
-import { measureAsync } from "../../../src/observability/perf";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { maskCpf } from "../../../src/utils/cpf";
 import { formatRgBr } from "../../../src/utils/document-normalization";
 import { normalizeRaDigits, validateStudentRa } from "../../../src/utils/student-ra";
 import { buildWaMeLink, getContactPhone, openWhatsApp } from "../../../src/utils/whatsapp";
 import { StudentAcademicFields } from "../../../src/screens/students/components/StudentAcademicFields";
 import { StudentDocumentsFields } from "../../../src/screens/students/components/StudentDocumentsFields";
+import { StudentMultiSelectOption, StudentSelectOption } from "../../../src/screens/students/components/StudentDropdownOptions";
 
 const guardianRelationOptions = ["Mãe", "Pai", "Avó", "Avô", "Irmão", "Irmã", "Tio", "Tia", "Outro"] as const;
 const positionOptions = ["indefinido", "levantador", "oposto", "ponteiro", "central", "libero"] as const;
@@ -182,6 +185,7 @@ const matchesClassModality = (modalityLabel: string, classModality: ClassGroup["
 };
 
 export default function ClassStudentsScreen() {
+  markRender("screen.classStudents.render.main");
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -221,6 +225,8 @@ export default function ClassStudentsScreen() {
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
   const debouncedSearch = useDebouncedValue(search, 250);
   const [dropKey, setDropKey] = useState<DropKey>(null);
+  const [showPositionPicker, setShowPositionPicker] = useState(false);
+  const [showGuardianRelationPicker, setShowGuardianRelationPicker] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showCreateCloseConfirm, setShowCreateCloseConfirm] = useState(false);
   const [openSection, setOpenSection] = useState<StudentSectionKey>("studentData");
@@ -232,6 +238,11 @@ export default function ClassStudentsScreen() {
   const [moveClassSearch, setMoveClassSearch] = useState("");
   const [moveClassError, setMoveClassError] = useState("");
   const [selectedMoveClassId, setSelectedMoveClassId] = useState("");
+  const [editUnitFilters, setEditUnitFilters] = useState<string[]>([]);
+  const [editClassIds, setEditClassIds] = useState<string[]>([]);
+  const [initialEditClassIds, setInitialEditClassIds] = useState<string[]>([]);
+  const [showEditUnitPicker, setShowEditUnitPicker] = useState(false);
+  const [showEditClassPicker, setShowEditClassPicker] = useState(false);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -329,12 +340,13 @@ export default function ClassStudentsScreen() {
     dropKey !== null
   );
   const accordionAnimOptions = useMemo(
-    () =>
-      Platform.OS === "web"
-        ? { durationIn: 1, durationOut: 1, translateY: 0 }
-        : { durationIn: 220, durationOut: 180, translateY: -4 },
+    () => ({ durationIn: 160, durationOut: 120, translateY: -3 }),
     []
   );
+  const positionPickerAnim = useCollapsibleAnimation(showPositionPicker, accordionAnimOptions);
+  const guardianRelationPickerAnim = useCollapsibleAnimation(showGuardianRelationPicker, accordionAnimOptions);
+  const editUnitPickerAnim = useCollapsibleAnimation(showEditUnitPicker, accordionAnimOptions);
+  const editClassPickerAnim = useCollapsibleAnimation(showEditClassPicker, accordionAnimOptions);
   const studentDataAnim = useCollapsibleAnimation(openSection === "studentData", accordionAnimOptions);
   const academicAnim = useCollapsibleAnimation(openSection === "academic", accordionAnimOptions);
   const sportAnim = useCollapsibleAnimation(openSection === "sportProfile", accordionAnimOptions);
@@ -408,6 +420,17 @@ export default function ClassStudentsScreen() {
     [colors.border, colors.inputBg]
   );
 
+  const linksContentStyle = useMemo(() => ({ gap: 10, padding: 12 }), []);
+  const linksLabelStyle = useMemo(() => ({ color: colors.muted, fontSize: 11 }), [colors.muted]);
+  const linksValueStyle = useMemo(() => ({ color: colors.text, fontSize: 13, fontWeight: "700" as const }), [colors.text]);
+  const linksTagsStyle = useMemo(() => ({ flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 }), []);
+  const linksTagStyle = useMemo(
+    () => ({ borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }),
+    [colors.border, colors.secondaryBg]
+  );
+  const linksTagTextStyle = useMemo(() => ({ color: colors.text, fontSize: 11, fontWeight: "600" as const }), [colors.text]);
+  const editUnitChevronStyle = useMemo(() => ({ transform: [{ rotate: showEditUnitPicker ? "180deg" : "0deg" }] }), [showEditUnitPicker]);
+
   const load = useCallback(async (alive?: { current: boolean }) => {
     if (!id) return;
     const isAlive = () => !alive || alive.current;
@@ -448,7 +471,7 @@ export default function ClassStudentsScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (!showMoveClassModal || !cls?.organizationId) return;
+    if ((!showMoveClassModal && !editingStudent) || !cls?.organizationId) return;
     let cancelled = false;
 
     const loadMoveClasses = async () => {
@@ -457,7 +480,7 @@ export default function ClassStudentsScreen() {
       try {
         const classRows = await getClasses({ organizationId: cls.organizationId });
         if (cancelled) return;
-        setMoveClasses(classRows.filter((item) => item.id !== cls.id));
+        setMoveClasses(classRows);
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : "Não foi possível carregar as turmas.";
@@ -474,7 +497,25 @@ export default function ClassStudentsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [cls?.id, cls?.organizationId, showMoveClassModal]);
+  }, [cls?.organizationId, editingStudent, showMoveClassModal]);
+
+  useEffect(() => {
+    if (!editingStudent || !cls?.organizationId) return;
+    let cancelled = false;
+    void getStudentClassIds(editingStudent.id, { organizationId: cls.organizationId })
+      .then((classIds) => {
+        if (cancelled) return;
+        const resolved = classIds.length ? classIds : [cls.id];
+        setEditClassIds(resolved);
+        setInitialEditClassIds(resolved);
+      })
+      .catch((error) => {
+        if (!cancelled) console.warn("Student enrollments load failed", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cls?.id, cls?.organizationId, editingStudent]);
 
   const intakeByStudentId = useMemo(() => {
     const byStudent = new Map<string, AthleteIntake>();
@@ -677,8 +718,15 @@ export default function ClassStudentsScreen() {
   const openEdit = (s: Student) => {
     setEditingStudent(s);
     setDropKey(null);
+    setShowGuardianRelationPicker(false);
     setShowEditCloseConfirm(false);
     setOpenSection("studentData");
+    const initialClassId = cls?.id ?? s.classId ?? "";
+    setEditUnitFilters(cls?.unit ? [cls.unit] : []);
+    setEditClassIds(initialClassId ? [initialClassId] : []);
+    setInitialEditClassIds(initialClassId ? [initialClassId] : []);
+    setShowEditUnitPicker(false);
+    setShowEditClassPicker(false);
     setName(s.name ?? "");
     setPhone(s.phone ?? "");
     setEmail(s.loginEmail ?? "");
@@ -763,6 +811,7 @@ export default function ClassStudentsScreen() {
       (cpfWasEdited && editSnapshot.cpfDisplay !== cpfDisplay) ||
       editSnapshot.rgDocument !== rgDocument ||
       editSnapshot.ra !== ra ||
+      [...editClassIds].sort().join("|") !== [...initialEditClassIds].sort().join("|") ||
       photoChanged
     );
   }, [
@@ -772,7 +821,10 @@ export default function ClassStudentsScreen() {
     cpfDisplay,
     cpfWasEdited,
     editSnapshot,
+    editClassIds,
+    initialEditClassIds,
     editingStudent,
+    cls?.id,
     email,
     guardianName,
     guardianPhone,
@@ -1106,7 +1158,7 @@ export default function ClassStudentsScreen() {
     resetCreateForm,
   ]);
 
-  const save = async () => {
+  const performSave = async () => {
     if (!editingStudent || !name.trim() || !isEditDirty) return;
     setSaving(true);
     try {
@@ -1154,12 +1206,48 @@ export default function ClassStudentsScreen() {
         cpfMasked: cpfDisplay.trim() || null,
         rg: rgDocument.trim() || null,
       });
+      if (cls?.organizationId) {
+        await setStudentClassIds(editingStudent.id, editClassIds, {
+          organizationId: cls.organizationId,
+        });
+      }
       closeEditModal();
       await load();
     } finally {
       setPhotoSaving(false);
       setSaving(false);
     }
+  };
+
+  const save = () => {
+    if (!editingStudent || !isEditDirty) return;
+    const beforeKey = [...initialEditClassIds].sort().join("|");
+    const afterKey = [...editClassIds].sort().join("|");
+    if (beforeKey === afterKey) {
+      void performSave();
+      return;
+    }
+    if (!editClassIds.length) {
+      Alert.alert("Turmas", "Selecione pelo menos uma turma para o aluno.");
+      return;
+    }
+    const beforeNames = moveClasses.filter((item) => initialEditClassIds.includes(item.id)).map((item) => item.name);
+    const afterNames = moveClasses.filter((item) => editClassIds.includes(item.id)).map((item) => item.name);
+    confirm({
+      title: "Alterar turmas do aluno?",
+      message: `Antes: ${beforeNames.join(", ") || "sem turma"}. Depois: ${afterNames.join(", ")}.`,
+      confirmLabel: "Confirmar alteração",
+      cancelLabel: "Cancelar",
+      undoLabel: "Desfazer",
+      undoMessage: "Alteração de turmas pendente. Desfazer?",
+      onOptimistic: () => undefined,
+      onConfirm: async () => {
+        await performSave();
+      },
+      onUndo: () => {
+        setEditClassIds(initialEditClassIds);
+      },
+    });
   };
 
   const revealCpf = async () => {
@@ -1282,6 +1370,18 @@ export default function ClassStudentsScreen() {
   const selectedMoveClass = useMemo(
     () => moveClasses.find((item) => item.id === selectedMoveClassId) ?? null,
     [moveClasses, selectedMoveClassId]
+  );
+  const editUnitOptions = useMemo(
+    () => Array.from(new Set(moveClasses.map((item) => item.unit))).sort((a, b) => a.localeCompare(b)),
+    [moveClasses]
+  );
+  const editClassOptions = useMemo(
+    () => moveClasses.filter((item) => !editUnitFilters.length || editUnitFilters.includes(item.unit)),
+    [editUnitFilters, moveClasses]
+  );
+  const selectedEditClasses = useMemo(
+    () => moveClasses.filter((item) => editClassIds.includes(item.id)),
+    [editClassIds, moveClasses]
   );
   const isSelectionMode = selectionModeEnabled;
   const allFilteredSelected = filtered.length > 0 && filtered.every((student) => selectedStudentIds.includes(student.id));
@@ -1516,8 +1616,13 @@ export default function ClassStudentsScreen() {
     return parts.join(" • ");
   }, [cpfDisplay, rgDocument]);
   const sportSummary = useMemo(() => {
-    return [getSelectDisplayValue(primaryPos), getSelectDisplayValue(secondaryPos)].join(" • ");
+    const selected = [primaryPos, secondaryPos].filter(Boolean);
+    return selected.length ? selected.map(getOptionLabel).join(" • ") : "Indefinido";
   }, [primaryPos, secondaryPos]);
+  const selectedPositions = useMemo(
+    () => Array.from(new Set([primaryPos, secondaryPos].filter(Boolean))),
+    [primaryPos, secondaryPos]
+  );
 
   const editingIntake = useMemo(() => {
     if (!editingStudent) return null;
@@ -2017,7 +2122,7 @@ export default function ClassStudentsScreen() {
               {openCreateSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "studentData" || createStudentDataAnim.isVisible) ? (
                 <Animated.View style={[createStudentDataAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
+                  <View style={linksContentStyle}>
                     <TextInput value={createName} onChangeText={setCreateName} placeholder="Nome do aluno" placeholderTextColor={colors.placeholder} style={inputStyle(colors)} />
                     <View style={{ flexDirection: "row", gap: 10 }}>
                       <View style={{ flex: 1 }}>
@@ -2047,7 +2152,7 @@ export default function ClassStudentsScreen() {
               {openCreateSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openCreateSection === "academic" || createAcademicAnim.isVisible) ? (
                 <Animated.View style={[createAcademicAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
+                  <View style={linksContentStyle}>
                     <StudentAcademicFields
                       ra={createRa}
                       collegeCourse={createCollegeCourse}
@@ -2522,26 +2627,47 @@ export default function ClassStudentsScreen() {
               {(openSection === "sportProfile" || sportAnim.isVisible) ? (
                 <Animated.View style={[sportAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
-                  <View style={rowStyle}>
-                    <View style={colStyle}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
-                      <View ref={primaryRef}>
-                        <Pressable onPress={() => setDropKey(dropKey === "primary" ? null : "primary")} style={selectFieldStyle}>
-                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(primaryPos)}</Text>
-                          <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "primary" ? "180deg" : "0deg" }] }} />
-                        </Pressable>
+                    <View style={{ gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade que pratica</Text>
+                      <View style={selectFieldStyle}>
+                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getClassModalityLabel(cls?.modality ?? "voleibol")}</Text>
                       </View>
                     </View>
-                    <View style={colStyle}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
-                      <View ref={secondaryRef}>
-                        <Pressable onPress={() => setDropKey(dropKey === "secondary" ? null : "secondary")} style={selectFieldStyle}>
-                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{getSelectDisplayValue(secondaryPos)}</Text>
-                          <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "secondary" ? "180deg" : "0deg" }] }} />
-                        </Pressable>
-                      </View>
+                    <View style={{ gap: 4 }}>
+                      <Text style={{ color: colors.muted, fontSize: 11 }}>Posições que joga</Text>
+                      <Pressable onPress={() => setShowPositionPicker((current) => !current)} style={selectFieldStyle}>
+                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>{sportSummary}</Text>
+                        <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showPositionPicker ? "180deg" : "0deg" }] }} />
+                      </Pressable>
+                      {positionPickerAnim.isVisible ? (
+                        <Animated.View style={[positionPickerAnim.animatedStyle, { overflow: "hidden" }]}>
+                          <View style={{ maxHeight: 190, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
+                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
+                              {positionOptions.filter((position) => position !== "indefinido").map((position, index) => {
+                                const active = selectedPositions.includes(position);
+                                return (
+                                  <StudentMultiSelectOption
+                                    key={position}
+                                    label={getOptionLabel(position)}
+                                    value={position}
+                                    active={active}
+                                    onToggle={(value) => {
+                                      const next = active
+                                        ? selectedPositions.filter((item) => item !== value)
+                                        : [...selectedPositions.filter((item) => item !== value), value].slice(-2);
+                                      setPrimaryPos(next[0] ?? "");
+                                      setSecondaryPos(next[1] ?? "");
+                                    }}
+                                    isFirst={index === 0}
+                                    compact
+                                  />
+                                );
+                              })}
+                            </ScrollView>
+                          </View>
+                        </Animated.View>
+                      ) : null}
                     </View>
-                  </View>
                   </View>
                 </Animated.View>
               ) : null}
@@ -2666,12 +2792,31 @@ export default function ClassStudentsScreen() {
                   </View>
                   <View style={{ gap: 4 }}>
                     <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
-                    <View ref={guardianRef}>
-                      <Pressable onPress={() => setDropKey(dropKey === "guardian" ? null : "guardian")} style={selectFieldStyle}>
-                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{guardianRelation || "Selecione"}</Text>
-                        <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: dropKey === "guardian" ? "180deg" : "0deg" }] }} />
-                      </Pressable>
-                    </View>
+                    <Pressable onPress={() => setShowGuardianRelationPicker((current) => !current)} style={selectFieldStyle}>
+                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "500" }}>{guardianRelation || "Selecione"}</Text>
+                      <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showGuardianRelationPicker ? "180deg" : "0deg" }] }} />
+                    </Pressable>
+                    {guardianRelationPickerAnim.isVisible ? (
+                      <Animated.View style={[guardianRelationPickerAnim.animatedStyle, { overflow: "hidden" }]}>
+                        <View style={{ maxHeight: 160, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
+                          <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
+                            {guardianRelationOptions.map((item, index) => (
+                              <StudentSelectOption
+                                key={item}
+                                label={item}
+                                value={item}
+                                active={item === guardianRelation}
+                                onSelect={(value) => {
+                                  setGuardianRelation(value);
+                                  setShowGuardianRelationPicker(false);
+                                }}
+                                isFirst={index === 0}
+                              />
+                            ))}
+                          </ScrollView>
+                        </View>
+                      </Animated.View>
+                    ) : null}
                   </View>
                   </View>
                 </Animated.View>
@@ -2684,7 +2829,7 @@ export default function ClassStudentsScreen() {
                 style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
               >
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Vínculos esportivos</Text>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Turma e unidade</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{linksSummary}</Text>
                 </View>
                 <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openSection === "links" ? "180deg" : "0deg" }] }} />
@@ -2692,25 +2837,70 @@ export default function ClassStudentsScreen() {
               {openSection === "links" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
               {(openSection === "links" || linksAnim.isVisible) ? (
                 <Animated.View style={[linksAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 8, padding: 12 }}>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {sportsLinkBadges.map((item) => (
-                      <View
-                        key={item}
-                        style={{
-                          borderRadius: 999,
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                          backgroundColor: colors.secondaryBg,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontSize: 11, fontWeight: "600" }}>{item}</Text>
+                  <View style={linksContentStyle}>
+                    <View style={rowStyle}>
+                      <View style={colStyle}>
+                        <Text style={linksLabelStyle}>Unidade</Text>
+                        <Pressable onPress={() => setShowEditUnitPicker((current) => !current)} style={selectFieldStyle}>
+                          <Text style={linksValueStyle}>{editUnitFilters.length === 1 ? editUnitFilters[0] : editUnitFilters.length ? `${editUnitFilters.length} unidades` : "Todas as unidades"}</Text>
+                          <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={editUnitChevronStyle} />
+                        </Pressable>
+                        {editUnitPickerAnim.isVisible ? (
+                          <Animated.View style={[editUnitPickerAnim.animatedStyle, { overflow: "hidden" }]}>
+                            <View style={{ maxHeight: 142, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
+                              <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
+                                {editUnitOptions.map((unit, index) => (
+                                  <StudentMultiSelectOption
+                                    key={unit}
+                                    label={unit}
+                                    value={unit}
+                                    active={editUnitFilters.includes(unit)}
+                                    onToggle={(value) => {
+                                      setEditUnitFilters((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+                                    }}
+                                    isFirst={index === 0}
+                                    compact
+                                  />
+                                ))}
+                              </ScrollView>
+                            </View>
+                          </Animated.View>
+                        ) : null}
                       </View>
-                    ))}
-                  </View>
-                  {!editingIntake ? <Text style={{ color: colors.muted, fontSize: 12 }}>{`${cls?.name ?? "Sem turma"} • ${cls?.unit ?? "Sem unidade"}`}</Text> : null}
+                      <View style={colStyle}>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
+                        <Pressable onPress={() => setShowEditClassPicker((current) => !current)} style={selectFieldStyle}>
+                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>{selectedEditClasses.length === 1 ? `${selectedEditClasses[0].name} (${classGenderLabel[selectedEditClasses[0].gender]})` : selectedEditClasses.length ? `${selectedEditClasses.length} turmas` : "Selecione"}</Text>
+                          <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
+                        </Pressable>
+                        {editClassPickerAnim.isVisible ? (
+                          <Animated.View style={[editClassPickerAnim.animatedStyle, { overflow: "hidden" }]}>
+                            <View style={{ maxHeight: 142, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
+                              <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
+                                {editClassOptions.map((item, index) => (
+                                  <StudentMultiSelectOption
+                                    key={item.id}
+                                    label={`${item.name} (${classGenderLabel[item.gender]})`}
+                                    value={item.id}
+                                    active={editClassIds.includes(item.id)}
+                                    onToggle={(value) => setEditClassIds((current) => current.includes(value) ? current.filter((id) => id !== value) : [...current, value])}
+                                    isFirst={index === 0}
+                                    compact
+                                  />
+                                ))}
+                              </ScrollView>
+                            </View>
+                          </Animated.View>
+                        ) : null}
+                      </View>
+                    </View>
+                    <View style={linksTagsStyle}>
+                      {selectedEditClasses.map((item) => (
+                        <View key={item.id} style={linksTagStyle}>
+                          <Text style={linksTagTextStyle}>{`${item.name} • ${item.unit}`}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                 </Animated.View>
               ) : null}

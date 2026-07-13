@@ -19,18 +19,19 @@ import {
 import type { ClassGroup, Student } from "../../../core/models";
 import { deriveStudentHealthAssessment } from "../../../core/student-health";
 import { normalizeRaDigits } from "../../../utils/student-ra";
-import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { DateInput } from "../../../ui/DateInput";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
-import { ClassModalityFilterChips, type ClassModalityFilterValue } from "../components/ClassModalityFilterChips";
+import type { ClassModalityFilterValue } from "../components/ClassModalityFilterChips";
+import { getClassModalityLabel } from "../../../core/class-modality";
 import { StudentAcademicFields } from "../components/StudentAcademicFields";
 import { StudentClassDropdownList } from "../components/StudentClassDropdownPanel";
 import { StudentDocumentsFields } from "../components/StudentDocumentsFields";
 import { StudentMultiSelectOption } from "../components/StudentDropdownOptions";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
+import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
 
 type CollapsibleAnim = {
     animatedStyle: any;
@@ -39,6 +40,14 @@ type CollapsibleAnim = {
 
 type Layout = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
+
+const VOLLEYBALL_POSITION_OPTIONS: Array<{ value: Student["positionPrimary"]; label: string }> = [
+    { value: "levantador", label: "Levantador" },
+    { value: "oposto", label: "Oposto" },
+    { value: "ponteiro", label: "Ponteiro" },
+    { value: "central", label: "Central" },
+    { value: "libero", label: "Líbero" },
+];
 
 type SelectOptionProps = {
     label: string;
@@ -321,11 +330,35 @@ export function StudentEditModal({
     SelectOption,
 }: StudentEditModalProps) {
     const [classModalityFilter, setClassModalityFilter] = useState<ClassModalityFilterValue>("all");
+    const [showSportModalityPicker, setShowSportModalityPicker] = useState(false);
+    const sportModalityPickerAnim = useCollapsibleAnimation(showSportModalityPicker, {
+        durationIn: 160,
+        durationOut: 120,
+        translateY: -3,
+    });
+    const [showPositionPicker, setShowPositionPicker] = useState(false);
+    const positionPickerAnim = useCollapsibleAnimation(showPositionPicker, {
+        durationIn: 160,
+        durationOut: 120,
+        translateY: -3,
+    });
+    const selectedPositions = useMemo(
+        () => Array.from(new Set([positionPrimary, positionSecondary].filter((position) => position !== "indefinido"))),
+        [positionPrimary, positionSecondary]
+    );
+    const selectedPositionsLabel = selectedPositions.length
+        ? selectedPositions.map((position) => VOLLEYBALL_POSITION_OPTIONS.find((option) => option.value === position)?.label ?? position).join(" • ")
+        : "Indefinido";
     const selectedClass = useMemo(
         () => classOptions.find((item) => item.id === classId) ?? null,
         [classId, classOptions]
     );
     const selectedClassModality = selectedClass?.modality ?? null;
+    const selectedModalityLabel = classModalityFilter !== "all"
+          ? getClassModalityLabel(classModalityFilter)
+          : selectedClassModality
+            ? getClassModalityLabel(selectedClassModality)
+            : "Modalidade não informada";
     const classModalities = useMemo(
         () => Array.from(new Set(classOptions.map((item) => item.modality))),
         [classOptions]
@@ -603,49 +636,86 @@ export function StudentEditModal({
                                 {editSportAnim.isVisible ? (
                                     <Animated.View style={[editSportAnim.animatedStyle, { overflow: "hidden" }]}>
                                         <View style={{ gap: 10, padding: 12 }}>
-                                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                                                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                                                    <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
-                                                    <TextInput
-                                                        placeholder="indefinido | levantador..."
-                                                        value={positionPrimary}
-                                                        onChangeText={(value) => setPositionPrimary((value.trim().toLowerCase() as Student["positionPrimary"]) || "indefinido")}
-                                                        placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
-                                                    />
-                                                </View>
-                                                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                                                    <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
-                                                    <TextInput
-                                                        placeholder="indefinido | ponteiro..."
-                                                        value={positionSecondary}
-                                                        onChangeText={(value) => setPositionSecondary((value.trim().toLowerCase() as Student["positionSecondary"]) || "indefinido")}
-                                                        placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
-                                                    />
-                                                </View>
+                                            <View style={{ gap: 4 }}>
+                                                <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade que pratica</Text>
+                                                <Pressable
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel="Selecionar modalidade esportiva"
+                                                    accessibilityState={{ expanded: showSportModalityPicker }}
+                                                    onPress={() => setShowSportModalityPicker((current) => !current)}
+                                                    style={selectFieldStyle as StyleProp<ViewStyle>}
+                                                >
+                                                    <Text style={{ color: colors.inputText, fontSize: 13, fontWeight: "600" }}>{selectedModalityLabel}</Text>
+                                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showSportModalityPicker ? "180deg" : "0deg" }] }} />
+                                                </Pressable>
+                                                {sportModalityPickerAnim.isVisible ? (
+                                                    <Animated.View style={[sportModalityPickerAnim.animatedStyle, { overflow: "hidden" }]}>
+                                                        <View style={{ maxHeight: 142, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
+                                                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
+                                                                {classModalities.length ? classModalities.map((modality, index) => (
+                                                                    <StudentMultiSelectOption
+                                                                        key={modality}
+                                                                        label={getClassModalityLabel(modality)}
+                                                                        value={modality}
+                                                                        active={classModalityFilter === modality || selectedClassModality === modality}
+                                                                        onToggle={(value) => {
+                                                                            const selectedModality = value as ClassGroup["modality"];
+                                                                            setClassModalityFilter(selectedModality);
+                                                                            const firstCompatibleClass = classOptions.find((item) => item.modality === selectedModality);
+                                                                            if (firstCompatibleClass && selectedClassModality !== selectedModality) handleSelectEditClass(firstCompatibleClass);
+                                                                        }}
+                                                                        isFirst={index === 0}
+                                                                        compact
+                                                                    />
+                                                                )) : (
+                                                                    <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>Nenhuma modalidade cadastrada.</Text>
+                                                                )}
+                                                            </ScrollView>
+                                                        </View>
+                                                    </Animated.View>
+                                                ) : null}
                                             </View>
-                                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                                                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                                                    <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-                                                    <TextInput
-                                                        placeholder="ludico | base | rendimento"
-                                                        value={athleteObjective}
-                                                        onChangeText={(value) => setAthleteObjective((value.trim().toLowerCase() as Student["athleteObjective"]) || "base")}
-                                                        placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
-                                                    />
-                                                </View>
-                                                <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                                                    <Text style={{ color: colors.muted, fontSize: 11 }}>Estilo</Text>
-                                                    <TextInput
-                                                        placeholder="misto | visual | auditivo | cinestesico"
-                                                        value={learningStyle}
-                                                        onChangeText={(value) => setLearningStyle((value.trim().toLowerCase() as Student["learningStyle"]) || "misto")}
-                                                        placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
-                                                    />
-                                                </View>
+                                            <View style={{ gap: 4 }}>
+                                                <Text style={{ color: colors.muted, fontSize: 11 }}>Posições que joga</Text>
+                                                <Pressable
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel="Selecionar posições do voleibol"
+                                                    accessibilityState={{ expanded: showPositionPicker }}
+                                                    onPress={() => setShowPositionPicker((current) => !current)}
+                                                    style={selectFieldStyle as StyleProp<ViewStyle>}
+                                                >
+                                                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{selectedPositionsLabel}</Text>
+                                                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showPositionPicker ? "180deg" : "0deg" }] }} />
+                                                </Pressable>
+                                                {positionPickerAnim.isVisible ? (
+                                                    <Animated.View style={[positionPickerAnim.animatedStyle, { overflow: "hidden" }]}>
+                                                        <View style={{ maxHeight: 190, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
+                                                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
+                                                                {VOLLEYBALL_POSITION_OPTIONS.map((option, index) => {
+                                                                    const active = selectedPositions.includes(option.value);
+                                                                    return (
+                                                                        <StudentMultiSelectOption
+                                                                            key={option.value}
+                                                                            label={option.label}
+                                                                            value={option.value}
+                                                                            active={active}
+                                                                            onToggle={(value) => {
+                                                                                const position = value as Student["positionPrimary"];
+                                                                                const next = active
+                                                                                    ? selectedPositions.filter((item) => item !== position)
+                                                                                    : [...selectedPositions.filter((item) => item !== position), position].slice(-2);
+                                                                                setPositionPrimary((next[0] as Student["positionPrimary"]) ?? "indefinido");
+                                                                                setPositionSecondary((next[1] as Student["positionSecondary"]) ?? "indefinido");
+                                                                            }}
+                                                                            isFirst={index === 0}
+                                                                            compact
+                                                                        />
+                                                                    );
+                                                                })}
+                                                            </ScrollView>
+                                                        </View>
+                                                    </Animated.View>
+                                                ) : null}
                                             </View>
                                         </View>
                                     </Animated.View>
@@ -824,6 +894,17 @@ export function StudentEditModal({
                                                         <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditGuardianRelationPicker ? "180deg" : "0deg" }] }} />
                                                     </Pressable>
                                                 </View>
+                                                {showEditGuardianRelationPickerContent ? (
+                                                    <Animated.View style={[editGuardianRelationPickerAnimStyle, { overflow: "hidden" }]}>
+                                                        <View style={{ maxHeight: 160, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
+                                                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={{ padding: 6, gap: 4 }}>
+                                                                {guardianRelationOptions.map((item, index) => (
+                                                                    <SelectOption key={item} label={item} value={item} active={item === guardianRelation} onSelect={handleSelectEditGuardianRelation} isFirst={index === 0} />
+                                                                ))}
+                                                            </ScrollView>
+                                                        </View>
+                                                    </Animated.View>
+                                                ) : null}
                                             </View>
                                         </View>
                                     </Animated.View>
@@ -836,7 +917,7 @@ export function StudentEditModal({
                                     style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}
                                 >
                                     <View style={{ flex: 1, gap: 2 }}>
-                                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Vínculos esportivos</Text>
+                                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Turma e unidade</Text>
                                         <Text style={{ color: colors.muted, fontSize: 11 }}>{editLinksSummary}</Text>
                                     </View>
                                     <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openEditSection === "links" ? "180deg" : "0deg" }] }} />
@@ -932,12 +1013,6 @@ export function StudentEditModal({
                                                     ) : null}
                                                 </View>
                                             </View>
-                                            <ClassModalityFilterChips
-                                                colors={colors}
-                                                value={classModalityFilter}
-                                                modalities={classModalities}
-                                                onChange={setClassModalityFilter}
-                                            />
                                             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                                                 {selectedUnitFilters.length ? (
                                                     selectedUnitFilters.map((item) => (
@@ -1002,33 +1077,6 @@ export function StudentEditModal({
                         </Pressable>
                     </View>
 
-                    <AnchoredDropdown
-                        visible={showEditGuardianRelationPickerContent}
-                        layout={
-                            editGuardianRelationTriggerLayout
-                                ? editGuardianRelationTriggerLayout
-                                : null
-                        }
-                        container={editContainerWindow}
-                        animationStyle={editGuardianRelationPickerAnimStyle}
-                        zIndex={420}
-                        maxHeight={160}
-                        nestedScrollEnabled
-                        interactiveRefs={[editGuardianRelationTriggerRef]}
-                        onRequestClose={closeAllEditPickers}
-                        scrollContentStyle={{ padding: 8, gap: 6 }}
-                    >
-                        {guardianRelationOptions.map((item, index) => (
-                            <SelectOption
-                                key={item}
-                                label={item}
-                                value={item}
-                                active={item === guardianRelation}
-                                onSelect={handleSelectEditGuardianRelation}
-                                isFirst={index === 0}
-                            />
-                        ))}
-                    </AnchoredDropdown>
                 </View>
             </View>
         </ModalSheet>

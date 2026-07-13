@@ -27,6 +27,20 @@ create table if not exists public.consents (
 
 alter table public.consents enable row level security;
 
+create or replace function private.set_lgpd_updated_at()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+revoke all on function private.set_lgpd_updated_at() from public;
+
 create policy "Users can read own generated or managed consents"
 on public.consents
 for select
@@ -42,9 +56,14 @@ for select
 to authenticated
 using (
   exists (
-    select 1 from public.organization_members om
-    where om.organization_id = consents.organization_id
+    select 1
+    from public.students s
+    join public.organization_members om
+      on om.organization_id = s.organization_id
+    where s.id = consents.student_id
+      and s.organization_id = consents.organization_id
       and om.user_id = auth.uid()
+      and om.role_level >= 10
   )
 );
 
@@ -53,8 +72,22 @@ on public.consents
 for insert
 to authenticated
 with check (
-  created_by = auth.uid()
-  or guardian_id = auth.uid()
+  (created_by = auth.uid() or guardian_id = auth.uid())
+  and exists (
+    select 1
+    from public.students s
+    where s.id = consents.student_id
+      and s.organization_id = consents.organization_id
+      and (
+        s.student_user_id = auth.uid()
+        or exists (
+          select 1 from public.organization_members om
+          where om.organization_id = s.organization_id
+            and om.user_id = auth.uid()
+            and om.role_level >= 10
+        )
+      )
+  )
 );
 
 create policy "Users can update own consents"
@@ -64,8 +97,26 @@ to authenticated
 using (
   created_by = auth.uid()
   or guardian_id = auth.uid()
+)
+with check (
+  (created_by = auth.uid() or guardian_id = auth.uid())
+  and exists (
+    select 1
+    from public.students s
+    where s.id = consents.student_id
+      and s.organization_id = consents.organization_id
+      and (
+        s.student_user_id = auth.uid()
+        or exists (
+          select 1 from public.organization_members om
+          where om.organization_id = s.organization_id
+            and om.user_id = auth.uid()
+            and om.role_level >= 10
+        )
+      )
+  )
 );
 
 -- Trigger for updated_at
 create trigger handle_updated_at before update on public.consents
-  for each row execute procedure moddatetime (updated_at);
+  for each row execute function private.set_lgpd_updated_at();

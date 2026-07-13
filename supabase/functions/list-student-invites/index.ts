@@ -1,14 +1,26 @@
 import { createEdgeFunction, createSuccess, createError } from "../_shared/framework.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(createEdgeFunction({
   name: "list-student-invites",
   requireAuth: true,
   parseJson: false,
-  handler: async ({ supabase, user }) => {
+  handler: async ({ user }) => {
     const userId = user!.id;
     const nowIso = new Date().toISOString();
 
-    const { data, error } = await supabase
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    if (!supabaseUrl || !serviceRoleKey) {
+      return createError(500, "SERVER_ERROR", "Missing Supabase configuration");
+    }
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // Authentication is enforced by the framework. The creator filter keeps
+    // this server-side query scoped to the current user.
+    const { data, error } = await admin
       .from("student_invites")
       .select("id, student_id, created_at, expires_at, invited_via, invited_to, revoked, students(name)")
       .eq("created_by", userId)

@@ -175,6 +175,156 @@ describe("notifications api", () => {
     );
   });
 
+  test("deduplicates own notification by recipient, type and source", async () => {
+    mockRestGet.mockResolvedValue([
+      {
+        id: "n-existing",
+        organization_id: "org-1",
+        recipient_user_id: "user-1",
+        actor_user_id: "user-1",
+        type: "absence_notice_created",
+        title: "Novo aviso de ausência",
+        body: "Aluno avisou ausência.",
+        action_url: "/prof/absence-notices",
+        source_type: "absence_notice",
+        source_id: "notice-1",
+        metadata: {},
+        read_at: null,
+        created_at: "2026-07-06T12:00:00.000Z",
+      },
+    ]);
+
+    const created = await createNotification({
+      type: "absence_notice_created",
+      title: "Novo aviso de ausência",
+      body: "Aluno avisou ausência.",
+      actionUrl: "/prof/absence-notices",
+      sourceType: "absence_notice",
+      sourceId: "notice-1",
+      dedupe: true,
+    });
+
+    expect(created?.id).toBe("n-existing");
+    expect(mockRestGet).toHaveBeenCalledWith(
+      expect.stringContaining("source_id=eq.notice-1")
+    );
+    expect(mockRestPost).not.toHaveBeenCalled();
+    expect(mockSendPushToUser).not.toHaveBeenCalled();
+  });
+
+  test("keeps notification creation successful when push delivery fails", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({
+        created: true,
+        notification: {
+        id: "n-push",
+        organization_id: "org-1",
+        recipient_user_id: "user-2",
+        actor_user_id: "user-1",
+        type: "absence_notice_created",
+        title: "Novo aviso de ausência",
+        body: "Aluno avisou ausência.",
+        action_url: "/prof/absence-notices",
+        source_type: "absence_notice",
+        source_id: "notice-1",
+        metadata: {},
+        read_at: null,
+        created_at: "2026-07-06T12:00:00.000Z",
+        },
+      }), { status: 200 })
+    );
+    mockSendPushToUser.mockRejectedValue(new Error("no tokens"));
+
+    const created = await createNotification({
+      type: "absence_notice_created",
+      recipientUserId: "user-2",
+      title: "Novo aviso de ausência",
+      body: "Aluno avisou ausência.",
+      actionUrl: "/prof/absence-notices",
+      sourceType: "absence_notice",
+      sourceId: "notice-1",
+      sendPush: true,
+    });
+
+    expect(created?.id).toBe("n-push");
+    expect(mockSendPushToUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        targetUserId: "user-2",
+        title: "Novo aviso de ausência",
+        data: {
+          route: "/prof/absence-notices",
+          params: {
+            sourceType: "absence_notice",
+            sourceId: "notice-1",
+          },
+        },
+      })
+    );
+  });
+
+  test("never sends push implicitly to the current user", async () => {
+    mockRestPost.mockResolvedValue([
+      {
+        id: "n-own",
+        organization_id: "org-1",
+        recipient_user_id: "user-1",
+        actor_user_id: "user-1",
+        type: "generic",
+        title: "Aviso",
+        body: "Mensagem interna.",
+        action_url: null,
+        source_type: null,
+        source_id: null,
+        metadata: {},
+        read_at: null,
+        created_at: "2026-07-06T12:00:00.000Z",
+      },
+    ]);
+
+    await createNotification({ title: "Aviso", body: "Mensagem interna.", sendPush: true });
+
+    expect(mockRestPost).toHaveBeenCalled();
+    expect(mockSendPushToUser).not.toHaveBeenCalled();
+  });
+
+  test("does not resend push when the Edge Function deduplicates a notification", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({
+        created: false,
+        notification: {
+          id: "n-existing",
+          organization_id: "org-1",
+          recipient_user_id: "user-2",
+          actor_user_id: "user-1",
+          type: "absence_notice_created",
+          title: "Novo aviso de ausência",
+          body: "Aluno avisou ausência.",
+          action_url: "/prof/absence-notices",
+          source_type: "absence_notice",
+          source_id: "notice-1",
+          metadata: {},
+          read_at: null,
+          created_at: "2026-07-06T12:00:00.000Z",
+        },
+      }), { status: 200 })
+    );
+
+    const notification = await createNotification({
+      recipientUserId: "user-2",
+      type: "absence_notice_created",
+      title: "Novo aviso de ausência",
+      body: "Aluno avisou ausência.",
+      sourceType: "absence_notice",
+      sourceId: "notice-1",
+      sendPush: true,
+      dedupe: true,
+    });
+
+    expect(notification?.id).toBe("n-existing");
+    expect(mockSendPushToUser).not.toHaveBeenCalled();
+  });
+
   test("marks and clears only current user's notifications through scoped filters", async () => {
     await markNotificationRead("n-1");
     await markAllNotificationsRead();

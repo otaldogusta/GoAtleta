@@ -22,7 +22,7 @@ using (
 );
 
 create trigger handle_drp_updated_at before update on public.data_retention_policies
-  for each row execute procedure moddatetime (updated_at);
+  for each row execute function private.set_lgpd_updated_at();
 
 -- Insert default policies for contextual logs
 insert into public.data_retention_policies (table_name, retention_days, action) values

@@ -24,6 +24,9 @@ verify_jwt = false
 [functions.create-student-invite]
 verify_jwt = true
 
+[functions.validate-student-invite]
+verify_jwt = false
+
 [functions.claim-student-invite]
 verify_jwt = true
 
