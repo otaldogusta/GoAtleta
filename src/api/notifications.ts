@@ -64,6 +64,7 @@ export type CreateNotificationInput = {
   sourceId?: string | null;
   metadata?: Record<string, unknown> | null;
   sendPush?: boolean;
+  dedupe?: boolean;
 };
 
 const NOTIFICATION_SELECT =
@@ -129,6 +130,23 @@ const buildCreatePayload = async (input: CreateNotificationInput) => {
   };
 };
 
+const findExistingNotification = async (
+  payload: NonNullable<Awaited<ReturnType<typeof buildCreatePayload>>>
+) => {
+  if (!payload.source_type || !payload.source_id) return null;
+  const rows = await supabaseRestGet<NotificationRow[]>(
+    `/notifications?select=${NOTIFICATION_SELECT}&organization_id=eq.${encodeURIComponent(
+      payload.organization_id
+    )}&recipient_user_id=eq.${encodeURIComponent(
+      payload.recipient_user_id
+    )}&type=eq.${encodeURIComponent(payload.type)}&source_type=eq.${encodeURIComponent(
+      payload.source_type
+    )}&source_id=eq.${encodeURIComponent(payload.source_id)}&limit=1`
+  );
+  const existing = rows?.[0];
+  return existing ? mapNotification(existing) : null;
+};
+
 const callCreateNotificationFunction = async (input: CreateNotificationInput) => {
   const token = await getValidAccessToken();
   if (!token) throw new Error("Sessão inválida. Faça login novamente.");
@@ -145,12 +163,15 @@ const callCreateNotificationFunction = async (input: CreateNotificationInput) =>
 
   const raw = await response.text();
   const parsed = raw
-    ? (JSON.parse(raw) as { error?: string; notification?: NotificationRow })
+    ? (JSON.parse(raw) as { error?: string; notification?: NotificationRow; created?: boolean })
     : null;
   if (!response.ok) {
     throw new Error(parsed?.error || "Falha ao criar notificação.");
   }
-  return parsed?.notification ? mapNotification(parsed.notification) : null;
+  return {
+    notification: parsed?.notification ? mapNotification(parsed.notification) : null,
+    created: parsed?.created !== false,
+  };
 };
 
 export async function listNotifications(options: {
@@ -193,17 +214,25 @@ export async function createNotification(
   if (!payload) return null;
 
   let notification: AppNotification | null = null;
+  let createdNew = true;
+  let currentUserId = "";
   try {
-    const currentUserId = await getSessionUserId();
+    currentUserId = await getSessionUserId();
     const targetIsCurrentUser = payload.recipient_user_id === currentUserId;
 
-    notification = targetIsCurrentUser
-      ? mapNotification(
+    if (input.dedupe && targetIsCurrentUser) {
+      const existing = await findExistingNotification(payload);
+      if (existing) return existing;
+    }
+
+    if (targetIsCurrentUser) {
+      notification = mapNotification(
           (
             await supabaseRestPost<NotificationRow[]>("/notifications", [payload])
           )[0]
-        )
-      : await callCreateNotificationFunction({
+        );
+    } else {
+      const remoteResult = await callCreateNotificationFunction({
           ...input,
           organizationId: payload.organization_id,
           recipientUserId: payload.recipient_user_id,
@@ -213,28 +242,41 @@ export async function createNotification(
           sourceType: payload.source_type,
           sourceId: payload.source_id,
           metadata: payload.metadata,
+          dedupe: input.dedupe,
         });
+      notification = remoteResult.notification;
+      createdNew = remoteResult.created;
+    }
   } catch (error) {
     if (isMissingNotificationsTable(error)) return null;
     throw error;
   }
 
-  if (input.sendPush && notification) {
-    await sendPushToUser({
-      organizationId: notification.organizationId,
-      targetUserId: notification.recipientUserId,
-      title: notification.title,
-      body: notification.body,
-      data: {
-        route: notification.actionUrl ?? "/communications",
-        params: notification.sourceId
-          ? {
-              sourceType: notification.sourceType ?? "",
-              sourceId: notification.sourceId,
-            }
-          : undefined,
-      },
-    });
+  if (
+    input.sendPush &&
+    createdNew &&
+    notification &&
+    notification.recipientUserId !== currentUserId
+  ) {
+    try {
+      await sendPushToUser({
+        organizationId: notification.organizationId,
+        targetUserId: notification.recipientUserId,
+        title: notification.title,
+        body: notification.body,
+        data: {
+          route: notification.actionUrl ?? "/communications",
+          params: notification.sourceId
+            ? {
+                sourceType: notification.sourceType ?? "",
+                sourceId: notification.sourceId,
+              }
+            : undefined,
+        },
+      });
+    } catch {
+      // Push is best-effort; the inbox notification remains available.
+    }
   }
 
   return notification;

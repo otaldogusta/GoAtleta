@@ -78,3 +78,6 @@ begin
   );
 end;
 $$;
+
+revoke all on function public.log_health_data_access(text, text, text, text, jsonb) from public;
+grant execute on function public.log_health_data_access(text, text, text, text, jsonb) to authenticated;

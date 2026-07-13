@@ -26,6 +26,7 @@ import {
   supabaseDelete,
 } from "./client";
 import type { ClassRow, UnitRow } from "./row-types";
+import { normalizeOptionalDate } from "./normalize-db-values";
 import {
   deleteTrainingIntegrationRuleBySession,
   syncTrainingIntegrationRuleFromSession,
@@ -340,7 +341,7 @@ export async function saveClass(data: { name: string; unit: string; ageBand: Cla
     modality: data.modality ?? "fitness", ageband: normalizeAgeBand(data.ageBand), gender: data.gender,
     starttime: data.startTime, end_time: computeEndTime(data.startTime, data.durationMinutes), duration: data.durationMinutes,
     days: data.daysOfWeek, daysperweek: data.daysOfWeek.length, goal: data.goal, equipment: "misto", level: 1,
-    mv_level: data.mvLevel, cycle_start_date: data.cycleStartDate, cycle_length_weeks: data.cycleLengthWeeks,
+    mv_level: data.mvLevel, cycle_start_date: normalizeOptionalDate(data.cycleStartDate), cycle_length_weeks: data.cycleLengthWeeks,
     created_at: new Date().toISOString(),
   };
   if (activeOrganizationId) payload.organization_id = activeOrganizationId;
@@ -358,7 +359,7 @@ export async function duplicateClass(base: ClassGroup) {
     color_key: base.colorKey ?? null, modality: base.modality ?? "fitness", ageband: normalizeAgeBand(base.ageBand),
     gender: base.gender, starttime: base.startTime, end_time: computeEndTime(base.startTime, base.durationMinutes),
     duration: base.durationMinutes, days: base.daysOfWeek, daysperweek: base.daysOfWeek.length, goal: base.goal,
-    equipment: base.equipment, level: base.level, mv_level: base.mvLevel, cycle_start_date: base.cycleStartDate,
+    equipment: base.equipment, level: base.level, mv_level: base.mvLevel, cycle_start_date: normalizeOptionalDate(base.cycleStartDate),
     cycle_length_weeks: base.cycleLengthWeeks, acwr_low: base.acwrLow, acwr_high: base.acwrHigh,
     created_at: new Date().toISOString(),
   };

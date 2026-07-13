@@ -82,6 +82,21 @@ export async function createStudentInvite(
   );
 }
 
+export async function validateStudentInvite(tokenValue: string) {
+  const res = await fetch(`${baseUrl}/functions/v1/validate-student-invite`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ token: tokenValue }),
+  });
+  return await parseInviteApiResponse<{ status: "valid" }>(
+    res,
+    "Falha ao verificar convite de aluno."
+  );
+}
+
 export async function revokeStudentAccess(
   studentId: string,
   options: RevokeAccessOptions

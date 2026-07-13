@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ENABLE_SOCIAL_LOGIN } from "../../src/api/config";
 import { getInviteErrorCode } from "../../src/api/invite-errors";
-import { claimStudentInvite } from "../../src/api/student-invite";
+import { claimStudentInvite, validateStudentInvite } from "../../src/api/student-invite";
 import { useAuth } from "../../src/auth/auth";
 import {
     clearPendingInvite,
@@ -41,9 +41,11 @@ export default function StudentInviteScreen() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [inviteState, setInviteState] = useState<"checking" | "valid" | "invalid">("checking");
   const strengthAnim = useRef(new Animated.Value(0)).current;
   const enterAnim = useRef(new Animated.Value(0)).current;
   const lastClaimUserRef = useRef<string | null>(null);
+  const claimInFlightRef = useRef(false);
 
   const passwordChecks = useMemo(() => {
     const value = password;
@@ -105,12 +107,37 @@ export default function StudentInviteScreen() {
     void savePendingInvite(tokenValue);
   }, [tokenValue]);
 
+  useEffect(() => {
+    let active = true;
+    if (!tokenValue) {
+      setInviteState("invalid");
+      setMessage("Convite inválido. Peça um novo link ao professor.");
+      return () => { active = false; };
+    }
+    setInviteState("checking");
+    setMessage("Verificando convite...");
+    void validateStudentInvite(tokenValue)
+      .then(() => {
+        if (!active) return;
+        setInviteState("valid");
+        setMessage("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setInviteState("invalid");
+        setMessage(parseClaimError(error));
+      });
+    return () => { active = false; };
+  }, [tokenValue]);
+
   const handleClaim = async () => {
+    if (claimInFlightRef.current) return;
     if (!tokenValue) {
       setMessage("Convite inválido.");
       return;
     }
     setBusy(true);
+    claimInFlightRef.current = true;
     setMessage("");
     try {
       await claimStudentInvite(tokenValue);
@@ -120,12 +147,13 @@ export default function StudentInviteScreen() {
     } catch (error) {
       setMessage(parseClaimError(error));
     } finally {
+      claimInFlightRef.current = false;
       setBusy(false);
     }
   };
 
   useEffect(() => {
-    if (!session || !tokenValue) return;
+    if (!session || !tokenValue || inviteState !== "valid") return;
     if (roleLoading) return;
     if (role === "trainer") {
       setMessage("Esse convite é para alunos. Saia e use outra conta.");
@@ -135,7 +163,7 @@ export default function StudentInviteScreen() {
     if (lastClaimUserRef.current === userId) return;
     lastClaimUserRef.current = userId;
     void handleClaim();
-  }, [role, roleLoading, session, tokenValue]);
+  }, [inviteState, role, roleLoading, session, tokenValue]);
 
   const canSubmit = useMemo(() => {
     if (!email.trim() || !password.trim()) return false;
@@ -275,7 +303,16 @@ export default function StudentInviteScreen() {
                 withSafeArea={false}
               />
 
-              <View
+              {inviteState === "invalid" ? (
+                <View style={{ gap: 14 }}>
+                  <Text style={{ color: colors.dangerSolidBg }}>{message}</Text>
+                  <Text style={{ color: colors.muted }}>
+                    Solicite ao professor que gere e envie um novo convite.
+                  </Text>
+                </View>
+              ) : inviteState === "checking" ? (
+                <Text style={{ color: colors.muted }}>Verificando convite...</Text>
+              ) : <View
                 style={{
                   padding: 18,
                   borderRadius: 22,
@@ -597,7 +634,7 @@ export default function StudentInviteScreen() {
                   </View>
                 </View>
               ) : null}
-            </View>
+            </View>}
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>

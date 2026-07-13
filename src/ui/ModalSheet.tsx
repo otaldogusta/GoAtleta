@@ -16,6 +16,83 @@ type ModalSheetProps = {
   bottomOffset?: number;
 };
 
+let activeWebScrollLocks = 0;
+let restoreWebScrollLock: (() => void) | null = null;
+
+function acquireWebScrollLock() {
+  if (typeof document === "undefined") return () => undefined;
+
+  activeWebScrollLocks += 1;
+
+  if (activeWebScrollLocks === 1) {
+    const body = document.body;
+    const html = document.documentElement;
+    const root = document.getElementById("root") || document.getElementById("app");
+    const scrollY = window.scrollY || 0;
+    const scrollbarWidth = Math.max(0, window.innerWidth - html.clientWidth);
+    const computedPaddingRight = Number.parseFloat(
+      window.getComputedStyle(body).paddingRight
+    ) || 0;
+    const previous = {
+      bodyOverflow: body.style.overflow,
+      htmlOverflow: html.style.overflow,
+      bodyOverscroll: body.style.overscrollBehavior,
+      htmlOverscroll: html.style.overscrollBehavior,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyWidth: body.style.width,
+      bodyPaddingRight: body.style.paddingRight,
+      rootOverflow: root?.style.overflow ?? "",
+      rootHeight: root?.style.height ?? "",
+      rootOverscroll: root?.style.overscrollBehavior ?? "",
+    };
+
+    body.style.overflow = "hidden";
+    html.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    html.style.overscrollBehavior = "none";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`;
+    }
+    if (root) {
+      root.style.overflow = "hidden";
+      root.style.height = "100%";
+      root.style.overscrollBehavior = "none";
+    }
+
+    restoreWebScrollLock = () => {
+      body.style.overflow = previous.bodyOverflow;
+      html.style.overflow = previous.htmlOverflow;
+      body.style.overscrollBehavior = previous.bodyOverscroll;
+      html.style.overscrollBehavior = previous.htmlOverscroll;
+      body.style.position = previous.bodyPosition;
+      body.style.top = previous.bodyTop;
+      body.style.width = previous.bodyWidth;
+      body.style.paddingRight = previous.bodyPaddingRight;
+      if (root) {
+        root.style.overflow = previous.rootOverflow;
+        root.style.height = previous.rootHeight;
+        root.style.overscrollBehavior = previous.rootOverscroll;
+      }
+      window.scrollTo(0, scrollY);
+    };
+  }
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    activeWebScrollLocks = Math.max(0, activeWebScrollLocks - 1);
+    if (activeWebScrollLocks === 0) {
+      restoreWebScrollLock?.();
+      restoreWebScrollLock = null;
+    }
+  };
+}
+
 export function ModalSheet({
   visible,
   onClose,
@@ -29,17 +106,6 @@ export function ModalSheet({
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
   const [isMounted, setIsMounted] = useState(visible);
-  const previousOverflow = useRef<string | null>(null);
-  const previousHtmlOverflow = useRef<string | null>(null);
-  const previousPosition = useRef<string | null>(null);
-  const previousTop = useRef<string | null>(null);
-  const previousWidth = useRef<string | null>(null);
-  const previousOverscroll = useRef<string | null>(null);
-  const previousHtmlOverscroll = useRef<string | null>(null);
-  const previousRootOverflow = useRef<string | null>(null);
-  const previousRootHeight = useRef<string | null>(null);
-  const previousRootOverscroll = useRef<string | null>(null);
-  const lockedScrollY = useRef(0);
   const isCenter = position === "center";
   const isRight = position === "right";
   const insets = useSafeAreaInsets();
@@ -73,101 +139,8 @@ export function ModalSheet({
   }, [anim, isMounted, visible]);
 
   useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (visible) {
-      if (previousOverflow.current === null) {
-        previousOverflow.current = document.body.style.overflow;
-      }
-      if (previousHtmlOverflow.current === null) {
-        previousHtmlOverflow.current = document.documentElement.style.overflow;
-      }
-      if (previousOverscroll.current === null) {
-        previousOverscroll.current = document.body.style.overscrollBehavior;
-      }
-      if (previousHtmlOverscroll.current === null) {
-        previousHtmlOverscroll.current = document.documentElement.style.overscrollBehavior;
-      }
-      if (previousPosition.current === null) {
-        previousPosition.current = document.body.style.position;
-      }
-      if (previousTop.current === null) {
-        previousTop.current = document.body.style.top;
-      }
-      if (previousWidth.current === null) {
-        previousWidth.current = document.body.style.width;
-      }
-      lockedScrollY.current = window.scrollY || 0;
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-      document.body.style.overscrollBehavior = "none";
-      document.documentElement.style.overscrollBehavior = "none";
-      document.body.style.position = "fixed";
-      document.body.style.top = `-${lockedScrollY.current}px`;
-      document.body.style.width = "100%";
-      const root = document.getElementById("root") || document.getElementById("app");
-      if (root) {
-        if (previousRootOverflow.current === null) {
-          previousRootOverflow.current = root.style.overflow;
-        }
-        if (previousRootHeight.current === null) {
-          previousRootHeight.current = root.style.height;
-        }
-        if (previousRootOverscroll.current === null) {
-          previousRootOverscroll.current = root.style.overscrollBehavior;
-        }
-        root.style.overflow = "hidden";
-        root.style.height = "100%";
-        root.style.overscrollBehavior = "none";
-      }
-      return;
-    }
-    if (previousOverflow.current !== null) {
-      document.body.style.overflow = previousOverflow.current;
-      previousOverflow.current = null;
-    }
-    if (previousHtmlOverflow.current !== null) {
-      document.documentElement.style.overflow = previousHtmlOverflow.current;
-      previousHtmlOverflow.current = null;
-    }
-    if (previousOverscroll.current !== null) {
-      document.body.style.overscrollBehavior = previousOverscroll.current;
-      previousOverscroll.current = null;
-    }
-    if (previousHtmlOverscroll.current !== null) {
-      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll.current;
-      previousHtmlOverscroll.current = null;
-    }
-    if (previousPosition.current !== null) {
-      document.body.style.position = previousPosition.current;
-      previousPosition.current = null;
-    }
-    if (previousTop.current !== null) {
-      document.body.style.top = previousTop.current;
-      previousTop.current = null;
-    }
-    if (previousWidth.current !== null) {
-      document.body.style.width = previousWidth.current;
-      previousWidth.current = null;
-    }
-    const root = document.getElementById("root") || document.getElementById("app");
-    if (root) {
-      if (previousRootOverflow.current !== null) {
-        root.style.overflow = previousRootOverflow.current;
-        previousRootOverflow.current = null;
-      }
-      if (previousRootHeight.current !== null) {
-        root.style.height = previousRootHeight.current;
-        previousRootHeight.current = null;
-      }
-      if (previousRootOverscroll.current !== null) {
-        root.style.overscrollBehavior = previousRootOverscroll.current;
-        previousRootOverscroll.current = null;
-      }
-    }
-    if (lockedScrollY.current) {
-      window.scrollTo(0, lockedScrollY.current);
-      lockedScrollY.current = 0;
-    }
+    if (typeof document === "undefined" || !visible) return undefined;
+    return acquireWebScrollLock();
   }, [visible]);
 
   if (!isMounted) {
@@ -231,12 +204,6 @@ export function ModalSheet({
                       },
                     ]
                   : []),
-                {
-                  scale: anim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: isCenter ? [0.975, 1] : isRight ? [1, 1] : [0.985, 1],
-                  }),
-                },
               ],
             },
           ]}

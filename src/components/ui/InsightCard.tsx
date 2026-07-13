@@ -8,6 +8,7 @@ type InsightCardProps = {
   insight: ContextualInsight;
   onDismiss: () => void;
   onOpenAssistant?: () => void;
+  compact?: boolean;
 };
 
 const confidenceLabel = (confidence: number): string => {
@@ -22,7 +23,7 @@ const confidenceColor = (confidence: number, colors: ReturnType<typeof useAppThe
   return colors.muted ?? "#94a3b8";
 };
 
-export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCardProps) {
+export function InsightCard({ insight, onDismiss, onOpenAssistant, compact = false }: InsightCardProps) {
   const { colors, mode } = useAppTheme();
   const [showJustification, setShowJustification] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -61,6 +62,67 @@ export function InsightCard({ insight, onDismiss, onOpenAssistant }: InsightCard
     ? "rgba(139, 92, 246, 0.35)"
     : "rgba(124, 58, 237, 0.22)";
   const accentColor = "#7c3aed";
+
+  if (compact) {
+    const handleCompactAction = () => {
+      if (insight.action) {
+        handleActionPress();
+        return;
+      }
+      onOpenAssistant?.();
+    };
+
+    return (
+      <Animated.View
+        style={{
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }],
+          marginHorizontal: 16,
+          marginTop: 10,
+          marginBottom: 16,
+        }}
+      >
+        <View
+          style={{
+            minHeight: 56,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <GoAtletaIcon name="assistant" size={20} color={colors.muted} />
+          <Text numberOfLines={2} style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: "600" }}>
+            {insight.insight}
+          </Text>
+          {insight.action || onOpenAssistant ? (
+            <Pressable
+              onPress={handleCompactAction}
+              accessibilityRole="button"
+              accessibilityLabel="Resolver insight"
+              style={({ pressed }) => ({ opacity: pressed ? 0.62 : 1, paddingVertical: 6, paddingHorizontal: 4 })}
+            >
+              <Text style={{ color: colors.primaryBg, fontSize: 13, fontWeight: "800" }}>Resolver</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={onDismiss}
+            hitSlop={12}
+            accessibilityLabel="Fechar insight"
+            accessibilityRole="button"
+            style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 2 })}
+          >
+            <GoAtletaIcon name="close" size={17} color={colors.muted} />
+          </Pressable>
+        </View>
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View

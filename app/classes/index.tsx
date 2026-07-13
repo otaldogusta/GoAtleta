@@ -1153,7 +1153,7 @@ export default function ClassesScreen() {
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
     setEditColorKey(item.colorKey ?? null);
-    setEditModality(item.modality);
+    setEditModality(item.modality ?? "voleibol");
     setEditAgeBand(nextAgeBand as ClassGroup["ageBand"]);
     setEditCustomAgeBand(isAgeBandCustom ? nextAgeBand : "");
     setEditShowCustomAgeBand(isAgeBandCustom);
@@ -1197,45 +1197,77 @@ export default function ClassesScreen() {
     }
   }, [editParam, handledEditId, classes, showEditModal, openEditModal]);
 
+  const editBaselineSnapshot = useMemo(() => {
+    if (!editingClass) return null;
+    const startTime = editingClass.startTime ?? "14:00";
+    const storedDuration = editingClass.durationMinutes ?? 60;
+    const endTime =
+      editingClass.endTime ?? computeEndTimeFromDuration(startTime, storedDuration);
+    return {
+      name: (editingClass.name ?? "").trim(),
+      unit: (editingClass.unit ?? "").trim(),
+      colorKey: editingClass.colorKey ?? null,
+      modality: editingClass.modality ?? "voleibol",
+      ageBand: (editingClass.ageBand ?? "08-09").trim(),
+      gender: editingClass.gender ?? "misto",
+      goal: (editingClass.goal ?? "Fundamentos").trim(),
+      startTime: startTime.trim(),
+      endTime: endTime.trim(),
+      duration: String(parseDurationFromTimeRange(startTime, endTime) ?? storedDuration),
+      days: [...(editingClass.daysOfWeek ?? [])].sort((a, b) => a - b).join(","),
+      mvLevel: editingClass.mvLevel ?? "MV1",
+      cycleStartDate: editingClass.cycleStartDate ?? "",
+      cycleLengthWeeks:
+        parseCycleLength(editingClass.cycleLengthWeeks ?? Number.NaN) ??
+        DEFAULT_CLASS_CYCLE_LENGTH_WEEKS,
+    };
+  }, [editingClass]);
+
+  const editCurrentSnapshot = useMemo(
+    () => ({
+      name: editName.trim(),
+      unit: editUnit.trim(),
+      colorKey: editColorKey ?? null,
+      modality: editModality ?? "voleibol",
+      ageBand: (editShowCustomAgeBand ? editCustomAgeBand : editAgeBand).trim(),
+      gender: editGender ?? "misto",
+      goal: (editShowCustomGoal ? editCustomGoal : editGoal).trim(),
+      startTime: editStartTime.trim(),
+      endTime: editEndTime.trim(),
+      duration: String(
+        parseDurationFromTimeRange(editStartTime, editEndTime) || editDuration
+      ),
+      days: [...editDays].sort((a, b) => a - b).join(","),
+      mvLevel: editMvLevel,
+      cycleStartDate: editCycleStartDate,
+      cycleLengthWeeks: editCycleLengthWeeks,
+    }),
+    [
+      editAgeBand,
+      editColorKey,
+      editCustomAgeBand,
+      editCustomGoal,
+      editCycleLengthWeeks,
+      editCycleStartDate,
+      editDays,
+      editDuration,
+      editEndTime,
+      editGender,
+      editGoal,
+      editModality,
+      editMvLevel,
+      editName,
+      editShowCustomAgeBand,
+      editShowCustomGoal,
+      editStartTime,
+      editUnit,
+    ]
+  );
+
   const isEditDirty = useMemo(() => {
-    if (!editingClass) return false;
-    const goalValue = editShowCustomGoal ? editCustomGoal.trim() : editGoal;
-    const ageBandValue = editShowCustomAgeBand ? editCustomAgeBand.trim() : editAgeBand;
-    return (
-      editingClass.name !== editName ||
-      (editingClass.unit ?? "") !== editUnit ||
-      (editingClass.colorKey ?? null) !== editColorKey ||
-      editingClass.modality !== editModality ||
-      (editingClass.ageBand ?? "08-09") !== ageBandValue ||
-      (editingClass.gender ?? "misto") !== editGender ||
-      (editingClass.goal ?? "Fundamentos") !== goalValue ||
-      (editingClass.startTime ?? "14:00") !== editStartTime ||
-      (editingClass.endTime ?? computeEndTimeFromDuration(editingClass.startTime ?? "14:00", editingClass.durationMinutes ?? 60)) !== editEndTime ||
-      String(editingClass.durationMinutes ?? 60) !== editDuration ||
-      JSON.stringify(editingClass.daysOfWeek ?? []) !== JSON.stringify(editDays) ||
-      (editingClass.mvLevel ?? "MV1") !== editMvLevel ||
-      (editingClass.cycleStartDate ?? "") !== editCycleStartDate ||
-      (editingClass.cycleLengthWeeks ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS) !== editCycleLengthWeeks
-    );
-  }, [
-    editingClass,
-    editName,
-    editUnit,
-    editColorKey,
-    editModality,
-    editAgeBand,
-    editGender,
-    editGoal,
-    editShowCustomGoal,
-    editCustomGoal,
-    editStartTime,
-    editEndTime,
-    editDuration,
-    editDays,
-    editMvLevel,
-    editCycleStartDate,
-    editCycleLengthWeeks,
-  ]);
+    if (!editBaselineSnapshot) return false;
+    return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot);
+  }, [editBaselineSnapshot, editCurrentSnapshot]);
 
   const toggleEditDay = (value: number) => {
     setEditDays((prev) =>
@@ -1882,7 +1914,16 @@ export default function ClassesScreen() {
           }}
         />
 
-        <View style={{ flex: 1, minHeight: 0, gap: 14, paddingHorizontal: 16, paddingTop: 12 }}>
+        <View
+          style={{
+            flex: 1,
+            minHeight: 0,
+            gap: 14,
+            paddingHorizontal: 16,
+            paddingTop: 12,
+            backgroundColor: colors.background,
+          }}
+        >
           <View style={{ flex: 1, minHeight: 0 }}>
             <ClassesListSection
               grouped={grouped}

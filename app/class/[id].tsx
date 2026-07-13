@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
-    Animated,
     FlatList,
     KeyboardAvoidingView,
     Platform,
@@ -34,12 +33,6 @@ import {
     type RosterFundamental,
 } from "../../src/core/periodization";
 import {
-    countsFromLog,
-    getFocusSuggestion,
-    getSkillMetrics,
-    scoutingSkills,
-} from "../../src/core/scouting";
-import {
     deleteClassCascade,
     duplicateClass,
     getAttendanceByClass,
@@ -61,6 +54,10 @@ import {
     ClassEditModalBody,
     ClassEditModalPickers,
 } from "../../src/screens/classes/components/ClassEditModalBody";
+import {
+    ClassContextStrip,
+    ClassOperationsWorkspace,
+} from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -72,9 +69,7 @@ import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
-import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { useSaveToast } from "../../src/ui/save-toast";
-import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette, toRgba } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -286,11 +281,9 @@ export default function ClassDetails() {
     height: number;
   } | null>(null);
   const rosterColumnsTriggerRef = useRef<View>(null);
-  const [showClassFabMenu, setShowClassFabMenu] = useState(false);
-  const classFabAnim = useRef(new Animated.Value(0)).current;
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [loading, setLoading] = useState(true);
-  const [scoutingLoading, setScoutingLoading] = useState(true);
+  const [studentCount, setStudentCount] = useState<number | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showEditCycleLengthPicker, setShowEditCycleLengthPicker] = useState(false);
@@ -393,8 +386,6 @@ export default function ClassDetails() {
   if (showWhatsAppSettingsModal) {
     markRender("screen.classDetails.render.whatsappModal");
   }
-  const classFabBottom = Math.max(insets.bottom + 166, 182);
-  const classFabMenuBottom = classFabBottom + 74;
   const {
     animatedStyle: editCycleLengthPickerAnimStyle,
     isVisible: showEditCycleLengthPickerContent,
@@ -735,6 +726,16 @@ export default function ClassDetails() {
   const classStartTime = cls?.startTime || "-";
   const classDuration = cls?.durationMinutes ?? 60;
   const classGoal = cls?.goal || goal;
+  const compactClassWorkspace = Platform.OS !== "web" || windowWidth < 1060;
+  const scheduleDayLabels = classDays.map((day) => dayNames[day]).filter(Boolean);
+  const scheduleDaysLabel = scheduleDayLabels.length <= 1
+    ? scheduleDayLabels[0] ?? "Sem dias definidos"
+    : `${scheduleDayLabels.slice(0, -1).join(", ")} e ${scheduleDayLabels.at(-1)}`;
+  const scheduleLabel = `${scheduleDaysLabel} · ${classStartTime}`;
+  const nextClassDate = calculateNextClassDate(classDays);
+  const nextClassLabel = nextClassDate ? formatNextClassDate(nextClassDate) : "Não definida";
+  const cycleLabel = cls?.cycleLengthWeeks ? `${cls.cycleLengthWeeks} semanas` : "Sem ciclo";
+  const latestReportLabel = latestScouting ? formatShortDate(latestScouting.date) : "Sem registro";
   const classCoachName = clsId ? coachNameByClass[clsId] ?? "" : "";
   const resolvedCoachName = classCoachName || coachName;
   const unitPalette = getUnitPalette(unitLabel, colors);
@@ -788,21 +789,10 @@ export default function ClassDetails() {
     return Array.from(new Set(merged));
   }, [goalSuggestions, goals]);
 
-  const scoutingCounts = useMemo(() => {
-    if (!latestScouting) return null;
-    return countsFromLog(latestScouting);
-  }, [latestScouting]);
-
-  const scoutingFocus = useMemo(() => {
-    if (!scoutingCounts) return null;
-    return getFocusSuggestion(scoutingCounts, 10);
-  }, [scoutingCounts]);
-
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      setScoutingLoading(true);
       try {
         const dataResult = await measureAsync(
           "screen.classDetails.load.initial",
@@ -836,18 +826,14 @@ export default function ClassDetails() {
           );
           setLoading(false);
         }
-        void (async () => {
-          try {
-            const scouting = await getLatestScoutingLog(id);
-            if (!alive) return;
-            setLatestScouting(scouting);
-          } catch {
-            if (!alive) return;
-            setLatestScouting(null);
-          } finally {
-            if (alive) setScoutingLoading(false);
-          }
-        })();
+        void Promise.all([
+          getLatestScoutingLog(id).catch(() => null),
+          getStudentsByClass(id).catch(() => []),
+        ]).then(([scouting, students]) => {
+          if (!alive) return;
+          setLatestScouting(scouting);
+          setStudentCount(students.length);
+        });
       } finally {
         if (alive) setLoading(false);
       }
@@ -1309,14 +1295,6 @@ export default function ClassDetails() {
       setShowEditModal(false);
     }
   }, [saveUnit]);
-
-  useEffect(() => {
-    Animated.timing(classFabAnim, {
-      toValue: showClassFabMenu ? 1 : 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  }, [classFabAnim, showClassFabMenu]);
 
   const toggleRosterBooleanOption = useCallback(
     (
@@ -1790,6 +1768,53 @@ export default function ClassDetails() {
     setCustomWhatsAppMessage(""); // Limpar a mensagem customizada após envio
   };
 
+  const handleOpenSession = () => {
+    router.push({ pathname: "/class/[id]/session", params: { id } });
+  };
+
+  const handleOpenAttendance = () => {
+    router.push({ pathname: "/class/[id]/attendance", params: { id } });
+  };
+
+  const handleOpenPeriodization = () => {
+    const targetClassId = cls?.id ?? id;
+    router.push({
+      pathname: "/class/[id]/periodization",
+      params: {
+        id: targetClassId,
+        classId: targetClassId,
+        unit: cls?.unit ?? "",
+        backTo: targetClassId ? `/class/${targetClassId}` : "",
+      },
+    });
+  };
+
+  const handleOpenPlanning = () => {
+    router.push({ pathname: "/class/[id]/planning", params: { id } });
+  };
+
+  const handleOpenVisualTech = () => {
+    if (!cls) return;
+    router.push({ pathname: "/class/[id]/visual-tech", params: { id: cls.id } });
+  };
+
+  const handleOpenScouting = () => {
+    if (!cls) return;
+    router.push({ pathname: "/class/[id]/scouting", params: { id: cls.id } });
+  };
+
+  const handleOpenStudents = () => {
+    router.push({ pathname: "/class/[id]/students", params: { id } });
+  };
+
+  const handleOpenAssistant = () => {
+    if (!contextualInsight) return;
+    router.push({
+      pathname: "/assistant",
+      params: { classId: id, prefilledInsight: contextualInsight.insight },
+    });
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
@@ -1797,6 +1822,7 @@ export default function ClassDetails() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScreenPageHeader
+          eyebrow="Painel operacional da aula"
           title={className}
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
           onBack={() => navigateBackOrReplace({ router, fallback: "/classes" })}
@@ -1821,19 +1847,24 @@ export default function ClassDetails() {
             </Pressable>
           }
           contentStyle={{ paddingTop: 16, paddingBottom: 8 }}
-        />
+        >
+          <ClassContextStrip
+            colors={colors}
+            compact={compactClassWorkspace}
+            unitLabel={unitLabel}
+            scheduleLabel={scheduleLabel}
+            studentCount={studentCount}
+            nextClassLabel={nextClassLabel}
+          />
+        </ScreenPageHeader>
 
         {/* Proactive AI Insight Card — appears silently after screen loads */}
         {contextualInsight && (
           <InsightCard
+            compact
             insight={contextualInsight}
             onDismiss={dismissContextualInsight}
-            onOpenAssistant={() =>
-              router.push({
-                pathname: "/assistant",
-                params: { classId: id, prefilledInsight: contextualInsight.insight },
-              })
-            }
+            onOpenAssistant={handleOpenAssistant}
           />
         )}
 
@@ -1848,388 +1879,30 @@ export default function ClassDetails() {
         keyboardShouldPersistTaps="handled"
       >
 
-        <View
-          style={[
-            getSectionCardStyle(colors, "primary", { radius: 18 }),
-            { borderLeftWidth: 1, borderLeftColor: colors.border },
-          ]}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Ações rápidas
-          </Text>
-          <View style={{ gap: 10 }}>
-            <Pressable
-              onPress={() =>
-                router.push({ pathname: "/class/[id]/session", params: { id } })
-              }
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Ver aula do dia
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Plano e cronômetro
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/class/[id]/attendance",
-                  params: { id },
-                })
-              }
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Fazer chamada
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Presença rápida
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                const targetClassId = cls?.id ?? id;
-                router.push({
-                  pathname: "/class/[id]/periodization",
-                  params: {
-                    id: targetClassId,
-                    classId: targetClassId,
-                    unit: cls?.unit ?? "",
-                    backTo: targetClassId ? `/class/${targetClassId}` : "",
-                  },
-                });
-              }}
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Periodização da turma
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Ver ciclo, semana e metas
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/class/[id]/planning",
-                  params: { id },
-                })
-              }
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Planejamentos da turma
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Ver mês, semana e aulas
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (!cls) return;
-                router.push({
-                  pathname: "/class/[id]/visual-tech",
-                  params: { id: cls.id },
-                });
-              }}
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Quadra visual
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Rodizio, movimentacao e desenho tecnico
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (!cls) return;
-                router.push({
-                  pathname: "/class/[id]/scouting",
-                  params: { id: cls.id },
-                });
-              }}
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Análise de scouting
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Vídeos, jogos e leitura avançada
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={handleExportRoster}
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Exportar lista da turma
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Lista de chamada mensal
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/class/[id]/students",
-                  params: { id },
-                })
-              }
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                Alunos da turma
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Ver, buscar e editar
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={handleWhatsAppGroup}
-              style={{
-                width: "100%",
-                padding: 14,
-                borderRadius: 16,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 15 }}>
-                WhatsApp
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 6 }}>
-                Contato responsável
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={getSectionCardStyle(colors, "neutral", { radius: 18 })}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Scouting recente
-          </Text>
-          {scoutingLoading ? (
-            <View style={{ gap: 8 }}>
-              <ShimmerBlock style={{ height: 18, width: "42%", borderRadius: 8 }} />
-              <ShimmerBlock style={{ height: 14, width: "58%", borderRadius: 8 }} />
-              <ShimmerBlock style={{ height: 14, width: "72%", borderRadius: 8 }} />
-              <ShimmerBlock style={{ height: 14, width: "66%", borderRadius: 8 }} />
-            </View>
-          ) : latestScouting && scoutingCounts ? (
-            <View style={{ gap: 8 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {formatShortDate(latestScouting.date)}
-                </Text>
-                <View
-                  style={{
-                    paddingVertical: 4,
-                    paddingHorizontal: 8,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                    {latestScouting.mode === "jogo" ? "Jogo" : "Treino"}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ gap: 6 }}>
-                {scoutingSkills.map((skill) => {
-                  const metrics = getSkillMetrics(scoutingCounts[skill.id]);
-                  const goodPct = Math.round(metrics.goodPct * 100);
-                  return (
-                    <View key={skill.id} style={{ flexDirection: "row", gap: 10 }}>
-                      <Text style={{ color: colors.text, fontWeight: "700", minWidth: 90 }}>
-                        {skill.label}
-                      </Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {metrics.total} ações | média {metrics.avg.toFixed(2)} | boas {goodPct}%
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-              {scoutingFocus ? (
-                <View style={{ gap: 4 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    Foco sugerido: {scoutingFocus.label}
-                  </Text>
-                  <Text style={{ color: colors.muted }}>{scoutingFocus.text}</Text>
-                </View>
-              ) : (
-                <Text style={{ color: colors.muted }}>
-                  Registre pelo menos 10 ações para sugerir foco.
-                </Text>
-              )}
-            </View>
-          ) : (
-            <Text style={{ color: colors.muted }}>
-              Nenhum scouting registrado ainda.
-            </Text>
-          )}
-        </View>
+        <ClassOperationsWorkspace
+          colors={colors}
+          compact={compactClassWorkspace}
+          nextClassLabel={nextClassLabel}
+          scheduleLabel={scheduleLabel}
+          startTime={classStartTime}
+          focusLabel={classGoal}
+          studentCount={studentCount}
+          cycleLabel={cycleLabel}
+          cycleContext={classGoal}
+          latestReportLabel={latestReportLabel}
+          onOpenSession={handleOpenSession}
+          onOpenAttendance={handleOpenAttendance}
+          onOpenPeriodization={handleOpenPeriodization}
+          onOpenPlanning={handleOpenPlanning}
+          onOpenVisualTech={handleOpenVisualTech}
+          onOpenScouting={handleOpenScouting}
+          onOpenStudents={handleOpenStudents}
+          onExportRoster={handleExportRoster}
+          onOpenWhatsApp={handleWhatsAppGroup}
+        />
 
       </ScrollView>
       </KeyboardAvoidingView>
-
-      {showClassFabMenu ? (
-        <Pressable
-          onPress={() => setShowClassFabMenu(false)}
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            zIndex: 5310,
-          }}
-        />
-      ) : null}
-
-      {showClassFabMenu ? (
-        <View
-          style={{
-            ...(Platform.OS === "web"
-              ? ({ position: "fixed", right: 16, bottom: classFabMenuBottom } as any)
-              : { position: "absolute" as const, right: 16, bottom: classFabMenuBottom }),
-            width: 228,
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: 8,
-            gap: 8,
-            zIndex: 5320,
-          }}
-        >
-          <Pressable
-            onPress={() => {
-              setShowClassFabMenu(false);
-              handleExportRoster();
-            }}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.background,
-              borderRadius: 10,
-              paddingHorizontal: 10,
-              paddingVertical: 9,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <GoAtletaIcon name="download" size={16} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-              Exportar lista de chamada
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      <Pressable
-        onPress={() => setShowClassFabMenu((current) => !current)}
-        style={{
-          ...(Platform.OS === "web"
-            ? ({ position: "fixed", right: 16, bottom: classFabBottom } as any)
-            : { position: "absolute" as const, right: 16, bottom: classFabBottom }),
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: colors.primaryBg,
-          borderWidth: 1,
-          borderColor: colors.primaryBg,
-          zIndex: 5330,
-          shadowColor: "#000",
-          shadowOpacity: 0.2,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 8,
-        }}
-      >
-        <Animated.View
-          style={{
-            transform: [
-              {
-                rotate: classFabAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ["0deg", "45deg"],
-                }),
-              },
-              {
-                scale: classFabAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.05],
-                }),
-              },
-            ],
-          }}
-        >
-          <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
-        </Animated.View>
-      </Pressable>
 
       <ModalSheet
         visible={showEditModal}

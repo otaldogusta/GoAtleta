@@ -89,8 +89,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!supabaseUrl || !anonKey) {
-    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -100,6 +101,9 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${user.token}`,
       },
     },
+  });
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const { data: student, error: studentError } = await supabase
@@ -117,12 +121,6 @@ Deno.serve(async (req) => {
     return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
   }
 
-  // Explicit owner check is no longer strictly necessary as RLS will enforce it,
-  // but it's good practice to keep the application-level validation.
-  if (student.owner_id && student.owner_id !== user.id) {
-    return createError(req, 403, "FORBIDDEN", "Forbidden");
-  }
-
   if (student.student_user_id && student.student_user_id !== user.id) {
     return createError(req, 409, "STUDENT_ALREADY_LINKED", "Student already linked");
   }
@@ -136,7 +134,10 @@ Deno.serve(async (req) => {
     ? invitedToValidation.data
     : null;
 
-  const { error: insertError } = await supabase.from("student_invites").insert({
+  // The user-scoped lookup above is the authorization check. Use the server
+  // client only for persistence so current organization/class roles are not
+  // blocked by the legacy `is_trainer()` invite policy.
+  const { error: insertError } = await admin.from("student_invites").insert({
     student_id: studentId,
     token_hash: tokenHash,
     created_by: user.id,

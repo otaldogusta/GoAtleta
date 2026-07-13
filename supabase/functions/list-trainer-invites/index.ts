@@ -45,8 +45,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!supabaseUrl || !anonKey) {
-    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -56,6 +57,9 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${token}`,
       },
     },
+  });
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
@@ -84,7 +88,7 @@ Deno.serve(async (req) => {
   }
 
   const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("trainer_invites")
     .select(
       "id, organization_id, target_role_level, created_at, expires_at, max_uses, uses, revoked, invited_via, invited_to"

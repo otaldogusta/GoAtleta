@@ -9,7 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRole } from "../src/auth/role";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import type { ClassGroup } from "../src/core/models";
-import { getClasses } from "../src/db/seed";
+import { getClassById } from "../src/db/seed";
 import { getScopedProfilePath } from "../src/navigation/profile-routes";
 import {
     AppNotification,
@@ -78,13 +78,15 @@ export default function StudentHome() {
     let alive = true;
     (async () => {
       try {
-        const [items, classList] = await Promise.all([
+        const [items, studentClass] = await Promise.all([
           getNotifications(),
-          getClasses(),
+          studentClassId
+            ? getClassById(studentClassId, { organizationId: student?.organizationId })
+            : Promise.resolve(null),
         ]);
         if (!alive) return;
         setInbox(items);
-        setClasses(classList);
+        setClasses(studentClass ? [studentClass] : []);
       } finally {
         if (alive) setLoading(false);
       }
@@ -97,7 +99,7 @@ export default function StudentHome() {
       alive = false;
       unsubscribe();
     };
-  }, []);
+  }, [student?.organizationId, studentClassId]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60000);
@@ -289,12 +291,14 @@ export default function StudentHome() {
             onRefresh={async () => {
               setRefreshing(true);
               try {
-                const [items, classList] = await Promise.all([
+                const [items, studentClass] = await Promise.all([
                   getNotifications(),
-                  getClasses(),
+                  studentClassId
+                    ? getClassById(studentClassId, { organizationId: student?.organizationId })
+                    : Promise.resolve(null),
                 ]);
                 setInbox(items);
-                setClasses(classList);
+                setClasses(studentClass ? [studentClass] : []);
               } finally {
                 setRefreshing(false);
               }

@@ -52,8 +52,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!supabaseUrl || !anonKey) {
-    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -63,6 +64,9 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${token}`,
       },
     },
+  });
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
@@ -90,7 +94,7 @@ Deno.serve(async (req) => {
     return createError(req, 403, "ORG_FORBIDDEN", "Forbidden");
   }
 
-  const { data: invite, error: inviteError } = await supabase
+  const { data: invite, error: inviteError } = await admin
     .from("trainer_invites")
     .select("id, revoked")
     .eq("id", inviteIdValidation.data)
@@ -109,7 +113,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ status: "ok" }), { headers: makeJsonHeaders(req) });
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
     .from("trainer_invites")
     .update({ revoked: true })
     .eq("id", inviteIdValidation.data);

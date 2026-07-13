@@ -8,7 +8,7 @@ import {
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
 
-const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
+const makeJsonHeaders = (request: Request) => ({ ...buildCorsHeaders(request), "Content-Type": "application/json" });
 
 type SendPushPayload = {
   organizationId?: string;
@@ -77,13 +77,13 @@ const toExpoTickets = (payload: unknown): ExpoTicket[] => {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return corsPreflight(req);
+    return corsPreflight(request);
   }
 
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -91,7 +91,7 @@ Deno.serve(async (request) => {
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -99,7 +99,7 @@ Deno.serve(async (request) => {
   if (!payload) {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -110,7 +110,7 @@ Deno.serve(async (request) => {
   if (!organizationValidation.ok) {
     return new Response(JSON.stringify({ error: `Invalid organizationId: ${organizationValidation.error}` }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -121,7 +121,7 @@ Deno.serve(async (request) => {
   if (!targetUserValidation.ok) {
     return new Response(JSON.stringify({ error: `Invalid targetUserId: ${targetUserValidation.error}` }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -132,7 +132,7 @@ Deno.serve(async (request) => {
   if (!titleValidation.ok) {
     return new Response(JSON.stringify({ error: `Invalid title: ${titleValidation.error}` }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -143,7 +143,7 @@ Deno.serve(async (request) => {
   if (!bodyValidation.ok) {
     return new Response(JSON.stringify({ error: `Invalid body: ${bodyValidation.error}` }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -151,7 +151,7 @@ Deno.serve(async (request) => {
   if (!dataValidation.ok) {
     return new Response(JSON.stringify({ error: `Invalid data payload: ${dataValidation.error}` }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -165,7 +165,7 @@ Deno.serve(async (request) => {
   if (!supabase) {
     return new Response(JSON.stringify({ error: "Missing service role configuration." }), {
       status: 500,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -178,14 +178,14 @@ Deno.serve(async (request) => {
   if (senderError) {
     return new Response(JSON.stringify({ error: senderError.message }), {
       status: 500,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
   const senderRoleLevel = Number(senderMembership?.role_level ?? 0);
   if (!senderMembership || !Number.isFinite(senderRoleLevel) || senderRoleLevel < 50) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -198,13 +198,13 @@ Deno.serve(async (request) => {
   if (targetError) {
     return new Response(JSON.stringify({ error: targetError.message }), {
       status: 500,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
   if (!targetMembership) {
     return new Response(JSON.stringify({ error: "Target user is not a member of organization." }), {
       status: 404,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -216,7 +216,7 @@ Deno.serve(async (request) => {
   if (tokensError) {
     return new Response(JSON.stringify({ error: tokensError.message }), {
       status: 500,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -243,7 +243,7 @@ Deno.serve(async (request) => {
         failed: 1,
         invalidTokens: 0,
       }),
-      { status: 200, headers: makeJsonHeaders(req) }
+      { status: 200, headers: makeJsonHeaders(request) }
     );
   }
 
@@ -345,8 +345,7 @@ Deno.serve(async (request) => {
     }),
     {
       status: 200,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     }
   );
 });
-

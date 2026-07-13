@@ -9,6 +9,7 @@ import { ScreenTopChrome } from "./ScreenTopChrome";
 type ScreenPageHeaderProps = {
   title: string;
   onBack: () => void;
+  eyebrow?: string;
   titleAccessory?: ReactNode;
   subtitle?: string;
   right?: ReactNode;
@@ -21,6 +22,7 @@ type ScreenPageHeaderProps = {
 export function ScreenPageHeader({
   title,
   onBack,
+  eyebrow,
   titleAccessory,
   subtitle,
   right,
@@ -46,7 +48,12 @@ export function ScreenPageHeader({
       ]}
     >
       <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-        <View style={{ flex: 1, minWidth: 0, gap: subtitle ? 2 : 0 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: eyebrow || subtitle ? 3 : 0 }}>
+          {eyebrow ? (
+            <Text style={{ color: colors.muted, marginLeft: 36, fontSize: 12, fontWeight: "600" }}>
+              {eyebrow}
+            </Text>
+          ) : null}
           <BackTitleHeader title={title} onBack={onBack} accessory={titleAccessory} style={{ marginBottom: 0 }} />
           {subtitle ? (
             <Text numberOfLines={2} style={{ color: colors.muted, marginLeft: 36 }}>
