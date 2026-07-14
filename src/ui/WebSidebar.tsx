@@ -263,6 +263,19 @@ export function WebSidebar({ role }: WebSidebarProps) {
   }, [expanded]);
 
   useEffect(() => {
+    if (!expanded || typeof document === "undefined") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSidebarExpanded(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [expanded, setSidebarExpanded]);
+
+  useEffect(() => {
     if (!profileMenuOpen || typeof document === "undefined") return;
 
     const isEventInsideMenu = (target: EventTarget | null) => {
@@ -511,6 +524,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
         onHoverOut={hideCompactTooltip}
         onPress={() => {
           setProfileMenuOpen(false);
+          setSidebarExpanded(false);
           router.push(item.href as never);
         }}
         style={{
@@ -789,14 +803,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
   return (
     <View
       style={{
-        width: SIDEBAR_EXPANDED_WIDTH,
+        width: SIDEBAR_COMPACT_WIDTH,
         alignSelf: "stretch",
-        backgroundColor: webShellTokens.sidebar,
-        borderRightWidth: 1,
-        borderRightColor: "rgba(255,255,255,0.06)",
-        paddingVertical: 18,
-        paddingHorizontal: 14,
-        gap: 14,
         flexShrink: 0,
         height: "100%",
         maxHeight: "100%",
@@ -804,6 +812,36 @@ export function WebSidebar({ role }: WebSidebarProps) {
         zIndex: 1000,
       }}
     >
+      <Pressable
+        accessibilityLabel="Fechar menu lateral"
+        suppressWebHoverFeedback
+        onPress={() => setSidebarExpanded(false)}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 1090,
+          backgroundColor: webShellTokens.scrim,
+        } as any}
+      />
+
+      <View
+        style={{
+          width: SIDEBAR_EXPANDED_WIDTH,
+          backgroundColor: webShellTokens.sidebar,
+          borderRightWidth: 1,
+          borderRightColor: "rgba(255,255,255,0.06)",
+          paddingVertical: 18,
+          paddingHorizontal: 14,
+          gap: 14,
+          height: "100vh",
+          maxHeight: "100vh",
+          position: "fixed",
+          left: 0,
+          top: 0,
+          zIndex: 1100,
+          boxShadow: "18px 0 42px rgba(0,0,0,0.28)",
+        } as any}
+      >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <BrandMark size={46} />
         <BrandWordmark role={role} fill={false} />
@@ -880,6 +918,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
             <Pressable
               onPress={() => {
                 setProfileMenuOpen(false);
+                setSidebarExpanded(false);
                 router.push(profilePath as never);
               }}
               style={{
@@ -1014,6 +1053,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
             color="rgba(255,255,255,0.62)"
           />
         </Pressable>
+      </View>
       </View>
     </View>
   );
