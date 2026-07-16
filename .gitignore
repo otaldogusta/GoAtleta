@@ -57,6 +57,8 @@ supabase/.temp/
 
 # Local preview artifacts
 tmp/
+output/
+.codex-web-*.log
 .codex-artifacts/
 .codex/tmp/
 .codex/*.log

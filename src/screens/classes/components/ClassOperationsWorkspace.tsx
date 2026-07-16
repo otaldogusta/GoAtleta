@@ -1,6 +1,7 @@
-import { memo, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { memo, type ReactNode, useEffect, useMemo, useRef } from "react";
+import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View } from "react-native";
 
+import type { TrainingPlan } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
@@ -16,16 +17,24 @@ type WorkspaceAction = {
 type ClassOperationsWorkspaceProps = {
   colors: ThemeColors;
   compact: boolean;
-  nextClassLabel: string;
   scheduleLabel: string;
-  startTime: string;
-  focusLabel: string;
+  lessonDateLabel: string;
+  appliedPlan: TrainingPlan | null;
+  isLoadingLessonPlan: boolean;
+  onPreviousLesson: () => void;
+  onNextLesson: () => void;
+  onViewPlan: () => void;
+  onGeneratePlan: () => void;
+  isGeneratingPlan: boolean;
+  contextualInsight?: ReactNode;
   studentCount: number | null;
-  cycleLabel: string;
-  cycleContext: string;
-  latestReportLabel: string;
+  contactStatusValue: string;
+  contactStatusLabel: string;
+  reportStatusValue: string;
+  reportStatusLabel: string;
   onOpenSession: () => void;
   onOpenAttendance: () => void;
+  onOpenReport: () => void;
   onOpenPeriodization: () => void;
   onOpenPlanning: () => void;
   onOpenVisualTech: () => void;
@@ -53,7 +62,7 @@ function ContextItem({ icon, label, colors, compact = false }: {
   return (
     <View style={[styles.contextItem, compact ? styles.contextItemCompact : null]}>
       <GoAtletaIcon name={icon} size={18} color={colors.muted} />
-      <Text numberOfLines={1} style={[styles.contextLabel, { color: colors.text }]}>{label}</Text>
+      <Text numberOfLines={compact ? 2 : 1} style={[styles.contextLabel, { color: colors.text }]}>{label}</Text>
     </View>
   );
 }
@@ -76,13 +85,16 @@ export const ClassContextStrip = memo(function ClassContextStrip({
     >
       <ContextItem icon="organization" label={unitLabel} colors={colors} compact={compact} />
       <ContextItem icon="time" label={scheduleLabel} colors={colors} compact={compact} />
-      <ContextItem
-        icon="students"
-        label={studentCount === null ? "Alunos: —" : `${studentCount} ${studentCount === 1 ? "aluno" : "alunos"}`}
-        colors={colors}
-        compact={compact}
-      />
-      <ContextItem icon="calendar" label={`Próxima aula: ${nextClassLabel}`} colors={colors} compact={compact} />
+      {!compact ? (
+        <>
+          <ContextItem
+            icon="students"
+            label={studentCount === null ? "Alunos: —" : `${studentCount} ${studentCount === 1 ? "aluno" : "alunos"}`}
+            colors={colors}
+          />
+          <ContextItem icon="calendar" label={`Próxima aula: ${nextClassLabel}`} colors={colors} />
+        </>
+      ) : null}
     </View>
   );
 });
@@ -167,19 +179,99 @@ function RailSection({ title, actions, colors }: {
   );
 }
 
-function OverviewStat({ icon, value, label, colors }: {
+function OverviewStat({ icon, value, label, colors, compact = false, stacked = false }: {
   icon: GoAtletaIconName;
   value: string;
   label: string;
   colors: ThemeColors;
+  compact?: boolean;
+  stacked?: boolean;
 }) {
   return (
-    <View style={styles.overviewStat}>
-      <GoAtletaIcon name={icon} size={27} color={colors.primaryBg} />
-      <View style={styles.overviewCopy}>
-        <Text numberOfLines={1} style={[styles.overviewValue, { color: colors.text }]}>{value}</Text>
-        <Text numberOfLines={1} style={[styles.overviewLabel, { color: colors.muted }]}>{label}</Text>
+    <View style={[
+      styles.overviewStat,
+      compact ? styles.overviewStatCompact : null,
+      stacked ? styles.overviewStatStacked : null,
+    ]}>
+      <GoAtletaIcon name={icon} size={compact || stacked ? 22 : 27} color={colors.primaryBg} />
+      <View style={[styles.overviewCopy, compact ? styles.overviewCopyCompact : null]}>
+        <Text numberOfLines={compact ? 2 : 1} style={[styles.overviewValue, { color: colors.text }]}>{value}</Text>
+        <Text numberOfLines={compact ? 2 : 1} style={[styles.overviewLabel, { color: colors.muted }]}>{label}</Text>
       </View>
+    </View>
+  );
+}
+
+function formatPlanDuration(value: string | undefined) {
+  const text = String(value ?? "").trim();
+  if (!text) return "—";
+  return /min/i.test(text) ? text : `${text} min`;
+}
+
+function PlanBlockRow({
+  label,
+  activity,
+  duration,
+  colors,
+  icon,
+}: {
+  label: string;
+  activity?: string;
+  duration?: string;
+  colors: ThemeColors;
+  icon: GoAtletaIconName;
+}) {
+  return (
+    <View style={[styles.planBlockRow, { borderTopColor: colors.border }]}>
+      <GoAtletaIcon name={icon} size={18} color={colors.primaryBg} />
+      <View style={styles.planBlockCopy}>
+        <Text style={[styles.planBlockLabel, { color: colors.text }]}>{activity || label}</Text>
+        {activity && activity !== label ? (
+          <Text numberOfLines={1} style={[styles.planBlockMeta, { color: colors.muted }]}>{label}</Text>
+        ) : null}
+      </View>
+      <Text style={[styles.planBlockDuration, { color: colors.muted }]}>{formatPlanDuration(duration)}</Text>
+    </View>
+  );
+}
+
+function LessonDateNavigator({
+  colors,
+  dateLabel,
+  onPrevious,
+  onNext,
+  isLoading,
+}: {
+  colors: ThemeColors;
+  dateLabel: string;
+  onPrevious: () => void;
+  onNext: () => void;
+  isLoading: boolean;
+}) {
+  return (
+    <View style={[styles.lessonDateNavigator, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Pressable
+        onPress={onPrevious}
+        disabled={isLoading}
+        accessibilityRole="button"
+        accessibilityLabel="Aula anterior"
+        style={({ pressed }) => [styles.lessonDateButton, { borderColor: colors.border, opacity: isLoading ? 0.45 : pressed ? 0.7 : 1 }]}
+      >
+        <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
+      </Pressable>
+      <View style={styles.lessonDateCopy}>
+        <Text style={[styles.lessonDateLabel, { color: colors.text }]}>{dateLabel}</Text>
+        {isLoading ? <ActivityIndicator size="small" color={colors.primaryBg} style={styles.lessonDateLoader} /> : null}
+      </View>
+      <Pressable
+        onPress={onNext}
+        disabled={isLoading}
+        accessibilityRole="button"
+        accessibilityLabel="Próxima aula"
+        style={({ pressed }) => [styles.lessonDateButton, { borderColor: colors.border, opacity: isLoading ? 0.45 : pressed ? 0.7 : 1 }]}
+      >
+        <GoAtletaIcon name="chevronRight" size={18} color={colors.text} />
+      </Pressable>
     </View>
   );
 }
@@ -187,16 +279,24 @@ function OverviewStat({ icon, value, label, colors }: {
 export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   colors,
   compact,
-  nextClassLabel,
   scheduleLabel,
-  startTime,
-  focusLabel,
+  lessonDateLabel,
+  appliedPlan,
+  isLoadingLessonPlan,
+  onPreviousLesson,
+  onNextLesson,
+  onViewPlan,
+  onGeneratePlan,
+  isGeneratingPlan,
+  contextualInsight,
   studentCount,
-  cycleLabel,
-  cycleContext,
-  latestReportLabel,
+  contactStatusValue,
+  contactStatusLabel,
+  reportStatusValue,
+  reportStatusLabel,
   onOpenSession,
   onOpenAttendance,
+  onOpenReport,
   onOpenPeriodization,
   onOpenPlanning,
   onOpenVisualTech,
@@ -205,6 +305,23 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   onExportRoster,
   onOpenWhatsApp,
 }: ClassOperationsWorkspaceProps) {
+  const lessonContentAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isLoadingLessonPlan) {
+      lessonContentAnim.stopAnimation();
+      lessonContentAnim.setValue(0);
+      return;
+    }
+
+    Animated.timing(lessonContentAnim, {
+      toValue: 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [isLoadingLessonPlan, lessonContentAnim, lessonDateLabel]);
+
   const actions = useMemo<Record<string, WorkspaceAction>>(() => ({
     overview: {
       key: "overview",
@@ -212,6 +329,27 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       description: "Resumo operacional da turma",
       icon: "dashboard",
       onPress: () => undefined,
+    },
+    session: {
+      key: "session",
+      label: "Aula do dia",
+      description: "Preparar treino e atividades",
+      icon: "agenda",
+      onPress: onOpenSession,
+    },
+    attendance: {
+      key: "attendance",
+      label: "Chamada",
+      description: "Registrar presença da turma",
+      icon: "attendance",
+      onPress: onOpenAttendance,
+    },
+    report: {
+      key: "report",
+      label: "Relatório",
+      description: "Registrar a aula realizada",
+      icon: "document",
+      onPress: onOpenReport,
     },
     planning: {
       key: "planning",
@@ -264,22 +402,196 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
     },
   }), [
     onExportRoster,
+    onOpenAttendance,
     onOpenPeriodization,
     onOpenPlanning,
+    onOpenReport,
     onOpenScouting,
+    onOpenSession,
     onOpenStudents,
     onOpenVisualTech,
     onOpenWhatsApp,
   ]);
 
-  const recommendedActions = [actions.periodization, actions.planning, actions.visual];
-  const compactActions = [
-    ...recommendedActions,
-    actions.scouting,
-    actions.students,
-    actions.export,
-    actions.whatsapp,
-  ];
+  const renderOverviewSection = (stacked = false) => (
+    <View style={[styles.overviewSection, stacked ? styles.overviewSectionSide : null]}>
+      <View
+        style={[
+          styles.overviewPanel,
+          compact ? styles.overviewPanelCompact : null,
+          stacked ? styles.overviewPanelStacked : null,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <OverviewStat
+          icon="students"
+          value={studentCount === null ? "—" : String(studentCount)}
+          label={studentCount === 1 ? "aluno" : "alunos"}
+          colors={colors}
+          compact={compact}
+          stacked={stacked}
+        />
+        <OverviewStat
+          icon="whatsapp"
+          value={contactStatusValue}
+          label={contactStatusLabel}
+          colors={colors}
+          compact={compact}
+          stacked={stacked}
+        />
+        <OverviewStat
+          icon="document"
+          value={reportStatusValue}
+          label={reportStatusLabel}
+          colors={colors}
+          compact={compact}
+          stacked={stacked}
+        />
+      </View>
+      {contextualInsight ? (
+        <View
+          style={[
+            styles.contextualInsight,
+            stacked ? styles.contextualInsightSide : null,
+            { backgroundColor: colors.secondaryBg, borderColor: colors.border },
+          ]}
+        >
+          {contextualInsight}
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const planSection = (
+    <View style={styles.planSection}>
+      <LessonDateNavigator
+        colors={colors}
+        dateLabel={lessonDateLabel}
+        onPrevious={onPreviousLesson}
+        onNext={onNextLesson}
+        isLoading={isLoadingLessonPlan}
+      />
+      <View style={[styles.planPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.planHeader}>
+          <Text style={[styles.planTitle, { color: colors.text }]}>Plano da aula</Text>
+          {!isLoadingLessonPlan && appliedPlan ? (
+            <View style={styles.planAppliedStatus}>
+              <GoAtletaIcon name="checkmarkCircle" size={17} color={colors.successText} />
+              <Text style={[styles.planAppliedLabel, { color: colors.successText }]}>Plano aplicado</Text>
+            </View>
+          ) : null}
+        </View>
+        {isLoadingLessonPlan ? (
+          <View style={styles.lessonLoadingContent} accessibilityLiveRegion="polite">
+            <ActivityIndicator size="small" color={colors.primaryBg} />
+            <Text style={[styles.emptyPlanTitle, { color: colors.text }]}>Carregando a aula</Text>
+            <Text style={[styles.emptyPlanDescription, { color: colors.muted }]}>Atualizando o plano e os indicadores do dia.</Text>
+          </View>
+        ) : (
+          <Animated.View
+            style={[
+              styles.lessonPlanContent,
+              {
+                opacity: lessonContentAnim,
+                transform: [{ translateX: lessonContentAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+              },
+            ]}
+          >
+          {appliedPlan ? (
+          <>
+            <View style={styles.planSummary}>
+              <GoAtletaIcon name="document" size={20} color={colors.muted} />
+              <View style={styles.planSummaryCopy}>
+                <Text style={[styles.planSummaryTitle, { color: colors.text }]}>{appliedPlan.title}</Text>
+                <Text numberOfLines={1} style={[styles.planSummaryMeta, { color: colors.muted }]}>
+                  Foco: {appliedPlan.main?.[0] || "Fundamentos"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.planBlocks}>
+              <PlanBlockRow
+                label="Aquecimento"
+                activity={appliedPlan.warmup?.[0]}
+                duration={appliedPlan.warmupTime}
+                icon="agenda"
+                colors={colors}
+              />
+              <PlanBlockRow
+                label="Parte principal"
+                activity={appliedPlan.main?.[0]}
+                duration={appliedPlan.mainTime}
+                icon="periodization"
+                colors={colors}
+              />
+              <PlanBlockRow
+                label="Volta à calma"
+                activity={appliedPlan.cooldown?.[0]}
+                duration={appliedPlan.cooldownTime}
+                icon="document"
+                colors={colors}
+              />
+            </View>
+            <View style={styles.planActions}>
+              <Pressable
+                onPress={onViewPlan}
+                accessibilityRole="button"
+                accessibilityLabel="Ver plano"
+                style={({ pressed }) => [styles.planPrimaryButton, styles.planAppliedAction, { backgroundColor: colors.primaryBg, opacity: pressed ? 0.8 : 1 }]}
+              >
+                <Text style={[styles.planPrimaryButtonLabel, { color: colors.primaryText }]}>Ver plano</Text>
+              </Pressable>
+              <Pressable
+                onPress={onOpenSession}
+                accessibilityRole="button"
+                accessibilityLabel="Editar plano"
+                style={({ pressed }) => [styles.planSecondaryButton, styles.planAppliedAction, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
+              >
+                <GoAtletaIcon name="pencil" size={16} color={colors.text} />
+                <Text style={[styles.planSecondaryButtonLabel, { color: colors.text }]}>Editar plano</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : isGeneratingPlan ? (
+          <View style={styles.emptyPlanContent} accessibilityLiveRegion="polite">
+            <ActivityIndicator size="small" color={colors.primaryBg} />
+            <Text style={[styles.emptyPlanTitle, { color: colors.text }]}>Preparando o plano</Text>
+            <Text style={[styles.emptyPlanDescription, { color: colors.muted }]}>Organizando atividades para esta aula.</Text>
+          </View>
+        ) : (
+          <View style={styles.emptyPlanContent}>
+            <GoAtletaIcon name="document" size={30} color={colors.muted} />
+            <Text style={[styles.emptyPlanTitle, { color: colors.text }]}>Sem plano aplicado</Text>
+            <Text style={[styles.emptyPlanDescription, { color: colors.muted }]}>Escolha um treino salvo ou gere um novo plano para esta aula.</Text>
+            <View style={styles.emptyPlanActions}>
+              <Pressable
+                onPress={onOpenSession}
+                accessibilityRole="button"
+                accessibilityLabel="Aplicar treino"
+                style={({ pressed }) => [styles.planPrimaryButton, styles.emptyPlanAction, { backgroundColor: colors.primaryBg, opacity: pressed ? 0.8 : 1 }]}
+              >
+                <Text style={[styles.planPrimaryButtonLabel, { color: colors.primaryText }]}>Aplicar treino</Text>
+              </Pressable>
+              <Pressable
+                onPress={onGeneratePlan}
+                accessibilityRole="button"
+                accessibilityLabel="Gerar plano automático"
+                style={({ pressed }) => [styles.planSecondaryButton, styles.emptyPlanAction, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
+              >
+                <GoAtletaIcon name="sparkles" size={16} color={colors.text} />
+                <Text style={[styles.planSecondaryButtonLabel, { color: colors.text }]}>Gerar plano automático</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+          </Animated.View>
+        )}
+        <View style={[styles.planActionList, { borderTopColor: colors.border }]}>
+          <WorkspaceActionRow action={actions.attendance} colors={colors} />
+          <WorkspaceActionRow action={actions.report} colors={colors} last />
+        </View>
+      </View>
+    </View>
+  );
 
   return (
     <View style={[styles.workspace, compact ? styles.workspaceCompact : null]}>
@@ -287,7 +599,13 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         <View style={[styles.rail, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.railHeading, { color: colors.muted }]}>Hoje</Text>
           <RailAction action={actions.overview} colors={colors} selected />
-          <RailSection title="Planejamento" actions={[actions.planning, actions.visual]} colors={colors} />
+          <RailAction action={actions.attendance} colors={colors} />
+          <RailAction action={actions.report} colors={colors} />
+          <RailSection
+            title="Planejamento"
+            actions={[actions.planning, actions.visual]}
+            colors={colors}
+          />
           <RailSection title="Desempenho" actions={[actions.periodization, actions.scouting]} colors={colors} />
           <RailSection
             title="Gestão"
@@ -298,94 +616,19 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       ) : null}
 
       <View style={styles.mainColumn}>
-        <View
-          style={[
-            styles.nextClassPanel,
-            compact ? styles.nextClassPanelCompact : null,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
-          <View style={styles.nextClassCopy}>
-            <View style={styles.sectionTitleRow}>
-              <GoAtletaIcon name="agenda" size={20} color={colors.muted} />
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Próxima aula</Text>
-            </View>
-            <Text style={[styles.nextClassMeta, { color: colors.muted }]}>
-              {nextClassLabel} · {startTime}
-            </Text>
-            <Text style={[styles.focusLabel, { color: colors.muted }]}>Foco da aula</Text>
-            <Text numberOfLines={2} style={[styles.focusValue, { color: colors.text }]}>{focusLabel}</Text>
-          </View>
-          <View style={[styles.heroActions, compact ? styles.heroActionsCompact : null]}>
-            <Pressable
-              onPress={onOpenSession}
-              style={({ pressed }) => [
-                styles.primaryAction,
-                { backgroundColor: colors.primaryBg, opacity: pressed ? 0.8 : 1 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Abrir aula"
-            >
-              <Text style={[styles.primaryActionText, { color: colors.primaryText }]}>Abrir aula</Text>
-              <GoAtletaIcon name="chevronRight" size={18} color={colors.primaryText} />
-            </Pressable>
-            <Pressable
-              onPress={onOpenAttendance}
-              style={({ pressed }) => [
-                styles.secondaryAction,
-                { borderColor: colors.border, opacity: pressed ? 0.72 : 1 },
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Fazer chamada"
-            >
-              <Text style={[styles.secondaryActionText, { color: colors.text }]}>Fazer chamada</Text>
-              <GoAtletaIcon name="attendance" size={18} color={colors.muted} />
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.overviewSection}>
-          <View style={styles.sectionTitleRow}>
-            <GoAtletaIcon name="students" size={21} color={colors.text} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Visão da turma</Text>
-          </View>
-          <View
-            style={[
-              styles.overviewPanel,
-              compact ? styles.overviewPanelCompact : null,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <OverviewStat
-              icon="students"
-              value={studentCount === null ? "—" : String(studentCount)}
-              label={studentCount === 1 ? "aluno" : "alunos"}
-              colors={colors}
-            />
-            <OverviewStat icon="sync" value={cycleLabel} label={cycleContext} colors={colors} />
-            <OverviewStat icon="document" value={latestReportLabel} label="último relatório" colors={colors} />
-          </View>
-        </View>
-
-        <View style={styles.recommendedSection}>
-          <Text style={[styles.recommendedTitle, { color: colors.text }]}>
-            {compact ? "Ações da turma" : "Ações recomendadas para hoje"}
-          </Text>
-          <View style={[styles.actionList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {(compact ? compactActions : recommendedActions).map((action, index, list) => (
-              <WorkspaceActionRow
-                key={action.key}
-                action={action}
-                colors={colors}
-                last={index === list.length - 1}
-              />
-            ))}
-          </View>
-        </View>
-
         {compact ? (
-          <Text style={[styles.scheduleHint, { color: colors.muted }]}>Agenda: {scheduleLabel}</Text>
-        ) : null}
+          <>
+            {planSection}
+            {renderOverviewSection()}
+          </>
+        ) : (
+          <View style={styles.desktopWorkspace}>
+            <View style={styles.desktopContentColumn}>
+              {planSection}
+            </View>
+            {renderOverviewSection(true)}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -489,85 +732,216 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 22,
   },
-  nextClassPanel: {
-    minHeight: 180,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 22,
+  desktopWorkspace: {
     flexDirection: "row",
-    alignItems: "stretch",
-    justifyContent: "space-between",
-    gap: 20,
+    alignItems: "flex-start",
+    gap: 18,
   },
-  nextClassPanelCompact: {
-    flexDirection: "column",
-    minHeight: 0,
-    padding: 18,
-  },
-  nextClassCopy: {
+  desktopContentColumn: {
     flex: 1,
     minWidth: 0,
+    gap: 22,
   },
-  sectionTitleRow: {
+  planSection: {
+    gap: 12,
+  },
+  lessonDateNavigator: {
+    minHeight: 68,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
+    gap: 12,
   },
-  sectionTitle: {
+  lessonDateButton: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lessonDateCopy: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+  },
+  lessonDateLoader: {
+    marginTop: 4,
+  },
+  lessonDateLabel: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  lessonDateTime: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  planPanel: {
+    borderWidth: 1,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  lessonPlanContent: {
+    minHeight: 250,
+  },
+  lessonLoadingContent: {
+    minHeight: 250,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 28,
+    gap: 8,
+  },
+  planHeader: {
+    minHeight: 60,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  planTitle: {
     fontSize: 18,
     fontWeight: "800",
   },
-  nextClassMeta: {
-    marginTop: 14,
-    fontSize: 13,
+  planAppliedStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  focusLabel: {
-    marginTop: 22,
+  planAppliedLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  planSummary: {
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  planSummaryCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  planSummaryTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  planSummaryMeta: {
+    marginTop: 3,
+    fontSize: 12,
+  },
+  planBlocks: {
+    paddingHorizontal: 18,
+  },
+  planBlockRow: {
+    minHeight: 52,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  planBlockCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  planBlockLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  planBlockMeta: {
+    marginTop: 2,
+    fontSize: 11,
+  },
+  planBlockDuration: {
     fontSize: 12,
     fontWeight: "700",
   },
-  focusValue: {
-    marginTop: 5,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  heroActions: {
-    width: 210,
-    justifyContent: "center",
-    gap: 10,
-  },
-  heroActionsCompact: {
-    width: "100%",
-  },
-  primaryAction: {
-    minHeight: 52,
-    borderRadius: 12,
-    paddingHorizontal: 18,
+  planActions: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
+    padding: 18,
+    gap: 9,
   },
-  primaryActionText: {
+  planAppliedAction: {
+    flex: 1,
+    minWidth: 0,
+  },
+  emptyPlanActions: {
+    width: "100%",
+    flexDirection: "row",
+    gap: 9,
+  },
+  emptyPlanAction: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 10,
+  },
+  planPrimaryButton: {
+    minHeight: 46,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  planPrimaryButtonLabel: {
     fontSize: 14,
     fontWeight: "800",
   },
-  secondaryAction: {
-    minHeight: 52,
+  planSecondaryButton: {
+    minHeight: 46,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 18,
+    borderRadius: 11,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
+    justifyContent: "center",
+    gap: 7,
+    paddingHorizontal: 16,
   },
-  secondaryActionText: {
-    fontSize: 14,
+  planSecondaryButtonLabel: {
+    fontSize: 13,
     fontWeight: "700",
+  },
+  emptyPlanContent: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    gap: 8,
+  },
+  emptyPlanTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  emptyPlanDescription: {
+    maxWidth: 360,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  planActionList: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  contextualInsight: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+  },
+  contextualInsightSide: {
+    marginTop: -4,
   },
   overviewSection: {
     gap: 12,
+  },
+  overviewSectionSide: {
+    width: 278,
+    flexShrink: 0,
   },
   overviewPanel: {
     minHeight: 108,
@@ -579,9 +953,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   overviewPanelCompact: {
+    minHeight: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  overviewPanelStacked: {
+    minHeight: 148,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: "column",
     alignItems: "stretch",
-    gap: 14,
+    justifyContent: "center",
+    gap: 8,
   },
   overviewStat: {
     flex: 1,
@@ -594,6 +980,20 @@ const styles = StyleSheet.create({
   overviewCopy: {
     minWidth: 0,
   },
+  overviewCopyCompact: {
+    width: "100%",
+  },
+  overviewStatCompact: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    gap: 7,
+  },
+  overviewStatStacked: {
+    flex: 0,
+    justifyContent: "flex-start",
+    gap: 10,
+  },
   overviewValue: {
     fontSize: 16,
     fontWeight: "800",
@@ -604,10 +1004,6 @@ const styles = StyleSheet.create({
   },
   recommendedSection: {
     gap: 12,
-  },
-  recommendedTitle: {
-    fontSize: 18,
-    fontWeight: "800",
   },
   actionList: {
     borderWidth: 1,

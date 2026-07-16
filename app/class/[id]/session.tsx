@@ -11,6 +11,7 @@ import {
     Platform,
     ScrollView,
     Text,
+    useWindowDimensions,
     View,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -136,7 +137,9 @@ import { sessionReportHtml } from "../../../src/pdf/templates/session-report";
 import { useAppTheme } from "../../../src/ui/app-theme";
 import { getClassPalette } from "../../../src/ui/class-colors";
 import { useConfirmDialog } from "../../../src/ui/confirm-dialog";
+import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import { ModalSheet } from "../../../src/ui/ModalSheet";
+import { resolveResponsiveTier } from "../../../src/ui/responsive-layout";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { formatClock, formatDuration } from "../../../src/utils/format-time";
@@ -1670,9 +1673,19 @@ const normalizeClassDaysOfWeek = (daysOfWeek: number[] | undefined) =>
     .map((value) => (value === 7 ? 0 : value))
     .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
 
+type SessionScreenProps = {
+  embeddedReport?: boolean;
+  embeddedDate?: string;
+  onCloseEmbeddedReport?: () => void;
+};
+
 // perf-check: ignore-render
 // perf-check: ignore-measure
-export default function SessionScreen() {
+export function SessionScreen({
+  embeddedReport = false,
+  embeddedDate,
+  onCloseEmbeddedReport,
+}: SessionScreenProps = {}) {
   const { id, date, tab, autogenerate, source } = useLocalSearchParams<{
     id: string;
     date?: string;
@@ -1683,10 +1696,13 @@ export default function SessionScreen() {
   const router = useRouter();
   const { config: pedagogicalConfig } = usePedagogicalConfig();
   const insets = useSafeAreaInsets();
+  const { width: viewportWidth } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
-  const [sessionTab, setSessionTab] = useState<SessionTabId>("treino");
+  const [sessionTab, setSessionTab] = useState<SessionTabId>(
+    embeddedReport ? "relatório" : "treino"
+  );
   const sessionTabAnim = useRef<Record<SessionTabId, Animated.Value>>({
     treino: new Animated.Value(1),
     relatório: new Animated.Value(0),
@@ -1737,11 +1753,12 @@ export default function SessionScreen() {
     useCollapsibleAnimation(showTechniquePicker, { translateY: -6 });
   const planFabBottom = Math.max(insets.bottom + 166, 182);
   const planFabMenuBottom = planFabBottom + 74;
+  const routeOrEmbeddedDate = embeddedDate ?? date;
   const hasExplicitSessionDate =
-    typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date);
+    typeof routeOrEmbeddedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(routeOrEmbeddedDate);
   const sessionDate =
     hasExplicitSessionDate
-      ? date
+      ? routeOrEmbeddedDate
       : (() => {
           const now = new Date();
           const year = now.getFullYear();
@@ -3450,6 +3467,138 @@ export default function SessionScreen() {
     );
   }
 
+  const reportTabContent = (
+    <SessionReportTab
+      embedded={embeddedReport}
+      compactFields={resolveResponsiveTier(viewportWidth) === "mobile"}
+      colors={colors}
+      containerRef={containerRef}
+      pseTriggerRef={pseTriggerRef}
+      techniqueTriggerRef={techniqueTriggerRef}
+      onContainerLayout={syncPickerLayouts}
+      sessionDateLabel={sessionDate.split("-").reverse().join("/")}
+      hasExistingReport={!!sessionLog}
+      pse={PSE}
+      technique={technique}
+      participantsCount={participantsCount}
+      activity={activity}
+      conclusion={conclusion}
+      autoActivity={autoActivity}
+      canApplyAutoActivity={canApplyAutoActivity}
+      showAppliedPreview={showAppliedPreview}
+      canSuggestActivity={canSuggestActivity}
+      canSuggestConclusion={canSuggestConclusion}
+      isRewritingActivity={isRewritingActivity}
+      isRewritingConclusion={isRewritingConclusion}
+      reportPhotoUris={reportPhotoUris}
+      photoLimit={REPORT_PHOTO_LIMIT}
+      isPickingPhoto={isPickingPhoto}
+      reportHasChanges={reportHasChanges}
+      showPsePicker={showPsePicker}
+      showTechniquePicker={showTechniquePicker}
+      showPsePickerContent={showPsePickerContent}
+      showTechniquePickerContent={showTechniquePickerContent}
+      pseTriggerLayout={pseTriggerLayout}
+      techniqueTriggerLayout={techniqueTriggerLayout}
+      containerWindow={containerWindow}
+      psePickerAnimationStyle={psePickerAnimStyle}
+      techniquePickerAnimationStyle={techniquePickerAnimStyle}
+      photoActionIndex={photoActionIndex}
+      onTogglePsePicker={() => togglePicker("pse")}
+      onToggleTechniquePicker={() => togglePicker("technique")}
+      onClosePickers={closePickers}
+      onSelectPse={handleSelectPse}
+      onSelectTechnique={handleSelectTechnique}
+      onChangeParticipantsCount={setParticipantsCount}
+      onChangeActivity={(value) => {
+        setActivity(value);
+        closePickers();
+      }}
+      onChangeConclusion={(value) => {
+        setConclusion(value);
+        closePickers();
+      }}
+      onRewriteActivity={() => void handleRewriteField("activity")}
+      onRewriteConclusion={() => void handleRewriteField("conclusion")}
+      onApplyAutoActivity={handleApplyAutoActivity}
+      onToggleAppliedPreview={() => setShowAppliedPreview((prev) => !prev)}
+      onPickPhoto={(photoSource) => {
+        void pickReportPhoto(photoSource);
+      }}
+      onOpenPhotoActions={setPhotoActionIndex}
+      onClosePhotoActions={() => setPhotoActionIndex(null)}
+      onReplacePhoto={(photoSource, index) => {
+        setPhotoActionIndex(null);
+        void pickReportPhoto(photoSource, index);
+      }}
+      onRemovePhoto={(index) => {
+        removePhotoAtIndex(index);
+        setPhotoActionIndex(null);
+      }}
+      onSaveReport={handleSaveReport}
+      onSaveAndGenerateReport={handleSaveAndGenerateReport}
+    />
+  );
+
+  if (embeddedReport) {
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1, minHeight: 0 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            paddingHorizontal: 20,
+            paddingVertical: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+          }}
+        >
+          <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+            <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
+              Relatório da aula
+            </Text>
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
+              {cls.name} · {sessionDate.split("-").reverse().join("/")}
+            </Text>
+          </View>
+          <Pressable
+            onPress={onCloseEmbeddedReport}
+            accessibilityRole="button"
+            accessibilityLabel="Fechar relatório"
+            style={({ pressed }) => ({
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: pressed ? 0.72 : 1,
+            })}
+          >
+            <GoAtletaIcon name="close" size={18} color={colors.text} />
+          </Pressable>
+        </View>
+        <ScrollView
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: Math.max(24, insets.bottom + 16) }}
+          onScrollBeginDrag={closePickers}
+          scrollEnabled={!showPsePicker && !showTechniquePicker}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          showsVerticalScrollIndicator={false}
+        >
+          {reportTabContent}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenBackdrop />
@@ -3617,76 +3766,7 @@ export default function SessionScreen() {
             ) : null}
           </>
         ) : null}
-        {sessionTab === "relatório" ? (
-          <SessionReportTab
-            colors={colors}
-            containerRef={containerRef}
-            pseTriggerRef={pseTriggerRef}
-            techniqueTriggerRef={techniqueTriggerRef}
-            onContainerLayout={syncPickerLayouts}
-            sessionDateLabel={sessionDate.split("-").reverse().join("/")}
-            hasExistingReport={!!sessionLog}
-            pse={PSE}
-            technique={technique}
-            participantsCount={participantsCount}
-            activity={activity}
-            conclusion={conclusion}
-            autoActivity={autoActivity}
-            canApplyAutoActivity={canApplyAutoActivity}
-            showAppliedPreview={showAppliedPreview}
-            canSuggestActivity={canSuggestActivity}
-            canSuggestConclusion={canSuggestConclusion}
-            isRewritingActivity={isRewritingActivity}
-            isRewritingConclusion={isRewritingConclusion}
-            reportPhotoUris={reportPhotoUris}
-            photoLimit={REPORT_PHOTO_LIMIT}
-            isPickingPhoto={isPickingPhoto}
-            reportHasChanges={reportHasChanges}
-            showPsePicker={showPsePicker}
-            showTechniquePicker={showTechniquePicker}
-            showPsePickerContent={showPsePickerContent}
-            showTechniquePickerContent={showTechniquePickerContent}
-            pseTriggerLayout={pseTriggerLayout}
-            techniqueTriggerLayout={techniqueTriggerLayout}
-            containerWindow={containerWindow}
-            psePickerAnimationStyle={psePickerAnimStyle}
-            techniquePickerAnimationStyle={techniquePickerAnimStyle}
-            photoActionIndex={photoActionIndex}
-            onTogglePsePicker={() => togglePicker("pse")}
-            onToggleTechniquePicker={() => togglePicker("technique")}
-            onClosePickers={closePickers}
-            onSelectPse={handleSelectPse}
-            onSelectTechnique={handleSelectTechnique}
-            onChangeParticipantsCount={setParticipantsCount}
-            onChangeActivity={(value) => {
-              setActivity(value);
-              closePickers();
-            }}
-            onChangeConclusion={(value) => {
-              setConclusion(value);
-              closePickers();
-            }}
-            onRewriteActivity={() => void handleRewriteField("activity")}
-            onRewriteConclusion={() => void handleRewriteField("conclusion")}
-            onApplyAutoActivity={handleApplyAutoActivity}
-            onToggleAppliedPreview={() => setShowAppliedPreview((prev) => !prev)}
-            onPickPhoto={(photoSource) => {
-              void pickReportPhoto(photoSource);
-            }}
-            onOpenPhotoActions={setPhotoActionIndex}
-            onClosePhotoActions={() => setPhotoActionIndex(null)}
-            onReplacePhoto={(photoSource, index) => {
-              setPhotoActionIndex(null);
-              void pickReportPhoto(photoSource, index);
-            }}
-            onRemovePhoto={(index) => {
-              removePhotoAtIndex(index);
-              setPhotoActionIndex(null);
-            }}
-            onSaveReport={handleSaveReport}
-            onSaveAndGenerateReport={handleSaveAndGenerateReport}
-          />
-        ) : null}
+        {sessionTab === "relatório" ? reportTabContent : null}
       </ScrollView>
 
       <BlockEditModal
@@ -3830,3 +3910,17 @@ export default function SessionScreen() {
     </View>
   );
 }
+
+function SessionRouteRedirect() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!id) return;
+    router.replace({ pathname: "/class/[id]", params: { id } });
+  }, [id, router]);
+
+  return <ScreenLoadingState />;
+}
+
+export default SessionRouteRedirect;

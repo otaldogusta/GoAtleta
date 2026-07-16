@@ -10,6 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { ClassGroup } from "../src/core/models";
 
 import { useAuth } from "../src/auth/auth";
+import { canSafelyUnlinkProvider } from "../src/auth/identity-linking";
 import { saveSession, setRememberPreference } from "../src/auth/session";
 import { BackTitleHeader } from "../src/components/ui/BackTitleHeader";
 
@@ -303,6 +304,10 @@ export default function ProfileScreen() {
       .filter(Boolean);
     const hasGoogle = identityProviders.includes("google")
       || (identityProviders.length === 0 && metadataProviders.includes("google"));
+    const canUnlinkGoogle = canSafelyUnlinkProvider(
+      session?.user?.identities ?? [],
+      "google"
+    );
     const emailConfirmed = requiresHybridVerification
       ? Boolean(hybridVerifiedAt)
       : Boolean(confirmedAt || hybridVerifiedAt);
@@ -312,6 +317,7 @@ export default function ProfileScreen() {
       emailConfirmed,
       canUseEmailCode: !hasGoogle,
       googleConnected: hasGoogle,
+      canUnlinkGoogle,
       socialLoginEnabled: ENABLE_SOCIAL_LOGIN,
       accountEmail,
       loginLabel: accountEmail || "Sem e-mail",
@@ -982,9 +988,17 @@ export default function ProfileScreen() {
                   {accountSecurity.googleConnected ? (
                     <Pressable
                       onPress={async () => {
+                        if (!accountSecurity.canUnlinkGoogle) {
+                          Alert.alert(
+                            "Mantenha um acesso",
+                            "Configure outro método de login antes de desvincular o Google."
+                          );
+                          return;
+                        }
                         confirm({
                           title: "Desvincular Google",
-                          message: "Deseja remover o login com Google desta conta?",
+                          message:
+                            "Isso remove apenas o acesso pelo Google. Sua conta, seus dados e os outros métodos de login serão mantidos.",
                           confirmLabel: "Desvincular",
                           cancelLabel: "Cancelar",
                           tone: "danger",
@@ -1010,11 +1024,15 @@ export default function ProfileScreen() {
                         backgroundColor: "transparent",
                         paddingHorizontal: 10,
                         paddingVertical: 6,
-                        opacity: unlinkingGoogle ? 0.6 : 1,
+                        opacity: unlinkingGoogle || !accountSecurity.canUnlinkGoogle ? 0.6 : 1,
                       }}
                     >
                       <Text style={{ color: colors.dangerSolidBg, fontSize: 12, fontWeight: "700" }}>
-                        {unlinkingGoogle ? "Desvinculando..." : "Desvincular"}
+                        {unlinkingGoogle
+                          ? "Desvinculando..."
+                          : accountSecurity.canUnlinkGoogle
+                            ? "Desvincular Google"
+                            : "Único acesso"}
                       </Text>
                     </Pressable>
                   ) : null}

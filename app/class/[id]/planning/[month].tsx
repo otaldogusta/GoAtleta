@@ -22,7 +22,13 @@ import { sessionPlanHtml } from "../../../../src/pdf/templates/session-plan";
 import type { WeekSessionPreview } from "../../../../src/screens/periodization/application/build-week-session-preview";
 import { resolveLessonBlocksFromDailyPlan } from "../../../../src/screens/planning/application/daily-lesson-blocks";
 import type { MonthPlanningSummary } from "../../../../src/screens/planning/application/month-planning-summary";
-import { buildMonthlyPlanExportData } from "../../../../src/screens/planning/application/monthly-plan-export";
+import {
+  buildMonthlyPlanExportData,
+  DEFAULT_MONTHLY_PLAN_PROFESSOR,
+  formatMonthlyPlanAgeGroup,
+  formatMonthlyPlanDateLabel,
+  formatMonthlyPlanTimeLabel,
+} from "../../../../src/screens/planning/application/monthly-plan-export";
 import type {
   ProfessorAgendaCalendarDay,
   ProfessorAgendaEvent,
@@ -755,8 +761,8 @@ export default function ClassPlanningMonthRoute() {
       return;
     }
 
-    const dateLabel = `${selectedSession.weekdayLabel} ${selectedSession.dateLabel}`;
-    const weekLabel = `${selectedWeekPlan.weekNumber || "-"}ª semana`;
+    const dateLabel = formatMonthlyPlanDateLabel(selectedDailyPlan.date);
+    const weekLabel = `SEMANA ${String(selectedWeekPlan.weekNumber || 0).padStart(2, "0")}`;
     const genderLabel =
       selectedClass.gender === "masculino"
         ? "Masculino"
@@ -801,10 +807,11 @@ export default function ClassPlanningMonthRoute() {
 
     const pdfData = {
       className: selectedClass.name,
-      ageGroup: selectedClass.ageBand,
+      ageGroup: formatMonthlyPlanAgeGroup(selectedClass.ageBand),
       unitLabel: selectedClass.unit,
-      genderLabel,
+      genderLabel: genderLabel.toLocaleLowerCase("pt-BR"),
       dateLabel,
+      timeLabel: formatMonthlyPlanTimeLabel(selectedClass),
       weekLabel,
       title: resolvedTitle,
       objective: resolvedSpecificObjective || selectedWeekPlan.theme,
@@ -813,7 +820,7 @@ export default function ClassPlanningMonthRoute() {
       weeklyFocus: selectedWeekPlan.theme || selectedWeekPlan.technicalFocus,
       pedagogicalRule: selectedWeekPlan.pedagogicalRule,
       totalTime: `${totalDuration > 0 ? totalDuration : blockTimes.totalMinutes} min`,
-      notes: selectedDailyPlan.observations,
+      notes: "",
       blocks: lessonBlocks.map((block) => ({
         key: block.key,
         label: block.label,
@@ -827,6 +834,7 @@ export default function ClassPlanningMonthRoute() {
               )
             : block.activities,
       })),
+      coachName: DEFAULT_MONTHLY_PLAN_PROFESSOR,
     };
 
     const html = sessionPlanHtml(pdfData);

@@ -114,8 +114,12 @@ import { markRender, measure, measureAsync } from "../../src/observability/perf"
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 
 import { PeriodizationDocument } from "../../src/pdf/periodization-document";
+import { MonthlyLessonPlanDocument } from "../../src/pdf/monthly-lesson-plan-document";
 
 import { periodizationHtml } from "../../src/pdf/templates/periodization";
+import { monthlyPlanHtml } from "../../src/pdf/templates/monthly-plan";
+
+import { buildWeeklyPlanExportData } from "../../src/screens/planning/application/monthly-plan-export";
 
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 
@@ -3609,25 +3613,26 @@ export default function PeriodizationScreen() {
     if (!selectedClass || !periodizationRows.length || !hasWeekPlans) return;
 
     const weekRow = periodizationRows.find((row) => row.week === activeWeek.week);
+    const weeklyPlan = visibleClassPlans.find((plan) => plan.weekNumber === activeWeek.week);
 
-    if (!weekRow) return;
+    if (!weekRow || !weeklyPlan) return;
 
-    const data = buildPdfData([weekRow]);
-
-    const fileName = safeFileName(
-
-      `periodizacao_semana_${weekRow.week}_${selectedClass.name}`
-
+    const dailyPlansByKey = Object.fromEntries(
+      recentDailyLessonPlans
+        .filter((plan) => plan.weeklyPlanId === weeklyPlan.id)
+        .map((plan) => [`${plan.weeklyPlanId}::${plan.date}`, plan])
     );
+    const data = buildWeeklyPlanExportData({
+      classGroup: selectedClass,
+      plan: weeklyPlan,
+      dailyPlansByKey,
+    });
+    const fileName = safeFileName(`plano-semana-${weeklyPlan.weekNumber}-${selectedClass.name}`);
 
     await exportPdf({
-
-      html: periodizationHtml(data),
-
-      fileName: `${fileName || "periodizacao"}.pdf`,
-
-      webDocument: <PeriodizationDocument data={data} />,
-
+      html: monthlyPlanHtml(data),
+      fileName: `${fileName || "plano-semana"}.pdf`,
+      webDocument: <MonthlyLessonPlanDocument data={data} />,
     });
 
   };

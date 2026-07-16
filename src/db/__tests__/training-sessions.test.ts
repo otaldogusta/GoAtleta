@@ -69,4 +69,31 @@ describe("training sessions helpers", () => {
 
     expect(plan?.id).toBe("p2");
   });
+
+  test("does not repeat a date-specific plan on another class day", () => {
+    const plan = resolveTrainingPlanForDate(
+      [
+        {
+          id: "p1",
+          classId: "c1",
+          title: "Dia específico",
+          tags: [],
+          warmup: [],
+          main: [],
+          cooldown: [],
+          warmupTime: "",
+          mainTime: "",
+          cooldownTime: "",
+          applyDays: [5],
+          applyDate: "2026-03-13",
+          createdAt: "2026-03-01T00:00:00.000Z",
+        },
+      ],
+      "c1",
+      "2026-03-20",
+      5
+    );
+
+    expect(plan).toBeNull();
+  });
 });

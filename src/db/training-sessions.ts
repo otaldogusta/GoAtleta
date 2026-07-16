@@ -126,7 +126,11 @@ export const resolveTrainingPlanForDate = (
   if (exactDate) return exactDate;
   return (
     relevant
-      .filter((plan) => (plan.applyDays ?? []).includes(normalizedWeekday))
+      .filter(
+        (plan) =>
+          !plan.applyDate &&
+          (plan.applyDays ?? []).includes(normalizedWeekday)
+      )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null
   );
 };

@@ -16,14 +16,16 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Pressable } from "../../src/ui/Pressable";
 
 import { InsightCard } from "../../src/components/ui/InsightCard";
-import { useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
+import { type ContextualInsight, useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
 
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
+import { resolveResponsiveLayout } from "../../src/ui/responsive-layout";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
 import type { ClassGroup, ScoutingLog, TrainingPlan } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
+import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import {
     ROSTER_FUNDAMENTALS,
     buildRosterFundamentalsByDay,
@@ -34,13 +36,17 @@ import {
 } from "../../src/core/periodization";
 import {
     deleteClassCascade,
+    deleteTrainingPlan,
+    deleteTrainingPlansByClassAndDate,
     duplicateClass,
     getAttendanceByClass,
     getClassById,
     getClasses,
     getLatestScoutingLog,
+    getLatestTrainingPlanByClass,
     getStudentsByClass,
     getTrainingPlans,
+    saveTrainingPlan,
     updateClass,
     updateClassColor,
 } from "../../src/db/seed";
@@ -58,6 +64,7 @@ import {
     ClassContextStrip,
     ClassOperationsWorkspace,
 } from "../../src/screens/classes/components/ClassOperationsWorkspace";
+import { ClassPlanPreviewModal } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -83,11 +90,16 @@ import {
 import {
     WHATSAPP_TEMPLATES,
     WhatsAppTemplateId,
+    calculateAdjacentClassDate,
+    calculateCurrentOrNextClassDate,
     calculateNextClassDate,
     formatNextClassDate,
     getSuggestedTemplate,
     renderTemplate
 } from "../../src/utils/whatsapp-templates";
+import { buildAutoPlanForCycleDay } from "../../src/screens/session/application/build-auto-plan-for-cycle-day";
+import { convertPedagogicalPackageToTrainingPlan } from "../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
+import { SessionScreen } from "./[id]/session";
 
 type AvailableContact = {
   studentName: string;
@@ -238,6 +250,12 @@ export default function ClassDetails() {
     padding: 16,
     radius: 16,
   });
+  const reportModalCardStyle = useModalCardStyle({
+    maxHeight: Platform.OS === "web" ? "90%" : "96%",
+    maxWidth: 720,
+    padding: 0,
+    radius: 18,
+  });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
   const [customWhatsAppMessage, setCustomWhatsAppMessage] = useState("");
@@ -284,6 +302,15 @@ export default function ClassDetails() {
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [loading, setLoading] = useState(true);
   const [studentCount, setStudentCount] = useState<number | null>(null);
+  const [missingContactCount, setMissingContactCount] = useState<number | null>(null);
+  const [appliedPlan, setAppliedPlan] = useState<TrainingPlan | null>(null);
+  const [lessonDate, setLessonDate] = useState<Date | null>(null);
+  const [isLoadingLessonPlan, setIsLoadingLessonPlan] = useState(false);
+  const [showPlanPreviewModal, setShowPlanPreviewModal] = useState(false);
+  const [planPreviewMode, setPlanPreviewMode] = useState<"preview" | "edit">("preview");
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [isOperationalInsightDismissed, setIsOperationalInsightDismissed] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showEditCycleLengthPicker, setShowEditCycleLengthPicker] = useState(false);
@@ -583,6 +610,30 @@ export default function ClassDetails() {
     cls?.id,
     classSnapshotForInsight
   );
+  const contactCoverageInsight = useMemo<ContextualInsight | null>(() => {
+    if (!cls || !missingContactCount) return null;
+    const studentsLabel = missingContactCount === 1 ? "aluno está" : "alunos estão";
+    return {
+      insight: `${missingContactCount} ${studentsLabel} sem contato cadastrado. Atualize antes da próxima aula.`,
+      confidence: 1,
+      based_on: [`${missingContactCount} ${studentsLabel} sem telefone de responsável ou aluno.`],
+      action: null,
+    };
+  }, [cls, missingContactCount]);
+  const displayedInsight = contextualInsight ?? (
+    isOperationalInsightDismissed ? null : contactCoverageInsight
+  );
+  const dismissDisplayedInsight = useCallback(() => {
+    if (contextualInsight) {
+      dismissContextualInsight();
+      return;
+    }
+    setIsOperationalInsightDismissed(true);
+  }, [contextualInsight, dismissContextualInsight]);
+
+  useEffect(() => {
+    setIsOperationalInsightDismissed(false);
+  }, [id]);
   const parseIsoDate = (value?: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -726,16 +777,48 @@ export default function ClassDetails() {
   const classStartTime = cls?.startTime || "-";
   const classDuration = cls?.durationMinutes ?? 60;
   const classGoal = cls?.goal || goal;
-  const compactClassWorkspace = Platform.OS !== "web" || windowWidth < 1060;
+  const compactClassWorkspace =
+    Platform.OS !== "web" || !resolveResponsiveLayout(windowWidth, "dashboard").isDesktop;
   const scheduleDayLabels = classDays.map((day) => dayNames[day]).filter(Boolean);
   const scheduleDaysLabel = scheduleDayLabels.length <= 1
     ? scheduleDayLabels[0] ?? "Sem dias definidos"
     : `${scheduleDayLabels.slice(0, -1).join(", ")} e ${scheduleDayLabels.at(-1)}`;
   const scheduleLabel = `${scheduleDaysLabel} · ${classStartTime}`;
-  const nextClassDate = calculateNextClassDate(classDays);
+  const nextClassDate = calculateCurrentOrNextClassDate(classDays, classStartTime, classDuration);
   const nextClassLabel = nextClassDate ? formatNextClassDate(nextClassDate) : "Não definida";
-  const cycleLabel = cls?.cycleLengthWeeks ? `${cls.cycleLengthWeeks} semanas` : "Sem ciclo";
-  const latestReportLabel = latestScouting ? formatShortDate(latestScouting.date) : "Sem registro";
+  const selectedLessonDate = lessonDate ?? nextClassDate;
+  const selectedLessonDateKey = selectedLessonDate
+    ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}`
+    : "";
+  const selectedLessonWeekday = selectedLessonDate
+    ? selectedLessonDate.getDay() === 0
+      ? 7
+      : selectedLessonDate.getDay()
+    : undefined;
+  const lessonDateLabel = selectedLessonDate
+    ? `${String(selectedLessonDate.getDate()).padStart(2, "0")}/${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}/${selectedLessonDate.getFullYear()}`
+    : "Próxima aula";
+  const contactStatusValue = missingContactCount === null
+    ? "—"
+    : missingContactCount > 0
+      ? `${missingContactCount} pendentes`
+      : "Em dia";
+  const contactStatusLabel = missingContactCount === null
+    ? "contatos a verificar"
+    : missingContactCount > 0
+      ? "contatos para atualizar"
+      : "contatos atualizados";
+  const reportStatusValue = latestScouting ? formatShortDate(latestScouting.date) : "Pendente";
+  const reportStatusLabel = latestScouting ? "último relatório" : "registre a última aula";
+  const handleShiftLessonDate = useCallback((direction: -1 | 1) => {
+    const baseDate = lessonDate ?? nextClassDate;
+    if (!baseDate || classDays.length === 0) return;
+    const nextDate = calculateAdjacentClassDate(classDays, baseDate, direction);
+    if (nextDate) {
+      setIsLoadingLessonPlan(true);
+      setLessonDate(nextDate);
+    }
+  }, [classDays, lessonDate, nextClassDate]);
   const classCoachName = clsId ? coachNameByClass[clsId] ?? "" : "";
   const resolvedCoachName = classCoachName || coachName;
   const unitPalette = getUnitPalette(unitLabel, colors);
@@ -805,6 +888,10 @@ export default function ClassDetails() {
           const nextDuration = data?.durationMinutes ?? 60;
           const nextEndTime = resolveEndTime(nextStartTime, data?.endTime, nextDuration);
           setCls(data);
+          setLessonDate(null);
+          setAppliedPlan(null);
+          setIsLoadingLessonPlan(false);
+          setIsGeneratingPlan(false);
           setName(data?.name ?? "");
           setUnit(data?.unit ?? "");
           setModality(data?.modality ?? "voleibol");
@@ -833,6 +920,9 @@ export default function ClassDetails() {
           if (!alive) return;
           setLatestScouting(scouting);
           setStudentCount(students.length);
+          setMissingContactCount(
+            students.filter((student) => getContactPhone(student).status !== "ok").length
+          );
         });
       } finally {
         if (alive) setLoading(false);
@@ -842,6 +932,49 @@ export default function ClassDetails() {
       alive = false;
     };
   }, [coachNameByClass, id]);
+
+  useEffect(() => {
+    if (!id || !selectedLessonDateKey) {
+      setAppliedPlan(null);
+      setIsLoadingLessonPlan(false);
+      return;
+    }
+    let alive = true;
+    setIsLoadingLessonPlan(true);
+    (async () => {
+      try {
+        const byDate = await getTrainingPlans({
+          classId: id,
+          status: "final",
+          applyDate: selectedLessonDateKey,
+          orderBy: "version_desc",
+          limit: 1,
+        });
+        let plan = byDate[0] ?? null;
+        if (!plan && selectedLessonWeekday) {
+          const byWeekday = await getTrainingPlans({
+            classId: id,
+            status: "final",
+            applyWeekday: selectedLessonWeekday,
+            orderBy: "version_desc",
+            limit: 40,
+          });
+          // A recurring plan has no date of its own. Plans generated/applied
+          // for a specific lesson must stay scoped to that lesson date.
+          const recurringPlan = byWeekday.find((candidate) => !candidate.applyDate);
+          if (recurringPlan) plan = recurringPlan;
+        }
+        if (alive) setAppliedPlan(plan);
+      } catch {
+        if (alive) setAppliedPlan(null);
+      } finally {
+        if (alive) setIsLoadingLessonPlan(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id, selectedLessonDateKey, selectedLessonWeekday]);
 
   useEffect(() => {
     if (!showEditModal) return;
@@ -1423,6 +1556,128 @@ export default function ClassDetails() {
     }
   }, [cancelRosterFundamentalLabelEdit, showRosterExportModal]);
 
+  const handleViewAppliedPlan = useCallback(() => {
+    if (!appliedPlan) return;
+    setPlanPreviewMode("preview");
+    setShowPlanPreviewModal(true);
+  }, [appliedPlan]);
+
+  const handleSaveAppliedPlan = useCallback(
+    async (draft: TrainingPlan) => {
+      if (!cls || !selectedLessonDateKey) {
+        throw new Error("Turma ou data da aula indisponível.");
+      }
+      const latestPlan = await getLatestTrainingPlanByClass(cls.id, {
+        organizationId: cls.organizationId ?? null,
+      });
+      const nowIso = new Date().toISOString();
+      const nextPlan = createTrainingPlanVersion({
+        classId: cls.id,
+        version: Math.max(draft.version ?? 0, latestPlan?.version ?? 0) + 1,
+        origin: draft.origin === "auto" ? "edited_auto" : "manual",
+        draft: {
+          title: draft.title,
+          tags: draft.tags,
+          warmup: draft.warmup,
+          main: draft.main,
+          cooldown: draft.cooldown,
+          warmupTime: draft.warmupTime,
+          mainTime: draft.mainTime,
+          cooldownTime: draft.cooldownTime,
+        },
+        applyDays: [],
+        applyDate: selectedLessonDateKey,
+        inputHash: draft.inputHash,
+        nowIso,
+        idPrefix: "plan_edit",
+        status: "final",
+        generatedAt: draft.generatedAt,
+        finalizedAt: nowIso,
+        parentPlanId: draft.parentPlanId ?? draft.id,
+        previousVersionId: draft.id,
+        pedagogy: draft.pedagogy,
+      });
+      await saveTrainingPlan(nextPlan, {
+        organizationId: cls.organizationId ?? undefined,
+      });
+      setAppliedPlan(nextPlan);
+      return nextPlan;
+    },
+    [cls, selectedLessonDateKey]
+  );
+
+  const handleRemoveAppliedPlan = useCallback(async () => {
+    if (!cls || !appliedPlan || !selectedLessonDateKey) return;
+    if (appliedPlan.applyDate) {
+      await deleteTrainingPlansByClassAndDate(cls.id, selectedLessonDateKey, {
+        organizationId: cls.organizationId ?? null,
+      });
+    } else {
+      await deleteTrainingPlan(appliedPlan.id, {
+        organizationId: cls.organizationId ?? null,
+      });
+    }
+    setAppliedPlan(null);
+  }, [appliedPlan, cls, selectedLessonDateKey]);
+
+  const handleGeneratePlan = useCallback(async () => {
+    if (!cls || !selectedLessonDateKey || isGeneratingPlan) return;
+    setIsGeneratingPlan(true);
+    try {
+      const [students, recentPlans] = await Promise.all([
+        getStudentsByClass(cls.id),
+        getTrainingPlans({
+          classId: cls.id,
+          status: "final",
+          orderBy: "createdat_desc",
+          limit: 12,
+        }),
+      ]);
+      const autoPlanResult = buildAutoPlanForCycleDay({
+        classGroup: cls,
+        students,
+        sessionDate: selectedLessonDateKey,
+        recentPlans,
+      });
+      const latestVersion = recentPlans.reduce(
+        (max, plan) => Math.max(max, plan.version ?? 0),
+        0
+      );
+      const generatedPlan = {
+        ...convertPedagogicalPackageToTrainingPlan({
+          pkg: autoPlanResult.package,
+          classId: cls.id,
+          sessionDate: selectedLessonDateKey,
+          existingPlan: null,
+          version: latestVersion + 1,
+        }),
+        // Auto-generated plans belong to this lesson only. Repeating them on
+        // every class day would make different dates show the same plan.
+        applyDays: [],
+      };
+      await saveTrainingPlan(generatedPlan, {
+        organizationId: cls.organizationId ?? undefined,
+      });
+      setAppliedPlan(generatedPlan);
+      showSaveToast({ message: "Plano preparado para esta aula.", variant: "success" });
+    } catch (error) {
+      showSaveToast({
+        error,
+        message: "Não foi possível preparar o plano agora.",
+        variant: "error",
+      });
+    } finally {
+      setIsGeneratingPlan(false);
+    }
+  }, [
+    classDays,
+    cls,
+    getStudentsByClass,
+    isGeneratingPlan,
+    selectedLessonDateKey,
+    showSaveToast,
+  ]);
+
   if (loading) {
     return <ScreenLoadingState />;
   }
@@ -1769,11 +2024,20 @@ export default function ClassDetails() {
   };
 
   const handleOpenSession = () => {
-    router.push({ pathname: "/class/[id]/session", params: { id } });
+    if (appliedPlan) {
+      setPlanPreviewMode("edit");
+      setShowPlanPreviewModal(true);
+      return;
+    }
+    router.push({ pathname: "/class/[id]/planning", params: { id } });
   };
 
   const handleOpenAttendance = () => {
     router.push({ pathname: "/class/[id]/attendance", params: { id } });
+  };
+
+  const handleOpenReport = () => {
+    setShowReportModal(true);
   };
 
   const handleOpenPeriodization = () => {
@@ -1808,10 +2072,10 @@ export default function ClassDetails() {
   };
 
   const handleOpenAssistant = () => {
-    if (!contextualInsight) return;
+    if (!displayedInsight) return;
     router.push({
       pathname: "/assistant",
-      params: { classId: id, prefilledInsight: contextualInsight.insight },
+      params: { classId: id, prefilledInsight: displayedInsight.insight },
     });
   };
 
@@ -1822,7 +2086,6 @@ export default function ClassDetails() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScreenPageHeader
-          eyebrow="Painel operacional da aula"
           title={className}
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
           onBack={() => navigateBackOrReplace({ router, fallback: "/classes" })}
@@ -1858,16 +2121,6 @@ export default function ClassDetails() {
           />
         </ScreenPageHeader>
 
-        {/* Proactive AI Insight Card — appears silently after screen loads */}
-        {contextualInsight && (
-          <InsightCard
-            compact
-            insight={contextualInsight}
-            onDismiss={dismissContextualInsight}
-            onOpenAssistant={handleOpenAssistant}
-          />
-        )}
-
       <ScrollView
         ref={editScrollRef}
         contentContainerStyle={{
@@ -1882,16 +2135,32 @@ export default function ClassDetails() {
         <ClassOperationsWorkspace
           colors={colors}
           compact={compactClassWorkspace}
-          nextClassLabel={nextClassLabel}
           scheduleLabel={scheduleLabel}
-          startTime={classStartTime}
-          focusLabel={classGoal}
+          lessonDateLabel={lessonDateLabel}
+          appliedPlan={appliedPlan}
+          isLoadingLessonPlan={isLoadingLessonPlan}
+          onPreviousLesson={() => handleShiftLessonDate(-1)}
+          onNextLesson={() => handleShiftLessonDate(1)}
+          onViewPlan={handleViewAppliedPlan}
+          onGeneratePlan={handleGeneratePlan}
+          isGeneratingPlan={isGeneratingPlan}
+          contextualInsight={displayedInsight ? (
+            <InsightCard
+              compact
+              embedded
+              insight={displayedInsight}
+              onDismiss={dismissDisplayedInsight}
+              onOpenAssistant={handleOpenAssistant}
+            />
+          ) : null}
           studentCount={studentCount}
-          cycleLabel={cycleLabel}
-          cycleContext={classGoal}
-          latestReportLabel={latestReportLabel}
+          contactStatusValue={contactStatusValue}
+          contactStatusLabel={contactStatusLabel}
+          reportStatusValue={reportStatusValue}
+          reportStatusLabel={reportStatusLabel}
           onOpenSession={handleOpenSession}
           onOpenAttendance={handleOpenAttendance}
+          onOpenReport={handleOpenReport}
           onOpenPeriodization={handleOpenPeriodization}
           onOpenPlanning={handleOpenPlanning}
           onOpenVisualTech={handleOpenVisualTech}
@@ -1902,6 +2171,41 @@ export default function ClassDetails() {
         />
 
       </ScrollView>
+
+      <ModalSheet
+        visible={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        position="center"
+        cardStyle={[
+          reportModalCardStyle,
+          {
+            height: compactClassWorkspace ? "94%" : "88%",
+            overflow: "hidden",
+          },
+        ]}
+      >
+        {showReportModal ? (
+          <SessionScreen
+            embeddedReport
+            embeddedDate={selectedLessonDateKey}
+            onCloseEmbeddedReport={() => setShowReportModal(false)}
+          />
+        ) : null}
+      </ModalSheet>
+
+      {appliedPlan && cls ? (
+        <ClassPlanPreviewModal
+          visible={showPlanPreviewModal}
+          onClose={() => setShowPlanPreviewModal(false)}
+          plan={appliedPlan}
+          classGroup={cls}
+          lessonDate={selectedLessonDateKey}
+          coachName={resolvedCoachName}
+          initialMode={planPreviewMode}
+          onSavePlan={handleSaveAppliedPlan}
+          onRemovePlan={handleRemoveAppliedPlan}
+        />
+      ) : null}
       </KeyboardAvoidingView>
 
       <ModalSheet

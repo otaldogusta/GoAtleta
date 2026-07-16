@@ -14,6 +14,7 @@ type ModalSheetProps = {
   position?: "bottom" | "center" | "right";
   overlayZIndex?: number;
   bottomOffset?: number;
+  containerPadding?: number;
 };
 
 let activeWebScrollLocks = 0;
@@ -103,6 +104,7 @@ export function ModalSheet({
   position = "bottom",
   overlayZIndex = 1000,
   bottomOffset,
+  containerPadding = 16,
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
   const [isMounted, setIsMounted] = useState(visible);
@@ -143,6 +145,21 @@ export function ModalSheet({
     return acquireWebScrollLock();
   }, [visible]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined" || !visible) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, visible]);
+
   if (!isMounted) {
     return null;
   }
@@ -175,9 +192,9 @@ export function ModalSheet({
       <View
         style={
           isCenter
-            ? { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }
+            ? { flex: 1, alignItems: "center", justifyContent: "center", padding: containerPadding }
             : isRight
-              ? { flex: 1, alignItems: "flex-end", justifyContent: "flex-start", padding: 16 }
+              ? { flex: 1, alignItems: "flex-end", justifyContent: "flex-start", padding: containerPadding }
             : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
         }
         pointerEvents="box-none"
