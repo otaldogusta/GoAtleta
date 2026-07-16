@@ -6,6 +6,10 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/oauth/google-drive/callback",
+      "destination": "https://hgmdpetpwclucvquoklv.supabase.co/functions/v1/document-drive-oauth"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
