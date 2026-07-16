@@ -1,8 +1,10 @@
 import {
+  DRIVE_AUTH_STRATEGIES,
   DRIVE_SOURCE_PROFILES,
   assertSafeGoogleDriveFetchUrl,
   classifyDriveFolderRole,
   documentTypeForFolderRole,
+  isDriveAuthStrategy,
   parseConfiguredDriveSourceProfiles,
   resolveAllowedDriveSource,
   resolveDriveDocumentDate,
@@ -25,6 +27,13 @@ describe("document Drive source profiles", () => {
       "lesson_plan",
       "unknown",
     ]);
+    expect(DRIVE_AUTH_STRATEGIES).toEqual([
+      "auto",
+      "api_key",
+      "oauth_user",
+      "service_account",
+    ]);
+    expect(isDriveAuthStrategy("oauth_user")).toBe(true);
     expect(documentTypeForFolderRole("academic")).toBe("academic_support");
     expect(documentTypeForFolderRole("institutional_actions")).toBe(
       "institutional_guidance",
@@ -170,6 +179,8 @@ describe("document Drive source profiles", () => {
         {
           folderId: OPERATIONAL_FOLDER_ID,
           sourceProfile: "monthly_plan",
+          authStrategy: "service_account",
+          resourceKey: "resource-key-example",
         },
       ]),
     );
@@ -184,6 +195,8 @@ describe("document Drive source profiles", () => {
             folderId: ACADEMIC_FOLDER_ID,
             sourceProfile: "report",
             academicScope: null,
+            authStrategy: "auto",
+            resourceKey: null,
           },
         ],
       }),
@@ -199,6 +212,10 @@ describe("document Drive source profiles", () => {
         configuredProfiles,
       }),
     ).toMatchObject({ sourceProfile: "monthly_plan" });
+    expect(configuredProfiles[0]).toMatchObject({
+      authStrategy: "service_account",
+      resourceKey: "resource-key-example",
+    });
     expect(
       resolveAllowedDriveSource({
         folderId: OPERATIONAL_FOLDER_ID,

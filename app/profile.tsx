@@ -28,6 +28,12 @@ import {
 } from "../src/api/student-photo-storage";
 import { resolveEffectiveProfile } from "../src/core/effective-profile";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
+import {
+  getPersonalAcademicDriveOAuthStatus,
+  startPersonalAcademicDriveOAuth,
+  syncPersonalAcademicDrive,
+  type AcademicDriveOAuthStatus,
+} from "../src/db/academic-knowledge";
 import type { DevProfilePreview } from "../src/dev/profile-preview";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/OrganizationProvider";
@@ -91,6 +97,9 @@ export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [updatingBiometrics, setUpdatingBiometrics] = useState(false);
   const [unlinkingGoogle, setUnlinkingGoogle] = useState(false);
+  const [academicDriveStatus, setAcademicDriveStatus] =
+    useState<AcademicDriveOAuthStatus>({ status: "not_connected" });
+  const [academicDriveBusy, setAcademicDriveBusy] = useState(false);
   const photoSheetStyle = useModalCardStyle({
     maxHeight: "70%",
     radius: 22,
@@ -204,9 +213,82 @@ export default function ProfileScreen() {
     };
   }, [NOTIFY_SETTINGS_KEY]);
 
+  useEffect(() => {
+    let alive = true;
+    if (student || Platform.OS !== "web" || !activeOrganization?.id) {
+      return () => {
+        alive = false;
+      };
+    }
+    void getPersonalAcademicDriveOAuthStatus({
+      organizationId: activeOrganization.id,
+    }).then((status) => {
+      if (alive) setAcademicDriveStatus(status);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [activeOrganization?.id, student]);
+
   const loadingProfile = loadingClasses || loadingPhoto;
   const showWorkspaceSwitcher = !student && organizations.length > 1;
   const isDevUser = session?.user?.email === "gusantinho753@gmail.com";
+
+  const handleAcademicDrive = useCallback(async () => {
+    if (!activeOrganization?.id || Platform.OS !== "web") return;
+    setAcademicDriveBusy(true);
+    try {
+      if (academicDriveStatus.status !== "connected") {
+        const redirectTo =
+          typeof window !== "undefined"
+            ? `${window.location.origin}${pathname}`
+            : "https://go-atleta.vercel.app/profile";
+        const result = await startPersonalAcademicDriveOAuth({
+          organizationId: activeOrganization.id,
+          redirectTo,
+        });
+        if (result.authorizationUrl && typeof window !== "undefined") {
+          window.location.assign(result.authorizationUrl);
+          return;
+        }
+        Alert.alert(
+          "Base acadêmica",
+          result.warning || "Não foi possível conectar o Google Drive.",
+        );
+        return;
+      }
+
+      const result = await syncPersonalAcademicDrive({
+        organizationId: activeOrganization.id,
+      });
+      const summary = result.summary;
+      Alert.alert(
+        "Base acadêmica",
+        result.status === "succeeded" || result.status === "partial"
+          ? [
+              "Sincronização concluída.",
+              summary ? `${summary.ready} arquivo(s) pronto(s).` : "",
+              summary?.reviewRequired
+                ? `${summary.reviewRequired} arquivo(s) exigem revisão.`
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : result.warnings[0] || "Não foi possível sincronizar agora.",
+      );
+      setAcademicDriveStatus(
+        await getPersonalAcademicDriveOAuthStatus({
+          organizationId: activeOrganization.id,
+        }),
+      );
+    } finally {
+      setAcademicDriveBusy(false);
+    }
+  }, [
+    academicDriveStatus.status,
+    activeOrganization?.id,
+    pathname,
+  ]);
 
   const currentClass = useMemo(() => {
     if (!student || !student.classId) return null;
@@ -813,6 +895,55 @@ export default function ProfileScreen() {
                   </View>
                 }
               />
+              {!student && Platform.OS === "web" ? (
+                <SettingsRow
+                  icon="documentAttach"
+                  iconBg="rgba(86, 214, 154, 0.14)"
+                  label="Base acadêmica"
+                  subtitle={
+                    academicDriveStatus.status === "connected"
+                      ? academicDriveStatus.googleAccountEmail
+                        ? `Google Drive conectado: ${academicDriveStatus.googleAccountEmail}`
+                        : "Google Drive conectado · toque para sincronizar"
+                      : "Conecte seu Google Drive com acesso somente leitura"
+                  }
+                  onPress={() => {
+                    void handleAcademicDrive();
+                  }}
+                  rightContent={
+                    <View
+                      style={{
+                        paddingVertical: 5,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor:
+                          academicDriveStatus.status === "connected"
+                            ? colors.primaryBg
+                            : colors.secondaryBg,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color:
+                            academicDriveStatus.status === "connected"
+                              ? colors.primaryText
+                              : colors.text,
+                          fontWeight: "700",
+                          fontSize: 12,
+                        }}
+                      >
+                        {academicDriveBusy
+                          ? "..."
+                          : academicDriveStatus.status === "connected"
+                            ? "Sincronizar"
+                            : "Conectar"}
+                      </Text>
+                    </View>
+                  }
+                />
+              ) : null}
               {Platform.OS !== "web" ? (
                 <SettingsRow
                   icon="biometrics"

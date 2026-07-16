@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-unresolved
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   createEdgeFunction,
@@ -24,10 +25,20 @@ import {
   resolveExplicitClassBinding,
   resolveSafeGoogleDriveRedirect,
   type DriveAcademicScope,
+  type DriveAuthStrategy,
   type DriveFolderRole,
   type DriveSourceProfile,
   type DriveSourceProfilePolicy,
 } from "../_shared/document-drive-source.ts";
+import {
+  buildGoogleDriveHeaders,
+  resolveGoogleDriveCredential,
+  type GoogleDriveCredential,
+} from "../_shared/google-drive-auth.ts";
+import {
+  convertDocumentHtmlToStructuredText,
+  convertWorkbookToStructuredText,
+} from "../_shared/document-structured-extraction.ts";
 
 type SyncRequest = {
   organizationId?: string;
@@ -51,6 +62,7 @@ type DriveFile = {
   version?: string;
   webViewLink?: string;
   description?: string;
+  resourceKey?: string;
   capabilities?: {
     canDownload?: boolean;
   };
@@ -66,6 +78,7 @@ type ExtractedContent = {
   byteSize: number | null;
   pageCount: number | null;
   errorCode: string | null;
+  extractionFormat?: string | null;
 };
 
 const GOOGLE_FOLDER_MIME = "application/vnd.google-apps.folder";
@@ -88,7 +101,7 @@ const MAX_CHUNKS_PER_FILE = 28;
 const MAX_DRIVE_LIST_PAGES = 10;
 const MAX_FOLDER_DEPTH = 12;
 const MAX_FOLDER_VISITS = 240;
-const DOCUMENT_DRIVE_PARSER_VERSION = "3";
+const DOCUMENT_DRIVE_PARSER_VERSION = "4";
 
 const createAdminClient = () => {
   const url = Deno.env.get("SUPABASE_URL") ?? "";
@@ -128,21 +141,29 @@ const resolveAllowedSource = (params: {
 const escapeDriveQueryValue = (value: string) =>
   value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
-const driveApiUrl = (path: string, apiKey: string, params: URLSearchParams) => {
+const driveApiUrl = (
+  path: string,
+  credential: GoogleDriveCredential,
+  params: URLSearchParams,
+) => {
   const url = new URL(`https://www.googleapis.com/drive/v3/${path}`);
-  params.set("key", apiKey);
+  if (credential.apiKey) params.set("key", credential.apiKey);
   url.search = params.toString();
   return url.toString();
 };
 
-const fetchDriveResponse = async (url: string) => {
+const fetchDriveResponse = async (
+  url: string,
+  credential: GoogleDriveCredential,
+  resourceKeys: { fileId: string; resourceKey?: string | null }[] = [],
+) => {
   let currentUrl = assertSafeGoogleDriveFetchUrl(url).toString();
   for (let redirectCount = 0; redirectCount <= 3; redirectCount += 1) {
     const response = await fetch(currentUrl, {
       method: "GET",
       redirect: "manual",
       signal: AbortSignal.timeout(DRIVE_FETCH_TIMEOUT_MS),
-      headers: { Accept: "application/json, text/plain, */*" },
+      headers: buildGoogleDriveHeaders({ credential, resourceKeys }),
     });
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
@@ -160,13 +181,19 @@ const fetchDriveResponse = async (url: string) => {
   throw new Error("google_drive_redirect_limit");
 };
 
-const getDriveFolder = async (folderId: string, apiKey: string) => {
+const getDriveFolder = async (
+  folderId: string,
+  credential: GoogleDriveCredential,
+  resourceKey?: string | null,
+) => {
   const params = new URLSearchParams({
-    fields: "id,name,mimeType",
+    fields: "id,name,mimeType,resourceKey",
     supportsAllDrives: "true",
   });
   const response = await fetchDriveResponse(
-    driveApiUrl(`files/${encodeURIComponent(folderId)}`, apiKey, params),
+    driveApiUrl(`files/${encodeURIComponent(folderId)}`, credential, params),
+    credential,
+    [{ fileId: folderId, resourceKey }],
   );
   const folder = (await response.json()) as DriveFile;
   if (folder.mimeType !== GOOGLE_FOLDER_MIME) {
@@ -177,7 +204,8 @@ const getDriveFolder = async (folderId: string, apiKey: string) => {
 
 const listDriveChildren = async (
   parentId: string,
-  apiKey: string,
+  credential: GoogleDriveCredential,
+  parentResourceKey?: string | null,
 ): Promise<DriveFile[]> => {
   const files: DriveFile[] = [];
   let pageToken = "";
@@ -187,7 +215,7 @@ const listDriveChildren = async (
     const params = new URLSearchParams({
       q: `'${escapeDriveQueryValue(parentId)}' in parents and trashed = false`,
       fields:
-        "nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,size,md5Checksum,version,webViewLink,description,capabilities(canDownload))",
+        "nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,size,md5Checksum,version,webViewLink,description,resourceKey,capabilities(canDownload))",
       pageSize: "1000",
       orderBy: "folder,name",
       supportsAllDrives: "true",
@@ -195,7 +223,9 @@ const listDriveChildren = async (
     });
     if (pageToken) params.set("pageToken", pageToken);
     const response = await fetchDriveResponse(
-      driveApiUrl("files", apiKey, params),
+      driveApiUrl("files", credential, params),
+      credential,
+      [{ fileId: parentId, resourceKey: parentResourceKey }],
     );
     const payload = (await response.json()) as {
       files?: DriveFile[];
@@ -211,15 +241,25 @@ const listDriveChildren = async (
 
 const walkDriveFolder = async (
   folderId: string,
-  apiKey: string,
+  credential: GoogleDriveCredential,
   maxFiles: number,
+  rootResourceKey?: string | null,
 ) => {
   const files: DriveItem[] = [];
-  const rootFolder = await getDriveFolder(folderId, apiKey);
-  const queue: { id: string; path: string[] }[] = [
+  const rootFolder = await getDriveFolder(
+    folderId,
+    credential,
+    rootResourceKey,
+  );
+  const queue: {
+    id: string;
+    path: string[];
+    resourceKey?: string | null;
+  }[] = [
     {
       id: folderId,
       path: rootFolder.name ? [rootFolder.name] : [],
+      resourceKey: rootFolder.resourceKey || rootResourceKey,
     },
   ];
   const visited = new Set<string>();
@@ -233,11 +273,19 @@ const walkDriveFolder = async (
     if (visited.has(current.id)) continue;
     visited.add(current.id);
 
-    const children = await listDriveChildren(current.id, apiKey);
+    const children = await listDriveChildren(
+      current.id,
+      credential,
+      current.resourceKey,
+    );
     for (const child of children) {
       if (child.mimeType === GOOGLE_FOLDER_MIME) {
         if (current.path.length < MAX_FOLDER_DEPTH) {
-          queue.push({ id: child.id, path: [...current.path, child.name] });
+          queue.push({
+            id: child.id,
+            path: [...current.path, child.name],
+            resourceKey: child.resourceKey,
+          });
         }
         continue;
       }
@@ -249,24 +297,34 @@ const walkDriveFolder = async (
   return files;
 };
 
-const downloadDriveBytes = async (file: DriveFile, apiKey: string) => {
+const downloadDriveBytes = async (
+  file: DriveFile,
+  credential: GoogleDriveCredential,
+) => {
   const params = new URLSearchParams();
   let path = `files/${encodeURIComponent(file.id)}`;
 
-  if (
-    file.mimeType === GOOGLE_DOC_MIME ||
-    file.mimeType === GOOGLE_SLIDES_MIME
-  ) {
+  if (file.mimeType === GOOGLE_DOC_MIME) {
     path += "/export";
-    params.set("mimeType", "text/plain");
+    params.set("mimeType", DOCX_MIME);
   } else if (file.mimeType === GOOGLE_SHEETS_MIME) {
     path += "/export";
-    params.set("mimeType", "text/csv");
+    params.set(
+      "mimeType",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+  } else if (file.mimeType === GOOGLE_SLIDES_MIME) {
+    path += "/export";
+    params.set("mimeType", "text/plain");
   } else {
     params.set("alt", "media");
   }
 
-  return fetchDriveResponse(driveApiUrl(path, apiKey, params));
+  return fetchDriveResponse(
+    driveApiUrl(path, credential, params),
+    credential,
+    [{ fileId: file.id, resourceKey: file.resourceKey }],
+  );
 };
 
 const withTimeout = <T>(
@@ -327,7 +385,7 @@ const inspectZipExpansion = (bytes: Uint8Array) => {
 
 const extractFileContent = async (
   file: DriveFile,
-  apiKey: string,
+  credential: GoogleDriveCredential,
 ): Promise<ExtractedContent> => {
   if (file.capabilities?.canDownload === false) {
     return {
@@ -350,12 +408,13 @@ const extractFileContent = async (
   }
 
   const supportedText =
-    file.mimeType === GOOGLE_DOC_MIME ||
     file.mimeType === GOOGLE_SLIDES_MIME ||
-    file.mimeType === GOOGLE_SHEETS_MIME ||
     file.mimeType.startsWith("text/");
   const supportedBinary =
-    file.mimeType === PDF_MIME || file.mimeType === DOCX_MIME;
+    file.mimeType === PDF_MIME ||
+    file.mimeType === DOCX_MIME ||
+    file.mimeType === GOOGLE_DOC_MIME ||
+    file.mimeType === GOOGLE_SHEETS_MIME;
   if (!supportedText && !supportedBinary) {
     return {
       status: "review_required",
@@ -367,7 +426,7 @@ const extractFileContent = async (
   }
 
   try {
-    const response = await downloadDriveBytes(file, apiKey);
+    const response = await downloadDriveBytes(file, credential);
     const buffer = await response.arrayBuffer();
     if (buffer.byteLength > MAX_FILE_BYTES) {
       return {
@@ -401,6 +460,7 @@ const extractFileContent = async (
         byteSize: buffer.byteLength,
         pageCount: null,
         errorCode: null,
+        extractionFormat: "plain_text",
       };
     }
 
@@ -421,6 +481,7 @@ const extractFileContent = async (
           errorCode: "pdf_signature_mismatch",
         };
       }
+      // eslint-disable-next-line import/no-unresolved
       const { extractText, getDocumentProxy } = await import("npm:unpdf@1.4.0");
       const pdf = await withTimeout(
         getDocumentProxy(bytes),
@@ -457,6 +518,7 @@ const extractFileContent = async (
         byteSize: buffer.byteLength,
         pageCount: result.totalPages,
         errorCode: content ? null : "pdf_without_extractable_text",
+        extractionFormat: "pdf_text",
       };
     }
 
@@ -473,7 +535,10 @@ const extractFileContent = async (
         content: "",
         byteSize: buffer.byteLength,
         pageCount: null,
-        errorCode: "docx_signature_mismatch",
+        errorCode:
+          file.mimeType === GOOGLE_SHEETS_MIME
+            ? "spreadsheet_signature_mismatch"
+            : "docx_signature_mismatch",
       };
     }
     const zipInspection = inspectZipExpansion(bytes);
@@ -486,14 +551,27 @@ const extractFileContent = async (
         errorCode: zipInspection.errorCode,
       };
     }
-    const mammothModule = await import("npm:mammoth@1.10.0");
-    const mammoth = mammothModule.default ?? mammothModule;
-    const result = await withTimeout(
-      mammoth.extractRawText({ arrayBuffer: buffer }),
-      DOCUMENT_EXTRACTION_TIMEOUT_MS,
-      "docx_extraction_timeout",
-    );
-    const content = textValue(result.value);
+    let content = "";
+    let extractionFormat = "";
+    if (file.mimeType === GOOGLE_SHEETS_MIME) {
+      content = await withTimeout(
+        convertWorkbookToStructuredText(buffer),
+        DOCUMENT_EXTRACTION_TIMEOUT_MS,
+        "spreadsheet_extraction_timeout",
+      );
+      extractionFormat = "xlsx_structured_rows";
+    } else {
+      // eslint-disable-next-line import/no-unresolved
+      const mammothModule = await import("npm:mammoth@1.10.0");
+      const mammoth = mammothModule.default ?? mammothModule;
+      const result = await withTimeout(
+        mammoth.convertToHtml({ arrayBuffer: buffer }),
+        DOCUMENT_EXTRACTION_TIMEOUT_MS,
+        "docx_extraction_timeout",
+      );
+      content = convertDocumentHtmlToStructuredText(textValue(result.value));
+      extractionFormat = "docx_structured_html";
+    }
     if (content.length > MAX_EXTRACTED_CHARACTERS) {
       return {
         status: "review_required",
@@ -508,7 +586,12 @@ const extractFileContent = async (
       content,
       byteSize: buffer.byteLength,
       pageCount: null,
-      errorCode: content ? null : "docx_without_extractable_text",
+      errorCode: content
+        ? null
+        : file.mimeType === GOOGLE_SHEETS_MIME
+          ? "spreadsheet_without_extractable_cells"
+          : "docx_without_extractable_text",
+      extractionFormat,
     };
   } catch (error) {
     return {
@@ -737,7 +820,7 @@ Deno.serve(
         await admin
           .from("google_drive_connections")
           .select(
-            "id,bound_class_id,class_binding_confirmed_at,class_binding_confirmed_by",
+            "id,bound_class_id,class_binding_confirmed_at,class_binding_confirmed_by,refresh_token_ciphertext,refresh_token_iv,auth_strategy,token_updated_at",
           )
           .eq("organization_id", organizationId)
           .eq("user_id", user.id)
@@ -782,12 +865,37 @@ Deno.serve(
         }
       }
 
-      const googleApiKey = textValue(Deno.env.get("GOOGLE_DRIVE_API_KEY"));
-      if (!googleApiKey) {
+      let driveCredential: GoogleDriveCredential;
+      try {
+        driveCredential = await resolveGoogleDriveCredential({
+          requestedStrategy:
+            (allowedSource.authStrategy ?? "auto") as DriveAuthStrategy,
+          storedOAuth: existingConnection
+            ? {
+                refreshTokenCiphertext:
+                  existingConnection.refresh_token_ciphertext,
+                refreshTokenIv: existingConnection.refresh_token_iv,
+              }
+            : null,
+          encryptionSecret: Deno.env.get("DOCUMENT_TOKEN_ENCRYPTION_KEY"),
+          oauthClientId: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID"),
+          oauthClientSecret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET"),
+          serviceAccountJson: Deno.env.get(
+            "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON",
+          ),
+          apiKey: Deno.env.get("GOOGLE_DRIVE_API_KEY"),
+        });
+      } catch (error) {
+        const reason =
+          error instanceof Error ? error.message : "drive_not_configured";
         return createError(
           503,
-          "DRIVE_NOT_CONFIGURED",
-          "A integração com o Google Drive ainda não foi configurada.",
+          reason === "google_oauth_required"
+            ? "DRIVE_OAUTH_REQUIRED"
+            : "DRIVE_NOT_CONFIGURED",
+          reason === "google_oauth_required"
+            ? "Conecte sua conta Google para ler esta pasta privada."
+            : "A integração com o Google Drive ainda não possui credenciais válidas.",
         );
       }
 
@@ -795,12 +903,23 @@ Deno.serve(
       const dryRun = body?.dryRun === true;
       let driveItems: DriveItem[];
       try {
-        driveItems = await walkDriveFolder(folderId, googleApiKey, maxFiles);
-      } catch {
+        driveItems = await walkDriveFolder(
+          folderId,
+          driveCredential,
+          maxFiles,
+          allowedSource.resourceKey,
+        );
+      } catch (error) {
+        const reason =
+          error instanceof Error ? error.message : "google_drive_unavailable";
         return createError(
           502,
-          "DRIVE_UNAVAILABLE",
-          "Não foi possível ler a pasta documental agora.",
+          /google_drive_(401|403|404)/.test(reason)
+            ? "DRIVE_AUTHORIZATION_FAILED"
+            : "DRIVE_UNAVAILABLE",
+          /google_drive_(401|403|404)/.test(reason)
+            ? "A credencial atual não conseguiu acessar a pasta. Conecte uma conta autorizada ou compartilhe a pasta com a service account."
+            : "Não foi possível ler a pasta documental agora.",
         );
       }
 
@@ -813,6 +932,7 @@ Deno.serve(
           ownerUserId: policy.ownerUserRequired ? user.id : null,
           classId: effectiveClassId,
           classBindingStatus: effectiveClassId ? "confirmed" : "unresolved",
+          authStrategy: driveCredential.strategy,
           items: driveItems.map((item) => ({
             id: item.id,
             name: item.name,
@@ -853,6 +973,8 @@ Deno.serve(
             sync_completed_at: null,
             sync_error_code: null,
             sync_error_message: null,
+            auth_strategy: driveCredential.strategy,
+            expires_at: driveCredential.expiresAt,
             updated_at: nowIso,
           },
           {
@@ -922,7 +1044,7 @@ Deno.serve(
       };
 
       for (const item of driveItems) {
-        const extraction = await extractFileContent(item, googleApiKey);
+        const extraction = await extractFileContent(item, driveCredential);
         const sanitized = sanitizeUntrustedAcademicContent(extraction.content);
         if (sanitized.warnings.length) summary.promptInjectionWarnings += 1;
         const sourceUrl =
@@ -1072,6 +1194,8 @@ Deno.serve(
             classId: sourceClassId,
             classBindingStatus: sourceClassId ? "confirmed" : "unresolved",
             connectionId: connection.id,
+            authStrategy: driveCredential.strategy,
+            resourceKeyPresent: Boolean(item.resourceKey),
           },
           sync_state:
             scopeRejected || contextReviewCode || extraction.status !== "ready"
@@ -1180,6 +1304,9 @@ Deno.serve(
                 sourceScope,
                 classId: sourceClassId,
                 classificationKey,
+                extractionFormat: extraction.extractionFormat ?? null,
+                authStrategy: driveCredential.strategy,
+                resourceKeyPresent: Boolean(item.resourceKey),
               },
             },
             { onConflict: "organization_id,source_id,content_hash" },
@@ -1254,6 +1381,8 @@ Deno.serve(
                 documentDate: documentDate?.dateKey ?? null,
                 sourceScope,
                 classId: sourceClassId,
+                extractionFormat: extraction.extractionFormat ?? null,
+                authStrategy: driveCredential.strategy,
               },
             },
             { onConflict: "canonical_revision_id" },
@@ -1367,6 +1496,8 @@ Deno.serve(
                 sourceDocumentId: source.id,
                 sourceRevisionId: revision.id,
                 contentHash,
+                extractionFormat: extraction.extractionFormat ?? null,
+                authStrategy: driveCredential.strategy,
               },
               updated_at: nowIso,
             },
@@ -1444,6 +1575,8 @@ Deno.serve(
             classBindingStatus: sourceClassId ? "confirmed" : "unresolved",
             organizationId,
             connectionId: connection.id,
+            extractionFormat: extraction.extractionFormat ?? null,
+            authStrategy: driveCredential.strategy,
           },
           available: true,
         }));
@@ -1525,6 +1658,7 @@ Deno.serve(
         classId: effectiveClassId,
         classBindingStatus: effectiveClassId ? "confirmed" : "unresolved",
         scientificPromotion: false,
+        authStrategy: driveCredential.strategy,
         summary,
       });
     },

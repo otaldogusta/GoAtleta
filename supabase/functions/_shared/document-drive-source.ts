@@ -10,10 +10,17 @@ export const DRIVE_SOURCE_PROFILES = [
 ] as const;
 
 export const DRIVE_ACADEMIC_SCOPES = ["user", "workspace"] as const;
+export const DRIVE_AUTH_STRATEGIES = [
+  "auto",
+  "api_key",
+  "oauth_user",
+  "service_account",
+] as const;
 
 export type DriveSourceProfile = (typeof DRIVE_SOURCE_PROFILES)[number];
 export type DriveFolderRole = DriveSourceProfile;
 export type DriveAcademicScope = (typeof DRIVE_ACADEMIC_SCOPES)[number];
+export type DriveAuthStrategy = (typeof DRIVE_AUTH_STRATEGIES)[number];
 export type DriveConnectionScope =
   "user_academic" | "workspace_academic" | "workspace";
 export type DriveDocumentSourceScope =
@@ -44,6 +51,8 @@ export type AllowedDriveSourceProfile = {
   folderId: string;
   sourceProfile: DriveSourceProfile;
   academicScope: DriveAcademicScope | null;
+  authStrategy: DriveAuthStrategy;
+  resourceKey: string | null;
 };
 
 export type DriveMonthResolution = {
@@ -74,6 +83,7 @@ const MONTH_NAMES = [
 ] as const;
 
 const isDriveFolderId = (value: string) => /^[A-Za-z0-9_-]{20,}$/.test(value);
+const isDriveResourceKey = (value: string) => /^[A-Za-z0-9_-]{8,}$/.test(value);
 const isAllowedGoogleDriveFetchHost = (hostname: string) =>
   hostname === "www.googleapis.com" ||
   hostname.endsWith(".googleapis.com") ||
@@ -91,6 +101,11 @@ export const isDriveAcademicScope = (
   value: unknown,
 ): value is DriveAcademicScope =>
   DRIVE_ACADEMIC_SCOPES.includes(String(value ?? "") as DriveAcademicScope);
+
+export const isDriveAuthStrategy = (
+  value: unknown,
+): value is DriveAuthStrategy =>
+  DRIVE_AUTH_STRATEGIES.includes(String(value ?? "") as DriveAuthStrategy);
 
 export function assertSafeGoogleDriveFetchUrl(value: string) {
   let parsed: URL;
@@ -186,7 +201,7 @@ export function documentTypeForFolderRole(
 }
 
 export function resolveDriveMonth(
-  values: Array<string | null | undefined>,
+  values: (string | null | undefined)[],
 ): DriveMonthResolution | null {
   const candidates = values
     .map((value) => String(value ?? "").trim())
@@ -275,7 +290,7 @@ const buildValidDateKey = (year: number, month: number, day: number) => {
 };
 
 export function resolveDriveDocumentDate(
-  values: Array<string | null | undefined>,
+  values: (string | null | undefined)[],
 ): DriveDocumentDateResolution | null {
   const candidates = values
     .map((value) => String(value ?? "").trim())
@@ -391,6 +406,12 @@ export function parseConfiguredDriveSourceProfiles(
       folderId,
       sourceProfile: record.sourceProfile,
       academicScope,
+      authStrategy: isDriveAuthStrategy(record.authStrategy)
+        ? record.authStrategy
+        : "auto",
+      resourceKey: isDriveResourceKey(String(record.resourceKey ?? "").trim())
+        ? String(record.resourceKey).trim()
+        : null,
     });
   }
   return profiles;
@@ -414,13 +435,25 @@ export function resolveAllowedDriveSource(params: {
       folderId,
       sourceProfile: "academic",
       academicScope: "user",
+      authStrategy: "auto",
+      resourceKey: null,
     });
   }
-  configured.set(params.defaultAcademicFolderId, {
-    folderId: params.defaultAcademicFolderId,
-    sourceProfile: "academic",
-    academicScope: "user",
-  });
+  const configuredDefault = configured.get(params.defaultAcademicFolderId);
+  if (configuredDefault?.sourceProfile === "academic") {
+    configured.set(params.defaultAcademicFolderId, {
+      ...configuredDefault,
+      academicScope: configuredDefault.academicScope ?? "user",
+    });
+  } else {
+    configured.set(params.defaultAcademicFolderId, {
+      folderId: params.defaultAcademicFolderId,
+      sourceProfile: "academic",
+      academicScope: "user",
+      authStrategy: "auto",
+      resourceKey: null,
+    });
+  }
 
   const allowed = configured.get(params.folderId);
   if (!allowed) return null;

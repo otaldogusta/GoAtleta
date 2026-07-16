@@ -43,6 +43,15 @@ export type AcademicDriveSyncResult = {
     promptInjectionWarnings: number;
   };
   warnings: string[];
+  authStrategy?: "api_key" | "oauth_user" | "service_account";
+};
+
+export type AcademicDriveOAuthStatus = {
+  status: "connected" | "not_connected" | "unavailable";
+  authorizationUrl?: string;
+  googleAccountEmail?: string;
+  authStrategy?: "api_key" | "oauth_user" | "service_account";
+  warning?: string;
 };
 
 export const DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL =
@@ -149,6 +158,118 @@ const unavailableSupport = (
   warnings: [warning],
 });
 
+const authenticatedFunctionRequest = async (
+  functionName: string,
+  body: Record<string, unknown>
+) => {
+  const token = await getValidAccessToken();
+  if (!token) return null;
+  return fetch(`${FUNCTIONS_BASE}/${functionName}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+};
+
+export async function getPersonalAcademicDriveOAuthStatus(params: {
+  organizationId?: string | null;
+  folderUrl?: string;
+}): Promise<AcademicDriveOAuthStatus> {
+  const organizationId = textValue(params.organizationId, 128);
+  if (!organizationId) {
+    return { status: "unavailable", warning: "Workspace inválido." };
+  }
+  try {
+    const response = await authenticatedFunctionRequest(
+      "document-drive-oauth",
+      {
+        action: "status",
+        organizationId,
+        folderUrl:
+          textValue(params.folderUrl, 500) ||
+          DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
+      }
+    );
+    if (!response?.ok) {
+      return {
+        status: "unavailable",
+        warning: "Não foi possível consultar a conexão com o Drive.",
+      };
+    }
+    const payload = (await response.json()) as Record<string, unknown>;
+    const connection =
+      payload.connection &&
+      typeof payload.connection === "object" &&
+      !Array.isArray(payload.connection)
+        ? (payload.connection as Record<string, unknown>)
+        : {};
+    const strategy = textValue(connection.authStrategy, 40);
+    return {
+      status: payload.status === "connected" ? "connected" : "not_connected",
+      googleAccountEmail:
+        textValue(connection.googleAccountEmail, 180) || undefined,
+      authStrategy:
+        strategy === "api_key" ||
+        strategy === "oauth_user" ||
+        strategy === "service_account"
+          ? strategy
+          : undefined,
+    };
+  } catch {
+    return {
+      status: "unavailable",
+      warning: "Não foi possível consultar a conexão com o Drive.",
+    };
+  }
+}
+
+export async function startPersonalAcademicDriveOAuth(params: {
+  organizationId?: string | null;
+  folderUrl?: string;
+  redirectTo: string;
+}): Promise<AcademicDriveOAuthStatus> {
+  const organizationId = textValue(params.organizationId, 128);
+  if (!organizationId) {
+    return { status: "unavailable", warning: "Workspace inválido." };
+  }
+  try {
+    const response = await authenticatedFunctionRequest(
+      "document-drive-oauth",
+      {
+        action: "start",
+        organizationId,
+        folderUrl:
+          textValue(params.folderUrl, 500) ||
+          DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
+        redirectTo: textValue(params.redirectTo, 500),
+      }
+    );
+    if (!response?.ok) {
+      return {
+        status: "unavailable",
+        warning: "Não foi possível iniciar a autorização do Google Drive.",
+      };
+    }
+    const payload = (await response.json()) as Record<string, unknown>;
+    const authorizationUrl = textValue(payload.authorizationUrl, 1_500);
+    return authorizationUrl
+      ? { status: "not_connected", authorizationUrl }
+      : {
+          status: "unavailable",
+          warning: "A autorização não retornou uma URL válida.",
+        };
+  } catch {
+    return {
+      status: "unavailable",
+      warning: "Não foi possível iniciar a autorização do Google Drive.",
+    };
+  }
+}
+
 export async function syncPersonalAcademicDrive(params: {
   organizationId?: string | null;
   folderUrl?: string;
@@ -166,8 +287,18 @@ export async function syncPersonalAcademicDrive(params: {
   }
 
   try {
-    const token = await getValidAccessToken();
-    if (!token) {
+    const response = await authenticatedFunctionRequest(
+      "academic-drive-sync",
+      {
+        organizationId,
+        folderUrl:
+          textValue(params.folderUrl, 500) ||
+          DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
+        maxFiles: Math.max(1, Math.min(params.maxFiles ?? 60, 120)),
+        dryRun: params.dryRun === true,
+      }
+    );
+    if (!response) {
       return {
         status: "unavailable",
         sourceScope: "user_academic",
@@ -175,28 +306,22 @@ export async function syncPersonalAcademicDrive(params: {
         warnings: ["Sessão indisponível para sincronizar a base acadêmica."],
       };
     }
-    const response = await fetch(`${FUNCTIONS_BASE}/academic-drive-sync`, {
-      method: "POST",
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        organizationId,
-        folderUrl:
-          textValue(params.folderUrl, 500) ||
-          DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
-        maxFiles: Math.max(1, Math.min(params.maxFiles ?? 60, 120)),
-        dryRun: params.dryRun === true,
-      }),
-    });
     if (!response.ok) {
+      const errorPayload = (await response.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+      const errorCode = textValue(errorPayload.code, 80);
       return {
         status: "unavailable",
         sourceScope: "user_academic",
         classBindingCreated: false,
-        warnings: ["Não foi possível sincronizar a base acadêmica agora."],
+        warnings: [
+          errorCode === "DRIVE_OAUTH_REQUIRED" ||
+          errorCode === "DRIVE_AUTHORIZATION_FAILED"
+            ? "Conecte uma conta Google autorizada para acessar esta pasta."
+            : "Não foi possível sincronizar a base acadêmica agora.",
+        ],
       };
     }
     const payload = (await response.json()) as Record<string, unknown>;
@@ -221,6 +346,12 @@ export async function syncPersonalAcademicDrive(params: {
       folderId: textValue(payload.folderId, 180) || undefined,
       sourceScope: "user_academic",
       classBindingCreated: false,
+      authStrategy:
+        payload.authStrategy === "oauth_user" ||
+        payload.authStrategy === "service_account" ||
+        payload.authStrategy === "api_key"
+          ? payload.authStrategy
+          : undefined,
       summary: rawSummary
         ? {
             discovered: numberValue(rawSummary.discovered),

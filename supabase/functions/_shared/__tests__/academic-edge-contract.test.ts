@@ -10,6 +10,22 @@ const retrieveSource = readFileSync(
   path.join(functionsRoot, "academic-knowledge-retrieve", "index.ts"),
   "utf8",
 );
+const oauthSource = readFileSync(
+  path.join(functionsRoot, "document-drive-oauth", "index.ts"),
+  "utf8",
+);
+const driveAuthSource = readFileSync(
+  path.join(functionsRoot, "_shared", "google-drive-auth.ts"),
+  "utf8",
+);
+const structuredExtractionSource = readFileSync(
+  path.join(
+    functionsRoot,
+    "_shared",
+    "document-structured-extraction.ts",
+  ),
+  "utf8",
+);
 const migrationSource = readFileSync(
   path.resolve(
     functionsRoot,
@@ -64,6 +80,33 @@ describe("academic Edge runtime contract", () => {
     expect(syncSource).toContain("docx_expansion_limit");
     expect(syncSource).toContain("pdf_page_limit");
     expect(syncSource).toContain("DOCUMENT_EXTRACTION_TIMEOUT_MS");
+  });
+
+  test("suporta OAuth, service account, API key e resource key sem expor tokens", () => {
+    expect(syncSource).toContain("resolveGoogleDriveCredential");
+    expect(syncSource).toContain("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON");
+    expect(driveAuthSource).toContain("X-Goog-Drive-Resource-Keys");
+    expect(oauthSource).toContain("createPkceChallenge");
+    expect(oauthSource).toContain("encryptDriveRefreshToken");
+    expect(oauthSource).toContain("hasOAuthCredential");
+    expect(oauthSource).toContain("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON");
+    expect(oauthSource).toContain("GOOGLE_DRIVE_API_KEY");
+    expect(oauthSource).toContain("prompt: \"consent\"");
+    expect(oauthSource).toContain("access_type: \"offline\"");
+    expect(oauthSource).not.toContain("console.log");
+    expect(driveAuthSource).toContain('"AES-GCM"');
+    expect(driveAuthSource).toContain('"RSASSA-PKCS1-v1_5"');
+  });
+
+  test("preserva tabelas de Docs, DOCX e Sheets antes da interpretação", () => {
+    expect(syncSource).toContain("mammoth.convertToHtml");
+    expect(syncSource).toContain("convertDocumentHtmlToStructuredText");
+    expect(syncSource).toContain("convertWorkbookToStructuredText");
+    expect(syncSource).toContain("xlsx_structured_rows");
+    expect(syncSource).toContain("docx_structured_html");
+    expect(structuredExtractionSource).toContain("[TABELA ");
+    expect(structuredExtractionSource).toContain("[PLANILHA:");
+    expect(structuredExtractionSource).toContain("Coluna ${cellIndex + 1}");
   });
 
   test("mantém IDs pessoais estáveis por organização e usuário", () => {

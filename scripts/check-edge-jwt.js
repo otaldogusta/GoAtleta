@@ -51,7 +51,11 @@ const requiredJwtTrue = [
   "students-import",
 ];
 
-const intentionallyPublic = ["invite-link", "auto-link-student"];
+const intentionallyPublic = [
+  "invite-link",
+  "auto-link-student",
+  "document-drive-oauth",
+];
 
 const errors = [];
 for (const fnName of requiredJwtTrue) {

@@ -12,6 +12,9 @@ automática, está em [`document-context-runtime.md`](./document-context-runtime
 - `academic-drive-sync`: sincronização explícita e somente leitura da pasta
   acadêmica autorizada. Persiste origem, revisão, hash, classificação,
   proveniência, trechos e embeddings no escopo `user_academic`.
+- `document-drive-oauth`: inicia OAuth com PKCE, recebe o callback do Google e
+  armazena somente o refresh token cifrado. O callback é público por necessidade
+  do provedor, mas exige estado de uso único, expiração e destino validado.
 - `academic-knowledge-retrieve`: recuperação contextual por workspace e
   usuário. Permanece como rota especializada de compatibilidade e diagnóstico;
   a geração normal usa `document-context-resolve`.
@@ -20,13 +23,33 @@ O aplicativo expõe `syncPersonalAcademicDrive` para uma sincronização iniciad
 pelo professor. Assistente e geração de plano consomem o resolvedor documental
 unificado; não há uma segunda IA ou um contexto acadêmico paralelo.
 
-## Segredos
+## Autenticação e segredos
 
-- `GOOGLE_DRIVE_API_KEY`: obrigatório para ler a pasta pública pelo Drive API.
+- `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET` e
+  `GOOGLE_DRIVE_REDIRECT_URI`: habilitam a conexão OAuth do professor para
+  pastas privadas. O redirect deve apontar para
+  `/functions/v1/document-drive-oauth` e estar autorizado no Google Cloud.
+- `DOCUMENT_TOKEN_ENCRYPTION_KEY`: cifra refresh tokens com AES-GCM antes da
+  persistência.
+- `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON`: alternativa opcional. As pastas devem
+  ser compartilhadas explicitamente com a conta de serviço.
+- `GOOGLE_DRIVE_API_KEY`: fallback opcional para pastas realmente públicas.
 - `OPENAI_API_KEY`: opcional; habilita embeddings `text-embedding-3-small`.
   Sem ele, a recuperação continua pelo fallback lexical.
 - `ACADEMIC_DRIVE_ALLOWED_FOLDER_IDS`: opcional; IDs adicionais separados por
   vírgula. A pasta acadêmica inicial já está na lista interna permitida.
+- `DOCUMENT_DRIVE_SOURCE_PROFILES`: configura fontes adicionais e pode declarar
+  `authStrategy` (`auto`, `oauth_user`, `service_account` ou `api_key`) e
+  `resourceKey`.
+
+Em `auto`, a ordem é OAuth do usuário, conta de serviço e API key. Nenhum token,
+segredo ou `resourceKey` é incluído nos trechos, logs ou proveniência.
+
+Google Docs são exportados em DOCX e convertidos em texto estruturado, mantendo
+linhas e colunas de tabelas. Google Sheets são exportados em XLSX e preservam
+planilha, linha e coluna. Slides e arquivos de texto permanecem em texto
+simples. A primeira sincronização real ainda deve comparar o original com a
+interpretação persistida antes de usar a fonte em produção.
 
 ## Limites de segurança
 

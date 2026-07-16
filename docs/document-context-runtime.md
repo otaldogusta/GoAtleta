@@ -49,6 +49,24 @@ O JSON é informado em `DOCUMENT_DRIVE_SOURCE_PROFILES`. A pasta acadêmica
 canônica e os IDs de `ACADEMIC_DRIVE_ALLOWED_FOLDER_IDS` continuam acadêmicos
 e não podem ser reclassificados como operacionais.
 
+Cada entrada também pode fixar a estratégia de credencial e a chave de recurso:
+
+```json
+[
+  {
+    "folderId": "ID_DA_PASTA_PRIVADA",
+    "sourceProfile": "monthly_plan",
+    "authStrategy": "oauth_user",
+    "resourceKey": "CHAVE_DE_RECURSO_SE_EXISTIR"
+  }
+]
+```
+
+Com `authStrategy: "auto"`, o runtime tenta OAuth do usuário, conta de serviço
+e API key, nessa ordem. OAuth usa PKCE e refresh token cifrado; uma conta de
+serviço só enxerga pastas compartilhadas explicitamente com ela. `resourceKey`
+é enviado apenas ao Google e não aparece em logs ou referências persistidas.
+
 Para uma fonte de turma, a sincronização exige `classId` e
 `classBindingConfirmed: true`; o backend também valida que a turma pertence ao
 workspace. Sem confirmação, a revisão pode ser armazenada para análise, mas não
@@ -104,6 +122,10 @@ Os IDs operacionais reais não são hardcoded. Cada pasta confirmada pelo
 professor precisa ser cadastrada em `DOCUMENT_DRIVE_SOURCE_PROFILES` e
 sincronizada antes de aparecer no contexto. Pastas ainda não inventariadas
 permanecem pendentes, sem inferência de vínculo.
+
+O callback configurado em `GOOGLE_DRIVE_REDIRECT_URI` deve ser exatamente a URL
+da Edge Function `document-drive-oauth` e também constar nos redirects
+autorizados do cliente OAuth no Google Cloud.
 
 ## Preflight da migration
 
