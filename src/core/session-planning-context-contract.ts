@@ -76,6 +76,8 @@ export type SessionPlanningContext = {
   previousSessionSummary?: string;
   recentDifficulties: string[];
   recentActivityFamilies: string[];
+  recentActivityNames?: string[];
+  recentActivityPatternIds?: string[];
   upcomingEvents: SessionPlanningUpcomingEvent[];
   availableDuration: number;
   materials: string[];
@@ -240,6 +242,8 @@ export const parseSessionPlanningContext = (
     previousSessionSummary: stringValue(value.previousSessionSummary) || undefined,
     recentDifficulties: stringArray(value.recentDifficulties),
     recentActivityFamilies: stringArray(value.recentActivityFamilies),
+    recentActivityNames: stringArray(value.recentActivityNames),
+    recentActivityPatternIds: stringArray(value.recentActivityPatternIds),
     upcomingEvents: Array.isArray(value.upcomingEvents)
       ? value.upcomingEvents
           .filter(isRecord)

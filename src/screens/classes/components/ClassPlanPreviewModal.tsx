@@ -19,7 +19,7 @@ import {
   type TrainingPlanBlockKey,
 } from "../../../core/training-plan-blocks";
 import { PdfPreviewFrame } from "../../../pdf/PdfPreviewFrame";
-import { sessionPlanHtml } from "../../../pdf/templates/session-plan";
+import { buildSessionMonthlyPlanData, sessionPlanHtml } from "../../../pdf/templates/session-plan";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../../ui/app-theme";
@@ -33,9 +33,18 @@ import { buildClassPlanPdfData } from "../application/build-class-plan-pdf-data"
 import {
   appendClassPlanActivity,
   buildClassPlanBlockDraft,
+  getClassPlanPdfContentDraft,
+  normalizeClassTrainingPlan,
+  updateClassPlanPdfContent,
   updateClassTrainingPlanBlock,
   type ClassPlanBlockDraft,
+  type ClassPlanPdfContentDraft,
 } from "../application/edit-class-training-plan";
+import {
+  CLASS_PLAN_BLOCK_KEYS,
+  CLASS_PLAN_BLOCK_PRESENTATION,
+  summarizeClassPlanActivities,
+} from "./class-plan-block-presentation";
 
 type ClassPlanPreviewModalProps = {
   visible: boolean;
@@ -61,11 +70,7 @@ const BLOCKS: Array<{
   key: TrainingPlanBlockKey;
   label: string;
   icon: GoAtletaIconName;
-}> = [
-  { key: "warmup", label: "Aquecimento", icon: "calendar" },
-  { key: "main", label: "Parte principal", icon: "students" },
-  { key: "cooldown", label: "Volta à calma", icon: "trend" },
-];
+}> = CLASS_PLAN_BLOCK_KEYS.map((key) => ({ key, ...CLASS_PLAN_BLOCK_PRESENTATION[key] }));
 
 const formatDuration = (value: string | undefined) => {
   const text = String(value ?? "").trim();
@@ -132,7 +137,9 @@ export function ClassPlanPreviewModal({
   const [isRemoving, setIsRemoving] = useState(false);
   const [isEditing, setIsEditing] = useState(initialMode === "edit");
   const [isEditorExpanded, setIsEditorExpanded] = useState(initialMode === "edit");
+  const [isPdfContentExpanded, setIsPdfContentExpanded] = useState(false);
   const [selectedBlockKey, setSelectedBlockKey] = useState<TrainingPlanBlockKey>("main");
+  const [focusedActivityDescriptionIndex, setFocusedActivityDescriptionIndex] = useState<number | null>(null);
   const [pdfPlan, setPdfPlan] = useState(plan);
   const [workingPlan, setWorkingPlan] = useState(plan);
   const [isDirty, setIsDirty] = useState(false);
@@ -167,7 +174,9 @@ export function ClassPlanPreviewModal({
     setIsDirty(false);
     setIsEditing(initialMode === "edit");
     setIsEditorExpanded(initialMode === "edit");
+    setIsPdfContentExpanded(false);
     setSelectedBlockKey("main");
+    setFocusedActivityDescriptionIndex(null);
     setMobileView(initialMode === "edit" ? "outline" : "pdf");
     setPdfStatusLabel("PDF sincronizado");
     setShowMenu(false);
@@ -269,9 +278,34 @@ export function ClassPlanPreviewModal({
     [selectedBlockKey]
   );
 
+  const updatePdfContentField = useCallback(<Key extends keyof ClassPlanPdfContentDraft,>(
+    field: Key,
+    value: ClassPlanPdfContentDraft[Key]
+  ) => {
+    setWorkingPlan((current) => {
+      const resolvedLesson = buildSessionMonthlyPlanData(
+        buildClassPlanPdfData({ classGroup, plan: current, lessonDate, coachName })
+      ).lessons[0];
+      const currentDraft = getClassPlanPdfContentDraft(current);
+      const usesManualContent = current.pedagogy?.sessionObjectiveSource === "manual";
+      const nextPlan = updateClassPlanPdfContent(current, {
+        generalObjective: usesManualContent ? currentDraft.generalObjective : currentDraft.generalObjective || resolvedLesson.generalObjective,
+        specificObjective: usesManualContent ? currentDraft.specificObjective : currentDraft.specificObjective || resolvedLesson.specificObjective,
+        situationProblem: usesManualContent ? currentDraft.situationProblem : currentDraft.situationProblem || resolvedLesson.situationProblem || "",
+        observations: usesManualContent ? currentDraft.observations : currentDraft.observations || resolvedLesson.observations || "",
+        [field]: value,
+      });
+      workingPlanRef.current = nextPlan;
+      return nextPlan;
+    });
+    setIsDirty(true);
+    setPdfStatusLabel("Alterações não salvas");
+  }, [classGroup, coachName, lessonDate]);
+
   const handleSave = useCallback(async () => {
     if (isSaving || !isDirty) return;
-    if (!resolveTrainingPlanBlock(workingPlan, "main").activities.length) {
+    const normalizedPlan = normalizeClassTrainingPlan(workingPlan);
+    if (!resolveTrainingPlanBlock(normalizedPlan, "main").activities.length) {
       showSaveToast({
         message: "Mantenha pelo menos uma atividade na parte principal.",
         variant: "warning",
@@ -280,7 +314,7 @@ export function ClassPlanPreviewModal({
     }
     setIsSaving(true);
     try {
-      const savedPlan = await onSavePlan(workingPlan);
+      const savedPlan = await onSavePlan(normalizedPlan);
       setWorkingPlan(savedPlan);
       workingPlanRef.current = savedPlan;
       setPdfPlan(savedPlan);
@@ -306,6 +340,7 @@ export function ClassPlanPreviewModal({
     setIsDirty(false);
     setIsEditing(false);
     setIsEditorExpanded(false);
+    setIsPdfContentExpanded(false);
     setPdfStatusLabel("PDF sincronizado");
   }, [pdfPlan]);
 
@@ -401,12 +436,22 @@ export function ClassPlanPreviewModal({
   const selectBlock = useCallback(
     (blockKey: TrainingPlanBlockKey) => {
       setSelectedBlockKey(blockKey);
+      setIsPdfContentExpanded(false);
+      setFocusedActivityDescriptionIndex(null);
       if (!isEditing) setIsEditing(true);
       setIsEditorExpanded(true);
       if (!splitLayout) setMobileView("outline");
     },
     [isEditing, splitLayout]
   );
+
+  const selectPdfContent = useCallback(() => {
+    setIsPdfContentExpanded(true);
+    setFocusedActivityDescriptionIndex(null);
+    if (!isEditing) setIsEditing(true);
+    setIsEditorExpanded(true);
+    if (!splitLayout) setMobileView("outline");
+  }, [isEditing, splitLayout]);
 
   const preview = (
     <View style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}>
@@ -451,9 +496,30 @@ export function ClassPlanPreviewModal({
         contentContainerStyle={styles.outlineContent}
         showsVerticalScrollIndicator={false}
       >
+        <Pressable
+          onPress={selectPdfContent}
+          accessibilityRole="button"
+          accessibilityLabel="Editar conteúdo pedagógico"
+          style={({ pressed }) => [
+            styles.outlineBlock,
+            {
+              borderColor: isPdfContentExpanded ? colors.primaryBg : colors.border,
+              backgroundColor: isPdfContentExpanded ? colors.backgroundSubtle : colors.card,
+              opacity: pressed ? 0.78 : 1,
+            },
+          ]}
+        >
+          <GoAtletaIcon name="document" size={18} color={isPdfContentExpanded ? colors.primaryBg : colors.muted} />
+          <View style={styles.outlineBlockCopy}>
+            <Text style={[styles.outlineBlockLabel, { color: colors.text }]}>Conteúdo Pedagógico</Text>
+            <Text numberOfLines={1} style={[styles.outlineActivity, { color: colors.muted }]}>Objetivos, situação-problema e observações</Text>
+          </View>
+          <GoAtletaIcon name="pencil" size={15} color={colors.text} />
+        </Pressable>
         {BLOCKS.map((item) => {
           const block = resolveTrainingPlanBlock(workingPlan, item.key);
-          const selected = selectedBlockKey === item.key;
+          const activitySummary = summarizeClassPlanActivities(block.activities);
+          const selected = !isPdfContentExpanded && selectedBlockKey === item.key;
           return (
             <Pressable
               key={item.key}
@@ -477,7 +543,7 @@ export function ClassPlanPreviewModal({
                     {formatDuration(getDuration(workingPlan, item.key))}
                   </Text>
                 </View>
-                {block.activities.map((activity, index) => (
+                {activitySummary.visibleActivities.map((activity, index) => (
                   <Text
                     key={`${item.key}-${index}`}
                     numberOfLines={1}
@@ -486,6 +552,11 @@ export function ClassPlanPreviewModal({
                     {block.activities.length > 1 ? "• " : ""}{activity.name}
                   </Text>
                 ))}
+                {activitySummary.remainingCount > 0 ? (
+                  <Text numberOfLines={1} style={[styles.outlineActivityMore, { color: colors.muted }]}>
+                    {`+ ${activitySummary.remainingCount} ${activitySummary.remainingCount === 1 ? "atividade" : "atividades"}`}
+                  </Text>
+                ) : null}
               </View>
               <GoAtletaIcon name="pencil" size={15} color={colors.text} />
             </Pressable>
@@ -499,7 +570,19 @@ export function ClassPlanPreviewModal({
   );
 
   const selectedBlock = buildClassPlanBlockDraft(workingPlan, selectedBlockKey);
+  const storedPdfContentDraft = getClassPlanPdfContentDraft(workingPlan);
+  const resolvedPdfLesson = buildSessionMonthlyPlanData(
+    buildClassPlanPdfData({ classGroup, plan: workingPlan, lessonDate, coachName })
+  ).lessons[0];
+  const usesManualPdfContent = workingPlan.pedagogy?.sessionObjectiveSource === "manual";
+  const pdfContentDraft: ClassPlanPdfContentDraft = {
+    generalObjective: usesManualPdfContent ? storedPdfContentDraft.generalObjective : storedPdfContentDraft.generalObjective || resolvedPdfLesson.generalObjective,
+    specificObjective: usesManualPdfContent ? storedPdfContentDraft.specificObjective : storedPdfContentDraft.specificObjective || resolvedPdfLesson.specificObjective,
+    situationProblem: usesManualPdfContent ? storedPdfContentDraft.situationProblem : storedPdfContentDraft.situationProblem || resolvedPdfLesson.situationProblem || "",
+    observations: usesManualPdfContent ? storedPdfContentDraft.observations : storedPdfContentDraft.observations || resolvedPdfLesson.observations || "",
+  };
   const selectedBlockLabel = BLOCKS.find((item) => item.key === selectedBlockKey)?.label ?? "Bloco";
+  const editorSectionLabel = isPdfContentExpanded ? "Conteúdo Pedagógico" : selectedBlockLabel;
 
   const editor = isEditing ? (
     <View
@@ -509,16 +592,35 @@ export function ClassPlanPreviewModal({
         { borderTopColor: colors.border, backgroundColor: colors.card },
       ]}
     >
-      <Pressable
-        onPress={() => setIsEditorExpanded((current) => !current)}
-        accessibilityRole="button"
-        accessibilityLabel={`${isEditorExpanded ? "Recolher" : "Expandir"} edição de ${selectedBlockLabel}`}
-        accessibilityState={{ expanded: isEditorExpanded }}
-        style={({ pressed }) => [styles.editorHeader, { opacity: pressed ? 0.72 : 1 }]}
-      >
-        <Text style={[styles.editorTitle, { color: colors.text }]}>Editar {selectedBlockLabel}</Text>
-        <GoAtletaIcon name={isEditorExpanded ? "chevronUp" : "chevronDown"} size={18} color={colors.muted} />
-      </Pressable>
+      <View style={styles.editorHeader}>
+        <Text style={[styles.editorTitle, { color: colors.text }]}>{editorSectionLabel}</Text>
+        <View style={styles.editorHeaderActions}>
+          {!isPdfContentExpanded ? (
+            <View style={styles.headerDurationField}>
+              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Duração</Text>
+              <View style={[styles.headerDurationShell, { borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}>
+                <TextInput
+                  value={selectedBlock.duration.replace(/\s*min\s*$/i, "")}
+                  onChangeText={(duration) => updateSelectedBlock((draft) => ({ ...draft, duration }))}
+                  keyboardType="number-pad"
+                  style={[styles.headerDurationInput, { color: colors.text }]}
+                  accessibilityLabel="Duração do bloco"
+                />
+                <Text style={[styles.inputSuffix, { color: colors.muted }]}>min</Text>
+              </View>
+            </View>
+          ) : null}
+          <Pressable
+            onPress={() => setIsEditorExpanded((current) => !current)}
+            accessibilityRole="button"
+            accessibilityLabel={`${isEditorExpanded ? "Recolher" : "Expandir"} edição de ${editorSectionLabel}`}
+            accessibilityState={{ expanded: isEditorExpanded }}
+            style={({ pressed }) => [styles.editorCollapseAction, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <GoAtletaIcon name={isEditorExpanded ? "chevronUp" : "chevronDown"} size={18} color={colors.muted} />
+          </Pressable>
+        </View>
+      </View>
       {isEditorExpanded ? (
         <ScrollView
           style={styles.editorScroll}
@@ -526,38 +628,65 @@ export function ClassPlanPreviewModal({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-        <View style={[styles.editorFields, !splitLayout ? styles.editorFieldsCompact : null]}>
-          <View style={styles.durationField}>
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>Duração</Text>
-            <View style={[styles.inputShell, { borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}>
-              <TextInput
-                value={selectedBlock.duration}
-                onChangeText={(duration) => updateSelectedBlock((draft) => ({ ...draft, duration }))}
-                keyboardType="number-pad"
-                style={[styles.durationInput, { color: colors.text }]}
-                accessibilityLabel="Duração do bloco"
-              />
-              <Text style={[styles.inputSuffix, { color: colors.muted }]}>min</Text>
-            </View>
-          </View>
-          <View style={styles.objectiveField}>
-            <Text style={[styles.fieldLabel, { color: colors.muted }]}>Objetivo específico</Text>
+        {isPdfContentExpanded ? (
+        <>
+        <Text style={[styles.pdfContentHint, { color: colors.muted }]}>Preenchido pelo planejamento inteligente</Text>
+        <View style={[styles.pdfContentGrid, !splitLayout ? styles.editorFieldsCompact : null]}>
+          <View style={styles.pdfContentField}>
+            <Text style={[styles.fieldLabel, { color: colors.muted }]}>Objetivo geral</Text>
             <TextInput
-              value={selectedBlock.objective}
-              onChangeText={(objective) => updateSelectedBlock((draft) => ({ ...draft, objective }))}
-              placeholder="Objetivo deste momento da aula"
+              value={pdfContentDraft.generalObjective}
+              onChangeText={(value) => updatePdfContentField("generalObjective", value)}
+              placeholder="Objetivo geral desta aula"
               placeholderTextColor={colors.muted}
               multiline
-              style={[
-                styles.textInput,
-                { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle },
-              ]}
-              accessibilityLabel="Objetivo específico do bloco"
+              style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}
+              accessibilityLabel="Objetivo geral da aula"
+            />
+          </View>
+          <View style={styles.pdfContentField}>
+            <Text style={[styles.fieldLabel, { color: colors.muted }]}>Objetivo específico</Text>
+            <TextInput
+              value={pdfContentDraft.specificObjective}
+              onChangeText={(value) => updatePdfContentField("specificObjective", value)}
+              placeholder="Objetivo específico desta aula"
+              placeholderTextColor={colors.muted}
+              multiline
+              style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}
+              accessibilityLabel="Objetivo específico da aula"
+            />
+          </View>
+          <View style={styles.pdfContentField}>
+            <Text style={[styles.fieldLabel, { color: colors.muted }]}>Situação-problema</Text>
+            <TextInput
+              value={pdfContentDraft.situationProblem}
+              onChangeText={(value) => updatePdfContentField("situationProblem", value)}
+              placeholder="Pergunta que orienta a aula"
+              placeholderTextColor={colors.muted}
+              multiline
+              style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}
+              accessibilityLabel="Situação-problema da aula"
+            />
+          </View>
+          <View style={styles.pdfContentField}>
+            <Text style={[styles.fieldLabel, { color: colors.muted }]}>Observações</Text>
+            <TextInput
+              value={pdfContentDraft.observations}
+              onChangeText={(value) => updatePdfContentField("observations", value)}
+              placeholder="Observações que devem aparecer no PDF"
+              placeholderTextColor={colors.muted}
+              multiline
+              style={[styles.textInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}
+              accessibilityLabel="Observações do plano da aula"
             />
           </View>
         </View>
+        </>
+        ) : null}
 
-        <Text style={[styles.fieldLabel, { color: colors.muted }]}>Atividades e descrição</Text>
+        {!isPdfContentExpanded ? (
+        <>
+        <Text style={[styles.fieldLabel, { color: colors.muted }]}>Atividades</Text>
         {selectedBlock.activities.map((activity, index) => (
           <View
             key={`${selectedBlockKey}-${index}`}
@@ -597,8 +726,13 @@ export function ClassPlanPreviewModal({
               placeholder="Organização, execução e condução"
               placeholderTextColor={colors.muted}
               multiline
+              onFocus={() => setFocusedActivityDescriptionIndex(index)}
+              onBlur={() => setFocusedActivityDescriptionIndex((current) => current === index ? null : current)}
               style={[
                 styles.activityDescriptionInput,
+                focusedActivityDescriptionIndex === index
+                  ? styles.activityDescriptionInputFocused
+                  : styles.activityDescriptionInputCompact,
                 { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle },
               ]}
               accessibilityLabel={`Descrição da atividade ${index + 1}`}
@@ -622,6 +756,8 @@ export function ClassPlanPreviewModal({
           <GoAtletaIcon name="add" size={17} color={colors.text} />
           <Text style={[styles.addActivityLabel, { color: colors.text }]}>Adicionar atividade</Text>
         </Pressable>
+        </>
+        ) : null}
         </ScrollView>
       ) : null}
     </View>
@@ -838,6 +974,7 @@ export function ClassPlanPreviewModal({
             onPress={() => {
               setIsEditing(true);
               setIsEditorExpanded(true);
+              setIsPdfContentExpanded(false);
               setSelectedBlockKey("main");
               setMobileView("outline");
             }}
@@ -952,22 +1089,26 @@ const styles = StyleSheet.create({
   outlineBlockLabel: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: "800" },
   outlineDuration: { fontSize: 11, fontWeight: "700" },
   outlineActivity: { fontSize: 11, lineHeight: 16 },
+  outlineActivityMore: { fontSize: 11, lineHeight: 16, fontWeight: "700" },
   fileSize: { fontSize: 11, textAlign: "center" },
   compactOutlineScroll: { flex: 1 },
   compactOutlineContent: { paddingBottom: 18 },
   editorPane: { height: 330, minHeight: 240, borderTopWidth: 1 },
-  editorPaneCollapsed: { height: 48, minHeight: 48 },
-  editorHeader: { minHeight: 48, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  editorTitle: { fontSize: 16, fontWeight: "800" },
+  editorPaneCollapsed: { height: 62, minHeight: 62 },
+  editorHeader: { minHeight: 62, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  editorTitle: { minWidth: 0, fontSize: 16, fontWeight: "800" },
+  editorHeaderActions: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  headerDurationField: { flexDirection: "row", alignItems: "center", gap: 8 },
+  headerDurationShell: { width: 92, minHeight: 38, borderWidth: 1, borderRadius: 9, flexDirection: "row", alignItems: "center", paddingHorizontal: 9 },
+  headerDurationInput: { flex: 1, minWidth: 0, paddingVertical: 7, fontSize: 13, fontWeight: "700", outlineStyle: "none" } as any,
+  editorCollapseAction: { width: 36, height: 36, marginLeft: "auto", alignItems: "center", justifyContent: "center" },
   editorScroll: { flex: 1 },
   editorContent: { paddingHorizontal: 18, paddingBottom: 18, gap: 10 },
-  editorFields: { flexDirection: "row", gap: 12 },
   editorFieldsCompact: { flexDirection: "column" },
-  durationField: { width: 112, gap: 5 },
-  objectiveField: { flex: 1, minWidth: 0, gap: 5 },
+  pdfContentHint: { fontSize: 10, lineHeight: 14 },
+  pdfContentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  pdfContentField: { width: "49%", minWidth: 280, flexGrow: 1, gap: 5 },
   fieldLabel: { fontSize: 11, fontWeight: "700" },
-  inputShell: { minHeight: 42, borderWidth: 1, borderRadius: 9, flexDirection: "row", alignItems: "center", paddingHorizontal: 10 },
-  durationInput: { flex: 1, minWidth: 0, paddingVertical: 8, fontSize: 13, fontWeight: "700", outlineStyle: "none" } as any,
   inputSuffix: { fontSize: 12 },
   textInput: { minHeight: 42, maxHeight: 68, borderWidth: 1, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9, fontSize: 12, lineHeight: 17, outlineStyle: "none" } as any,
   activityEditor: { borderWidth: 1, borderRadius: 10, padding: 8, flexDirection: "row", alignItems: "center", gap: 8 },
@@ -975,7 +1116,9 @@ const styles = StyleSheet.create({
   activityNumber: { width: 32, height: 36, borderWidth: 1, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   activityNumberLabel: { fontSize: 12, fontWeight: "800" },
   activityNameInput: { width: 220, minHeight: 38, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, outlineStyle: "none" } as any,
-  activityDescriptionInput: { flex: 1, minWidth: 240, minHeight: 38, maxHeight: 64, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 11, lineHeight: 16, outlineStyle: "none" } as any,
+  activityDescriptionInput: { flex: 1, minWidth: 240, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, fontSize: 11, lineHeight: 16, textAlignVertical: "top", outlineStyle: "none" } as any,
+  activityDescriptionInputCompact: { minHeight: 40, maxHeight: 56, paddingVertical: 8 },
+  activityDescriptionInputFocused: { minHeight: 240, maxHeight: 320, paddingVertical: 12 },
   activityDelete: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   addActivity: { minHeight: 40, alignSelf: "flex-start", borderWidth: 1, borderRadius: 9, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 },
   addActivityLabel: { fontSize: 12, fontWeight: "700" },

@@ -14,6 +14,7 @@ import {
     upsertDailyLessonPlan,
 } from "../../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../../src/navigation/safe-router";
+import { markRender, measureAsync } from "../../../../src/observability/perf";
 import { exportPdf, safeFileName } from "../../../../src/pdf/export-pdf";
 import { MonthlyLessonPlanDocument } from "../../../../src/pdf/monthly-lesson-plan-document";
 import { SessionPlanDocument } from "../../../../src/pdf/session-plan-document";
@@ -565,6 +566,8 @@ function MonthCalendarGrid({
 }
 
 export default function ClassPlanningMonthRoute() {
+  markRender("screen.classPlanningMonth.render.root");
+
   const { id, month } = useLocalSearchParams<{ id: string; month: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -655,7 +658,11 @@ export default function ClassPlanningMonthRoute() {
     setMonthRegenProgress(null);
     try {
       // Fetch class group for blueprint generation
-      const classGroup = (await getClassById(classId)) as ClassGroup | null;
+      const classGroup = (await measureAsync(
+        "screen.classPlanningMonth.load.regenerationContext",
+        () => getClassById(classId),
+        { screen: "classPlanningMonth", classId, monthKey }
+      )) as ClassGroup | null;
       if (!classGroup) {
         setMonthRegenProgress({
           stage: "complete",

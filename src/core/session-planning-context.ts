@@ -40,26 +40,57 @@ const normalizeText = (value: string | null | undefined) =>
 const uniqueStrings = (values: Array<string | null | undefined>) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
-const deriveRecentActivityFamily = (plan: TrainingPlan): string => {
+const getStructuredActivities = (plan: TrainingPlan) => [
+  ...(plan.pedagogy?.blocks?.warmup.activities ?? []),
+  ...(plan.pedagogy?.blocks?.main.activities ?? []),
+  ...(plan.pedagogy?.blocks?.cooldown.activities ?? []),
+];
+
+const deriveRecentActivityNames = (plan: TrainingPlan) =>
+  uniqueStrings([
+    ...(plan.warmup ?? []),
+    ...(plan.main ?? []),
+    ...(plan.cooldown ?? []),
+    ...getStructuredActivities(plan).map((activity) => activity.name),
+  ]);
+
+const deriveRecentActivityPatternIds = (plan: TrainingPlan) =>
+  uniqueStrings(
+    getStructuredActivities(plan).flatMap((activity) => [
+      activity.sourcePatternId,
+      activity.catalog?.variantId,
+    ])
+  );
+
+const deriveRecentActivityFamilies = (plan: TrainingPlan): string[] => {
+  const structuredActivities = getStructuredActivities(plan);
   const text = normalizeText(
     [
       plan.title,
       ...(plan.warmup ?? []),
       ...(plan.main ?? []),
       ...(plan.cooldown ?? []),
+      ...structuredActivities.flatMap((activity) => [
+        activity.name,
+        activity.description,
+        activity.sourcePatternId,
+        activity.catalog?.familyId,
+      ]),
       plan.pedagogy?.focus?.skill,
       plan.pedagogy?.progression?.dimension,
       plan.pedagogy?.sessionObjective,
     ].join(" ")
   );
 
-  if (/jogo reduz|mini|rally|ponto extra|jogo aplicado/.test(text)) return "jogo_aplicado";
-  if (/alvo|zona|direc/.test(text)) return "alvo_zona";
-  if (/dupla|trio|cooper|continuidade|jogavel|jogável/.test(text)) return "cooperacao";
-  if (/desloc|corr|cobre|cobertura|transicao/.test(text)) return "deslocamento";
-  if (/saque|sacar|sacador/.test(text)) return "saque_direcionado";
-  if (/estacao|circuito/.test(text)) return "estacoes";
-  return "bloco_tecnico";
+  return uniqueStrings([
+    ...structuredActivities.map((activity) => activity.catalog?.familyId),
+    /jogo reduz|mini|rally|ponto extra|jogo aplicado/.test(text) ? "jogo_aplicado" : null,
+    /alvo|zona|direc/.test(text) ? "alvo_zona" : null,
+    /dupla|trio|cooper|continuidade|jogavel|jogável/.test(text) ? "cooperacao" : null,
+    /desloc|corr|cobre|cobertura|transicao/.test(text) ? "deslocamento" : null,
+    /saque|sacar|sacador/.test(text) ? "saque_direcionado" : null,
+    /estacao|circuito/.test(text) ? "estacoes" : null,
+  ]);
 };
 
 const deriveRecentDifficulty = (plan: TrainingPlan): string[] => {
@@ -109,8 +140,14 @@ export const buildSessionPlanningContext = (params: {
     recentPlans.flatMap((plan) => deriveRecentDifficulty(plan))
   );
   const recentActivityFamilies = uniqueStrings(
-    recentPlans.map((plan) => deriveRecentActivityFamily(plan))
-  ).slice(0, 5);
+    recentPlans.flatMap((plan) => deriveRecentActivityFamilies(plan))
+  ).slice(0, 12);
+  const recentActivityNames = uniqueStrings(
+    recentPlans.flatMap((plan) => deriveRecentActivityNames(plan))
+  ).slice(0, 20);
+  const recentActivityPatternIds = uniqueStrings(
+    recentPlans.flatMap((plan) => deriveRecentActivityPatternIds(plan))
+  ).slice(0, 20);
   const reportFeedback = summarizeReportFeedbackSignals(
     (params.recentSessions ?? []).flatMap((session) => session.pedagogicalFeedbackSignals ?? [])
   );
@@ -137,6 +174,8 @@ export const buildSessionPlanningContext = (params: {
     previousSessionSummary: summarizePreviousSession(recentPlans[0]),
     recentDifficulties,
     recentActivityFamilies,
+    recentActivityNames,
+    recentActivityPatternIds,
     upcomingEvents: [...(params.upcomingEvents ?? [])],
     availableDuration: params.cycleContext.duration,
     materials: [...params.cycleContext.materials],

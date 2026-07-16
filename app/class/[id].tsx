@@ -41,7 +41,9 @@ import {
     duplicateClass,
     getAttendanceByClass,
     getClassById,
+    getClassPlansByClass,
     getClasses,
+    getDailyLessonPlanByWeekAndDate,
     getLatestScoutingLog,
     getLatestTrainingPlanByClass,
     getStudentsByClass,
@@ -99,6 +101,7 @@ import {
 } from "../../src/utils/whatsapp-templates";
 import { buildAutoPlanForCycleDay } from "../../src/screens/session/application/build-auto-plan-for-cycle-day";
 import { convertPedagogicalPackageToTrainingPlan } from "../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
+import { resolveClassPlanForSessionDate } from "../../src/screens/session/application/resolve-class-plan-for-session-date";
 import { SessionScreen } from "./[id]/session";
 
 type AvailableContact = {
@@ -1624,7 +1627,7 @@ export default function ClassDetails() {
     if (!cls || !selectedLessonDateKey || isGeneratingPlan) return;
     setIsGeneratingPlan(true);
     try {
-      const [students, recentPlans] = await Promise.all([
+      const [students, recentPlans, classPlans] = await Promise.all([
         getStudentsByClass(cls.id),
         getTrainingPlans({
           classId: cls.id,
@@ -1632,9 +1635,24 @@ export default function ClassDetails() {
           orderBy: "createdat_desc",
           limit: 12,
         }),
+        getClassPlansByClass(cls.id, {
+          organizationId: cls.organizationId ?? null,
+        }),
       ]);
+      const currentClassPlan = resolveClassPlanForSessionDate(
+        classPlans,
+        selectedLessonDateKey
+      );
+      const currentDailyLessonPlan = currentClassPlan
+        ? await getDailyLessonPlanByWeekAndDate(
+            currentClassPlan.id,
+            selectedLessonDateKey
+          )
+        : null;
       const autoPlanResult = buildAutoPlanForCycleDay({
         classGroup: cls,
+        classPlan: currentClassPlan,
+        dailyLessonPlan: currentDailyLessonPlan,
         students,
         sessionDate: selectedLessonDateKey,
         recentPlans,

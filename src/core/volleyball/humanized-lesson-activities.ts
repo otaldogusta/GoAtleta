@@ -1492,6 +1492,8 @@ const buildActivityPatternBlocks = (
     materials: context?.materials?.length ? context.materials : ["bolas", "cones"],
     classSize: context?.classProfile.size ?? 0,
     recentActivityFamilies: context?.recentActivityFamilies ?? [],
+    recentActivityNames: context?.recentActivityNames ?? [],
+    recentActivityPatternIds: context?.recentActivityPatternIds ?? [],
     upcomingEvents: context?.upcomingEvents ?? [],
   });
 

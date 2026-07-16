@@ -154,7 +154,7 @@ export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPl
           asCoachingText(data?.pedagogicalRule).trim() ||
           `Como aplicar ${lowerFirst(focus || "o fundamento da aula")} mantendo a continuidade e o controle da bola?`,
         blocks,
-        observations: "",
+        observations: asCoachingText(data?.notes),
       },
     ],
   };

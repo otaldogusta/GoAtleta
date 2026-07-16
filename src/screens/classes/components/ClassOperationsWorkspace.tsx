@@ -5,6 +5,7 @@ import type { TrainingPlan } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
+import { CLASS_PLAN_BLOCK_PRESENTATION } from "./class-plan-block-presentation";
 
 type WorkspaceAction = {
   key: string;
@@ -513,21 +514,21 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
                 label="Aquecimento"
                 activity={appliedPlan.warmup?.[0]}
                 duration={appliedPlan.warmupTime}
-                icon="agenda"
+                icon={CLASS_PLAN_BLOCK_PRESENTATION.warmup.icon}
                 colors={colors}
               />
               <PlanBlockRow
                 label="Parte principal"
                 activity={appliedPlan.main?.[0]}
                 duration={appliedPlan.mainTime}
-                icon="periodization"
+                icon={CLASS_PLAN_BLOCK_PRESENTATION.main.icon}
                 colors={colors}
               />
               <PlanBlockRow
                 label="Volta à calma"
                 activity={appliedPlan.cooldown?.[0]}
                 duration={appliedPlan.cooldownTime}
-                icon="document"
+                icon={CLASS_PLAN_BLOCK_PRESENTATION.cooldown.icon}
                 colors={colors}
               />
             </View>
@@ -539,15 +540,6 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
                 style={({ pressed }) => [styles.planPrimaryButton, styles.planAppliedAction, { backgroundColor: colors.primaryBg, opacity: pressed ? 0.8 : 1 }]}
               >
                 <Text style={[styles.planPrimaryButtonLabel, { color: colors.primaryText }]}>Ver plano</Text>
-              </Pressable>
-              <Pressable
-                onPress={onOpenSession}
-                accessibilityRole="button"
-                accessibilityLabel="Editar plano"
-                style={({ pressed }) => [styles.planSecondaryButton, styles.planAppliedAction, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
-              >
-                <GoAtletaIcon name="pencil" size={16} color={colors.text} />
-                <Text style={[styles.planSecondaryButtonLabel, { color: colors.text }]}>Editar plano</Text>
               </Pressable>
             </View>
           </>

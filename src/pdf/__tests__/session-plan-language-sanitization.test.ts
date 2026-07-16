@@ -67,7 +67,7 @@ const expectStandardPdfText = (html: string) => {
 };
 
 describe("session-plan language sanitization", () => {
-  it("maps the single lesson metadata to the reference lesson sheet", () => {
+  it("maps the single lesson metadata and observations to the reference lesson sheet", () => {
     const data = buildSessionMonthlyPlanData({
       className: "Primeiros Saques",
       ageGroup: "08-11",
@@ -77,7 +77,7 @@ describe("session-plan language sanitization", () => {
       timeLabel: "14h às 15h",
       weekLabel: "SEMANA 01",
       title: "Diagnóstico do contato sem segurar a bola",
-      notes: "Este texto não deve ocupar o campo de observações.",
+      notes: "Usar bolas mais leves quando necessário.",
       blocks: [],
     });
 
@@ -86,7 +86,7 @@ describe("session-plan language sanitization", () => {
       weekLabel: "SEMANA 01 — Diagnóstico do contato sem segurar a bola",
       dateLabel: "02/07/2026 (quinta-feira)",
       timeLabel: "14h às 15h",
-      observations: "",
+      observations: "Usar bolas mais leves quando necessário.",
     });
   });
 

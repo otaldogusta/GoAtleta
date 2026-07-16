@@ -626,6 +626,7 @@ export type TrainingPlanPedagogy = {
   };
   sessionObjective?: string;
   sessionObjectiveSource?: "generated" | "auto_from_plan" | "manual";
+  lessonPlanObservations?: string;
   learningObjectives?: {
     general: string;
     specific: string[];

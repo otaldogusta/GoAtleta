@@ -53,6 +53,42 @@ const buildStudent = (): Student => ({
 });
 
 describe("convertPedagogicalPackageToTrainingPlan", () => {
+  it("persists generated activity descriptions even when no extra pedagogy is provided", () => {
+    const pkg = buildPedagogicalPlan({
+      classGroup: buildClassGroup(),
+      students: [buildStudent()],
+      objective: "Passe e manchete em situações simples de jogo",
+      duration: 60,
+      context: "treinamento",
+      constraints: [],
+      materials: ["bolas", "cones"],
+    });
+
+    const plan = convertPedagogicalPackageToTrainingPlan({
+      pkg,
+      classId: "class_1",
+      sessionDate: "2026-06-20",
+      existingPlan: null,
+      version: 1,
+    });
+
+    expect(plan.pedagogy?.sessionObjective).toBe(pkg.input.objective);
+    expect(plan.pedagogy?.blocks?.warmup.activities).toHaveLength(
+      pkg.final.warmup.activities.length
+    );
+    expect(plan.pedagogy?.blocks?.main.activities).toHaveLength(
+      pkg.final.main.activities.length
+    );
+    expect(
+      plan.pedagogy?.blocks?.main.activities.every((activity) =>
+        Boolean(activity.description?.trim())
+      )
+    ).toBe(true);
+    expect(plan.pedagogy?.blocks?.main.activities[0]?.name).toBe(
+      pkg.final.main.activities[0]?.name
+    );
+  });
+
   it("persists the structured decision trace inside pedagogy", () => {
     const pkg = buildPedagogicalPlan({
       classGroup: buildClassGroup(),

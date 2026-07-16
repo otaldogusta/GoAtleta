@@ -30,6 +30,7 @@ import {
   getStudentsByClass,
   getTrainingPlans,
 } from "../../../db/seed";
+import { resolveClassPlanForSessionDate } from "../application/resolve-class-plan-for-session-date";
 
 type UseSessionDataParams = {
   classId: string;
@@ -40,20 +41,6 @@ type UseSessionDataParams = {
 };
 
 export type SessionDataStatus = "loading" | "ready" | "not_found" | "error";
-
-const pickClassPlanForSessionDate = (plans: ClassPlan[], sessionDateValue: string) => {
-  if (!plans.length) return null;
-  const targetTime = Date.parse(`${sessionDateValue}T00:00:00`);
-  const sorted = [...plans].sort((a, b) => {
-    const aTime = Date.parse(`${a.startDate}T00:00:00`);
-    const bTime = Date.parse(`${b.startDate}T00:00:00`);
-    return aTime - bTime;
-  });
-  const candidate = [...sorted]
-    .reverse()
-    .find((plan) => Date.parse(`${plan.startDate}T00:00:00`) <= targetTime);
-  return candidate ?? sorted[0] ?? null;
-};
 
 const getLatestFinalPlanForSession = async (
   organizationId: string | null,
@@ -253,7 +240,7 @@ export function useSessionData({
           organizationId: cls.organizationId ?? null,
         });
         if (cancelled) return;
-        setCurrentClassPlan(pickClassPlanForSessionDate(plans, sessionDate));
+        setCurrentClassPlan(resolveClassPlanForSessionDate(plans, sessionDate));
       } catch {
         if (!cancelled) setCurrentClassPlan(null);
       } finally {

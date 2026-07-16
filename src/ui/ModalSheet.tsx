@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -42,6 +42,8 @@ function acquireWebScrollLock() {
       bodyPosition: body.style.position,
       bodyTop: body.style.top,
       bodyWidth: body.style.width,
+      bodyBoxSizing: body.style.boxSizing,
+      bodyScrollbarGutter: body.style.scrollbarGutter,
       bodyPaddingRight: body.style.paddingRight,
       rootOverflow: root?.style.overflow ?? "",
       rootHeight: root?.style.height ?? "",
@@ -55,6 +57,8 @@ function acquireWebScrollLock() {
     body.style.position = "fixed";
     body.style.top = `-${scrollY}px`;
     body.style.width = "100%";
+    body.style.boxSizing = "border-box";
+    body.style.scrollbarGutter = "auto";
     if (scrollbarWidth > 0) {
       body.style.paddingRight = `${computedPaddingRight + scrollbarWidth}px`;
     }
@@ -72,6 +76,8 @@ function acquireWebScrollLock() {
       body.style.position = previous.bodyPosition;
       body.style.top = previous.bodyTop;
       body.style.width = previous.bodyWidth;
+      body.style.boxSizing = previous.bodyBoxSizing;
+      body.style.scrollbarGutter = previous.bodyScrollbarGutter;
       body.style.paddingRight = previous.bodyPaddingRight;
       if (root) {
         root.style.overflow = previous.rootOverflow;
@@ -140,7 +146,7 @@ export function ModalSheet({
     });
   }, [anim, isMounted, visible]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof document === "undefined" || !visible) return undefined;
     return acquireWebScrollLock();
   }, [visible]);

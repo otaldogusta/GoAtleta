@@ -2,6 +2,7 @@ import type { ClassGroup, TrainingPlan } from "../../../core/models";
 import { resolveTrainingPlanBlock } from "../../../core/training-plan-blocks";
 import type { SessionPlanPdfData } from "../../../pdf/templates/session-plan";
 import { normalizeDisplayText } from "../../../utils/text-normalization";
+import { resolveClassPlanActivityDescription } from "./edit-class-training-plan";
 
 type BuildClassPlanPdfDataInput = {
   classGroup: ClassGroup;
@@ -65,7 +66,9 @@ const blockData = (
     items: block.activities.map((activity) => ({
       ...activity,
       name: normalizeDisplayText(activity.name),
-      description: normalizeDisplayText(activity.description ?? ""),
+      description: normalizeDisplayText(
+        resolveClassPlanActivityDescription(plan, key, activity)
+      ),
     })),
   };
 };
@@ -108,6 +111,7 @@ export const buildClassPlanPdfData = ({
     specificObjective: normalizeDisplayText(specificObjective),
     weeklyFocus: normalizeDisplayText(weeklyFocus),
     pedagogicalRule: normalizeDisplayText(learningObjectives?.pedagogicalGuidelines?.[0] ?? ""),
+    notes: normalizeDisplayText(plan.pedagogy?.lessonPlanObservations ?? ""),
     totalTime: `${warmupMinutes + mainMinutes + cooldownMinutes} min`,
     blocks: [
       blockData(plan, "warmup", "Aquecimento", warmupMinutes),

@@ -494,12 +494,93 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.sessionPlanningContext.upcomingEvents[0]?.title).toBe("Festival da unidade");
     expect(result.package.input.sessionPlanningContext?.recentDifficulties).toContain("comunicacao");
     expect(result.package.input.sessionPlanningContext?.recentActivityFamilies).toContain("alvo_zona");
+    expect(result.package.input.sessionPlanningContext?.recentActivityNames).toContain("Passe para alvo");
     expect(visibleText).toContain("Quem recebe chama a bola antes do contato");
     expect(visibleText).toContain("Festival da unidade em 13/04");
     expect(visibleText.toLowerCase()).not.toContain("levantamento");
     expect(visibleText).not.toContain("Foco do professor:");
     expect(visibleText).not.toContain("Critério de sucesso:");
     expect(visibleText).not.toContain("Adaptação:");
+  });
+
+  it("avoids repeating the same activity set on the next lesson of the class", () => {
+    const classGroup = buildClassGroup({
+      name: "Primeiros Saques",
+      ageBand: "08-11",
+      level: 1,
+      daysPerWeek: 2,
+      daysOfWeek: [2, 5],
+      goal: "Fundamentos",
+    });
+    const classPlan = buildClassPlan({
+      phase: "base",
+      technicalFocus: "Passe",
+      theme: "Primeiro contato jogável",
+    });
+    const first = buildAutoPlanForCycleDay({
+      classGroup,
+      classPlan,
+      students: [buildStudent()],
+      sessionDate: "2026-04-07",
+      recentPlans: [],
+    });
+    const firstNames = [
+      ...first.package.final.warmup.activities,
+      ...first.package.final.main.activities,
+      ...first.package.final.cooldown.activities,
+    ].map((activity) => activity.name);
+    const firstPlan = buildTrainingPlan({
+      id: "plan_first_serves_1",
+      classId: classGroup.id,
+      applyDate: "2026-04-07",
+      createdAt: "2026-04-07T10:00:00.000Z",
+      warmup: first.package.final.warmup.activities.map((activity) => activity.name),
+      main: first.package.final.main.activities.map((activity) => activity.name),
+      cooldown: first.package.final.cooldown.activities.map((activity) => activity.name),
+      pedagogy: {
+        focus: { skill: first.strategy.primarySkill },
+        progression: { dimension: first.strategy.progressionDimension },
+        sessionObjective: first.package.input.objective,
+      },
+    });
+
+    const second = buildAutoPlanForCycleDay({
+      classGroup,
+      classPlan,
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      recentPlans: [firstPlan],
+    });
+    const secondNames = [
+      ...second.package.final.warmup.activities,
+      ...second.package.final.main.activities,
+      ...second.package.final.cooldown.activities,
+    ].map((activity) => activity.name);
+
+    expect(second.sessionPlanningContext.recentActivityNames).toEqual(
+      expect.arrayContaining(firstNames)
+    );
+    expect(secondNames).not.toEqual(firstNames);
+    expect(secondNames.filter((name) => firstNames.includes(name)).length).toBeLessThan(
+      firstNames.length
+    );
+  });
+
+  it("does not use plans from a future lesson as generation history", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup(),
+      classPlan: buildClassPlan(),
+      students: [buildStudent()],
+      sessionDate: "2026-04-10",
+      recentPlans: [
+        buildTrainingPlan({
+          applyDate: "2026-04-17",
+          main: ["Atividade futura"],
+        }),
+      ],
+    });
+
+    expect(result.sessionPlanningContext.recentActivityNames).not.toContain("Atividade futura");
   });
 
   it("does not invent event reminders when no class or unit event is provided", () => {
