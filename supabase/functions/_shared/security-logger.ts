@@ -85,13 +85,15 @@ const hashHostname = async (hostname: string): Promise<string> => {
 const applyHostnamePolicy = async (
   payload: Omit<SecurityLogPayload, "event">
 ): Promise<Omit<SecurityLogPayload, "event">> => {
-  if (!payload.hostname || _hostnamePolicy === "plain") return payload;
+  const hostname =
+    typeof payload.hostname === "string" ? payload.hostname : "";
+  if (!hostname || _hostnamePolicy === "plain") return payload;
   if (_hostnamePolicy === "omit") {
     const { hostname: _dropped, ...rest } = payload;
     return rest;
   }
   // "hash" mode
-  return { ...payload, hostname: `sha256:${await hashHostname(payload.hostname)}` };
+  return { ...payload, hostname: `sha256:${await hashHostname(hostname)}` };
 };
 
 export const securityLogger = {
@@ -126,5 +128,4 @@ export const securityLogger = {
     _sink("info", { event, ...(await applyHostnamePolicy(payload)) });
   },
 };
-
 

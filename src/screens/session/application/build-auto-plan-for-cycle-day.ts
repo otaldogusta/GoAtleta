@@ -77,6 +77,9 @@ export type BuildAutoPlanForCycleDayParams = {
   sessionIndexInWeek?: number;
   variationSeed?: number;
   dimensionGuidelines?: string[];
+  documentSupport?: SessionPlanningContext["documentSupport"];
+  /** Compatibilidade temporária para chamadas anteriores à camada unificada. */
+  academicSupport?: SessionPlanningContext["academicSupport"];
 };
 
 export type AutoPlanForCycleDayResult = {
@@ -299,6 +302,8 @@ export const buildAutoPlanForCycleDay = (
     readinessState,
     adaptiveEnvelope,
     coachGuidance,
+    documentSupport: params.documentSupport,
+    academicSupport: params.academicSupport,
   });
   sessionPlanningContext.classProfile.size = params.students.length;
   const pkg = buildPedagogicalInputFromContext({

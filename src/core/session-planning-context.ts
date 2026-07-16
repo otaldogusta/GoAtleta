@@ -23,6 +23,7 @@ export type {
   SessionPlanningClassProfile,
   SessionPlanningContext,
   SessionPlanningDailyPlanAnchor,
+  SessionPlanningDocumentSupport,
   SessionPlanningUpcomingEvent,
 } from "./session-planning-context-contract";
 export {
@@ -134,6 +135,9 @@ export const buildSessionPlanningContext = (params: {
   readinessState?: ClassReadinessState;
   adaptiveEnvelope?: AdaptiveLessonEnvelope;
   coachGuidance?: SessionCoachGuidance;
+  documentSupport?: SessionPlanningContext["documentSupport"];
+  /** Compatibilidade temporária para chamadas anteriores à camada unificada. */
+  academicSupport?: SessionPlanningContext["academicSupport"];
 }): SessionPlanningContext => {
   const recentPlans = [...(params.recentPlans ?? [])].slice(0, 5);
   const recentDifficulties = uniqueStrings(
@@ -151,6 +155,7 @@ export const buildSessionPlanningContext = (params: {
   const reportFeedback = summarizeReportFeedbackSignals(
     (params.recentSessions ?? []).flatMap((session) => session.pedagogicalFeedbackSignals ?? [])
   );
+  const documentSupport = params.documentSupport ?? params.academicSupport;
 
   return {
     schemaVersion: SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
@@ -195,5 +200,14 @@ export const buildSessionPlanningContext = (params: {
     ...(params.readinessState ? { readinessState: params.readinessState } : {}),
     ...(params.adaptiveEnvelope ? { adaptiveEnvelope: params.adaptiveEnvelope } : {}),
     ...(params.coachGuidance ? { coachGuidance: params.coachGuidance } : {}),
+    ...(documentSupport
+      ? {
+          documentSupport: {
+            ...documentSupport,
+            references: [...documentSupport.references],
+            warnings: [...documentSupport.warnings],
+          },
+        }
+      : {}),
   };
 };

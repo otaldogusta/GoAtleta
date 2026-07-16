@@ -484,7 +484,7 @@ const resolvePlanningFocusSkills = (input: PlanningInput, objectiveText: string)
   const planningContext = input.sessionPlanningContext;
   const contextFocus = planningContext?.skillFocus;
   if (contextFocus) {
-    if (contextFocus === "passe" || hasPassReceptionIntent(objectiveText)) {
+    if (contextFocus === "passe") {
       return ["passe"];
     }
     return unique([

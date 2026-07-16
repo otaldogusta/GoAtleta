@@ -20,6 +20,9 @@ export async function resolveAIMemory(
 ): Promise<AIFact[]> {
   const { user, navigation } = context;
   const nowIso = new Date().toISOString();
+  const activeClassId =
+    context.action.classId ??
+    (navigation.screen === "class_detail" ? navigation.entityId : undefined);
 
   // Build OR condition targets to query relevant scope in a single batch
   const targets: string[] = [];
@@ -28,8 +31,8 @@ export async function resolveAIMemory(
   targets.push(`and(subject_type.eq.coach,subject_id.eq.${user.id})`);
 
   // 2. Class Patterns
-  if (navigation.screen === "class_detail" && navigation.entityId) {
-    targets.push(`and(subject_type.eq.class,subject_id.eq.${navigation.entityId})`);
+  if (activeClassId) {
+    targets.push(`and(subject_type.eq.class,subject_id.eq.${activeClassId})`);
   }
 
   // 3. Student Motor Skills
@@ -50,9 +53,11 @@ export async function resolveAIMemory(
     console.error("[AIMemory Error]: Failed to fetch facts:", error);
   }
 
-  const factsList = ((data ?? []) as Omit<AIFact, "memory_scope">[]).map((fact) => ({
+  const factsList: AIFact[] = (
+    (data ?? []) as Omit<AIFact, "memory_scope">[]
+  ).map((fact) => ({
     ...fact,
-    memory_scope: "workspace" as const,
+    memory_scope: "workspace",
   }));
 
   // User-global facts are intentionally stored outside ai_facts so operational
@@ -84,18 +89,26 @@ export async function resolveAIMemory(
   }
 
   // 4. Query recent Decision Outcomes to aggregate behavior/feedback
-  const { data: outcomes, error: outcomesError } = await supabase
+  let outcomesQuery = supabase
     .from("ai_decision_outcomes")
     .select(`
       coach_action,
       feedback,
       ai_decision_traces!inner (
         decision,
-        user_id
+        user_id,
+        class_id
       )
     `)
     .eq("organization_id", user.organizationId)
-    .eq("ai_decision_traces.user_id", user.id)
+    .eq("ai_decision_traces.user_id", user.id);
+  if (activeClassId) {
+    outcomesQuery = outcomesQuery.eq(
+      "ai_decision_traces.class_id",
+      activeClassId
+    );
+  }
+  const { data: outcomes, error: outcomesError } = await outcomesQuery
     .order("created_at", { ascending: false })
     .limit(15);
 

@@ -55,7 +55,7 @@ const createSupabaseClientWithToken = (token: string) => {
   });
 };
 
-const jsonResponse = (body: unknown, status = 200) =>
+const jsonResponse = (req: Request, body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { ...buildCorsHeaders(req), "Content-Type": "application/json" },
@@ -269,13 +269,13 @@ const ensureStringArray = (value: unknown) =>
         .map((item) => item.slice(0, 64))
     : [];
 
-const handleSearch = async (payload: Record<string, unknown>) => {
+const handleSearch = async (req: Request, payload: Record<string, unknown>) => {
   const queryValidation = validateStringField(payload.query, {
     minLength: 3,
     maxLength: 240,
   });
   if (!queryValidation.ok) {
-    return jsonResponse({ error: `Invalid query: ${queryValidation.error}` }, 400);
+    return jsonResponse(req, { error: `Invalid query: ${queryValidation.error}` }, 400);
   }
 
   const maxResultsValidation = validateNumberField(payload.maxResults ?? 8, {
@@ -284,14 +284,14 @@ const handleSearch = async (payload: Record<string, unknown>) => {
     integer: true,
   });
   if (!maxResultsValidation.ok) {
-    return jsonResponse({ error: `Invalid maxResults: ${maxResultsValidation.error}` }, 400);
+    return jsonResponse(req, { error: `Invalid maxResults: ${maxResultsValidation.error}` }, 400);
   }
   const query = queryValidation.data;
   const maxResults = maxResultsValidation.data;
 
   const ids = await fetchPubMedIds(query, maxResults);
   if (!ids.length) {
-    return jsonResponse({ studies: [] });
+    return jsonResponse(req, { studies: [] });
   }
 
   const [summaryRows, abstractMap] = await Promise.all([
@@ -304,16 +304,16 @@ const handleSearch = async (payload: Record<string, unknown>) => {
     abstract: abstractMap.get(row.pmid) ?? "",
   }));
 
-  return jsonResponse({ studies });
+  return jsonResponse(req, { studies });
 };
 
-const handleSummarize = async (payload: Record<string, unknown>) => {
+const handleSummarize = async (req: Request, payload: Record<string, unknown>) => {
   const studiesValidation = validateArrayLength<PubMedStudy>(payload.studies, {
     minLength: 1,
     maxLength: 20,
   });
   if (!studiesValidation.ok) {
-    return jsonResponse({ error: `Invalid studies: ${studiesValidation.error}` }, 400);
+    return jsonResponse(req, { error: `Invalid studies: ${studiesValidation.error}` }, 400);
   }
   const questionValidation = validateStringField(payload.question, { maxLength: 500 });
   const studies = studiesValidation.data;
@@ -347,25 +347,29 @@ const handleSummarize = async (payload: Record<string, unknown>) => {
     suggestedTags,
   };
 
-  return jsonResponse({ summary });
+  return jsonResponse(req, { summary });
 };
 
-const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>) => {
+const handleApprove = async (
+  req: Request,
+  ctx: UserContext,
+  payload: Record<string, unknown>
+) => {
   const organizationValidation = validateStringField(payload.organizationId, {
     minLength: 1,
     maxLength: 128,
   });
   if (!organizationValidation.ok) {
-    return jsonResponse({ error: `Invalid organizationId: ${organizationValidation.error}` }, 400);
+    return jsonResponse(req, { error: `Invalid organizationId: ${organizationValidation.error}` }, 400);
   }
   const organizationId = organizationValidation.data;
   if (!organizationId) {
-    return jsonResponse({ error: "organizationId é obrigatório para aprovação." }, 400);
+    return jsonResponse(req, { error: "organizationId é obrigatório para aprovação." }, 400);
   }
 
   const isAdmin = await ensureOrgAdmin(ctx, organizationId);
   if (!isAdmin) {
-    return jsonResponse({ error: "Apenas admins da organização podem aprovar evidências." }, 403);
+    return jsonResponse(req, { error: "Apenas admins da organização podem aprovar evidências." }, 403);
   }
 
   const studiesValidation = validateArrayLength<PubMedStudy>(payload.studies, {
@@ -373,7 +377,7 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
     maxLength: 20,
   });
   if (!studiesValidation.ok) {
-    return jsonResponse({ error: `Invalid studies: ${studiesValidation.error}` }, 400);
+    return jsonResponse(req, { error: `Invalid studies: ${studiesValidation.error}` }, 400);
   }
   const studies = studiesValidation.data;
   const summary = (payload.summary ?? null) as SummaryPayload | null;
@@ -383,12 +387,12 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
   const level = levelValidation.ok && levelValidation.data ? levelValidation.data : "general";
 
   if (!studies.length) {
-    return jsonResponse({ error: "Nenhum estudo selecionado para aprovação." }, 400);
+    return jsonResponse(req, { error: "Nenhum estudo selecionado para aprovação." }, 400);
   }
 
   const supabase = createSupabaseClientWithToken(ctx.token);
   if (!supabase) {
-    return jsonResponse({ error: "Configuração de Supabase indisponível." }, 500);
+    return jsonResponse(req, { error: "Configuração de Supabase indisponível." }, 500);
   }
 
   const tags = unique([
@@ -451,10 +455,10 @@ const handleApprove = async (ctx: UserContext, payload: Record<string, unknown>)
     .upsert(rows, { onConflict: "id" });
 
   if (error) {
-    return jsonResponse({ error: error.message || "Falha ao salvar evidências aprovadas." }, 500);
+    return jsonResponse(req, { error: error.message || "Falha ao salvar evidências aprovadas." }, 500);
   }
 
-  return jsonResponse({
+  return jsonResponse(req, {
     approvedCount: rows.length,
     documentIds: rows.map((row) => row.id),
   });
@@ -466,18 +470,18 @@ Deno.serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return jsonResponse({ error: "Method not allowed" }, 405);
+    return jsonResponse(req, { error: "Method not allowed" }, 405);
   }
 
   try {
     const ctx = await requireUser(req);
     if (!ctx) {
-      return jsonResponse({ error: "Unauthorized" }, 401);
+      return jsonResponse(req, { error: "Unauthorized" }, 401);
     }
 
     const payload = (await parseJson(req)) as Record<string, unknown> | null;
     if (!payload) {
-      return jsonResponse({ error: "Payload inválido." }, 400);
+      return jsonResponse(req, { error: "Payload inválido." }, 400);
     }
 
     const actionValidation = validateStringField(payload.action, {
@@ -485,7 +489,7 @@ Deno.serve(async (req: Request) => {
       maxLength: 24,
     });
     if (!actionValidation.ok) {
-      return jsonResponse({ error: `Invalid action: ${actionValidation.error}` }, 400);
+      return jsonResponse(req, { error: `Invalid action: ${actionValidation.error}` }, 400);
     }
     const action = actionValidation.data.toLowerCase();
     const organizationValidation = validateStringField(payload.organizationId, { maxLength: 128 });
@@ -494,25 +498,25 @@ Deno.serve(async (req: Request) => {
     if (organizationId) {
       const member = await ensureMember(ctx, organizationId);
       if (!member) {
-        return jsonResponse({ error: "Usuário sem acesso a esta organização." }, 403);
+        return jsonResponse(req, { error: "Usuário sem acesso a esta organização." }, 403);
       }
     }
 
     if (action === "search") {
-      return await handleSearch(payload);
+      return await handleSearch(req, payload);
     }
 
     if (action === "summarize") {
-      return await handleSummarize(payload);
+      return await handleSummarize(req, payload);
     }
 
     if (action === "approve") {
-      return await handleApprove(ctx, payload);
+      return await handleApprove(req, ctx, payload);
     }
 
-    return jsonResponse({ error: "Ação inválida. Use search, summarize ou approve." }, 400);
+    return jsonResponse(req, { error: "Ação inválida. Use search, summarize ou approve." }, 400);
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Erro interno inesperado.";
-    return jsonResponse({ error: detail }, 500);
+    return jsonResponse(req, { error: detail }, 500);
   }
 });

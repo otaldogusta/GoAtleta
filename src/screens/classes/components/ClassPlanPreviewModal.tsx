@@ -45,6 +45,7 @@ import {
   CLASS_PLAN_BLOCK_PRESENTATION,
   summarizeClassPlanActivities,
 } from "./class-plan-block-presentation";
+import { AppliedPlanReferencesSection } from "./AppliedPlanReferencesSection";
 
 type ClassPlanPreviewModalProps = {
   visible: boolean;
@@ -516,6 +517,9 @@ export function ClassPlanPreviewModal({
           </View>
           <GoAtletaIcon name="pencil" size={15} color={colors.text} />
         </Pressable>
+        <AppliedPlanReferencesSection
+          references={workingPlan.pedagogy?.appliedReferences}
+        />
         {BLOCKS.map((item) => {
           const block = resolveTrainingPlanBlock(workingPlan, item.key);
           const activitySummary = summarizeClassPlanActivities(block.activities);

@@ -31,6 +31,7 @@ import {
     resolveSessionObjectiveText,
 } from "../../../src/screens/session/application/session-objective-summary";
 import { convertPedagogicalPackageToTrainingPlan } from "../../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
+import { retrieveDocumentSupportForPlan } from "../../../src/screens/session/application/retrieve-document-support-for-plan";
 import {
     BlockEditModal,
     type BlockEditPayload,
@@ -2763,7 +2764,13 @@ export function SessionScreen({
   };
 
   const buildAutoPlanResultFromSessionContext = useCallback(
-    (variationSeed?: number, dimensionGuidelines?: string[]): AutoPlanForCycleDayResult | null => {
+    (
+      variationSeed?: number,
+      dimensionGuidelines?: string[],
+      documentSupport?: Parameters<
+        typeof buildAutoPlanForCycleDay
+      >[0]["documentSupport"]
+    ): AutoPlanForCycleDayResult | null => {
       if (!cls) return null;
       return buildAutoPlanForCycleDay({
         classGroup: cls,
@@ -2777,6 +2784,7 @@ export function SessionScreen({
         upcomingEvents: upcomingSessionEvents,
         variationSeed,
         dimensionGuidelines,
+        documentSupport,
       });
     },
     [
@@ -2805,7 +2813,17 @@ export function SessionScreen({
           currentClassPlan,
           pedagogicalConfig
         );
-        const autoPlanResult = buildAutoPlanResultFromSessionContext(variationSeed, guidelines);
+        const documentSupport = await retrieveDocumentSupportForPlan({
+          classGroup: cls,
+          sessionDate,
+          classPlan: currentClassPlan,
+          dailyLessonPlan: currentDailyLessonPlan,
+        });
+        const autoPlanResult = buildAutoPlanResultFromSessionContext(
+          variationSeed,
+          guidelines,
+          documentSupport
+        );
         if (!autoPlanResult) return null;
         logPlanGenerationDecision({
           classId: cls.id,

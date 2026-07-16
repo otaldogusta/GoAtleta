@@ -6,6 +6,7 @@ import type {
   TrainingPlanObjectiveType,
   VolleyballSkill,
 } from "../../../core/models";
+import { sanitizeUntrustedAcademicContent } from "../../../core/document-intelligence";
 import type { PedagogicalPlanPackage } from "../../../core/pedagogical-planning";
 import { createTrainingPlanVersion } from "../../../core/training-plan-factory";
 import { getLessonBlockTimes } from "../../../utils/lesson-block-times";
@@ -17,12 +18,41 @@ const pedagogicalObjectiveLabels: Record<string, string> = {
   jogo_reduzido: "Jogo reduzido",
 };
 
+const volleyballSkillLabels: Record<VolleyballSkill, string> = {
+  saque: "Saque",
+  passe: "Passe",
+  levantamento: "Levantamento",
+  ataque: "Ataque",
+  bloqueio: "Bloqueio",
+  defesa: "Defesa",
+  transicao: "Transição",
+};
+
 const normalizePedagogicalText = (value: string) =>
   String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+
+const uniqueStrings = (values: (string | null | undefined)[]) =>
+  [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
+
+const getAppliedDocumentReferences = (pkg: PedagogicalPlanPackage) =>
+  pkg.input.sessionPlanningContext?.documentSupport?.references ??
+  pkg.input.sessionPlanningContext?.academicSupport?.references ??
+  [];
+
+const buildDocumentPedagogicalGuidelines = (pkg: PedagogicalPlanPackage) =>
+  uniqueStrings(
+    getAppliedDocumentReferences(pkg).map(
+      (reference) =>
+        sanitizeUntrustedAcademicContent(reference.influence)
+          .sanitizedContent.replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 240)
+    )
+  );
 
 const inferFocusSkill = (pkg: PedagogicalPlanPackage): VolleyballSkill => {
   const structuredSkill = [
@@ -67,7 +97,11 @@ const inferObjectiveType = (
   return "tecnico";
 };
 
-export const pickPedagogicalObjectiveLabel = (value: string) => {
+export const pickPedagogicalObjectiveLabel = (
+  value: string,
+  structuredSkill?: VolleyballSkill
+) => {
+  if (structuredSkill) return volleyballSkillLabels[structuredSkill];
   const normalized = normalizePedagogicalText(value);
   if (!normalized) return pedagogicalObjectiveLabels.controle_bola;
   if (normalized.includes("passe") || normalized.includes("recep")) {
@@ -158,6 +192,22 @@ export const buildGeneratedPlanPedagogy = (
   pkg: PedagogicalPlanPackage,
   pedagogy?: TrainingPlanPedagogy
 ): TrainingPlanPedagogy => {
+  const documentGuidelines = buildDocumentPedagogicalGuidelines(pkg);
+  const learningObjectives = pedagogy?.learningObjectives
+    ? {
+        ...pedagogy.learningObjectives,
+        pedagogicalGuidelines: uniqueStrings([
+          ...(pedagogy.learningObjectives.pedagogicalGuidelines ?? []),
+          ...documentGuidelines,
+        ]),
+      }
+    : documentGuidelines.length
+      ? {
+          general: pkg.input.objective,
+          specific: [],
+          pedagogicalGuidelines: documentGuidelines,
+        }
+      : undefined;
   const generatedBlocks: NonNullable<TrainingPlanPedagogy["blocks"]> = {
     warmup: {
       summary: pkg.final.warmup.summary,
@@ -175,6 +225,10 @@ export const buildGeneratedPlanPedagogy = (
 
   return {
     ...pedagogy,
+    appliedReferences:
+      pedagogy?.appliedReferences ??
+      getAppliedDocumentReferences(pkg),
+    learningObjectives,
     sessionPlanningContext:
       pedagogy?.sessionPlanningContext ?? pkg.input.sessionPlanningContext,
     sessionObjective: pedagogy?.sessionObjective ?? pkg.input.objective,
@@ -207,7 +261,11 @@ export const convertPedagogicalPackageToTrainingPlan = ({
   pedagogy?: TrainingPlanPedagogy;
 }): TrainingPlan => {
   const nowIso = new Date().toISOString();
-  const title = `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`;
+  const titleSkill = pedagogy?.focus?.skill ?? inferFocusSkill(pkg);
+  const title = `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(
+    pkg.input.objective,
+    titleSkill
+  )}`;
   const blockTimes = getLessonBlockTimes(pkg.input.duration ?? 60);
   return createTrainingPlanVersion({
     classId,
@@ -243,7 +301,10 @@ export const convertPedagogicalPackageToTrainingPlan = ({
 export const buildPedagogicalPlanDraft = (pkg: PedagogicalPlanPackage) => {
   const blockTimes = getLessonBlockTimes(pkg.input.duration ?? 60);
   return {
-    title: `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(pkg.input.objective)}`,
+    title: `${pkg.input.classGroup.name} · ${pickPedagogicalObjectiveLabel(
+      pkg.input.objective,
+      inferFocusSkill(pkg)
+    )}`,
     tags: [
       `modo:${pkg.generated.basePlanKind}`,
       `nivel:${pkg.analysis.level}`,

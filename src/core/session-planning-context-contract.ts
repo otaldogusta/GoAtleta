@@ -9,6 +9,10 @@ import type {
   VolleyballSkill,
   WeeklyLoadIntent,
 } from "./models";
+import type {
+  AppliedPedagogicalReference,
+  DocumentReadOnlyActionContract,
+} from "./document-intelligence/types";
 
 export const SESSION_PLANNING_CONTEXT_SCHEMA_VERSION = 1 as const;
 
@@ -57,6 +61,15 @@ export type SessionPlanningDailyPlanAnchor = {
   conflictReasons: string[];
 };
 
+export type SessionPlanningDocumentSupport = {
+  status: "available" | "no_relevant_content" | "unavailable";
+  references: AppliedPedagogicalReference[];
+  warnings: string[];
+  retrievalMode?: "semantic" | "lexical_fallback" | "contextual";
+  actionDate?: string;
+  actionContract?: DocumentReadOnlyActionContract;
+};
+
 export type SessionPlanningContext = {
   schemaVersion: SessionPlanningContextSchemaVersion;
   classId: string;
@@ -88,6 +101,9 @@ export type SessionPlanningContext = {
   readinessState?: ClassReadinessState;
   adaptiveEnvelope?: AdaptiveLessonEnvelope;
   coachGuidance?: SessionCoachGuidance;
+  documentSupport?: SessionPlanningDocumentSupport;
+  /** Compatibilidade de leitura para snapshots criados antes da camada unificada. */
+  academicSupport?: SessionPlanningDocumentSupport;
 };
 
 export type ParsedSessionPlanningContext =
@@ -111,6 +127,66 @@ const volleyballSkills: VolleyballSkill[] = [
   "saque",
   "transicao",
 ];
+
+const referenceSourceScopes = new Set<
+  AppliedPedagogicalReference["sourceScope"]
+>([
+  "user_academic",
+  "workspace_academic",
+  "institutional",
+  "class_planning",
+  "realized_history",
+  "periodization",
+  "scientific",
+  "system_general",
+]);
+
+const referenceMaterialTypes = new Set<
+  AppliedPedagogicalReference["materialType"]
+>([
+  "official_norm",
+  "scientific_article",
+  "book_or_chapter",
+  "university_handout",
+  "lecture_presentation",
+  "student_summary",
+  "personal_note",
+  "monthly_plan",
+  "lesson_plan",
+  "realized_report",
+  "institutional_actions",
+  "unknown",
+]);
+
+const referenceEvidenceLevels = new Set<
+  AppliedPedagogicalReference["evidenceLevel"]
+>([
+  "official_norm",
+  "scientific_research",
+  "published_book",
+  "institutional_academic_material",
+  "classroom_academic_material",
+  "student_authored_summary",
+  "personal_note",
+  "confirmed_plan",
+  "realized_report",
+  "institutional_guidance",
+  "contextual_support",
+  "unknown_support",
+]);
+
+const referenceDocumentTypes = new Set<
+  NonNullable<AppliedPedagogicalReference["documentType"]>
+>([
+  "monthly_plan",
+  "lesson_plan",
+  "realized_report",
+  "institutional_actions",
+  "academic_reference",
+  "scientific_reference",
+  "regulation",
+  "unknown",
+]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -183,6 +259,125 @@ const parseDailyPlanAnchor = (value: unknown): SessionPlanningDailyPlanAnchor | 
     constraintHints: stringArray(value.constraintHints),
     conflictResolved: Boolean(value.conflictResolved),
     conflictReasons: stringArray(value.conflictReasons),
+  };
+};
+
+const parseAppliedReference = (
+  value: unknown
+): AppliedPedagogicalReference | null => {
+  if (!isRecord(value)) return null;
+  const id = stringValue(value.id);
+  const sourceDocumentId = stringValue(value.sourceDocumentId);
+  const title = stringValue(value.title);
+  const excerpt = stringValue(value.excerpt);
+  const influence = stringValue(value.influence);
+  const sourceScope = stringValue(value.sourceScope);
+  const materialType = stringValue(value.materialType);
+  const evidenceLevel = stringValue(value.evidenceLevel);
+  if (
+    !id ||
+    !sourceDocumentId ||
+    !title ||
+    !excerpt ||
+    !influence ||
+    !sourceScope ||
+    !materialType ||
+    !evidenceLevel ||
+    !referenceSourceScopes.has(
+      sourceScope as AppliedPedagogicalReference["sourceScope"]
+    ) ||
+    !referenceMaterialTypes.has(
+      materialType as AppliedPedagogicalReference["materialType"]
+    ) ||
+    !referenceEvidenceLevels.has(
+      evidenceLevel as AppliedPedagogicalReference["evidenceLevel"]
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    sourceDocumentId,
+    sourceRevisionId: stringValue(value.sourceRevisionId) || undefined,
+    contentHash: stringValue(value.contentHash) || undefined,
+    sourceScope:
+      sourceScope as AppliedPedagogicalReference["sourceScope"],
+    title,
+    origin: stringValue(value.origin) || "Base acadêmica pessoal",
+    discipline: stringValue(value.discipline) || undefined,
+    materialType:
+      materialType as AppliedPedagogicalReference["materialType"],
+    evidenceLevel:
+      evidenceLevel as AppliedPedagogicalReference["evidenceLevel"],
+    documentType: referenceDocumentTypes.has(
+      stringValue(value.documentType) as NonNullable<
+        AppliedPedagogicalReference["documentType"]
+      >
+    )
+      ? (stringValue(value.documentType) as NonNullable<
+          AppliedPedagogicalReference["documentType"]
+        >)
+      : undefined,
+    sourceDate: stringValue(value.sourceDate) || undefined,
+    confidence:
+      typeof value.confidence === "number" &&
+      Number.isFinite(value.confidence) &&
+      value.confidence >= 0 &&
+      value.confidence <= 1
+        ? value.confidence
+        : undefined,
+    period: stringValue(value.period) || undefined,
+    isPrimaryPlanningSource:
+      value.isPrimaryPlanningSource === true ? true : undefined,
+    sourceKind: stringValue(value.sourceKind) || undefined,
+    sourceLocation: stringValue(value.sourceLocation) || undefined,
+    excerpt,
+    influence,
+    appliedAt: stringValue(value.appliedAt) || undefined,
+  };
+};
+
+const parseDocumentSupport = (
+  value: unknown
+): SessionPlanningDocumentSupport | undefined => {
+  if (!isRecord(value)) return undefined;
+  const status =
+    value.status === "available" ||
+    value.status === "no_relevant_content" ||
+    value.status === "unavailable"
+      ? value.status
+      : "unavailable";
+  const actionContractValue = isRecord(value.actionContract)
+    ? value.actionContract
+    : null;
+  const validActionContract =
+    actionContractValue?.mode === "read_only" &&
+    actionContractValue?.requiresExplicitConfirmation === true &&
+    actionContractValue?.canWrite === false;
+
+  return {
+    status,
+    references: Array.isArray(value.references)
+      ? value.references
+          .map(parseAppliedReference)
+          .filter(
+            (
+              reference
+            ): reference is AppliedPedagogicalReference => Boolean(reference)
+          )
+      : [],
+    warnings: stringArray(value.warnings),
+    retrievalMode:
+      value.retrievalMode === "semantic" ||
+      value.retrievalMode === "lexical_fallback" ||
+      value.retrievalMode === "contextual"
+        ? value.retrievalMode
+        : undefined,
+    actionDate: stringValue(value.actionDate) || undefined,
+    actionContract: validActionContract
+      ? (actionContractValue as unknown as DocumentReadOnlyActionContract)
+      : undefined,
   };
 };
 
@@ -273,6 +468,9 @@ export const parseSessionPlanningContext = (
     coachGuidance: isRecord(value.coachGuidance)
       ? (value.coachGuidance as SessionCoachGuidance)
       : undefined,
+    documentSupport:
+      parseDocumentSupport(value.documentSupport) ??
+      parseDocumentSupport(value.academicSupport),
   };
 
   return { status, context, warnings };
