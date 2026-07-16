@@ -123,9 +123,11 @@ professor precisa ser cadastrada em `DOCUMENT_DRIVE_SOURCE_PROFILES` e
 sincronizada antes de aparecer no contexto. Pastas ainda não inventariadas
 permanecem pendentes, sem inferência de vínculo.
 
-O callback configurado em `GOOGLE_DRIVE_REDIRECT_URI` deve ser exatamente a URL
-da Edge Function `document-drive-oauth` e também constar nos redirects
-autorizados do cliente OAuth no Google Cloud.
+O callback configurado em `GOOGLE_DRIVE_REDIRECT_URI` deve ser exatamente
+`https://go-atleta.vercel.app/oauth/google-drive/callback` e também constar nos
+redirects autorizados do cliente OAuth no Google Cloud. A rewrite específica do
+Vercel encaminha essa rota para a Edge Function `document-drive-oauth` antes do
+fallback da SPA.
 
 ## Preflight da migration
 
