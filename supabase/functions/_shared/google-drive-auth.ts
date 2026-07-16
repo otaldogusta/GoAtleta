@@ -174,6 +174,18 @@ export async function refreshGoogleDriveAccessToken(params: {
   return parseTokenResponse(response);
 }
 
+export async function revokeGoogleDriveToken(token: string) {
+  const normalizedToken = textValue(token);
+  if (!normalizedToken) return false;
+  const response = await fetch("https://oauth2.googleapis.com/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token: normalizedToken }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  return response.ok;
+}
+
 const pemToPkcs8 = (value: string) => {
   const normalized = value
     .replace(/\\n/g, "\n")

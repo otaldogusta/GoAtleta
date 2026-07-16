@@ -45,6 +45,11 @@ unificado; não há uma segunda IA ou um contexto acadêmico paralelo.
 Em `auto`, a ordem é OAuth do usuário, conta de serviço e API key. Nenhum token,
 segredo ou `resourceKey` é incluído nos trechos, logs ou proveniência.
 
+Ao desconectar, o runtime tenta revogar o refresh token no Google e sempre
+remove a cópia cifrada local. Fontes, revisões, trechos já sincronizados e
+planos confirmados são preservados; apenas novas leituras do Drive deixam de ser
+possíveis até uma nova autorização.
+
 Google Docs são exportados em DOCX e convertidos em texto estruturado, mantendo
 linhas e colunas de tabelas. Google Sheets são exportados em XLSX e preservam
 planilha, linha e coluna. Slides e arquivos de texto permanecem em texto

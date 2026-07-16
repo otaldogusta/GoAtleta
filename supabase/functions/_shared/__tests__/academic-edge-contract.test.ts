@@ -91,6 +91,9 @@ describe("academic Edge runtime contract", () => {
     expect(oauthSource).toContain("hasOAuthCredential");
     expect(oauthSource).toContain("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON");
     expect(oauthSource).toContain("GOOGLE_DRIVE_API_KEY");
+    expect(oauthSource).toContain('action === "disconnect"');
+    expect(oauthSource).toContain("revokeGoogleDriveToken");
+    expect(oauthSource).toContain("preservedDocuments: true");
     expect(oauthSource).toContain("prompt: \"consent\"");
     expect(oauthSource).toContain("access_type: \"offline\"");
     expect(oauthSource).not.toContain("console.log");

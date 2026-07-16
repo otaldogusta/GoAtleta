@@ -5,6 +5,7 @@ import {
   createPkceVerifier,
   decryptDriveRefreshToken,
   encryptDriveRefreshToken,
+  revokeGoogleDriveToken,
   resolveGoogleDriveCredential,
   resolveSafeDriveReturnUrl,
 } from "../google-drive-auth.ts";
@@ -87,5 +88,22 @@ describe("Google Drive credential helpers", () => {
     expect(() =>
       resolveSafeDriveReturnUrl("https://example.com/steal"),
     ).toThrow("drive_oauth_return_url_not_allowed");
+  });
+
+  test("revoga a credencial no endpoint oficial sem expor o token na URL", async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = jest.fn().mockResolvedValue(new Response(null, {
+      status: 200,
+    }));
+    global.fetch = fetchMock as typeof fetch;
+    try {
+      await expect(revokeGoogleDriveToken("refresh-token")).resolves.toBe(true);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://oauth2.googleapis.com/revoke");
+      expect(url).not.toContain("refresh-token");
+      expect(String(init.body)).toContain("token=refresh-token");
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });

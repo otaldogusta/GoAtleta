@@ -18,13 +18,15 @@ import {
   GOOGLE_DRIVE_READONLY_SCOPE,
   createPkceChallenge,
   createPkceVerifier,
+  decryptDriveRefreshToken,
   encryptDriveRefreshToken,
   exchangeGoogleDriveAuthorizationCode,
+  revokeGoogleDriveToken,
   resolveSafeDriveReturnUrl,
 } from "../_shared/google-drive-auth.ts";
 
 type OAuthRequest = {
-  action?: "start" | "status";
+  action?: "start" | "status" | "disconnect";
   organizationId?: string;
   folderUrl?: string;
   sourceProfile?: DriveSourceProfile;
@@ -295,6 +297,13 @@ const handleAuthenticatedRequest = async (req: Request) => {
   } catch {
     return json(req, 400, { code: "BAD_REQUEST", error: "JSON inválido." });
   }
+  const action = body.action ?? "start";
+  if (!["start", "status", "disconnect"].includes(action)) {
+    return json(req, 400, {
+      code: "BAD_REQUEST",
+      error: "Ação OAuth inválida.",
+    });
+  }
   const organizationId = textValue(body.organizationId);
   if (!organizationId) {
     return json(req, 400, {
@@ -372,7 +381,7 @@ const handleAuthenticatedRequest = async (req: Request) => {
     }
   }
 
-  if (body.action === "status") {
+  if (action === "status") {
     const { data: connection } = await admin
       .from("google_drive_connections")
       .select(
@@ -415,6 +424,78 @@ const handleAuthenticatedRequest = async (req: Request) => {
             syncErrorCode: connection?.sync_error_code ?? null,
           }
         : null,
+    });
+  }
+
+  if (action === "disconnect") {
+    const { data: connection, error: connectionReadError } = await admin
+      .from("google_drive_connections")
+      .select(
+        "id,refresh_token_ciphertext,refresh_token_iv",
+      )
+      .eq("organization_id", organizationId)
+      .eq("user_id", user.id)
+      .eq("connection_scope", policy.connectionScope)
+      .eq("sync_root_folder_id", folderId)
+      .eq("source_profile", policy.sourceProfile)
+      .maybeSingle();
+    if (connectionReadError) {
+      return json(req, 500, {
+        code: "DRIVE_CONNECTION_READ_FAILED",
+        error: "Não foi possível consultar a conexão com o Drive.",
+      });
+    }
+
+    let providerRevoked = false;
+    const ciphertext = textValue(connection?.refresh_token_ciphertext);
+    const iv = textValue(connection?.refresh_token_iv);
+    const encryptionSecret = textValue(
+      Deno.env.get("DOCUMENT_TOKEN_ENCRYPTION_KEY"),
+    );
+    if (ciphertext && iv && encryptionSecret) {
+      try {
+        const refreshToken = await decryptDriveRefreshToken(
+          ciphertext,
+          iv,
+          encryptionSecret,
+        );
+        providerRevoked = await revokeGoogleDriveToken(refreshToken);
+      } catch {
+        providerRevoked = false;
+      }
+    }
+
+    if (connection?.id) {
+      const nowIso = new Date().toISOString();
+      const { error: connectionUpdateError } = await admin
+        .from("google_drive_connections")
+        .update({
+          refresh_token_secret_id: null,
+          refresh_token_ciphertext: null,
+          refresh_token_iv: null,
+          google_account_email: null,
+          expires_at: null,
+          token_updated_at: nowIso,
+          sync_status: "idle",
+          sync_error_code: null,
+          sync_error_message: null,
+          updated_at: nowIso,
+        })
+        .eq("id", connection.id)
+        .eq("organization_id", organizationId)
+        .eq("user_id", user.id);
+      if (connectionUpdateError) {
+        return json(req, 500, {
+          code: "DRIVE_DISCONNECT_FAILED",
+          error: "Não foi possível remover a credencial armazenada.",
+        });
+      }
+    }
+
+    return json(req, 200, {
+      status: "disconnected",
+      providerRevoked,
+      preservedDocuments: true,
     });
   }
 

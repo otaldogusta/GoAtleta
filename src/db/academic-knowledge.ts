@@ -270,6 +270,40 @@ export async function startPersonalAcademicDriveOAuth(params: {
   }
 }
 
+export async function disconnectPersonalAcademicDrive(params: {
+  organizationId?: string | null;
+  folderUrl?: string;
+}): Promise<AcademicDriveOAuthStatus> {
+  const organizationId = textValue(params.organizationId, 128);
+  if (!organizationId) {
+    return { status: "unavailable", warning: "Workspace inválido." };
+  }
+  try {
+    const response = await authenticatedFunctionRequest(
+      "document-drive-oauth",
+      {
+        action: "disconnect",
+        organizationId,
+        folderUrl:
+          textValue(params.folderUrl, 500) ||
+          DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
+      }
+    );
+    if (!response?.ok) {
+      return {
+        status: "unavailable",
+        warning: "Não foi possível desconectar o Google Drive.",
+      };
+    }
+    return { status: "not_connected" };
+  } catch {
+    return {
+      status: "unavailable",
+      warning: "Não foi possível desconectar o Google Drive.",
+    };
+  }
+}
+
 export async function syncPersonalAcademicDrive(params: {
   organizationId?: string | null;
   folderUrl?: string;

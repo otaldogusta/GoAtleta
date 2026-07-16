@@ -29,6 +29,7 @@ import {
 import { resolveEffectiveProfile } from "../src/core/effective-profile";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
 import {
+  disconnectPersonalAcademicDrive,
   getPersonalAcademicDriveOAuthStatus,
   startPersonalAcademicDriveOAuth,
   syncPersonalAcademicDrive,
@@ -288,6 +289,44 @@ export default function ProfileScreen() {
     academicDriveStatus.status,
     activeOrganization?.id,
     pathname,
+  ]);
+
+  const handleDisconnectAcademicDrive = useCallback(() => {
+    if (!activeOrganization?.id || academicDriveBusy) return;
+    confirm({
+      title: "Desconectar Google Drive",
+      message:
+        "O acesso armazenado será removido. Os documentos já sincronizados e os planos confirmados serão preservados.",
+      confirmLabel: "Desconectar",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        setAcademicDriveBusy(true);
+        try {
+          const result = await disconnectPersonalAcademicDrive({
+            organizationId: activeOrganization.id,
+          });
+          if (result.status === "not_connected") {
+            setAcademicDriveStatus({ status: "not_connected" });
+            Alert.alert(
+              "Base acadêmica",
+              "Google Drive desconectado. Os documentos já sincronizados foram preservados.",
+            );
+            return;
+          }
+          Alert.alert(
+            "Base acadêmica",
+            result.warning || "Não foi possível desconectar o Google Drive.",
+          );
+        } finally {
+          setAcademicDriveBusy(false);
+        }
+      },
+    });
+  }, [
+    academicDriveBusy,
+    activeOrganization?.id,
+    confirm,
   ]);
 
   const currentClass = useMemo(() => {
@@ -896,53 +935,76 @@ export default function ProfileScreen() {
                 }
               />
               {!student && Platform.OS === "web" ? (
-                <SettingsRow
-                  icon="documentAttach"
-                  iconBg="rgba(86, 214, 154, 0.14)"
-                  label="Base acadêmica"
-                  subtitle={
-                    academicDriveStatus.status === "connected"
-                      ? academicDriveStatus.googleAccountEmail
-                        ? `Google Drive conectado: ${academicDriveStatus.googleAccountEmail}`
-                        : "Google Drive conectado · toque para sincronizar"
-                      : "Conecte seu Google Drive com acesso somente leitura"
-                  }
-                  onPress={() => {
-                    void handleAcademicDrive();
-                  }}
-                  rightContent={
-                    <View
+                <View style={{ gap: 6 }}>
+                  <SettingsRow
+                    icon="documentAttach"
+                    iconBg="rgba(86, 214, 154, 0.14)"
+                    label="Base acadêmica"
+                    subtitle={
+                      academicDriveStatus.status === "connected"
+                        ? academicDriveStatus.googleAccountEmail
+                          ? `Google Drive conectado: ${academicDriveStatus.googleAccountEmail}`
+                          : "Google Drive conectado · toque para sincronizar"
+                        : "Conecte seu Google Drive com acesso somente leitura"
+                    }
+                    onPress={() => {
+                      void handleAcademicDrive();
+                    }}
+                    rightContent={
+                      <View
+                        style={{
+                          paddingVertical: 5,
+                          paddingHorizontal: 10,
+                          borderRadius: 999,
+                          backgroundColor:
+                            academicDriveStatus.status === "connected"
+                              ? colors.primaryBg
+                              : colors.secondaryBg,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              academicDriveStatus.status === "connected"
+                                ? colors.primaryText
+                                : colors.text,
+                            fontWeight: "700",
+                            fontSize: 12,
+                          }}
+                        >
+                          {academicDriveBusy
+                            ? "..."
+                            : academicDriveStatus.status === "connected"
+                              ? "Sincronizar"
+                              : "Conectar"}
+                        </Text>
+                      </View>
+                    }
+                  />
+                  {academicDriveStatus.status === "connected" ? (
+                    <Pressable
+                      disabled={academicDriveBusy}
+                      onPress={handleDisconnectAcademicDrive}
                       style={{
-                        paddingVertical: 5,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor:
-                          academicDriveStatus.status === "connected"
-                            ? colors.primaryBg
-                            : colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
+                        alignSelf: "flex-end",
+                        paddingVertical: 6,
+                        paddingHorizontal: 8,
                       }}
                     >
                       <Text
                         style={{
-                          color:
-                            academicDriveStatus.status === "connected"
-                              ? colors.primaryText
-                              : colors.text,
-                          fontWeight: "700",
+                          color: colors.dangerSolidBg,
                           fontSize: 12,
+                          fontWeight: "700",
                         }}
                       >
-                        {academicDriveBusy
-                          ? "..."
-                          : academicDriveStatus.status === "connected"
-                            ? "Sincronizar"
-                            : "Conectar"}
+                        Desconectar Google Drive
                       </Text>
-                    </View>
-                  }
-                />
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : null}
               {Platform.OS !== "web" ? (
                 <SettingsRow
