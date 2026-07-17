@@ -10,7 +10,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.claim-trainer-invite]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-trainer-invite]
 verify_jwt = false
