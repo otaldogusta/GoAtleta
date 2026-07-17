@@ -1,5 +1,6 @@
 import {
     Stack,
+    useGlobalSearchParams,
     usePathname,
     useRootNavigationState,
     useRouter,
@@ -24,7 +25,11 @@ import { Pressable } from "../src/ui/Pressable";
 
 import * as Sentry from '@sentry/react-native';
 import { AuthProvider, useAuth } from "../src/auth/auth";
-import { getPendingInvite } from "../src/auth/pending-invite";
+import {
+    getPendingInvite,
+    resolveAuthenticatedTrainerInviteEntry,
+    savePendingTrainerInvite,
+} from "../src/auth/pending-invite";
 import { buildLoginRedirectHref, sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
 import { RoleProvider, useRole } from "../src/auth/role";
 import {
@@ -177,6 +182,9 @@ function RootLayoutContent() {
   const { colors, mode } = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
+  const { inviteCode: entryInviteCode } = useGlobalSearchParams<{
+    inviteCode?: string;
+  }>();
   const lastPathRef = useRef<string | null>(null);
   const { loading: bootstrapLoading, error: bootstrapError, retry: retryBootstrap } =
     useBootstrap();
@@ -450,6 +458,18 @@ function RootLayoutContent() {
     if (bootstrapLoading || !navReady || loading) return;
 
     let redirectTo: string | null = null;
+    const trainerInviteCode = resolveAuthenticatedTrainerInviteEntry({
+      hasSession: Boolean(session),
+      pathname: normalizedPathname,
+      routeCode: typeof entryInviteCode === "string" ? entryInviteCode : undefined,
+    });
+
+    if (trainerInviteCode) {
+      void savePendingTrainerInvite(trainerInviteCode).then(() => {
+        router.replace("/pending");
+      });
+      return;
+    }
 
     if (normalizedPathname === "/onboarding") {
       redirectTo = session ? appHomeHref : "/welcome";
@@ -500,14 +520,6 @@ function RootLayoutContent() {
 
     if (session && role === "pending" && normalizedPathname !== "/pending" && !isInviteRoute) {
       router.replace("/pending");
-      return;
-    }
-    if (session && role === "trainer" && normalizedPathname === "/pending") {
-      router.replace(appHomeHref);
-      return;
-    }
-    if (session && role === "student" && normalizedPathname === "/pending") {
-      router.replace(appHomeHref);
       return;
     }
     if (session && role === "student") {
@@ -574,6 +586,7 @@ function RootLayoutContent() {
     isUnlocked,
     isDevStudentConsultationPreview,
     effectiveProfile,
+    entryInviteCode,
     loading,
     memberPermissions,
     navReady,

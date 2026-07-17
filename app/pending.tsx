@@ -24,7 +24,7 @@ export default function PendingScreen() {
   const { colors } = useAppTheme();
   const router = useRouter();
   const { session, signOut } = useAuth();
-  const { refresh } = useRole();
+  const { refresh, role } = useRole();
   const [busy, setBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteInput, setInviteInput] = useState("");
@@ -201,7 +201,12 @@ export default function PendingScreen() {
       setStoredToken(token);
       setStoredTrainerCode(trainerCode);
       if (autoClaimedRef.current) return;
-      if (!token && !trainerCode) return;
+      if (!token && !trainerCode) {
+        if (role === "trainer" || role === "student") {
+          router.replace("/");
+        }
+        return;
+      }
       autoClaimedRef.current = true;
       if (token) {
         await handleStoredInvite(token);
@@ -215,7 +220,7 @@ export default function PendingScreen() {
     // The stored values are claimed once per mount; including the handlers would
     // recreate this effect whenever transient invite state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh]);
+  }, [refresh, role, router]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>

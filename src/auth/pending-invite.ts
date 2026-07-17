@@ -41,6 +41,19 @@ export const resolvePendingTrainerCode = ({
   storedCode: string;
 }) => routeCode?.trim().toUpperCase() || storedCode.trim().toUpperCase();
 
+export const resolveAuthenticatedTrainerInviteEntry = ({
+  hasSession,
+  pathname,
+  routeCode,
+}: {
+  hasSession: boolean;
+  pathname: string;
+  routeCode?: string;
+}) =>
+  hasSession && pathname === "/signup"
+    ? routeCode?.trim().toUpperCase() ?? ""
+    : "";
+
 export const resolvePendingInviteRedirect = ({
   pendingStudentToken,
   pendingTrainerCode,
