@@ -42,6 +42,7 @@ export type AIDocument = {
   audience: string;
   sourceExcerpt: string;
   sourceLocation: string;
+  publicIdentityId?: string;
   confidence: number;
   metadata: Record<string, unknown>;
   createdAt: string;
@@ -414,6 +415,7 @@ export const classifyAIDocumentLayer = (
   }
   if (document.sourceScope === "periodization") return "periodization";
   if (
+    document.sourceScope === "system_academic" ||
     document.sourceScope === "user_academic" ||
     document.sourceScope === "workspace_academic"
   ) {
@@ -440,6 +442,10 @@ const isDocumentInScope = (
       document.ownerUserId === params.userId &&
       document.classId === ""
     );
+  }
+
+  if (document.sourceScope === "system_academic") {
+    return document.classId === "";
   }
 
   if (document.sourceScope === "workspace_academic") {
@@ -550,6 +556,7 @@ const documentRelevance = (
 };
 
 const sourceIdentity = (document: AIDocumentInput) =>
+  document.publicIdentityId ||
   document.sourceDocumentId ||
   document.sourceRevisionId ||
   document.contentHash ||
@@ -595,6 +602,8 @@ export const selectRelevantAIDocuments = (
       (left, right) =>
         right.priority - left.priority ||
         right.relevance - left.relevance ||
+        Number(right.sourceScope === "system_academic") -
+          Number(left.sourceScope === "system_academic") ||
         (Date.parse(right.createdAt) || 0) -
           (Date.parse(left.createdAt) || 0) ||
         left.id.localeCompare(right.id)
@@ -605,14 +614,19 @@ export const selectRelevantAIDocuments = (
     Math.min(12, params.maxDocuments ?? DEFAULT_MAX_DOCUMENTS)
   );
   const sourceCounts = new Map<string, number>();
+  const canonicalIdentities = new Set<string>();
   const selected: AIDocument[] = [];
 
   for (const document of eligible) {
     const identity = sourceIdentity(document);
+    if (document.publicIdentityId && canonicalIdentities.has(document.publicIdentityId)) {
+      continue;
+    }
     const sourceCount = sourceCounts.get(identity) ?? 0;
     if (sourceCount >= MAX_DOCUMENTS_PER_SOURCE) continue;
     selected.push(document);
     sourceCounts.set(identity, sourceCount + 1);
+    if (document.publicIdentityId) canonicalIdentities.add(document.publicIdentityId);
     if (selected.length >= maxDocuments) break;
   }
 
@@ -706,6 +720,11 @@ const mapDatabaseDocument = (row: Record<string, unknown>): AIDocumentInput => {
     audience: String(row.audience ?? ""),
     sourceExcerpt: String(row.source_excerpt ?? ""),
     sourceLocation: String(row.source_location ?? ""),
+    publicIdentityId: String(
+      safeRecord(row.metadata).publicIdentityId ??
+        safeRecord(row.metadata).public_identity_id ??
+        ""
+    ),
     confidence: Number(row.confidence ?? 0),
     metadata: safeRecord(row.metadata),
     createdAt: String(row.created_at ?? ""),
@@ -730,6 +749,82 @@ const mapDatabaseDocument = (row: Record<string, unknown>): AIDocumentInput => {
           title: String(source.title ?? ""),
           year: Number(source.year ?? 0),
           qualityLevel: String(source.quality_level ?? ""),
+        }
+      : null,
+  };
+};
+
+const mapGlobalAcademicDocument = (
+  row: Record<string, unknown>,
+  params: SelectAIDocumentParams
+): AIDocumentInput => {
+  const identity = String(row.public_identity_id ?? row.id ?? "");
+  const claim = String(row.claim ?? "").trim();
+  const application = String(row.practical_application ?? "").trim();
+  const limitations = Array.isArray(row.limitations)
+    ? row.limitations.map(String).filter(Boolean)
+    : [];
+  const authors = Array.isArray(row.authors)
+    ? row.authors.map(String).filter(Boolean)
+    : [];
+  const citation = String(row.citation_label ?? "").trim();
+  const scientificSourceId = String(row.scientific_source_id ?? "").trim();
+  return {
+    id: `system_academic:${String(row.id ?? identity)}`,
+    originKind: "document",
+    organizationId: params.organizationId,
+    ownerUserId: "",
+    sourceScope: "system_academic",
+    classId: "",
+    title: String(row.title ?? citation ?? "Apoio pedagógico GoAtleta"),
+    source: String(row.official_url ?? row.doi ?? ""),
+    chunk: [claim, application, ...limitations].filter(Boolean).join("\n"),
+    tags: [
+      String(row.material_type ?? ""),
+      String(row.evidence_level ?? ""),
+      String(row.study_design ?? ""),
+    ].filter(Boolean),
+    sport: "general",
+    level: String(row.evidence_level ?? ""),
+    discipline: "",
+    academicArea: "conhecimento_cientifico_tecnico",
+    materialType: String(row.material_type ?? "unknown"),
+    evidenceKind: String(row.evidence_level ?? "unknown_support"),
+    author: authors.join("; "),
+    institution: String(row.publication_venue ?? ""),
+    academicPeriod: String(row.publication_year ?? ""),
+    topic: claim,
+    audience: "professores",
+    sourceExcerpt: claim,
+    sourceLocation: "",
+    publicIdentityId: identity,
+    confidence: 1,
+    metadata: {
+      publicIdentityId: identity,
+      citationLabel: citation,
+      authors,
+      publicationYear: row.publication_year ?? null,
+      publicationVenue: row.publication_venue ?? null,
+      doi: row.doi ?? null,
+      officialUrl: row.official_url ?? null,
+      studyDesign: row.study_design ?? null,
+      scientificVerificationStatus:
+        row.scientific_verification_status ?? null,
+      practicalApplication: application,
+      limitations,
+    },
+    createdAt: "",
+    sourceDocumentId: identity,
+    sourceRevisionId: `published:${String(row.publication_version ?? 1)}`,
+    contentHash: "",
+    chunkIndex: 0,
+    scientificConcept: null,
+    scientificSource: scientificSourceId
+      ? {
+          author: authors.join("; "),
+          title: String(row.title ?? ""),
+          year: Number(row.publication_year ?? 0),
+          qualityLevel: String(row.evidence_level ?? ""),
         }
       : null,
   };
@@ -1012,6 +1107,7 @@ const loadKnowledgeDocuments = async (
   const scopedFilters = [
     `and(source_scope.eq.user_academic,owner_user_id.eq.${params.userId},class_id.is.null)`,
     "and(source_scope.eq.workspace_academic,class_id.is.null)",
+    "and(source_scope.eq.system_academic,class_id.is.null)",
     "and(source_scope.eq.workspace_institutional,class_id.is.null)",
     "and(source_scope.eq.scientific_reference,class_id.is.null)",
     ...(params.classId
@@ -1051,6 +1147,28 @@ const loadKnowledgeDocuments = async (
   return data.map((row) => mapDatabaseDocument(safeRecord(row)));
 };
 
+const loadGlobalAcademicDocuments = async (
+  supabase: SupabaseClient,
+  params: SelectAIDocumentParams
+) => {
+  if (typeof supabase.rpc !== "function") return [] as AIDocumentInput[];
+  const { data, error } = await supabase.rpc(
+    "list_published_global_academic_knowledge"
+  );
+  if (error || !Array.isArray(data)) {
+    if (error && error.code !== "42883") {
+      console.warn(
+        "[AIDocumentContext] Failed to load global academic knowledge:",
+        error.message
+      );
+    }
+    return [] as AIDocumentInput[];
+  }
+  return data.map((row) =>
+    mapGlobalAcademicDocument(safeRecord(row), params)
+  );
+};
+
 const loadAIDocuments = async (
   supabase: SupabaseClient,
   params: SelectAIDocumentParams,
@@ -1060,12 +1178,23 @@ const loadAIDocuments = async (
     loadConfirmedPlans(supabase, params),
     loadRealizedReports(supabase, params),
     loadKnowledgeDocuments(supabase, params),
+    loadGlobalAcademicDocuments(supabase, params),
   ]);
-  const [confirmedPlans, realizedReports, knowledgeDocuments] = results.map(
+  const [
+    confirmedPlans,
+    realizedReports,
+    knowledgeDocuments,
+    globalAcademicDocuments,
+  ] = results.map(
     (result, index) => {
       if (result.status === "fulfilled") return result.value;
       console.warn("[AIDocumentContext] Read-only source unavailable:", {
-        source: ["training_plans", "session_logs", "kb_documents"][index],
+        source: [
+          "training_plans",
+          "session_logs",
+          "kb_documents",
+          "global_academic_interpretations",
+        ][index],
         reason: String(result.reason),
       });
       return [] as AIDocumentInput[];
@@ -1078,6 +1207,7 @@ const loadAIDocuments = async (
       ...realizedReports,
       ...contextualDocuments,
       ...knowledgeDocuments,
+      ...globalAcademicDocuments,
     ],
     params
   );

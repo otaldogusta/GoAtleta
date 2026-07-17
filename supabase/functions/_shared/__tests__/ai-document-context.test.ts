@@ -221,6 +221,41 @@ describe("AI document context", () => {
     ]);
   });
 
+  test("deduplica identidade canônica e prefere a publicação global", () => {
+    const selected = selectRelevantAIDocuments(
+      [
+        makeDocument({
+          id: "private-version",
+          ownerUserId: "user-1",
+          sourceScope: "user_academic",
+          publicIdentityId: "doi:10.1000/example",
+          createdAt: "2026-07-17T12:00:00.000Z",
+        }),
+        makeDocument({
+          id: "global-version",
+          sourceScope: "system_academic",
+          publicIdentityId: "doi:10.1000/example",
+          createdAt: "2026-07-16T12:00:00.000Z",
+          scientificSource: {
+            author: "Borges",
+            title: "Aprendizagem e decisão",
+            year: 2003,
+            qualityLevel: "scientific_research",
+          },
+        }),
+        makeDocument({
+          id: "scientific-duplicate",
+          sourceScope: "scientific_reference",
+          publicIdentityId: "doi:10.1000/example",
+        }),
+      ],
+      PARAMS
+    );
+
+    expect(selected).toHaveLength(1);
+    expect(selected[0].id).toBe("global-version");
+  });
+
   test("aplica a prioridade canônica sem elevar ciência sobre a prática", () => {
     const documents = [
       makeDocument({

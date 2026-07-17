@@ -109,6 +109,7 @@ export type AcademicSourceScope =
 
 export type PedagogicalReferenceSourceScope =
   | AcademicSourceScope["kind"]
+  | "system_academic"
   | "institutional"
   | "class_planning"
   | "realized_history"
@@ -161,6 +162,43 @@ export type AppliedPedagogicalReference = {
   excerpt: string;
   influence: string;
   appliedAt?: string;
+  publicIdentityId?: string;
+  citationLabel?: string;
+  authors?: string[];
+  publicationYear?: number;
+  publicationVenue?: string;
+  doi?: string;
+  officialUrl?: string;
+  studyDesign?: string;
+};
+
+export type GlobalAcademicPublicationStatus =
+  | "awaiting_review"
+  | "published"
+  | "published_outdated"
+  | "superseded"
+  | "withdrawn"
+  | "blocked";
+
+export type GlobalAcademicInterpretation = {
+  id: string;
+  publicIdentityId: string;
+  claim: string;
+  practicalApplication: string;
+  limitations: string[];
+  citationLabel: string;
+  authors: string[];
+  publicationYear: number | null;
+  title: string;
+  publicationVenue: string | null;
+  doi: string | null;
+  officialUrl: string | null;
+  materialType: AcademicMaterialType;
+  evidenceLevel: AcademicEvidenceLevel;
+  licenseCode: string | null;
+  classificationConfidence: number;
+  scientificSourceId?: string;
+  publicationStatus: GlobalAcademicPublicationStatus;
 };
 
 export type AcademicDocumentClassificationInput = {

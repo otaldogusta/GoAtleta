@@ -29,6 +29,7 @@ import {
 import { resolveEffectiveProfile } from "../src/core/effective-profile";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
 import {
+  canManageGlobalAcademicKnowledge,
   disconnectPersonalAcademicDrive,
   getPersonalAcademicDriveOAuthStatus,
   startPersonalAcademicDriveOAuth,
@@ -101,6 +102,8 @@ export default function ProfileScreen() {
   const [academicDriveStatus, setAcademicDriveStatus] =
     useState<AcademicDriveOAuthStatus>({ status: "not_connected" });
   const [academicDriveBusy, setAcademicDriveBusy] = useState(false);
+  const [canManageAcademicKnowledge, setCanManageAcademicKnowledge] =
+    useState(false);
   const photoSheetStyle = useModalCardStyle({
     maxHeight: "70%",
     radius: 22,
@@ -221,9 +224,13 @@ export default function ProfileScreen() {
         alive = false;
       };
     }
-    void getPersonalAcademicDriveOAuthStatus({
-      organizationId: activeOrganization.id,
-    }).then((status) => {
+    void canManageGlobalAcademicKnowledge().then(async (allowed) => {
+      if (!alive) return;
+      setCanManageAcademicKnowledge(allowed);
+      if (!allowed) return;
+      const status = await getPersonalAcademicDriveOAuthStatus({
+        organizationId: activeOrganization.id,
+      });
       if (alive) setAcademicDriveStatus(status);
     });
     return () => {
@@ -936,7 +943,9 @@ export default function ProfileScreen() {
                   </View>
                 }
               />
-              {!student && Platform.OS === "web" ? (
+              {!student &&
+              Platform.OS === "web" &&
+              canManageAcademicKnowledge ? (
                 <View style={{ gap: 6 }}>
                   <SettingsRow
                     icon="documentAttach"

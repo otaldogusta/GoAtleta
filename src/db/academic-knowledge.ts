@@ -74,6 +74,7 @@ const stringArray = (value: unknown, max = 12) =>
 
 const allowedSourceScopes = new Set<PedagogicalReferenceSourceScope>([
   "user_academic",
+  "system_academic",
   "workspace_academic",
   "institutional",
   "class_planning",
@@ -149,6 +150,16 @@ const normalizeReference = (
     sourceLocation: textValue(row.sourceLocation, 260) || undefined,
     excerpt,
     influence,
+    publicIdentityId: textValue(row.publicIdentityId, 180) || undefined,
+    citationLabel: textValue(row.citationLabel, 180) || undefined,
+    authors: stringArray(row.authors),
+    publicationYear: Number.isInteger(Number(row.publicationYear))
+      ? Number(row.publicationYear)
+      : undefined,
+    publicationVenue: textValue(row.publicationVenue, 260) || undefined,
+    doi: textValue(row.doi, 260) || undefined,
+    officialUrl: textValue(row.officialUrl, 500) || undefined,
+    studyDesign: textValue(row.studyDesign, 180) || undefined,
   };
 };
 
@@ -176,6 +187,30 @@ const authenticatedFunctionRequest = async (
     body: JSON.stringify(body),
   });
 };
+
+export async function canManageGlobalAcademicKnowledge(): Promise<boolean> {
+  try {
+    const token = await getValidAccessToken();
+    if (!token) return false;
+    const response = await fetch(
+      `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/rpc/has_global_capability`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          p_capability: "manage_global_academic_knowledge",
+        }),
+      },
+    );
+    return response.ok && (await response.json()) === true;
+  } catch {
+    return false;
+  }
+}
 
 export async function getPersonalAcademicDriveOAuthStatus(params: {
   organizationId?: string | null;
