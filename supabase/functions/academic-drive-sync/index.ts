@@ -39,8 +39,10 @@ import {
   convertDocumentHtmlToStructuredText,
   convertWorkbookToStructuredText,
 } from "../_shared/document-structured-extraction.ts";
+import { planDocumentSyncBatch } from "../_shared/document-sync-batch.ts";
 
 type SyncRequest = {
+  action?: "sync" | "recover";
   organizationId?: string;
   folderUrl?: string;
   sourceProfile?: DriveSourceProfile;
@@ -48,6 +50,10 @@ type SyncRequest = {
   classId?: string;
   classBindingConfirmed?: boolean;
   maxFiles?: number;
+  cursor?: number;
+  batchSize?: number;
+  priorFailed?: number;
+  priorReviewRequired?: number;
   dryRun?: boolean;
 };
 
@@ -116,6 +122,13 @@ const clampMaxFiles = (value: unknown) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_MAX_FILES;
   return Math.max(1, Math.min(Math.floor(parsed), MAX_FILES));
+};
+
+const safeCount = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed)
+    ? Math.max(0, Math.min(Math.floor(parsed), MAX_FILES))
+    : 0;
 };
 
 const configuredAcademicFolderIds = () =>
@@ -320,11 +333,9 @@ const downloadDriveBytes = async (
     params.set("alt", "media");
   }
 
-  return fetchDriveResponse(
-    driveApiUrl(path, credential, params),
-    credential,
-    [{ fileId: file.id, resourceKey: file.resourceKey }],
-  );
+  return fetchDriveResponse(driveApiUrl(path, credential, params), credential, [
+    { fileId: file.id, resourceKey: file.resourceKey },
+  ]);
 };
 
 const withTimeout = <T>(
@@ -358,8 +369,7 @@ const inspectZipExpansion = (bytes: Uint8Array) => {
     const fileNameLength = view.getUint16(index + 28, true);
     const extraLength = view.getUint16(index + 30, true);
     const commentLength = view.getUint16(index + 32, true);
-    const recordLength =
-      46 + fileNameLength + extraLength + commentLength;
+    const recordLength = 46 + fileNameLength + extraLength + commentLength;
     if (recordLength <= 46 || index + recordLength > bytes.length) {
       return { safe: false, errorCode: "docx_directory_invalid" };
     }
@@ -369,8 +379,7 @@ const inspectZipExpansion = (bytes: Uint8Array) => {
     if (
       entryCount > MAX_ARCHIVE_ENTRIES ||
       expandedBytes > MAX_EXPANDED_DOCUMENT_BYTES ||
-      (compressedSize > 0 &&
-        uncompressedSize / compressedSize > 200)
+      (compressedSize > 0 && uncompressedSize / compressedSize > 200)
     ) {
       return { safe: false, errorCode: "docx_expansion_limit" };
     }
@@ -408,8 +417,7 @@ const extractFileContent = async (
   }
 
   const supportedText =
-    file.mimeType === GOOGLE_SLIDES_MIME ||
-    file.mimeType.startsWith("text/");
+    file.mimeType === GOOGLE_SLIDES_MIME || file.mimeType.startsWith("text/");
   const supportedBinary =
     file.mimeType === PDF_MIME ||
     file.mimeType === DOCX_MIME ||
@@ -835,6 +843,30 @@ Deno.serve(
           "Não foi possível consultar o vínculo da fonte.",
         );
       }
+      if (body?.action === "recover") {
+        if (existingConnection?.id) {
+          const completedAt = new Date().toISOString();
+          const { error: recoveryError } = await admin
+            .from("google_drive_connections")
+            .update({
+              sync_status: "failed",
+              sync_completed_at: completedAt,
+              sync_error_code: "worker_resource_limit",
+              sync_error_message:
+                "A execução foi interrompida e pode ser retomada com segurança.",
+              updated_at: completedAt,
+            })
+            .eq("id", existingConnection.id);
+          if (recoveryError) {
+            return createError(
+              500,
+              "PERSISTENCE_ERROR",
+              "Não foi possível recuperar o estado da sincronização.",
+            );
+          }
+        }
+        return createSuccess({ status: "failed", recovered: true });
+      }
       const existingClassId = textValue(existingConnection?.bound_class_id);
       if (
         existingClassId &&
@@ -868,8 +900,8 @@ Deno.serve(
       let driveCredential: GoogleDriveCredential;
       try {
         driveCredential = await resolveGoogleDriveCredential({
-          requestedStrategy:
-            (allowedSource.authStrategy ?? "auto") as DriveAuthStrategy,
+          requestedStrategy: (allowedSource.authStrategy ??
+            "auto") as DriveAuthStrategy,
           storedOAuth: existingConnection
             ? {
                 refreshTokenCiphertext:
@@ -880,9 +912,7 @@ Deno.serve(
           encryptionSecret: Deno.env.get("DOCUMENT_TOKEN_ENCRYPTION_KEY"),
           oauthClientId: Deno.env.get("GOOGLE_DRIVE_CLIENT_ID"),
           oauthClientSecret: Deno.env.get("GOOGLE_DRIVE_CLIENT_SECRET"),
-          serviceAccountJson: Deno.env.get(
-            "GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON",
-          ),
+          serviceAccountJson: Deno.env.get("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"),
           apiKey: Deno.env.get("GOOGLE_DRIVE_API_KEY"),
         });
       } catch (error) {
@@ -948,6 +978,12 @@ Deno.serve(
           })),
         });
       }
+
+      const syncBatch = planDocumentSyncBatch({
+        items: driveItems,
+        cursor: body?.cursor,
+        batchSize: body?.batchSize,
+      });
 
       const nowIso = new Date().toISOString();
       const { data: connection, error: connectionError } = await admin
@@ -1034,6 +1070,7 @@ Deno.serve(
 
       const summary = {
         discovered: driveItems.length,
+        processed: syncBatch.items.length,
         ready: 0,
         reviewRequired: 0,
         failed: 0,
@@ -1043,7 +1080,7 @@ Deno.serve(
         scopeRejected: 0,
       };
 
-      for (const item of driveItems) {
+      for (const item of syncBatch.items) {
         const extraction = await extractFileContent(item, driveCredential);
         const sanitized = sanitizeUntrustedAcademicContent(extraction.content);
         if (sanitized.warnings.length) summary.promptInjectionWarnings += 1;
@@ -1084,8 +1121,7 @@ Deno.serve(
           contextReviewCode = "source_role_unresolved";
         } else if (
           !sourceClassId &&
-          (sourceScope === "class_planning" ||
-            sourceScope === "class_history")
+          (sourceScope === "class_planning" || sourceScope === "class_history")
         ) {
           contextReviewCode = "class_binding_unresolved";
         } else if (folderRole === "monthly_plan" && !month) {
@@ -1614,22 +1650,39 @@ Deno.serve(
         summary.chunks += rows.length;
       }
 
+      if (syncBatch.hasMore) {
+        return createSuccess({
+          status: "in_progress",
+          folderId,
+          sourceProfile: policy.sourceProfile,
+          sourceScope: policy.sourceScope,
+          ownerUserId: policy.ownerUserRequired ? user.id : null,
+          classId: effectiveClassId,
+          classBindingStatus: effectiveClassId ? "confirmed" : "unresolved",
+          scientificPromotion: false,
+          authStrategy: driveCredential.strategy,
+          nextCursor: syncBatch.nextCursor,
+          summary,
+        });
+      }
+
+      const failedTotal = safeCount(body?.priorFailed) + summary.failed;
+      const reviewRequiredTotal =
+        safeCount(body?.priorReviewRequired) + summary.reviewRequired;
       const syncState =
-        summary.failed > 0 || summary.reviewRequired > 0
-          ? "partial"
-          : "succeeded";
+        failedTotal > 0 || reviewRequiredTotal > 0 ? "partial" : "succeeded";
       const completedAt = new Date().toISOString();
       const syncErrorCode =
-        summary.failed > 0
+        failedTotal > 0
           ? "partial_extraction_failure"
-          : summary.reviewRequired > 0
+          : reviewRequiredTotal > 0
             ? "review_required"
             : null;
       const syncErrorMessage =
-        summary.failed > 0
-          ? `${summary.failed} arquivo(s) não puderam ser processados.`
-          : summary.reviewRequired > 0
-            ? `${summary.reviewRequired} arquivo(s) exigem revisão.`
+        failedTotal > 0
+          ? `${failedTotal} arquivo(s) não puderam ser processados.`
+          : reviewRequiredTotal > 0
+            ? `${reviewRequiredTotal} arquivo(s) exigem revisão.`
             : null;
       const { error: syncCompletionError } = await admin
         .from("google_drive_connections")
@@ -1659,6 +1712,7 @@ Deno.serve(
         classBindingStatus: effectiveClassId ? "confirmed" : "unresolved",
         scientificPromotion: false,
         authStrategy: driveCredential.strategy,
+        nextCursor: null,
         summary,
       });
     },

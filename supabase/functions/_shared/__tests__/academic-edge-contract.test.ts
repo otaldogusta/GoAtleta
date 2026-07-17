@@ -19,11 +19,7 @@ const driveAuthSource = readFileSync(
   "utf8",
 );
 const structuredExtractionSource = readFileSync(
-  path.join(
-    functionsRoot,
-    "_shared",
-    "document-structured-extraction.ts",
-  ),
+  path.join(functionsRoot, "_shared", "document-structured-extraction.ts"),
   "utf8",
 );
 const migrationSource = readFileSync(
@@ -82,6 +78,16 @@ describe("academic Edge runtime contract", () => {
     expect(syncSource).toContain("DOCUMENT_EXTRACTION_TIMEOUT_MS");
   });
 
+  test("divide a ingestão em lotes retomáveis e recupera execução interrompida", () => {
+    expect(syncSource).toContain("planDocumentSyncBatch");
+    expect(syncSource).toContain('status: "in_progress"');
+    expect(syncSource).toContain("nextCursor: syncBatch.nextCursor");
+    expect(syncSource).toContain('body?.action === "recover"');
+    expect(syncSource).toContain('sync_error_code: "worker_resource_limit"');
+    expect(syncSource).toContain("for (const item of syncBatch.items)");
+    expect(syncSource).not.toContain("for (const item of driveItems)");
+  });
+
   test("suporta OAuth, service account, API key e resource key sem expor tokens", () => {
     expect(syncSource).toContain("resolveGoogleDriveCredential");
     expect(syncSource).toContain("GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON");
@@ -94,8 +100,8 @@ describe("academic Edge runtime contract", () => {
     expect(oauthSource).toContain('action === "disconnect"');
     expect(oauthSource).toContain("revokeGoogleDriveToken");
     expect(oauthSource).toContain("preservedDocuments: true");
-    expect(oauthSource).toContain("prompt: \"consent\"");
-    expect(oauthSource).toContain("access_type: \"offline\"");
+    expect(oauthSource).toContain('prompt: "consent"');
+    expect(oauthSource).toContain('access_type: "offline"');
     expect(oauthSource).not.toContain("console.log");
     expect(driveAuthSource).toContain('"AES-GCM"');
     expect(driveAuthSource).toContain('"RSASSA-PKCS1-v1_5"');
@@ -160,9 +166,7 @@ describe("academic Edge runtime contract", () => {
     expect(syncSource).toContain("source_profile: policy.sourceProfile");
     expect(syncSource).toContain("folder_role: folderRole");
     expect(syncSource).toContain("month_key: month?.monthKey ?? null");
-    expect(syncSource).toContain(
-      "documentDate: documentDate?.dateKey ?? null",
-    );
+    expect(syncSource).toContain("documentDate: documentDate?.dateKey ?? null");
     expect(syncSource).toContain("const classificationKey = await sha256(");
     expect(syncSource).toContain(")?.classificationKey === classificationKey");
     expect(syncSource).toContain('.from("document_context_bindings")');
@@ -204,14 +208,14 @@ describe("academic Edge runtime contract", () => {
       /delete\s+from\s+public\.document_interpretations/i,
     );
     expect(syncSource).toContain("canonical_revision_id: revision.id");
-    expect(syncSource).toContain(
-      '{ onConflict: "canonical_revision_id" }',
-    );
+    expect(syncSource).toContain('{ onConflict: "canonical_revision_id" }');
     expect(duplicateReviewSource).toContain(
       "group by interpretation.revision_id",
     );
     expect(duplicateReviewSource).toContain("having count(*) > 1");
-    expect(duplicateReviewSource).not.toMatch(/\b(delete|update|insert|alter|drop)\b/i);
+    expect(duplicateReviewSource).not.toMatch(
+      /\b(delete|update|insert|alter|drop)\b/i,
+    );
   });
 
   test("usa a assinatura canônica da RPC e não eleva o filtro de material", () => {

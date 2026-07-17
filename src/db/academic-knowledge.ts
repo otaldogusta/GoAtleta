@@ -60,7 +60,9 @@ export const DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL =
 const FUNCTIONS_BASE = `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1`;
 
 const textValue = (value: unknown, max = 900) =>
-  String(value ?? "").trim().slice(0, max);
+  String(value ?? "")
+    .trim()
+    .slice(0, max);
 
 const stringArray = (value: unknown, max = 12) =>
   Array.isArray(value)
@@ -103,7 +105,7 @@ const academicEvidenceLevels = new Set<AcademicEvidenceLevel>([
 ]);
 
 const normalizeReference = (
-  value: unknown
+  value: unknown,
 ): AppliedPedagogicalReference | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
@@ -118,17 +120,17 @@ const normalizeReference = (
   const materialTypeText = textValue(row.materialType, 80);
   const evidenceLevelText = textValue(row.evidenceLevel, 80);
   const sourceScope = allowedSourceScopes.has(
-    sourceScopeText as PedagogicalReferenceSourceScope
+    sourceScopeText as PedagogicalReferenceSourceScope,
   )
     ? (sourceScopeText as PedagogicalReferenceSourceScope)
     : "user_academic";
   const materialType = academicMaterialTypes.has(
-    materialTypeText as AcademicMaterialType
+    materialTypeText as AcademicMaterialType,
   )
     ? (materialTypeText as AcademicMaterialType)
     : "unknown";
   const evidenceLevel = academicEvidenceLevels.has(
-    evidenceLevelText as AcademicEvidenceLevel
+    evidenceLevelText as AcademicEvidenceLevel,
   )
     ? (evidenceLevelText as AcademicEvidenceLevel)
     : "unknown_support";
@@ -151,7 +153,7 @@ const normalizeReference = (
 };
 
 const unavailableSupport = (
-  warning = "Base acadêmica temporariamente indisponível; o plano seguirá com o contexto operacional."
+  warning = "Base acadêmica temporariamente indisponível; o plano seguirá com o contexto operacional.",
 ): AcademicPlanningSupport => ({
   status: "unavailable",
   references: [],
@@ -160,7 +162,7 @@ const unavailableSupport = (
 
 const authenticatedFunctionRequest = async (
   functionName: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
 ) => {
   const token = await getValidAccessToken();
   if (!token) return null;
@@ -192,7 +194,7 @@ export async function getPersonalAcademicDriveOAuthStatus(params: {
         folderUrl:
           textValue(params.folderUrl, 500) ||
           DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
-      }
+      },
     );
     if (!response?.ok) {
       return {
@@ -246,7 +248,7 @@ export async function startPersonalAcademicDriveOAuth(params: {
           textValue(params.folderUrl, 500) ||
           DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
         redirectTo: textValue(params.redirectTo, 500),
-      }
+      },
     );
     if (!response?.ok) {
       return {
@@ -287,7 +289,7 @@ export async function disconnectPersonalAcademicDrive(params: {
         folderUrl:
           textValue(params.folderUrl, 500) ||
           DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
-      }
+      },
     );
     if (!response?.ok) {
       return {
@@ -320,93 +322,149 @@ export async function syncPersonalAcademicDrive(params: {
     };
   }
 
-  try {
-    const response = await authenticatedFunctionRequest(
-      "academic-drive-sync",
-      {
+  const maxFiles = Math.max(1, Math.min(params.maxFiles ?? 60, 120));
+  const emptySummary = () => ({
+    discovered: 0,
+    ready: 0,
+    reviewRequired: 0,
+    failed: 0,
+    unchanged: 0,
+    chunks: 0,
+    promptInjectionWarnings: 0,
+  });
+  const summary = emptySummary();
+  const numberValue = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+  };
+  const recoverInterruptedSync = async () => {
+    try {
+      await authenticatedFunctionRequest("academic-drive-sync", {
+        action: "recover",
         organizationId,
         folderUrl:
           textValue(params.folderUrl, 500) ||
           DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
-        maxFiles: Math.max(1, Math.min(params.maxFiles ?? 60, 120)),
-        dryRun: params.dryRun === true,
+      });
+    } catch {
+      // A próxima sincronização também substitui com segurança um estado antigo.
+    }
+  };
+
+  try {
+    let cursor = 0;
+    for (let batchIndex = 0; batchIndex <= maxFiles; batchIndex += 1) {
+      const response = await authenticatedFunctionRequest(
+        "academic-drive-sync",
+        {
+          action: "sync",
+          organizationId,
+          folderUrl:
+            textValue(params.folderUrl, 500) ||
+            DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
+          maxFiles,
+          batchSize: 4,
+          cursor,
+          priorFailed: summary.failed,
+          priorReviewRequired: summary.reviewRequired,
+          dryRun: params.dryRun === true,
+        },
+      );
+      if (!response) {
+        await recoverInterruptedSync();
+        return {
+          status: "unavailable",
+          sourceScope: "user_academic",
+          classBindingCreated: false,
+          warnings: ["Sessão indisponível para sincronizar a base acadêmica."],
+        };
       }
-    );
-    if (!response) {
+      if (!response.ok) {
+        const errorPayload = (await response
+          .json()
+          .catch(() => ({}))) as Record<string, unknown>;
+        const errorCode = textValue(errorPayload.code, 80);
+        await recoverInterruptedSync();
+        return {
+          status: "unavailable",
+          sourceScope: "user_academic",
+          classBindingCreated: false,
+          warnings: [
+            errorCode === "DRIVE_OAUTH_REQUIRED" ||
+            errorCode === "DRIVE_AUTHORIZATION_FAILED"
+              ? "Conecte uma conta Google autorizada para acessar esta pasta."
+              : "Não foi possível sincronizar a base acadêmica agora.",
+          ],
+        };
+      }
+
+      const payload = (await response.json()) as Record<string, unknown>;
+      const payloadStatus = textValue(payload.status, 40);
+      const rawSummary =
+        payload.summary && typeof payload.summary === "object"
+          ? (payload.summary as Record<string, unknown>)
+          : null;
+      if (rawSummary) {
+        summary.discovered = Math.max(
+          summary.discovered,
+          numberValue(rawSummary.discovered),
+        );
+        summary.ready += numberValue(rawSummary.ready);
+        summary.reviewRequired += numberValue(rawSummary.reviewRequired);
+        summary.failed += numberValue(rawSummary.failed);
+        summary.unchanged += numberValue(rawSummary.unchanged);
+        summary.chunks += numberValue(rawSummary.chunks);
+        summary.promptInjectionWarnings += numberValue(
+          rawSummary.promptInjectionWarnings,
+        );
+      }
+
+      if (payloadStatus === "in_progress") {
+        const nextCursor = numberValue(payload.nextCursor);
+        if (nextCursor <= cursor || nextCursor > maxFiles) {
+          await recoverInterruptedSync();
+          break;
+        }
+        cursor = nextCursor;
+        continue;
+      }
+
+      const status =
+        payloadStatus === "preview" ||
+        payloadStatus === "succeeded" ||
+        payloadStatus === "partial"
+          ? payloadStatus
+          : "unavailable";
       return {
-        status: "unavailable",
+        status,
+        folderId: textValue(payload.folderId, 180) || undefined,
         sourceScope: "user_academic",
         classBindingCreated: false,
-        warnings: ["Sessão indisponível para sincronizar a base acadêmica."],
+        authStrategy:
+          payload.authStrategy === "oauth_user" ||
+          payload.authStrategy === "service_account" ||
+          payload.authStrategy === "api_key"
+            ? payload.authStrategy
+            : undefined,
+        summary: rawSummary ? summary : undefined,
+        warnings:
+          status === "partial"
+            ? ["A sincronização terminou com arquivos que exigem revisão."]
+            : status === "unavailable"
+              ? ["A sincronização não retornou um estado válido."]
+              : [],
       };
     }
-    if (!response.ok) {
-      const errorPayload = (await response.json().catch(() => ({}))) as Record<
-        string,
-        unknown
-      >;
-      const errorCode = textValue(errorPayload.code, 80);
-      return {
-        status: "unavailable",
-        sourceScope: "user_academic",
-        classBindingCreated: false,
-        warnings: [
-          errorCode === "DRIVE_OAUTH_REQUIRED" ||
-          errorCode === "DRIVE_AUTHORIZATION_FAILED"
-            ? "Conecte uma conta Google autorizada para acessar esta pasta."
-            : "Não foi possível sincronizar a base acadêmica agora.",
-        ],
-      };
-    }
-    const payload = (await response.json()) as Record<string, unknown>;
-    const payloadStatus = textValue(payload.status, 40);
-    const status =
-      payloadStatus === "preview" ||
-      payloadStatus === "succeeded" ||
-      payloadStatus === "partial"
-        ? payloadStatus
-        : "unavailable";
-    const rawSummary =
-      payload.summary && typeof payload.summary === "object"
-        ? (payload.summary as Record<string, unknown>)
-        : null;
-    const numberValue = (value: unknown) => {
-      const parsed = Number(value);
-      return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
-    };
 
     return {
-      status,
-      folderId: textValue(payload.folderId, 180) || undefined,
+      status: "unavailable",
       sourceScope: "user_academic",
       classBindingCreated: false,
-      authStrategy:
-        payload.authStrategy === "oauth_user" ||
-        payload.authStrategy === "service_account" ||
-        payload.authStrategy === "api_key"
-          ? payload.authStrategy
-          : undefined,
-      summary: rawSummary
-        ? {
-            discovered: numberValue(rawSummary.discovered),
-            ready: numberValue(rawSummary.ready),
-            reviewRequired: numberValue(rawSummary.reviewRequired),
-            failed: numberValue(rawSummary.failed),
-            unchanged: numberValue(rawSummary.unchanged),
-            chunks: numberValue(rawSummary.chunks),
-            promptInjectionWarnings: numberValue(
-              rawSummary.promptInjectionWarnings
-            ),
-          }
-        : undefined,
-      warnings:
-        status === "partial"
-          ? ["A sincronização terminou com arquivos que exigem revisão."]
-          : status === "unavailable"
-            ? ["A sincronização não retornou um estado válido."]
-            : [],
+      summary,
+      warnings: ["A sincronização não conseguiu concluir todos os lotes."],
     };
   } catch {
+    await recoverInterruptedSync();
     return {
       status: "unavailable",
       sourceScope: "user_academic",
@@ -423,11 +481,15 @@ export async function retrieveAcademicPlanningSupport(params: {
   limit?: number;
 }): Promise<AcademicPlanningSupport> {
   const organizationId = textValue(params.organizationId, 128);
-  if (!organizationId) return unavailableSupport("Workspace sem escopo acadêmico válido.");
+  if (!organizationId)
+    return unavailableSupport("Workspace sem escopo acadêmico válido.");
 
   try {
     const token = await getValidAccessToken();
-    if (!token) return unavailableSupport("Sessão indisponível para consultar a base acadêmica.");
+    if (!token)
+      return unavailableSupport(
+        "Sessão indisponível para consultar a base acadêmica.",
+      );
 
     const response = await fetch(
       `${FUNCTIONS_BASE}/academic-knowledge-retrieve`,
@@ -449,13 +511,14 @@ export async function retrieveAcademicPlanningSupport(params: {
             textValue(params.context.pedagogicalApproach, 160) || undefined,
           situationProblem:
             textValue(params.context.situationProblem, 500) || undefined,
-          classNeed: stringArray(params.context.classNeeds).join(" · ") || undefined,
+          classNeed:
+            stringArray(params.context.classNeeds).join(" · ") || undefined,
           documentTypes: params.context.documentTypes ?? [],
           evidenceKinds: params.context.evidenceLevels ?? [],
           academicAreas: params.context.academicAreas ?? [],
           limit: Math.max(1, Math.min(params.limit ?? 4, 6)),
         }),
-      }
+      },
     );
     if (!response.ok) return unavailableSupport();
 
@@ -464,20 +527,21 @@ export async function retrieveAcademicPlanningSupport(params: {
     const references = Array.isArray(payload.references)
       ? payload.references
           .map(normalizeReference)
-          .filter(
-            (
-              reference
-            ): reference is AppliedPedagogicalReference => Boolean(reference)
+          .filter((reference): reference is AppliedPedagogicalReference =>
+            Boolean(reference),
           )
       : [];
     if (!references.length) {
       return {
         status: "no_relevant_content",
         references: [],
-        warnings: ["Nenhum trecho acadêmico relevante foi encontrado para esta aula."],
-        retrievalMode:
-          (payload.retrieval as { mode?: "semantic" | "lexical_fallback" } | undefined)
-            ?.mode,
+        warnings: [
+          "Nenhum trecho acadêmico relevante foi encontrado para esta aula.",
+        ],
+        retrievalMode: (
+          payload.retrieval as
+            { mode?: "semantic" | "lexical_fallback" } | undefined
+        )?.mode,
       };
     }
 
@@ -485,9 +549,10 @@ export async function retrieveAcademicPlanningSupport(params: {
       status: "available",
       references,
       warnings: [],
-      retrievalMode:
-        (payload.retrieval as { mode?: "semantic" | "lexical_fallback" } | undefined)
-          ?.mode,
+      retrievalMode: (
+        payload.retrieval as
+          { mode?: "semantic" | "lexical_fallback" } | undefined
+      )?.mode,
     };
   } catch {
     return unavailableSupport();
