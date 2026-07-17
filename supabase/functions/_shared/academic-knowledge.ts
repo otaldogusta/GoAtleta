@@ -380,8 +380,22 @@ export function sanitizeUntrustedAcademicContent(value: string) {
   const normalizedContent = normalizeAcademicContentForHash(value);
   const warnings: string[] = [];
   let blockedInstructionCount = 0;
-  const sanitized = normalizedContent
+  const safetySegments = normalizedContent
+    .replace(/([.!?])\s+(?=[A-ZÀ-ÖØ-Þ0-9])/g, "$1\n")
     .split("\n")
+    .flatMap((line) => {
+      const segments: string[] = [];
+      let remaining = line.trim();
+      while (remaining.length > 1_200) {
+        const preferredBoundary = remaining.lastIndexOf(" ", 1_200);
+        const boundary = preferredBoundary >= 600 ? preferredBoundary : 1_200;
+        segments.push(remaining.slice(0, boundary).trim());
+        remaining = remaining.slice(boundary).trim();
+      }
+      if (remaining) segments.push(remaining);
+      return segments;
+    });
+  const sanitized = safetySegments
     .filter((line) => {
       const normalizedLine = normalizeAcademicText(line);
       if (
