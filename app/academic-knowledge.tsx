@@ -37,6 +37,7 @@ const statusLabel: Record<string, string> = {
   blocked: "Bloqueado",
 };
 
+// perf-check: ignore-inline-row-style - lista administrativa limitada ao inventário acadêmico (até 60 itens); estilos dependem do tema ativo.
 export default function AcademicKnowledgeScreen() {
   markRender("screen.academicKnowledge.render.root");
   const router = useRouter();
