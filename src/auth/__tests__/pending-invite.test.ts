@@ -5,6 +5,7 @@ import {
   clearPendingTrainerInvite,
   getPendingInvite,
   getPendingTrainerInvite,
+  resolveAuthenticatedTrainerInviteEntry,
   resolvePendingInviteRedirect,
   resolvePendingTrainerCode,
   savePendingInvite,
@@ -101,5 +102,32 @@ describe("pending invite storage", () => {
         storedCode: " stored-code ",
       })
     ).toBe("STORED-CODE");
+  });
+
+  test("preserves a trainer invite entering signup with an active session", () => {
+    expect(
+      resolveAuthenticatedTrainerInviteEntry({
+        hasSession: true,
+        pathname: "/signup",
+        routeCode: " route-code ",
+      })
+    ).toBe("ROUTE-CODE");
+  });
+
+  test("does not intercept ordinary signup navigation", () => {
+    expect(
+      resolveAuthenticatedTrainerInviteEntry({
+        hasSession: false,
+        pathname: "/signup",
+        routeCode: "route-code",
+      })
+    ).toBe("");
+    expect(
+      resolveAuthenticatedTrainerInviteEntry({
+        hasSession: true,
+        pathname: "/prof/home",
+        routeCode: "route-code",
+      })
+    ).toBe("");
   });
 });
