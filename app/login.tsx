@@ -25,6 +25,7 @@ import {
   getPendingInvite,
   getPendingTrainerInvite,
   resolvePendingInviteRedirect,
+  resolvePendingTrainerCode,
   savePendingTrainerInvite,
 } from "../src/auth/pending-invite";
 import { sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
@@ -237,11 +238,15 @@ export default function LoginScreen() {
     if (!session) return;
     let alive = true;
     void (async () => {
-      const [pendingStudentToken, pendingTrainerCode] = await Promise.all([
+      const [pendingStudentToken, storedTrainerCode] = await Promise.all([
         getPendingInvite(),
         getPendingTrainerInvite(),
       ]);
       if (!alive) return;
+      const pendingTrainerCode = resolvePendingTrainerCode({
+        routeCode: typeof inviteCode === "string" ? inviteCode : undefined,
+        storedCode: storedTrainerCode,
+      });
       const target = resolvePendingInviteRedirect({
         pendingStudentToken,
         pendingTrainerCode,
@@ -252,7 +257,7 @@ export default function LoginScreen() {
     return () => {
       alive = false;
     };
-  }, [loginRedirectTarget, router, session]);
+  }, [inviteCode, loginRedirectTarget, router, session]);
 
   const formatCountdown = (value: number) => {
     const minutes = Math.floor(value / 60);

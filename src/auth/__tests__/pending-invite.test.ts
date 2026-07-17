@@ -6,6 +6,7 @@ import {
   getPendingInvite,
   getPendingTrainerInvite,
   resolvePendingInviteRedirect,
+  resolvePendingTrainerCode,
   savePendingInvite,
   savePendingTrainerInvite,
 } from "../pending-invite";
@@ -84,4 +85,21 @@ describe("pending invite storage", () => {
       ).toBe(expected);
     }
   );
+
+  test("prioritizes the trainer invite in the login route over delayed storage", () => {
+    expect(
+      resolvePendingTrainerCode({
+        routeCode: " route-code ",
+        storedCode: "stale-code",
+      })
+    ).toBe("ROUTE-CODE");
+  });
+
+  test("falls back to the stored trainer invite when the route has none", () => {
+    expect(
+      resolvePendingTrainerCode({
+        storedCode: " stored-code ",
+      })
+    ).toBe("STORED-CODE");
+  });
 });
