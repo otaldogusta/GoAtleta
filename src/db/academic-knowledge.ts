@@ -102,6 +102,24 @@ export type GlobalAcademicSourceExcerpt = {
   excerpt: string;
 };
 
+export async function listBlockedGlobalAcademicPublicIdentities(
+  publicIdentityIds: readonly string[],
+): Promise<Set<string>> {
+  const identities = [...new Set(publicIdentityIds.map((value) => textValue(value, 180)).filter(Boolean))];
+  if (!identities.length) return new Set();
+  const payload = await authenticatedRpc("list_global_academic_publication_states", {
+    p_public_identity_ids: identities,
+  });
+  if (!Array.isArray(payload)) return new Set();
+  return new Set(
+    payload
+      .map((value) => value as Record<string, unknown>)
+      .filter((row) => textValue(row.publication_status, 40) === "blocked")
+      .map((row) => textValue(row.public_identity_id, 180))
+      .filter(Boolean),
+  );
+}
+
 export const DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL =
   "https://drive.google.com/drive/folders/1TtqVOgnLXeDqvGr6885s-KABA4tsJ5QE";
 
