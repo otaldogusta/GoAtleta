@@ -4,6 +4,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import type { Student } from "../core/models";
 import { getDevProfilePreview, type DevProfilePreview } from "../dev/profile-preview";
+import {
+  getActiveRolePreference,
+  setActiveRolePreference,
+  type SelectableUserRole,
+} from "./active-role";
 import { useAuth } from "./auth";
 import { getSessionUserId, getValidAccessToken } from "./session";
 
@@ -11,10 +16,12 @@ export type UserRole = "trainer" | "student" | "pending";
 
 type RoleState = {
   role: UserRole | null;
+  availableRoles: SelectableUserRole[];
   devProfilePreview: DevProfilePreview;
   student: Student | null;
   loading: boolean;
   refresh: () => Promise<void>;
+  setActiveRole: (role: SelectableUserRole) => Promise<boolean>;
 };
 
 const RoleContext = createContext<RoleState | null>(null);
@@ -139,6 +146,7 @@ const buildPreviewStudent = (userId: string | null): Student => ({
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const [role, setRole] = useState<UserRole | null>(null);
+  const [availableRoles, setAvailableRoles] = useState<SelectableUserRole[]>([]);
   const [devProfilePreview, setDevProfilePreviewState] = useState<DevProfilePreview>("auto");
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
@@ -149,6 +157,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
 
     if (!session) {
       setRole(null);
+      setAvailableRoles([]);
       setStudent(null);
       setLoading(false);
       return;
@@ -157,6 +166,18 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       if (preview === "professor" || preview === "admin") {
+        const token = await getValidAccessToken();
+        const userId = await getSessionUserId();
+        if (token && userId) {
+          const [isTrainer, studentRow] = await Promise.all([
+            fetchIsTrainer(token),
+            fetchStudentSelf(token, userId),
+          ]);
+          setAvailableRoles([
+            ...(isTrainer ? (["trainer"] as const) : []),
+            ...(studentRow ? (["student"] as const) : []),
+          ]);
+        }
         setRole("trainer");
         setStudent(null);
         return;
@@ -166,7 +187,14 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         const token = await getValidAccessToken();
         const userId = await getSessionUserId();
         if (token && userId) {
-          const studentRow = await fetchStudentSelf(token, userId);
+          const [isTrainer, studentRow] = await Promise.all([
+            fetchIsTrainer(token),
+            fetchStudentSelf(token, userId),
+          ]);
+          setAvailableRoles([
+            ...(isTrainer ? (["trainer"] as const) : []),
+            ...(studentRow ? (["student"] as const) : []),
+          ]);
           setRole("student");
           setStudent(studentRow ?? buildPreviewStudent(userId));
           return;
@@ -183,16 +211,23 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setStudent(null);
         return;
       }
-      const isTrainer = await fetchIsTrainer(token);
-      if (isTrainer) {
-        setRole("trainer");
-        setStudent(null);
-        return;
-      }
-      const studentRow = await fetchStudentSelf(token, userId);
-      if (studentRow) {
-        setRole("student");
-        setStudent(studentRow);
+      const [isTrainer, studentRow, preferredRole] = await Promise.all([
+        fetchIsTrainer(token),
+        fetchStudentSelf(token, userId),
+        getActiveRolePreference(userId),
+      ]);
+      const resolvedRoles: SelectableUserRole[] = [
+        ...(isTrainer ? (["trainer"] as const) : []),
+        ...(studentRow ? (["student"] as const) : []),
+      ];
+      setAvailableRoles(resolvedRoles);
+      if (resolvedRoles.length) {
+        const resolvedRole =
+          preferredRole && resolvedRoles.includes(preferredRole)
+            ? preferredRole
+            : resolvedRoles[0];
+        setRole(resolvedRole);
+        setStudent(resolvedRole === "student" ? studentRow : null);
         return;
       }
       setRole("pending");
@@ -200,6 +235,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       Sentry.captureException(error);
       setRole("pending");
+      setAvailableRoles([]);
       setStudent(null);
     } finally {
       setLoading(false);
@@ -210,9 +246,20 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  const setActiveRole = useCallback(
+    async (nextRole: SelectableUserRole) => {
+      const userId = await getSessionUserId();
+      if (!userId || !availableRoles.includes(nextRole)) return false;
+      await setActiveRolePreference(userId, nextRole);
+      await refresh();
+      return true;
+    },
+    [availableRoles, refresh]
+  );
+
   const value = useMemo(
-    () => ({ role, devProfilePreview, student, loading, refresh }),
-    [devProfilePreview, loading, refresh, role, student]
+    () => ({ role, availableRoles, devProfilePreview, student, loading, refresh, setActiveRole }),
+    [availableRoles, devProfilePreview, loading, refresh, role, setActiveRole, student]
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
@@ -223,10 +270,12 @@ export const useRole = () => {
   if (!ctx) {
     return {
       role: null,
+      availableRoles: [],
       devProfilePreview: "auto",
       student: null,
       loading: false,
       refresh: async () => {},
+      setActiveRole: async () => false,
     } as RoleState;
   }
   return ctx;

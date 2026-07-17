@@ -361,6 +361,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     students,
     recentAttendance,
     recentSessionLogs,
+    classPlans,
     weeklyItems,
     agendaEvents,
     monthCalendarDays,

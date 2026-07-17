@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
-import { useRole } from "../auth/role";
+import { useRole, type UserRole } from "../auth/role";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import type { DevProfilePreview } from "../dev/profile-preview";
 import { getScopedProfilePath } from "../navigation/profile-routes";
@@ -203,7 +203,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { session } = useAuth();
-  const { refresh: refreshRole } = useRole();
+  const { availableRoles, refresh: refreshRole, setActiveRole } = useRole();
   const organizationContext = useOptionalOrganization();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpandedState] = useState(false);
@@ -220,7 +220,8 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const professorInitials = getInitials(professorName);
   const userEmail = getUserEmail(session);
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
-  const canSwitchProfile = __DEV__ && Boolean(setDevProfilePreview);
+  const hasHybridAccount = availableRoles.includes("trainer") && availableRoles.includes("student");
+  const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
   const selectedPreview = rolePreview[role];
   const isInCurrentRoleScope =
     pathname === routePrefix[role] || pathname.startsWith(`${routePrefix[role]}/`);
@@ -331,14 +332,30 @@ export function WebSidebar({ role }: WebSidebarProps) {
 
   const applyProfilePreview = useCallback(
     async (preview: ProfileSwitchId) => {
-      if (!setDevProfilePreview) return;
       setProfileMenuOpen(false);
-      await setDevProfilePreview(preview);
-      await refreshRole();
+      const realRole: Extract<UserRole, "trainer" | "student"> =
+        preview === "student" ? "student" : "trainer";
+      if (hasHybridAccount) {
+        if (setDevProfilePreview) {
+          await setDevProfilePreview("auto");
+        }
+        const changed = await setActiveRole(realRole);
+        if (!changed) return;
+      } else {
+        if (!setDevProfilePreview) return;
+        await setDevProfilePreview(preview);
+        await refreshRole();
+      }
       router.replace(previewRoutes[preview] as never);
     },
-    [refreshRole, router, setDevProfilePreview]
+    [hasHybridAccount, refreshRole, router, setActiveRole, setDevProfilePreview]
   );
+
+  const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) => {
+    if (!hasHybridAccount) return true;
+    if (option.id === "student") return true;
+    return option.id === "professor";
+  });
 
   const compactTabs = ROLE_TABS[role].filter((tab) => !tab.isCenter);
   const tabItems = compactTabs.map((tab) => ({
@@ -954,7 +971,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
                 >
                   TROCAR PERFIL
                 </Text>
-                {profileSwitchOptions.map((option) => {
+                {visibleProfileSwitchOptions.map((option) => {
                   const active = selectedPreview === option.id;
                   return (
                     <Pressable

@@ -7,12 +7,15 @@ import type {
   Student,
 } from "../../../core/models";
 import { resolveLearningObjectives } from "../../../core/pedagogy/objective-language";
+import { resolveSportProfile } from "../../../core/periodization-basics";
+import { resolvePlanBand, toClassPlans } from "../../../core/periodization-generator";
 import {
     parseWeeklyPeriodizationSnapshot,
     serializeWeeklyPeriodizationSnapshot,
 } from "../../../core/periodization-snapshots";
 import {
     listDailyLessonPlansByWeekIds,
+    saveClassPlans,
     updateClassPlan,
     upsertDailyLessonPlan
 } from "../../../db/seed";
@@ -27,10 +30,15 @@ export interface MonthRegenerationProgress {
   message: string;
 }
 
+export type MonthRegenerationResult =
+  | { status: "regenerated"; weeklyPlanCount: number }
+  | { status: "outside_cycle"; weeklyPlanCount: 0 };
+
 export interface RegenerateMonthPlansParams {
   classGroup: ClassGroup;
   monthKey: string; // "YYYY-MM"
   classPlans: ClassPlan[];
+  activeCycleId?: string;
   activeCycleStartDate?: string;
   activeCycleEndDate?: string;
   calendarExceptions?: ClassCalendarException[];
@@ -40,6 +48,37 @@ export interface RegenerateMonthPlansParams {
   onProgress?: (progress: MonthRegenerationProgress) => void;
 }
 
+export const buildInitialMonthPlans = (params: {
+  classGroup: ClassGroup;
+  monthKey: string;
+  classPlans: ClassPlan[];
+  activeCycleId?: string;
+  activeCycleStartDate?: string;
+  calendarExceptions?: ClassCalendarException[];
+}): ClassPlan[] => {
+  const { classGroup, monthKey, classPlans } = params;
+  const planBand = resolvePlanBand(classGroup.ageBand);
+  const generatedCycle = toClassPlans({
+    classId: classGroup.id,
+    ageBand: planBand,
+    cycleLength: Math.max(1, classGroup.cycleLengthWeeks),
+    startDate: params.activeCycleStartDate || classGroup.cycleStartDate,
+    mvLevel: classGroup.mvLevel,
+    model: planBand === "12-14" ? "formacao" : "iniciacao",
+    sessionsPerWeek: Math.max(1, classGroup.daysOfWeek.length || classGroup.daysPerWeek || 1),
+    sport: resolveSportProfile(classGroup.modality),
+  }).map((plan) => ({ ...plan, cycleId: params.activeCycleId }));
+  const existingKeys = new Set(
+    classPlans.map((plan) => `${plan.weekNumber}|${plan.startDate}`)
+  );
+  return filterClassPlansBySessionMonth(
+    generatedCycle,
+    classGroup,
+    params.calendarExceptions ?? [],
+    monthKey
+  ).filter((plan) => !existingKeys.has(`${plan.weekNumber}|${plan.startDate}`));
+};
+
 /**
  * Orchestrate full-month regeneration:
  * 1. Generate monthly blueprint (context for weekly generation)
@@ -48,10 +87,12 @@ export interface RegenerateMonthPlansParams {
  *
  * All operations are local-first (SQLite) with progress callbacks for UI feedback.
  */
-export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): Promise<void> => {
+export const regenerateMonthPlans = async (
+  params: RegenerateMonthPlansParams
+): Promise<MonthRegenerationResult> => {
   const { classGroup, monthKey, classPlans, activeCycleStartDate, activeCycleEndDate, onProgress } = params;
 
-  const monthlyPlans = filterClassPlansBySessionMonth(
+  let monthlyPlans = filterClassPlansBySessionMonth(
     classPlans,
     classGroup,
     params.calendarExceptions ?? [],
@@ -59,8 +100,24 @@ export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): 
   );
 
   if (!monthlyPlans.length) {
-    onProgress?.({ stage: "complete", message: "Nenhum plano semanal neste mês" });
-    return;
+    onProgress?.({ stage: "weeklies", message: "Criando semanas do mês..." });
+    monthlyPlans = buildInitialMonthPlans({
+      classGroup,
+      monthKey,
+      classPlans,
+      activeCycleId: params.activeCycleId,
+      activeCycleStartDate,
+      calendarExceptions: params.calendarExceptions,
+    });
+
+    if (!monthlyPlans.length) {
+      onProgress?.({
+        stage: "complete",
+        message: "Este mês está fora do ciclo ativo da turma",
+      });
+      return { status: "outside_cycle", weeklyPlanCount: 0 };
+    }
+    await saveClassPlans(monthlyPlans, { organizationId: classGroup.organizationId });
   }
 
   // === Stage 1: Generate monthly blueprint ===
@@ -152,6 +209,7 @@ export const regenerateMonthPlans = async (params: RegenerateMonthPlansParams): 
   }
 
   onProgress?.({ stage: "complete", message: "Mês regenerado com sucesso!" });
+  return { status: "regenerated", weeklyPlanCount: monthlyPlans.length };
 };
 
 /**

@@ -593,6 +593,7 @@ export default function ClassPlanningMonthRoute() {
     students,
     recentAttendance,
     recentSessionLogs,
+    classPlans,
     weeklyItems,
     agendaEvents,
     monthCalendarDays,
@@ -673,10 +674,11 @@ export default function ClassPlanningMonthRoute() {
       }
 
       // Start regeneration with progress callback
-      await regenerateMonthPlans({
+      const result = await regenerateMonthPlans({
         classGroup,
         monthKey,
-        classPlans: weeklyItems.map((item) => item.plan),
+        classPlans,
+        activeCycleId: activeCycle?.id,
         activeCycleStartDate: activeCycle?.startDate,
         activeCycleEndDate: activeCycle?.endDate,
         calendarExceptions,
@@ -690,7 +692,18 @@ export default function ClassPlanningMonthRoute() {
 
       // Reload data after completion
       await reload();
-      setMonthRegenProgress(null);
+      if (result.status === "outside_cycle") {
+        const message =
+          "Este mês está fora do ciclo ativo. Ajuste o ciclo da turma antes de gerar os planos.";
+        setMonthRegenProgress({ stage: "complete", message });
+        showSaveToast({ message, variant: "warning" });
+      } else {
+        setMonthRegenProgress(null);
+        showSaveToast({
+          message: `${result.weeklyPlanCount} semana${result.weeklyPlanCount === 1 ? "" : "s"} atualizada${result.weeklyPlanCount === 1 ? "" : "s"}.`,
+          variant: "success",
+        });
+      }
     } catch (err) {
       setMonthRegenProgress({
         stage: "complete",
@@ -701,8 +714,10 @@ export default function ClassPlanningMonthRoute() {
     }
   }, [
     activeCycle?.endDate,
+    activeCycle?.id,
     activeCycle?.startDate,
     calendarExceptions,
+    classPlans,
     classId,
     monthKey,
     recentAttendance,
@@ -710,6 +725,7 @@ export default function ClassPlanningMonthRoute() {
     students,
     weeklyItems,
     reload,
+    showSaveToast,
   ]);
 
   const monthTitle = useMemo(
