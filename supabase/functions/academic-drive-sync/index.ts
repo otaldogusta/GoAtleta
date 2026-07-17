@@ -167,6 +167,13 @@ const driveApiUrl = (
   return url.toString();
 };
 
+const isGoogleDriveApiHost = (value: string) => {
+  const hostname = new URL(value).hostname.toLowerCase();
+  return (
+    hostname === "www.googleapis.com" || hostname.endsWith(".googleapis.com")
+  );
+};
+
 const fetchDriveResponse = async (
   url: string,
   credential: GoogleDriveCredential,
@@ -174,11 +181,16 @@ const fetchDriveResponse = async (
 ) => {
   let currentUrl = assertSafeGoogleDriveFetchUrl(url).toString();
   for (let redirectCount = 0; redirectCount <= 3; redirectCount += 1) {
+    const headers = buildGoogleDriveHeaders({ credential, resourceKeys });
+    if (!isGoogleDriveApiHost(currentUrl)) {
+      headers.delete("Authorization");
+      headers.delete("X-Goog-Drive-Resource-Keys");
+    }
     const response = await fetch(currentUrl, {
       method: "GET",
       redirect: "manual",
       signal: AbortSignal.timeout(DRIVE_FETCH_TIMEOUT_MS),
-      headers: buildGoogleDriveHeaders({ credential, resourceKeys }),
+      headers,
     });
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
@@ -1177,6 +1189,12 @@ Deno.serve(
             drivePath: item.path,
           }),
         );
+        const revisionByteSize =
+          extraction.byteSize !== null &&
+          extraction.byteSize >= 0 &&
+          extraction.byteSize <= MAX_FILE_BYTES
+            ? extraction.byteSize
+            : null;
 
         const { data: existingSource, error: existingSourceError } = await admin
           .from("document_sources")
@@ -1343,7 +1361,7 @@ Deno.serve(
                 textValue(item.modifiedTime),
               content_hash: contentHash,
               modified_at: item.modifiedTime ?? null,
-              byte_size: extraction.byteSize,
+              byte_size: revisionByteSize,
               extraction_status:
                 scopeRejected || contextReviewCode
                   ? "review_required"
@@ -1513,6 +1531,7 @@ Deno.serve(
           if (extraction.status === "review_required") {
             summary.reviewRequired += 1;
           } else {
+            await markSourceFailure("content_extraction", extraction.errorCode);
             summary.failed += 1;
           }
           continue;

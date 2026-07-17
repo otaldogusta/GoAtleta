@@ -78,6 +78,16 @@ describe("academic Edge runtime contract", () => {
     expect(syncSource).toContain("DOCUMENT_EXTRACTION_TIMEOUT_MS");
     expect(syncSource).toContain("MAX_COMPLEX_DOCUMENT_BYTES");
     expect(syncSource).toContain('errorCode: "complex_document_too_large"');
+    expect(syncSource).toContain("const revisionByteSize =");
+    expect(syncSource).toContain("byte_size: revisionByteSize");
+  });
+
+  test("não encaminha credenciais OAuth para o host assinado do download", () => {
+    expect(syncSource).toContain("const isGoogleDriveApiHost =");
+    expect(syncSource).toContain('headers.delete("Authorization")');
+    expect(syncSource).toContain(
+      'headers.delete("X-Goog-Drive-Resource-Keys")',
+    );
   });
 
   test("divide a ingestão em lotes retomáveis e recupera execução interrompida", () => {
@@ -142,6 +152,7 @@ describe("academic Edge runtime contract", () => {
     expect(syncSource).toContain('source_url: sourceUrl || ""');
     expect(syncSource).toContain("const markSourceFailure = async (");
     expect(syncSource).toContain('"knowledge_source_upsert",');
+    expect(syncSource).toContain('"content_extraction",');
     expect(syncSource).toContain("lastSyncFailure: {");
     expect(syncSource).not.toContain("knowledgeSourceError.message");
     expect(syncSource).not.toContain("knowledgeSourceError.details");
