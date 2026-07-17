@@ -178,7 +178,8 @@ export type GlobalAcademicPublicationStatus =
   | "published_outdated"
   | "superseded"
   | "withdrawn"
-  | "blocked";
+  | "blocked"
+  | "rejected";
 
 export type GlobalAcademicInterpretation = {
   id: string;
