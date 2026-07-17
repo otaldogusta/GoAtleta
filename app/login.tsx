@@ -21,7 +21,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
 import { useAuth } from "../src/auth/auth";
-import { savePendingTrainerInvite } from "../src/auth/pending-invite";
+import {
+  getPendingInvite,
+  getPendingTrainerInvite,
+  resolvePendingInviteRedirect,
+  savePendingTrainerInvite,
+} from "../src/auth/pending-invite";
 import { sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
 import { hasStoredSession, setRememberPreference } from "../src/auth/session";
 import { useBiometricLock } from "../src/security/biometric-lock";
@@ -230,7 +235,23 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (!session) return;
-    router.replace((loginRedirectTarget ?? "/") as Parameters<typeof router.replace>[0]);
+    let alive = true;
+    void (async () => {
+      const [pendingStudentToken, pendingTrainerCode] = await Promise.all([
+        getPendingInvite(),
+        getPendingTrainerInvite(),
+      ]);
+      if (!alive) return;
+      const target = resolvePendingInviteRedirect({
+        pendingStudentToken,
+        pendingTrainerCode,
+        defaultTarget: loginRedirectTarget ?? "/",
+      });
+      router.replace(target as Parameters<typeof router.replace>[0]);
+    })();
+    return () => {
+      alive = false;
+    };
   }, [loginRedirectTarget, router, session]);
 
   const formatCountdown = (value: number) => {
