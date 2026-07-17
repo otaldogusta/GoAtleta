@@ -5,6 +5,7 @@ import {
   clearPendingTrainerInvite,
   getPendingInvite,
   getPendingTrainerInvite,
+  resolvePendingInviteRedirect,
   savePendingInvite,
   savePendingTrainerInvite,
 } from "../pending-invite";
@@ -54,4 +55,33 @@ describe("pending invite storage", () => {
       "pending_trainer_invite_v1"
     );
   });
+
+  test.each([
+    {
+      pendingStudentToken: "student-token",
+      pendingTrainerCode: "",
+      expected: "/pending",
+    },
+    {
+      pendingStudentToken: "",
+      pendingTrainerCode: "TRAINER-CODE",
+      expected: "/pending",
+    },
+    {
+      pendingStudentToken: "",
+      pendingTrainerCode: "",
+      expected: "/prof/home",
+    },
+  ])(
+    "routes pending invitations before the default post-login target",
+    ({ pendingStudentToken, pendingTrainerCode, expected }) => {
+      expect(
+        resolvePendingInviteRedirect({
+          pendingStudentToken,
+          pendingTrainerCode,
+          defaultTarget: "/prof/home",
+        })
+      ).toBe(expected);
+    }
+  );
 });

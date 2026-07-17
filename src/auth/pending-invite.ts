@@ -32,3 +32,16 @@ export const getPendingTrainerInvite = async (): Promise<string> => {
 export const clearPendingTrainerInvite = async () => {
   await AsyncStorage.removeItem(TRAINER_KEY);
 };
+
+export const resolvePendingInviteRedirect = ({
+  pendingStudentToken,
+  pendingTrainerCode,
+  defaultTarget,
+}: {
+  pendingStudentToken: string;
+  pendingTrainerCode: string;
+  defaultTarget: string;
+}) =>
+  pendingStudentToken.trim() || pendingTrainerCode.trim()
+    ? "/pending"
+    : defaultTarget;

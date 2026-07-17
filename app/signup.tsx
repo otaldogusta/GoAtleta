@@ -672,7 +672,14 @@ export default function SignupScreen() {
             <View style={{ alignItems: "center", gap: 6 }}>
               <Text style={{ color: colors.muted }}>Já tem conta?</Text>
               <Pressable
-                onPress={() => router.replace("/login")}
+                onPress={() =>
+                  router.replace({
+                    pathname: "/login",
+                    params: inviteCode.trim()
+                      ? { inviteCode: inviteCode.trim() }
+                      : undefined,
+                  })
+                }
                 style={{ paddingVertical: 4 }}
               >
                 <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
