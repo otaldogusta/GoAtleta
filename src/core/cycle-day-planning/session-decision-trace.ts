@@ -84,6 +84,15 @@ export type SessionDecisionTrace = {
       rulesApplied?: string[];
       adjusted?: boolean;
     };
+    documentContext?: {
+      used: boolean;
+      referenceCount: number;
+      planningSourceTitle?: string;
+      sourceScopes: string[];
+      actionDate?: string;
+      warnings: string[];
+      readOnly: true;
+    };
   };
   safeguards: {
     repetitionAdjusted: boolean;
@@ -123,6 +132,7 @@ const buildTeacherFacingSummary = (params: {
   const periodizationDaily = params.trace.influences.periodizationDaily;
   const history = params.trace.influences.history;
   const scouting = params.trace.influences.scouting;
+  const documentContext = params.trace.influences.documentContext;
   const reasons = [
     periodizationDaily.used
       ? `o plano do dia indica ${periodizationDaily.sourceObjective || periodizationDaily.title || "essa intenção"}`
@@ -136,6 +146,11 @@ const buildTeacherFacingSummary = (params: {
     history.used && history.mustAvoidRepeating.length
       ? "o histórico recente pediu variação"
       : null,
+    documentContext?.planningSourceTitle
+      ? `a fonte ${documentContext.planningSourceTitle} orienta o período`
+      : documentContext?.used
+        ? "referências documentais autorizadas complementam o contexto"
+        : null,
   ].filter(Boolean);
 
   const reasonText = reasons.length
@@ -174,6 +189,16 @@ export const buildSessionDecisionTrace = (params: {
   const periodizationUsed = hasRealClassPlan(params.classPlan);
   const reportSignals = cleanList(params.sessionPlanningContext.reportFeedback?.notes ?? []);
   const reportRulesApplied = cleanList(params.reportFeedbackInfluence?.rulesApplied ?? []);
+  const documentSupport =
+    params.sessionPlanningContext.documentSupport ??
+    params.sessionPlanningContext.academicSupport;
+  const documentReferences = documentSupport?.references ?? [];
+  const planningSource = documentReferences.find(
+    (reference) =>
+      reference.isPrimaryPlanningSource ||
+      (reference.sourceScope === "class_planning" &&
+        reference.documentType === "monthly_plan")
+  );
 
   const traceWithoutSummary: Omit<SessionDecisionTrace, "teacherFacingSummary"> = {
     schemaVersion: 1,
@@ -246,6 +271,17 @@ export const buildSessionDecisionTrace = (params: {
         signals: reportSignals,
         rulesApplied: reportRulesApplied,
         adjusted: Boolean(params.reportFeedbackInfluence?.applied),
+      },
+      documentContext: {
+        used: documentReferences.length > 0,
+        referenceCount: documentReferences.length,
+        planningSourceTitle: planningSource?.title,
+        sourceScopes: cleanList(
+          documentReferences.map((reference) => reference.sourceScope)
+        ),
+        actionDate: documentSupport?.actionDate,
+        warnings: cleanList(documentSupport?.warnings ?? []),
+        readOnly: true,
       },
     },
     safeguards: {

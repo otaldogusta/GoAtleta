@@ -200,7 +200,6 @@ export default function StudentsScreen() {
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const { activeOrganization } = useOrganization();
-  const canManageStudentInvites = (activeOrganization?.role_level ?? 0) >= 50;
   const { coachName, groupInviteLinks } = useWhatsAppSettings();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -445,12 +444,11 @@ export default function StudentsScreen() {
   const { animatedStyle: allBirthdaysAnimStyle, isVisible: showAllBirthdaysContent } =
     useCollapsibleAnimation(showAllBirthdays, { translateY: -6 });
   const accordionAnimOptions = useMemo(
-    () =>
-      Platform.OS === "web"
-        ? { durationIn: 1, durationOut: 1, translateY: 0 }
-        : { durationIn: 220, durationOut: 180, translateY: -4 },
+    () => ({ durationIn: 160, durationOut: 120, translateY: -3 }),
     []
   );
+  const createSectionTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editSectionTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const createStudentDataAnim = useCollapsibleAnimation(openCreateSection === "studentData", accordionAnimOptions);
   const createAcademicAnim = useCollapsibleAnimation(openCreateSection === "academic", accordionAnimOptions);
   const createDocumentsAnim = useCollapsibleAnimation(openCreateSection === "documents", accordionAnimOptions);
@@ -464,27 +462,35 @@ export default function StudentsScreen() {
   const editHealthAnim = useCollapsibleAnimation(openEditSection === "health", accordionAnimOptions);
   const editGuardianAnim = useCollapsibleAnimation(openEditSection === "guardian", accordionAnimOptions);
   const editLinksAnim = useCollapsibleAnimation(openEditSection === "links", accordionAnimOptions);
+  useEffect(() => () => {
+    if (createSectionTransitionRef.current) clearTimeout(createSectionTransitionRef.current);
+    if (editSectionTransitionRef.current) clearTimeout(editSectionTransitionRef.current);
+  }, []);
   const loadSupplementaryStudentsData = useCallback(
     async (aliveRef: { current: boolean }) => {
-      try {
-        const preRegistrationList = await getStudentPreRegistrations({
-          organizationId: activeOrganization?.id,
-        });
-        if (!aliveRef.current) return;
-        setPreRegistrations(preRegistrationList);
-        if (!canManageStudentInvites || !session?.access_token) {
-          setPendingStudentInvites([]);
-          return;
-        }
-        const pendingInvitesResult = await listStudentPendingInvites().catch(() => ({ invites: [] }));
-        if (!aliveRef.current) return;
-        setPendingStudentInvites(pendingInvitesResult.invites ?? []);
-      } catch (error) {
-        if (!aliveRef.current) return;
-        console.warn("StudentsScreen supplementary load failed", error);
-      }
+      const preRegistrationsPromise = getStudentPreRegistrations({
+        organizationId: activeOrganization?.id,
+      }).catch((error) => {
+        console.warn("StudentsScreen pre-registration load failed", error);
+        return [];
+      });
+      const invitesPromise =
+        session?.access_token
+          ? listStudentPendingInvites().catch((error) => {
+              console.warn("StudentsScreen invite load failed", error);
+              return { invites: [] };
+            })
+          : Promise.resolve({ invites: [] });
+
+      const [preRegistrationList, pendingInvitesResult] = await Promise.all([
+        preRegistrationsPromise,
+        invitesPromise,
+      ]);
+      if (!aliveRef.current) return;
+      setPreRegistrations(preRegistrationList);
+      setPendingStudentInvites(pendingInvitesResult.invites ?? []);
     },
-    [activeOrganization?.id, canManageStudentInvites, session?.access_token]
+    [activeOrganization?.id, session?.access_token]
   );
 
   useEffect(() => {
@@ -530,7 +536,7 @@ export default function StudentsScreen() {
         getStudents({ organizationId: activeOrganization?.id }),
       ]);
       setStudents(studentList);
-      void loadSupplementaryStudentsData(isMountedRef);
+      await loadSupplementaryStudentsData(isMountedRef);
     } catch (error) {
       console.warn("StudentsScreen reload failed", error);
     }
@@ -643,15 +649,33 @@ export default function StudentsScreen() {
 
   const toggleCreateSection = useCallback(
     (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian") => {
-      setOpenCreateSection((current) => (current === section ? null : section));
+      if (createSectionTransitionRef.current) clearTimeout(createSectionTransitionRef.current);
+      if (openCreateSection && openCreateSection !== section) {
+        setOpenCreateSection(null);
+        createSectionTransitionRef.current = setTimeout(() => {
+          setOpenCreateSection(section);
+          createSectionTransitionRef.current = null;
+        }, 120);
+        return;
+      }
+      setOpenCreateSection(openCreateSection === section ? null : section);
     },
-    [setOpenCreateSection]
+    [openCreateSection, setOpenCreateSection]
   );
   const toggleEditSection = useCallback(
     (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian" | "links") => {
-      setOpenEditSection((current) => (current === section ? null : section));
+      if (editSectionTransitionRef.current) clearTimeout(editSectionTransitionRef.current);
+      if (openEditSection && openEditSection !== section) {
+        setOpenEditSection(null);
+        editSectionTransitionRef.current = setTimeout(() => {
+          setOpenEditSection(section);
+          editSectionTransitionRef.current = null;
+        }, 120);
+        return;
+      }
+      setOpenEditSection(openEditSection === section ? null : section);
     },
-    [setOpenEditSection]
+    [openEditSection, setOpenEditSection]
   );
 
   const handleSelectUnit = useCallback((value: string) => {
@@ -1499,9 +1523,8 @@ export default function StudentsScreen() {
   const editLinksSummary = useMemo(() => {
     const classLabel = selectedClassLabel || "Sem turma";
     const unitLabel = unit || "Sem unidade";
-    const modalityLabel = selectedClassModalityLabel || "Modalidade não informada";
-    return `${classLabel} • ${unitLabel} • ${modalityLabel}`;
-  }, [selectedClassLabel, selectedClassModalityLabel, unit]);
+    return `${classLabel} • ${unitLabel}`;
+  }, [selectedClassLabel, unit]);
 
   const formatShortDate = (value: string) => {
     if (!value) return "";

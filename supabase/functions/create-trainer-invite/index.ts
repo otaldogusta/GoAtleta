@@ -92,8 +92,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!supabaseUrl || !anonKey) {
-    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -103,6 +104,9 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${token}`,
       },
     },
+  });
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
@@ -140,7 +144,10 @@ Deno.serve(async (req) => {
     code = normalizeCode(`${randomCode(4)}-${randomCode(4)}`);
     codeHash = await sha256(code);
 
-    const { error } = await supabase.from("trainer_invites").insert({
+    // Membership and role were validated through the user-scoped client.
+    // Persist with the server client to avoid the legacy `is_trainer()` policy
+    // rejecting valid coordinators and organization administrators.
+    const { error } = await admin.from("trainer_invites").insert({
       code_hash: codeHash,
       created_by: userId,
       expires_at: expiresAt,

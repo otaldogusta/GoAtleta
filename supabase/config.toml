@@ -24,6 +24,9 @@ verify_jwt = false
 [functions.create-student-invite]
 verify_jwt = true
 
+[functions.validate-student-invite]
+verify_jwt = false
+
 [functions.claim-student-invite]
 verify_jwt = true
 
@@ -47,3 +50,18 @@ verify_jwt = true
 
 [functions.students-import]
 verify_jwt = true
+
+[functions.academic-drive-sync]
+verify_jwt = true
+
+[functions.academic-knowledge-retrieve]
+verify_jwt = true
+
+[functions.document-context-resolve]
+verify_jwt = true
+
+# Google redirects to this endpoint without a Supabase JWT. The callback is
+# protected by one-time OAuth state + PKCE; POST actions still validate the
+# user's Supabase bearer token inside the function.
+[functions.document-drive-oauth]
+verify_jwt = false

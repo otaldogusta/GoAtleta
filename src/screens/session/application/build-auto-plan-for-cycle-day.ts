@@ -77,6 +77,9 @@ export type BuildAutoPlanForCycleDayParams = {
   sessionIndexInWeek?: number;
   variationSeed?: number;
   dimensionGuidelines?: string[];
+  documentSupport?: SessionPlanningContext["documentSupport"];
+  /** Compatibilidade temporária para chamadas anteriores à camada unificada. */
+  academicSupport?: SessionPlanningContext["academicSupport"];
 };
 
 export type AutoPlanForCycleDayResult = {
@@ -104,6 +107,24 @@ export type AutoPlanForCycleDayResult = {
 
 const uniqueStrings = (values: Array<string | null | undefined>) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
+
+const resolvePlanDate = (plan: TrainingPlan) => {
+  const applyDate = String(plan.applyDate ?? "").slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(applyDate)) return applyDate;
+  const createdDate = String(plan.createdAt ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(createdDate) ? createdDate : "";
+};
+
+const resolveRecentPlansBeforeSession = (
+  plans: TrainingPlan[],
+  sessionDate: string
+) => [...plans]
+  .filter((plan) => {
+    const planDate = resolvePlanDate(plan);
+    return !planDate || planDate < sessionDate;
+  })
+  .sort((left, right) => resolvePlanDate(right).localeCompare(resolvePlanDate(left)))
+  .slice(0, 5);
 
 const resolveRecentSkills = (recentSessions: RecentSessionSummary[]) =>
   recentSessions
@@ -169,7 +190,10 @@ const adaptCycleStrategyToGenerationContext = (params: {
 export const buildAutoPlanForCycleDay = (
   params: BuildAutoPlanForCycleDayParams
 ): AutoPlanForCycleDayResult => {
-  const recentPlans = [...(params.recentPlans ?? [])].slice(0, 5);
+  const recentPlans = resolveRecentPlansBeforeSession(
+    params.recentPlans ?? [],
+    params.sessionDate
+  );
   const dailyPlanAnchor = buildDailyLessonPlanningAnchor({
     dailyLessonPlan: params.dailyLessonPlan,
     sessionDate: params.sessionDate,
@@ -278,6 +302,8 @@ export const buildAutoPlanForCycleDay = (
     readinessState,
     adaptiveEnvelope,
     coachGuidance,
+    documentSupport: params.documentSupport,
+    academicSupport: params.academicSupport,
   });
   sessionPlanningContext.classProfile.size = params.students.length;
   const pkg = buildPedagogicalInputFromContext({

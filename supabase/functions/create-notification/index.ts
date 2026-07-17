@@ -6,7 +6,7 @@ import {
 } from "../_shared/input-validation.ts";
 
 
-const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
+const makeJsonHeaders = (request: Request) => ({ ...buildCorsHeaders(request), "Content-Type": "application/json" });
 
 const notificationTypes = new Set([
   "training_created",
@@ -30,6 +30,7 @@ type CreateNotificationPayload = {
   sourceType?: string | null;
   sourceId?: string | null;
   metadata?: Record<string, unknown> | null;
+  dedupe?: boolean;
 };
 
 const createAnonClient = () => {
@@ -68,13 +69,13 @@ const parsePayload = async (request: Request): Promise<CreateNotificationPayload
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return corsPreflight(req);
+    return corsPreflight(request);
   }
 
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -82,7 +83,7 @@ Deno.serve(async (request) => {
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -90,7 +91,7 @@ Deno.serve(async (request) => {
   if (!payload) {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -140,13 +141,13 @@ Deno.serve(async (request) => {
   if (failed) {
     return new Response(JSON.stringify({ error: `Invalid ${failed[0]}: ${failed[1].error}` }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
   if (!notificationTypes.has(typeValidation.data)) {
     return new Response(JSON.stringify({ error: "Invalid type" }), {
       status: 400,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -154,7 +155,7 @@ Deno.serve(async (request) => {
   if (!supabase) {
     return new Response(JSON.stringify({ error: "Missing service role configuration." }), {
       status: 500,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -170,13 +171,13 @@ Deno.serve(async (request) => {
   if (senderError) {
     return new Response(JSON.stringify({ error: senderError.message }), {
       status: 500,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
   if (!senderMembership) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
@@ -189,14 +190,42 @@ Deno.serve(async (request) => {
   if (recipientError) {
     return new Response(JSON.stringify({ error: recipientError.message }), {
       status: 500,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
   if (!recipientMembership) {
     return new Response(JSON.stringify({ error: "Recipient is not a member of organization." }), {
       status: 404,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
+  }
+
+  if (payload.dedupe && sourceTypeValidation.data && sourceIdValidation.data) {
+    const { data: existing, error: existingError } = await supabase
+      .from("notifications")
+      .select(
+        "id,organization_id,recipient_user_id,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,created_at"
+      )
+      .eq("organization_id", organizationId)
+      .eq("recipient_user_id", recipientUserId)
+      .eq("type", typeValidation.data)
+      .eq("source_type", sourceTypeValidation.data)
+      .eq("source_id", sourceIdValidation.data)
+      .maybeSingle();
+
+    if (existingError) {
+      return new Response(JSON.stringify({ error: existingError.message }), {
+        status: 500,
+        headers: makeJsonHeaders(request),
+      });
+    }
+
+    if (existing) {
+      return new Response(JSON.stringify({ notification: existing, created: false }), {
+        status: 200,
+        headers: makeJsonHeaders(request),
+      });
+    }
   }
 
   const { data: notification, error: insertError } = await supabase
@@ -221,12 +250,12 @@ Deno.serve(async (request) => {
   if (insertError) {
     return new Response(JSON.stringify({ error: insertError.message }), {
       status: 500,
-      headers: makeJsonHeaders(req),
+      headers: makeJsonHeaders(request),
     });
   }
 
-  return new Response(JSON.stringify({ notification }), {
+  return new Response(JSON.stringify({ notification, created: true }), {
     status: 200,
-    headers: makeJsonHeaders(req),
+    headers: makeJsonHeaders(request),
   });
 });

@@ -42,6 +42,8 @@ export type ActivityPatternSelectionContext = {
   materials: string[];
   classSize: number;
   recentActivityFamilies: string[];
+  recentActivityNames?: string[];
+  recentActivityPatternIds?: string[];
   upcomingEvents?: SessionPlanningContext["upcomingEvents"];
 };
 
@@ -194,6 +196,24 @@ const scorePattern = (
   return score;
 };
 
+const resolveRecentPatternIndex = (
+  pattern: ActivityPattern,
+  context: ActivityPatternSelectionContext
+) => {
+  const patternId = normalize(pattern.id);
+  const activityName = normalize(pattern.build(context).name);
+  const patternIndex = (context.recentActivityPatternIds ?? [])
+    .map(normalize)
+    .findIndex((value) => value === patternId);
+  const nameIndex = (context.recentActivityNames ?? [])
+    .map(normalize)
+    .findIndex((value) => value === activityName);
+
+  if (patternIndex < 0) return nameIndex;
+  if (nameIndex < 0) return patternIndex;
+  return Math.min(patternIndex, nameIndex);
+};
+
 const knowledgeToPattern = (knowledge: ActivityKnowledgePattern): ActivityPattern => ({
   id: knowledge.id,
   stage: knowledge.stage,
@@ -237,7 +257,14 @@ const selectPattern = (
       (pattern.variant === context.focusVariant || !pattern.variant)
   );
   const available = sameVariant.length ? sameVariant : generic.length ? generic : fallback;
-  return [...available].sort((left, right) => {
+  const fresh = available.filter((pattern) => resolveRecentPatternIndex(pattern, context) < 0);
+  const selectionPool = fresh.length ? fresh : available;
+  return [...selectionPool].sort((left, right) => {
+    if (!fresh.length) {
+      const recentUseDelta =
+        resolveRecentPatternIndex(right, context) - resolveRecentPatternIndex(left, context);
+      if (recentUseDelta) return recentUseDelta;
+    }
     const scoreDelta = scorePattern(right, context) - scorePattern(left, context);
     return scoreDelta || left.id.localeCompare(right.id);
   })[0];

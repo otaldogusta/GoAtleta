@@ -227,4 +227,43 @@ describe("pedagogical-planning", () => {
     expect(normalizedText).not.toContain("levantamento");
     expect(normalizedText).not.toContain("levantador");
   });
+
+  it("keeps the structured primary skill when passe is only the secondary support", () => {
+    const result = buildPedagogicalPlan({
+      classGroup: createClassGroup({
+        goal: "Bloqueio com apoio de passe",
+      }),
+      students: [
+        createStudent({
+          healthIssue: false,
+          healthIssueNotes: "",
+          healthObservations: "",
+        }),
+      ],
+      objective:
+        "Desenvolver bloqueio, com apoio de passe, com foco em pressão de tempo.",
+      context: "treinamento",
+      constraints: [],
+      materials: ["bolas", "cones"],
+      duration: 60,
+      sessionPlanningContext: createSessionPlanningContext({
+        ageBand: "10-12",
+        skillFocus: "bloqueio",
+        secondarySkill: "passe",
+        cycleGoal: "Bloqueio",
+        weekGoal: "Bloqueio com leitura da trajetória",
+      }),
+    });
+
+    expect(
+      result.final.main.activities.some(
+        (activity) => activity.primarySkill === "bloqueio"
+      )
+    ).toBe(true);
+    expect(
+      result.final.main.activities.every(
+        (activity) => activity.primarySkill === "passe"
+      )
+    ).toBe(false);
+  });
 });

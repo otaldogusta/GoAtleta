@@ -52,8 +52,8 @@ on public.data_subject_requests
 for select
 to authenticated
 using (
-  student_id is null
-  or exists (
+  student_id is not null
+  and exists (
     select 1 from public.organization_members om
     join public.classes c on c.organization_id = om.organization_id
     join public.student_class_enrollments sce on sce.class_id = c.id
@@ -79,4 +79,4 @@ using (
 );
 
 create trigger handle_dsr_updated_at before update on public.data_subject_requests
-  for each row execute procedure moddatetime (updated_at);
+  for each row execute function private.set_lgpd_updated_at();

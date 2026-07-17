@@ -47,6 +47,8 @@ const ReportIcon = ({
 }) => <GoAtletaIcon name={reportIconNames[name]} size={size} color={color} style={style} />;
 
 type SessionReportTabProps = {
+  embedded?: boolean;
+  compactFields?: boolean;
   colors: ThemeColors;
   containerRef: RefObject<View | null>;
   pseTriggerRef: RefObject<View | null>;
@@ -102,6 +104,8 @@ type SessionReportTabProps = {
 };
 
 export function SessionReportTab({
+  embedded = false,
+  compactFields = false,
   colors,
   containerRef,
   pseTriggerRef,
@@ -162,17 +166,17 @@ export function SessionReportTab({
       ref={containerRef}
       onLayout={onContainerLayout}
       style={{
-        padding: 14,
-        borderRadius: 18,
-        backgroundColor: colors.card,
-        borderWidth: 1,
+        padding: embedded ? 0 : 14,
+        borderRadius: embedded ? 0 : 18,
+        backgroundColor: embedded ? "transparent" : colors.card,
+        borderWidth: embedded ? 0 : 1,
         borderColor: colors.border,
         position: "relative",
         shadowColor: "#000",
-        shadowOpacity: 0.04,
+        shadowOpacity: embedded ? 0 : 0.04,
         shadowRadius: 10,
         shadowOffset: { width: 0, height: 6 },
-        elevation: 2,
+        elevation: embedded ? 0 : 2,
         gap: 8,
       }}
     >
@@ -201,8 +205,8 @@ export function SessionReportTab({
       ) : null}
 
       <View style={{ gap: 12, marginTop: 12 }}>
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flexDirection: compactFields ? "column" : "row", gap: 12 }}>
+          <View style={{ flex: compactFields ? undefined : 1, minWidth: 0, gap: 6 }}>
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
               {ptBR.session.report.pse}
             </Text>
@@ -233,7 +237,7 @@ export function SessionReportTab({
             </View>
           </View>
 
-          <View style={{ flex: 1, gap: 6 }}>
+          <View style={{ flex: compactFields ? undefined : 1, minWidth: 0, gap: 6 }}>
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
               {ptBR.session.report.technique}
             </Text>
@@ -267,8 +271,8 @@ export function SessionReportTab({
           </View>
         </View>
 
-        <View style={{ flexDirection: "row", gap: 12 }}>
-          <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flexDirection: compactFields ? "column" : "row", gap: 12 }}>
+          <View style={{ flex: compactFields ? undefined : 1, minWidth: 0, gap: 6 }}>
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
               {ptBR.session.report.participants}
             </Text>
@@ -289,7 +293,7 @@ export function SessionReportTab({
             />
           </View>
 
-          <View style={{ flex: 1, gap: 6 }}>
+          <View style={{ flex: compactFields ? undefined : 1, minWidth: 0, gap: 6 }}>
             <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
               {ptBR.session.report.activity}
             </Text>
@@ -357,8 +361,8 @@ export function SessionReportTab({
                 gap: 8,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+              <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: "700", color: colors.text }}>
                   {ptBR.session.report.previewAppliedTraining}
                 </Text>
                 <Pressable

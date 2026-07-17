@@ -7,6 +7,8 @@ import { clearAiCache } from "../api/ai";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearSentryUser, setSentryUser } from "../observability/sentry";
 import { safeJsonParse } from "../utils/safe-json";
+import { canSafelyUnlinkProvider, type LinkedIdentity } from "./identity-linking";
+import { buildOAuthAuthorizeUrl } from "./oauth-url";
 import type { AuthSession } from "./session";
 import { loadSession, saveSession } from "./session";
 
@@ -223,13 +225,7 @@ const deleteUserIdentity = async (accessToken: string, identityId: string) => {
   }
 };
 
-type UserIdentity = {
-  id?: string | null;
-  identity_id?: string | null;
-  identityId?: string | null;
-  identity_id_pk?: string | null;
-  provider?: string | null;
-};
+type UserIdentity = LinkedIdentity;
 
 const fetchUserIdentities = async (accessToken: string): Promise<UserIdentity[]> => {
   if (!accessToken) return [];
@@ -370,24 +366,23 @@ export function AuthProvider({
         const redirectTo = normalized
           ? `${window.location.origin}/${normalized}`
           : window.location.origin;
-        const authUrl =
-          SUPABASE_URL.replace(/\/$/, "") +
-          `/auth/v1/authorize?provider=${encodeURIComponent(
-            provider
-          )}&response_type=code&redirect_to=${encodeURIComponent(
-            redirectTo
-          )}`;
+        const authUrl = buildOAuthAuthorizeUrl({
+          supabaseUrl: SUPABASE_URL,
+          provider,
+          redirectTo,
+        });
         window.location.href = authUrl;
         return;
       }
 
       // For mobile, use WebBrowser
       const redirectTo = buildRedirectUrl(redirectPath);
-      const authUrl =
-        SUPABASE_URL.replace(/\/$/, "") +
-        `/auth/v1/authorize?provider=${encodeURIComponent(
-          provider
-        )}&redirect_to=${encodeURIComponent(redirectTo)}&response_type=code&skip_http_redirect=true`;
+      const authUrl = buildOAuthAuthorizeUrl({
+        supabaseUrl: SUPABASE_URL,
+        provider,
+        redirectTo,
+        skipHttpRedirect: true,
+      });
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectTo);
       if (result.type !== "success") {
         throw new Error("OAuth cancelado.");
@@ -548,6 +543,11 @@ export function AuthProvider({
       const identityId = resolveIdentityId(target);
       if (!identityId) {
         throw new Error("Conta não vinculada ao provedor selecionado.");
+      }
+      if (!canSafelyUnlinkProvider(identities, provider)) {
+        throw new Error(
+          "Para manter o acesso à conta, configure outro método de login antes de desvincular o Google."
+        );
       }
 
       await deleteUserIdentity(token, identityId);

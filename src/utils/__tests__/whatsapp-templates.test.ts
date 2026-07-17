@@ -1,4 +1,7 @@
-import { calculateAdjacentClassDate } from "../whatsapp-templates";
+import {
+  calculateAdjacentClassDate,
+  calculateCurrentOrNextClassDate,
+} from "../whatsapp-templates";
 
 describe("calculateAdjacentClassDate", () => {
   it("jumps to the next configured class day instead of the next calendar day", () => {
@@ -17,5 +20,29 @@ describe("calculateAdjacentClassDate", () => {
     const result = calculateAdjacentClassDate([1], new Date("2026-04-10T00:00:00"), 1);
 
     expect(result?.toISOString().slice(0, 10)).toBe("2026-04-13");
+  });
+});
+
+describe("calculateCurrentOrNextClassDate", () => {
+  it("keeps today's class before its scheduled end", () => {
+    const result = calculateCurrentOrNextClassDate(
+      [4],
+      "14:00",
+      60,
+      new Date("2026-07-16T13:30:00")
+    );
+
+    expect(result?.toISOString().slice(0, 10)).toBe("2026-07-16");
+  });
+
+  it("advances only after today's class ends", () => {
+    const result = calculateCurrentOrNextClassDate(
+      [4],
+      "14:00",
+      60,
+      new Date("2026-07-16T15:00:00")
+    );
+
+    expect(result?.toISOString().slice(0, 10)).toBe("2026-07-23");
   });
 });

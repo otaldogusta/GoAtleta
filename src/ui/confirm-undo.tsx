@@ -118,6 +118,20 @@ export function ConfirmUndoProvider({
   }, [pending, undoProgressAnim]);
 
   useEffect(() => {
+    if (!pending || typeof window === "undefined") return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      if (tagName === "input" || tagName === "textarea" || tagName === "select" || target?.isContentEditable) return;
+      event.preventDefault();
+      void handleUndo();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleUndo, pending]);
+
+  useEffect(() => {
     if (!pending) {
       setRemainingSeconds(0);
       undoProgressAnim.stopAnimation();

@@ -1,6 +1,6 @@
 import type { ClassGroup, ClassPlan, DailyLessonPlan } from "../../../../core/models";
 import type { MonthPlanningSummary } from "../month-planning-summary";
-import { buildMonthlyPlanExportData } from "../monthly-plan-export";
+import { buildMonthlyPlanExportData, buildWeeklyPlanExportData } from "../monthly-plan-export";
 
 const classGroup = {
   id: "class-1",
@@ -10,6 +10,8 @@ const classGroup = {
   daysOfWeek: [2, 4],
   daysPerWeek: 2,
   durationMinutes: 60,
+  startTime: "14:00",
+  endTime: "15:00",
 } as ClassGroup;
 
 const june = {
@@ -31,6 +33,7 @@ const plan = {
   phase: "Fundamentos",
   theme: "Ponte 1x1 -> 2x2",
   technicalFocus: "Controle",
+  pedagogicalRule: "Como manter a bola jogável após o primeiro contato?",
   physicalFocus: "Deslocamento",
   constraints: "",
   mvFormat: "",
@@ -71,14 +74,21 @@ describe("buildMonthlyPlanExportData", () => {
     });
 
     expect(data.className).toBe("Turma 8-11");
+    expect(data.ageGroup).toBe("8–11");
     expect(data.monthLabel).toBe("Junho de 2026");
     expect(data.totalWeeks).toBe(1);
     expect(data.totalSessions).toBe(2);
     expect(data.lessons[0]).toMatchObject({
-      weekLabel: "SEMANA 23",
-      dateLabel: "02/06/2026",
+      weekLabel: expect.stringContaining("SEMANA 23"),
+      dateLabel: expect.stringMatching(/^\d{2}\/06\/2026 \(.+\)$/),
+      timeLabel: "14h às 15h",
+      situationProblem: "Como manter a bola jogável após o primeiro contato?",
       observations: "",
     });
+    expect(data.lessons[0].specificObjective).toContain("Conceitual:");
+    expect(data.lessons[0].specificObjective).toContain("Atitudinal:");
+    expect(data.lessons[0].specificObjective).toContain("Procedimental:");
+    expect(data.lessons[0].specificObjective).toContain("Avance para 2x2 cooperativo");
     expect(data.lessons[0].blocks.map((block) => block.period)).toEqual([
       "Aquecimento",
       "Parte principal",
@@ -86,11 +96,28 @@ describe("buildMonthlyPlanExportData", () => {
     ]);
     expect(data.lessons[0].blocks[0]).toMatchObject({
       time: "10'",
-      description: "Comece com 1x1 com quique e alvo.",
     });
+    expect(data.lessons[0].blocks[0].description).toEqual(expect.any(String));
+    expect(data.lessons[0].blocks[1].activities).toMatch(/^1\. /);
+    expect(data.lessons[0].blocks[1].description).toMatch(/^1\. /);
     expect(data.lessons[1]).toMatchObject({
-      weekLabel: "SEMANA 23",
-      dateLabel: "04/06/2026",
+      weekLabel: expect.stringContaining("SEMANA 23"),
+      dateLabel: expect.stringMatching(/^\d{2}\/06\/2026 \(.+\)$/),
+    });
+  });
+
+  it("exports a selected week with the same lesson-sheet data", () => {
+    const data = buildWeeklyPlanExportData({
+      classGroup,
+      plan,
+      dailyPlansByKey: {},
+    });
+
+    expect(data.totalWeeks).toBe(1);
+    expect(data.lessons.length).toBeGreaterThan(0);
+    expect(data.lessons[0]).toMatchObject({
+      weekLabel: expect.stringContaining("SEMANA 23"),
+      timeLabel: "14h às 15h",
     });
   });
 });

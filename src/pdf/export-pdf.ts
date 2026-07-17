@@ -14,6 +14,27 @@ export const safeFileName = (value: string) =>
     .replace(/^-|-$/g, "")
     .toLowerCase();
 
+export const createWebPdfBlob = async (webDocument: ReactElement) => {
+  if (Platform.OS !== "web") {
+    throw new Error("PDF preview is only available on web.");
+  }
+  const { pdf } = await import("@react-pdf/renderer/lib/react-pdf.browser");
+  return pdf(webDocument as any).toBlob();
+};
+
+export const downloadWebPdfBlob = (blob: Blob, fileName: string) => {
+  if (typeof window === "undefined" || typeof document === "undefined") return "";
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return url;
+};
+
 export const exportPdf = async ({
   html,
   fileName,
@@ -50,20 +71,11 @@ export const exportPdf = async ({
   if (!webDocument) {
     throw new Error("Missing webDocument for PDF export.");
   }
-  const { pdf } = await import("@react-pdf/renderer/lib/react-pdf.browser");
-  const blob = await pdf(webDocument as any).toBlob();
+  const blob = await createWebPdfBlob(webDocument);
   if (typeof window === "undefined" || typeof document === "undefined") {
     return { uri: "", fileName };
   }
-  
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const url = downloadWebPdfBlob(blob, fileName);
   return { uri: url, fileName };
 };
 

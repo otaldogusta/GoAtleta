@@ -1,7 +1,7 @@
 import type { VolleyballSkill } from "../../core/models";
 import { buildNextVolleyballLessonPlan } from "../../core/progression-engine";
 import { buildHumanizedVolleyballLessonBlocks } from "../../core/volleyball/humanized-lesson-activities";
-import { sessionPlanHtml } from "../templates/session-plan";
+import { buildSessionMonthlyPlanData, sessionPlanHtml } from "../templates/session-plan";
 
 const buildGeneratedHtml = (ageBand: string, objective: string, focusSkills: VolleyballSkill[]) => {
   const plan = buildNextVolleyballLessonPlan({
@@ -67,6 +67,29 @@ const expectStandardPdfText = (html: string) => {
 };
 
 describe("session-plan language sanitization", () => {
+  it("maps the single lesson metadata and observations to the reference lesson sheet", () => {
+    const data = buildSessionMonthlyPlanData({
+      className: "Primeiros Saques",
+      ageGroup: "08-11",
+      genderLabel: "misto",
+      coachName: "Gustavo Ribeiro dos Santos",
+      dateLabel: "02/07/2026 (quinta-feira)",
+      timeLabel: "14h às 15h",
+      weekLabel: "SEMANA 01",
+      title: "Diagnóstico do contato sem segurar a bola",
+      notes: "Usar bolas mais leves quando necessário.",
+      blocks: [],
+    });
+
+    expect(data.professorName).toBe("Gustavo Ribeiro dos Santos");
+    expect(data.lessons[0]).toMatchObject({
+      weekLabel: "SEMANA 01 — Diagnóstico do contato sem segurar a bola",
+      dateLabel: "02/07/2026 (quinta-feira)",
+      timeLabel: "14h às 15h",
+      observations: "Usar bolas mais leves quando necessário.",
+    });
+  });
+
   it("removes forbidden foreign terms from exported html", () => {
     const html = sessionPlanHtml({
       className: "Turma 08-10",
@@ -135,13 +158,11 @@ describe("session-plan language sanitization", () => {
       ],
     });
 
-    expect(html).toContain("Passe para alvo em duplas");
-    expect(html).toContain("Manchete com ajuste de pés");
+    expect(html).toContain("1. Passe para alvo em duplas");
+    expect(html).toContain("2. Manchete com ajuste de pés");
+    expect(html).toContain("1. Duplas a 3 metros com cone como alvo. Um aluno lanca e o outro responde de manchete.");
     expect(html).toContain(
-      "Passe para alvo em duplas<br/>Duplas a 3 metros com cone como alvo. Um aluno lanca e o outro responde de manchete."
-    );
-    expect(html).toContain(
-      "Manchete com ajuste de pés<br/>Três filas curtas atrás da linha de fundo e alvo na posição 3. O aluno ajusta os pés, chama a bola e faz a manchete para o alvo."
+      "2. Três filas curtas atrás da linha de fundo e alvo na posição 3. O aluno ajusta os pés, chama a bola e faz a manchete para o alvo."
     );
     expect(html).not.toContain("Foco do professor:");
     expect(html).not.toContain("Meta:");
@@ -225,12 +246,8 @@ describe("session-plan language sanitization", () => {
       blocks: [],
     });
 
-    expect(html).toContain(
-      "Objetivo geral:</strong> Desenvolver o controle do passe/manchete em situações simples de jogo."
-    );
-    expect(html).toContain(
-      "Objetivo específico:</strong> Ajustar base, deslocamento e direção da bola para enviar o passe a uma zona-alvo."
-    );
+    expect(html).toContain("Desenvolver o controle do passe/manchete em situações simples de jogo.");
+    expect(html).toContain("Ajustar base, deslocamento e direção da bola para enviar o passe a uma zona-alvo.");
     expect(html).not.toContain("os fundamentos de turma");
     expect(html).not.toContain("execucao");
     expect(html).not.toContain("decisao");

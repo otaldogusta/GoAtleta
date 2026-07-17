@@ -58,8 +58,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!supabaseUrl || !anonKey) {
-    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -69,6 +70,9 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${user.token}`,
       },
     },
+  });
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const { data: student, error: studentError } = await supabase
@@ -84,11 +88,6 @@ Deno.serve(async (req) => {
 
   if (!student) {
     return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
-  }
-
-  if (student.owner_id && student.owner_id !== user.id) {
-    // Redundant application-level validation. RLS enforces this as well.
-    return createError(req, 403, "FORBIDDEN", "Forbidden");
   }
 
   const updates: Record<string, unknown> = {
@@ -108,7 +107,7 @@ Deno.serve(async (req) => {
     return createError(req, 500, "SERVER_ERROR", "Failed to revoke student access");
   }
 
-  const { error: inviteUpdateError } = await supabase
+  const { error: inviteUpdateError } = await admin
     .from("student_invites")
     .update({ revoked: true })
     .eq("student_id", studentId);

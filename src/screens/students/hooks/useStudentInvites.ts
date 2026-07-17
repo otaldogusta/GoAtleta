@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { Alert } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { SUPABASE_URL } from "../../../api/config";
 import { getInviteErrorCode } from "../../../api/invite-errors";
 import {
   createStudentInvite,
@@ -35,14 +34,7 @@ export type UseStudentInvitesParams = {
 };
 
 const buildInviteLink = (token: string) => {
-  if (!SUPABASE_URL) {
-    return `goatleta://invite/${token}`;
-  }
-  const base = SUPABASE_URL.replace(/\/$/, "").replace(
-    ".supabase.co",
-    ".functions.supabase.co"
-  );
-  return `${base}/invite-link?token=${encodeURIComponent(token)}`;
+  return `https://go-atleta.vercel.app/invite/${encodeURIComponent(token)}`;
 };
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -118,7 +110,9 @@ export function useStudentInvites({
         const attempts = options.revokeFirst ? 2 : 1;
         for (let attempt = 0; attempt < attempts; attempt += 1) {
           try {
-            return await createInvite();
+            const message = await createInvite();
+            await reload();
+            return message;
           } catch (error) {
             if (attempt + 1 < attempts) {
               await wait(400);
@@ -127,7 +121,6 @@ export function useStudentInvites({
             throw error;
           }
         }
-        await reload();
         return null;
       } catch (error) {
         const message = toInviteErrorMessage(error);

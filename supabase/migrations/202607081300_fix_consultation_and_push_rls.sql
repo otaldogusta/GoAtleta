@@ -92,8 +92,15 @@ drop policy if exists "consultation_profiles org members insert" on public.consu
 create policy "consultation_profiles insert policy" on public.consultation_profiles
   for insert to authenticated
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+    )
+    and exists (
+      select 1 from public.students s
+      where s.id = consultation_profiles.student_id
+        and s.organization_id = consultation_profiles.organization_id
+    )
   );
 
 drop policy if exists "consultation_profiles org members update" on public.consultation_profiles;
@@ -105,9 +112,16 @@ create policy "consultation_profiles update policy" on public.consultation_profi
     or public.owns_student(student_id)
   )
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
-    or public.owns_student(student_id)
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+      or public.owns_student(student_id)
+    )
+    and exists (
+      select 1 from public.students s
+      where s.id = consultation_profiles.student_id
+        and s.organization_id = consultation_profiles.organization_id
+    )
   );
 
 drop policy if exists "consultation_profiles org admins delete" on public.consultation_profiles;
@@ -135,8 +149,15 @@ drop policy if exists "prescribed_workouts org members insert" on public.prescri
 create policy "prescribed_workouts insert policy" on public.prescribed_workouts
   for insert to authenticated
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+    )
+    and exists (
+      select 1 from public.students s
+      where s.id = prescribed_workouts.student_id
+        and s.organization_id = prescribed_workouts.organization_id
+    )
   );
 
 drop policy if exists "prescribed_workouts org members update" on public.prescribed_workouts;
@@ -147,8 +168,15 @@ create policy "prescribed_workouts update policy" on public.prescribed_workouts
     or (public.is_trainer() and public.is_org_member(organization_id))
   )
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+    )
+    and exists (
+      select 1 from public.students s
+      where s.id = prescribed_workouts.student_id
+        and s.organization_id = prescribed_workouts.organization_id
+    )
   );
 
 drop policy if exists "prescribed_workouts org members delete" on public.prescribed_workouts;
@@ -183,8 +211,15 @@ drop policy if exists "prescribed_exercises org members insert" on public.prescr
 create policy "prescribed_exercises insert policy" on public.prescribed_exercises
   for insert to authenticated
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+    )
+    and exists (
+      select 1 from public.prescribed_workouts pw
+      where pw.id = prescribed_exercises.workout_id
+        and pw.organization_id = prescribed_exercises.organization_id
+    )
   );
 
 drop policy if exists "prescribed_exercises org members update" on public.prescribed_exercises;
@@ -195,8 +230,15 @@ create policy "prescribed_exercises update policy" on public.prescribed_exercise
     or (public.is_trainer() and public.is_org_member(organization_id))
   )
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+    )
+    and exists (
+      select 1 from public.prescribed_workouts pw
+      where pw.id = prescribed_exercises.workout_id
+        and pw.organization_id = prescribed_exercises.organization_id
+    )
   );
 
 drop policy if exists "prescribed_exercises org members delete" on public.prescribed_exercises;
@@ -224,9 +266,20 @@ drop policy if exists "workout_execution_logs org members insert" on public.work
 create policy "workout_execution_logs insert policy" on public.workout_execution_logs
   for insert to authenticated
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
-    or public.owns_student(student_id)
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+      or public.owns_student(student_id)
+    )
+    and exists (
+      select 1
+      from public.prescribed_workouts pw
+      join public.students s on s.id = workout_execution_logs.student_id
+      where pw.id = workout_execution_logs.workout_id
+        and pw.student_id = workout_execution_logs.student_id
+        and pw.organization_id = workout_execution_logs.organization_id
+        and s.organization_id = workout_execution_logs.organization_id
+    )
   );
 
 drop policy if exists "workout_execution_logs org members update" on public.workout_execution_logs;
@@ -238,9 +291,20 @@ create policy "workout_execution_logs update policy" on public.workout_execution
     or public.owns_student(student_id)
   )
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
-    or public.owns_student(student_id)
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+      or public.owns_student(student_id)
+    )
+    and exists (
+      select 1
+      from public.prescribed_workouts pw
+      join public.students s on s.id = workout_execution_logs.student_id
+      where pw.id = workout_execution_logs.workout_id
+        and pw.student_id = workout_execution_logs.student_id
+        and pw.organization_id = workout_execution_logs.organization_id
+        and s.organization_id = workout_execution_logs.organization_id
+    )
   );
 
 -- Delete is fully restricted for athletes.
@@ -269,9 +333,16 @@ drop policy if exists "completed_exercise_logs org members insert" on public.com
 create policy "completed_exercise_logs insert policy" on public.completed_exercise_logs
   for insert to authenticated
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
-    or public.owns_execution_log(execution_log_id)
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+      or public.owns_execution_log(execution_log_id)
+    )
+    and exists (
+      select 1 from public.workout_execution_logs wel
+      where wel.id = completed_exercise_logs.execution_log_id
+        and wel.organization_id = completed_exercise_logs.organization_id
+    )
   );
 
 drop policy if exists "completed_exercise_logs org members update" on public.completed_exercise_logs;
@@ -283,9 +354,16 @@ create policy "completed_exercise_logs update policy" on public.completed_exerci
     or public.owns_execution_log(execution_log_id)
   )
   with check (
-    public.is_org_admin(organization_id)
-    or (public.is_trainer() and public.is_org_member(organization_id))
-    or public.owns_execution_log(execution_log_id)
+    (
+      public.is_org_admin(organization_id)
+      or (public.is_trainer() and public.is_org_member(organization_id))
+      or public.owns_execution_log(execution_log_id)
+    )
+    and exists (
+      select 1 from public.workout_execution_logs wel
+      where wel.id = completed_exercise_logs.execution_log_id
+        and wel.organization_id = completed_exercise_logs.organization_id
+    )
   );
 
 drop policy if exists "completed_exercise_logs org members delete" on public.completed_exercise_logs;
@@ -306,16 +384,15 @@ create policy "push_deliveries_select_scoped" on public.push_deliveries
   using (
     auth.uid() = to_user_id
     or auth.uid() = from_user_id
+    or public.is_org_admin(organization_id)
   );
 
--- Create Administrative View
--- Security_invoker = false means it runs as definer (postgres).
--- It will read all rows from push_deliveries, but we filter them so the caller 
--- only sees rows for the org they administrate.
+-- Create Administrative View. The caller's RLS remains active; organization
+-- admins are admitted by the scoped policy above.
 
 drop view if exists public.admin_push_deliveries_view;
 create view public.admin_push_deliveries_view
-  with (security_invoker = false)
+  with (security_invoker = true)
 as
   select id, organization_id, to_user_id, from_user_id, status, provider_response, created_at
   from public.push_deliveries

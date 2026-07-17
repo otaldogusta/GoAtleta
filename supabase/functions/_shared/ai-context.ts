@@ -1,4 +1,4 @@
-import { SupabaseClient, User } from "https://esm.sh/@supabase/supabase-js@2";
+import type { SupabaseClient, User } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireActiveWorkspaceId } from "./ai-workspace-scope.ts";
 import {
   AIInstitutionalProfile,
@@ -19,11 +19,32 @@ export interface AINavigationContext {
   entityId?: string;
 }
 
+export interface AIActionContext {
+  classId?: string;
+  date: string;
+}
+
 export interface AIContext {
   user: AIUserContext;
   navigation: AINavigationContext;
+  action: AIActionContext;
   institutionalProfile: AIInstitutionalProfile;
 }
+
+export const normalizeAIActionDate = (value: unknown): string | null => {
+  const raw = String(value ?? "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+  if (!match) return null;
+  const normalized = `${match[1]}-${match[2]}-${match[3]}`;
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== normalized
+  ) {
+    return null;
+  }
+  return normalized;
+};
 
 /**
  * Safely builds the AIContext for a given request.
@@ -55,7 +76,49 @@ export async function resolveAIContext(
   const roleLevel = activeMembership?.role_level ?? 0;
   const role = roleLevel >= 50 ? "admin" : roleLevel >= 30 ? "coach" : "member";
 
-  const classId = typeof body.classId === "string" ? body.classId.trim() : "";
+  const navRaw = body.navigation || {};
+  const navigation: AINavigationContext = {
+    screen: String(navRaw.screen || body.screen || "home").trim(),
+    entityType: navRaw.entityType
+      ? String(navRaw.entityType).trim()
+      : undefined,
+    entityId: navRaw.entityId ? String(navRaw.entityId).trim() : undefined,
+  };
+  const navigationEntityType = String(navigation.entityType ?? "")
+    .trim()
+    .toLowerCase();
+  const navigationClassId =
+    ["class", "class_detail", "training_class"].includes(
+      navigationEntityType
+    ) && navigation.entityId
+      ? navigation.entityId
+      : "";
+  const classId =
+    (typeof body.classId === "string"
+      ? body.classId.trim()
+      : typeof body.class_id === "string"
+        ? body.class_id.trim()
+        : "") ||
+    navigationClassId;
+  const appSnapshot =
+    body.appSnapshot && typeof body.appSnapshot === "object"
+      ? body.appSnapshot as Record<string, unknown>
+      : {};
+  const actionDate =
+    [
+      body.actionDate,
+      body.action_date,
+      body.sessionDate,
+      body.session_date,
+      body.lessonDate,
+      body.lesson_date,
+      body.date,
+      appSnapshot.sessionDate,
+      appSnapshot.lessonDate,
+      appSnapshot.date,
+    ]
+      .map(normalizeAIActionDate)
+      .find(Boolean) ?? new Date().toISOString().slice(0, 10);
 
   const [
     { data: organization },
@@ -144,14 +207,6 @@ export async function resolveAIContext(
     });
   }
 
-  // 3. Resolve Navigation Context (default fallback if client doesn't send it)
-  const navRaw = body.navigation || {};
-  const navigation: AINavigationContext = {
-    screen: String(navRaw.screen || body.screen || "home").trim(),
-    entityType: navRaw.entityType ? String(navRaw.entityType).trim() : undefined,
-    entityId: navRaw.entityId ? String(navRaw.entityId).trim() : undefined
-  };
-
   return {
     user: {
       id: userId,
@@ -160,6 +215,10 @@ export async function resolveAIContext(
       permissions
     },
     navigation,
+    action: {
+      classId: classId || undefined,
+      date: actionDate,
+    },
     institutionalProfile,
   };
 }
@@ -171,6 +230,7 @@ export function buildSystemAIContextPrompt(ctx: AIContext): string {
     `Their explicit permissions are: [${ctx.user.permissions.join(", ")}].`,
     `Current navigation context: Screen is "${ctx.navigation.screen}".` + 
       (ctx.navigation.entityType ? ` Viewing entity "${ctx.navigation.entityType}" with ID "${ctx.navigation.entityId}".` : ""),
+    `Current action context: classId="${ctx.action.classId ?? ""}", date="${ctx.action.date}".`,
     buildInstitutionalProfilePrompt(ctx.institutionalProfile),
   ].join("\n");
 }

@@ -56,12 +56,13 @@ export function createEdgeFunction<TBody = any>(config: EdgeFunctionConfig<TBody
     let securityIssue: string | undefined = undefined;
     let metricsTracker: MetricsTracker | null = null;
     
-    // We instantiate an admin client strictly for telemetry flushing inside the pipeline
-    // because the user context client shouldn't be relied upon if it's broken or RLS blocks logging.
-    // Wait, log_system_event is Security Definer, so Anon Key can write logs via RPC safely!
+    // Telemetry is server-only. Never allow the public anon key to forge system events.
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const telemetryClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const telemetryClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false },
+    });
     
     try {
       // 1. CORS Preflight
@@ -69,7 +70,7 @@ export function createEdgeFunction<TBody = any>(config: EdgeFunctionConfig<TBody
         return new Response("ok", { headers: buildCorsHeaders(req) });
       }
 
-      if (!supabaseUrl || !anonKey) {
+      if (!supabaseUrl || !anonKey || !serviceRoleKey) {
         throw new Error("Missing Supabase configuration");
       }
 

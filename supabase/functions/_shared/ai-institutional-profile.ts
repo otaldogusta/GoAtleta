@@ -231,7 +231,7 @@ export function resolveHierarchicalInstitutionalProfile(params: {
     return resolveInstitutionalProfile(params.organizationName, params.legacyRow);
   }
 
-  return applicableRows.reduce((profile, row) => {
+  return applicableRows.reduce<AIInstitutionalProfile>((profile, row) => {
     const scopeType = String(row.scope_type) as AIInstitutionalProfileScope;
     const scopeId = String(row.scope_id ?? "");
     return mergeProfileRow(profile, row, {

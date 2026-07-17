@@ -172,6 +172,38 @@ export function calculateNextClassDate(daysOfWeek: number[]): Date | null {
 }
 
 /**
+ * Keeps today's class selected until its scheduled end, then advances to the
+ * next configured class day.
+ */
+export function calculateCurrentOrNextClassDate(
+  daysOfWeek: number[],
+  startTime: string,
+  durationMinutes = 60,
+  referenceDate = new Date()
+): Date | null {
+  const sortedDays = getSortedClassDays(daysOfWeek);
+  if (!sortedDays.length) return null;
+
+  const today = normalizeDateStart(referenceDate);
+  if (sortedDays.includes(today.getDay())) {
+    const match = String(startTime ?? "").trim().match(/^(\d{1,2}):(\d{2})/);
+    const startMinutes = match
+      ? Number(match[1]) * 60 + Number(match[2])
+      : null;
+    const nowMinutes = referenceDate.getHours() * 60 + referenceDate.getMinutes();
+    const endMinutes = startMinutes === null
+      ? Number.POSITIVE_INFINITY
+      : startMinutes + Math.max(0, durationMinutes);
+
+    if (startMinutes === null || nowMinutes < endMinutes) {
+      return today;
+    }
+  }
+
+  return calculateAdjacentClassDate(sortedDays, today, 1);
+}
+
+/**
  * Format date for display (e.g., "segunda, 20/01")
  */
 export function formatNextClassDate(date: Date): string {

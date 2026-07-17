@@ -29,6 +29,9 @@ type ClassCardProps = {
   onEdit?: (value: ClassGroup) => void;
   onDuplicate?: (value: ClassGroup) => void;
   onDelete?: (value: ClassGroup) => void;
+  layout?: "card" | "table";
+  showUnit?: boolean;
+  narrowCard?: boolean;
 };
 
 const parseTime = (value: string) => {
@@ -102,6 +105,9 @@ export const ClassCard = memo(function ClassCard({
   onEdit,
   onDuplicate,
   onDelete,
+  layout = "card",
+  showUnit = false,
+  narrowCard = false,
 }: ClassCardProps) {
   markRender("screen.classes.render.classCard", { classId: item.id });
 
@@ -273,6 +279,144 @@ export const ClassCard = memo(function ClassCard({
       ? require("react-dom").createPortal(actionMenuContent, document.body)
       : null;
 
+  if (layout === "table") {
+    return (
+      <Pressable
+        disableWebPressScale
+        onPress={() => {
+          onCloseActionMenu?.();
+          onOpen(item);
+        }}
+        style={(state) => [
+          styles.tableRow,
+          {
+            backgroundColor: pressedOrHovered(state)
+              ? colors.backgroundSubtle ?? colors.secondaryBg
+              : "transparent",
+            borderBottomColor: colors.borderSubtle ?? colors.border,
+            zIndex: actionMenuOpen ? ACTION_MENU_Z_INDEX : 1,
+          },
+        ]}
+      >
+        <View style={[styles.tableCell, styles.tableIdentityCell]}>
+          <View
+            style={[
+              styles.tableClassAvatar,
+              { backgroundColor: colors.primaryBg },
+            ]}
+          >
+            <Text style={[styles.tableClassAvatarText, { color: colors.primaryText }]}>
+              {classInitial}
+            </Text>
+          </View>
+          <View style={styles.tableIdentityText}>
+            <View style={styles.titleLine}>
+              <Text numberOfLines={1} style={[styles.tableTitle, { color: colors.textPrimary ?? colors.text }]}>
+                {item.name}
+              </Text>
+              <ClassGenderBadge gender={item.gender} />
+            </View>
+            {showUnit ? (
+              <Text numberOfLines={1} style={[styles.tableSecondaryText, { color: colors.textMuted ?? colors.muted }]}>
+                {item.unit || "Sem unidade"}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={[styles.tableCell, styles.tableScheduleCell]}>
+          <Text numberOfLines={1} style={[styles.tablePrimaryText, { color: colors.textPrimary ?? colors.text }]}>
+            {timeLabel}
+          </Text>
+          <Text numberOfLines={1} style={[styles.tableSecondaryText, { color: colors.textMuted ?? colors.muted }]}>
+            {daysLabel}
+          </Text>
+        </View>
+
+        <View style={[styles.tableCell, styles.tableFocusCell]}>
+          <Text numberOfLines={1} style={[styles.tablePrimaryText, { color: colors.textPrimary ?? colors.text }]}>
+            {item.ageBand || "Faixa não definida"}
+          </Text>
+          <Text numberOfLines={1} style={[styles.tableSecondaryText, { color: colors.textMuted ?? colors.muted }]}>
+            {[item.goal || "Objetivo", canIntegrate ? "Integrado" : null].filter(Boolean).join(" · ")}
+          </Text>
+        </View>
+
+        <View style={[styles.tableCell, styles.tableStudentsCell]}>
+          <View style={styles.studentStack}>
+            {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
+              <View
+                key={avatar.id}
+                style={[
+                  styles.studentAvatar,
+                  {
+                    backgroundColor: avatar.color,
+                    borderColor: colors.surface ?? colors.background,
+                    marginLeft: index === 0 ? 0 : -8,
+                  },
+                ]}
+              >
+                {avatar.photoUrl ? (
+                  <Image source={{ uri: avatar.photoUrl }} style={styles.studentAvatarImage} />
+                ) : (
+                  <Text style={styles.studentAvatarText}>{avatar.label}</Text>
+                )}
+              </View>
+            )) : (
+              <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
+                Sem alunos
+              </Text>
+            )}
+            {viewModel.studentCount > 0 ? (
+              <Text numberOfLines={1} style={[styles.studentCount, { color: colors.textPrimary ?? colors.text }]}>
+                {viewModel.extraStudentCount > 0 ? `+${viewModel.extraStudentCount}` : `${viewModel.studentCount}`}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={[styles.tableCell, styles.tableTeacherCell]}>
+          <View style={[styles.tableTeacherAvatar, { backgroundColor: colors.infoBg }]}>
+            {viewModel.teacher.photoUrl ? (
+              <Image source={{ uri: viewModel.teacher.photoUrl }} style={styles.teacherAvatarImage} />
+            ) : (
+              <Text style={[styles.teacherAvatarText, { color: colors.infoText }]}>
+                {viewModel.teacher.initials}
+              </Text>
+            )}
+          </View>
+          <Text numberOfLines={1} style={[styles.tableTeacherName, { color: colors.textPrimary ?? colors.text }]}>
+            {viewModel.teacher.name}
+          </Text>
+        </View>
+
+        <View ref={actionWrapRef} nativeID={actionRootId} style={styles.tableActionCell}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Opções de ${item.name}`}
+            onPress={(event) => {
+              event.stopPropagation?.();
+              if (!actionMenuOpen) measureActionMenu();
+              onToggleActionMenu?.(item.id);
+            }}
+            style={(state) => [
+              styles.actionButton,
+              {
+                backgroundColor: pressedOrHovered(state) || actionMenuOpen
+                  ? colors.secondaryBg
+                  : "transparent",
+              },
+            ]}
+          >
+            <GoAtletaIcon name="ellipsisVertical" size={16} color={colors.textMuted ?? colors.muted} />
+          </Pressable>
+          {actionMenuOpen && Platform.OS !== "web" ? actionMenuContent : null}
+        </View>
+        {actionMenuPortal}
+      </Pressable>
+    );
+  }
+
   return (
     <Pressable
       disableWebPressScale
@@ -337,7 +481,7 @@ export const ClassCard = memo(function ClassCard({
           </View>
         </View>
 
-        <View style={styles.studentStack}>
+        {!narrowCard ? <View style={styles.studentStack}>
           {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
             <View
               key={avatar.id}
@@ -366,7 +510,7 @@ export const ClassCard = memo(function ClassCard({
               {viewModel.extraStudentCount > 0 ? `+${viewModel.extraStudentCount}` : `${viewModel.studentCount}`}
             </Text>
           ) : null}
-        </View>
+        </View> : null}
 
         <View ref={actionWrapRef} nativeID={actionRootId} style={styles.actionWrap}>
           <Pressable
@@ -397,6 +541,41 @@ export const ClassCard = memo(function ClassCard({
         </View>
         {actionMenuPortal}
       </View>
+
+      {narrowCard ? (
+        <View style={styles.narrowStudentRow}>
+          <View style={styles.studentStack}>
+            {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
+              <View
+                key={avatar.id}
+                style={[
+                  styles.studentAvatar,
+                  {
+                    backgroundColor: avatar.color,
+                    borderColor: colors.surface ?? colors.background,
+                    marginLeft: index === 0 ? 0 : -8,
+                  },
+                ]}
+              >
+                {avatar.photoUrl ? (
+                  <Image source={{ uri: avatar.photoUrl }} style={styles.studentAvatarImage} />
+                ) : (
+                  <Text style={styles.studentAvatarText}>{avatar.label}</Text>
+                )}
+              </View>
+            )) : (
+              <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
+                Sem alunos
+              </Text>
+            )}
+            {viewModel.studentCount > 0 ? (
+              <Text numberOfLines={1} style={[styles.studentCount, { color: colors.successText ?? colors.primaryBg }]}>
+                {viewModel.extraStudentCount > 0 ? `+${viewModel.extraStudentCount}` : `${viewModel.studentCount}`}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.metaGrid}>
         <MetaPill label={item.ageBand || "Faixa não definida"} colors={colors} />
@@ -472,21 +651,104 @@ export const ClassCard = memo(function ClassCard({
 });
 
 const styles = StyleSheet.create({
+  tableRow: {
+    minHeight: 88,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    position: "relative",
+  },
+  tableCell: {
+    minWidth: 0,
+    paddingHorizontal: 10,
+    justifyContent: "center",
+  },
+  tableIdentityCell: {
+    flex: 2.2,
+    minWidth: 210,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  tableScheduleCell: {
+    flex: 1.12,
+    minWidth: 112,
+  },
+  tableFocusCell: {
+    flex: 1.24,
+    minWidth: 120,
+  },
+  tableStudentsCell: {
+    flex: 1.05,
+    minWidth: 108,
+  },
+  tableTeacherCell: {
+    flex: 1.58,
+    minWidth: 170,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  tableActionCell: {
+    width: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    zIndex: ACTION_MENU_Z_INDEX + 1,
+  },
+  tableClassAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.internal,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  tableClassAvatarText: {
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  tableIdentityText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  tableTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  tablePrimaryText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  tableSecondaryText: {
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 3,
+  },
+  tableTeacherAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  tableTeacherName: {
+    fontSize: 12,
+    fontWeight: "800",
+    minWidth: 0,
+    flexShrink: 1,
+  },
   container: {
-    minHeight: 156,
+    minHeight: 132,
     padding: 12,
     borderRadius: radius.card,
-    borderWidth: 1,
+    borderWidth: 0,
     position: "relative",
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0px 4px 10px rgba(10, 19, 34, 0.05)" }
-      : {
-          shadowColor: shadow.card.shadowColor,
-          shadowOpacity: shadow.card.shadowOpacity,
-          shadowRadius: shadow.card.shadowRadius,
-          shadowOffset: shadow.card.shadowOffset,
-        }),
-    elevation: shadow.card.elevation,
+    elevation: 0,
   },
   conflictPill: {
     alignSelf: "flex-start",
@@ -571,6 +833,13 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     maxWidth: 118,
     paddingTop: 7,
+  },
+  narrowStudentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    minHeight: 24,
+    marginTop: 2,
   },
   studentAvatar: {
     width: 21,

@@ -59,8 +59,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!supabaseUrl || !anonKey) {
-    return createError(req, 500, "SERVER_ERROR", "Missing Supabase URL or Anon Key config");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
   const supabase = createClient(supabaseUrl, anonKey, {
@@ -70,6 +71,9 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${user.token}`,
       },
     },
+  });
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const { data: invite, error: inviteError } = await supabase
@@ -91,7 +95,7 @@ Deno.serve(async (req) => {
     return createError(req, 403, "FORBIDDEN", "Forbidden");
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
     .from("student_invites")
     .update({ revoked: true })
     .eq("id", inviteValidation.data);

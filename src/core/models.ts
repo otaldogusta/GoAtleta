@@ -1,5 +1,6 @@
 import type { ClassModality } from "./class-modality";
 import type { SessionDecisionTrace } from "./cycle-day-planning/session-decision-trace";
+import type { AppliedPedagogicalReference } from "./document-intelligence/types";
 import type { PedagogicalApproachDetection } from "./methodology/pedagogical-approach-detector";
 import type { SessionPlanningContext } from "./session-planning-context-contract";
 
@@ -606,6 +607,7 @@ export type TrainingPlanSessionBlock = {
 };
 
 export type TrainingPlanPedagogy = {
+  appliedReferences?: AppliedPedagogicalReference[];
   generationExplanation?: TrainingPlanGenerationExplanation;
   decisionTrace?: SessionDecisionTrace;
   sessionPlanningContext?: SessionPlanningContext;
@@ -626,6 +628,7 @@ export type TrainingPlanPedagogy = {
   };
   sessionObjective?: string;
   sessionObjectiveSource?: "generated" | "auto_from_plan" | "manual";
+  lessonPlanObservations?: string;
   learningObjectives?: {
     general: string;
     specific: string[];
