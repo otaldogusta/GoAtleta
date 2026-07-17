@@ -137,6 +137,16 @@ describe("academic Edge runtime contract", () => {
     expect(syncSource).toContain(")}_${stableIdPart(item.id)}`");
   });
 
+  test("normaliza campos obrigatórios e registra somente o estágio da falha", () => {
+    expect(syncSource).toContain('authors: author || ""');
+    expect(syncSource).toContain('source_url: sourceUrl || ""');
+    expect(syncSource).toContain("const markSourceFailure = async (");
+    expect(syncSource).toContain('"knowledge_source_upsert",');
+    expect(syncSource).toContain("lastSyncFailure: {");
+    expect(syncSource).not.toContain("knowledgeSourceError.message");
+    expect(syncSource).not.toContain("knowledgeSourceError.details");
+  });
+
   test("não inventa período, instituição ou vínculo com turma", () => {
     expect(syncSource).not.toContain("2026.1");
     expect(syncSource).not.toContain("Instituição de ensino não identificada");

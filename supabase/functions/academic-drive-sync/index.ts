@@ -1266,6 +1266,25 @@ Deno.serve(
           continue;
         }
 
+        const markSourceFailure = async (
+          stage: string,
+          errorCode: unknown = "unknown",
+        ) =>
+          admin
+            .from("document_sources")
+            .update({
+              sync_state: "failed",
+              metadata: {
+                ...sourcePayload.metadata,
+                lastSyncFailure: {
+                  stage,
+                  errorCode: textValue(errorCode) || "unknown",
+                },
+              },
+              updated_at: nowIso,
+            })
+            .eq("id", source.id);
+
         const { data: existingRevision } = await admin
           .from("document_source_revisions")
           .select(
@@ -1361,6 +1380,10 @@ Deno.serve(
           .select("id")
           .single();
         if (revisionError || !revision?.id) {
+          await markSourceFailure(
+            "revision_upsert",
+            revisionError?.code ?? "revision_missing",
+          );
           summary.failed += 1;
           continue;
         }
@@ -1437,6 +1460,10 @@ Deno.serve(
           .select("id")
           .single();
         if (interpretationError || !interpretation?.id) {
+          await markSourceFailure(
+            "interpretation_upsert",
+            interpretationError?.code ?? "interpretation_missing",
+          );
           summary.failed += 1;
           continue;
         }
@@ -1464,6 +1491,10 @@ Deno.serve(
               { onConflict: "binding_key" },
             );
           if (bindingError) {
+            await markSourceFailure(
+              "context_binding_upsert",
+              bindingError.code,
+            );
             summary.failed += 1;
             continue;
           }
@@ -1507,17 +1538,18 @@ Deno.serve(
               source_scope: sourceScope,
               document_source_id: source.id,
               document_revision_id: revision.id,
-              title: item.name,
-              authors: author,
+              title: textValue(item.name),
+              authors: author || "",
               source_year: item.modifiedTime
                 ? Number(item.modifiedTime.slice(0, 4))
                 : null,
               edition: "",
               source_type: sourceTypeFromEvidence(classification.evidenceKind),
-              source_url: sourceUrl,
-              citation_text: [item.name, classification.discipline, author]
-                .filter(Boolean)
-                .join(" — "),
+              source_url: sourceUrl || "",
+              citation_text:
+                [item.name, classification.discipline, author]
+                  .filter(Boolean)
+                  .join(" — ") || textValue(item.name),
               discipline: classification.discipline,
               academic_area: classification.academicArea,
               material_type: classification.materialType,
@@ -1551,6 +1583,10 @@ Deno.serve(
             { onConflict: "id" },
           );
         if (knowledgeSourceError) {
+          await markSourceFailure(
+            "knowledge_source_upsert",
+            knowledgeSourceError.code,
+          );
           summary.failed += 1;
           continue;
         }
@@ -1632,10 +1668,12 @@ Deno.serve(
             .from("kb_documents")
             .upsert(rows, { onConflict: "id" });
           if (chunkError) {
+            await markSourceFailure("knowledge_chunk_upsert", chunkError.code);
             summary.failed += 1;
             continue;
           }
         } else {
+          await markSourceFailure("knowledge_chunk_build", "empty_chunk_set");
           summary.failed += 1;
           continue;
         }
@@ -1653,6 +1691,10 @@ Deno.serve(
           .eq("source_revision_id", revision.id)
           .gte("chunk_index", rows.length);
         if (previousRevisionError || staleChunkError) {
+          await markSourceFailure(
+            "knowledge_chunk_cleanup",
+            previousRevisionError?.code ?? staleChunkError?.code,
+          );
           summary.failed += 1;
           continue;
         }
