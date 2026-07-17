@@ -90,6 +90,7 @@ describe("buildAppliedPlanReferencesPresentation", () => {
       sourceLocation: "",
       excerpt: "O brincar organiza a experiência infantil.",
       influence: "Aquecimento estruturado como atividade lúdica.",
+      isCurrentlyBlocked: false,
     });
     expect(JSON.stringify(presentation)).not.toContain("drive.example");
     expect(JSON.stringify(presentation)).not.toContain("sourceUrl");

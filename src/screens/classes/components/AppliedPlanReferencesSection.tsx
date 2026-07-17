@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
+import { listBlockedGlobalAcademicPublicIdentities } from "../../../db/academic-knowledge";
 import {
   buildAppliedPlanReferencesPresentation,
   type AppliedPlanReferenceInput,
@@ -17,9 +18,37 @@ export function AppliedPlanReferencesSection({
   references,
 }: AppliedPlanReferencesSectionProps) {
   const { colors } = useAppTheme();
+  const [blockedIdentities, setBlockedIdentities] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const identities = (references ?? [])
+      .filter((reference) => reference.sourceScope === "system_academic")
+      .map((reference) => String(reference.sourceDocumentId ?? "").trim())
+      .filter(Boolean);
+    let active = true;
+    void listBlockedGlobalAcademicPublicIdentities(identities)
+      .then((next) => {
+        if (active) setBlockedIdentities(next);
+      })
+      .catch(() => {
+        if (active) setBlockedIdentities(new Set());
+      });
+    return () => {
+      active = false;
+    };
+  }, [references]);
+  const referencesWithCurrentStatus = useMemo(
+    () =>
+      (references ?? []).map((reference) => ({
+        ...reference,
+        isCurrentlyBlocked:
+          reference.sourceScope === "system_academic" &&
+          blockedIdentities.has(String(reference.sourceDocumentId ?? "").trim()),
+      })),
+    [blockedIdentities, references],
+  );
   const presentation = useMemo(
-    () => buildAppliedPlanReferencesPresentation(references),
-    [references]
+    () => buildAppliedPlanReferencesPresentation(referencesWithCurrentStatus),
+    [referencesWithCurrentStatus]
   );
   const [sectionOpen, setSectionOpen] = useState(false);
   const [expandedReferenceId, setExpandedReferenceId] = useState<string | null>(null);
@@ -160,23 +189,33 @@ export function AppliedPlanReferencesSection({
                         .filter(Boolean)
                         .join(" · ")}
                     </Text>
-                    {reference.sourceLocation ? (
+                    {reference.isCurrentlyBlocked ? (
+                      <Detail
+                        label="Status da referência"
+                        value="Referência retirada da base atual."
+                        colors={colors}
+                      />
+                    ) : reference.sourceLocation ? (
                       <Detail
                         label="Local no documento"
                         value={reference.sourceLocation}
                         colors={colors}
                       />
                     ) : null}
-                    <Detail
-                      label="Trecho utilizado"
-                      value={reference.excerpt || "Trecho não registrado."}
-                      colors={colors}
-                    />
-                    <Detail
-                      label="Como influenciou o plano"
-                      value={reference.influence || "Influência não registrada."}
-                      colors={colors}
-                    />
+                    {!reference.isCurrentlyBlocked ? (
+                      <>
+                        <Detail
+                          label="Trecho utilizado"
+                          value={reference.excerpt || "Trecho não registrado."}
+                          colors={colors}
+                        />
+                        <Detail
+                          label="Como influenciou o plano"
+                          value={reference.influence || "Influência não registrada."}
+                          colors={colors}
+                        />
+                      </>
+                    ) : null}
                   </View>
                 ) : null}
               </View>

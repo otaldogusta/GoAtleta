@@ -21,6 +21,7 @@ export type AppliedPlanReferenceInput = {
   sourceText?: string | null;
   influence?: string | null;
   appliedAt?: string | null;
+  isCurrentlyBlocked?: boolean | null;
 };
 
 export type AppliedPlanReferencePresentation = {
@@ -38,6 +39,7 @@ export type AppliedPlanReferencePresentation = {
   sourceLocation: string;
   excerpt: string;
   influence: string;
+  isCurrentlyBlocked: boolean;
 };
 
 const cleanText = (value: unknown) =>
@@ -224,6 +226,7 @@ export function buildAppliedPlanReferencesPresentation(
       sourceLocation: cleanText(reference.sourceLocation),
       excerpt: cleanText(reference.excerpt ?? reference.sourceText),
       influence: cleanText(reference.influence),
+      isCurrentlyBlocked: reference.isCurrentlyBlocked === true,
     };
   });
 
