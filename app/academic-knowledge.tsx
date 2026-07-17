@@ -16,9 +16,15 @@ import { markRender, measureAsync } from "../src/observability/perf";
 import {
   canManageGlobalAcademicKnowledge,
   listGlobalAcademicCuratorInventory,
+  listGlobalAcademicSourceExcerpts,
+  listGlobalAcademicSourceInterpretations,
   publishGlobalAcademicCandidate,
+  rejectGlobalAcademicCandidate,
   saveGlobalAcademicCandidate,
   setGlobalAcademicCandidateStatus,
+  updateGlobalAcademicCandidate,
+  type GlobalAcademicInterpretationAdmin,
+  type GlobalAcademicSourceExcerpt,
   type GlobalAcademicCuratorItem,
 } from "../src/db/academic-knowledge";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -35,6 +41,7 @@ const statusLabel: Record<string, string> = {
   superseded: "Substituído",
   withdrawn: "Retirado",
   blocked: "Bloqueado",
+  rejected: "Rejeitado",
 };
 
 // perf-check: ignore-inline-row-style - lista administrativa limitada ao inventário acadêmico (até 60 itens); estilos dependem do tema ativo.
@@ -46,6 +53,9 @@ export default function AcademicKnowledgeScreen() {
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
   const [selected, setSelected] = useState<GlobalAcademicCuratorItem | null>(null);
+  const [editing, setEditing] = useState<GlobalAcademicInterpretationAdmin | null>(null);
+  const [interpretations, setInterpretations] = useState<GlobalAcademicInterpretationAdmin[]>([]);
+  const [excerpts, setExcerpts] = useState<GlobalAcademicSourceExcerpt[]>([]);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
   const [authors, setAuthors] = useState("");
@@ -55,6 +65,7 @@ export default function AcademicKnowledgeScreen() {
   const [claim, setClaim] = useState("");
   const [application, setApplication] = useState("");
   const [limitations, setLimitations] = useState("");
+  const [administrativeExcerpt, setAdministrativeExcerpt] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -92,16 +103,38 @@ export default function AcademicKnowledgeScreen() {
     [items],
   );
 
-  const choose = (item: GlobalAcademicCuratorItem) => {
+  const populateForm = (
+    item: GlobalAcademicCuratorItem,
+    interpretation?: GlobalAcademicInterpretationAdmin,
+  ) => {
     setSelected(item);
-    setTitle(item.title ?? item.filename.replace(/\.[^.]+$/, ""));
-    setAuthors("");
-    setYear("");
-    setVenue("");
-    setDoi("");
-    setClaim("");
-    setApplication("");
-    setLimitations("");
+    setEditing(interpretation ?? null);
+    setTitle(interpretation?.title ?? item.filename.replace(/\.[^.]+$/, ""));
+    setAuthors(interpretation?.authors.join("; ") ?? "");
+    setYear(interpretation?.publicationYear?.toString() ?? "");
+    setVenue(interpretation?.publicationVenue ?? "");
+    setDoi(interpretation?.doi ?? "");
+    setClaim(interpretation?.claim ?? "");
+    setApplication(interpretation?.practicalApplication ?? "");
+    setLimitations(interpretation?.limitations.join("\n") ?? "");
+    setAdministrativeExcerpt(interpretation?.administrativeExcerpt ?? "");
+  };
+
+  const choose = async (item: GlobalAcademicCuratorItem) => {
+    setBusy(true);
+    try {
+      const [sourceInterpretations, sourceExcerpts] = await Promise.all([
+        listGlobalAcademicSourceInterpretations(item.sourceRevisionId),
+        listGlobalAcademicSourceExcerpts(item.sourceRevisionId),
+      ]);
+      setInterpretations(sourceInterpretations);
+      setExcerpts(sourceExcerpts);
+      populateForm(item);
+    } catch {
+      Alert.alert("Curadoria", "Não foi possível abrir a revisão privada.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const save = async () => {
@@ -112,9 +145,7 @@ export default function AcademicKnowledgeScreen() {
     setBusy(true);
     try {
       const authorList = authors.split(";").map((value) => value.trim()).filter(Boolean);
-      await saveGlobalAcademicCandidate({
-        sourceRevisionId: selected.sourceRevisionId,
-        candidate: {
+      const candidate = {
           title: title.trim(),
           authors: authorList,
           publicationYear: year.trim() ? Number(year) : undefined,
@@ -130,13 +161,45 @@ export default function AcademicKnowledgeScreen() {
           materialType: selected.materialType,
           evidenceLevel: selected.evidenceLevel,
           classificationConfidence: 1,
-        },
-      });
+          administrativeExcerpt: administrativeExcerpt.trim() || undefined,
+        };
+      if (editing) {
+        await updateGlobalAcademicCandidate({
+          interpretationId: editing.id,
+          candidate,
+        });
+      } else {
+        await saveGlobalAcademicCandidate({
+          sourceRevisionId: selected.sourceRevisionId,
+          candidate,
+        });
+      }
       await reload();
       setSelected(null);
-      Alert.alert("Curadoria", "Síntese salva para revisão.");
+      setEditing(null);
+      Alert.alert("Curadoria", "Conhecimento atômico salvo para revisão.");
     } catch {
       Alert.alert("Curadoria", "Não foi possível salvar a síntese.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reject = async (item: GlobalAcademicInterpretationAdmin) => {
+    setBusy(true);
+    try {
+      await rejectGlobalAcademicCandidate(
+        item.id,
+        "Rejeitado explicitamente durante a curadoria piloto.",
+      );
+      if (selected) {
+        setInterpretations(
+          await listGlobalAcademicSourceInterpretations(selected.sourceRevisionId),
+        );
+      }
+      await reload();
+    } catch {
+      Alert.alert("Curadoria", "Não foi possível rejeitar a síntese.");
     } finally {
       setBusy(false);
     }
@@ -201,9 +264,11 @@ export default function AcademicKnowledgeScreen() {
                     {statusLabel[item.publicationStatus ?? item.extractionStatus] ?? item.extractionStatus}
                   </Text>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {item.extractionStatus === "ready" && !item.publicationStatus ? (
-                      <Pressable onPress={() => choose(item)} style={{ padding: 8 }}>
-                        <Text style={{ color: colors.text, fontWeight: "700" }}>Criar síntese</Text>
+                    {item.extractionStatus === "ready" ? (
+                      <Pressable disabled={busy} onPress={() => void choose(item)} style={{ padding: 8 }}>
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>
+                          {item.publicationStatus ? "Revisar conhecimentos" : "Criar síntese"}
+                        </Text>
                       </Pressable>
                     ) : null}
                     {item.publicationStatus === "awaiting_review" ? (
@@ -227,7 +292,54 @@ export default function AcademicKnowledgeScreen() {
             </View>
             {selected ? (
               <View style={{ gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16 }}>
-                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>Síntese acadêmica</Text>
+                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
+                  Conhecimentos atômicos
+                </Text>
+                {interpretations.map((interpretation) => (
+                  <View key={interpretation.id} style={{ gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {interpretation.claim}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      {statusLabel[interpretation.publicationStatus] ?? interpretation.publicationStatus}
+                    </Text>
+                    {interpretation.publicationStatus === "awaiting_review" ? (
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <Pressable onPress={() => populateForm(selected, interpretation)} style={{ padding: 8 }}>
+                          <Text style={{ color: colors.text }}>Editar</Text>
+                        </Pressable>
+                        <Pressable disabled={busy} onPress={() => void reject(interpretation)} style={{ padding: 8 }}>
+                          <Text style={{ color: colors.dangerSolidBg }}>Rejeitar</Text>
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+                <Pressable onPress={() => populateForm(selected)} style={{ alignSelf: "flex-start", padding: 8 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }}>Novo conhecimento</Text>
+                </Pressable>
+                {excerpts.length ? (
+                  <View style={{ gap: 8 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>Trechos privados para conferência</Text>
+                    {excerpts.map((excerpt) => (
+                      <Pressable
+                        key={`${excerpt.chunkIndex}:${excerpt.sourceLocation ?? ""}`}
+                        onPress={() => setAdministrativeExcerpt(excerpt.excerpt)}
+                        style={{ borderLeftWidth: 3, borderLeftColor: colors.border, padding: 10 }}
+                      >
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>
+                          {excerpt.sourceLocation ?? `Trecho ${excerpt.chunkIndex + 1}`}
+                        </Text>
+                        <Text numberOfLines={4} style={{ color: colors.text }}>
+                          {excerpt.excerpt}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "700" }}>
+                  {editing ? "Editar síntese" : "Nova síntese acadêmica"}
+                </Text>
                 {[
                   ["Título", title, setTitle],
                   ["Autores separados por ponto e vírgula", authors, setAuthors],
@@ -237,6 +349,7 @@ export default function AcademicKnowledgeScreen() {
                   ["Síntese original", claim, setClaim],
                   ["Aplicação prática", application, setApplication],
                   ["Limitações, uma por linha", limitations, setLimitations],
+                  ["Excerto curto para auditoria privada", administrativeExcerpt, setAdministrativeExcerpt],
                 ].map(([label, value, setter]) => (
                   <View key={label as string} style={{ gap: 4 }}>
                     <Text style={{ color: colors.text, fontWeight: "600" }}>{label as string}</Text>
@@ -249,11 +362,13 @@ export default function AcademicKnowledgeScreen() {
                   </View>
                 ))}
                 <View style={{ flexDirection: "row", gap: 8, justifyContent: "flex-end" }}>
-                  <Pressable onPress={() => setSelected(null)} style={{ padding: 10 }}>
+                  <Pressable onPress={() => { setSelected(null); setEditing(null); }} style={{ padding: 10 }}>
                     <Text style={{ color: colors.text }}>Cancelar</Text>
                   </Pressable>
                   <Pressable disabled={busy} onPress={() => void save()} style={{ padding: 10 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>{busy ? "Salvando..." : "Salvar para revisão"}</Text>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>
+                      {busy ? "Salvando..." : editing ? "Atualizar revisão" : "Salvar para revisão"}
+                    </Text>
                   </Pressable>
                 </View>
               </View>

@@ -88,6 +88,20 @@ export type GlobalAcademicCandidateInput = {
   administrativeExcerpt?: string;
 };
 
+export type GlobalAcademicInterpretationAdmin = GlobalAcademicCandidateInput & {
+  id: string;
+  publicationStatus: import("../core/document-intelligence").GlobalAcademicPublicationStatus;
+  publicIdentityId: string;
+  scientificSourceId?: string;
+  updatedAt: string;
+};
+
+export type GlobalAcademicSourceExcerpt = {
+  chunkIndex: number;
+  sourceLocation?: string;
+  excerpt: string;
+};
+
 export const DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL =
   "https://drive.google.com/drive/folders/1TtqVOgnLXeDqvGr6885s-KABA4tsJ5QE";
 
@@ -306,6 +320,82 @@ export async function saveGlobalAcademicCandidate(params: {
     p_source_revision_id: params.sourceRevisionId,
     p_payload: params.candidate,
     p_idempotency_key: `candidate:${params.sourceRevisionId}:${Date.now()}`,
+  });
+}
+
+const candidatePayload = (row: Record<string, unknown>): GlobalAcademicInterpretationAdmin => ({
+  id: textValue(row.id, 180),
+  publicationStatus: textValue(row.publication_status, 80) as GlobalAcademicInterpretationAdmin["publicationStatus"],
+  publicIdentityId: textValue(row.public_identity_id, 180),
+  claim: textValue(row.claim, 1_500),
+  practicalApplication: textValue(row.practical_application, 1_500),
+  limitations: stringArray(row.limitations),
+  citationLabel: textValue(row.citation_label, 180),
+  authors: stringArray(row.authors),
+  publicationYear: Number.isInteger(Number(row.publication_year))
+    ? Number(row.publication_year)
+    : undefined,
+  title: textValue(row.title, 260),
+  publicationVenue: textValue(row.publication_venue, 260) || undefined,
+  doi: textValue(row.doi, 260) || undefined,
+  officialUrl: textValue(row.official_url, 500) || undefined,
+  materialType: textValue(row.material_type, 80) as AcademicMaterialType,
+  evidenceLevel: textValue(row.evidence_level, 80) as AcademicEvidenceLevel,
+  licenseCode: textValue(row.license_code, 80) || undefined,
+  classificationConfidence: Number(row.classification_confidence ?? 0),
+  administrativeExcerpt: textValue(row.administrative_excerpt, 600) || undefined,
+  scientificSourceId: textValue(row.scientific_source_id, 180) || undefined,
+  updatedAt: textValue(row.updated_at, 80),
+});
+
+export async function listGlobalAcademicSourceInterpretations(
+  sourceRevisionId: string,
+): Promise<GlobalAcademicInterpretationAdmin[]> {
+  const payload = await authenticatedRpc(
+    "list_global_academic_source_interpretations",
+    { p_source_revision_id: sourceRevisionId },
+  );
+  return Array.isArray(payload)
+    ? payload.map((value) => candidatePayload(value as Record<string, unknown>))
+    : [];
+}
+
+export async function listGlobalAcademicSourceExcerpts(
+  sourceRevisionId: string,
+): Promise<GlobalAcademicSourceExcerpt[]> {
+  const payload = await authenticatedRpc("list_global_academic_source_excerpts", {
+    p_source_revision_id: sourceRevisionId,
+  });
+  if (!Array.isArray(payload)) return [];
+  return payload.map((value) => {
+    const row = value as Record<string, unknown>;
+    return {
+      chunkIndex: Number(row.chunk_index ?? 0),
+      sourceLocation: textValue(row.source_location, 260) || undefined,
+      excerpt: textValue(row.excerpt, 600),
+    };
+  });
+}
+
+export async function updateGlobalAcademicCandidate(params: {
+  interpretationId: string;
+  candidate: GlobalAcademicCandidateInput;
+}): Promise<void> {
+  await authenticatedRpc("update_global_academic_candidate", {
+    p_interpretation_id: params.interpretationId,
+    p_payload: params.candidate,
+    p_idempotency_key: `update:${params.interpretationId}:${Date.now()}`,
+  });
+}
+
+export async function rejectGlobalAcademicCandidate(
+  interpretationId: string,
+  reason: string,
+): Promise<void> {
+  await authenticatedRpc("reject_global_academic_candidate", {
+    p_interpretation_id: interpretationId,
+    p_reason: reason,
+    p_idempotency_key: `reject:${interpretationId}`,
   });
 }
 
