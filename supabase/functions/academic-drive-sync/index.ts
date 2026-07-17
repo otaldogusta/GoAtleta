@@ -43,6 +43,7 @@ import { planDocumentSyncBatch } from "../_shared/document-sync-batch.ts";
 
 type SyncRequest = {
   action?: "sync" | "recover";
+  continuationMode?: "server";
   organizationId?: string;
   folderUrl?: string;
   sourceProfile?: DriveSourceProfile;
@@ -741,7 +742,7 @@ Deno.serve(
     name: "academic-drive-sync",
     requireAuth: true,
     parseJson: true,
-    handler: async ({ user, body, supabase }) => {
+    handler: async ({ user, body, supabase, token }) => {
       if (!user) return createError(401, "UNAUTHORIZED", "Sessão inválida.");
       const organizationId = textValue(body?.organizationId);
       if (!organizationId) {
@@ -1651,6 +1652,56 @@ Deno.serve(
       }
 
       if (syncBatch.hasMore) {
+        if (body?.continuationMode === "server" && token) {
+          const continueSync = async () => {
+            const functionUrl = `${textValue(
+              Deno.env.get("SUPABASE_URL"),
+            ).replace(/\/$/, "")}/functions/v1/academic-drive-sync`;
+            const response = await fetch(functionUrl, {
+              method: "POST",
+              headers: {
+                apikey: textValue(Deno.env.get("SUPABASE_ANON_KEY")),
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                ...body,
+                action: "sync",
+                cursor: syncBatch.nextCursor,
+                priorFailed: safeCount(body?.priorFailed) + summary.failed,
+                priorReviewRequired:
+                  safeCount(body?.priorReviewRequired) + summary.reviewRequired,
+              }),
+            });
+            if (!response.ok) {
+              throw new Error(`continuation_${response.status}`);
+            }
+          };
+          const backgroundContinuation = continueSync().catch(async () => {
+            const completedAt = new Date().toISOString();
+            await admin
+              .from("google_drive_connections")
+              .update({
+                sync_status: "failed",
+                sync_completed_at: completedAt,
+                sync_error_code: "continuation_failed",
+                sync_error_message:
+                  "A continuação automática falhou e pode ser retomada com segurança.",
+                updated_at: completedAt,
+              })
+              .eq("id", connection.id);
+          });
+          const edgeRuntime = (
+            globalThis as typeof globalThis & {
+              EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void };
+            }
+          ).EdgeRuntime;
+          if (edgeRuntime?.waitUntil) {
+            edgeRuntime.waitUntil(backgroundContinuation);
+          } else {
+            await backgroundContinuation;
+          }
+        }
         return createSuccess({
           status: "in_progress",
           folderId,

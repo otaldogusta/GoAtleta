@@ -29,7 +29,7 @@ export type AcademicPlanningSupport = {
 };
 
 export type AcademicDriveSyncResult = {
-  status: "preview" | "succeeded" | "partial" | "unavailable";
+  status: "preview" | "in_progress" | "succeeded" | "partial" | "unavailable";
   folderId?: string;
   sourceScope: "user_academic";
   classBindingCreated: false;
@@ -358,6 +358,7 @@ export async function syncPersonalAcademicDrive(params: {
         "academic-drive-sync",
         {
           action: "sync",
+          continuationMode: "server",
           organizationId,
           folderUrl:
             textValue(params.folderUrl, 500) ||
@@ -420,13 +421,20 @@ export async function syncPersonalAcademicDrive(params: {
       }
 
       if (payloadStatus === "in_progress") {
-        const nextCursor = numberValue(payload.nextCursor);
-        if (nextCursor <= cursor || nextCursor > maxFiles) {
-          await recoverInterruptedSync();
-          break;
-        }
-        cursor = nextCursor;
-        continue;
+        return {
+          status: "in_progress",
+          folderId: textValue(payload.folderId, 180) || undefined,
+          sourceScope: "user_academic",
+          classBindingCreated: false,
+          authStrategy:
+            payload.authStrategy === "oauth_user" ||
+            payload.authStrategy === "service_account" ||
+            payload.authStrategy === "api_key"
+              ? payload.authStrategy
+              : undefined,
+          summary,
+          warnings: [],
+        };
       }
 
       const status =

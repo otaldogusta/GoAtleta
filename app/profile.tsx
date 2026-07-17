@@ -3,9 +3,16 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
 
 import type { ClassGroup } from "../src/core/models";
 
@@ -19,12 +26,12 @@ import { useRole } from "../src/auth/role";
 import { ENABLE_SOCIAL_LOGIN } from "../src/api/config";
 import { getMyProfilePhoto, setMyProfilePhoto } from "../src/api/profile-photo";
 import {
-    removeMyProfilePhotoObject,
-    uploadMyProfilePhoto,
+  removeMyProfilePhotoObject,
+  uploadMyProfilePhoto,
 } from "../src/api/profile-photo-storage";
 import {
-    removeStudentPhotoObject,
-    uploadStudentPhoto,
+  removeStudentPhotoObject,
+  uploadStudentPhoto,
 } from "../src/api/student-photo-storage";
 import { resolveEffectiveProfile } from "../src/core/effective-profile";
 import { getClasses, updateStudentPhoto } from "../src/db/seed";
@@ -38,9 +45,15 @@ import {
 import type { DevProfilePreview } from "../src/dev/profile-preview";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useOrganization } from "../src/providers/OrganizationProvider";
-import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
+import {
+  getNotificationsModule,
+  isExpoGo,
+} from "../src/push/notificationRuntime";
 import { useBiometricLock } from "../src/security/biometric-lock";
-import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
+import {
+  isBiometricsSupported,
+  promptBiometrics,
+} from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
 import { ModalSheet } from "../src/ui/ModalSheet";
@@ -53,30 +66,44 @@ import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 type ProfilePreviewId = Exclude<DevProfilePreview, "auto">;
 
-
 // perf-check: ignore-render
 // perf-check: ignore-measure
 export default function ProfileScreen() {
-  const toFriendlyNameFromEmail = useCallback((email: string | null | undefined) => {
-    const raw = String(email ?? "").trim();
-    if (!raw.includes("@")) return raw;
-    const localPart = raw.split("@")[0] ?? "";
-    const normalized = localPart
-      .replace(/[._-]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!normalized) return raw;
-    return normalized
-      .split(" ")
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ");
-  }, []);
+  const toFriendlyNameFromEmail = useCallback(
+    (email: string | null | undefined) => {
+      const raw = String(email ?? "").trim();
+      if (!raw.includes("@")) return raw;
+      const localPart = raw.split("@")[0] ?? "";
+      const normalized = localPart
+        .replace(/[._-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!normalized) return raw;
+      return normalized
+        .split(" ")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    },
+    [],
+  );
 
   const { colors, mode, toggleMode } = useAppTheme();
   const { confirm } = useConfirmDialog();
-  const { signOut, session, resendSignupCode, signInWithOAuth, unlinkIdentityProvider } = useAuth();
+  const {
+    signOut,
+    session,
+    resendSignupCode,
+    signInWithOAuth,
+    unlinkIdentityProvider,
+  } = useAuth();
   const { role: userRole, student, refresh: refreshRole } = useRole();
-  const { organizations, activeOrganization, setActiveOrganizationId, devProfilePreview, setDevProfilePreview } = useOrganization();
+  const {
+    organizations,
+    activeOrganization,
+    setActiveOrganizationId,
+    devProfilePreview,
+    setDevProfilePreview,
+  } = useOrganization();
   const {
     isEnabled: biometricsEnabled,
     isUnlocked,
@@ -117,13 +144,15 @@ export default function ProfileScreen() {
         : "professor";
   const routeProfilePreview = useMemo<ProfilePreviewId | null>(() => {
     if (/^\/prof(\/|$)/.test(pathname)) return "professor";
-    if (/^\/coord(\/|$)/.test(pathname) || pathname === "/coordination") return "admin";
-    if (/^\/student(\/|$)/.test(pathname) || pathname === "/student-home") return "student";
+    if (/^\/coord(\/|$)/.test(pathname) || pathname === "/coordination")
+      return "admin";
+    if (/^\/student(\/|$)/.test(pathname) || pathname === "/student-home")
+      return "student";
     return null;
   }, [pathname]);
   const selectedProfilePreview: ProfilePreviewId =
-    routeProfilePreview ?? (devProfilePreview === "auto" ? defaultProfilePreview : devProfilePreview);
-
+    routeProfilePreview ??
+    (devProfilePreview === "auto" ? defaultProfilePreview : devProfilePreview);
 
   useEffect(() => {
     let alive = true;
@@ -137,7 +166,6 @@ export default function ProfileScreen() {
     })();
 
     return () => {
-
       alive = false;
     };
   }, []);
@@ -265,17 +293,19 @@ export default function ProfileScreen() {
       const summary = result.summary;
       Alert.alert(
         "Base acadêmica",
-        result.status === "succeeded" || result.status === "partial"
-          ? [
-              "Sincronização concluída.",
-              summary ? `${summary.ready} arquivo(s) pronto(s).` : "",
-              summary?.reviewRequired
-                ? `${summary.reviewRequired} arquivo(s) exigem revisão.`
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" ")
-          : result.warnings[0] || "Não foi possível sincronizar agora.",
+        result.status === "in_progress"
+          ? "Sincronização iniciada. A base acadêmica continuará sendo atualizada em segundo plano."
+          : result.status === "succeeded" || result.status === "partial"
+            ? [
+                "Sincronização concluída.",
+                summary ? `${summary.ready} arquivo(s) pronto(s).` : "",
+                summary?.reviewRequired
+                  ? `${summary.reviewRequired} arquivo(s) exigem revisão.`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")
+            : result.warnings[0] || "Não foi possível sincronizar agora.",
       );
       setAcademicDriveStatus(
         await getPersonalAcademicDriveOAuthStatus({
@@ -285,11 +315,7 @@ export default function ProfileScreen() {
     } finally {
       setAcademicDriveBusy(false);
     }
-  }, [
-    academicDriveStatus.status,
-    activeOrganization?.id,
-    pathname,
-  ]);
+  }, [academicDriveStatus.status, activeOrganization?.id, pathname]);
 
   const handleDisconnectAcademicDrive = useCallback(() => {
     if (!activeOrganization?.id || academicDriveBusy) return;
@@ -323,11 +349,7 @@ export default function ProfileScreen() {
         }
       },
     });
-  }, [
-    academicDriveBusy,
-    activeOrganization?.id,
-    confirm,
-  ]);
+  }, [academicDriveBusy, activeOrganization?.id, confirm]);
 
   const currentClass = useMemo(() => {
     if (!student || !student.classId) return null;
@@ -361,22 +383,21 @@ export default function ProfileScreen() {
     const joined = new Date(joinedAt);
     if (Number.isNaN(joined.getTime())) return "Entrou recentemente";
     const now = new Date();
-    const diffDays = Math.max(0, Math.floor((now.getTime() - joined.getTime()) / 86400000));
+    const diffDays = Math.max(
+      0,
+      Math.floor((now.getTime() - joined.getTime()) / 86400000),
+    );
 
     if (diffDays >= 365) {
-
       const years = Math.max(1, Math.floor(diffDays / 365));
 
       return years === 1 ? "1 ano" : `${years} anos`;
-
     }
 
     if (diffDays >= 30) {
-
       const months = Math.max(1, Math.floor(diffDays / 30));
 
       return months === 1 ? "1 mês" : `${months} meses`;
-
     }
     return diffDays <= 1 ? "Hoje" : `${diffDays} dias`;
   }, [session?.user?.created_at, student?.createdAt]);
@@ -423,11 +444,12 @@ export default function ProfileScreen() {
     ]
       .map((item) => String(item).toLowerCase().trim())
       .filter(Boolean);
-    const hasGoogle = identityProviders.includes("google")
-      || (identityProviders.length === 0 && metadataProviders.includes("google"));
+    const hasGoogle =
+      identityProviders.includes("google") ||
+      (identityProviders.length === 0 && metadataProviders.includes("google"));
     const canUnlinkGoogle = canSafelyUnlinkProvider(
       session?.user?.identities ?? [],
-      "google"
+      "google",
     );
     const emailConfirmed = requiresHybridVerification
       ? Boolean(hybridVerifiedAt)
@@ -472,7 +494,13 @@ export default function ProfileScreen() {
         Alert.alert("Erro", "Não foi possível trocar de workspace.");
       }
     },
-    [activeOrganization?.id, biometricsEnabled, ensureUnlocked, isUnlocked, setActiveOrganizationId]
+    [
+      activeOrganization?.id,
+      biometricsEnabled,
+      ensureUnlocked,
+      isUnlocked,
+      setActiveOrganizationId,
+    ],
   );
 
   const handleToggleNotifications = useCallback(async () => {
@@ -482,7 +510,7 @@ export default function ProfileScreen() {
     try {
       await AsyncStorage.setItem(
         NOTIFY_SETTINGS_KEY,
-        JSON.stringify({ enabled: nextEnabled })
+        JSON.stringify({ enabled: nextEnabled }),
       );
 
       if (nextEnabled && !isWeb && !isExpoGo) {
@@ -492,11 +520,14 @@ export default function ProfileScreen() {
         if (status !== "granted") {
           const result = await Notifications.requestPermissionsAsync();
           if (result.status !== "granted") {
-            Alert.alert("Permissão negada", "Ative notificações nas configurações do dispositivo.");
+            Alert.alert(
+              "Permissão negada",
+              "Ative notificações nas configurações do dispositivo.",
+            );
             setNotificationsEnabled(false);
             await AsyncStorage.setItem(
               NOTIFY_SETTINGS_KEY,
-              JSON.stringify({ enabled: false })
+              JSON.stringify({ enabled: false }),
             );
           }
         }
@@ -507,7 +538,10 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error("Failed to toggle notifications", error);
-      Alert.alert("Erro", "Não foi possível alterar configurações de notificação.");
+      Alert.alert(
+        "Erro",
+        "Não foi possível alterar configurações de notificação.",
+      );
     }
   }, [notificationsEnabled, isWeb, NOTIFY_SETTINGS_KEY]);
 
@@ -521,13 +555,16 @@ export default function ProfileScreen() {
       }
       const support = await isBiometricsSupported();
       if (!support.hasHardware) {
-        Alert.alert("Biometria indisponível", "Este aparelho não possui hardware biométrico.");
+        Alert.alert(
+          "Biometria indisponível",
+          "Este aparelho não possui hardware biométrico.",
+        );
         return;
       }
       if (!support.isEnrolled) {
         Alert.alert(
           "Biometria não configurada",
-          "Cadastre sua biometria nas configurações do aparelho para ativar este recurso."
+          "Cadastre sua biometria nas configurações do aparelho para ativar este recurso.",
         );
         return;
       }
@@ -546,19 +583,24 @@ export default function ProfileScreen() {
     }
   }, [biometricsEnabled, session, setBiometricsEnabled, updatingBiometrics]);
 
-  const applyProfilePreview = useCallback(async (preview: ProfilePreviewId) => {
-    await setDevProfilePreview(preview);
-    await refreshRole();
-    // Navega diretamente para a rota certa sem passar por index.tsx
-    // (evita race condition onde index.tsx ainda lê o perfil antigo)
-    if (preview === "student") {
-      router.replace("/student/home" as Parameters<typeof router.replace>[0]);
-    } else if (preview === "professor") {
-      router.replace("/prof/home" as Parameters<typeof router.replace>[0]);
-    } else {
-      router.replace("/coord/dashboard" as Parameters<typeof router.replace>[0]);
-    }
-  }, [setDevProfilePreview, refreshRole, router]);
+  const applyProfilePreview = useCallback(
+    async (preview: ProfilePreviewId) => {
+      await setDevProfilePreview(preview);
+      await refreshRole();
+      // Navega diretamente para a rota certa sem passar por index.tsx
+      // (evita race condition onde index.tsx ainda lê o perfil antigo)
+      if (preview === "student") {
+        router.replace("/student/home" as Parameters<typeof router.replace>[0]);
+      } else if (preview === "professor") {
+        router.replace("/prof/home" as Parameters<typeof router.replace>[0]);
+      } else {
+        router.replace(
+          "/coord/dashboard" as Parameters<typeof router.replace>[0],
+        );
+      }
+    },
+    [setDevProfilePreview, refreshRole, router],
+  );
 
   const savePhoto = async (uri: string | null) => {
     const previousPhotoUri = photoUri;
@@ -602,7 +644,10 @@ export default function ProfileScreen() {
       if (source === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") {
-          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
+          Alert.alert(
+            "Permissão necessária",
+            "Ative a câmera para tirar a foto.",
+          );
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -637,11 +682,12 @@ export default function ProfileScreen() {
         return;
       }
 
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
         Alert.alert(
           "Permissão necessária",
-          "Ative a galeria para escolher uma foto."
+          "Ative a galeria para escolher uma foto.",
         );
         return;
       }
@@ -708,89 +754,113 @@ export default function ProfileScreen() {
           />
         }
       >
-
         <BackTitleHeader
           title="Perfil"
-          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          onBack={() =>
+            navigateBackOrReplace({ router, fallback: "/prof/home" })
+          }
         />
 
         <View style={{ gap: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-              <View style={{ position: "relative" }}>
-                <Pressable
-                  onPress={() => setShowPhotoViewer(true)}
-                  style={{
-                    width: 120,
-                    height: 120,
-                    borderRadius: 60,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    ...shadow.card,
-                  }}
-                >
-                  { photoUri ? (
-                    <Image
-                      source={{ uri: photoUri }}
-                      style={{ width: 96, height: 96, borderRadius: 48 }}
-                      contentFit="cover"
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <View style={{ position: "relative" }}>
+              <Pressable
+                onPress={() => setShowPhotoViewer(true)}
+                style={{
+                  width: 120,
+                  height: 120,
+                  borderRadius: 60,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  ...shadow.card,
+                }}
+              >
+                {photoUri ? (
+                  <Image
+                    source={{ uri: photoUri }}
+                    style={{ width: 96, height: 96, borderRadius: 48 }}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 96,
+                      height: 96,
+                      borderRadius: 48,
+                      backgroundColor: colors.secondaryBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <GoAtletaIcon
+                      name="personSolid"
+                      size={40}
+                      color={colors.text}
                     />
-                  ) : (
-                    <View
-                      style={{
-                        width: 96,
-                        height: 96,
-                        borderRadius: 48,
-                        backgroundColor: colors.secondaryBg,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <GoAtletaIcon name="personSolid" size={40} color={colors.text} />
-                    </View>
-                  )}
-                </Pressable>
-                <Pressable
-                  onPress={() => setShowPhotoSheet(true)}
+                  </View>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => setShowPhotoSheet(true)}
+                style={{
+                  position: "absolute",
+                  right: 6,
+                  bottom: 6,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <GoAtletaIcon name="pencil" size={14} color={colors.text} />
+              </Pressable>
+            </View>
+            <View style={{ flex: 1, minWidth: 220, gap: 12 }}>
+              <View>
+                <Text
                   style={{
-                    position: "absolute",
-                    right: 6,
-                    bottom: 6,
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                    justifyContent: "center",
+                    fontSize: 30,
+                    fontWeight: "800",
+                    color: colors.text,
                   }}
                 >
-                  <GoAtletaIcon name="pencil" size={14} color={colors.text} />
-                </Pressable>
+                  {nameParts.first}
+                </Text>
+                {nameParts.last ? (
+                  <Text style={{ fontSize: 22, color: colors.muted }}>
+                    {nameParts.last}
+                  </Text>
+                ) : null}
               </View>
-              <View style={{ flex: 1, minWidth: 220, gap: 12 }}>
-                <View>
-                  <Text style={{ fontSize: 30, fontWeight: "800", color: colors.text }}>
-                    {nameParts.first}
-                  </Text>
-                  { nameParts.last ? (
-                    <Text style={{ fontSize: 22, color: colors.muted }}>{nameParts.last}</Text>
-                  ) : null}
-                </View>
-                <View>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Entrou</Text>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    {joinedLabel}
-                  </Text>
-                </View>
+              <View>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Entrou
+                </Text>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {joinedLabel}
+                </Text>
               </View>
             </View>
           </View>
+        </View>
         <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Perfil</Text>
+          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+            Perfil
+          </Text>
           <SettingsRow
             icon={profileDisplay.icon as any}
             iconBg="rgba(255, 185, 136, 0.16)"
@@ -802,7 +872,9 @@ export default function ProfileScreen() {
 
         {!loadingProfile && showWorkspaceSwitcher ? (
           <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+            <Text
+              style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}
+            >
               Workspace(s)
             </Text>
             <View
@@ -815,11 +887,14 @@ export default function ProfileScreen() {
                 gap: 8,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
+              <Text
+                style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}
+              >
                 {activeOrganization?.name || "Selecione um workspace"}
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Você tem acesso a {organizations.length} workspace(s). Toque para alternar.
+                Você tem acesso a {organizations.length} workspace(s). Toque
+                para alternar.
               </Text>
               <ScrollView
                 horizontal
@@ -836,9 +911,13 @@ export default function ProfileScreen() {
                         paddingVertical: 8,
                         paddingHorizontal: 14,
                         borderRadius: 999,
-                        backgroundColor: isActive ? colors.primaryBg : colors.secondaryBg,
+                        backgroundColor: isActive
+                          ? colors.primaryBg
+                          : colors.secondaryBg,
                         borderWidth: 1,
-                        borderColor: isActive ? "rgba(86, 214, 154, 0.45)" : colors.border,
+                        borderColor: isActive
+                          ? "rgba(86, 214, 154, 0.45)"
+                          : colors.border,
                       }}
                     >
                       <Text
@@ -860,7 +939,9 @@ export default function ProfileScreen() {
 
         {isDevUser ? (
           <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+            <Text
+              style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}
+            >
               Mudar perfil (DEV)
             </Text>
             <View style={{ gap: 8 }}>
@@ -871,7 +952,11 @@ export default function ProfileScreen() {
                 onPress={() => applyProfilePreview("professor")}
                 rightContent={
                   selectedProfilePreview === "professor" ? (
-                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
+                    <GoAtletaIcon
+                      name="checkmarkCircle"
+                      size={20}
+                      color={colors.primaryBg}
+                    />
                   ) : undefined
                 }
               />
@@ -882,7 +967,11 @@ export default function ProfileScreen() {
                 onPress={() => applyProfilePreview("student")}
                 rightContent={
                   selectedProfilePreview === "student" ? (
-                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
+                    <GoAtletaIcon
+                      name="checkmarkCircle"
+                      size={20}
+                      color={colors.primaryBg}
+                    />
                   ) : undefined
                 }
               />
@@ -893,7 +982,11 @@ export default function ProfileScreen() {
                 onPress={() => applyProfilePreview("admin")}
                 rightContent={
                   selectedProfilePreview === "admin" ? (
-                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
+                    <GoAtletaIcon
+                      name="checkmarkCircle"
+                      size={20}
+                      color={colors.primaryBg}
+                    />
                   ) : undefined
                 }
               />
@@ -902,117 +995,59 @@ export default function ProfileScreen() {
         ) : null}
 
         <>
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-                Configurações
-              </Text>
-              <SettingsRow
-                icon="notifications"
-                iconBg="rgba(135, 120, 255, 0.14)"
-                label="Notificações"
-                onPress={handleToggleNotifications}
-                rightContent={
-                  <View
+          <View style={{ gap: 8 }}>
+            <Text
+              style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}
+            >
+              Configurações
+            </Text>
+            <SettingsRow
+              icon="notifications"
+              iconBg="rgba(135, 120, 255, 0.14)"
+              label="Notificações"
+              onPress={handleToggleNotifications}
+              rightContent={
+                <View
+                  style={{
+                    paddingVertical: 5,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: notificationsEnabled
+                      ? colors.primaryBg
+                      : colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text
                     style={{
-                      paddingVertical: 5,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: notificationsEnabled ? colors.primaryBg : colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
+                      color: notificationsEnabled
+                        ? colors.primaryText
+                        : colors.text,
+                      fontWeight: "700",
+                      fontSize: 12,
                     }}
                   >
-                    <Text
-                      style={{
-                        color: notificationsEnabled ? colors.primaryText : colors.text,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
-                      {notificationsEnabled ? "Ligado" : "Desligado"}
-                    </Text>
-                  </View>
-                }
-              />
-              {!student && Platform.OS === "web" ? (
-                <View style={{ gap: 6 }}>
-                  <SettingsRow
-                    icon="documentAttach"
-                    iconBg="rgba(86, 214, 154, 0.14)"
-                    label="Base acadêmica"
-                    subtitle={
-                      academicDriveStatus.status === "connected"
-                        ? academicDriveStatus.googleAccountEmail
-                          ? `Google Drive conectado: ${academicDriveStatus.googleAccountEmail}`
-                          : "Google Drive conectado · toque para sincronizar"
-                        : "Conecte seu Google Drive com acesso somente leitura"
-                    }
-                    onPress={() => {
-                      void handleAcademicDrive();
-                    }}
-                    rightContent={
-                      <View
-                        style={{
-                          paddingVertical: 5,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor:
-                            academicDriveStatus.status === "connected"
-                              ? colors.primaryBg
-                              : colors.secondaryBg,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color:
-                              academicDriveStatus.status === "connected"
-                                ? colors.primaryText
-                                : colors.text,
-                            fontWeight: "700",
-                            fontSize: 12,
-                          }}
-                        >
-                          {academicDriveBusy
-                            ? "..."
-                            : academicDriveStatus.status === "connected"
-                              ? "Sincronizar"
-                              : "Conectar"}
-                        </Text>
-                      </View>
-                    }
-                  />
-                  {academicDriveStatus.status === "connected" ? (
-                    <Pressable
-                      disabled={academicDriveBusy}
-                      onPress={handleDisconnectAcademicDrive}
-                      style={{
-                        alignSelf: "flex-end",
-                        paddingVertical: 6,
-                        paddingHorizontal: 8,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.dangerSolidBg,
-                          fontSize: 12,
-                          fontWeight: "700",
-                        }}
-                      >
-                        Desconectar Google Drive
-                      </Text>
-                    </Pressable>
-                  ) : null}
+                    {notificationsEnabled ? "Ligado" : "Desligado"}
+                  </Text>
                 </View>
-              ) : null}
-              {Platform.OS !== "web" ? (
+              }
+            />
+            {!student && Platform.OS === "web" ? (
+              <View style={{ gap: 6 }}>
                 <SettingsRow
-                  icon="biometrics"
-                  iconBg="rgba(100, 190, 255, 0.16)"
-                  label="Entrar com biometria"
+                  icon="documentAttach"
+                  iconBg="rgba(86, 214, 154, 0.14)"
+                  label="Base acadêmica"
+                  subtitle={
+                    academicDriveStatus.status === "connected"
+                      ? academicDriveStatus.googleAccountEmail
+                        ? `Google Drive conectado: ${academicDriveStatus.googleAccountEmail}`
+                        : "Google Drive conectado · toque para sincronizar"
+                      : "Conecte seu Google Drive com acesso somente leitura"
+                  }
                   onPress={() => {
-                    void handleToggleBiometrics();
+                    void handleAcademicDrive();
                   }}
                   rightContent={
                     <View
@@ -1020,278 +1055,424 @@ export default function ProfileScreen() {
                         paddingVertical: 5,
                         paddingHorizontal: 10,
                         borderRadius: 999,
-                        backgroundColor: biometricsEnabled ? colors.primaryBg : colors.secondaryBg,
+                        backgroundColor:
+                          academicDriveStatus.status === "connected"
+                            ? colors.primaryBg
+                            : colors.secondaryBg,
                         borderWidth: 1,
                         borderColor: colors.border,
                       }}
                     >
                       <Text
                         style={{
-                          color: biometricsEnabled ? colors.primaryText : colors.text,
+                          color:
+                            academicDriveStatus.status === "connected"
+                              ? colors.primaryText
+                              : colors.text,
                           fontWeight: "700",
                           fontSize: 12,
                         }}
                       >
-                        {updatingBiometrics ? "..." : biometricsEnabled ? "Ligado" : "Desligado"}
+                        {academicDriveBusy
+                          ? "..."
+                          : academicDriveStatus.status === "connected"
+                            ? "Sincronizar"
+                            : "Conectar"}
                       </Text>
                     </View>
                   }
                 />
-              ) : null}
-              {!student && Platform.OS !== "web" ? (
-                <SettingsRow
-                  icon="nfc"
-                  iconBg="rgba(120, 220, 180, 0.16)"
-                  label="Presença NFC"
-                  subtitle="Modo presença por tag UID"
-                  onPress={() => router.push("/nfc-attendance")}
-                  rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
-                />
-              ) : null}
-              <SettingsRow
-                icon="darkMode"
-                iconBg="rgba(96, 187, 255, 0.16)"
-                label="Modo escuro"
-                onPress={toggleMode}
-                rightContent={
-                  <View
-                    style={{
-                      width: 42,
-                      height: 24,
-                      borderRadius: 999,
-                      backgroundColor: mode === "dark" ? colors.primaryBg : colors.secondaryBg,
-                      alignItems: mode === "dark" ? "flex-end" : "flex-start",
-                      justifyContent: "center",
-                      paddingHorizontal: 3,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: 8,
-                        backgroundColor: colors.card,
-                      }}
-                    />
-                  </View>
-                }
-              />
-            </View>
-
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Conta</Text>
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-                Segurança da conta
-              </Text>
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  paddingHorizontal: 12,
-                  paddingVertical: 11,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>Account Email</Text>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
-                    {accountSecurity.loginLabel}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                    {accountSecurity.emailConfirmed ? "Confirmado" : "Pendente"}
-                  </Text>
-                </View>
-              </View>
-
-              <View
-                style={{
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  gap: 7,
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {academicDriveStatus.status === "connected" ? (
                   <Pressable
-                    onPress={
-                      accountSecurity.googleConnected
-                        ? undefined
-                        : async () => {
-                            try {
-                              await signInWithOAuth("google", "profile");
-                            } catch {
-                              Alert.alert("Google", "Não foi possível iniciar o vínculo com Google agora.");
-                            }
-                          }
-                    }
+                    disabled={academicDriveBusy}
+                    onPress={handleDisconnectAcademicDrive}
                     style={{
-                      alignSelf: "flex-start",
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: accountSecurity.googleConnected ? colors.muted : colors.border,
-                      backgroundColor: accountSecurity.googleConnected ? colors.secondaryBg : colors.card,
-                      paddingHorizontal: 10,
+                      alignSelf: "flex-end",
                       paddingVertical: 6,
-                      opacity: accountSecurity.googleConnected ? 0.8 : 1,
-                      flexShrink: 1,
+                      paddingHorizontal: 8,
                     }}
                   >
-                    <GoAtletaIcon
-                      name="google"
-                      size={16}
-                      color={accountSecurity.googleConnected ? colors.muted : colors.text}
-                    />
                     <Text
                       style={{
-                        color: accountSecurity.googleConnected ? colors.muted : colors.text,
-                        fontSize: 13,
+                        color: colors.dangerSolidBg,
+                        fontSize: 12,
                         fontWeight: "700",
                       }}
                     >
-                      {accountSecurity.googleConnected
-                        ? "Google conectado"
-                        : "Google não conectado"}
+                      Desconectar Google Drive
                     </Text>
                   </Pressable>
-
-                  {accountSecurity.googleConnected ? (
-                    <Pressable
-                      onPress={async () => {
-                        if (!accountSecurity.canUnlinkGoogle) {
-                          Alert.alert(
-                            "Mantenha um acesso",
-                            "Configure outro método de login antes de desvincular o Google."
-                          );
-                          return;
-                        }
-                        confirm({
-                          title: "Desvincular Google",
-                          message:
-                            "Isso remove apenas o acesso pelo Google. Sua conta, seus dados e os outros métodos de login serão mantidos.",
-                          confirmLabel: "Desvincular",
-                          cancelLabel: "Cancelar",
-                          tone: "danger",
-                          onConfirm: async () => {
-                            try {
-                              setUnlinkingGoogle(true);
-                              await unlinkIdentityProvider("google");
-                              Alert.alert("Google", "Conta Google desvinculada com sucesso.");
-                            } catch (error) {
-                              const detail = error instanceof Error ? error.message : "Não foi possível desvincular agora.";
-                              Alert.alert("Google", detail);
-                            } finally {
-                              setUnlinkingGoogle(false);
-                            }
-                          },
-                        });
-                      }}
-                      disabled={unlinkingGoogle}
+                ) : null}
+              </View>
+            ) : null}
+            {Platform.OS !== "web" ? (
+              <SettingsRow
+                icon="biometrics"
+                iconBg="rgba(100, 190, 255, 0.16)"
+                label="Entrar com biometria"
+                onPress={() => {
+                  void handleToggleBiometrics();
+                }}
+                rightContent={
+                  <View
+                    style={{
+                      paddingVertical: 5,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: biometricsEnabled
+                        ? colors.primaryBg
+                        : colors.secondaryBg,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text
                       style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.dangerSolidBg,
-                        backgroundColor: "transparent",
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        opacity: unlinkingGoogle || !accountSecurity.canUnlinkGoogle ? 0.6 : 1,
+                        color: biometricsEnabled
+                          ? colors.primaryText
+                          : colors.text,
+                        fontWeight: "700",
+                        fontSize: 12,
                       }}
                     >
-                      <Text style={{ color: colors.dangerSolidBg, fontSize: 12, fontWeight: "700" }}>
-                        {unlinkingGoogle
-                          ? "Desvinculando..."
-                          : accountSecurity.canUnlinkGoogle
-                            ? "Desvincular Google"
-                            : "Único acesso"}
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              </View>
-
-              {!accountSecurity.emailConfirmed && accountSecurity.canUseEmailCode ? (
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    onPress={() =>
-                      router.push(
-                        `/verify-email?email=${encodeURIComponent(session?.user?.email ?? "")}`
-                      )
-                    }
+                      {updatingBiometrics
+                        ? "..."
+                        : biometricsEnabled
+                          ? "Ligado"
+                          : "Desligado"}
+                    </Text>
+                  </View>
+                }
+              />
+            ) : null}
+            {!student && Platform.OS !== "web" ? (
+              <SettingsRow
+                icon="nfc"
+                iconBg="rgba(120, 220, 180, 0.16)"
+                label="Presença NFC"
+                subtitle="Modo presença por tag UID"
+                onPress={() => router.push("/nfc-attendance")}
+                rightContent={
+                  <GoAtletaIcon
+                    name="chevronForward"
+                    size={16}
+                    color={colors.muted}
+                  />
+                }
+              />
+            ) : null}
+            <SettingsRow
+              icon="darkMode"
+              iconBg="rgba(96, 187, 255, 0.16)"
+              label="Modo escuro"
+              onPress={toggleMode}
+              rightContent={
+                <View
+                  style={{
+                    width: 42,
+                    height: 24,
+                    borderRadius: 999,
+                    backgroundColor:
+                      mode === "dark" ? colors.primaryBg : colors.secondaryBg,
+                    alignItems: mode === "dark" ? "flex-end" : "flex-start",
+                    justifyContent: "center",
+                    paddingHorizontal: 3,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <View
                     style={{
-                      flex: 1,
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      paddingVertical: 10,
-                      alignItems: "center",
+                      width: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      backgroundColor: colors.card,
+                    }}
+                  />
+                </View>
+              }
+            />
+          </View>
+
+          <View style={{ gap: 8 }}>
+            <Text
+              style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}
+            >
+              Conta
+            </Text>
+            <Text
+              style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}
+            >
+              Segurança da conta
+            </Text>
+            <View
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 12,
+                paddingVertical: 11,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Account Email
+                </Text>
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontSize: 14,
+                    fontWeight: "600",
+                  }}
+                  numberOfLines={1}
+                >
+                  {accountSecurity.loginLabel}
+                </Text>
+              </View>
+              <View
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.text,
+                    fontSize: 11,
+                    fontWeight: "700",
+                  }}
+                >
+                  {accountSecurity.emailConfirmed ? "Confirmado" : "Pendente"}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                gap: 7,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Pressable
+                  onPress={
+                    accountSecurity.googleConnected
+                      ? undefined
+                      : async () => {
+                          try {
+                            await signInWithOAuth("google", "profile");
+                          } catch {
+                            Alert.alert(
+                              "Google",
+                              "Não foi possível iniciar o vínculo com Google agora.",
+                            );
+                          }
+                        }
+                  }
+                  style={{
+                    alignSelf: "flex-start",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: accountSecurity.googleConnected
+                      ? colors.muted
+                      : colors.border,
+                    backgroundColor: accountSecurity.googleConnected
+                      ? colors.secondaryBg
+                      : colors.card,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    opacity: accountSecurity.googleConnected ? 0.8 : 1,
+                    flexShrink: 1,
+                  }}
+                >
+                  <GoAtletaIcon
+                    name="google"
+                    size={16}
+                    color={
+                      accountSecurity.googleConnected
+                        ? colors.muted
+                        : colors.text
+                    }
+                  />
+                  <Text
+                    style={{
+                      color: accountSecurity.googleConnected
+                        ? colors.muted
+                        : colors.text,
+                      fontSize: 13,
+                      fontWeight: "700",
                     }}
                   >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      Inserir código
-                    </Text>
-                  </Pressable>
+                    {accountSecurity.googleConnected
+                      ? "Google conectado"
+                      : "Google não conectado"}
+                  </Text>
+                </Pressable>
+
+                {accountSecurity.googleConnected ? (
                   <Pressable
                     onPress={async () => {
-                      const accountEmail = session?.user?.email ?? "";
-                      if (!accountEmail) return;
-                      try {
-                        await resendSignupCode(accountEmail, "verify-email");
-                        Alert.alert("Email", "Código reenviado para seu e-mail.");
-                      } catch {
-                        Alert.alert("Email", "Não foi possível reenviar o código agora.");
+                      if (!accountSecurity.canUnlinkGoogle) {
+                        Alert.alert(
+                          "Mantenha um acesso",
+                          "Configure outro método de login antes de desvincular o Google.",
+                        );
+                        return;
                       }
+                      confirm({
+                        title: "Desvincular Google",
+                        message:
+                          "Isso remove apenas o acesso pelo Google. Sua conta, seus dados e os outros métodos de login serão mantidos.",
+                        confirmLabel: "Desvincular",
+                        cancelLabel: "Cancelar",
+                        tone: "danger",
+                        onConfirm: async () => {
+                          try {
+                            setUnlinkingGoogle(true);
+                            await unlinkIdentityProvider("google");
+                            Alert.alert(
+                              "Google",
+                              "Conta Google desvinculada com sucesso.",
+                            );
+                          } catch (error) {
+                            const detail =
+                              error instanceof Error
+                                ? error.message
+                                : "Não foi possível desvincular agora.";
+                            Alert.alert("Google", detail);
+                          } finally {
+                            setUnlinkingGoogle(false);
+                          }
+                        },
+                      });
                     }}
+                    disabled={unlinkingGoogle}
                     style={{
-                      flex: 1,
-                      borderRadius: 10,
+                      borderRadius: 999,
                       borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      paddingVertical: 10,
-                      alignItems: "center",
+                      borderColor: colors.dangerSolidBg,
+                      backgroundColor: "transparent",
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      opacity:
+                        unlinkingGoogle || !accountSecurity.canUnlinkGoogle
+                          ? 0.6
+                          : 1,
                     }}
                   >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      Reenviar código
+                    <Text
+                      style={{
+                        color: colors.dangerSolidBg,
+                        fontSize: 12,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {unlinkingGoogle
+                        ? "Desvinculando..."
+                        : accountSecurity.canUnlinkGoogle
+                          ? "Desvincular Google"
+                          : "Único acesso"}
                     </Text>
                   </Pressable>
-                </View>
-              ) : null}
-              <SettingsRow
-                icon="logout"
-                iconBg="rgba(255, 130, 130, 0.16)"
-                label="Sair"
-                onPress={async () => {
-                  await signOut();
-                }}
-                rightContent={<View />}
-              />
+                ) : null}
+              </View>
             </View>
-          </>
+
+            {!accountSecurity.emailConfirmed &&
+            accountSecurity.canUseEmailCode ? (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      `/verify-email?email=${encodeURIComponent(session?.user?.email ?? "")}`,
+                    )
+                  }
+                  style={{
+                    flex: 1,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingVertical: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    Inserir código
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={async () => {
+                    const accountEmail = session?.user?.email ?? "";
+                    if (!accountEmail) return;
+                    try {
+                      await resendSignupCode(accountEmail, "verify-email");
+                      Alert.alert("Email", "Código reenviado para seu e-mail.");
+                    } catch {
+                      Alert.alert(
+                        "Email",
+                        "Não foi possível reenviar o código agora.",
+                      );
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    paddingVertical: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    Reenviar código
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+            <SettingsRow
+              icon="logout"
+              iconBg="rgba(255, 130, 130, 0.16)"
+              label="Sair"
+              onPress={async () => {
+                await signOut();
+              }}
+              rightContent={<View />}
+            />
+          </View>
+        </>
       </ScrollView>
       <Modal
         visible={showPhotoViewer}
@@ -1325,7 +1506,9 @@ export default function ProfileScreen() {
             >
               <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
             </Pressable>
-            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
+            <Text
+              style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}
+            >
               Foto do perfil
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
@@ -1360,8 +1543,10 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
           </View>
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-            { photoUri ? (
+          <View
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+          >
+            {photoUri ? (
               <Image
                 source={{ uri: photoUri }}
                 style={{ width: "100%", height: "100%" }}
@@ -1378,7 +1563,11 @@ export default function ProfileScreen() {
                   justifyContent: "center",
                 }}
               >
-                <GoAtletaIcon name="personSolid" size={96} color={colors.text} />
+                <GoAtletaIcon
+                  name="personSolid"
+                  size={96}
+                  color={colors.text}
+                />
               </View>
             )}
           </View>
@@ -1390,7 +1579,13 @@ export default function ProfileScreen() {
         cardStyle={photoSheetStyle}
         position="center"
       >
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           <Pressable
             onPress={() => setShowPhotoSheet(false)}
             style={{
@@ -1404,7 +1599,9 @@ export default function ProfileScreen() {
           >
             <GoAtletaIcon name="close" size={18} color={colors.text} />
           </Pressable>
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Foto do perfil</Text>
+          <Text style={{ color: colors.text, fontWeight: "700" }}>
+            Foto do perfil
+          </Text>
           <View style={{ width: 36, height: 36 }} />
         </View>
         <View style={{ gap: 12 }}>
@@ -1437,9 +1634,15 @@ export default function ProfileScreen() {
                   justifyContent: "center",
                 }}
               >
-                <GoAtletaIcon name={item.icon as any} size={18} color={colors.text} />
+                <GoAtletaIcon
+                  name={item.icon as any}
+                  size={18}
+                  color={colors.text}
+                />
               </View>
-              <Text style={{ color: colors.text, fontWeight: "600" }}>{item.label}</Text>
+              <Text style={{ color: colors.text, fontWeight: "600" }}>
+                {item.label}
+              </Text>
             </Pressable>
           ))}
           {photoUri ? (
@@ -1477,9 +1680,15 @@ export default function ProfileScreen() {
                   justifyContent: "center",
                 }}
               >
-                <GoAtletaIcon name="trash" size={18} color={colors.dangerSolidText} />
+                <GoAtletaIcon
+                  name="trash"
+                  size={18}
+                  color={colors.dangerSolidText}
+                />
               </View>
-              <Text style={{ color: colors.dangerSolidText, fontWeight: "600" }}>
+              <Text
+                style={{ color: colors.dangerSolidText, fontWeight: "600" }}
+              >
                 Remover foto
               </Text>
             </Pressable>

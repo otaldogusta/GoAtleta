@@ -86,6 +86,9 @@ describe("academic Edge runtime contract", () => {
     expect(syncSource).toContain('sync_error_code: "worker_resource_limit"');
     expect(syncSource).toContain("for (const item of syncBatch.items)");
     expect(syncSource).not.toContain("for (const item of driveItems)");
+    expect(syncSource).toContain('body?.continuationMode === "server"');
+    expect(syncSource).toContain("edgeRuntime.waitUntil");
+    expect(syncSource).toContain('sync_error_code: "continuation_failed"');
   });
 
   test("suporta OAuth, service account, API key e resource key sem expor tokens", () => {
