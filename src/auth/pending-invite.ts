@@ -33,6 +33,14 @@ export const clearPendingTrainerInvite = async () => {
   await AsyncStorage.removeItem(TRAINER_KEY);
 };
 
+export const resolvePendingTrainerCode = ({
+  routeCode,
+  storedCode,
+}: {
+  routeCode?: string;
+  storedCode: string;
+}) => routeCode?.trim().toUpperCase() || storedCode.trim().toUpperCase();
+
 export const resolvePendingInviteRedirect = ({
   pendingStudentToken,
   pendingTrainerCode,
