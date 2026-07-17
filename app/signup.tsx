@@ -16,15 +16,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
+import { markRender } from "../src/observability/perf";
 
 import { claimTrainerInvite } from "../src/api/trainer-invite";
 import { useAuth } from "../src/auth/auth";
+import {
+  clearPendingTrainerInvite,
+  savePendingTrainerInvite,
+} from "../src/auth/pending-invite";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 
+// perf-check: ignore-measure - this form has no automatic asynchronous screen load.
 export default function SignupScreen() {
+  markRender("screen.signup.render.root");
   const { colors, mode } = useAppTheme();
   const { signUp, signInWithOAuth } = useAuth();
   const { inviteCode: inviteCodeParam } = useLocalSearchParams<{
@@ -97,7 +104,9 @@ export default function SignupScreen() {
 
   useEffect(() => {
     if (hasInviteCodeFromLink) {
-      setInviteCode(inviteCodeParam.trim());
+      const normalizedCode = inviteCodeParam.trim().toUpperCase();
+      setInviteCode(normalizedCode);
+      void savePendingTrainerInvite(normalizedCode);
     }
   }, [hasInviteCodeFromLink, inviteCodeParam]);
 
@@ -139,6 +148,7 @@ export default function SignupScreen() {
       if (inviteCode.trim()) {
         if (session) {
           await claimTrainerInvite(inviteCode.trim());
+          await clearPendingTrainerInvite();
           setMessage("Conta criada e convite validado. Confirme o e-mail por código para liberar acesso completo.");
         } else {
           setMessage(
@@ -158,6 +168,7 @@ export default function SignupScreen() {
             email: email.trim(),
             password,
             fromSignup: "1",
+            inviteCode: inviteCode.trim() || undefined,
           },
         });
         return;

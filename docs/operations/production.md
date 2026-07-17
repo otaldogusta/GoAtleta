@@ -11,7 +11,8 @@ arquivados para consulta histórica, mas não devem receber conteúdo novo.
    `check:org-scope` e build.
 3. Commitar e enviar para a `main` somente depois dos checks passarem.
 4. Confirmar deployment `READY` na Vercel para o commit enviado.
-5. Validar `https://go-atleta.vercel.app` com HTTP `200`.
+5. Validar `https://goatleta.com` com HTTP `200` e
+   `https://www.goatleta.com` redirecionando para o domínio principal.
 6. Fazer smoke visual nas rotas críticas antes de abrir nova frente.
 
 ## Documentos ativos

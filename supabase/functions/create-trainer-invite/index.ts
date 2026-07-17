@@ -45,7 +45,7 @@ const buildSignupLink = (code: string) => {
     const normalized = appBase.replace(/\/$/, "");
     return `${normalized}/signup?role=trainer&inviteCode=${encodeURIComponent(code)}`;
   }
-  return `goatleta://signup?role=trainer&inviteCode=${encodeURIComponent(code)}`;
+  return `https://goatleta.com/signup?role=trainer&inviteCode=${encodeURIComponent(code)}`;
 };
 
 Deno.serve(async (req) => {

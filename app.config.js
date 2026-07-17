@@ -90,7 +90,7 @@ module.exports = {
 		ios: {
 			supportsTablet: true,
 			bundleIdentifier: "com.otaldogusta.goatleta",
-			associatedDomains: ["applinks:go-atleta.vercel.app"],
+			associatedDomains: ["applinks:goatleta.com", "applinks:go-atleta.vercel.app"],
 			usesNonExemptEncryption: false,
 			infoPlist: {
 				ITSAppUsesNonExemptEncryption: false,
@@ -114,7 +114,7 @@ module.exports = {
 					data: [
 						{
 							scheme: "https",
-							host: "go-atleta.vercel.app",
+							host: "goatleta.com",
 						},
 					],
 					category: ["BROWSABLE", "DEFAULT"],

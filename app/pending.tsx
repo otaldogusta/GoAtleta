@@ -6,26 +6,35 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { getInviteErrorCode } from "../src/api/invite-errors";
 import { claimStudentInvite } from "../src/api/student-invite";
 import { claimTrainerInvite } from "../src/api/trainer-invite";
+import { requestAccessReview } from "../src/api/access-request";
 import { useAuth } from "../src/auth/auth";
 import {
     clearPendingInvite,
+    clearPendingTrainerInvite,
     getPendingInvite,
+    getPendingTrainerInvite,
 } from "../src/auth/pending-invite";
 import { useRole } from "../src/auth/role";
+import { markRender, measureAsync } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 
 export default function PendingScreen() {
+  markRender("screen.pending.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { session, signOut } = useAuth();
   const { refresh } = useRole();
   const [busy, setBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteInput, setInviteInput] = useState("");
   const [message, setMessage] = useState("");
   const [storedToken, setStoredToken] = useState("");
+  const [storedTrainerCode, setStoredTrainerCode] = useState("");
   const [showInviteInput, setShowInviteInput] = useState(false);
+  const [coordinatorEmail, setCoordinatorEmail] = useState("");
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [requestMessage, setRequestMessage] = useState("");
   const autoClaimedRef = useRef(false);
 
   const isUuid = (value: string) =>
@@ -95,8 +104,9 @@ export default function PendingScreen() {
         return;
       }
       await claimTrainerInvite(trimmed);
+      await clearPendingTrainerInvite();
       await refresh();
-      setMessage("Convite de treinador validado com sucesso.");
+      router.replace("/");
     } catch (error) {
       if (type === "student") {
         setMessage(parseInviteError(error));
@@ -108,6 +118,23 @@ export default function PendingScreen() {
           ? "Convite inválido ou expirado."
           : "Não foi possível validar o convite."
       );
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const handleStoredTrainerInvite = async (codeOverride?: string) => {
+    const code = (codeOverride ?? storedTrainerCode).trim();
+    if (!code || inviteBusy) return;
+    setInviteBusy(true);
+    setMessage("");
+    try {
+      await claimTrainerInvite(code);
+      await clearPendingTrainerInvite();
+      await refresh();
+      router.replace("/");
+    } catch (error) {
+      setMessage(parseInviteError(error));
     } finally {
       setInviteBusy(false);
     }
@@ -131,36 +158,73 @@ export default function PendingScreen() {
   };
 
   const clearStoredInvite = async () => {
-    await clearPendingInvite();
+    await Promise.all([clearPendingInvite(), clearPendingTrainerInvite()]);
     setStoredToken("");
+    setStoredTrainerCode("");
     setMessage("");
     autoClaimedRef.current = false;
+  };
+
+  const handleAccessRequest = async () => {
+    const normalizedEmail = coordinatorEmail.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setRequestMessage("Informe o e-mail da coordenação.");
+      return;
+    }
+    if (requestBusy) return;
+    setRequestBusy(true);
+    setRequestMessage("");
+    try {
+      await requestAccessReview(normalizedEmail);
+      setRequestMessage(
+        "Solicitação enviada. A coordenação receberá o aviso no app e por push, quando habilitado."
+      );
+    } catch (error) {
+      setRequestMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível enviar a solicitação."
+      );
+    } finally {
+      setRequestBusy(false);
+    }
   };
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const token = await getPendingInvite();
-      if (!alive || !token) return;
+      const [token, trainerCode] = await measureAsync(
+        "screen.pending.load.storedInvites",
+        () => Promise.all([getPendingInvite(), getPendingTrainerInvite()])
+      );
+      if (!alive) return;
       setStoredToken(token);
+      setStoredTrainerCode(trainerCode);
       if (autoClaimedRef.current) return;
+      if (!token && !trainerCode) return;
       autoClaimedRef.current = true;
-      await handleStoredInvite(token);
+      if (token) {
+        await handleStoredInvite(token);
+      } else {
+        await handleStoredTrainerInvite(trainerCode);
+      }
     })();
     return () => {
       alive = false;
     };
+    // The stored values are claimed once per mount; including the handlers would
+    // recreate this effect whenever transient invite state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}>
         <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-          Conta aguardando vínculo
+          Acesso pendente
         </Text>
         <Text style={{ color: colors.muted }}>
-          Seu acesso ainda não foi associado a uma turma. Peça para o treinador
-          revisar o cadastro e vincular seu usuário.
+          Sua conta ainda não possui organização e função ativas.
         </Text>
         <View
           style={{
@@ -175,16 +239,20 @@ export default function PendingScreen() {
           <Text style={{ color: colors.text, fontWeight: "700" }}>
             Convite de acesso
           </Text>
-          { storedToken ? (
+          { storedToken || storedTrainerCode ? (
             <>
               <Text style={{ color: colors.muted }}>
-                Convite detectado. Validando automaticamente.
+                Convite detectado. Estamos validando seu acesso automaticamente.
               </Text>
               { message ? (
                 <Text style={{ color: colors.muted }}>{message}</Text>
               ) : null}
               <Pressable
-                onPress={() => handleStoredInvite()}
+                onPress={() =>
+                  storedToken
+                    ? handleStoredInvite()
+                    : handleStoredTrainerInvite()
+                }
                 disabled={inviteBusy}
                 style={{
                   paddingVertical: 10,
@@ -218,8 +286,8 @@ export default function PendingScreen() {
           ) : (
             <>
               <Text style={{ color: colors.muted }}>
-                Se você recebeu um link de convite, abra-o novamente. Caso precise
-                colar manualmente, use a opção abaixo.
+                Se recebeu um convite, abra o link novamente ou informe o código.
+                O vínculo e a função serão aplicados automaticamente.
               </Text>
               { !showInviteInput ? (
                 <Pressable
@@ -295,6 +363,59 @@ export default function PendingScreen() {
               )}
             </>
           )}
+        </View>
+        <View
+          style={{
+            padding: 16,
+            borderRadius: 16,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            gap: 8,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "700" }}>
+            Entrou sem convite?
+          </Text>
+          <Text style={{ color: colors.muted }}>
+            Seu acesso: {session?.user?.email ?? "e-mail não informado"}. Informe
+            abaixo o e-mail da coordenação responsável para enviar a solicitação.
+          </Text>
+          <TextInput
+            placeholder="E-mail da coordenação"
+            value={coordinatorEmail}
+            onChangeText={setCoordinatorEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: 10,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+            }}
+          />
+          {requestMessage ? (
+            <Text style={{ color: colors.muted }}>{requestMessage}</Text>
+          ) : null}
+          <Pressable
+            onPress={() => void handleAccessRequest()}
+            disabled={requestBusy}
+            style={{
+              paddingVertical: 10,
+              borderRadius: 12,
+              backgroundColor: colors.primaryBg,
+              alignItems: "center",
+              opacity: requestBusy ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+              {requestBusy ? "Enviando..." : "Solicitar liberação"}
+            </Text>
+          </Pressable>
         </View>
         <Pressable
           onPress={async () => {

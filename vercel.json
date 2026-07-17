@@ -4,6 +4,19 @@
   "devCommand": "npm run web",
   "installCommand": "npm install",
   "framework": null,
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.goatleta.com"
+        }
+      ],
+      "destination": "https://goatleta.com/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/oauth/google-drive/callback",

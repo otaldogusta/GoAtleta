@@ -28,7 +28,7 @@ unificado; não há uma segunda IA ou um contexto acadêmico paralelo.
 - `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET` e
   `GOOGLE_DRIVE_REDIRECT_URI`: habilitam a conexão OAuth do professor para
   pastas privadas. O redirect autorizado no Google Cloud é
-  `https://go-atleta.vercel.app/oauth/google-drive/callback`; o Vercel encaminha
+  `https://goatleta.com/oauth/google-drive/callback`; o Vercel encaminha
   essa rota, antes do fallback SPA, para `/functions/v1/document-drive-oauth`.
 - `DOCUMENT_TOKEN_ENCRYPTION_KEY`: cifra refresh tokens com AES-GCM antes da
   persistência.

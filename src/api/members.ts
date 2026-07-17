@@ -165,6 +165,22 @@ export const adminListOrgMembers = async (orgId: string): Promise<OrgMember[]> =
   return (rows ?? []).map(mapMember);
 };
 
+export const adminAddOrgMemberByEmail = async (
+  orgId: string,
+  email: string,
+  roleLevel: 5 | 10 | 50
+): Promise<void> => {
+  await supabaseRestPost<null>(
+    "/rpc/admin_add_org_member_by_email",
+    {
+      p_org_id: orgId,
+      p_email: email.trim().toLowerCase(),
+      p_role_level: roleLevel,
+    },
+    "return=minimal"
+  );
+};
+
 export const adminListOrgClasses = async (orgId: string): Promise<OrgClass[]> => {
   const rows = await supabaseRestPost<OrgClassRow[]>(
     "/rpc/admin_list_org_classes",

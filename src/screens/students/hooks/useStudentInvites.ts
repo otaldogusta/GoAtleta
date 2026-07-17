@@ -34,7 +34,7 @@ export type UseStudentInvitesParams = {
 };
 
 const buildInviteLink = (token: string) => {
-  return `https://go-atleta.vercel.app/invite/${encodeURIComponent(token)}`;
+  return `https://goatleta.com/invite/${encodeURIComponent(token)}`;
 };
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
