@@ -113,7 +113,8 @@ describe("academic Edge runtime contract", () => {
   });
 
   test("preserva tabelas de Docs, DOCX e Sheets antes da interpretação", () => {
-    expect(syncSource).toContain("mammoth.convertToHtml");
+    expect(syncSource).toContain("mammoth.convertToHtml({ buffer: bytes })");
+    expect(syncSource).not.toContain("mammoth.convertToHtml({ arrayBuffer:");
     expect(syncSource).toContain("convertDocumentHtmlToStructuredText");
     expect(syncSource).toContain("convertWorkbookToStructuredText");
     expect(syncSource).toContain("xlsx_structured_rows");

@@ -584,7 +584,7 @@ const extractFileContent = async (
       const mammothModule = await import("npm:mammoth@1.10.0");
       const mammoth = mammothModule.default ?? mammothModule;
       const result = await withTimeout(
-        mammoth.convertToHtml({ arrayBuffer: buffer }),
+        mammoth.convertToHtml({ buffer: bytes }),
         DOCUMENT_EXTRACTION_TIMEOUT_MS,
         "docx_extraction_timeout",
       );
