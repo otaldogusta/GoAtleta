@@ -76,6 +76,8 @@ describe("academic Edge runtime contract", () => {
     expect(syncSource).toContain("docx_expansion_limit");
     expect(syncSource).toContain("pdf_page_limit");
     expect(syncSource).toContain("DOCUMENT_EXTRACTION_TIMEOUT_MS");
+    expect(syncSource).toContain("MAX_COMPLEX_DOCUMENT_BYTES");
+    expect(syncSource).toContain('errorCode: "complex_document_too_large"');
   });
 
   test("divide a ingestão em lotes retomáveis e recupera execução interrompida", () => {

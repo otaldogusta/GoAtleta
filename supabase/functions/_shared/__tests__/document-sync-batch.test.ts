@@ -19,13 +19,13 @@ describe("document sync batching", () => {
     });
 
     expect(first).toMatchObject({
-      items: ["a", "b"],
-      nextCursor: 2,
+      items: ["a"],
+      nextCursor: 1,
       hasMore: true,
     });
     expect(second).toMatchObject({
-      items: ["c", "d"],
-      nextCursor: 4,
+      items: ["b"],
+      nextCursor: 2,
       hasMore: true,
     });
   });

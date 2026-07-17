@@ -96,6 +96,7 @@ const PDF_MIME = "application/pdf";
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_COMPLEX_DOCUMENT_BYTES = 8 * 1024 * 1024;
 const MAX_EXPANDED_DOCUMENT_BYTES = 50 * 1024 * 1024;
 const MAX_EXTRACTED_CHARACTERS = 1_000_000;
 const MAX_PDF_PAGES = 250;
@@ -444,6 +445,15 @@ const extractFileContent = async (
         byteSize: buffer.byteLength,
         pageCount: null,
         errorCode: "file_too_large",
+      };
+    }
+    if (supportedBinary && buffer.byteLength > MAX_COMPLEX_DOCUMENT_BYTES) {
+      return {
+        status: "review_required",
+        content: "",
+        byteSize: buffer.byteLength,
+        pageCount: null,
+        errorCode: "complex_document_too_large",
       };
     }
 

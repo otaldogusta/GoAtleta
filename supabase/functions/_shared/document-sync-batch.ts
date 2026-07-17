@@ -1,5 +1,5 @@
-export const DEFAULT_DOCUMENT_SYNC_BATCH_SIZE = 4;
-export const MAX_DOCUMENT_SYNC_BATCH_SIZE = 6;
+export const DEFAULT_DOCUMENT_SYNC_BATCH_SIZE = 1;
+export const MAX_DOCUMENT_SYNC_BATCH_SIZE = 1;
 
 const finiteInteger = (value: unknown, fallback: number) => {
   const parsed = Number(value);
