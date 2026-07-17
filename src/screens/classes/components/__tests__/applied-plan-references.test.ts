@@ -150,6 +150,7 @@ describe("buildAppliedPlanReferencesPresentation", () => {
 
   it.each([
     ["user_academic", "Base acadêmica pessoal"],
+    ["system_academic", "Apoio pedagógico GoAtleta"],
     ["workspace_academic", "Base acadêmica da organização"],
     ["institutional", "Base institucional"],
     ["class_planning", "Planejamento da turma"],

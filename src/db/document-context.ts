@@ -97,6 +97,7 @@ const uniqueStrings = (values: (string | null | undefined)[]) =>
 
 const allowedSourceScopes = new Set<PedagogicalReferenceSourceScope>([
   "user_academic",
+  "system_academic",
   "workspace_academic",
   "institutional",
   "class_planning",
@@ -363,6 +364,16 @@ const normalizeReference = (
     sourceLocation: textValue(row.sourceLocation, 260) || undefined,
     excerpt,
     influence: influenceForLayer(layer, documentType),
+    publicIdentityId: textValue(row.publicIdentityId, 180) || undefined,
+    citationLabel: textValue(row.citationLabel, 180) || undefined,
+    authors: stringArray(row.authors),
+    publicationYear: Number.isInteger(Number(row.publicationYear))
+      ? Number(row.publicationYear)
+      : undefined,
+    publicationVenue: textValue(row.publicationVenue, 260) || undefined,
+    doi: textValue(row.doi, 260) || undefined,
+    officialUrl: textValue(row.officialUrl, 500) || undefined,
+    studyDesign: textValue(row.studyDesign, 180) || undefined,
     documentType,
     sourceDate: sourceDate || undefined,
     confidence:
@@ -383,6 +394,7 @@ const dedupePlanningReferences = (
   const seen = new Set<string>();
   return references.filter((reference) => {
     const identity =
+      reference.publicIdentityId ||
       reference.sourceDocumentId ||
       reference.sourceRevisionId ||
       reference.contentHash ||
