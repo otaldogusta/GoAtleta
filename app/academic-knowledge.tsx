@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { BackTitleHeader } from "../src/components/ui/BackTitleHeader";
+import { markRender, measureAsync } from "../src/observability/perf";
 import {
   canManageGlobalAcademicKnowledge,
   listGlobalAcademicCuratorInventory,
@@ -37,6 +38,7 @@ const statusLabel: Record<string, string> = {
 };
 
 export default function AcademicKnowledgeScreen() {
+  markRender("screen.academicKnowledge.render.root");
   const router = useRouter();
   const { colors } = useAppTheme();
   const [items, setItems] = useState<GlobalAcademicCuratorItem[]>([]);
@@ -56,9 +58,19 @@ export default function AcademicKnowledgeScreen() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const canManage = await canManageGlobalAcademicKnowledge();
+      const canManage = await measureAsync(
+        "screen.academicKnowledge.load.inventory",
+        canManageGlobalAcademicKnowledge,
+      );
       setAllowed(canManage);
-      setItems(canManage ? await listGlobalAcademicCuratorInventory() : []);
+      setItems(
+        canManage
+          ? await measureAsync(
+              "screen.academicKnowledge.load.curatorItems",
+              listGlobalAcademicCuratorInventory,
+            )
+          : [],
+      );
     } finally {
       setLoading(false);
     }
