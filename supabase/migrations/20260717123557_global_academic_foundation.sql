@@ -169,7 +169,8 @@ create table public.global_academic_interpretations (
     publication_status = 'awaiting_review'
     or (approved_by is not null and approved_at is not null)
   ),
-  unique (source_revision_id, public_identity_id, publication_version)
+  constraint global_academic_revision_identity_version_unique
+    unique (source_revision_id, public_identity_id, publication_version)
 );
 
 create unique index global_academic_one_current_publication
@@ -179,6 +180,33 @@ create index global_academic_retrieval_idx
   on public.global_academic_interpretations (publication_status, public_identity_id);
 create index global_academic_private_origin_idx
   on public.global_academic_interpretations (source_document_id, source_revision_id);
+
+create or replace function public.canonical_academic_public_identity(
+  p_doi text, p_authors text[], p_year integer, p_title text, p_venue text
+)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when nullif(btrim(coalesce(p_doi, '')), '') is not null then
+      'doi:' || lower(regexp_replace(
+        btrim(p_doi), '^https?://(dx\.)?doi\.org/', '', 'i'
+      ))
+    else 'bib:' || encode(
+      extensions.digest(
+        lower(regexp_replace(
+          concat_ws('|', array_to_string(coalesce(p_authors, '{}'::text[]), ';'),
+            coalesce(p_year::text, ''), coalesce(p_title, ''), coalesce(p_venue, '')),
+          '[^[:alnum:]]+', '', 'g'
+        )),
+        'sha256'
+      ),
+      'hex'
+    )
+  end;
+$$;
 
 create table public.global_academic_audit_log (
   id bigint generated always as identity primary key,
@@ -237,6 +265,155 @@ revoke all on public.global_academic_audit_log from anon, authenticated;
 grant select on public.global_capability_grants to authenticated;
 grant select on public.global_academic_interpretations to authenticated;
 grant select on public.global_academic_audit_log to authenticated;
+
+create or replace function public.create_global_academic_candidate(
+  p_source_revision_id uuid,
+  p_payload jsonb,
+  p_idempotency_key text
+)
+returns public.global_academic_interpretations
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  source_row public.document_sources;
+  revision_row public.document_source_revisions;
+  item public.global_academic_interpretations;
+  authors_value text[];
+  limitations_value text[];
+  identity_value text;
+  year_value integer;
+begin
+  if not public.has_global_capability('manage_global_academic_knowledge') then
+    raise exception 'Not authorized';
+  end if;
+  if nullif(btrim(p_idempotency_key), '') is null
+     or jsonb_typeof(p_payload) <> 'object' then
+    raise exception 'Invalid candidate request';
+  end if;
+
+  select * into revision_row from public.document_source_revisions
+    where id = p_source_revision_id for update;
+  if not found or revision_row.extraction_status <> 'ready' then
+    raise exception 'Only ready revisions can be curated';
+  end if;
+  select * into source_row from public.document_sources
+    where id = revision_row.source_id for share;
+  if not found or source_row.source_scope <> 'user_academic'
+     or source_row.owner_user_id <> (select auth.uid()) then
+    raise exception 'Private academic source is outside curator scope';
+  end if;
+
+  select coalesce(array_agg(value), '{}'::text[]) into authors_value
+  from jsonb_array_elements_text(coalesce(p_payload->'authors', '[]'::jsonb));
+  select coalesce(array_agg(value), '{}'::text[]) into limitations_value
+  from jsonb_array_elements_text(coalesce(p_payload->'limitations', '[]'::jsonb));
+  year_value := nullif(p_payload->>'publicationYear', '')::integer;
+  identity_value := public.canonical_academic_public_identity(
+    p_payload->>'doi', authors_value, year_value,
+    p_payload->>'title', p_payload->>'publicationVenue'
+  );
+
+  insert into public.global_academic_interpretations (
+    public_identity_id, claim, practical_application, limitations,
+    citation_label, authors, publication_year, title, publication_venue,
+    doi, official_url, material_type, evidence_level, license_code,
+    classification_confidence, source_document_id, source_revision_id,
+    source_content_hash, administrative_excerpt, created_by
+  ) values (
+    identity_value, nullif(btrim(p_payload->>'claim'), ''),
+    nullif(btrim(p_payload->>'practicalApplication'), ''), limitations_value,
+    nullif(btrim(p_payload->>'citationLabel'), ''), authors_value, year_value,
+    nullif(btrim(p_payload->>'title'), ''),
+    nullif(btrim(p_payload->>'publicationVenue'), ''),
+    nullif(btrim(p_payload->>'doi'), ''),
+    nullif(btrim(p_payload->>'officialUrl'), ''),
+    coalesce(nullif(p_payload->>'materialType', ''), 'unknown'),
+    coalesce(nullif(p_payload->>'evidenceLevel', ''), 'unknown_support'),
+    nullif(btrim(p_payload->>'licenseCode'), ''),
+    coalesce((p_payload->>'classificationConfidence')::numeric, 0),
+    source_row.id, revision_row.id, revision_row.content_hash,
+    left(nullif(btrim(p_payload->>'administrativeExcerpt'), ''), 600),
+    (select auth.uid())
+  )
+  on conflict on constraint global_academic_revision_identity_version_unique
+  do update set
+    claim = excluded.claim,
+    practical_application = excluded.practical_application,
+    limitations = excluded.limitations,
+    citation_label = excluded.citation_label,
+    authors = excluded.authors,
+    publication_year = excluded.publication_year,
+    title = excluded.title,
+    publication_venue = excluded.publication_venue,
+    doi = excluded.doi,
+    official_url = excluded.official_url,
+    material_type = excluded.material_type,
+    evidence_level = excluded.evidence_level,
+    license_code = excluded.license_code,
+    classification_confidence = excluded.classification_confidence,
+    administrative_excerpt = excluded.administrative_excerpt,
+    updated_at = now()
+  where global_academic_interpretations.publication_status = 'awaiting_review'
+  returning * into item;
+  if item.id is null then
+    raise exception 'Published candidates are immutable';
+  end if;
+
+  insert into public.global_academic_audit_log (
+    interpretation_id, actor_user_id, action, resulting_status,
+    idempotency_key, details
+  ) values (
+    item.id, (select auth.uid()), 'save_candidate', 'awaiting_review',
+    p_idempotency_key, '{}'::jsonb
+  ) on conflict (actor_user_id, action, idempotency_key) do nothing;
+  return item;
+end;
+$$;
+
+create or replace function public.list_global_academic_curator_inventory()
+returns table (
+  source_document_id uuid, source_revision_id uuid, filename text,
+  extraction_status text, material_type text, evidence_level text,
+  interpretation_id uuid, publication_status text, title text,
+  citation_label text, public_identity_id text,
+  scientific_source_id uuid, updated_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with latest_revision as (
+    select distinct on (revision.source_id)
+      revision.source_id, revision.id, revision.extraction_status,
+      revision.created_at
+    from public.document_source_revisions revision
+    join public.document_sources source on source.id = revision.source_id
+    where source.source_scope = 'user_academic'
+      and source.owner_user_id = (select auth.uid())
+    order by revision.source_id, revision.created_at desc
+  )
+  select source.id, revision.id, source.filename,
+    revision.extraction_status, source.material_type, source.evidence_kind,
+    interpretation.id, interpretation.publication_status,
+    interpretation.title, interpretation.citation_label,
+    interpretation.public_identity_id, interpretation.scientific_source_id,
+    coalesce(interpretation.updated_at, revision.created_at)
+  from latest_revision revision
+  join public.document_sources source on source.id = revision.source_id
+  left join lateral (
+    select candidate.*
+    from public.global_academic_interpretations candidate
+    where candidate.source_revision_id = revision.id
+    order by candidate.publication_version desc, candidate.created_at desc
+    limit 1
+  ) interpretation on true
+  where public.has_global_capability('manage_global_academic_knowledge')
+  order by case revision.extraction_status when 'ready' then 0 else 1 end,
+    source.filename;
+$$;
 
 create or replace function public.publish_global_academic_interpretation(
   p_interpretation_id uuid,
@@ -387,6 +564,10 @@ $$;
 revoke all on function public.publish_global_academic_interpretation(uuid, text, text) from public, anon;
 revoke all on function public.set_global_academic_publication_status(uuid, text, text) from public, anon;
 revoke all on function public.list_published_global_academic_knowledge() from public, anon;
+revoke all on function public.create_global_academic_candidate(uuid, jsonb, text) from public, anon;
+revoke all on function public.list_global_academic_curator_inventory() from public, anon;
 grant execute on function public.publish_global_academic_interpretation(uuid, text, text) to authenticated;
 grant execute on function public.set_global_academic_publication_status(uuid, text, text) to authenticated;
 grant execute on function public.list_published_global_academic_knowledge() to authenticated;
+grant execute on function public.create_global_academic_candidate(uuid, jsonb, text) to authenticated;
+grant execute on function public.list_global_academic_curator_inventory() to authenticated;

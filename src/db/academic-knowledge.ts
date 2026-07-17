@@ -54,6 +54,40 @@ export type AcademicDriveOAuthStatus = {
   warning?: string;
 };
 
+export type GlobalAcademicCuratorItem = {
+  sourceDocumentId: string;
+  sourceRevisionId: string;
+  filename: string;
+  extractionStatus: "ready" | "review_required" | "failed" | "pending";
+  materialType: AcademicMaterialType;
+  evidenceLevel: AcademicEvidenceLevel;
+  interpretationId?: string;
+  publicationStatus?: import("../core/document-intelligence").GlobalAcademicPublicationStatus;
+  title?: string;
+  citationLabel?: string;
+  publicIdentityId?: string;
+  scientificSourceId?: string;
+  updatedAt: string;
+};
+
+export type GlobalAcademicCandidateInput = {
+  claim: string;
+  practicalApplication: string;
+  limitations: string[];
+  citationLabel: string;
+  authors: string[];
+  publicationYear?: number;
+  title: string;
+  publicationVenue?: string;
+  doi?: string;
+  officialUrl?: string;
+  materialType: AcademicMaterialType;
+  evidenceLevel: AcademicEvidenceLevel;
+  licenseCode?: string;
+  classificationConfidence: number;
+  administrativeExcerpt?: string;
+};
+
 export const DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL =
   "https://drive.google.com/drive/folders/1TtqVOgnLXeDqvGr6885s-KABA4tsJ5QE";
 
@@ -210,6 +244,90 @@ export async function canManageGlobalAcademicKnowledge(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+const authenticatedRpc = async (
+  functionName: string,
+  body: Record<string, unknown>,
+) => {
+  const token = await getValidAccessToken();
+  if (!token) throw new Error("Sessão indisponível.");
+  const response = await fetch(
+    `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/rpc/${functionName}`,
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+  if (!response.ok) throw new Error("Não foi possível concluir a operação.");
+  return response.json() as Promise<unknown>;
+};
+
+export async function listGlobalAcademicCuratorInventory(): Promise<
+  GlobalAcademicCuratorItem[]
+> {
+  const payload = await authenticatedRpc(
+    "list_global_academic_curator_inventory",
+    {},
+  );
+  if (!Array.isArray(payload)) return [];
+  return payload.map((value) => {
+    const row = value as Record<string, unknown>;
+    return {
+      sourceDocumentId: textValue(row.source_document_id, 180),
+      sourceRevisionId: textValue(row.source_revision_id, 180),
+      filename: textValue(row.filename, 260),
+      extractionStatus: textValue(row.extraction_status, 40) as GlobalAcademicCuratorItem["extractionStatus"],
+      materialType: textValue(row.material_type, 80) as AcademicMaterialType,
+      evidenceLevel: textValue(row.evidence_level, 80) as AcademicEvidenceLevel,
+      interpretationId: textValue(row.interpretation_id, 180) || undefined,
+      publicationStatus:
+        (textValue(row.publication_status, 80) as GlobalAcademicCuratorItem["publicationStatus"]) ||
+        undefined,
+      title: textValue(row.title, 260) || undefined,
+      citationLabel: textValue(row.citation_label, 180) || undefined,
+      publicIdentityId: textValue(row.public_identity_id, 180) || undefined,
+      scientificSourceId: textValue(row.scientific_source_id, 180) || undefined,
+      updatedAt: textValue(row.updated_at, 80),
+    };
+  });
+}
+
+export async function saveGlobalAcademicCandidate(params: {
+  sourceRevisionId: string;
+  candidate: GlobalAcademicCandidateInput;
+}): Promise<void> {
+  await authenticatedRpc("create_global_academic_candidate", {
+    p_source_revision_id: params.sourceRevisionId,
+    p_payload: params.candidate,
+    p_idempotency_key: `candidate:${params.sourceRevisionId}:${Date.now()}`,
+  });
+}
+
+export async function publishGlobalAcademicCandidate(
+  interpretationId: string,
+): Promise<void> {
+  await authenticatedRpc("publish_global_academic_interpretation", {
+    p_interpretation_id: interpretationId,
+    p_expected_status: "awaiting_review",
+    p_idempotency_key: `publish:${interpretationId}`,
+  });
+}
+
+export async function setGlobalAcademicCandidateStatus(
+  interpretationId: string,
+  status: "withdrawn" | "blocked",
+): Promise<void> {
+  await authenticatedRpc("set_global_academic_publication_status", {
+    p_interpretation_id: interpretationId,
+    p_status: status,
+    p_idempotency_key: `${status}:${interpretationId}`,
+  });
 }
 
 export async function getPersonalAcademicDriveOAuthStatus(params: {

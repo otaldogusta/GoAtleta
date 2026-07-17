@@ -959,7 +959,11 @@ export default function ProfileScreen() {
                         : "Conecte seu Google Drive com acesso somente leitura"
                     }
                     onPress={() => {
-                      void handleAcademicDrive();
+                      if (academicDriveStatus.status === "connected") {
+                        router.push("/academic-knowledge");
+                      } else {
+                        void handleAcademicDrive();
+                      }
                     }}
                     rightContent={
                       <View
@@ -988,32 +992,21 @@ export default function ProfileScreen() {
                           {academicDriveBusy
                             ? "..."
                             : academicDriveStatus.status === "connected"
-                              ? "Sincronizar"
+                              ? "Gerenciar"
                               : "Conectar"}
                         </Text>
                       </View>
                     }
                   />
                   {academicDriveStatus.status === "connected" ? (
-                    <Pressable
-                      disabled={academicDriveBusy}
-                      onPress={handleDisconnectAcademicDrive}
-                      style={{
-                        alignSelf: "flex-end",
-                        paddingVertical: 6,
-                        paddingHorizontal: 8,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.dangerSolidBg,
-                          fontSize: 12,
-                          fontWeight: "700",
-                        }}
-                      >
-                        Desconectar Google Drive
-                      </Text>
-                    </Pressable>
+                    <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+                      <Pressable onPress={() => void handleAcademicDrive()} style={{ paddingVertical: 6, paddingHorizontal: 8 }}>
+                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Sincronizar agora</Text>
+                      </Pressable>
+                      <Pressable disabled={academicDriveBusy} onPress={handleDisconnectAcademicDrive} style={{ paddingVertical: 6, paddingHorizontal: 8 }}>
+                        <Text style={{ color: colors.dangerSolidBg, fontSize: 12, fontWeight: "700" }}>Desconectar</Text>
+                      </Pressable>
+                    </View>
                   ) : null}
                 </View>
               ) : null}
