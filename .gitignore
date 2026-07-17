@@ -59,6 +59,7 @@ supabase/.temp/
 tmp/
 output/
 .codex-web-*.log
+.codex-*.log
 .codex-artifacts/
 .codex/tmp/
 .codex/*.log

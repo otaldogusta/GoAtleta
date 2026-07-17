@@ -511,7 +511,7 @@ const handleAuthenticatedRequest = async (req: Request) => {
   let redirectTo: string;
   try {
     redirectTo = resolveSafeDriveReturnUrl(
-      textValue(body.redirectTo) || "https://go-atleta.vercel.app/profile",
+      textValue(body.redirectTo) || "https://goatleta.com/profile",
       req.headers.get("origin"),
     );
   } catch {

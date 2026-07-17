@@ -250,7 +250,7 @@ export default function ProfileScreen() {
         const redirectTo =
           typeof window !== "undefined"
             ? `${window.location.origin}${pathname}`
-            : "https://go-atleta.vercel.app/profile";
+            : "https://goatleta.com/profile";
         const result = await startPersonalAcademicDriveOAuth({
           organizationId: activeOrganization.id,
           redirectTo,

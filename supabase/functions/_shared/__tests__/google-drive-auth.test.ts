@@ -85,6 +85,9 @@ describe("Google Drive credential helpers", () => {
     expect(
       resolveSafeDriveReturnUrl("https://go-atleta.vercel.app/profile"),
     ).toContain("go-atleta.vercel.app/profile");
+    expect(
+      resolveSafeDriveReturnUrl("https://goatleta.com/profile"),
+    ).toContain("goatleta.com/profile");
     expect(() =>
       resolveSafeDriveReturnUrl("https://example.com/steal"),
     ).toThrow("drive_oauth_return_url_not_allowed");

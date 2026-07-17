@@ -16,6 +16,8 @@ import {
     View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { markRender } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/api/config";
@@ -53,7 +55,10 @@ const formatResetError = (raw: string) => {
   return raw.replace(/\s+/g, " ");
 };
 
+// perf-check: ignore-measure - token recovery is derived from the route and URL;
+// the only asynchronous operation is the user-triggered password submission.
 export default function ResetPasswordScreen() {
+  markRender("screen.resetPassword.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -165,7 +170,16 @@ export default function ResetPasswordScreen() {
         const text = await res.text();
         throw new Error(text || "Falha ao atualizar senha.");
       }
-      setMessage("Senha atualizada. Entre novamente.");
+      setPassword("");
+      setConfirm("");
+      setToken("");
+      setMessage("Senha atualizada. Redirecionando para entrar...");
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.history.replaceState({}, "", "/reset-password");
+      }
+      setTimeout(() => {
+        router.replace("/login");
+      }, 700);
     } catch (error) {
       const detail =
         error instanceof Error ? error.message : "Falha ao atualizar senha.";
@@ -430,4 +444,3 @@ export default function ResetPasswordScreen() {
     </SafeAreaView>
   );
 }
-

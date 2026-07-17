@@ -1,5 +1,5 @@
 import * as Clipboard from "expo-clipboard";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
@@ -34,6 +34,7 @@ import {
     adminListOrgClasses,
     adminListOrgMemberClassHeads,
     adminListOrgMembers,
+    adminAddOrgMemberByEmail,
     adminRemoveOrgMember,
     adminSetMemberClassHeads,
     adminSetMemberPermission,
@@ -179,6 +180,7 @@ const humanizeRpcError = (message: string) => {
 
 export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
+  const { releaseEmail } = useLocalSearchParams<{ releaseEmail?: string }>();
   const profile = useEffectiveProfile();
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -233,7 +235,13 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const [inviteGeneratedLink, setInviteGeneratedLink] = useState<string | null>(null);
   const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
   const [pendingInviteBusyId, setPendingInviteBusyId] = useState<string | null>(null);
+  const [showReleaseAccountSheet, setShowReleaseAccountSheet] = useState(false);
+  const [releaseAccountEmail, setReleaseAccountEmail] = useState("");
+  const [releaseAccountRole, setReleaseAccountRole] = useState<RoleLevel>(10);
+  const [releaseAccountBusy, setReleaseAccountBusy] = useState(false);
+  const [releaseAccountMessage, setReleaseAccountMessage] = useState<string | null>(null);
   const latestLoadRequestRef = useRef(0);
+  const releaseParamHandledRef = useRef("");
   const debouncedSearch = useDebouncedValue(search, 250);
 
   const adminsCount = useMemo(
@@ -299,6 +307,17 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
       router.replace("/");
     }
   }, [profile, router]);
+
+  useEffect(() => {
+    const email =
+      typeof releaseEmail === "string" ? releaseEmail.trim().toLowerCase() : "";
+    if (!email || releaseParamHandledRef.current === email) return;
+    releaseParamHandledRef.current = email;
+    setReleaseAccountEmail(email);
+    setReleaseAccountRole(10);
+    setReleaseAccountMessage(null);
+    setShowReleaseAccountSheet(true);
+  }, [releaseEmail]);
 
   useEffect(() => {
     if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -859,6 +878,38 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     }
   };
 
+  const onReleaseExistingAccount = async () => {
+    const normalizedEmail = releaseAccountEmail.trim().toLowerCase();
+    if (!organizationId || releaseAccountBusy) return;
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setReleaseAccountMessage("Informe o e-mail usado no cadastro.");
+      return;
+    }
+
+    setReleaseAccountBusy(true);
+    setReleaseAccountMessage(null);
+    try {
+      await adminAddOrgMemberByEmail(
+        organizationId,
+        normalizedEmail,
+        releaseAccountRole
+      );
+      await loadMembers({ soft: true });
+      setReleaseAccountMessage(
+        "Acesso liberado. O usuário pode recarregar o status e entrar."
+      );
+    } catch (err) {
+      const message = parseRpcErrorMessage(err);
+      setReleaseAccountMessage(
+        message.includes("Account not found")
+          ? "Conta não encontrada. Confirme o e-mail e peça ao usuário para concluir o cadastro."
+          : toUiError(err)
+      );
+    } finally {
+      setReleaseAccountBusy(false);
+    }
+  };
+
   const Container = embedded ? View : SafeAreaView;
 
   if (showInitialShimmer) {
@@ -1136,6 +1187,46 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
                 borderColor: colors.border,
                 backgroundColor: colors.card,
                 padding: 12,
+                gap: 8,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "800" }}>
+                Conta criada sem convite
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Localize pelo e-mail, escolha a função e libere o acesso. As
+                turmas podem ser atribuídas depois no cadastro do membro.
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setReleaseAccountEmail("");
+                  setReleaseAccountRole(10);
+                  setReleaseAccountMessage(null);
+                  setShowReleaseAccountSheet(true);
+                }}
+                style={{
+                  alignSelf: "flex-start",
+                  borderRadius: 12,
+                  backgroundColor: colors.primaryBg,
+                  paddingHorizontal: 14,
+                  paddingVertical: 9,
+                }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+                  Liberar acesso
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {!showInitialShimmer ? (
+            <View
+              style={{
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                padding: 12,
                 gap: 10,
               }}
             >
@@ -1303,6 +1394,122 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
           </View>
         </Pressable>
       </View>
+
+      <ModalSheet
+        visible={showReleaseAccountSheet}
+        onClose={() => setShowReleaseAccountSheet(false)}
+        cardStyle={sheetCardStyle}
+        position="center"
+      >
+        <View style={{ gap: 12 }}>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}>
+              Liberar conta existente
+            </Text>
+            <Text style={{ color: colors.muted }}>
+              Use o e-mail exato do cadastro e defina a função inicial.
+            </Text>
+          </View>
+
+          <TextInput
+            value={releaseAccountEmail}
+            onChangeText={setReleaseAccountEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            placeholder="email@exemplo.com"
+            placeholderTextColor={colors.placeholder}
+            style={{
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: 12,
+              backgroundColor: colors.inputBg,
+              color: colors.inputText,
+              paddingHorizontal: 12,
+              paddingVertical: 11,
+            }}
+          />
+
+          <View style={{ gap: 8 }}>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>Função</Text>
+            <View style={{ flexDirection: isCompact ? "column" : "row", gap: 8 }}>
+              {ROLE_OPTIONS.map((option) => {
+                const selected = releaseAccountRole === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setReleaseAccountRole(option.value)}
+                    style={{
+                      flex: 1,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: selected ? colors.primaryBg : colors.border,
+                      backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
+                      padding: 10,
+                      gap: 3,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selected ? colors.primaryText : colors.text,
+                        fontWeight: "800",
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                    <Text
+                      style={{
+                        color: selected ? colors.primaryText : colors.muted,
+                        fontSize: 11,
+                      }}
+                    >
+                      {option.summary}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {releaseAccountMessage ? (
+            <Text style={{ color: colors.muted }}>{releaseAccountMessage}</Text>
+          ) : null}
+
+          <View style={{ flexDirection: isCompact ? "column" : "row", gap: 8 }}>
+            <Pressable
+              disabled={releaseAccountBusy}
+              onPress={() => setShowReleaseAccountSheet(false)}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.secondaryBg,
+                alignItems: "center",
+                paddingVertical: 11,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Fechar</Text>
+            </Pressable>
+            <Pressable
+              disabled={releaseAccountBusy}
+              onPress={() => void onReleaseExistingAccount()}
+              style={{
+                flex: 1,
+                borderRadius: 12,
+                backgroundColor: colors.primaryBg,
+                alignItems: "center",
+                paddingVertical: 11,
+                opacity: releaseAccountBusy ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+                {releaseAccountBusy ? "Liberando..." : "Liberar acesso"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </ModalSheet>
 
       <ModalSheet
         visible={showInviteSheet}

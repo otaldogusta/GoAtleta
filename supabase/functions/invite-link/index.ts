@@ -7,7 +7,7 @@ const buildTargetUrl = (token: string) => {
   if (appBase) {
     return `${appBase.replace(/\/$/, "")}/invite/${encodeURIComponent(token)}`;
   }
-  return `goatleta://invite/${encodeURIComponent(token)}`;
+  return `https://goatleta.com/invite/${encodeURIComponent(token)}`;
 };
 
 Deno.serve((req) => {

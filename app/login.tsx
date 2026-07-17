@@ -21,6 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
 import { useAuth } from "../src/auth/auth";
+import { savePendingTrainerInvite } from "../src/auth/pending-invite";
 import { sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
 import { hasStoredSession, setRememberPreference } from "../src/auth/session";
 import { useBiometricLock } from "../src/security/biometric-lock";
@@ -51,12 +52,14 @@ export default function LoginScreen() {
     fromSignup,
     next,
     pendingHint,
+    inviteCode,
   } = useLocalSearchParams<{
     email?: string;
     password?: string;
     fromSignup?: string;
     next?: string;
     pendingHint?: string;
+    inviteCode?: string;
   }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -113,6 +116,9 @@ export default function LoginScreen() {
   }, [rememberMe]);
 
   useEffect(() => {
+    if (typeof inviteCode === "string" && inviteCode.trim()) {
+      void savePendingTrainerInvite(inviteCode);
+    }
     if (typeof prefillEmail === "string" && prefillEmail.trim()) {
       setEmail(prefillEmail.trim());
     }
@@ -126,7 +132,7 @@ export default function LoginScreen() {
     if (fromSignup === "1") {
       setMessage("Este email já está cadastrado. Entrar com os dados preenchidos.");
     }
-  }, [fromSignup, pendingHint, prefillEmail, prefillPassword]);
+  }, [fromSignup, inviteCode, pendingHint, prefillEmail, prefillPassword]);
 
   useEffect(() => {
     Animated.timing(enterAnim, {
@@ -325,7 +331,9 @@ export default function LoginScreen() {
            ? `${webOrigin || "http://localhost:8081"}/reset-password`
           : Linking.createURL("reset-password");
       await resetPassword(email.trim(), redirectTo);
-      setMessage("Enviamos um link de recuperação para seu email.");
+      setMessage(
+        "Se o email estiver cadastrado, o link será enviado. Confira também spam e lixo eletrônico."
+      );
       setResetCountdown(180);
       setResetSent(true);
     } catch (error) {
@@ -664,7 +672,7 @@ export default function LoginScreen() {
               ) : (
                 <View style={{ gap: 10 }}>
                   <Text style={{ color: colors.muted }}>
-                    Enviaremos um link para criar uma nova senha.
+                    Informe seu email para solicitar um link de criação de nova senha.
                   </Text>
 
                   { message ? (
