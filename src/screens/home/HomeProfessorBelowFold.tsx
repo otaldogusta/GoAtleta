@@ -9,6 +9,7 @@ import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 
 type HomeProfessorBelowFoldProps = {
+  variant?: "professor" | "coordination";
   canOpenClassesShortcut: boolean;
   canOpenStudentsShortcut: boolean;
   canOpenTrainingShortcut: boolean;
@@ -91,6 +92,7 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
 }
 
 function HomeProfessorBelowFoldBase({
+  variant = "professor",
   canOpenClassesShortcut,
   canOpenStudentsShortcut,
   canOpenTrainingShortcut,
@@ -100,6 +102,89 @@ function HomeProfessorBelowFoldBase({
 }: HomeProfessorBelowFoldProps) {
   const { colors } = useAppTheme();
   const router = useRouter();
+
+  if (variant === "coordination") {
+    const coordinationShortcuts = [
+      {
+        label: "Turmas",
+        description: "Cadastros e ciclos",
+        icon: "classes",
+        route: "/coord/classes",
+      },
+      {
+        label: "Relatórios",
+        description: "Indicadores da operação",
+        icon: "reports",
+        route: "/coord/reports",
+      },
+      {
+        label: "Gestão",
+        description: "Configurações da operação",
+        icon: "management",
+        route: "/coord/management",
+      },
+      {
+        label: "Eventos",
+        description: "Agenda institucional",
+        icon: "events",
+        route: "/coord/events",
+      },
+      {
+        label: "Membros",
+        description: "Funções e permissões",
+        icon: "members",
+        route: "/coord/org-members",
+      },
+      {
+        label: "Presença NFC",
+        description: "Registrar por UID",
+        icon: "nfc",
+        route: "/prof/nfc-attendance",
+      },
+      {
+        label: "Comunicados",
+        description: "Avisos para a organização",
+        icon: "communications",
+        route: "/coord/communications",
+      },
+      {
+        label: "Periodização",
+        description: "Ciclos e cargas",
+        icon: "periodization",
+        route: "/coord/periodization",
+      },
+      {
+        label: "Regulamentos",
+        description: "Fontes e histórico",
+        icon: "regulations",
+        route: "/coord/regulation-history",
+      },
+      {
+        label: "Assistente",
+        description: "Apoio à coordenação",
+        icon: "assistant",
+        route: "/coord/assistant",
+      },
+    ] as const;
+
+    return (
+      <View style={{ gap: 10 }}>
+        <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Atalhos</Text>
+
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+          {coordinationShortcuts.map((shortcut) => (
+            <ShortcutCard
+              key={shortcut.route}
+              label={shortcut.label}
+              description={shortcut.description}
+              icon={shortcut.icon}
+              onPress={() => router.push(shortcut.route)}
+            />
+          ))}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ gap: 10 }}>

@@ -180,7 +180,10 @@ const humanizeRpcError = (message: string) => {
 
 export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
-  const { releaseEmail } = useLocalSearchParams<{ releaseEmail?: string }>();
+  const { releaseEmail, memberId } = useLocalSearchParams<{
+    releaseEmail?: string;
+    memberId?: string;
+  }>();
   const profile = useEffectiveProfile();
   const { colors } = useAppTheme();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -242,6 +245,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   const [releaseAccountMessage, setReleaseAccountMessage] = useState<string | null>(null);
   const latestLoadRequestRef = useRef(0);
   const releaseParamHandledRef = useRef("");
+  const memberParamHandledRef = useRef("");
   const debouncedSearch = useDebouncedValue(search, 250);
 
   const adminsCount = useMemo(
@@ -477,6 +481,21 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     setShowMemberSheet(true);
     void loadMemberPermissions(member);
   };
+
+  useEffect(() => {
+    const requestedMemberId = typeof memberId === "string" ? memberId.trim() : "";
+    if (
+      !requestedMemberId ||
+      memberParamHandledRef.current === requestedMemberId ||
+      members.length === 0
+    ) {
+      return;
+    }
+    const requestedMember = members.find((member) => member.userId === requestedMemberId);
+    if (!requestedMember) return;
+    memberParamHandledRef.current = requestedMemberId;
+    openMemberDetails(requestedMember);
+  }, [memberId, members]);
 
   const animateExpandCollapse = useCallback(() => {
     if (Platform.OS === "web") {

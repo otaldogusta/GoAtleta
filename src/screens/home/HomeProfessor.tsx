@@ -990,7 +990,7 @@ export function HomeProfessorScreen({
 
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isWebHome = Platform.OS === "web";
-  const isUx2CWebHome = isWebHome && screenWidth >= 1200 && !isAdminDashboardContext;
+  const isUx2CWebHome = isWebHome && screenWidth >= 1200;
   const isUx2CWithRail = isUx2CWebHome;
   const isUx2CWideDesktop = screenWidth >= 1440;
   const isUx2CUltraWide = screenWidth >= 1600;
@@ -1918,6 +1918,7 @@ export function HomeProfessorScreen({
               >
                 <Suspense fallback={<HomeProfessorBelowFoldFallback />}>
                   <HomeProfessorBelowFold
+                    variant={isAdminDashboardContext ? "coordination" : "professor"}
                     canOpenClassesShortcut={canOpenClassesShortcut}
                     canOpenStudentsShortcut={canOpenStudentsShortcut}
                     canOpenTrainingShortcut={canOpenTrainingShortcut}
@@ -2075,7 +2076,7 @@ export function HomeProfessorScreen({
         </View>
         ) : null}
 
-        {isAdminDashboardContext ? (
+        {isAdminDashboardContext && !isUx2CWebHome ? (
         <View
           style={{
             padding: 14,
@@ -2092,53 +2093,55 @@ export function HomeProfessorScreen({
               gap: 12,
             }}
           >
-            <View
-              style={{
-                width: Platform.OS === "web" ? 220 : "100%",
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                padding: 12,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                Painel gerencial
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Visão ampla da operação e atalhos de coordenação.
-              </Text>
-              <View style={{ gap: 6, marginTop: 4 }}>
-                <FlatList
-                  data={adminRailActions}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  contentContainerStyle={{ gap: 6 }}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() => router.push({ pathname: item.route })}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                        paddingVertical: 8,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.card,
-                      }}
-                    >
-                      <GoAtletaIcon name={item.icon} size={14} color={colors.text} />
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  )}
-                />
+            {Platform.OS !== "web" ? (
+              <View
+                style={{
+                  width: "100%",
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  padding: 12,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                  Painel gerencial
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Visão ampla da operação e atalhos de coordenação.
+                </Text>
+                <View style={{ gap: 6, marginTop: 4 }}>
+                  <FlatList
+                    data={adminRailActions}
+                    keyExtractor={(item) => item.id}
+                    scrollEnabled={false}
+                    contentContainerStyle={{ gap: 6 }}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        onPress={() => router.push({ pathname: item.route })}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          paddingVertical: 8,
+                          paddingHorizontal: 10,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.card,
+                        }}
+                      >
+                        <GoAtletaIcon name={item.icon} size={14} color={colors.text} />
+                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    )}
+                  />
+                </View>
               </View>
-            </View>
+            ) : null}
 
             <View style={{ flex: 1, gap: 12 }}>
               <View

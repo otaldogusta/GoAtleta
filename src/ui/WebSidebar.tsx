@@ -451,6 +451,12 @@ export function WebSidebar({ role }: WebSidebarProps) {
         icon: "members",
       },
       {
+        key: "nfc",
+        label: "Presença NFC",
+        href: "/prof/nfc-attendance",
+        icon: "nfc",
+      },
+      {
         key: "communications",
         label: "Comunicados",
         href: "/coord/communications",

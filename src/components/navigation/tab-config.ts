@@ -43,7 +43,7 @@ export const ROLE_TABS: Record<AppRole, TabItemConfig[]> = {
     { key: "profile", routeName: "profile", label: "Perfil", icon: "profile" },
   ],
   coord: [
-    { key: "dashboard", routeName: "dashboard", label: "Painel", icon: "dashboard" },
+    { key: "dashboard", routeName: "dashboard", label: "Painel", icon: "home" },
     { key: "classes", routeName: "classes", label: "Turmas", icon: "classes" },
     COMMON_CENTER_TAB,
     { key: "reports", routeName: "reports", label: "Relatórios", icon: "reports" },
