@@ -1,3 +1,5 @@
+import type { MemberPermissionKey } from "../api/members";
+
 export const trainerPermissionByPrefix = [
   { prefix: "/prof/students", permissionKey: "students" },
   { prefix: "/prof/classes", permissionKey: "classes" },
@@ -38,6 +40,24 @@ export const trainerPermissionByPrefix = [
   { prefix: "/regulation-sources", permissionKey: "org_members" },
   { prefix: "/regulation-history", permissionKey: "org_members" },
 ] as const;
+
+export const getTrainerPermissionKey = (
+  pathname: string
+): MemberPermissionKey | null =>
+  trainerPermissionByPrefix.find(
+    (item) =>
+      pathname === item.prefix || pathname.startsWith(`${item.prefix}/`)
+  )?.permissionKey ?? null;
+
+export const isTrainerPathAllowed = (
+  pathname: string,
+  memberPermissions: Partial<Record<MemberPermissionKey, boolean>>,
+  isOrgAdmin: boolean
+) => {
+  if (isOrgAdmin) return true;
+  const permissionKey = getTrainerPermissionKey(pathname);
+  return permissionKey === null || memberPermissions[permissionKey] !== false;
+};
 
 export const studentOnlyRoutes = [
   "/absence-report",

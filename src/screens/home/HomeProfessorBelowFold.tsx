@@ -11,6 +11,10 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 type HomeProfessorBelowFoldProps = {
   canOpenClassesShortcut: boolean;
   canOpenStudentsShortcut: boolean;
+  canOpenTrainingShortcut: boolean;
+  canOpenCalendarShortcut: boolean;
+  canOpenAbsenceNoticesShortcut: boolean;
+  canOpenPeriodizationShortcut: boolean;
 };
 
 type ShortcutCardProps = {
@@ -89,6 +93,10 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
 function HomeProfessorBelowFoldBase({
   canOpenClassesShortcut,
   canOpenStudentsShortcut,
+  canOpenTrainingShortcut,
+  canOpenCalendarShortcut,
+  canOpenAbsenceNoticesShortcut,
+  canOpenPeriodizationShortcut,
 }: HomeProfessorBelowFoldProps) {
   const { colors } = useAppTheme();
   const router = useRouter();
@@ -98,12 +106,14 @@ function HomeProfessorBelowFoldBase({
       <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Atalhos</Text>
 
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-        <ShortcutCard
-          label="Planejamento"
-          description="Modelos e planejamentos"
-          icon="planning"
-          onPress={() => router.push("/prof/planning")}
-        />
+        {canOpenTrainingShortcut ? (
+          <ShortcutCard
+            label="Planejamento"
+            description="Modelos e planejamentos"
+            icon="planning"
+            onPress={() => router.push("/prof/planning")}
+          />
+        ) : null}
 
         <ShortcutCard
           label="Consultoria online"
@@ -130,40 +140,50 @@ function HomeProfessorBelowFoldBase({
           />
         ) : null}
 
-        <ShortcutCard
-          label="Calendário mensal"
-          description="Aulas e chamada"
-          icon="calendar"
-          onPress={() => router.push("/prof/calendar")}
-        />
+        {canOpenCalendarShortcut ? (
+          <ShortcutCard
+            label="Calendário mensal"
+            description="Aulas e chamada"
+            icon="calendar"
+            onPress={() => router.push("/prof/calendar")}
+          />
+        ) : null}
 
-        <ShortcutCard
-          label="Avisos de ausência"
-          description="Alunos ausentes"
-          icon="absenceNotices"
-          onPress={() => router.push("/prof/absence-notices")}
-        />
+        {canOpenAbsenceNoticesShortcut ? (
+          <ShortcutCard
+            label="Avisos de ausência"
+            description="Alunos ausentes"
+            icon="absenceNotices"
+            onPress={() => router.push("/prof/absence-notices")}
+          />
+        ) : null}
 
-        <ShortcutCard
-          label="Presença NFC"
-          description="Registrar por UID"
-          icon="nfc"
-          onPress={() => router.push("/prof/nfc-attendance")}
-        />
+        {canOpenClassesShortcut ? (
+          <ShortcutCard
+            label="Presença NFC"
+            description="Registrar por UID"
+            icon="nfc"
+            onPress={() => router.push("/prof/nfc-attendance")}
+          />
+        ) : null}
 
-        <ShortcutCard
-          label="Exercícios"
-          description="Biblioteca com vídeos"
-          icon="exercises"
-          onPress={() => router.push("/prof/exercises")}
-        />
+        {canOpenTrainingShortcut ? (
+          <ShortcutCard
+            label="Exercícios"
+            description="Biblioteca com vídeos"
+            icon="exercises"
+            onPress={() => router.push("/prof/exercises")}
+          />
+        ) : null}
 
-        <ShortcutCard
-          label="Periodização"
-          description="Ciclos e cargas"
-          icon="periodization"
-          onPress={() => router.push("/prof/periodization")}
-        />
+        {canOpenPeriodizationShortcut ? (
+          <ShortcutCard
+            label="Periodização"
+            description="Ciclos e cargas"
+            icon="periodization"
+            onPress={() => router.push("/prof/periodization")}
+          />
+        ) : null}
       </View>
     </View>
   );

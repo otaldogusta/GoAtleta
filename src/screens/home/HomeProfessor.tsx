@@ -183,13 +183,23 @@ export function HomeProfessorScreen({
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const canRenderCoordinationDashboard = isOrgAdmin || effectiveProfile === "admin";
   const canOpenClassesShortcut =
-    role !== "trainer" ||
     isOrgAdmin ||
     memberPermissions.classes === true;
   const canOpenStudentsShortcut =
-    role !== "trainer" ||
     isOrgAdmin ||
     memberPermissions.students === true;
+  const canOpenTrainingShortcut =
+    isOrgAdmin ||
+    memberPermissions.training === true;
+  const canOpenCalendarShortcut =
+    isOrgAdmin ||
+    memberPermissions.calendar === true;
+  const canOpenAbsenceNoticesShortcut =
+    isOrgAdmin ||
+    memberPermissions.absence_notices === true;
+  const canOpenPeriodizationShortcut =
+    isOrgAdmin ||
+    memberPermissions.periodization === true;
   const isAdminDashboardContext = adminMode && canRenderCoordinationDashboard;
   const upcomingWindowDays = isAdminDashboardContext ? 30 : 7;
 
@@ -1910,6 +1920,10 @@ export function HomeProfessorScreen({
                   <HomeProfessorBelowFold
                     canOpenClassesShortcut={canOpenClassesShortcut}
                     canOpenStudentsShortcut={canOpenStudentsShortcut}
+                    canOpenTrainingShortcut={canOpenTrainingShortcut}
+                    canOpenCalendarShortcut={canOpenCalendarShortcut}
+                    canOpenAbsenceNoticesShortcut={canOpenAbsenceNoticesShortcut}
+                    canOpenPeriodizationShortcut={canOpenPeriodizationShortcut}
                   />
                 </Suspense>
               </View>
@@ -2345,6 +2359,10 @@ export function HomeProfessorScreen({
             <HomeProfessorBelowFold
               canOpenClassesShortcut={canOpenClassesShortcut}
               canOpenStudentsShortcut={canOpenStudentsShortcut}
+              canOpenTrainingShortcut={canOpenTrainingShortcut}
+              canOpenCalendarShortcut={canOpenCalendarShortcut}
+              canOpenAbsenceNoticesShortcut={canOpenAbsenceNoticesShortcut}
+              canOpenPeriodizationShortcut={canOpenPeriodizationShortcut}
             />
           </Suspense>
         ) : null}

@@ -33,10 +33,10 @@ import {
 import { buildLoginRedirectHref, sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
 import { RoleProvider, useRole } from "../src/auth/role";
 import {
+    getTrainerPermissionKey,
     hybridVerificationRestrictedPrefixes,
     studentOnlyRoutes,
     trainerOnlyPrefixes,
-    trainerPermissionByPrefix,
 } from "../src/auth/route-permissions";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
 import { resolveBootStatus } from "../src/bootstrap/boot-status";
@@ -554,10 +554,8 @@ function RootLayoutContent() {
       return;
     }
     if (session && role === "trainer" && !isAdminProfile) {
-      const matched = trainerPermissionByPrefix.find((item) =>
-        normalizedPathname.startsWith(item.prefix)
-      );
-      if (matched && memberPermissions[matched.permissionKey] === false) {
+      const permissionKey = getTrainerPermissionKey(normalizedPathname);
+      if (permissionKey && memberPermissions[permissionKey] === false) {
         router.replace(appHomeHref);
         return;
       }

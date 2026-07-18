@@ -4,6 +4,10 @@ import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
 import { useRole, type UserRole } from "../auth/role";
+import {
+  getTrainerPermissionKey,
+  isTrainerPathAllowed,
+} from "../auth/route-permissions";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import type { DevProfilePreview } from "../dev/profile-preview";
 import { getScopedProfilePath } from "../navigation/profile-routes";
@@ -220,6 +224,9 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const professorInitials = getInitials(professorName);
   const userEmail = getUserEmail(session);
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
+  const memberPermissions = organizationContext?.memberPermissions ?? {};
+  const permissionsLoading = organizationContext?.permissionsLoading ?? true;
+  const isOrgAdmin = (organizationContext?.activeOrganization?.role_level ?? 0) >= 50;
   const hasHybridAccount = availableRoles.includes("trainer") && availableRoles.includes("student");
   const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
   const selectedPreview = rolePreview[role];
@@ -365,7 +372,13 @@ export function WebSidebar({ role }: WebSidebarProps) {
     icon: tab.icon,
   }));
 
-  const mainItems: SidebarItem[] = tabItems;
+  const canShowItem = (item: SidebarItem) => {
+    if (role === "student" || isOrgAdmin) return true;
+    if (permissionsLoading && getTrainerPermissionKey(item.href)) return false;
+    return isTrainerPathAllowed(item.href, memberPermissions, false);
+  };
+
+  const mainItems: SidebarItem[] = tabItems.filter(canShowItem);
 
   const operationalItemsByRole: Record<AppRole, SidebarItem[]> = {
     prof: [
@@ -489,7 +502,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
       },
     ],
   };
-  const operationalItems = operationalItemsByRole[role];
+  const operationalItems = operationalItemsByRole[role].filter(canShowItem);
 
   const isClassRoute =
     pathname === "/classes" || pathname === "/class" || pathname.startsWith("/class/");
