@@ -1541,6 +1541,28 @@ export function HomeProfessorScreen({
       ] as const,
     []
   );
+  const adminRailActionStyle = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    }),
+    [colors.border, colors.card]
+  );
+  const adminRailActionTextStyle = useMemo(
+    () => ({
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "700" as const,
+    }),
+    [colors.text]
+  );
 
   if (showInitialLoading) {
     return <ScreenLoadingState />;
@@ -2120,20 +2142,10 @@ export function HomeProfessorScreen({
                     renderItem={({ item }) => (
                       <Pressable
                         onPress={() => router.push({ pathname: item.route })}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                          paddingVertical: 8,
-                          paddingHorizontal: 10,
-                          borderRadius: 10,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                        }}
+                        style={adminRailActionStyle}
                       >
                         <GoAtletaIcon name={item.icon} size={14} color={colors.text} />
-                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                        <Text style={adminRailActionTextStyle}>
                           {item.label}
                         </Text>
                       </Pressable>
