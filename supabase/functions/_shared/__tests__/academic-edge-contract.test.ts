@@ -40,6 +40,15 @@ const duplicateReviewSource = readFileSync(
   ),
   "utf8",
 );
+const replacementCandidateMigrationSource = readFileSync(
+  path.resolve(
+    functionsRoot,
+    "..",
+    "migrations",
+    "20260719221351_add_global_academic_replacement_candidates.sql",
+  ),
+  "utf8",
+);
 
 describe("academic Edge runtime contract", () => {
   test("mantém conexões e fontes idempotentes dentro do escopo correto", () => {
@@ -260,5 +269,23 @@ describe("academic Edge runtime contract", () => {
     expect(retrieveSource).not.toContain("_material_types:");
     expect(retrieveSource).toContain('.eq("source_scope", "user_academic")');
     expect(retrieveSource).toContain('.is("class_id", null)');
+  });
+
+  test("versiona correções globais sem mutar publicações imutáveis", () => {
+    expect(replacementCandidateMigrationSource).toContain(
+      "next_publication_version := coalesce(item.publication_version, 0) + 1",
+    );
+    expect(replacementCandidateMigrationSource).toContain(
+      "item.publication_status = 'awaiting_review'",
+    );
+    expect(replacementCandidateMigrationSource).toContain(
+      "audit.idempotency_key = p_idempotency_key",
+    );
+    expect(replacementCandidateMigrationSource).toContain(
+      "for update",
+    );
+    expect(replacementCandidateMigrationSource).not.toMatch(
+      /delete\s+from\s+public\.global_academic_interpretations/i,
+    );
   });
 });

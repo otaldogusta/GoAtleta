@@ -42,7 +42,6 @@ const functions = parseFunctions(content);
 
 const requiredJwtTrue = [
   "assistant",
-  "claim-trainer-invite",
   "create-student-invite",
   "claim-student-invite",
   "revoke-student-access",
@@ -55,6 +54,10 @@ const intentionallyPublic = [
   "invite-link",
   "auto-link-student",
   "document-drive-oauth",
+];
+
+const selfAuthenticated = [
+  "claim-trainer-invite",
 ];
 
 const errors = [];
@@ -76,6 +79,39 @@ for (const fnName of intentionallyPublic) {
   if (functions[fnName].verify_jwt !== false) {
     errors.push(
       `[functions.${fnName}] expected verify_jwt = false (public endpoint by design)`
+    );
+  }
+}
+
+for (const fnName of selfAuthenticated) {
+  if (!Object.prototype.hasOwnProperty.call(functions, fnName)) {
+    errors.push(`Missing section [functions.${fnName}]`);
+    continue;
+  }
+  if (functions[fnName].verify_jwt !== false) {
+    errors.push(
+      `[functions.${fnName}] expected verify_jwt = false (JWT is validated inside the function)`
+    );
+    continue;
+  }
+  const functionPath = path.resolve(
+    process.cwd(),
+    "supabase",
+    "functions",
+    fnName,
+    "index.ts"
+  );
+  if (!fs.existsSync(functionPath)) {
+    errors.push(`Missing self-authenticated function source: ${functionPath}`);
+    continue;
+  }
+  const functionSource = fs.readFileSync(functionPath, "utf8");
+  if (
+    !/headers\.get\(["']Authorization["']\)/.test(functionSource)
+    || !/auth\.getUser\(token\)/.test(functionSource)
+  ) {
+    errors.push(
+      `[functions.${fnName}] must validate the bearer token with auth.getUser(token)`
     );
   }
 }
