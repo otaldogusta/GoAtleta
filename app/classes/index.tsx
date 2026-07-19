@@ -18,6 +18,10 @@ import { ShimmerBlock } from "../../src/ui/Shimmer";
 
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useAuth } from "../../src/auth/auth";
+import {
+  listClassHeadsByClassIds,
+  type ClassResponsible,
+} from "../../src/api/class-responsibles";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
@@ -243,6 +247,7 @@ export default function ClassesScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
+  const [classHeadsById, setClassHeadsById] = useState<Record<string, ClassResponsible>>({});
   const getClassId = useCallback((item: ClassGroup) => item.id, []);
   const undoableClassDelete = useUndoableListDelete({
     items: classes,
@@ -634,16 +639,25 @@ export default function ClassesScreen() {
   const classCardViewModelsById = useMemo(() => {
     return displayClasses.reduce<Record<string, ReturnType<typeof buildClassCardViewModel>>>(
       (acc, classGroup) => {
+        const responsible = classHeadsById[classGroup.id];
+        const teacher = responsible
+          ? {
+              name: responsible.displayName,
+              photoUrl: responsible.photoUrl,
+            }
+          : classGroup.id.startsWith("preview_")
+            ? currentTeacher
+            : null;
         acc[classGroup.id] = buildClassCardViewModel({
           classGroup,
           students: studentsByClassId[classGroup.id] ?? [],
-          teacher: currentTeacher,
+          teacher,
         });
         return acc;
       },
       {}
     );
-  }, [currentTeacher, displayClasses, studentsByClassId]);
+  }, [classHeadsById, currentTeacher, displayClasses, studentsByClassId]);
 
   const goalSuggestions = useMemo(() => {
     const key = normalizeUnitKey(newUnit);
@@ -908,9 +922,26 @@ export default function ClassesScreen() {
           { screen: "classes" }
         ),
       ]);
+      let classHeads: ClassResponsible[] = [];
+      const organizationId = data.find((item) => item.organizationId)?.organizationId ?? "";
+      if (organizationId && data.length > 0) {
+        try {
+          classHeads = await listClassHeadsByClassIds({
+            organizationId,
+            classIds: data.map((item) => item.id),
+          });
+        } catch (error) {
+          console.warn("[ClassesScreen] Failed to load class responsibles", error);
+        }
+      }
       if (isAlive()) setClasses(data);
       if (isAlive()) setIntegrationRules(rules);
       if (isAlive()) setStudents(studentList);
+      if (isAlive()) {
+        setClassHeadsById(
+          Object.fromEntries(classHeads.map((responsible) => [responsible.classId, responsible]))
+        );
+      }
     } finally {
       if (isAlive()) setLoading(false);
     }
