@@ -8,7 +8,21 @@ const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-
 const INVITE_TTL_DAYS = 14;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-type InviteRole = "collaborator" | "moderator";
+type InviteRole = "collaborator" | "professor" | "intern" | "moderator";
+
+const PERMISSION_KEYS = [
+  "reports",
+  "events",
+  "students",
+  "classes",
+  "training",
+  "periodization",
+  "calendar",
+  "absence_notices",
+  "whatsapp_settings",
+  "assistant",
+  "org_members",
+] as const;
 
 const createError = (req: Request, status: number, code: string, error: string) =>
   new Response(JSON.stringify({ code, error }), { status, headers: makeJsonHeaders(req) });
@@ -48,6 +62,41 @@ const buildSignupLink = (code: string) => {
   return `https://goatleta.com/signup?role=trainer&inviteCode=${encodeURIComponent(code)}`;
 };
 
+const sendInviteEmail = async (to: string, signupLink: string, roleLabel: string) => {
+  const apiKey = (Deno.env.get("RESEND_API_KEY") ?? "").trim();
+  if (!apiKey) {
+    return { sent: false, error: "RESEND_API_KEY_NOT_CONFIGURED", providerId: undefined };
+  }
+  const from =
+    (Deno.env.get("INVITE_EMAIL_FROM") ?? "").trim() ||
+    "GoAtleta <nao-responda@auth.goatleta.com>";
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject: "Você recebeu um convite para o GoAtleta",
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#102038">
+          <h1 style="font-size:22px">Convite para o GoAtleta</h1>
+          <p>Você recebeu acesso como <strong>${roleLabel}</strong>.</p>
+          <p><a href="${signupLink}" style="display:inline-block;padding:12px 18px;background:#41d984;color:#07111f;text-decoration:none;border-radius:8px;font-weight:700">Aceitar convite</a></p>
+          <p style="font-size:12px;color:#5f6f85">Se você não esperava este convite, ignore esta mensagem.</p>
+        </div>
+      `,
+    }),
+  });
+  if (!response.ok) {
+    return { sent: false, error: `RESEND_${response.status}`, providerId: undefined };
+  }
+  const payload = (await response.json().catch(() => ({}))) as { id?: string };
+  return { sent: true, error: undefined, providerId: payload.id };
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return corsPreflight(req);
@@ -67,6 +116,7 @@ Deno.serve(async (req) => {
     invitedTo?: string;
     invitedVia?: string;
     maxUses?: number;
+    permissionKeys?: string[];
   } = { organizationId: "", role: "collaborator" };
 
   try {
@@ -83,11 +133,31 @@ Deno.serve(async (req) => {
     return createError(req, 400, "INVALID_REQUEST", `Invalid organizationId: ${orgValidation.error}`);
   }
 
-  const role = payload.role === "moderator" ? "moderator" : "collaborator";
-  const targetRoleLevel = role === "moderator" ? 50 : 10;
+  const role: InviteRole =
+    payload.role === "moderator"
+      ? "moderator"
+      : payload.role === "intern"
+        ? "intern"
+        : payload.role === "professor"
+          ? "professor"
+          : "collaborator";
+  const targetRoleLevel = role === "moderator" ? 50 : role === "intern" ? 5 : 10;
+  const permissionKeys = Array.from(
+    new Set(
+      (Array.isArray(payload.permissionKeys) ? payload.permissionKeys : []).filter(
+        (key): key is typeof PERMISSION_KEYS[number] =>
+          typeof key === "string" &&
+          key !== "org_members" &&
+          PERMISSION_KEYS.includes(key as typeof PERMISSION_KEYS[number])
+      )
+    )
+  );
 
   const invitedVia = (payload.invitedVia ?? "link").trim().toLowerCase();
   const invitedTo = (payload.invitedTo ?? "").trim() || null;
+  if (invitedVia === "email" && (!invitedTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedTo))) {
+    return createError(req, 400, "INVALID_REQUEST", "A valid recipient email is required");
+  }
   const maxUses = Number.isFinite(payload.maxUses) ? Math.max(1, Math.min(10, Number(payload.maxUses))) : 1;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -139,6 +209,7 @@ Deno.serve(async (req) => {
   let code = "";
   let codeHash = "";
   let insertError: { message: string } | null = null;
+  let inviteId = "";
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     code = normalizeCode(`${randomCode(4)}-${randomCode(4)}`);
@@ -147,21 +218,28 @@ Deno.serve(async (req) => {
     // Membership and role were validated through the user-scoped client.
     // Persist with the server client to avoid the legacy `is_trainer()` policy
     // rejecting valid coordinators and organization administrators.
-    const { error } = await admin.from("trainer_invites").insert({
-      code_hash: codeHash,
-      created_by: userId,
-      expires_at: expiresAt,
-      max_uses: maxUses,
-      uses: 0,
-      revoked: false,
-      organization_id: orgValidation.data,
-      target_role_level: targetRoleLevel,
-      invited_via: invitedVia,
-      invited_to: invitedTo,
-    });
+    const { data, error } = await admin
+      .from("trainer_invites")
+      .insert({
+        code_hash: codeHash,
+        created_by: userId,
+        expires_at: expiresAt,
+        max_uses: maxUses,
+        uses: 0,
+        revoked: false,
+        organization_id: orgValidation.data,
+        target_role_level: targetRoleLevel,
+        invited_via: invitedVia,
+        invited_to: invitedTo,
+        initial_permissions: permissionKeys,
+        delivery_status: invitedVia === "email" ? "pending_delivery" : "not_applicable",
+      })
+      .select("id")
+      .single();
 
     if (!error) {
       insertError = null;
+      inviteId = data?.id ?? "";
       break;
     }
 
@@ -176,11 +254,34 @@ Deno.serve(async (req) => {
     return createError(req, 500, "SERVER_ERROR", "Failed to create invite");
   }
 
+  const signupLink = buildSignupLink(code);
+  const roleLabel =
+    role === "moderator" ? "coordenação" : role === "intern" ? "estagiário" : "professor";
+  const emailResult =
+    invitedTo && invitedVia === "email"
+      ? await sendInviteEmail(invitedTo, signupLink, roleLabel)
+      : { sent: false, error: undefined, providerId: undefined };
+
+  if (inviteId && invitedVia === "email") {
+    await admin
+      .from("trainer_invites")
+      .update({
+        delivery_status: emailResult.sent ? "sent" : "delivery_failed",
+        delivery_attempted_at: new Date().toISOString(),
+        delivery_provider_id: emailResult.providerId ?? null,
+        delivery_error: emailResult.error ?? null,
+      })
+      .eq("id", inviteId);
+  }
+
   return new Response(
     JSON.stringify({
       code,
-      signup_link: buildSignupLink(code),
+      signup_link: signupLink,
+      email_sent: emailResult.sent,
+      email_error: emailResult.error,
       invite: {
+        id: inviteId,
         organization_id: orgValidation.data,
         target_role_level: targetRoleLevel,
         expires_at: expiresAt,

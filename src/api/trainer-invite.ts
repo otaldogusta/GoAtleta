@@ -2,7 +2,7 @@ import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import { parseInviteApiResponse } from "./invite-errors";
 
-export type TrainerInviteRole = "collaborator" | "moderator";
+export type TrainerInviteRole = "collaborator" | "professor" | "intern" | "moderator";
 
 export type TrainerInviteItem = {
   id: string;
@@ -15,6 +15,8 @@ export type TrainerInviteItem = {
   revoked: boolean;
   invited_via: string;
   invited_to: string | null;
+  delivery_status?: "not_applicable" | "pending_delivery" | "sent" | "delivery_failed";
+  delivery_attempted_at?: string | null;
 };
 
 const base = SUPABASE_URL.replace(/\/$/, "");
@@ -114,17 +116,21 @@ export async function createTrainerInvite(options: {
   organizationId: string;
   role: TrainerInviteRole;
   invitedTo?: string;
+  permissionKeys?: string[];
 }, auth?: AuthOverride) {
   const res = await authedPost("/functions/v1/create-trainer-invite", {
     organizationId: options.organizationId,
     role: options.role,
     invitedTo: options.invitedTo,
-    invitedVia: "link",
+    invitedVia: options.invitedTo ? "email" : "link",
+    permissionKeys: options.permissionKeys ?? [],
     maxUses: 1,
   }, auth);
   return await parseInviteApiResponse<{
     code: string;
     signup_link: string;
+    email_sent: boolean;
+    email_error?: string;
     invite: TrainerInviteItem;
   }>(res, "Falha ao criar convite de membro.");
 }

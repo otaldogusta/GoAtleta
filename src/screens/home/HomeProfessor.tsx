@@ -183,13 +183,26 @@ export function HomeProfessorScreen({
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const canRenderCoordinationDashboard = isOrgAdmin || effectiveProfile === "admin";
   const canOpenClassesShortcut =
-    role !== "trainer" ||
     isOrgAdmin ||
     memberPermissions.classes === true;
   const canOpenStudentsShortcut =
-    role !== "trainer" ||
     isOrgAdmin ||
     memberPermissions.students === true;
+  const canOpenTrainingShortcut =
+    isOrgAdmin ||
+    memberPermissions.training === true;
+  const canOpenCalendarShortcut =
+    isOrgAdmin ||
+    memberPermissions.calendar === true;
+  const canOpenAbsenceNoticesShortcut =
+    isOrgAdmin ||
+    memberPermissions.absence_notices === true;
+  const canOpenPeriodizationShortcut =
+    isOrgAdmin ||
+    memberPermissions.periodization === true;
+  const canOpenReportsShortcut =
+    isOrgAdmin ||
+    memberPermissions.reports === true;
   const isAdminDashboardContext = adminMode && canRenderCoordinationDashboard;
   const upcomingWindowDays = isAdminDashboardContext ? 30 : 7;
 
@@ -980,7 +993,7 @@ export function HomeProfessorScreen({
 
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isWebHome = Platform.OS === "web";
-  const isUx2CWebHome = isWebHome && screenWidth >= 1200 && !isAdminDashboardContext;
+  const isUx2CWebHome = isWebHome && screenWidth >= 1200;
   const isUx2CWithRail = isUx2CWebHome;
   const isUx2CWideDesktop = screenWidth >= 1440;
   const isUx2CUltraWide = screenWidth >= 1600;
@@ -1531,6 +1544,28 @@ export function HomeProfessorScreen({
       ] as const,
     []
   );
+  const adminRailActionStyle = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    }),
+    [colors.border, colors.card]
+  );
+  const adminRailActionTextStyle = useMemo(
+    () => ({
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "700" as const,
+    }),
+    [colors.text]
+  );
 
   if (showInitialLoading) {
     return <ScreenLoadingState />;
@@ -1908,8 +1943,13 @@ export function HomeProfessorScreen({
               >
                 <Suspense fallback={<HomeProfessorBelowFoldFallback />}>
                   <HomeProfessorBelowFold
+                    variant={isAdminDashboardContext ? "coordination" : "professor"}
                     canOpenClassesShortcut={canOpenClassesShortcut}
                     canOpenStudentsShortcut={canOpenStudentsShortcut}
+                    canOpenTrainingShortcut={canOpenTrainingShortcut}
+                    canOpenCalendarShortcut={canOpenCalendarShortcut}
+                    canOpenAbsenceNoticesShortcut={canOpenAbsenceNoticesShortcut}
+                    canOpenPeriodizationShortcut={canOpenPeriodizationShortcut}
                   />
                 </Suspense>
               </View>
@@ -2005,6 +2045,7 @@ export function HomeProfessorScreen({
             }}
           >
             <View style={{ flex: 1, flexDirection: isWebHome ? "row" : "column", gap: isWebHome ? 8 : 10 }}>
+              {canOpenTrainingShortcut ? (
               <Pressable
                 onPress={handleOpenPlanningForActiveClass}
                 style={{
@@ -2023,6 +2064,8 @@ export function HomeProfessorScreen({
               >
                 <Text numberOfLines={1} style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>Ir pra aula do dia</Text>
               </Pressable>
+              ) : null}
+              {canOpenClassesShortcut ? (
               <Pressable
                 onPress={handleOpenAttendanceForActiveClass}
                 style={{
@@ -2039,6 +2082,8 @@ export function HomeProfessorScreen({
               >
                 <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Chamada</Text>
               </Pressable>
+              ) : null}
+              {canOpenReportsShortcut ? (
               <Pressable
                 onPress={handleOpenReportsForActiveClass}
                 style={{
@@ -2055,13 +2100,14 @@ export function HomeProfessorScreen({
               >
                 <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Relatórios</Text>
               </Pressable>
+              ) : null}
             </View>
           </View>
 
         </View>
         ) : null}
 
-        {isAdminDashboardContext ? (
+        {isAdminDashboardContext && !isUx2CWebHome ? (
         <View
           style={{
             padding: 14,
@@ -2078,53 +2124,45 @@ export function HomeProfessorScreen({
               gap: 12,
             }}
           >
-            <View
-              style={{
-                width: Platform.OS === "web" ? 220 : "100%",
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.secondaryBg,
-                padding: 12,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                Painel gerencial
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Visão ampla da operação e atalhos de coordenação.
-              </Text>
-              <View style={{ gap: 6, marginTop: 4 }}>
-                <FlatList
-                  data={adminRailActions}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  contentContainerStyle={{ gap: 6 }}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() => router.push({ pathname: item.route })}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                        paddingVertical: 8,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.card,
-                      }}
-                    >
-                      <GoAtletaIcon name={item.icon} size={14} color={colors.text} />
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  )}
-                />
+            {Platform.OS !== "web" ? (
+              <View
+                style={{
+                  width: "100%",
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  padding: 12,
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                  Painel gerencial
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Visão ampla da operação e atalhos de coordenação.
+                </Text>
+                <View style={{ gap: 6, marginTop: 4 }}>
+                  <FlatList
+                    data={adminRailActions}
+                    keyExtractor={(item) => item.id}
+                    scrollEnabled={false}
+                    contentContainerStyle={{ gap: 6 }}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        onPress={() => router.push({ pathname: item.route })}
+                        style={adminRailActionStyle}
+                      >
+                        <GoAtletaIcon name={item.icon} size={14} color={colors.text} />
+                        <Text style={adminRailActionTextStyle}>
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    )}
+                  />
+                </View>
               </View>
-            </View>
+            ) : null}
 
             <View style={{ flex: 1, gap: 12 }}>
               <View
@@ -2345,6 +2383,10 @@ export function HomeProfessorScreen({
             <HomeProfessorBelowFold
               canOpenClassesShortcut={canOpenClassesShortcut}
               canOpenStudentsShortcut={canOpenStudentsShortcut}
+              canOpenTrainingShortcut={canOpenTrainingShortcut}
+              canOpenCalendarShortcut={canOpenCalendarShortcut}
+              canOpenAbsenceNoticesShortcut={canOpenAbsenceNoticesShortcut}
+              canOpenPeriodizationShortcut={canOpenPeriodizationShortcut}
             />
           </Suspense>
         ) : null}

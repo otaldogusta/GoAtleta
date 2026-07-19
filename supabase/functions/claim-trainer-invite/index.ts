@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
-  let payload: { code: string } = {};
+  let payload: { code: string } = { code: "" };
   try {
     payload = (await req.json()) as { code: string };
   } catch {
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
 
   const { data: invite, error: inviteError } = await supabase
     .from("trainer_invites")
-    .select("id, uses, max_uses, expires_at, revoked, organization_id, target_role_level")
+    .select("id, uses, max_uses, expires_at, revoked, organization_id, target_role_level, initial_permissions, invited_to, claimed_by, claimed_at, created_by")
     .eq("code_hash", codeHash)
     .maybeSingle();
 
@@ -100,6 +100,16 @@ Deno.serve(async (req) => {
 
   if (!invite) {
     return createError(req, 400, "INVITE_INVALID", "Invalid invite");
+  }
+
+  if (invite.claimed_by === user.id) {
+    return new Response(JSON.stringify({ status: "ok" }), {
+      headers: makeJsonHeaders(req),
+    });
+  }
+
+  if (invite.claimed_by) {
+    return createError(req, 400, "INVITE_ALREADY_USED", "Invite already used");
   }
 
   if (invite.revoked) {
@@ -117,55 +127,28 @@ Deno.serve(async (req) => {
     return createError(req, 400, "INVITE_LIMIT_REACHED", "Invite limit reached");
   }
 
-  const nowIso = new Date().toISOString();
-  const { data: updatedInvite, error: updateError } = await supabase
-    .from("trainer_invites")
-    .update({ uses: invite.uses + 1, claimed_by: user.id, claimed_at: nowIso })
-    .eq("id", invite.id)
-    .eq("uses", invite.uses)
-    .select()
-    .maybeSingle();
-
-  if (updateError || !updatedInvite) {
-    return createError(req, 409, "INVITE_CONFLICT", "Invite update conflict or already used concurrently");
+  const invitedEmail = String(invite.invited_to ?? "").trim().toLowerCase();
+  const authenticatedEmail = String(user.email ?? "").trim().toLowerCase();
+  if (invitedEmail && invitedEmail !== authenticatedEmail) {
+    return createError(req, 403, "INVITE_EMAIL_MISMATCH", "Invite belongs to another email");
   }
 
-  const { error: trainerError } = await supabase
-    .from("trainers")
-    .upsert({ user_id: user.id }, { onConflict: "user_id" });
-
-  if (trainerError) {
-    return createError(req, 500, "SERVER_ERROR", "Failed to create trainer");
-  }
-
-  if (invite.organization_id) {
-    const targetRoleLevel = Number(invite.target_role_level ?? 10) >= 50 ? 50 : 10;
-    const { data: existingMember, error: memberLookupError } = await supabase
-      .from("organization_members")
-      .select("role_level")
-      .eq("organization_id", invite.organization_id)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (memberLookupError) {
-      return createError(req, 500, "SERVER_ERROR", "Failed to lookup organization member");
+  const { error: claimError } = await supabase.rpc("claim_trainer_invite_access", {
+    p_invite_id: invite.id,
+    p_user_id: user.id,
+  });
+  if (claimError) {
+    const message = claimError.message ?? "";
+    if (message.includes("INVITE_ALREADY_USED")) {
+      return createError(req, 409, "INVITE_ALREADY_USED", "Invite already used");
     }
-
-    const nextRoleLevel = Math.max(Number(existingMember?.role_level ?? 0), targetRoleLevel);
-    const { error: memberUpsertError } = await supabase
-      .from("organization_members")
-      .upsert(
-        {
-          organization_id: invite.organization_id,
-          user_id: user.id,
-          role_level: nextRoleLevel,
-        },
-        { onConflict: "organization_id,user_id" }
-      );
-
-    if (memberUpsertError) {
-      return createError(req, 500, "SERVER_ERROR", "Failed to apply organization member role");
+    if (message.includes("INVITE_REVOKED")) {
+      return createError(req, 400, "INVITE_REVOKED", "Invite revoked");
     }
+    if (message.includes("INVITE_EXPIRED")) {
+      return createError(req, 400, "INVITE_EXPIRED", "Invite expired");
+    }
+    return createError(req, 500, "SERVER_ERROR", "Failed to apply invite access");
   }
 
   return new Response(JSON.stringify({ status: "ok" }), {

@@ -8,7 +8,7 @@ import {
 } from "expo-file-system/legacy";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -23,6 +23,14 @@ import {
     type SyncErrorClassificationResult,
 } from "../src/api/ai";
 import { listClassHeadsByClassIds, type ClassResponsible } from "../src/api/class-responsibles";
+import {
+    adminListOrgMemberClassHeads,
+    adminListOrgMembers,
+    adminListOrgClasses,
+    type MemberClassHead,
+    type OrgMember,
+    type OrgClass,
+} from "../src/api/members";
 import { sendPushToUser } from "../src/api/push";
 import {
     AdminPendingAttendance,
@@ -32,6 +40,10 @@ import {
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
 } from "../src/api/reports";
+import {
+    listTrainerInvites,
+    type TrainerInviteItem,
+} from "../src/api/trainer-invite";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import {
     useCopilotActions,
@@ -67,15 +79,10 @@ import { useOrganization } from "../src/providers/OrganizationProvider";
 import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
+import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
-
-const OrgMembersPanel = lazy(() =>
-  import("../src/screens/coordination/OrgMembersPanel").then((module) => ({
-    default: module.OrgMembersPanel,
-  }))
-);
 
 type CoordinationTab = "dashboard" | "members";
 
@@ -108,27 +115,6 @@ const parseTimeToMinutes = (value: string | null | undefined) => {
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
   return hour * 60 + minute;
 };
-
-function OrgMembersPanelFallback() {
-  const { colors } = useAppTheme();
-  return (
-    <View
-      style={{
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.card,
-        padding: 16,
-        gap: 12,
-      }}
-    >
-      <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>Gerenciar membros</Text>
-      <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Carregando dados de membros e permissões...
-      </Text>
-    </View>
-  );
-}
 
 const formatExecutiveSummaryText = (summary: ExecutiveSummaryResult) => {
   const highlights = summary.highlights.map((item) => `- ${item}`).join("\n");
@@ -363,7 +349,7 @@ export default function CoordinationScreen() {
   const organizationId = activeOrganization?.id ?? null;
   const organizationName = activeOrganization?.name ?? "Organização";
 
-  const [activeTab, setActiveTab] = useState<CoordinationTab>("dashboard");
+  const activeTab: CoordinationTab = "dashboard";
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -391,18 +377,14 @@ export default function CoordinationScreen() {
   const [notifyHead, setNotifyHead] = useState<ClassResponsible | null>(null);
   const [notifyHeadLoading, setNotifyHeadLoading] = useState(false);
   const [notifySending, setNotifySending] = useState(false);
+  const [organizationMembers, setOrganizationMembers] = useState<OrgMember[]>([]);
+  const [memberClassHeads, setMemberClassHeads] = useState<MemberClassHead[]>([]);
+  const [organizationClasses, setOrganizationClasses] = useState<OrgClass[]>([]);
+  const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1180;
   const isWideLayout = width >= 860;
   const isCompactLayout = width < 430;
-
-  const tabItems = useMemo(
-    () => [
-      { id: "dashboard" as const, label: "Dashboard" },
-      { id: "members" as const, label: "Gerenciar membros" },
-    ],
-    []
-  );
 
   const topDelaysByTrainer = useMemo(
     () =>
@@ -595,6 +577,59 @@ export default function CoordinationScreen() {
     }
   }, [notifyAttendanceTarget, notifyHead, notifySending, organizationId]);
 
+  const handleNotifyAttendanceMember = useCallback(
+    async (attendance: AdminPendingAttendance, member: OrgMember) => {
+      if (!organizationId || notifySending) return;
+      setNotifySending(true);
+      try {
+        const cooldownKey = getCooldownKey(
+          organizationId,
+          attendance.classId,
+          attendance.targetDate
+        );
+        const lastSentAt = Number((await AsyncStorage.getItem(cooldownKey)) ?? "0");
+        if (
+          Number.isFinite(lastSentAt) &&
+          lastSentAt > 0 &&
+          Date.now() - lastSentAt < COOLDOWN_MS
+        ) {
+          throw new Error("Aviso já enviado recentemente para esta turma/data.");
+        }
+
+        const result = await sendPushToUser({
+          organizationId,
+          targetUserId: member.userId,
+          title: "Chamada pendente",
+          body: `Turma ${attendance.className} (${attendance.unit}) - ${formatDateBr(
+            attendance.targetDate
+          )}. Toque para abrir.`,
+          data: {
+            type: "pending_attendance_reminder",
+            route: "/class/[id]/attendance",
+            params: {
+              id: attendance.classId,
+              date: attendance.targetDate,
+            },
+          },
+        });
+
+        if (result.sent <= 0) {
+          throw new Error("Não foi possível entregar o push para este responsável.");
+        }
+        await AsyncStorage.setItem(cooldownKey, String(Date.now()));
+        Alert.alert("Aviso enviado", `${member.displayName} foi notificado com sucesso.`);
+      } catch (sendError) {
+        Alert.alert(
+          "Não foi possível avisar",
+          sendError instanceof Error ? sendError.message : "Falha ao enviar aviso."
+        );
+      } finally {
+        setNotifySending(false);
+      }
+    },
+    [notifySending, organizationId]
+  );
+
   const loadDashboard = useCallback(async () => {
     if (!organizationId || !isAdmin) {
       setPendingAttendance([]);
@@ -603,6 +638,10 @@ export default function CoordinationScreen() {
       setNotifyHead(null);
       setNotifyHeadLoading(false);
       setNotifySending(false);
+      setOrganizationMembers([]);
+      setMemberClassHeads([]);
+      setOrganizationClasses([]);
+      setPendingTrainerInvites([]);
       setPendingWritesDiagnostics({
         total: 0,
         highRetry: 0,
@@ -664,6 +703,19 @@ export default function CoordinationScreen() {
       setPendingWritesDiagnostics(queueDiagnostics);
       setFailedWrites(failed);
 
+      const [memberRows, classHeadRows, classRows, inviteRows] = await Promise.all([
+        adminListOrgMembers(organizationId).catch(() => [] as OrgMember[]),
+        adminListOrgMemberClassHeads(organizationId).catch(() => [] as MemberClassHead[]),
+        adminListOrgClasses(organizationId).catch(() => [] as OrgClass[]),
+        listTrainerInvites(organizationId)
+          .then((result) => result.invites.filter((invite) => !invite.revoked))
+          .catch(() => [] as TrainerInviteItem[]),
+      ]);
+      setOrganizationMembers(memberRows);
+      setMemberClassHeads(classHeadRows);
+      setOrganizationClasses(classRows);
+      setPendingTrainerInvites(inviteRows);
+
       const logsByClass = sessionLogs.reduce<Record<string, typeof sessionLogs>>((acc, item) => {
         if (!acc[item.classId]) acc[item.classId] = [];
         acc[item.classId].push(item);
@@ -705,6 +757,10 @@ export default function CoordinationScreen() {
       setRecentActivity([]);
       setNotifyHead(null);
       setNotifyHeadLoading(false);
+      setOrganizationMembers([]);
+      setMemberClassHeads([]);
+      setOrganizationClasses([]);
+      setPendingTrainerInvites([]);
       setPendingWritesDiagnostics({
         total: 0,
         highRetry: 0,
@@ -1393,86 +1449,11 @@ export default function CoordinationScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenBackdrop />
       <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
-      <View
-        style={{
-          paddingHorizontal: isDesktopLayout ? 20 : isCompactLayout ? 12 : 16,
-          paddingTop: 12,
-          paddingBottom: 12,
-          gap: 12,
-        }}
-      >
-        <View
-          style={{
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.card,
-            padding: isWideLayout ? 16 : isCompactLayout ? 12 : 14,
-            gap: 10,
-          }}
-        >
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.text, fontSize: 30, fontWeight: "800" }}>
-              Coordenação
-            </Text>
-            <Text style={{ color: colors.muted }}>
-              Dashboard e gestão de membros da organização • {organizationName}.
-            </Text>
-          </View>
-        </View>
-
-        <View
-          style={{
-            borderRadius: 999,
-            backgroundColor: colors.secondaryBg,
-            padding: isCompactLayout ? 5 : 6,
-          }}
-        >
-          <View style={{ flexDirection: "row", gap: 6, flexWrap: isCompactLayout ? "wrap" : "nowrap" }}>
-            {tabItems.map((tab) => {
-              const selected = activeTab === tab.id;
-              return (
-                <Pressable
-                  key={tab.id}
-                  onPress={() => setActiveTab(tab.id)}
-                  style={{
-                    flex: isCompactLayout ? undefined : 1,
-                    flexGrow: isCompactLayout ? 1 : undefined,
-                    minWidth: isCompactLayout ? "48%" : undefined,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
-                    borderRadius: 999,
-                    backgroundColor: selected ? colors.primaryBg : colors.card,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: selected ? colors.primaryText : colors.text,
-                      fontWeight: "700",
-                      fontSize: isCompactLayout ? 12 : 13,
-                      textAlign: "center",
-                    }}
-                  >
-                    {tab.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      </View>
-
-      {activeTab === "members" ? (
-        <View style={{ flex: 1 }}>
-          <Suspense fallback={<OrgMembersPanelFallback />}>
-            <OrgMembersPanel embedded />
-          </Suspense>
-        </View>
-      ) : (
-        <ScrollView
+      <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{
             paddingHorizontal: isDesktopLayout ? 20 : isCompactLayout ? 12 : 16,
+            paddingTop: 12,
             paddingBottom: 28,
             gap: 12,
           }}
@@ -1488,7 +1469,7 @@ export default function CoordinationScreen() {
               colors={[colors.text]}
             />
           }
-        >
+      >
           {error ? (
             <View
               style={{
@@ -1504,6 +1485,37 @@ export default function CoordinationScreen() {
             </View>
           ) : null}
 
+          <CoordinationPeopleWorkspace
+            organizationId={organizationId ?? ""}
+            organizationName={organizationName}
+            loading={loading}
+            healthScore={coordinationHealthScore}
+            members={organizationMembers}
+            memberClassHeads={memberClassHeads}
+            organizationClasses={organizationClasses}
+            pendingInvites={pendingTrainerInvites}
+            pendingAttendance={pendingAttendance}
+            pendingReports={pendingReports}
+            syncHealthy={
+              syncPausedReason === null &&
+              failedWrites.length === 0 &&
+              pendingWritesDiagnostics.highRetry === 0
+            }
+            notifySending={notifySending}
+            onRefresh={() => void loadDashboard()}
+            onOpenAttendance={(item) =>
+              router.push({
+                pathname: "/class/[id]/attendance",
+                params: { id: item.classId, date: item.targetDate },
+              })
+            }
+            onNotifyAttendance={(item, member) =>
+              void handleNotifyAttendanceMember(item, member)
+            }
+          />
+
+          {false && (
+          <>
           <View
             style={{
               borderRadius: 20,
@@ -1608,17 +1620,17 @@ export default function CoordinationScreen() {
             {notifyAttendanceTarget ? (
               <>
                 <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
-                  Turma pendente: {notifyAttendanceTarget.className}
+                  Turma pendente: {notifyAttendanceTarget!.className}
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Chamada pendente em {formatDateBr(notifyAttendanceTarget.targetDate)} • {notifyAttendanceTarget.unit}
+                  Chamada pendente em {formatDateBr(notifyAttendanceTarget!.targetDate)} • {notifyAttendanceTarget!.unit}
                 </Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   Responsável:{" "}
                   {notifyHeadLoading
                     ? "carregando..."
                     : notifyHead
-                    ? notifyHead.displayName
+                    ? notifyHead!.displayName
                     : "não definido"}
                 </Text>
 
@@ -1642,7 +1654,7 @@ export default function CoordinationScreen() {
                     {notifySending
                       ? "Enviando aviso..."
                       : notifyHead
-                      ? `Avisar ${getFirstName(notifyHead.displayName)}`
+                      ? `Avisar ${getFirstName(notifyHead!.displayName)}`
                       : "Responsável não definido"}
                   </Text>
                 </Pressable>
@@ -1762,8 +1774,9 @@ export default function CoordinationScreen() {
               />
             </>
           )}
+          </>
+          )}
         </ScrollView>
-      )}
       </SafeAreaView>
     </View>
   );

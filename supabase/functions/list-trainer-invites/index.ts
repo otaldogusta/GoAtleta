@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
   const { data, error } = await admin
     .from("trainer_invites")
     .select(
-      "id, organization_id, target_role_level, created_at, expires_at, max_uses, uses, revoked, invited_via, invited_to"
+      "id, organization_id, target_role_level, created_at, expires_at, max_uses, uses, revoked, invited_via, invited_to, delivery_status, delivery_attempted_at"
     )
     .eq("organization_id", orgValidation.data)
     .eq("revoked", false)

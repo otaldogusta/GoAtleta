@@ -48,6 +48,7 @@ export default function SignupScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [showInviteCode, setShowInviteCode] = useState(false);
   const strengthAnim = useRef(new Animated.Value(0)).current;
   const enterAnim = useRef(new Animated.Value(0)).current;
   const passwordShakeAnim = useRef(new Animated.Value(0)).current;
@@ -106,6 +107,7 @@ export default function SignupScreen() {
     if (hasInviteCodeFromLink) {
       const normalizedCode = inviteCodeParam.trim().toUpperCase();
       setInviteCode(normalizedCode);
+      setShowInviteCode(true);
       void savePendingTrainerInvite(normalizedCode);
     }
   }, [hasInviteCodeFromLink, inviteCodeParam]);
@@ -541,7 +543,23 @@ export default function SignupScreen() {
                 </View>
               ) : null}
 
-              {!hasInviteCodeFromLink ? (
+              {!hasInviteCodeFromLink && !showInviteCode ? (
+                <Pressable
+                  onPress={() => setShowInviteCode(true)}
+                  style={{
+                    alignSelf: "center",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingVertical: 6,
+                  }}
+                >
+                  <GoAtletaIcon name="key" size={14} color={colors.muted} />
+                  <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                    Possui um código de convite?
+                  </Text>
+                </Pressable>
+              ) : !hasInviteCodeFromLink ? (
                 <View style={{ gap: 6 }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <GoAtletaIcon name="key" size={13} color={colors.muted} />
@@ -564,7 +582,7 @@ export default function SignupScreen() {
                     }}
                   >
                     <TextInput
-                      placeholder="Opcional — recebido por link ou email"
+                      placeholder="Digite o código recebido"
                       value={inviteCode}
                       onChangeText={setInviteCode}
                       placeholderTextColor={colors.placeholder}
@@ -584,6 +602,17 @@ export default function SignupScreen() {
                       </Pressable>
                     ) : null}
                   </View>
+                  <Pressable
+                    onPress={() => {
+                      setInviteCode("");
+                      setShowInviteCode(false);
+                    }}
+                    style={{ alignSelf: "flex-end", paddingVertical: 4 }}
+                  >
+                    <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>
+                      Não tenho código
+                    </Text>
+                  </Pressable>
                 </View>
               ) : null}
 

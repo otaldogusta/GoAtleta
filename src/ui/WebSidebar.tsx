@@ -4,6 +4,10 @@ import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
 import { useRole, type UserRole } from "../auth/role";
+import {
+  getTrainerPermissionKey,
+  isTrainerPathAllowed,
+} from "../auth/route-permissions";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import type { DevProfilePreview } from "../dev/profile-preview";
 import { getScopedProfilePath } from "../navigation/profile-routes";
@@ -220,16 +224,24 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const professorInitials = getInitials(professorName);
   const userEmail = getUserEmail(session);
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
+  const memberPermissions = organizationContext?.memberPermissions ?? {};
+  const permissionsLoading = organizationContext?.permissionsLoading ?? true;
+  const isOrgAdmin = (organizationContext?.activeOrganization?.role_level ?? 0) >= 50;
   const hasHybridAccount = availableRoles.includes("trainer") && availableRoles.includes("student");
   const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
   const selectedPreview = rolePreview[role];
-  const isInCurrentRoleScope =
-    pathname === routePrefix[role] || pathname.startsWith(`${routePrefix[role]}/`);
-  const profileScopePath =
-    pathname && isInCurrentRoleScope
-      ? pathname
-      : `${routePrefix[role]}/home`;
-  const profilePath = getScopedProfilePath(profileScopePath);
+  const profilePath = getScopedProfilePath(pathname || "/");
+
+  const navigateTo = useCallback(
+    (href: string) => {
+      if (typeof window !== "undefined") {
+        window.location.assign(href);
+        return;
+      }
+      router.replace(href as never);
+    },
+    [router]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -365,7 +377,13 @@ export function WebSidebar({ role }: WebSidebarProps) {
     icon: tab.icon,
   }));
 
-  const mainItems: SidebarItem[] = tabItems;
+  const canShowItem = (item: SidebarItem) => {
+    if (role === "student" || isOrgAdmin) return true;
+    if (permissionsLoading && getTrainerPermissionKey(item.href)) return false;
+    return isTrainerPathAllowed(item.href, memberPermissions, false);
+  };
+
+  const mainItems: SidebarItem[] = tabItems.filter(canShowItem);
 
   const operationalItemsByRole: Record<AppRole, SidebarItem[]> = {
     prof: [
@@ -438,6 +456,12 @@ export function WebSidebar({ role }: WebSidebarProps) {
         icon: "members",
       },
       {
+        key: "nfc",
+        label: "Presença NFC",
+        href: "/prof/nfc-attendance",
+        icon: "nfc",
+      },
+      {
         key: "communications",
         label: "Comunicados",
         href: "/coord/communications",
@@ -489,7 +513,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
       },
     ],
   };
-  const operationalItems = operationalItemsByRole[role];
+  const operationalItems = operationalItemsByRole[role].filter(canShowItem);
 
   const isClassRoute =
     pathname === "/classes" || pathname === "/class" || pathname.startsWith("/class/");
@@ -542,7 +566,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
         onPress={() => {
           setProfileMenuOpen(false);
           setSidebarExpanded(false);
-          router.push(item.href as never);
+          navigateTo(item.href);
         }}
         style={{
           width: 52,
@@ -753,7 +777,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
         key={item.key}
         onPress={() => {
           setProfileMenuOpen(false);
-          router.push(item.href as never);
+          navigateTo(item.href);
         }}
         style={{
           minHeight: 46,
@@ -936,7 +960,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
               onPress={() => {
                 setProfileMenuOpen(false);
                 setSidebarExpanded(false);
-                router.push(profilePath as never);
+                navigateTo(profilePath);
               }}
               style={{
                 minHeight: 42,

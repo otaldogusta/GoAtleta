@@ -156,3 +156,56 @@ final result: passed
 A estrutura, hierarquia, tipografia e composição agora correspondem ao modelo. O texto pedagógico exibido continua sendo o plano salvo para a aula selecionada; por isso ele não replica o conteúdo específico do exemplo de diagnóstico sem que esse conteúdo esteja aplicado à aula.
 
 final result: passed
+
+---
+
+# Design QA — coordenação unificada
+
+- Source visual: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-8959cd22-4748-41cf-b777-f0d90776ce10.png`
+- Implementation screenshot: `artifacts/design-qa/coordination-unified.png`
+- Side-by-side comparison: `artifacts/design-qa/coordination-comparison.png`
+- Route: `http://localhost:8081/coord/management`
+- Viewport: 1387 × 917
+- State: coordenação autenticada, Gustavo Ribeiro selecionado, 2 membros, 1 convite, 4 turmas e 4 chamadas pendentes.
+
+## Evidence
+
+- A tela deixou de separar Dashboard e Gerenciar membros.
+- Pessoas e responsabilidades são o módulo principal.
+- A seleção de uma pessoa atualiza o painel lateral com função, turmas, permissões e chamadas.
+- A chamada é a ação operacional prioritária; relatórios permanecem recolhidos.
+- O painel lateral mostra uma chamada por padrão e permite expandir as demais.
+- Os módulos secundários são recolhíveis.
+- O modo Organizar painel expõe controles de ordenação e persiste a preferência por organização.
+- A navegação lateral e os tokens visuais existentes do GoAtleta foram preservados.
+
+## Interaction checks
+
+- Seleção de coordenador: passou.
+- Seleção de professor sem turma: passou.
+- Estado sem chamadas do professor: passou.
+- Ativação e encerramento do modo Organizar painel: passou.
+- Expansão e recolhimento de módulos: passou.
+- Ações com efeitos externos, como Cobrar chamada e Convidar, não foram disparadas no QA visual.
+
+## History
+
+1. Primeira implementação manteve três cartões de chamada no painel lateral.
+2. A comparação visual mostrou excesso de altura e competição com os módulos principais.
+3. A versão final mantém somente a chamada prioritária visível e oferece Ver todas as chamadas.
+4. Pluralização de chamada/chamadas foi corrigida.
+
+## Final result
+
+Passed.
+
+## Correção de fidelidade visual
+
+- Referência aprovada: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-cf7d3cf2-0961-468e-b5ca-b46107689071.png`
+- Implementação corrigida: `artifacts/design-qa/coordination-approved-viewport.jpg`
+- Comparação final: `artifacts/design-qa/coordination-approved-comparison-v2.png`
+- Foram adicionados busca global, convite no cabeçalho, filtros por função e status, cabeçalhos de coluna, status e ações por pessoa, edição contextual de turmas e permissões, chamada prioritária e comunicação.
+- Os módulos secundários iniciam recolhidos e continuam reordenáveis.
+- Diferenças numéricas entre as imagens correspondem aos dados reais da organização autenticada usada no teste.
+
+final result: passed
