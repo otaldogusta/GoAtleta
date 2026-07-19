@@ -7,6 +7,7 @@ type ClassHeadRow = {
   unit: string;
   display_name?: string | null;
   email?: string | null;
+  photo_url?: string | null;
 };
 
 export type ClassResponsible = {
@@ -16,6 +17,7 @@ export type ClassResponsible = {
   unit: string;
   displayName: string;
   email: string | null;
+  photoUrl: string | null;
 };
 
 const mapClassHead = (row: ClassHeadRow): ClassResponsible => ({
@@ -25,6 +27,7 @@ const mapClassHead = (row: ClassHeadRow): ClassResponsible => ({
   unit: row.unit,
   displayName: row.display_name || row.email || row.user_id,
   email: row.email ?? null,
+  photoUrl: row.photo_url ?? null,
 });
 
 export async function listClassHeadsByClassIds(params: {
@@ -38,7 +41,7 @@ export async function listClassHeadsByClassIds(params: {
   if (!organizationId || !classIds.length) return [];
 
   const rows = await supabaseRestPost<ClassHeadRow[]>(
-    "/rpc/admin_list_class_heads_for_classes",
+    "/rpc/list_org_class_heads_for_classes",
     {
       p_org_id: organizationId,
       p_class_ids: classIds,
