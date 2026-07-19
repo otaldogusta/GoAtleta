@@ -2,6 +2,8 @@ import { Tabs } from "expo-router";
 import { AnimatedBottomTabs } from "../../src/components/navigation/AnimatedBottomTabs";
 import { AppShell } from "../../src/ui/AppShell";
 
+// perf-check: ignore-render -- route-only layout; screens own render instrumentation.
+// perf-check: ignore-measure -- route-only layout; no async data is loaded here.
 export default function StudentTabsLayout() {
   return (
     <AppShell role="student">
