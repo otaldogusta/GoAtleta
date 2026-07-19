@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getInviteErrorCode } from "../src/api/invite-errors";
@@ -15,60 +15,30 @@ import {
     getPendingTrainerInvite,
 } from "../src/auth/pending-invite";
 import { useRole } from "../src/auth/role";
+import { ResponsivePage } from "../src/components/ui/ResponsivePage";
+import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { markRender, measureAsync } from "../src/observability/perf";
+import { radius, spacing } from "../src/theme/tokens";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { GoAtletaIcon } from "../src/ui/icon-registry";
 
 export default function PendingScreen() {
   markRender("screen.pending.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const { session, signOut } = useAuth();
-  const { refresh, role } = useRole();
+  const { loading: roleLoading, refresh, role } = useRole();
   const [busy, setBusy] = useState(false);
   const [inviteBusy, setInviteBusy] = useState(false);
-  const [inviteInput, setInviteInput] = useState("");
   const [message, setMessage] = useState("");
   const [storedToken, setStoredToken] = useState("");
   const [storedTrainerCode, setStoredTrainerCode] = useState("");
-  const [showInviteInput, setShowInviteInput] = useState(false);
+  const [storedInvitesLoading, setStoredInvitesLoading] = useState(true);
   const [coordinatorEmail, setCoordinatorEmail] = useState("");
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const autoClaimedRef = useRef(false);
-
-  const isUuid = (value: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      value
-    );
-
-  const extractStudentToken = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return "";
-    const inviteMatch = trimmed.match(/invite\/([0-9a-f-]{36})/i);
-    if (inviteMatch?.[1]) return inviteMatch[1];
-    const tokenMatch = trimmed.match(/[?&]token=([0-9a-f-]{36})/i);
-    if (tokenMatch?.[1]) return tokenMatch[1];
-    if (isUuid(trimmed)) return trimmed;
-    return "";
-  };
-
-  const getInviteType = (value: string) => {
-    if (!value.trim()) return "unknown" as const;
-    const token = extractStudentToken(value);
-    if (token) return "student" as const;
-    return "trainer" as const;
-  };
-
-  const inviteHint = (() => {
-    if (!inviteInput.trim()) {
-      return "Cole o link do convite do aluno ou o código do treinador.";
-    }
-    const type = getInviteType(inviteInput);
-    if (type === "student") return "Convite de aluno identificado.";
-    if (type === "trainer") return "Convite de treinador identificado.";
-    return "Cole o link completo ou o código do convite.";
-  })();
 
   const parseInviteError = (error: unknown) => {
     const code = getInviteErrorCode(error);
@@ -81,48 +51,6 @@ export default function PendingScreen() {
     return "Não foi possível validar o convite.";
   };
 
-  const handleInvite = async () => {
-    if (inviteBusy) return;
-    const type = getInviteType(inviteInput);
-    const trimmed = inviteInput.trim();
-    if (!trimmed) {
-      setMessage("Informe o convite.");
-      return;
-    }
-    setInviteBusy(true);
-    setMessage("");
-    try {
-      if (type === "student") {
-        const token = extractStudentToken(trimmed);
-        if (!token) {
-          setMessage("Não foi possível ler o link do convite.");
-          return;
-        }
-        await claimStudentInvite(token);
-        await refresh();
-        setMessage("Convite de aluno vinculado com sucesso.");
-        return;
-      }
-      await claimTrainerInvite(trimmed);
-      await clearPendingTrainerInvite();
-      await refresh();
-      router.replace("/");
-    } catch (error) {
-      if (type === "student") {
-        setMessage(parseInviteError(error));
-        return;
-      }
-      const code = getInviteErrorCode(error);
-      setMessage(
-        code === "INVITE_INVALID" || code === "INVITE_EXPIRED" || code === "INVITE_REVOKED"
-          ? "Convite inválido ou expirado."
-          : "Não foi possível validar o convite."
-      );
-    } finally {
-      setInviteBusy(false);
-    }
-  };
-
   const handleStoredTrainerInvite = async (codeOverride?: string) => {
     const code = (codeOverride ?? storedTrainerCode).trim();
     if (!code || inviteBusy) return;
@@ -132,7 +60,7 @@ export default function PendingScreen() {
       await claimTrainerInvite(code);
       await clearPendingTrainerInvite();
       await refresh();
-      router.replace("/");
+      router.replace("/prof/home");
     } catch (error) {
       setMessage(parseInviteError(error));
     } finally {
@@ -149,7 +77,7 @@ export default function PendingScreen() {
       await claimStudentInvite(tokenValue);
       await clearPendingInvite();
       await refresh();
-      router.replace("/");
+      router.replace("/student/home");
     } catch (error) {
       setMessage(parseInviteError(error));
     } finally {
@@ -190,6 +118,11 @@ export default function PendingScreen() {
     }
   };
 
+  const handleBackToLogin = async () => {
+    await signOut();
+    router.replace("/login");
+  };
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -200,6 +133,7 @@ export default function PendingScreen() {
       if (!alive) return;
       setStoredToken(token);
       setStoredTrainerCode(trainerCode);
+      setStoredInvitesLoading(false);
       if (autoClaimedRef.current) return;
       if (!token && !trainerCode) {
         if (role === "trainer" || role === "student") {
@@ -222,240 +156,260 @@ export default function PendingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh, role, router]);
 
+  if (
+    roleLoading ||
+    storedInvitesLoading ||
+    ((role === "trainer" || role === "student") && !storedToken && !storedTrainerCode)
+  ) {
+    return <ScreenLoadingState />;
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 16 }}>
-        <Text style={{ fontSize: 22, fontWeight: "700", color: colors.text }}>
-          Acesso pendente
-        </Text>
-        <Text style={{ color: colors.muted }}>
-          Sua conta ainda não possui organização e função ativas.
-        </Text>
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 16,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 10,
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "center",
+            paddingVertical: spacing.xxl,
           }}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Convite de acesso
-          </Text>
-          { storedToken || storedTrainerCode ? (
-            <>
-              <Text style={{ color: colors.muted }}>
-                Convite detectado. Estamos validando seu acesso automaticamente.
+          <ResponsivePage
+            variant="content"
+            gap={spacing.lg}
+            style={{ width: "100%", maxWidth: 720 }}
+          >
+            <Pressable
+              onPress={() => void handleBackToLogin()}
+              style={{
+                alignSelf: "flex-start",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.xs,
+                paddingVertical: spacing.xs,
+              }}
+            >
+              <GoAtletaIcon name="chevronBack" size={16} color={colors.muted} />
+              <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                Voltar para entrar
               </Text>
-              { message ? (
-                <Text style={{ color: colors.muted }}>{message}</Text>
-              ) : null}
-              <Pressable
-                onPress={() =>
-                  storedToken
-                    ? handleStoredInvite()
-                    : handleStoredTrainerInvite()
-                }
-                disabled={inviteBusy}
+            </Pressable>
+
+            <View style={{ alignItems: "center", gap: spacing.sm }}>
+              <View
                 style={{
-                  paddingVertical: 10,
-                  borderRadius: 12,
+                  width: 52,
+                  height: 52,
+                  borderRadius: radius.full,
+                  alignItems: "center",
+                  justifyContent: "center",
                   backgroundColor: colors.secondaryBg,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {inviteBusy ? "Validando..." : "Tentar novamente"}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={clearStoredInvite}
+                <GoAtletaIcon name="personSolid" size={24} color={colors.primaryBg} />
+              </View>
+              <Text
                 style={{
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.inputBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
+                  color: colors.text,
+                  fontSize: 26,
+                  fontWeight: "800",
+                  textAlign: "center",
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Usar outro convite
-                </Text>
-              </Pressable>
-            </>
-          ) : (
-            <>
-              <Text style={{ color: colors.muted }}>
-                Se recebeu um convite, abra o link novamente ou informe o código.
-                O vínculo e a função serão aplicados automaticamente.
+                Acesso aguardando liberação
               </Text>
-              { !showInviteInput ? (
-                <Pressable
-                  onPress={() => setShowInviteInput(true)}
-                  style={{
-                    paddingVertical: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>
-                    Tenho um convite
-                  </Text>
-                </Pressable>
+              <Text
+                style={{
+                  color: colors.muted,
+                  fontSize: 15,
+                  lineHeight: 22,
+                  textAlign: "center",
+                  maxWidth: 520,
+                }}
+              >
+                Sua conta foi criada, mas ainda não está vinculada a uma organização.
+              </Text>
+            </View>
+
+            <View
+              style={{
+                padding: spacing.lg,
+                borderRadius: radius.container,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: spacing.lg,
+              }}
+            >
+              {storedToken || storedTrainerCode ? (
+                <View style={{ gap: spacing.sm }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                    <GoAtletaIcon name="link" size={18} color={colors.text} />
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+                      Convite encontrado
+                    </Text>
+                  </View>
+                    <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                      Encontramos um convite e estamos validando o vínculo automaticamente.
+                    </Text>
+                    {message ? <Text style={{ color: colors.muted }}>{message}</Text> : null}
+                    <Pressable
+                      onPress={() =>
+                        storedToken ? handleStoredInvite() : handleStoredTrainerInvite()
+                      }
+                      disabled={inviteBusy}
+                      style={{
+                        minHeight: 46,
+                        paddingHorizontal: spacing.md,
+                        borderRadius: radius.internal,
+                        backgroundColor: colors.primaryBg,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: inviteBusy ? 0.65 : 1,
+                      }}
+                    >
+                      <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                        {inviteBusy ? "Validando convite..." : "Tentar novamente"}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={clearStoredInvite}
+                      style={{ alignSelf: "center", padding: spacing.xs }}
+                    >
+                      <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                        Descartar este convite
+                      </Text>
+                    </Pressable>
+                </View>
               ) : (
                 <>
-                  <TextInput
-                    placeholder="Link ou código do convite"
-                    value={inviteInput}
-                    onChangeText={setInviteInput}
-                    autoCapitalize="none"
-                    placeholderTextColor={colors.placeholder}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      color: colors.inputText,
-                    }}
-                  />
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>
-                    {inviteHint}
+                  <View style={{ gap: spacing.sm }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                  <GoAtletaIcon name="members" size={18} color={colors.text} />
+                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
+                    Solicitar acesso
                   </Text>
-                  { message ? (
-                    <Text style={{ color: colors.muted }}>{message}</Text>
-                  ) : null}
-                  <Pressable
-                    onPress={handleInvite}
-                    disabled={inviteBusy}
+                </View>
+                <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                  Informe o e-mail da coordenação responsável. Você está conectado como{" "}
+                  <Text style={{ color: colors.text, fontWeight: "600" }}>
+                    {session?.user?.email ?? "e-mail não informado"}
+                  </Text>
+                  .
+                </Text>
+                <TextInput
+                  placeholder="E-mail da coordenação responsável"
+                  value={coordinatorEmail}
+                  onChangeText={setCoordinatorEmail}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    minHeight: 46,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    paddingHorizontal: spacing.sm,
+                    borderRadius: radius.internal,
+                    backgroundColor: colors.inputBg,
+                    color: colors.inputText,
+                  }}
+                />
+                {requestMessage ? (
+                  <Text style={{ color: colors.muted, lineHeight: 20 }}>{requestMessage}</Text>
+                ) : null}
+                <Pressable
+                  onPress={() => void handleAccessRequest()}
+                  disabled={requestBusy}
+                  style={{
+                    minHeight: 46,
+                    paddingHorizontal: spacing.md,
+                    borderRadius: radius.internal,
+                    backgroundColor: colors.primaryBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: requestBusy ? 0.65 : 1,
+                  }}
+                >
+                  <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                    {requestBusy ? "Enviando solicitação..." : "Solicitar acesso"}
+                  </Text>
+                </Pressable>
+              </View>
+
+                  <View style={{ height: 1, backgroundColor: colors.border }} />
+
+                  <View
                     style={{
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
+                      flexDirection: "row",
+                      alignItems: "flex-start",
+                      gap: spacing.sm,
                     }}
                   >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      {inviteBusy ? "Validando..." : "Validar convite"}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setShowInviteInput(false)}
-                    style={{
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.inputBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700" }}>
-                      Cancelar
-                    </Text>
-                  </Pressable>
+                    <GoAtletaIcon name="link" size={18} color={colors.muted} />
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={{ color: colors.text, fontWeight: "700" }}>
+                        Recebeu um convite?
+                      </Text>
+                      <Text style={{ color: colors.muted, lineHeight: 20 }}>
+                        Abra o link recebido por e-mail ou mensagem. O vínculo será aplicado
+                        automaticamente; não é necessário colar o link nesta tela.
+                      </Text>
+                    </View>
+                  </View>
                 </>
               )}
-            </>
-          )}
-        </View>
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 16,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-            gap: 8,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Entrou sem convite?
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            Seu acesso: {session?.user?.email ?? "e-mail não informado"}. Informe
-            abaixo o e-mail da coordenação responsável para enviar a solicitação.
-          </Text>
-          <TextInput
-            placeholder="E-mail da coordenação"
-            value={coordinatorEmail}
-            onChangeText={setCoordinatorEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 10,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          {requestMessage ? (
-            <Text style={{ color: colors.muted }}>{requestMessage}</Text>
-          ) : null}
-          <Pressable
-            onPress={() => void handleAccessRequest()}
-            disabled={requestBusy}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.primaryBg,
-              alignItems: "center",
-              opacity: requestBusy ? 0.6 : 1,
-            }}
-          >
-            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-              {requestBusy ? "Enviando..." : "Solicitar liberação"}
-            </Text>
-          </Pressable>
-        </View>
-        <Pressable
-          onPress={async () => {
-            if (busy) return;
-            setBusy(true);
-            await refresh();
-            setBusy(false);
-          }}
-          style={{
-            paddingVertical: 10,
-            borderRadius: 12,
-            backgroundColor: colors.primaryBg,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-            {busy ? "Verificando..." : "Recarregar status"}
-          </Text>
-        </Pressable>
-        <Pressable
-          onPress={async () => {
-            await signOut();
-          }}
-          style={{
-            paddingVertical: 10,
-            borderRadius: 12,
-            backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>Sair</Text>
-        </Pressable>
-      </View>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: spacing.md,
+              }}
+            >
+              <Pressable
+                onPress={async () => {
+                  if (busy) return;
+                  setBusy(true);
+                  await refresh();
+                  setBusy(false);
+                }}
+                disabled={busy}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                  padding: spacing.xs,
+                  opacity: busy ? 0.65 : 1,
+                }}
+              >
+                <GoAtletaIcon name="refresh" size={16} color={colors.muted} />
+                <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                  {busy ? "Verificando..." : "Verificar acesso novamente"}
+                </Text>
+              </Pressable>
+              <View style={{ width: 1, height: 18, backgroundColor: colors.border }} />
+              <Pressable
+                onPress={() => void handleBackToLogin()}
+                style={{ padding: spacing.xs }}
+              >
+                <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                  Entrar com outra conta
+                </Text>
+              </Pressable>
+            </View>
+          </ResponsivePage>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

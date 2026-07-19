@@ -11,6 +11,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { useOptionalOrganization } from "../../providers/OrganizationProvider";
+import {
+  getTrainerPermissionKey,
+  isTrainerPathAllowed,
+} from "../../auth/route-permissions";
 import { Pressable } from "../../ui/Pressable";
 import { WEB_SHELL_MIN_WIDTH, shouldHideWebShellForPath } from "../../ui/AppShell";
 import { useAppTheme } from "../../ui/app-theme";
@@ -35,6 +39,7 @@ export function AnimatedBottomTabs({
   const organization = useOptionalOrganization();
   const activeOrganization = organization?.activeOrganization ?? null;
   const memberPermissions = organization?.memberPermissions ?? {};
+  const permissionsLoading = organization?.permissionsLoading ?? true;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const router = useRouter();
@@ -81,7 +86,16 @@ export function AnimatedBottomTabs({
       return memberPermissions[permissionKey] !== false;
     });
   }, [activeOrganization?.role_level, memberPermissions, role]);
-  const radialActions = ROLE_RADIAL_ACTIONS[role];
+  const radialActions = useMemo(() => {
+    const actions = ROLE_RADIAL_ACTIONS[role];
+    const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+    if (role === "student" || isOrgAdmin) return actions;
+
+    return actions.filter((action) => {
+      if (permissionsLoading && getTrainerPermissionKey(String(action.href))) return false;
+      return isTrainerPathAllowed(String(action.href), memberPermissions, false);
+    });
+  }, [activeOrganization?.role_level, memberPermissions, permissionsLoading, role]);
   const bottom = Math.max(insets.bottom + 8, 14);
 
   useEffect(() => {

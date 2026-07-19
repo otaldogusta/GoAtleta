@@ -200,6 +200,9 @@ export function HomeProfessorScreen({
   const canOpenPeriodizationShortcut =
     isOrgAdmin ||
     memberPermissions.periodization === true;
+  const canOpenReportsShortcut =
+    isOrgAdmin ||
+    memberPermissions.reports === true;
   const isAdminDashboardContext = adminMode && canRenderCoordinationDashboard;
   const upcomingWindowDays = isAdminDashboardContext ? 30 : 7;
 
@@ -2042,6 +2045,7 @@ export function HomeProfessorScreen({
             }}
           >
             <View style={{ flex: 1, flexDirection: isWebHome ? "row" : "column", gap: isWebHome ? 8 : 10 }}>
+              {canOpenTrainingShortcut ? (
               <Pressable
                 onPress={handleOpenPlanningForActiveClass}
                 style={{
@@ -2060,6 +2064,8 @@ export function HomeProfessorScreen({
               >
                 <Text numberOfLines={1} style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>Ir pra aula do dia</Text>
               </Pressable>
+              ) : null}
+              {canOpenClassesShortcut ? (
               <Pressable
                 onPress={handleOpenAttendanceForActiveClass}
                 style={{
@@ -2076,6 +2082,8 @@ export function HomeProfessorScreen({
               >
                 <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Chamada</Text>
               </Pressable>
+              ) : null}
+              {canOpenReportsShortcut ? (
               <Pressable
                 onPress={handleOpenReportsForActiveClass}
                 style={{
@@ -2092,6 +2100,7 @@ export function HomeProfessorScreen({
               >
                 <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Relatórios</Text>
               </Pressable>
+              ) : null}
             </View>
           </View>
 

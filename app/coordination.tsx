@@ -26,8 +26,10 @@ import { listClassHeadsByClassIds, type ClassResponsible } from "../src/api/clas
 import {
     adminListOrgMemberClassHeads,
     adminListOrgMembers,
+    adminListOrgClasses,
     type MemberClassHead,
     type OrgMember,
+    type OrgClass,
 } from "../src/api/members";
 import { sendPushToUser } from "../src/api/push";
 import {
@@ -377,6 +379,7 @@ export default function CoordinationScreen() {
   const [notifySending, setNotifySending] = useState(false);
   const [organizationMembers, setOrganizationMembers] = useState<OrgMember[]>([]);
   const [memberClassHeads, setMemberClassHeads] = useState<MemberClassHead[]>([]);
+  const [organizationClasses, setOrganizationClasses] = useState<OrgClass[]>([]);
   const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1180;
@@ -637,6 +640,7 @@ export default function CoordinationScreen() {
       setNotifySending(false);
       setOrganizationMembers([]);
       setMemberClassHeads([]);
+      setOrganizationClasses([]);
       setPendingTrainerInvites([]);
       setPendingWritesDiagnostics({
         total: 0,
@@ -699,15 +703,17 @@ export default function CoordinationScreen() {
       setPendingWritesDiagnostics(queueDiagnostics);
       setFailedWrites(failed);
 
-      const [memberRows, classHeadRows, inviteRows] = await Promise.all([
+      const [memberRows, classHeadRows, classRows, inviteRows] = await Promise.all([
         adminListOrgMembers(organizationId).catch(() => [] as OrgMember[]),
         adminListOrgMemberClassHeads(organizationId).catch(() => [] as MemberClassHead[]),
+        adminListOrgClasses(organizationId).catch(() => [] as OrgClass[]),
         listTrainerInvites(organizationId)
           .then((result) => result.invites.filter((invite) => !invite.revoked))
           .catch(() => [] as TrainerInviteItem[]),
       ]);
       setOrganizationMembers(memberRows);
       setMemberClassHeads(classHeadRows);
+      setOrganizationClasses(classRows);
       setPendingTrainerInvites(inviteRows);
 
       const logsByClass = sessionLogs.reduce<Record<string, typeof sessionLogs>>((acc, item) => {
@@ -753,6 +759,7 @@ export default function CoordinationScreen() {
       setNotifyHeadLoading(false);
       setOrganizationMembers([]);
       setMemberClassHeads([]);
+      setOrganizationClasses([]);
       setPendingTrainerInvites([]);
       setPendingWritesDiagnostics({
         total: 0,
@@ -1485,6 +1492,7 @@ export default function CoordinationScreen() {
             healthScore={coordinationHealthScore}
             members={organizationMembers}
             memberClassHeads={memberClassHeads}
+            organizationClasses={organizationClasses}
             pendingInvites={pendingTrainerInvites}
             pendingAttendance={pendingAttendance}
             pendingReports={pendingReports}
@@ -1494,13 +1502,7 @@ export default function CoordinationScreen() {
               pendingWritesDiagnostics.highRetry === 0
             }
             notifySending={notifySending}
-            onInvite={() => router.push("/coord/org-members")}
-            onEditMember={(member) =>
-              router.push({
-                pathname: "/coord/org-members",
-                params: { memberId: member.userId },
-              })
-            }
+            onRefresh={() => void loadDashboard()}
             onOpenAttendance={(item) =>
               router.push({
                 pathname: "/class/[id]/attendance",

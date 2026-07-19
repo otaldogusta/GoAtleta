@@ -6,7 +6,6 @@ export default function StudentTabsLayout() {
   return (
     <AppShell role="student">
       <Tabs
-        initialRouteName="home"
         tabBar={(props) => <AnimatedBottomTabs {...props} role="student" />}
         screenOptions={{
           headerShown: false,

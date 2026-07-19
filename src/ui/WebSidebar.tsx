@@ -230,13 +230,18 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const hasHybridAccount = availableRoles.includes("trainer") && availableRoles.includes("student");
   const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
   const selectedPreview = rolePreview[role];
-  const isInCurrentRoleScope =
-    pathname === routePrefix[role] || pathname.startsWith(`${routePrefix[role]}/`);
-  const profileScopePath =
-    pathname && isInCurrentRoleScope
-      ? pathname
-      : `${routePrefix[role]}/home`;
-  const profilePath = getScopedProfilePath(profileScopePath);
+  const profilePath = getScopedProfilePath(pathname || "/");
+
+  const navigateTo = useCallback(
+    (href: string) => {
+      if (typeof window !== "undefined") {
+        window.location.assign(href);
+        return;
+      }
+      router.replace(href as never);
+    },
+    [router]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -561,7 +566,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
         onPress={() => {
           setProfileMenuOpen(false);
           setSidebarExpanded(false);
-          router.push(item.href as never);
+          navigateTo(item.href);
         }}
         style={{
           width: 52,
@@ -772,7 +777,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
         key={item.key}
         onPress={() => {
           setProfileMenuOpen(false);
-          router.push(item.href as never);
+          navigateTo(item.href);
         }}
         style={{
           minHeight: 46,
@@ -955,7 +960,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
               onPress={() => {
                 setProfileMenuOpen(false);
                 setSidebarExpanded(false);
-                router.push(profilePath as never);
+                navigateTo(profilePath);
               }}
               style={{
                 minHeight: 42,

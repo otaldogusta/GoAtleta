@@ -6,7 +6,6 @@ export default function ProfessorTabsLayout() {
   return (
     <AppShell role="prof">
       <Tabs
-        initialRouteName="home"
         tabBar={(props) => <AnimatedBottomTabs {...props} role="prof" />}
         screenOptions={{
           headerShown: false,
