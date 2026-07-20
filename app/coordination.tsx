@@ -8,7 +8,7 @@ import {
 } from "expo-file-system/legacy";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -40,6 +40,7 @@ import {
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
 } from "../src/api/reports";
+import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import {
     listTrainerInvites,
     type TrainerInviteItem,
@@ -80,6 +81,7 @@ import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordinatio
 import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
 import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
 import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
+import { resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
@@ -343,7 +345,7 @@ export default function CoordinationScreen() {
   const profilePath = getScopedProfilePath("/coordination");
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
-  const { activeOrganization } = useOrganization();
+  const { activeOrganization, isLoading: organizationLoading } = useOrganization();
   const { syncPausedReason, resumeSync } = useSmartSync();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const organizationId = activeOrganization?.id ?? null;
@@ -381,6 +383,8 @@ export default function CoordinationScreen() {
   const [memberClassHeads, setMemberClassHeads] = useState<MemberClassHead[]>([]);
   const [organizationClasses, setOrganizationClasses] = useState<OrgClass[]>([]);
   const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState<string | null>(null);
+  const dashboardRequestRef = useRef(0);
 
   const isDesktopLayout = Platform.OS === "web" && width >= 1180;
   const isWideLayout = width >= 860;
@@ -631,6 +635,9 @@ export default function CoordinationScreen() {
   );
 
   const loadDashboard = useCallback(async () => {
+    const requestId = ++dashboardRequestRef.current;
+    if (organizationLoading) return;
+
     if (!organizationId || !isAdmin) {
       setPendingAttendance([]);
       setPendingReports([]);
@@ -656,6 +663,7 @@ export default function CoordinationScreen() {
       setClassRadarItems([]);
       setSignals([]);
       setAiMessage(null);
+      setLoadedOrganizationId(null);
       setLoading(false);
       setRefreshing(false);
       setError(null);
@@ -683,6 +691,8 @@ export default function CoordinationScreen() {
             ]),
           { screen: "coordination", organizationId }
         );
+      if (requestId !== dashboardRequestRef.current) return;
+
       const classesById = new Map(classes.map((item) => [item.id, item]));
       const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
         now.getDate()
@@ -711,6 +721,8 @@ export default function CoordinationScreen() {
           .then((result) => result.invites.filter((invite) => !invite.revoked))
           .catch(() => [] as TrainerInviteItem[]),
       ]);
+      if (requestId !== dashboardRequestRef.current) return;
+
       setOrganizationMembers(memberRows);
       setMemberClassHeads(classHeadRows);
       setOrganizationClasses(classRows);
@@ -747,11 +759,14 @@ export default function CoordinationScreen() {
 
       try {
         const signalRows = await getSignals({ organizationId });
+        if (requestId !== dashboardRequestRef.current) return;
         setSignals(signalRows);
       } catch {
+        if (requestId !== dashboardRequestRef.current) return;
         setSignals([]);
       }
     } catch (err) {
+      if (requestId !== dashboardRequestRef.current) return;
       setPendingAttendance([]);
       setPendingReports([]);
       setRecentActivity([]);
@@ -774,10 +789,12 @@ export default function CoordinationScreen() {
       setAiMessage(null);
       setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
     } finally {
+      if (requestId !== dashboardRequestRef.current) return;
+      setLoadedOrganizationId(organizationId);
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isAdmin, organizationId]);
+  }, [isAdmin, organizationId, organizationLoading]);
 
   const handleReprocessQueueNow = useCallback(async () => {
     setSyncActionLoading(true);
@@ -1400,7 +1417,18 @@ export default function CoordinationScreen() {
     }, [activeTab, loadDashboard])
   );
 
-  if (!isAdmin) {
+  const screenPhase = resolveCoordinationScreenPhase({
+    organizationLoading,
+    organizationId,
+    loadedOrganizationId,
+    isAdmin,
+  });
+
+  if (screenPhase === "loading") {
+    return <ScreenLoadingState />;
+  }
+
+  if (screenPhase === "forbidden") {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScreenBackdrop />

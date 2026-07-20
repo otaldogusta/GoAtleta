@@ -16,7 +16,7 @@ import {
   isTrainerPathAllowed,
 } from "../../auth/route-permissions";
 import { Pressable } from "../../ui/Pressable";
-import { WEB_SHELL_MIN_WIDTH, shouldHideWebShellForPath } from "../../ui/AppShell";
+import { WEB_SHELL_MIN_WIDTH } from "../../ui/AppShell";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { radius, shadow } from "../../theme/tokens";
@@ -56,8 +56,7 @@ export function AnimatedBottomTabs({
     /^\/periodization(\/|$)/.test(pathname);
   const hideForWebShell =
     Platform.OS === "web" &&
-    width >= WEB_SHELL_MIN_WIDTH &&
-    !shouldHideWebShellForPath(pathname);
+    width >= WEB_SHELL_MIN_WIDTH;
 
   const tabs = useMemo(() => {
     const baseTabs = ROLE_TABS[role];

@@ -38,6 +38,60 @@ final result: passed
 
 ---
 
+# Design QA — Agrupamento de configurações e conta
+
+- Source visual truth: `artifacts/design-qa/profile-account-cards-polish-desktop.jpg`
+- Implementation screenshot: `artifacts/design-qa/profile-settings-account-grouping-focused.jpg`
+- Full-page implementation screenshot: `artifacts/design-qa/profile-settings-account-grouping-desktop.jpg`
+- Mobile implementation screenshot: `artifacts/design-qa/profile-settings-account-grouping-mobile.jpg`
+- Comparison input: `artifacts/design-qa/profile-settings-account-grouping-comparison.jpg`
+- Viewports verificados: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: perfil administrativo, Google Drive e conta Google conectados
+
+## Full-view comparison evidence
+
+O comparativo antes/depois confirma a nova separação por assunto. `Configurações`
+contém notificações e aparência; `Conta` reúne e-mail, base acadêmica no Google
+Drive, conta Google e saída. A hierarquia superior de perfil e workspace não foi
+alterada.
+
+## Focused region comparison evidence
+
+Referência e implementação foram combinadas no mesmo viewport de 1422 × 800. A
+mudança preserva alturas, bordas, tipografia, ícones, menus e estados dos cartões,
+removendo somente o subtítulo redundante `Segurança da conta` e reposicionando a
+base acadêmica.
+
+## Required fidelity surfaces
+
+- Tipografia: títulos, rótulos e metadados mantêm família, peso, tamanho e truncamento existentes.
+- Espaçamento: o ritmo de 8 px entre linhas e seções foi preservado, sem criar cards aninhados.
+- Cores: todas as superfícies continuam usando os tokens existentes de card, borda e ação.
+- Ativos: o logo oficial do Google Drive e os ícones do registro existente foram preservados.
+- Conteúdo: cada integração aparece uma única vez no bloco correspondente, sem o subtítulo redundante.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+
+## Verificações concluídas
+
+- Ordem confirmada no DOM: `Configurações`, `Notificações`, `Modo escuro`, `Conta`, e-mail, base acadêmica, Google e `Sair`.
+- Os menus de três pontos do Google Drive e da conta Google continuam abrindo como menus globais.
+- O tema claro foi acionado e o tema escuro restaurado sem alterar a organização.
+- Não há overflow horizontal nos três viewports.
+- O console não apresentou erros; permanecem somente avisos conhecidos do React Native Web sobre `pointerEvents` e propriedades legadas de sombra.
+
+## Comparison history
+
+1. A referência mostrava a base acadêmica entre notificações e aparência, e um subtítulo extra antes dos itens de conta.
+2. A base acadêmica foi movida sem alterar sua permissão, estado ou menu; o subtítulo redundante foi removido.
+3. O comparativo final confirmou os dois blocos temáticos e a preservação visual e funcional dos cartões.
+
+final result: passed
+
+---
+
 # Design QA — Correções funcionais do editor integrado
 
 ## Evidências
@@ -207,5 +261,498 @@ Passed.
 - Foram adicionados busca global, convite no cabeçalho, filtros por função e status, cabeçalhos de coluna, status e ações por pessoa, edição contextual de turmas e permissões, chamada prioritária e comunicação.
 - Os módulos secundários iniciam recolhidos e continuam reordenáveis.
 - Diferenças numéricas entre as imagens correspondem aos dados reais da organização autenticada usada no teste.
+
+final result: passed
+
+---
+
+# Design QA — Troca de perfil minimalista
+
+- Source visual truth: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-09424274-d79a-4e2c-988b-6ad828850180.png`
+- Implementation screenshot anterior à correção: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-2fb772cb-2b9c-4201-9025-534a69224331.png`
+- Implementation screenshot posterior à correção: pendente
+- Viewport alvo: 1387 × 917
+- Estado alvo: `/prof/profile`, tema escuro, menu `Trocar` aberto para uma conta autorizada
+
+## Full-view comparison evidence
+
+A referência selecionada e a captura anterior à correção foram abertas e inspecionadas. A captura mostrou o menu atrás do cartão `Workspace(s)` e feedback interativo em toda a linha de perfil. A implementação corrigida ainda precisa de uma nova captura, pois a política de segurança da superfície bloqueia automação em `localhost`. O servidor local respondeu HTTP 200, mas essa verificação não substitui evidência visual.
+
+## Focused region comparison evidence
+
+A região `Perfil` foi comparada entre a referência e a captura anterior à correção. Permanecem pendentes a confirmação visual do menu na camada global e a ausência de hover/click fora do acionador `Trocar`.
+
+## Findings
+
+- [P1] Menu coberto pelo cartão seguinte
+  - Local: `Perfil`, em `/prof/profile`.
+  - Evidência: a captura anterior à correção mostra `Workspace(s)` sobre parte da lista.
+  - Impacto: opções ficam ocultas e a troca de perfil perde legibilidade.
+  - Correção aplicada: lista movida para um `Modal` transparente global, ancorado ao acionador e independente da pilha de `z-index` da página.
+
+- [P2] Linha inteira aparentava ser acionável
+  - Local: linha `Professor / Treinador`.
+  - Evidência: a captura anterior à correção mostra o cartão inteiro no estado interativo.
+  - Impacto: área clicável não corresponde ao affordance `Trocar`.
+  - Correção aplicada: a linha passou a ser estática; somente `Trocar` e sua seta são um `Pressable`.
+
+- [P2] Confirmação visual pós-correção pendente
+  - Local: bloco `Perfil`, com o menu aberto.
+  - Evidência: não há captura renderizada posterior às correções.
+  - Impacto: sobreposição, ancoragem e affordance corrigidos em código ainda precisam de validação visual.
+  - Correção: capturar o estado aberto em 1387 × 917 e comparar com a referência.
+
+## Verificações concluídas
+
+- A troca antiga `Mudar perfil (DEV)` foi removida da composição.
+- O menu usa apenas perfis autorizados: treinador, aluno e nível administrativo.
+- Contas sem mais de um perfil autorizado não recebem o acionador `Trocar`.
+- O preview local permanece restrito à conta de desenvolvimento já autorizada.
+- A lista é renderizada em uma camada global acima do conteúdo da tela.
+- Apenas `Trocar` abre e fecha o menu; a linha de perfil permanece estática.
+- Clique externo, rolagem e `Esc` fecham o menu.
+- Typecheck, teste focado de permissões, higiene de performance e diff check passaram.
+
+## Comparison history
+
+1. Referência selecionada: opção 2, com menu compacto ancorado à direita.
+2. A primeira captura revelou o menu atrás de `Workspace(s)` e a linha inteira acionável.
+3. A lista foi movida para uma camada global e o alvo de clique foi restringido a `Trocar`.
+4. Captura pós-correção pendente pela política de segurança do navegador para `localhost`.
+
+final result: blocked
+
+---
+
+# Design QA — Menu da base acadêmica
+
+- Source visual truth:
+  - `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-cf8cf765-dec6-4502-a760-ccd8dc9274f0.png`
+  - `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-7c09723e-f4a5-4505-b96f-c13fc9a807ce.png`
+- Implementation screenshot: `artifacts/design-qa/profile-academic-drive-menu-mobile.jpg`
+- Comparison input: `artifacts/design-qa/profile-academic-drive-menu-comparison.jpg`
+- Viewports verificados: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: Google Drive conectado, menu contextual aberto
+
+## Full-view comparison evidence
+
+A referência e a implementação foram avaliadas juntas no mesmo comparativo. A implementação preserva a composição do perfil e substitui somente o botão `Gerenciar` por um acionador circular de três pontos, seguindo o padrão existente dos cartões de Turmas. O menu abre em uma camada global, acima dos cartões vizinhos, sem alterar a altura da linha.
+
+## Focused region comparison evidence
+
+O menu mantém a hierarquia da referência — ações operacionais primeiro e ação destrutiva por último — com a linguagem visual do GoAtleta. As opções são `Abrir documentos`, `Sincronizar agora` e `Desconectar`; a última usa a cor de perigo. No mobile, o menu permanece dentro da largura disponível e se ancora ao acionador.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+- Diferenças intencionais: ícones internos foram omitidos para manter o mesmo padrão textual do menu de Turmas; o ícone da base acadêmica permanece no próprio cartão.
+
+## Verificações concluídas
+
+- Somente os três pontos abrem o menu; o cartão não é acionável.
+- Clique externo e `Esc` fecham o menu.
+- A camada contextual aparece acima dos cartões de Configurações.
+- O estado desconectado continua exibindo a ação direta `Conectar`.
+- As três opções aparecem uma única vez em desktop, tablet e mobile.
+- Após recarga limpa, não houve erro de console relacionado ao menu; permaneceram apenas avisos de depreciação já existentes do React Native Web.
+
+## Comparison history
+
+1. A referência definiu o gatilho de três pontos e a ordem das ações.
+2. O padrão de Turmas definiu dimensões, raio, borda, sombra e comportamento de fechamento.
+3. A captura mobile confirmou o posicionamento global, a ausência de recorte horizontal e a hierarquia das ações.
+
+final result: passed
+
+---
+
+# Design QA — Feedback de salvamento da chamada
+
+- Source visual truth: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-75519780-5978-4cab-b64c-a25fb8c113ba.png`
+- Implementation screenshot: pendente
+- Viewport alvo: 1920 × 1280
+- Estado alvo: `/class/c_1767460923209/attendance`, tema escuro, chamada preenchida
+
+## Full-view comparison evidence
+
+A captura de referência foi aberta e analisada anteriormente. A estrutura existente da chamada foi mantida: cabeçalho, data, lista de alunos, controles `Presente`/`Faltou` e ações no rodapé não foram reorganizados. A implementação acrescenta somente o estado textual de persistência junto à ação já existente.
+
+Não há captura renderizada pós-correção. A rota local respondeu HTTP 200, mas isso não substitui a comparação visual exigida.
+
+## Focused region comparison evidence
+
+A região relevante é apenas o rodapé da chamada, onde já existe `Salvar chamada`. O código mantém o botão no mesmo lugar e diferencia os estados `Salvando`, `Sincronizada`, `Salva no dispositivo` e `Offline`. A confirmação visual de espaçamento e quebra de texto em desktop e mobile permanece pendente.
+
+## Findings
+
+- [P1] Salvamento offline era comunicado como sucesso remoto
+  - Local: ação `Salvar chamada`.
+  - Evidência: a camada de dados colocava a escrita na fila local após erro de rede, mas retornava sem informar essa condição; a tela sempre mostrava `Chamada salva com sucesso`.
+  - Impacto: o professor não sabia se a chamada havia chegado ao servidor ou apenas ficado aguardando conexão.
+  - Correção aplicada: a persistência agora retorna `synced` ou `queued`, e a tela apresenta a mensagem correspondente.
+
+- [P2] Ausência de estado persistente após salvar
+  - Local: rodapé da lista.
+  - Evidência: o feedback dependia apenas de um toast temporário.
+  - Impacto: após o toast desaparecer, não havia confirmação visível do estado atual.
+  - Correção aplicada: um indicador discreto permanece junto à ação até que os dados sejam alterados novamente.
+
+- [P2] Estado offline não antecipava o comportamento
+  - Local: rodapé da lista.
+  - Evidência: antes do clique não havia explicação de que a chamada seria armazenada no dispositivo.
+  - Impacto: o usuário podia evitar salvar por receio de perder a chamada.
+  - Correção aplicada: offline, a tela informa que o salvamento será local e que o envio ocorrerá quando a internet voltar.
+
+## Verificações concluídas
+
+- Layout e controles da chamada não foram reorganizados.
+- O botão mantém o estado de carregamento existente.
+- A confirmação remota só usa `Chamada sincronizada` quando o servidor respondeu.
+- Falha de rede com fila disponível usa `Salva no dispositivo` e informa o envio posterior.
+- Falha de rede também na persistência local usa estado de erro.
+- Typecheck, 5 testes focados, higiene de performance, escopo organizacional e diff check passaram.
+- A rota local respondeu HTTP 200.
+
+## Comparison history
+
+1. Os mockups com mudanças de composição foram rejeitados.
+2. O escopo foi reduzido a feedback de salvamento e comportamento offline, preservando a tela atual.
+3. A implementação corrigiu o contrato da camada de dados e adicionou somente os estados de persistência.
+4. Captura pós-correção pendente para validar visualmente o rodapé em desktop e mobile.
+
+final result: blocked
+
+---
+
+# Design QA — Transição de carregamento da Gestão
+
+- Evidência do defeito: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-f510e66e-6791-4da4-b28c-3eb8a4729491.png`
+- Rota: `http://localhost:8081/coord/management`
+- Estado alvo: carregamento inicial em tema escuro
+- Captura posterior à correção: pendente
+
+## Finding
+
+- [P1] Conteúdo liberado entre dois estados de carregamento
+  - Evidência: durante a resolução inicial da organização, o carregamento do dashboard concluía cedo sem uma organização ativa. Quando a organização administrativa aparecia, a tela real era renderizada por um frame antes de a busca de dados reativar `loading`.
+  - Impacto: sequência perceptível `shimmer → conteúdo vazio → shimmer → conteúdo`, com flick e perda de estabilidade visual.
+  - Correção aplicada: a fase da tela agora depende da organização ativa realmente carregada; o dashboard não encerra o loading enquanto o contexto organizacional está pendente e resultados de requisições antigas são descartados.
+
+## Verificações concluídas
+
+- O estado inicial permanece em shimmer até os dados corresponderem à organização ativa.
+- A troca de organização volta ao shimmer sem expor dados da organização anterior.
+- Uma conta sem acesso continua seguindo a tela de permissão negada após a resolução do contexto.
+- Typecheck, 5 testes focados, higiene de performance, escopo organizacional e diff check passaram.
+- A rota local respondeu HTTP 200.
+
+## Confirmação visual pendente
+
+É necessária uma nova observação do carregamento completo para confirmar a ausência do flick temporal; uma captura estática isolada não demonstra a sequência de frames.
+
+final result: blocked
+
+---
+
+# Design QA — Menu da conta Google
+
+- Source visual truth: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-7c09723e-f4a5-4505-b96f-c13fc9a807ce.png`
+- Implementation screenshot: `artifacts/design-qa/profile-google-account-menu-desktop.jpg`
+- Comparison input: `artifacts/design-qa/profile-google-account-menu-comparison.jpg`
+- Viewports verificados: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: conta Google conectada, menu contextual aberto
+
+## Full-view comparison evidence
+
+A implementação mantém a seção `Segurança da conta` e troca apenas os chips de status e desvinculação por uma linha estática com ícone, título, status e acionador de três pontos. A hierarquia e a densidade seguem o padrão já validado na base acadêmica e nos cartões de Turmas.
+
+## Focused region comparison evidence
+
+Referência e implementação foram avaliadas juntas no mesmo comparativo. A ação destrutiva fica recolhida no menu global, com a mesma borda, raio, sombra e cor de perigo do menu da base acadêmica. O menu permanece dentro da viewport e não altera a altura do cartão.
+
+## Required fidelity surfaces
+
+- Tipografia: pesos, tamanhos e truncamento seguem os demais itens do perfil.
+- Espaçamento: ícone de 36 px, acionador de 34 px e ritmo vertical de 58 px preservam a densidade do produto.
+- Cores: superfícies e estados usam os tokens existentes; vermelho aparece somente na ação destrutiva.
+- Ativos: o ícone Google vem do registro de ícones existente, sem substituição visual improvisada.
+- Conteúdo: `Google`, `Conta conectada` e `Desvincular Google` comunicam estado e ação sem duplicação.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+- Diferença intencional: o menu tem apenas uma opção porque a integração de login oferece somente a ação contextual de desvinculação.
+
+## Verificações concluídas
+
+- Somente os três pontos abrem o menu; a linha Google permanece estática.
+- Clique externo e `Esc` fecham o menu.
+- O estado desconectado continua exibindo a ação direta `Conectar`.
+- O menu aparece uma única vez em desktop, tablet e mobile.
+- Nenhum erro ou aviso novo foi registrado no console durante a validação.
+
+## Comparison history
+
+1. A referência definiu o acionador de três pontos e a ação destrutiva recolhida.
+2. O padrão já aplicado à base acadêmica definiu o comportamento e os tokens.
+3. A captura final confirmou a linha estática, o menu global e o posicionamento responsivo.
+
+final result: passed
+
+---
+
+# Design QA — Acabamento dos cartões do perfil
+
+- Source visual truth: anotações do perfil e `artifacts/design-qa/profile-google-account-menu-desktop.jpg`
+- Implementation screenshot: `artifacts/design-qa/profile-account-cards-polish-desktop.jpg`
+- Comparison input: `artifacts/design-qa/profile-account-cards-polish-comparison.jpg`
+- Viewports verificados: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: perfil administrativo, Google Drive e conta Google conectados
+
+## Full-view comparison evidence
+
+O comparativo antes/depois confirma três correções localizadas: a base acadêmica usa a marca colorida oficial do Google Drive, o cartão de e-mail não repete o estado `Confirmado` e os cartões de e-mail e Google adotam a mesma superfície usada pelos demais cartões do perfil.
+
+## Focused region comparison evidence
+
+A região `Configurações` e a seção `Conta` foram alinhadas no mesmo comparativo. A estrutura, tipografia, bordas, altura das linhas e ações permaneceram inalteradas; somente ativo visual, conteúdo redundante e token de superfície foram corrigidos.
+
+## Required fidelity surfaces
+
+- Tipografia: títulos e metadados preservam tamanhos e pesos existentes.
+- Espaçamento: ícone do Drive ocupa 22 px dentro do contêiner de 36 px, sem alterar a linha.
+- Cores: e-mail, Google e `Sair` usam `colors.card`, com borda e raio idênticos.
+- Ativos: o PNG oficial do Google Drive foi usado sem deformação ou recriação.
+- Conteúdo: o selo `Confirmado` foi removido; a confirmação pendente continua tratada pelo aviso global existente.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+
+## Verificações concluídas
+
+- O logo do Google Drive aparece uma única vez com texto alternativo.
+- O texto `Confirmado` não aparece na seção.
+- As superfícies de e-mail, Google e `Sair` resolvem para a mesma cor, borda e raio.
+- Não há overflow horizontal no mobile.
+
+## Comparison history
+
+1. A captura anterior mostrou ícone genérico, selo redundante e cartões com superfície diferente.
+2. O ativo oficial, a remoção do selo e os tokens de card foram aplicados.
+3. O comparativo final confirmou que as três diferenças foram eliminadas.
+
+final result: passed
+
+---
+
+# Design QA — Validação visual de e-mail no cadastro
+
+- Source visual truth: estado inicial capturado em `artifacts/design-qa/signup-missing-email-baseline.jpg` e anotação do usuário na rota `/signup`
+- Implementation screenshot: `artifacts/design-qa/signup-missing-email-desktop.jpg`
+- Mobile implementation screenshot: `artifacts/design-qa/signup-missing-email-mobile.jpg`
+- Animation evidence: `artifacts/design-qa/signup-missing-email-shake-frame.jpg`
+- Comparison input: `artifacts/design-qa/signup-missing-email-comparison.jpg`
+- Viewports verificados: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: envio do cadastro com o campo de e-mail vazio
+
+## Full-view comparison evidence
+
+O comparativo no mesmo viewport mostra que a mensagem textual solta foi substituída
+por um estado visual ancorado diretamente no campo: balão de alerta, seta, borda
+de perigo e foco automático. O restante do formulário, sua densidade e a ação
+primária permanecem inalterados.
+
+## Focused region comparison evidence
+
+A captura durante a animação confirma o deslocamento horizontal curto do conjunto
+balão/campo. A captura estabilizada confirma que a animação termina na posição
+original, mantendo o alerta legível acima do campo e sem sobreposição com a senha.
+
+## Required fidelity surfaces
+
+- Tipografia: o alerta usa 12 px e peso 700, coerente com os feedbacks compactos existentes.
+- Espaçamento: balão, seta e campo preservam o ritmo vertical e não comprimem a ação principal.
+- Cores: borda, balão e ícone usam os tokens semânticos de perigo existentes.
+- Ativos: o alerta usa `warningCircle` do registro de ícones do produto.
+- Conteúdo: `Digite seu e-mail` é curto, direto e localizado no ponto de correção.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+
+## Verificações concluídas
+
+- O campo e o balão vibram por 250 ms e retornam à posição original.
+- O e-mail recebe foco automaticamente após o envio inválido.
+- O alerta possui semântica de acessibilidade e desaparece ao digitar.
+- Não há overflow horizontal em mobile, tablet ou desktop.
+- Nenhum erro de aplicação foi encontrado durante a interação.
+
+## Comparison history
+
+1. O estado original apresentava apenas uma mensagem distante do campo.
+2. Balão, destaque, foco e vibração foram adicionados ao campo de e-mail.
+3. A comparação final confirmou feedback visual imediato, localizado e responsivo.
+
+final result: passed
+
+---
+
+# Design QA — Formato válido de e-mail no cadastro
+
+- Source visual truth: `artifacts/design-qa/signup-missing-email-desktop.jpg` e anotação do usuário na rota `/signup`
+- Implementation screenshot: `artifacts/design-qa/signup-invalid-email-desktop.jpg`
+- Mobile implementation screenshot: `artifacts/design-qa/signup-invalid-email-mobile.jpg`
+- Comparison input: `artifacts/design-qa/signup-invalid-email-comparison.jpg`
+- Viewports verificados: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: tentativa de cadastro com `kjskaj` no campo de e-mail
+
+## Full-view comparison evidence
+
+O comparativo mostra que o padrão visual aprovado para campo vazio foi preservado
+e recebeu uma variação específica para formato inválido. A validação acontece
+antes da tentativa de cadastro e mantém balão, borda, foco e vibração no próprio
+campo.
+
+## Focused region comparison evidence
+
+Os estados vazio e inválido foram avaliados lado a lado no mesmo viewport. Apenas
+o valor digitado e a instrução mudam; tamanho do balão, seta, ícone, borda e ritmo
+do formulário permanecem consistentes.
+
+## Required fidelity surfaces
+
+- Tipografia: a nova instrução mantém tamanho e peso do alerta anterior.
+- Espaçamento: o texto maior cabe no balão sem alterar a largura do campo ou criar sobreposição.
+- Cores: o estado inválido reutiliza os mesmos tokens semânticos de perigo.
+- Ativos: o ícone `warningCircle` existente foi preservado.
+- Conteúdo: `Digite um e-mail válido` diferencia claramente campo vazio de formato inválido.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+
+## Verificações concluídas
+
+- `kjskaj` é bloqueado localmente e exibe o alerta de formato inválido.
+- `nome+teste@exemplo.com.br` é aceito e avança para a validação da senha.
+- O alerta desaparece durante a correção e o foco retorna ao e-mail quando necessário.
+- Não há overflow horizontal em mobile, tablet ou desktop.
+- Nenhum erro de aplicação foi encontrado durante a interação.
+
+## Comparison history
+
+1. O cadastro aceitava qualquer texto para então depender do erro genérico do servidor.
+2. Uma validação local de estrutura `nome@domínio.extensão` foi adicionada.
+3. O comparativo final confirmou a variação visual sem regressão no estado de campo vazio.
+
+final result: passed
+
+---
+
+# Design QA — Carregamento do botão Entrar
+
+- Source visual truth: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-eb2dcea9-8565-46e4-8a18-15d3494c3dbe.png`
+- Baseline local: `artifacts/design-qa/login-button-loading-baseline.jpg`
+- Implementation screenshot: `artifacts/design-qa/login-button-loading-desktop.jpg`
+- Mobile implementation screenshot: `artifacts/design-qa/login-button-loading-mobile.jpg`
+- Comparison input: `artifacts/design-qa/login-button-loading-comparison.jpg`
+- Viewports verificados: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: autenticação por e-mail e senha em andamento
+
+## Full-view comparison evidence
+
+O comparativo antes/depois confirma que o botão preserva largura e altura enquanto
+a autenticação está em andamento. O estado carregando agora combina indicador
+animado visível, texto `Entrando...` e bloqueio de interação.
+
+## Focused region comparison evidence
+
+O botão foi avaliado no mesmo viewport antes e durante a requisição. O conteúdo
+permanece centralizado, o indicador tem contraste suficiente no fundo desabilitado
+e nenhum elemento vizinho muda de posição.
+
+## Required fidelity surfaces
+
+- Tipografia: `Entrando...` preserva tamanho e peso do rótulo original.
+- Espaçamento: indicador e texto usam 8 px de intervalo sem alterar a altura do botão.
+- Cores: indicador e texto usam a cor de conteúdo desabilitado, garantindo contraste no estado ocupado.
+- Ativos: o indicador é o `ActivityIndicator` nativo do React Native.
+- Conteúdo: o verbo no gerúndio comunica claramente que a ação está em andamento.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+
+## Verificações concluídas
+
+- O estado carregando expõe um `progressbar` e o texto `Entrando...`.
+- Cliques repetidos permanecem bloqueados por `busy` e pela trava de requisição existente.
+- O botão retorna ao estado normal após falha de autenticação.
+- Não há overflow horizontal em mobile, tablet ou desktop.
+- Nenhum erro de aplicação foi encontrado durante a interação.
+
+## Comparison history
+
+1. A referência mostrava apenas `Entrar` em um botão visualmente desabilitado.
+2. O indicador recebeu contraste e o componente passou a aceitar um rótulo específico de carregamento.
+3. A captura final confirmou animação visível e estabilidade de layout.
+
+final result: passed
+
+---
+
+# Design QA — Menu flutuante de perfil na barra lateral
+
+- Source visual truth: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-d82e66dd-a783-4ecd-848a-e94f7202640d.png`
+- Implementation screenshot: `artifacts/profile-menu-open-final.png`
+- Expanded-sidebar screenshot: `artifacts/profile-menu-expanded-1440x1024.png`
+- Comparison input: `artifacts/profile-menu-source-vs-final.jpg`
+- Viewports solicitados e verificados: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: menu de perfil aberto a partir do avatar na barra compacta, tema escuro
+
+## Full-view comparison evidence
+
+O comparativo lado a lado confirma a mesma estrutura da referência: card elevado,
+identidade no topo, separadores, ações em lista e ancoragem imediatamente acima
+do avatar. O card permanece sobre o conteúdo sem ser cortado pela barra lateral.
+
+## Focused region comparison evidence
+
+O recorte do menu e do avatar foi normalizado ao tamanho da referência. A
+implementação preserva a hierarquia visual do card do GPT, mas substitui ações
+sem correspondência no produto por perfil, configurações, troca autorizada de
+perfil e saída.
+
+## Required fidelity surfaces
+
+- Tipografia: nome, função, títulos e metadados usam a hierarquia do GoAtleta com contraste equivalente à referência.
+- Espaçamento: cabeçalho, linhas, separadores e rodapé mantêm ritmo uniforme e alvos de toque de pelo menos 44 px.
+- Cores: o card usa a superfície navy existente, verde somente para o perfil ativo e vermelho discreto para sair.
+- Ativos: todos os símbolos usam o registro existente de ícones Ionicons; não há desenho improvisado.
+- Conteúdo: as opções exibidas correspondem a rotas, permissões e ações reais do GoAtleta.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+- P3 aceito: o card é mais compacto que a referência para respeitar a densidade da Home do professor.
+
+## Verificações concluídas
+
+- O avatar abre e fecha o card sem expandir a barra lateral.
+- Clique fora, tecla `Esc` e mudança de rota fecham o menu.
+- `Perfil e configurações` navega para `/prof/profile` sem recarregar a aplicação.
+- A troca de perfil só aparece para contas com permissão e preserva o perfil ativo.
+- O mesmo card funciona na barra expandida e permanece acima do scrim.
+- Mobile e tablet mantêm a navegação original sem overflow horizontal.
+- Nenhum erro de aplicação foi encontrado; apenas avisos conhecidos do React Native Web sobre `pointerEvents` e sombras legadas.
+
+## Comparison history
+
+1. O avatar compacto expandia a barra inteira e não abria um menu próprio.
+2. O card flutuante foi adicionado com conteúdo funcional, fechamento externo e suporte a teclado.
+3. O contraste do perfil ativo foi reforçado após a primeira comparação.
+4. A comparação final confirmou ancoragem, legibilidade e fidelidade estrutural.
 
 final result: passed

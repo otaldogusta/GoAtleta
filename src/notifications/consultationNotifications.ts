@@ -51,7 +51,7 @@ export async function notifyConsultationEvent(
 
     const actionUrl = notification.recipientRole === "student"
       ? "/student-consultation"
-      : "/consultation";
+      : "/prof/consultation";
     await addNotification(notification.title, notification.body, {
       type: "consultation_event",
       organizationId: payload.organizationId,
@@ -78,7 +78,10 @@ export async function notifyConsultationEvent(
           title: notification.title,
           body: notification.body,
           data: {
-            route: notification.recipientRole === "student" ? "/student-consultation" : "/consultation",
+            route:
+              notification.recipientRole === "student"
+                ? "/student-consultation"
+                : "/prof/consultation",
             params: {
               event: payload.event,
               studentId: payload.studentId,

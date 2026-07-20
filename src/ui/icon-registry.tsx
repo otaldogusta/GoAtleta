@@ -93,6 +93,7 @@ export const GOATLETA_ICON_NAMES = {
   upload: "cloud-upload-outline",
   download: "cloud-download-outline",
   cloudDone: "cloud-done-outline",
+  cloudOffline: "cloud-offline-outline",
   save: "save-outline",
   sync: "sync-outline",
   refresh: "refresh",
