@@ -70,6 +70,16 @@ const profileSwitchLabels: Record<ProfilePreviewId, string> = {
   admin: "Coordenação",
 };
 
+const getProfileMenuOptionStyle = (selected: boolean) => ({
+  minHeight: 44,
+  paddingHorizontal: 12,
+  borderRadius: radius.internal,
+  flexDirection: "row" as const,
+  alignItems: "center" as const,
+  justifyContent: "space-between" as const,
+  backgroundColor: selected ? "rgba(86, 214, 154, 0.10)" : "transparent",
+});
+
 // perf-check: ignore-render
 // perf-check: ignore-measure
 export default function ProfileScreen() {
@@ -1968,17 +1978,7 @@ export default function ProfileScreen() {
                     onPress={() => {
                       void applyProfilePreview(profileId);
                     }}
-                    style={{
-                      minHeight: 44,
-                      paddingHorizontal: 12,
-                      borderRadius: radius.internal,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      backgroundColor: selected
-                        ? "rgba(86, 214, 154, 0.10)"
-                        : "transparent",
-                    }}
+                    style={getProfileMenuOptionStyle(selected)}
                   >
                     <Text
                       style={{
