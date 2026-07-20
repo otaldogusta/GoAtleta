@@ -570,6 +570,7 @@ export async function disconnectPersonalAcademicDrive(params: {
 export async function syncPersonalAcademicDrive(params: {
   organizationId?: string | null;
   folderUrl?: string;
+  fileIds?: string[];
   maxFiles?: number;
   dryRun?: boolean;
 }): Promise<AcademicDriveSyncResult> {
@@ -624,6 +625,7 @@ export async function syncPersonalAcademicDrive(params: {
           folderUrl:
             textValue(params.folderUrl, 500) ||
             DEFAULT_PERSONAL_ACADEMIC_DRIVE_URL,
+          fileIds: params.fileIds,
           maxFiles,
           batchSize: 4,
           cursor,
