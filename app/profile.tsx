@@ -80,6 +80,12 @@ const getProfileMenuOptionStyle = (selected: boolean) => ({
   backgroundColor: selected ? "rgba(86, 214, 154, 0.10)" : "transparent",
 });
 
+const getProfileMenuOptionTextStyle = (selected: boolean, color: string) => ({
+  color,
+  fontSize: 14,
+  fontWeight: selected ? ("700" as const) : ("600" as const),
+});
+
 // perf-check: ignore-render
 // perf-check: ignore-measure
 export default function ProfileScreen() {
@@ -1981,11 +1987,7 @@ export default function ProfileScreen() {
                     style={getProfileMenuOptionStyle(selected)}
                   >
                     <Text
-                      style={{
-                        color: colors.text,
-                        fontSize: 14,
-                        fontWeight: selected ? "700" : "600",
-                      }}
+                      style={getProfileMenuOptionTextStyle(selected, colors.text)}
                     >
                       {profileSwitchLabels[profileId]}
                     </Text>
