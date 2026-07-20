@@ -46,6 +46,7 @@ import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { useEffectiveProfile } from "../src/core/effective-profile";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
+import { VercelWebAnalytics } from "../src/observability/VercelWebAnalytics";
 import { OrganizationProvider, useOptionalOrganization } from "../src/providers/OrganizationProvider";
 import {
     ensureAndroidNotificationChannel,
@@ -973,18 +974,21 @@ function RootLayout() {
   }, []);
 
   return (
-    <AppThemeProvider>
-      <Sentry.ErrorBoundary
-        fallback={({ error, resetError }) => (
-          <RootErrorFallback error={error} resetError={resetError} />
-        )}
-        showDialog={false}
-      >
-        <BootstrapProvider>
-          <BootstrapAuthProviders />
-        </BootstrapProvider>
-      </Sentry.ErrorBoundary>
-    </AppThemeProvider>
+    <>
+      <VercelWebAnalytics />
+      <AppThemeProvider>
+        <Sentry.ErrorBoundary
+          fallback={({ error, resetError }) => (
+            <RootErrorFallback error={error} resetError={resetError} />
+          )}
+          showDialog={false}
+        >
+          <BootstrapProvider>
+            <BootstrapAuthProviders />
+          </BootstrapProvider>
+        </Sentry.ErrorBoundary>
+      </AppThemeProvider>
+    </>
   );
 }
 
