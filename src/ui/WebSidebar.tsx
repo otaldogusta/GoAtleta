@@ -9,13 +9,16 @@ import {
   isTrainerPathAllowed,
 } from "../auth/route-permissions";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
-import type { DevProfilePreview } from "../dev/profile-preview";
 import { getScopedProfilePath } from "../navigation/profile-routes";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { brandPalette, radius } from "../theme/tokens";
 import { Pressable } from "./Pressable";
 import { decorativeIconProps } from "./decorative-icon-props";
 import { GoAtletaIcon, type GoAtletaIconName } from "./icon-registry";
+import {
+  resolveVisibleProfileSwitchIds,
+  type ProfileSwitchId,
+} from "./profile-switch-options";
 import { webShellTokens } from "./web-shell-tokens";
 
 type WebSidebarProps = {
@@ -29,8 +32,6 @@ type SidebarItem = {
   icon: GoAtletaIconName;
   badge?: string;
 };
-
-type ProfileSwitchId = Exclude<DevProfilePreview, "auto">;
 
 const SIDEBAR_COMPACT_WIDTH = 88;
 const SIDEBAR_EXPANDED_WIDTH = 292;
@@ -363,11 +364,13 @@ export function WebSidebar({ role }: WebSidebarProps) {
     [hasHybridAccount, refreshRole, router, setActiveRole, setDevProfilePreview]
   );
 
-  const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) => {
-    if (!hasHybridAccount) return true;
-    if (option.id === "student") return true;
-    return option.id === "professor";
+  const visibleProfileSwitchIds = resolveVisibleProfileSwitchIds({
+    hasHybridAccount,
+    isOrgAdmin,
   });
+  const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) =>
+    visibleProfileSwitchIds.includes(option.id)
+  );
 
   const compactTabs = ROLE_TABS[role].filter((tab) => !tab.isCenter);
   const tabItems = compactTabs.map((tab) => ({
