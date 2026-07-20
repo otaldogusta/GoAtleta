@@ -3,7 +3,7 @@ import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";
 
 type SyncStatusBadgeProps = {
-  status: "saving" | "saved_local" | "synced" | "error";
+  status: "saving" | "saved_local" | "synced" | "error" | "offline";
   message?: string;
   size?: "sm" | "md";
 };
@@ -44,8 +44,14 @@ export function SyncStatusBadge({
     error: {
       icon: "warningCircle" as const,
       text: message || "Erro ao sincronizar",
-      bg: "#fee",
-      color: "#c33",
+      bg: colors.dangerBg,
+      color: colors.dangerText,
+    },
+    offline: {
+      icon: "cloudOffline" as const,
+      text: message || "Offline",
+      bg: colors.warningBg,
+      color: colors.warningText,
     },
   };
 
@@ -53,6 +59,7 @@ export function SyncStatusBadge({
 
   return (
     <View
+      accessibilityLiveRegion="polite"
       style={{
         flexDirection: "row",
         alignItems: "center",

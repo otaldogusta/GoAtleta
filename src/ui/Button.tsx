@@ -13,6 +13,7 @@ export function Button({
   disabled = false,
   disabledOpacity = 0.7,
   loading = false,
+  loadingLabel,
 }: {
   label: string;
   onPress: () => void;
@@ -28,6 +29,7 @@ export function Button({
   disabled?: boolean;
   disabledOpacity?: number;
   loading?: boolean;
+  loadingLabel?: string;
 }) {
   const { colors } = useAppTheme();
   const palette = {
@@ -81,8 +83,11 @@ export function Button({
     variant === "primary" || variant === "ghost" ? 0 : 1;
 
   const isDisabled = disabled || loading;
-  const indicatorColor =
-    variant === "primary" ? colors.primaryText : selected.text;
+  const indicatorColor = isDisabled
+    ? disabledText
+    : variant === "primary"
+      ? colors.primaryText
+      : selected.text;
 
   return (
     <Pressable
@@ -114,7 +119,7 @@ export function Button({
             fontWeight: "700",
           }}
         >
-          {label}
+          {loading ? loadingLabel ?? label : label}
         </Text>
       </View>
     </Pressable>

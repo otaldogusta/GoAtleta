@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 // perf-check: ignore-inline-row-style - tela piloto usa composição local com chips/listas pequenas; extração fica para consolidação pós-piloto.
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Animated, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
@@ -295,7 +295,7 @@ const ConsultationField = ({
   </View>
 );
 
-export default function ConsultationScreen() {
+export function ConsultationScreen() {
   markRender("screen.consultation.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
@@ -1856,4 +1856,8 @@ export default function ConsultationScreen() {
       />
     </SafeAreaView>
   );
+}
+
+export default function LegacyConsultationRoute() {
+  return <Redirect href="/prof/consultation" />;
 }

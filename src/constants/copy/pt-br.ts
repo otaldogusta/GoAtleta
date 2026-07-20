@@ -59,6 +59,7 @@ export const ptBR = {
       calendar: "Carregando calendário...",
       classes: "Carregando turmas...",
       communication: "Carregando comunicação...",
+      consultation: "Carregando consultoria...",
       dashboard: "Carregando painel...",
       events: "Carregando eventos...",
       exercises: "Carregando exercícios...",

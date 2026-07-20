@@ -2,8 +2,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { usePathname, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Modal, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 
@@ -51,9 +60,15 @@ import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { radius, shadow } from "../src/theme/tokens";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
+import { resolveAuthorizedProfileSwitchIds } from "../src/ui/profile-switch-options";
 
 type ProfilePreviewId = Exclude<DevProfilePreview, "auto">;
 
+const profileSwitchLabels: Record<ProfilePreviewId, string> = {
+  professor: "Professor",
+  student: "Aluno",
+  admin: "Coordenação",
+};
 
 // perf-check: ignore-render
 // perf-check: ignore-measure
@@ -74,9 +89,16 @@ export default function ProfileScreen() {
   }, []);
 
   const { colors, mode, toggleMode } = useAppTheme();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const { confirm } = useConfirmDialog();
   const { signOut, session, resendSignupCode, signInWithOAuth, unlinkIdentityProvider } = useAuth();
-  const { role: userRole, student, refresh: refreshRole } = useRole();
+  const {
+    role: userRole,
+    availableRoles,
+    student,
+    refresh: refreshRole,
+    setActiveRole,
+  } = useRole();
   const { organizations, activeOrganization, setActiveOrganizationId, devProfilePreview, setDevProfilePreview } = useOrganization();
   const {
     isEnabled: biometricsEnabled,
@@ -95,15 +117,36 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileMenuAnchor, setProfileMenuAnchor] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [updatingBiometrics, setUpdatingBiometrics] = useState(false);
   const [unlinkingGoogle, setUnlinkingGoogle] = useState(false);
+  const [googleMenuOpen, setGoogleMenuOpen] = useState(false);
+  const [googleMenuAnchor, setGoogleMenuAnchor] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
   const [academicDriveStatus, setAcademicDriveStatus] =
     useState<AcademicDriveOAuthStatus>({ status: "not_connected" });
-  const [academicDriveBusy, setAcademicDriveBusy] = useState(false);
+  const [academicDriveMenuOpen, setAcademicDriveMenuOpen] = useState(false);
+  const [academicDriveMenuAnchor, setAcademicDriveMenuAnchor] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const [academicDriveOperation, setAcademicDriveOperation] = useState<
+    "idle" | "connecting" | "syncing" | "disconnecting"
+  >("idle");
   const [canManageAcademicKnowledge, setCanManageAcademicKnowledge] =
     useState(false);
+  const academicDriveBusy = academicDriveOperation !== "idle";
+  const profileMenuTriggerRef = useRef<View | null>(null);
+  const academicDriveMenuTriggerRef = useRef<View | null>(null);
+  const googleMenuTriggerRef = useRef<View | null>(null);
   const photoSheetStyle = useModalCardStyle({
     maxHeight: "70%",
     radius: 22,
@@ -240,13 +283,185 @@ export default function ProfileScreen() {
 
   const loadingProfile = loadingClasses || loadingPhoto;
   const showWorkspaceSwitcher = !student && organizations.length > 1;
-  const isDevUser = session?.user?.email === "gusantinho753@gmail.com";
+  const hasTrainerRole = userRole === "trainer" || availableRoles.includes("trainer");
+  const hasStudentRole = userRole === "student" || availableRoles.includes("student");
+  const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+  const canUseDevPreview =
+    __DEV__ &&
+    session?.user?.email === "gusantinho753@gmail.com" &&
+    Boolean(setDevProfilePreview);
+  const authorizedProfileSwitchIds = useMemo(
+    () =>
+      resolveAuthorizedProfileSwitchIds({
+        hasTrainerRole,
+        hasStudentRole,
+        isOrgAdmin,
+        canUseDevPreview,
+      }),
+    [canUseDevPreview, hasStudentRole, hasTrainerRole, isOrgAdmin],
+  );
+  const canSwitchProfile = authorizedProfileSwitchIds.length > 1;
+  const closeProfileMenu = useCallback(() => {
+    setProfileMenuOpen(false);
+    setProfileMenuAnchor(null);
+  }, []);
+  const closeAcademicDriveMenu = useCallback(() => {
+    setAcademicDriveMenuOpen(false);
+    setAcademicDriveMenuAnchor(null);
+  }, []);
+  const closeGoogleMenu = useCallback(() => {
+    setGoogleMenuOpen(false);
+    setGoogleMenuAnchor(null);
+  }, []);
+
+  const toggleProfileMenu = useCallback(() => {
+    if (!canSwitchProfile) return;
+    closeAcademicDriveMenu();
+    closeGoogleMenu();
+    if (profileMenuOpen) {
+      closeProfileMenu();
+      return;
+    }
+
+    const trigger = profileMenuTriggerRef.current;
+    if (!trigger) return;
+    const menuHeight = authorizedProfileSwitchIds.length * 44 + 16;
+    const setMeasuredAnchor = (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+    ) => {
+      const belowTop = y + height + 8;
+      const top =
+        belowTop + menuHeight <= viewportHeight - 16
+          ? belowTop
+          : Math.max(16, y - menuHeight - 8);
+      setProfileMenuAnchor({
+        top,
+        right: Math.max(16, viewportWidth - (x + width)),
+      });
+      setProfileMenuOpen(true);
+    };
+
+    const webTrigger = trigger as unknown as HTMLElement;
+    if (Platform.OS === "web" && webTrigger.getBoundingClientRect) {
+      const rect = webTrigger.getBoundingClientRect();
+      setMeasuredAnchor(rect.left, rect.top, rect.width, rect.height);
+      return;
+    }
+
+    trigger.measureInWindow(setMeasuredAnchor);
+  }, [
+    authorizedProfileSwitchIds.length,
+    canSwitchProfile,
+    closeAcademicDriveMenu,
+    closeGoogleMenu,
+    closeProfileMenu,
+    profileMenuOpen,
+    viewportHeight,
+    viewportWidth,
+  ]);
+
+  const toggleAcademicDriveMenu = useCallback(() => {
+    if (
+      academicDriveStatus.status !== "connected" ||
+      academicDriveBusy
+    ) {
+      return;
+    }
+    if (academicDriveMenuOpen) {
+      closeAcademicDriveMenu();
+      return;
+    }
+
+    const trigger = academicDriveMenuTriggerRef.current;
+    if (!trigger) return;
+    closeGoogleMenu();
+    closeProfileMenu();
+
+    const menuHeight = 126;
+    const setMeasuredAnchor = (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+    ) => {
+      const belowTop = y + height + 6;
+      const top =
+        belowTop + menuHeight <= viewportHeight - 12
+          ? belowTop
+          : Math.max(12, y - menuHeight - 6);
+      setAcademicDriveMenuAnchor({
+        top,
+        right: Math.max(12, viewportWidth - (x + width)),
+      });
+      setAcademicDriveMenuOpen(true);
+    };
+
+    const webTrigger = trigger as unknown as HTMLElement;
+    if (Platform.OS === "web" && webTrigger.getBoundingClientRect) {
+      const rect = webTrigger.getBoundingClientRect();
+      setMeasuredAnchor(rect.left, rect.top, rect.width, rect.height);
+      return;
+    }
+
+    trigger.measureInWindow(setMeasuredAnchor);
+  }, [
+    academicDriveBusy,
+    academicDriveMenuOpen,
+    academicDriveStatus.status,
+    closeAcademicDriveMenu,
+    closeGoogleMenu,
+    closeProfileMenu,
+    viewportHeight,
+    viewportWidth,
+  ]);
+
+  useEffect(() => {
+    if (!profileMenuOpen || typeof document === "undefined") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeProfileMenu();
+    };
+
+    document.addEventListener("scroll", closeProfileMenu, true);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("scroll", closeProfileMenu, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeProfileMenu, profileMenuOpen]);
+
+  useEffect(() => {
+    if (!academicDriveMenuOpen || typeof document === "undefined") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeAcademicDriveMenu();
+    };
+
+    document.addEventListener("scroll", closeAcademicDriveMenu, true);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("scroll", closeAcademicDriveMenu, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [academicDriveMenuOpen, closeAcademicDriveMenu]);
+
+  useEffect(() => {
+    if (academicDriveStatus.status !== "connected") {
+      closeAcademicDriveMenu();
+    }
+  }, [academicDriveStatus.status, closeAcademicDriveMenu]);
 
   const handleAcademicDrive = useCallback(async () => {
     if (!activeOrganization?.id || Platform.OS !== "web") return;
-    setAcademicDriveBusy(true);
+    const isConnected = academicDriveStatus.status === "connected";
+    setAcademicDriveOperation(isConnected ? "syncing" : "connecting");
     try {
-      if (academicDriveStatus.status !== "connected") {
+      if (!isConnected) {
         const redirectTo =
           typeof window !== "undefined"
             ? `${window.location.origin}${pathname}`
@@ -292,7 +507,7 @@ export default function ProfileScreen() {
         }),
       );
     } finally {
-      setAcademicDriveBusy(false);
+      setAcademicDriveOperation("idle");
     }
   }, [
     academicDriveStatus.status,
@@ -310,7 +525,7 @@ export default function ProfileScreen() {
       cancelLabel: "Cancelar",
       tone: "danger",
       onConfirm: async () => {
-        setAcademicDriveBusy(true);
+        setAcademicDriveOperation("disconnecting");
         try {
           const result = await disconnectPersonalAcademicDrive({
             organizationId: activeOrganization.id,
@@ -328,7 +543,7 @@ export default function ProfileScreen() {
             result.warning || "Não foi possível desconectar o Google Drive.",
           );
         } finally {
-          setAcademicDriveBusy(false);
+          setAcademicDriveOperation("idle");
         }
       },
     });
@@ -467,6 +682,111 @@ export default function ProfileScreen() {
     session?.user?.user_metadata,
   ]);
 
+  const toggleGoogleMenu = useCallback(() => {
+    if (!accountSecurity.googleConnected || unlinkingGoogle) return;
+    if (googleMenuOpen) {
+      closeGoogleMenu();
+      return;
+    }
+
+    const trigger = googleMenuTriggerRef.current;
+    if (!trigger) return;
+    closeAcademicDriveMenu();
+    closeProfileMenu();
+
+    const menuHeight = 48;
+    const setMeasuredAnchor = (
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+    ) => {
+      const belowTop = y + height + 6;
+      const top =
+        belowTop + menuHeight <= viewportHeight - 12
+          ? belowTop
+          : Math.max(12, y - menuHeight - 6);
+      setGoogleMenuAnchor({
+        top,
+        right: Math.max(12, viewportWidth - (x + width)),
+      });
+      setGoogleMenuOpen(true);
+    };
+
+    const webTrigger = trigger as unknown as HTMLElement;
+    if (Platform.OS === "web" && webTrigger.getBoundingClientRect) {
+      const rect = webTrigger.getBoundingClientRect();
+      setMeasuredAnchor(rect.left, rect.top, rect.width, rect.height);
+      return;
+    }
+
+    trigger.measureInWindow(setMeasuredAnchor);
+  }, [
+    accountSecurity.googleConnected,
+    closeAcademicDriveMenu,
+    closeGoogleMenu,
+    closeProfileMenu,
+    googleMenuOpen,
+    unlinkingGoogle,
+    viewportHeight,
+    viewportWidth,
+  ]);
+
+  useEffect(() => {
+    if (!googleMenuOpen || typeof document === "undefined") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeGoogleMenu();
+    };
+
+    document.addEventListener("scroll", closeGoogleMenu, true);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("scroll", closeGoogleMenu, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeGoogleMenu, googleMenuOpen]);
+
+  useEffect(() => {
+    if (!accountSecurity.googleConnected) {
+      closeGoogleMenu();
+    }
+  }, [accountSecurity.googleConnected, closeGoogleMenu]);
+
+  const handleUnlinkGoogle = useCallback(() => {
+    if (!accountSecurity.canUnlinkGoogle) {
+      Alert.alert(
+        "Mantenha um acesso",
+        "Configure outro método de login antes de desvincular o Google.",
+      );
+      return;
+    }
+    confirm({
+      title: "Desvincular Google",
+      message:
+        "Isso remove apenas o acesso pelo Google. Sua conta, seus dados e os outros métodos de login serão mantidos.",
+      confirmLabel: "Desvincular",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        try {
+          setUnlinkingGoogle(true);
+          await unlinkIdentityProvider("google");
+          Alert.alert("Google", "Conta Google desvinculada com sucesso.");
+        } catch (error) {
+          const detail =
+            error instanceof Error
+              ? error.message
+              : "Não foi possível desvincular agora.";
+          Alert.alert("Google", detail);
+        } finally {
+          setUnlinkingGoogle(false);
+        }
+      },
+    });
+  }, [accountSecurity.canUnlinkGoogle, confirm, unlinkIdentityProvider]);
+
   const handleOrganizationChange = useCallback(
     async (orgId: string) => {
       if (activeOrganization?.id === orgId) return;
@@ -555,19 +875,40 @@ export default function ProfileScreen() {
     }
   }, [biometricsEnabled, session, setBiometricsEnabled, updatingBiometrics]);
 
-  const applyProfilePreview = useCallback(async (preview: ProfilePreviewId) => {
-    await setDevProfilePreview(preview);
-    await refreshRole();
-    // Navega diretamente para a rota certa sem passar por index.tsx
-    // (evita race condition onde index.tsx ainda lê o perfil antigo)
-    if (preview === "student") {
-      router.replace("/student/home" as Parameters<typeof router.replace>[0]);
-    } else if (preview === "professor") {
-      router.replace("/prof/home" as Parameters<typeof router.replace>[0]);
-    } else {
-      router.replace("/coord/dashboard" as Parameters<typeof router.replace>[0]);
-    }
-  }, [setDevProfilePreview, refreshRole, router]);
+  const applyProfilePreview = useCallback(
+    async (preview: ProfilePreviewId) => {
+      if (!authorizedProfileSwitchIds.includes(preview)) return;
+      closeProfileMenu();
+
+      if (canUseDevPreview) {
+        await setDevProfilePreview(preview);
+        await refreshRole();
+      } else {
+        await setDevProfilePreview("auto");
+        const nextRole = preview === "student" ? "student" : "trainer";
+        const changed = await setActiveRole(nextRole);
+        if (!changed && userRole !== nextRole) return;
+      }
+
+      if (preview === "student") {
+        router.replace("/student/home" as Parameters<typeof router.replace>[0]);
+      } else if (preview === "professor") {
+        router.replace("/prof/home" as Parameters<typeof router.replace>[0]);
+      } else {
+        router.replace("/coord/dashboard" as Parameters<typeof router.replace>[0]);
+      }
+    },
+    [
+      authorizedProfileSwitchIds,
+      canUseDevPreview,
+      closeProfileMenu,
+      refreshRole,
+      router,
+      setActiveRole,
+      setDevProfilePreview,
+      userRole,
+    ],
+  );
 
   const savePhoto = async (uri: string | null) => {
     const previousPhotoUri = photoUri;
@@ -805,7 +1146,43 @@ export default function ProfileScreen() {
             iconBg="rgba(255, 185, 136, 0.16)"
             label={profileDisplay.label}
             subtitle={profileDisplay.subtitle}
-            rightContent={<View />}
+            rightContent={
+              canSwitchProfile ? (
+                <View ref={profileMenuTriggerRef}>
+                  <Pressable
+                    accessibilityLabel="Trocar perfil"
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: profileMenuOpen }}
+                    onPress={toggleProfileMenu}
+                    style={{
+                      minHeight: 36,
+                      paddingHorizontal: 10,
+                      borderRadius: radius.internal,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.primaryBg,
+                        fontSize: 13,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Trocar
+                    </Text>
+                    <GoAtletaIcon
+                      name={profileMenuOpen ? "chevronUp" : "chevronDown"}
+                      size={16}
+                      color={colors.text}
+                    />
+                  </Pressable>
+                </View>
+              ) : (
+                <View />
+              )
+            }
           />
         </View>
 
@@ -867,49 +1244,6 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        {isDevUser ? (
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-              Mudar perfil (DEV)
-            </Text>
-            <View style={{ gap: 8 }}>
-              <SettingsRow
-                icon="professor"
-                iconBg="rgba(255, 210, 150, 0.16)"
-                label="Ver como Professor"
-                onPress={() => applyProfilePreview("professor")}
-                rightContent={
-                  selectedProfilePreview === "professor" ? (
-                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
-                  ) : undefined
-                }
-              />
-              <SettingsRow
-                icon="student"
-                iconBg="rgba(150, 200, 255, 0.16)"
-                label="Ver como Aluno"
-                onPress={() => applyProfilePreview("student")}
-                rightContent={
-                  selectedProfilePreview === "student" ? (
-                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
-                  ) : undefined
-                }
-              />
-              <SettingsRow
-                icon="coordination"
-                iconBg="rgba(140, 220, 180, 0.16)"
-                label="Ver como Coordenação (Admin)"
-                onPress={() => applyProfilePreview("admin")}
-                rightContent={
-                  selectedProfilePreview === "admin" ? (
-                    <GoAtletaIcon name="checkmarkCircle" size={20} color={colors.primaryBg} />
-                  ) : undefined
-                }
-              />
-            </View>
-          </View>
-        ) : null}
-
         <>
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
@@ -943,73 +1277,6 @@ export default function ProfileScreen() {
                   </View>
                 }
               />
-              {!student &&
-              Platform.OS === "web" &&
-              canManageAcademicKnowledge ? (
-                <View style={{ gap: 6 }}>
-                  <SettingsRow
-                    icon="documentAttach"
-                    iconBg="rgba(86, 214, 154, 0.14)"
-                    label="Base acadêmica"
-                    subtitle={
-                      academicDriveStatus.status === "connected"
-                        ? academicDriveStatus.googleAccountEmail
-                          ? `Google Drive conectado: ${academicDriveStatus.googleAccountEmail}`
-                          : "Google Drive conectado · toque para sincronizar"
-                        : "Conecte seu Google Drive com acesso somente leitura"
-                    }
-                    onPress={() => {
-                      if (academicDriveStatus.status === "connected") {
-                        router.push("/academic-knowledge");
-                      } else {
-                        void handleAcademicDrive();
-                      }
-                    }}
-                    rightContent={
-                      <View
-                        style={{
-                          paddingVertical: 5,
-                          paddingHorizontal: 10,
-                          borderRadius: 999,
-                          backgroundColor:
-                            academicDriveStatus.status === "connected"
-                              ? colors.primaryBg
-                              : colors.secondaryBg,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color:
-                              academicDriveStatus.status === "connected"
-                                ? colors.primaryText
-                                : colors.text,
-                            fontWeight: "700",
-                            fontSize: 12,
-                          }}
-                        >
-                          {academicDriveBusy
-                            ? "..."
-                            : academicDriveStatus.status === "connected"
-                              ? "Gerenciar"
-                              : "Conectar"}
-                        </Text>
-                      </View>
-                    }
-                  />
-                  {academicDriveStatus.status === "connected" ? (
-                    <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
-                      <Pressable onPress={() => void handleAcademicDrive()} style={{ paddingVertical: 6, paddingHorizontal: 8 }}>
-                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>Sincronizar agora</Text>
-                      </Pressable>
-                      <Pressable disabled={academicDriveBusy} onPress={handleDisconnectAcademicDrive} style={{ paddingVertical: 6, paddingHorizontal: 8 }}>
-                        <Text style={{ color: colors.dangerSolidBg, fontSize: 12, fontWeight: "700" }}>Desconectar</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
               {Platform.OS !== "web" ? (
                 <SettingsRow
                   icon="biometrics"
@@ -1086,15 +1353,12 @@ export default function ProfileScreen() {
 
             <View style={{ gap: 8 }}>
               <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Conta</Text>
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
-                Segurança da conta
-              </Text>
               <View
                 style={{
-                  borderRadius: 12,
+                  borderRadius: radius.card,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
+                  backgroundColor: colors.card,
                   paddingHorizontal: 12,
                   paddingVertical: 11,
                   flexDirection: "row",
@@ -1109,131 +1373,291 @@ export default function ProfileScreen() {
                     {accountSecurity.loginLabel}
                   </Text>
                 </View>
+              </View>
+
+              {!student &&
+              Platform.OS === "web" &&
+              canManageAcademicKnowledge ? (
                 <View
                   style={{
-                    borderRadius: 999,
+                    width: "100%",
+                    maxWidth: "100%",
+                    minWidth: 0,
+                    overflow: "hidden",
+                    borderRadius: radius.card,
+                    backgroundColor: colors.card,
                     borderWidth: 1,
                     borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
                   }}
                 >
-                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
-                    {accountSecurity.emailConfirmed ? "Confirmado" : "Pendente"}
-                  </Text>
+                  <View
+                    style={{
+                      minHeight: 58,
+                      paddingVertical: 10,
+                      paddingHorizontal: 8,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          backgroundColor: colors.secondaryBg,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Image
+                          source={require("../assets/images/google-drive-logo.png")}
+                          accessibilityLabel="Google Drive"
+                          contentFit="contain"
+                          style={{ width: 22, height: 22 }}
+                        />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                        <Text style={{ color: colors.text, fontWeight: "600" }}>
+                          Base acadêmica
+                        </Text>
+                        <Text
+                          style={{
+                            color: colors.muted,
+                            fontSize: 12,
+                            marginTop: 2,
+                          }}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {academicDriveOperation === "syncing"
+                            ? "Sincronizando Google Drive..."
+                            : academicDriveOperation === "disconnecting"
+                              ? "Desconectando Google Drive..."
+                              : academicDriveStatus.status === "connected"
+                                ? academicDriveStatus.googleAccountEmail
+                                  ? `Google Drive conectado: ${academicDriveStatus.googleAccountEmail}`
+                                  : "Google Drive conectado"
+                                : "Conecte seu Google Drive com acesso somente leitura"}
+                        </Text>
+                      </View>
+                    </View>
+                    {academicDriveStatus.status === "connected" ? (
+                      <View ref={academicDriveMenuTriggerRef}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Mais opções da base acadêmica"
+                          accessibilityState={{ expanded: academicDriveMenuOpen }}
+                          disabled={academicDriveBusy}
+                          onPress={toggleAcademicDriveMenu}
+                          style={(state) => {
+                            const hovered = Boolean(
+                              (state as typeof state & { hovered?: boolean }).hovered,
+                            );
+                            return {
+                              width: 34,
+                              height: 34,
+                              borderRadius: radius.full,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor:
+                                state.pressed || hovered || academicDriveMenuOpen
+                                  ? colors.secondaryBg
+                                  : "transparent",
+                              opacity: academicDriveBusy ? 0.55 : 1,
+                            };
+                          }}
+                        >
+                          <GoAtletaIcon
+                            name="ellipsisVertical"
+                            size={17}
+                            color={colors.muted}
+                          />
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Conectar Google Drive"
+                        disabled={academicDriveOperation === "connecting"}
+                        onPress={() => {
+                          void handleAcademicDrive();
+                        }}
+                        style={{
+                          minHeight: 34,
+                          paddingVertical: 6,
+                          paddingHorizontal: 12,
+                          borderRadius: radius.full,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: colors.primaryBg,
+                          opacity:
+                            academicDriveOperation === "connecting" ? 0.65 : 1,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: colors.primaryText,
+                            fontSize: 12,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {academicDriveOperation === "connecting"
+                            ? "Conectando..."
+                            : "Conectar"}
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
                 </View>
-              </View>
+              ) : null}
 
               <View
                 style={{
-                  borderRadius: 12,
+                  borderRadius: radius.card,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
+                  backgroundColor: colors.card,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
-                  gap: 7,
+                  minHeight: 58,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Pressable
-                    onPress={
-                      accountSecurity.googleConnected
-                        ? undefined
-                        : async () => {
-                            try {
-                              await signInWithOAuth("google", "profile");
-                            } catch {
-                              Alert.alert("Google", "Não foi possível iniciar o vínculo com Google agora.");
-                            }
-                          }
-                    }
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <View
                     style={{
-                      alignSelf: "flex-start",
-                      flexDirection: "row",
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: colors.secondaryBg,
                       alignItems: "center",
-                      gap: 8,
-                      borderRadius: 999,
-                      borderWidth: 1,
-                      borderColor: accountSecurity.googleConnected ? colors.muted : colors.border,
-                      backgroundColor: accountSecurity.googleConnected ? colors.secondaryBg : colors.card,
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
-                      opacity: accountSecurity.googleConnected ? 0.8 : 1,
-                      flexShrink: 1,
+                      justifyContent: "center",
                     }}
                   >
                     <GoAtletaIcon
                       name="google"
-                      size={16}
-                      color={accountSecurity.googleConnected ? colors.muted : colors.text}
+                      size={18}
+                      color={colors.muted}
                     />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
                       style={{
-                        color: accountSecurity.googleConnected ? colors.muted : colors.text,
-                        fontSize: 13,
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "600",
+                      }}
+                    >
+                      Google
+                    </Text>
+                    <Text
+                      style={{
+                        color: colors.muted,
+                        fontSize: 12,
+                        marginTop: 2,
+                      }}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {unlinkingGoogle
+                        ? "Desvinculando Google..."
+                        : accountSecurity.googleConnected
+                          ? "Conta conectada"
+                          : "Conecte sua conta Google"}
+                    </Text>
+                  </View>
+                </View>
+
+                {accountSecurity.googleConnected ? (
+                  <View ref={googleMenuTriggerRef}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Mais opções da conta Google"
+                      accessibilityState={{ expanded: googleMenuOpen }}
+                      disabled={unlinkingGoogle}
+                      onPress={toggleGoogleMenu}
+                      style={(state) => {
+                        const hovered = Boolean(
+                          (state as typeof state & { hovered?: boolean }).hovered,
+                        );
+                        return {
+                          width: 34,
+                          height: 34,
+                          borderRadius: radius.full,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor:
+                            state.pressed || hovered || googleMenuOpen
+                              ? colors.card
+                              : "transparent",
+                          opacity: unlinkingGoogle ? 0.55 : 1,
+                        };
+                      }}
+                    >
+                      <GoAtletaIcon
+                        name="ellipsisVertical"
+                        size={17}
+                        color={colors.muted}
+                      />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Conectar conta Google"
+                    onPress={async () => {
+                      try {
+                        await signInWithOAuth("google", "profile");
+                      } catch {
+                        Alert.alert(
+                          "Google",
+                          "Não foi possível iniciar o vínculo com Google agora.",
+                        );
+                      }
+                    }}
+                    style={{
+                      minHeight: 34,
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                      borderRadius: radius.full,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.primaryBg,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.primaryText,
+                        fontSize: 12,
                         fontWeight: "700",
                       }}
                     >
-                      {accountSecurity.googleConnected
-                        ? "Google conectado"
-                        : "Google não conectado"}
+                      Conectar
                     </Text>
                   </Pressable>
-
-                  {accountSecurity.googleConnected ? (
-                    <Pressable
-                      onPress={async () => {
-                        if (!accountSecurity.canUnlinkGoogle) {
-                          Alert.alert(
-                            "Mantenha um acesso",
-                            "Configure outro método de login antes de desvincular o Google."
-                          );
-                          return;
-                        }
-                        confirm({
-                          title: "Desvincular Google",
-                          message:
-                            "Isso remove apenas o acesso pelo Google. Sua conta, seus dados e os outros métodos de login serão mantidos.",
-                          confirmLabel: "Desvincular",
-                          cancelLabel: "Cancelar",
-                          tone: "danger",
-                          onConfirm: async () => {
-                            try {
-                              setUnlinkingGoogle(true);
-                              await unlinkIdentityProvider("google");
-                              Alert.alert("Google", "Conta Google desvinculada com sucesso.");
-                            } catch (error) {
-                              const detail = error instanceof Error ? error.message : "Não foi possível desvincular agora.";
-                              Alert.alert("Google", detail);
-                            } finally {
-                              setUnlinkingGoogle(false);
-                            }
-                          },
-                        });
-                      }}
-                      disabled={unlinkingGoogle}
-                      style={{
-                        borderRadius: 999,
-                        borderWidth: 1,
-                        borderColor: colors.dangerSolidBg,
-                        backgroundColor: "transparent",
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        opacity: unlinkingGoogle || !accountSecurity.canUnlinkGoogle ? 0.6 : 1,
-                      }}
-                    >
-                      <Text style={{ color: colors.dangerSolidBg, fontSize: 12, fontWeight: "700" }}>
-                        {unlinkingGoogle
-                          ? "Desvinculando..."
-                          : accountSecurity.canUnlinkGoogle
-                            ? "Desvincular Google"
-                            : "Único acesso"}
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+                )}
               </View>
 
               {!accountSecurity.emailConfirmed && accountSecurity.canUseEmailCode ? (
@@ -1297,6 +1721,288 @@ export default function ProfileScreen() {
             </View>
           </>
       </ScrollView>
+      <Modal
+        visible={googleMenuOpen && Boolean(googleMenuAnchor)}
+        animationType="none"
+        transparent
+        onRequestClose={closeGoogleMenu}
+      >
+        <View
+          pointerEvents="box-none"
+          style={{ flex: 1 }}
+          accessibilityViewIsModal
+        >
+          <Pressable
+            accessibilityLabel="Fechar opções da conta Google"
+            onPress={closeGoogleMenu}
+            suppressWebHoverFeedback
+            disableWebPressScale
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              backgroundColor: "rgba(0,0,0,0.001)",
+            }}
+          />
+          {googleMenuAnchor ? (
+            <View
+              accessibilityRole="menu"
+              style={[
+                {
+                  position: "absolute",
+                  top: googleMenuAnchor.top,
+                  right: googleMenuAnchor.right,
+                  width: Math.min(190, viewportWidth - 24),
+                  paddingVertical: 5,
+                  borderRadius: radius.internal,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                },
+                Platform.OS === "web"
+                  ? ({
+                      boxShadow: "0px 12px 24px rgba(0, 0, 0, 0.24)",
+                    } as any)
+                  : shadow.elevated,
+              ]}
+            >
+              <Pressable
+                accessibilityRole="menuitem"
+                onPress={() => {
+                  closeGoogleMenu();
+                  handleUnlinkGoogle();
+                }}
+                style={(state) => {
+                  const hovered = Boolean(
+                    (state as typeof state & { hovered?: boolean }).hovered,
+                  );
+                  return {
+                    minHeight: 38,
+                    paddingHorizontal: 12,
+                    paddingVertical: 9,
+                    justifyContent: "center",
+                    backgroundColor:
+                      state.pressed || hovered
+                        ? colors.secondaryBg
+                        : "transparent",
+                  };
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.dangerText,
+                    fontSize: 12,
+                    fontWeight: "800",
+                  }}
+                >
+                  Desvincular Google
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
+      <Modal
+        visible={academicDriveMenuOpen && Boolean(academicDriveMenuAnchor)}
+        animationType="none"
+        transparent
+        onRequestClose={closeAcademicDriveMenu}
+      >
+        <View
+          pointerEvents="box-none"
+          style={{ flex: 1 }}
+          accessibilityViewIsModal
+        >
+          <Pressable
+            accessibilityLabel="Fechar opções da base acadêmica"
+            onPress={closeAcademicDriveMenu}
+            suppressWebHoverFeedback
+            disableWebPressScale
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              backgroundColor: "rgba(0,0,0,0.001)",
+            }}
+          />
+          {academicDriveMenuAnchor ? (
+            <View
+              accessibilityRole="menu"
+              style={[
+                {
+                  position: "absolute",
+                  top: academicDriveMenuAnchor.top,
+                  right: academicDriveMenuAnchor.right,
+                  width: Math.min(190, viewportWidth - 24),
+                  paddingVertical: 5,
+                  borderRadius: radius.internal,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                },
+                Platform.OS === "web"
+                  ? ({
+                      boxShadow: "0px 12px 24px rgba(0, 0, 0, 0.24)",
+                    } as any)
+                  : shadow.elevated,
+              ]}
+            >
+              {[
+                {
+                  label: "Abrir documentos",
+                  danger: false,
+                  action: () => router.push("/academic-knowledge"),
+                },
+                {
+                  label: "Sincronizar agora",
+                  danger: false,
+                  action: () => {
+                    void handleAcademicDrive();
+                  },
+                },
+                {
+                  label: "Desconectar",
+                  danger: true,
+                  action: handleDisconnectAcademicDrive,
+                },
+              ].map((menuItem) => (
+                <Pressable
+                  key={menuItem.label}
+                  accessibilityRole="menuitem"
+                  onPress={() => {
+                    closeAcademicDriveMenu();
+                    menuItem.action();
+                  }}
+                  style={(state) => {
+                    const hovered = Boolean(
+                      (state as typeof state & { hovered?: boolean }).hovered,
+                    );
+                    return {
+                      minHeight: 38,
+                      paddingHorizontal: 12,
+                      paddingVertical: 9,
+                      justifyContent: "center",
+                      backgroundColor:
+                        state.pressed || hovered
+                          ? colors.secondaryBg
+                          : "transparent",
+                    };
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: menuItem.danger
+                        ? colors.dangerText
+                        : colors.text,
+                      fontSize: 12,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {menuItem.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </Modal>
+      <Modal
+        visible={profileMenuOpen && Boolean(profileMenuAnchor)}
+        animationType="none"
+        transparent
+        onRequestClose={closeProfileMenu}
+      >
+        <View
+          pointerEvents="box-none"
+          style={{ flex: 1 }}
+          accessibilityViewIsModal
+        >
+          <Pressable
+            accessibilityLabel="Fechar troca de perfil"
+            onPress={closeProfileMenu}
+            suppressWebHoverFeedback
+            disableWebPressScale
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              backgroundColor: "rgba(0,0,0,0.001)",
+            }}
+          />
+          {profileMenuAnchor ? (
+            <View
+              accessibilityRole="menu"
+              style={[
+                {
+                  position: "absolute",
+                  top: profileMenuAnchor.top,
+                  right: profileMenuAnchor.right,
+                  width: Math.min(260, viewportWidth - 32),
+                  padding: 8,
+                  borderRadius: radius.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  gap: 2,
+                },
+                Platform.OS === "web"
+                  ? ({
+                      boxShadow: "0 18px 44px rgba(0,0,0,0.35)",
+                    } as any)
+                  : shadow.elevated,
+              ]}
+            >
+              {authorizedProfileSwitchIds.map((profileId) => {
+                const selected = selectedProfilePreview === profileId;
+                return (
+                  <Pressable
+                    key={profileId}
+                    accessibilityRole="menuitem"
+                    accessibilityState={{ selected }}
+                    onPress={() => {
+                      void applyProfilePreview(profileId);
+                    }}
+                    style={{
+                      minHeight: 44,
+                      paddingHorizontal: 12,
+                      borderRadius: radius.internal,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      backgroundColor: selected
+                        ? "rgba(86, 214, 154, 0.10)"
+                        : "transparent",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: selected ? "700" : "600",
+                      }}
+                    >
+                      {profileSwitchLabels[profileId]}
+                    </Text>
+                    {selected ? (
+                      <GoAtletaIcon
+                        name="checkmarkCircle"
+                        size={18}
+                        color={colors.primaryBg}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
+      </Modal>
       <Modal
         visible={showPhotoViewer}
         animationType="fade"

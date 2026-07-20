@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { AppRole } from "../components/navigation/tab-config";
 import { useEffectiveProfile, type EffectiveProfile } from "../core/effective-profile";
-import { AppShell, shouldHideWebShellForPath } from "./AppShell";
+import { AppShell } from "./AppShell";
 
 const WEB_SHELL_LAST_SCOPE_KEY = "goatleta:web-shell-last-scope";
 
@@ -30,7 +30,6 @@ const getExplicitRoleForPath = (pathname: string): AppRole | null => {
 
 const shouldWrapSharedRoute = (pathname: string) => {
   const path = normalizePath(pathname);
-  if (shouldHideWebShellForPath(path)) return false;
   return (
     path === "/profile" ||
     path === "/classes" ||

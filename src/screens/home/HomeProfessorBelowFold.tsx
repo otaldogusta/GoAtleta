@@ -204,7 +204,7 @@ function HomeProfessorBelowFoldBase({
           label="Consultoria online"
           description="Prescrição individual"
           icon="consultation"
-          onPress={() => router.push("/consultation")}
+          onPress={() => router.push("/prof/consultation")}
         />
 
         {canOpenClassesShortcut ? (

@@ -118,7 +118,7 @@ describe("consultation notifications", () => {
       "Ana concluiu o treino.",
       expect.objectContaining({
         type: "consultation_event",
-        actionUrl: "/consultation",
+        actionUrl: "/prof/consultation",
         sourceType: "consultation",
       })
     );

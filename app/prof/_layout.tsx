@@ -16,6 +16,7 @@ export default function ProfessorTabsLayout() {
       >
         <Tabs.Screen name="index" options={{ href: null }} />
         <Tabs.Screen name="students" options={{ href: null }} />
+        <Tabs.Screen name="consultation" options={{ href: null }} />
         <Tabs.Screen name="calendar" options={{ href: null }} />
         <Tabs.Screen name="absence-notices" options={{ href: null }} />
         <Tabs.Screen name="nfc-attendance" options={{ href: null }} />

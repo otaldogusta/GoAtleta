@@ -43,6 +43,12 @@ import { useSaveToast } from "../../../src/ui/save-toast";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
+import { useIsOnline } from "../../../src/hooks/use-is-online";
+import { SyncStatusBadge } from "../../../src/ui/SyncStatusBadge";
+import {
+  resolveAttendanceSaveIndicator,
+  type AttendanceSavePhase,
+} from "../../../src/screens/attendance/attendance-save-feedback";
 
 const formatDate = (value: Date) => {
   const y = value.getFullYear();
@@ -88,6 +94,7 @@ export default function AttendanceScreen() {
   const [loadMessage, setLoadMessage] = useState("");
   const [hasSaved, setHasSaved] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+  const [savePhase, setSavePhase] = useState<AttendanceSavePhase>("idle");
   const [baseline, setBaseline] = useState<{
     status: Record<string, "presente" | "faltou" | undefined>;
     note: Record<string, string>;
@@ -100,6 +107,7 @@ export default function AttendanceScreen() {
   const loadMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadDone = useRef(false);
   const { showSaveToast } = useSaveToast();
+  const isOnline = useIsOnline();
   const parseTime = (value: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{2}):(\d{2})$/);
@@ -280,6 +288,7 @@ export default function AttendanceScreen() {
     if (!cls) return;
     if (isSavingAttendance) return;
     setIsSavingAttendance(true);
+    setSavePhase("saving");
     try {
       const createdAt = new Date().toISOString();
       const records = items
@@ -308,7 +317,7 @@ export default function AttendanceScreen() {
         nextPain[student.id] = status ? painById[student.id] ?? 0 : 0;
       });
 
-      await measure("saveAttendanceRecords", () =>
+      const saveResult = await measure("saveAttendanceRecords", () =>
         saveAttendanceRecords(cls.id, date, records)
       );
       setStatusById(nextStatus);
@@ -320,12 +329,23 @@ export default function AttendanceScreen() {
         date,
         total: records.length,
       });
-      showSaveToast({
-        message: "Chamada salva com sucesso.",
-        variant: "success",
-      });
+      if (saveResult.status === "queued") {
+        setSavePhase("saved_local");
+        showSaveToast({
+          message: "Chamada salva no dispositivo. Será enviada quando a internet voltar.",
+          variant: "warning",
+          durationMs: 6500,
+        });
+      } else {
+        setSavePhase("synced");
+        showSaveToast({
+          message: "Chamada sincronizada.",
+          variant: "success",
+        });
+      }
       setHasSaved(records.length > 0);
     } catch (error) {
+      setSavePhase("error");
       if (isAuthError(error)) {
         showSaveToast({
           message: "Sessão expirada. Entre novamente.",
@@ -341,7 +361,7 @@ export default function AttendanceScreen() {
       }
       if (isNetworkError(error)) {
         showSaveToast({
-          message: "Sem conexão. Tente novamente.",
+          message: "Sem conexão. Não foi possível salvar no dispositivo.",
           variant: "error",
         });
         return;
@@ -356,6 +376,7 @@ export default function AttendanceScreen() {
   };
 
   const handleDateChange = (value: string) => {
+    setSavePhase("idle");
     if (cls) {
       setHasSaved(false);
       void loadDate(value);
@@ -396,6 +417,16 @@ export default function AttendanceScreen() {
     return false;
   }, [baseline, noteById, painById, statusById]);
 
+  useEffect(() => {
+    if (hasChanges && !isSavingAttendance && savePhase !== "idle") {
+      setSavePhase("idle");
+    }
+  }, [hasChanges, isSavingAttendance, savePhase]);
+
+  const saveIndicator = resolveAttendanceSaveIndicator({
+    phase: savePhase,
+    isOnline,
+  });
 
   if (!cls) {
     return <ScreenLoadingState />;
@@ -695,6 +726,12 @@ export default function AttendanceScreen() {
         ListEmptyComponent={attendanceEmptyState}
         ListFooterComponent={
           <View style={{ marginTop: 8, gap: 8 }}>
+            {saveIndicator ? (
+              <SyncStatusBadge
+                status={saveIndicator.status}
+                message={saveIndicator.message}
+              />
+            ) : null}
             <Button
               label={isSavingAttendance ? "Salvando chamada..." : "Salvar chamada"}
               onPress={handleSave}

@@ -19,22 +19,19 @@ export function SettingsRow({
   rightContent?: React.ReactNode;
 }) {
   const { colors } = useAppTheme();
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingVertical: 10,
-        paddingHorizontal: 8,
-        borderRadius: 14,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.border,
-      }}
-    >
+  const rowStyle = {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  };
+  const content = (
+    <>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <View
           style={{
@@ -59,7 +56,7 @@ export function SettingsRow({
       </View>
       {rightContent ? (
         rightContent
-      ) : (
+      ) : onPress ? (
         <View
           style={{
             width: 26,
@@ -72,7 +69,17 @@ export function SettingsRow({
         >
           <GoAtletaIcon name="chevronForward" size={16} color={colors.text} />
         </View>
-      )}
+      ) : null}
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={rowStyle}>{content}</View>;
+  }
+
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={rowStyle}>
+      {content}
     </Pressable>
   );
 }

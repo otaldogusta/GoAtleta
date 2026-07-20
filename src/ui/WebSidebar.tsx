@@ -116,11 +116,6 @@ const getInitials = (name: string) => {
   );
 };
 
-const getUserEmail = (session: ReturnType<typeof useAuth>["session"]) => {
-  const user = session?.user as { email?: string } | undefined;
-  return user?.email ?? "";
-};
-
 function BrandMark({ size = 46 }: { size?: number }) {
   const outerRadius = Math.round(size * 0.36);
   return (
@@ -207,7 +202,7 @@ function SidebarToggleButton({
 export function WebSidebar({ role }: WebSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
   const { availableRoles, refresh: refreshRole, setActiveRole } = useRole();
   const organizationContext = useOptionalOrganization();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -223,7 +218,6 @@ export function WebSidebar({ role }: WebSidebarProps) {
   const expanded = sidebarExpanded;
   const professorName = getDisplayName(session);
   const professorInitials = getInitials(professorName);
-  const userEmail = getUserEmail(session);
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
   const memberPermissions = organizationContext?.memberPermissions ?? {};
   const permissionsLoading = organizationContext?.permissionsLoading ?? true;
@@ -235,13 +229,10 @@ export function WebSidebar({ role }: WebSidebarProps) {
 
   const navigateTo = useCallback(
     (href: string) => {
-      if (typeof window !== "undefined") {
-        window.location.assign(href);
-        return;
-      }
-      router.replace(href as never);
+      if (href === pathname) return;
+      router.push(href as never);
     },
-    [router]
+    [pathname, router]
   );
 
   useEffect(() => {
@@ -372,6 +363,215 @@ export function WebSidebar({ role }: WebSidebarProps) {
     visibleProfileSwitchIds.includes(option.id)
   );
 
+  const closeProfileMenu = () => {
+    setProfileMenuOpen(false);
+  };
+
+  const openProfile = () => {
+    closeProfileMenu();
+    navigateTo(profilePath);
+  };
+
+  const handleSignOut = async () => {
+    closeProfileMenu();
+    await signOut();
+  };
+
+  const renderProfileMenu = (placement: "compact" | "expanded") => (
+    <View
+      accessibilityLabel="Menu de perfil"
+      style={[
+        {
+          position: placement === "compact" ? "fixed" : "absolute",
+          zIndex: 3200,
+          width: placement === "compact" ? 304 : undefined,
+          left: placement === "compact" ? 14 : 0,
+          right: placement === "compact" ? undefined : 0,
+          bottom: placement === "compact" ? 88 : 68,
+          borderRadius: radius.xl,
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.14)",
+          backgroundColor: "#1F2937",
+          padding: 10,
+          gap: 4,
+          boxShadow: "0 24px 60px rgba(0,0,0,0.42)",
+        } as any,
+      ]}
+    >
+      <Pressable
+        accessibilityLabel="Abrir perfil e configurações"
+        onPress={openProfile}
+        style={{
+          minHeight: 62,
+          borderRadius: radius.card,
+          paddingHorizontal: 10,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 11,
+        }}
+      >
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: "rgba(65, 217, 132, 0.18)",
+            borderWidth: 1,
+            borderColor: "rgba(65, 217, 132, 0.35)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ color: brandPalette.quadra, fontSize: 12, fontWeight: "900" }}>
+            {professorInitials}
+          </Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text
+            style={{ color: brandPalette.white, fontSize: 14, fontWeight: "800" }}
+            numberOfLines={1}
+          >
+            {professorName}
+          </Text>
+          <Text
+            style={{ color: "rgba(255,255,255,0.56)", fontSize: 11, fontWeight: "600" }}
+            numberOfLines={1}
+          >
+            {roleProfileLabel[role]}
+          </Text>
+        </View>
+        <GoAtletaIcon
+          name="chevronForward"
+          size={17}
+          color="rgba(255,255,255,0.62)"
+        />
+      </Pressable>
+
+      <View
+        style={{
+          height: 1,
+          backgroundColor: "rgba(255,255,255,0.10)",
+          marginHorizontal: 8,
+          marginVertical: 4,
+        }}
+      />
+
+      <Pressable
+        onPress={openProfile}
+        style={{
+          minHeight: 44,
+          borderRadius: radius.card,
+          paddingHorizontal: 10,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 11,
+        }}
+      >
+        <GoAtletaIcon
+          name="management"
+          size={19}
+          color="rgba(255,255,255,0.78)"
+        />
+        <Text style={{ flex: 1, color: brandPalette.white, fontSize: 13, fontWeight: "700" }}>
+          Perfil e configurações
+        </Text>
+      </Pressable>
+
+      {canSwitchProfile ? (
+        <>
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.44)",
+              fontSize: 10,
+              fontWeight: "900",
+              paddingHorizontal: 10,
+              paddingTop: 6,
+              paddingBottom: 2,
+            }}
+          >
+            TROCAR PERFIL
+          </Text>
+          {visibleProfileSwitchOptions.map((option) => {
+            const active = selectedPreview === option.id;
+            return (
+              <Pressable
+                key={option.id}
+                onPress={() => void applyProfilePreview(option.id)}
+                style={{
+                  minHeight: 44,
+                  borderRadius: radius.card,
+                  paddingHorizontal: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 11,
+                  backgroundColor: active ? "rgba(255,255,255,0.10)" : "transparent",
+                }}
+              >
+                <GoAtletaIcon
+                  name={option.icon}
+                  size={18}
+                  color={active ? brandPalette.quadra : "rgba(255,255,255,0.70)"}
+                />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={{
+                      color: active ? brandPalette.white : "rgba(255,255,255,0.86)",
+                      fontSize: 13,
+                      fontWeight: "800",
+                    }}
+                    numberOfLines={1}
+                  >
+                    {option.label}
+                  </Text>
+                  <Text
+                    style={{ color: "rgba(255,255,255,0.46)", fontSize: 10 }}
+                    numberOfLines={1}
+                  >
+                    {option.subtitle}
+                  </Text>
+                </View>
+                {active ? (
+                  <GoAtletaIcon
+                    name="checkmarkCircle"
+                    size={17}
+                    color={brandPalette.quadra}
+                  />
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </>
+      ) : null}
+
+      <View
+        style={{
+          height: 1,
+          backgroundColor: "rgba(255,255,255,0.10)",
+          marginHorizontal: 8,
+          marginVertical: 4,
+        }}
+      />
+
+      <Pressable
+        accessibilityLabel="Sair da conta"
+        onPress={() => void handleSignOut()}
+        style={{
+          minHeight: 44,
+          borderRadius: radius.card,
+          paddingHorizontal: 10,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 11,
+        }}
+      >
+        <GoAtletaIcon name="logout" size={19} color="#FCA5A5" />
+        <Text style={{ flex: 1, color: "#FCA5A5", fontSize: 13, fontWeight: "700" }}>
+          Sair
+        </Text>
+      </Pressable>
+    </View>
+  );
+
   const compactTabs = ROLE_TABS[role].filter((tab) => !tab.isCenter);
   const tabItems = compactTabs.map((tab) => ({
     key: tab.key,
@@ -393,7 +593,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
       {
         key: "consultation",
         label: "Consultoria online",
-        href: "/consultation",
+        href: "/prof/consultation",
         icon: "consultation",
       },
       {
@@ -737,38 +937,46 @@ export function WebSidebar({ role }: WebSidebarProps) {
           {operationalItems.map(renderCompactNavItem)}
         </ScrollView>
 
-        <Pressable
-          accessibilityLabel="Abrir menu de perfil"
-          onPress={() => setSidebarExpanded(true)}
-          style={{
-            width: 58,
-            height: 58,
-            borderRadius: 18,
-            alignSelf: "center",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(255,255,255,0.08)",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.10)",
-          }}
-        >
-          <View
+        <View ref={profileMenuRootRef} style={{ position: "relative", alignSelf: "center" }}>
+          {profileMenuOpen ? renderProfileMenu("compact") : null}
+          <Pressable
+            accessibilityLabel={profileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
+            accessibilityState={{ expanded: profileMenuOpen }}
+            onPress={() => setProfileMenuOpen((current) => !current)}
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: "rgba(65, 217, 132, 0.18)",
-              borderWidth: 1,
-              borderColor: "rgba(65, 217, 132, 0.35)",
+              width: 58,
+              height: 58,
+              borderRadius: 18,
+              alignSelf: "center",
               alignItems: "center",
               justifyContent: "center",
+              backgroundColor: profileMenuOpen
+                ? "rgba(255,255,255,0.13)"
+                : "rgba(255,255,255,0.08)",
+              borderWidth: 1,
+              borderColor: profileMenuOpen
+                ? "rgba(65, 217, 132, 0.62)"
+                : "rgba(255,255,255,0.10)",
             }}
           >
-            <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
-              {professorInitials}
-            </Text>
-          </View>
-        </Pressable>
+            <View
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                backgroundColor: "rgba(65, 217, 132, 0.18)",
+                borderWidth: 1,
+                borderColor: "rgba(65, 217, 132, 0.35)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
+                {professorInitials}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -929,131 +1137,11 @@ export function WebSidebar({ role }: WebSidebarProps) {
       </ScrollView>
 
       <View ref={profileMenuRootRef} style={{ position: "relative" }}>
-        {profileMenuOpen ? (
-          <View
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 68,
-              zIndex: 30,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.14)",
-              backgroundColor: "rgba(31,41,55,0.98)",
-              padding: 10,
-              gap: 6,
-              boxShadow: "0 18px 44px rgba(0,0,0,0.35)",
-            } as any}
-          >
-            <View style={{ paddingHorizontal: 8, paddingVertical: 6, gap: 2 }}>
-              <Text style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }} numberOfLines={1}>
-                {professorName}
-              </Text>
-              {userEmail ? (
-                <Text style={{ color: "rgba(255,255,255,0.52)", fontSize: 11 }} numberOfLines={1}>
-                  {userEmail}
-                </Text>
-              ) : null}
-            </View>
-
-            <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.10)", marginVertical: 2 }} />
-
-            <Pressable
-              onPress={() => {
-                setProfileMenuOpen(false);
-                setSidebarExpanded(false);
-                navigateTo(profilePath);
-              }}
-              style={{
-                minHeight: 42,
-                borderRadius: 12,
-                paddingHorizontal: 10,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
-              <GoAtletaIcon
-                name="profileCircle"
-                size={18}
-                color="rgba(255,255,255,0.78)"
-              />
-              <Text style={{ flex: 1, color: brandPalette.white, fontSize: 13, fontWeight: "700" }}>
-                Perfil
-              </Text>
-            </Pressable>
-
-            {canSwitchProfile ? (
-              <>
-                <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.10)", marginVertical: 2 }} />
-                <Text
-                  style={{
-                    color: "rgba(255,255,255,0.44)",
-                    fontSize: 10,
-                    fontWeight: "900",
-                    paddingHorizontal: 10,
-                    paddingTop: 2,
-                  }}
-                >
-                  TROCAR PERFIL
-                </Text>
-                {visibleProfileSwitchOptions.map((option) => {
-                  const active = selectedPreview === option.id;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      onPress={() => void applyProfilePreview(option.id)}
-                      style={{
-                        minHeight: 44,
-                        borderRadius: 12,
-                        paddingHorizontal: 10,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
-                        backgroundColor: active ? "rgba(255,255,255,0.10)" : "transparent",
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name={option.icon}
-                        size={17}
-                        color={active ? webShellTokens.primary : "rgba(255,255,255,0.70)"}
-                      />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          style={{
-                            color: active ? brandPalette.white : "rgba(255,255,255,0.86)",
-                            fontSize: 13,
-                            fontWeight: "800",
-                          }}
-                          numberOfLines={1}
-                        >
-                          {option.label}
-                        </Text>
-                        <Text style={{ color: "rgba(255,255,255,0.46)", fontSize: 10 }} numberOfLines={1}>
-                          {option.subtitle}
-                        </Text>
-                      </View>
-                      {active ? (
-                        <View
-                          {...decorativeIconProps}
-                          style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: 6,
-                            backgroundColor: webShellTokens.primary,
-                          }}
-                        />
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </>
-            ) : null}
-          </View>
-        ) : null}
+        {profileMenuOpen ? renderProfileMenu("expanded") : null}
 
         <Pressable
+          accessibilityLabel={profileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
+          accessibilityState={{ expanded: profileMenuOpen }}
           onPress={() => setProfileMenuOpen((current) => !current)}
           style={{
             minHeight: 58,
