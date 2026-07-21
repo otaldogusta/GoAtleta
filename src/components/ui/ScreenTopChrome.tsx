@@ -1,9 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
 import type { ReactNode } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Platform, View, useWindowDimensions } from "react-native";
+import { Platform, View } from "react-native";
 
 import { useAppTheme } from "../../ui/app-theme";
+import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
 type ScreenTopChromeProps = {
   children: ReactNode;
@@ -23,9 +24,9 @@ export function ScreenTopChrome({
   fullBleed = true,
 }: ScreenTopChromeProps) {
   const { colors } = useAppTheme();
-  const { width } = useWindowDimensions();
+  const responsiveLayout = useResponsiveLayout();
   const effectiveHorizontalBleed =
-    Platform.OS === "web" && width < 1200 ? 0 : horizontalBleed;
+    Platform.OS === "web" && !responsiveLayout.usesWorkspaceShell ? 0 : horizontalBleed;
   const stickyStyle =
     Platform.OS === "web"
       ? ({

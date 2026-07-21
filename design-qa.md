@@ -38,6 +38,62 @@ final result: passed
 
 ---
 
+# Design QA — Alternância lateral de workspace
+
+- Evidência visual: referência e implementação comparadas localmente; os arquivos de trabalho não são versionados.
+- Route: `http://localhost:8081/coord/management`
+- Viewport principal: 1209 × 812
+- Viewports responsivos: 390 × 844, 834 × 1194 e 1440 × 1024
+- Estado alvo: menu de perfil aberto e painel lateral de workspaces visível
+
+## Full-view comparison evidence
+
+Referência e implementação foram avaliadas no mesmo quadro. A implementação
+preserva o padrão de dois painéis conectados: identidade e ações no menu principal,
+alternância autorizada no painel lateral e marcação explícita do workspace ativo.
+O resultado usa a densidade e os tokens do GoAtleta, sem copiar ações de conta que
+não pertencem ao produto.
+
+## Focused region comparison evidence
+
+O menu ocupa uma região suficientemente grande no comparativo completo, portanto
+não foi necessário um segundo recorte. Foram conferidos alinhamento entre os
+painéis, hierarquia do cartão-gatilho, estado ativo, bordas, raios, sombra e a
+continuidade visual necessária para mover o cursor entre menu e submenu.
+
+## Required fidelity surfaces
+
+- Tipografia: nome, função, título do submenu e metadados preservam a hierarquia compacta do GoAtleta.
+- Espaçamento: o menu principal ficou mais curto após retirar a lista interna; o submenu mantém alvos de 54 px e ritmo de 10–11 px.
+- Cores: superfície navy, borda discreta, verde somente no workspace ativo e sombra existente foram preservados.
+- Ativos: avatares e símbolos reutilizam o registro de ícones do produto; nenhum asset foi improvisado.
+- Conteúdo: somente workspaces permitidos são mostrados, com nome, contexto e indicação do ativo.
+
+## Findings
+
+- Nenhum problema P0, P1 ou P2 encontrado na comparação final.
+- P3 aceito: o painel do GoAtleta é mais compacto que a referência para manter a densidade operacional já aprovada na barra lateral.
+
+## Verificações concluídas
+
+- O menu principal abre sem exibir antecipadamente a lista de workspaces.
+- Hover, foco de teclado e toque no cartão superior abrem o painel lateral.
+- A troca continua usando a mesma resolução de permissões e o mesmo fluxo de perfil ativo.
+- `Perfil e configurações` e `Sair` permanecem ações independentes.
+- O painel lateral cabe integralmente no desktop amplo e não cria overflow horizontal nos três viewports responsivos.
+- O console do navegador não apresentou erros.
+
+## Comparison history
+
+1. A lista de perfis ocupava verticalmente o menu principal.
+2. Os workspaces foram movidos para um painel lateral ancorado ao cartão de identidade.
+3. A abertura inicial foi separada do submenu e o toque recebeu o mesmo comportamento do hover.
+4. O comparativo final confirmou hierarquia, encaixe e estado ativo.
+
+final result: passed
+
+---
+
 # Design QA — Agrupamento de configurações e conta
 
 - Source visual truth: `artifacts/design-qa/profile-account-cards-polish-desktop.jpg`

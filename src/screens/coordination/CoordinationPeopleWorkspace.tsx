@@ -41,8 +41,9 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import { useUndoableListDelete } from "../../ui/useUndoableListDelete";
+import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
-type SecondaryModuleKey = "attendance" | "classes" | "access" | "reports" | "sync";
+type SecondaryModuleKey = "attendance" | "access" | "reports" | "sync";
 type RoleFilter = "all" | "coordination" | "professor" | "intern";
 type StatusFilter = "all" | "active" | "pending";
 type ModalMode = "invite" | "edit" | "message" | null;
@@ -74,7 +75,6 @@ type CoordinationPeopleWorkspaceProps = {
 
 const DEFAULT_MODULE_ORDER: SecondaryModuleKey[] = [
   "attendance",
-  "classes",
   "access",
   "reports",
   "sync",
@@ -82,7 +82,6 @@ const DEFAULT_MODULE_ORDER: SecondaryModuleKey[] = [
 
 const moduleIcon: Record<SecondaryModuleKey, GoAtletaIconName> = {
   attendance: "attendance",
-  classes: "members",
   access: "communications",
   reports: "document",
   sync: "sync",
@@ -435,9 +434,10 @@ export function CoordinationPeopleWorkspace({
   const { colors } = useAppTheme();
   const router = useRouter();
   const { confirm: confirmUndo } = useConfirmUndo();
-  const { width, height } = useWindowDimensions();
-  const desktop = Platform.OS === "web" && width >= 1180;
-  const compact = width < 760;
+  const { height } = useWindowDimensions();
+  const responsiveLayout = useResponsiveLayout("dashboard");
+  const supportsSplitLayout = responsiveLayout.supportsSplitView;
+  const compact = responsiveLayout.isMobile;
   const storageKey = `coordination_workspace_order_v1:${organizationId}`;
 
   const [search, setSearch] = useState("");
@@ -860,7 +860,6 @@ export function CoordinationPeopleWorkspace({
   const uniqueClasses = new Set(memberClassHeads.map((item) => item.classId)).size;
   const moduleMeta: Record<SecondaryModuleKey, { label: string; value: string | number }> = {
     attendance: { label: "Chamadas pendentes", value: pendingAttendance.length },
-    classes: { label: "Turmas monitoradas", value: uniqueClasses },
     access: { label: "Convites e solicitações de acesso", value: pendingInvites.length },
     reports: { label: "Relatórios pendentes", value: pendingReports.length },
     sync: { label: "Suporte e sincronização", value: syncHealthy ? "Tudo certo" : "Atenção" },
@@ -931,26 +930,6 @@ export function CoordinationPeopleWorkspace({
         </ScrollView>
       );
     }
-    if (key === "classes") {
-      return (
-        <ScrollView style={{ maxHeight: listMaxHeight }} showsVerticalScrollIndicator>
-          {organizationClasses.map((item) => (
-            <View
-              key={item.id}
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 11,
-                borderBottomWidth: 1,
-                borderBottomColor: border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{item.name}</Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>{item.unit}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      );
-    }
     if (key === "access") {
       return (
         <ScrollView style={{ maxHeight: listMaxHeight }} showsVerticalScrollIndicator>
@@ -1010,7 +989,7 @@ export function CoordinationPeopleWorkspace({
           gap: 14,
         }}
       >
-        <View style={{ flexShrink: 0, width: desktop ? "48%" : undefined }}>
+        <View style={{ flexShrink: 0, width: supportsSplitLayout ? "48%" : undefined }}>
           <Pressable
             onPress={() => router.push("/coord/dashboard")}
             style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" }}
@@ -1033,7 +1012,7 @@ export function CoordinationPeopleWorkspace({
           style={{
             flexDirection: "row",
             gap: 12,
-            width: desktop ? "46%" : undefined,
+            width: supportsSplitLayout ? "46%" : undefined,
             minWidth: 0,
           }}
         >
@@ -1122,8 +1101,8 @@ export function CoordinationPeopleWorkspace({
         ))}
       </View>
 
-      <View style={{ flexDirection: desktop ? "row" : "column", alignItems: "flex-start", gap: 12 }}>
-        <View style={{ width: desktop ? "61%" : "100%", minWidth: 0, gap: 7 }}>
+      <View style={{ flexDirection: supportsSplitLayout ? "row" : "column", alignItems: "flex-start", gap: 12 }}>
+        <View style={{ width: supportsSplitLayout ? "61%" : "100%", minWidth: 0, gap: 7 }}>
           <View
             style={{
               borderRadius: radius.internal,
@@ -1474,7 +1453,7 @@ export function CoordinationPeopleWorkspace({
 
         <View
           style={{
-            width: desktop ? "39%" : "100%",
+            width: supportsSplitLayout ? "39%" : "100%",
             minWidth: 0,
             borderRadius: radius.internal,
             borderWidth: 1,

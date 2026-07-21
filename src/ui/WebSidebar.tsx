@@ -23,6 +23,7 @@ import { webShellTokens } from "./web-shell-tokens";
 
 type WebSidebarProps = {
   role: AppRole;
+  canExpand: boolean;
 };
 
 type SidebarItem = {
@@ -199,13 +200,14 @@ function SidebarToggleButton({
   );
 }
 
-export function WebSidebar({ role }: WebSidebarProps) {
+export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { session, signOut } = useAuth();
   const { availableRoles, refresh: refreshRole, setActiveRole } = useRole();
   const organizationContext = useOptionalOrganization();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpandedState] = useState(false);
   const [hoveredCompactItemKey, setHoveredCompactItemKey] = useState<string | null>(null);
   const [compactTooltip, setCompactTooltip] = useState<{
@@ -215,7 +217,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
   } | null>(null);
   const profileMenuRootRef = useRef<View | null>(null);
 
-  const expanded = sidebarExpanded;
+  const expanded = canExpand && sidebarExpanded;
   const professorName = getDisplayName(session);
   const professorInitials = getInitials(professorName);
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
@@ -262,10 +264,22 @@ export function WebSidebar({ role }: WebSidebarProps) {
   }, [pathname]);
 
   useEffect(() => {
+    if (!profileMenuOpen) {
+      setProfileSwitcherOpen(false);
+    }
+  }, [profileMenuOpen]);
+
+  useEffect(() => {
     if (!expanded) {
       setProfileMenuOpen(false);
     }
   }, [expanded]);
+
+  useEffect(() => {
+    if (!canExpand) {
+      setSidebarExpandedState(false);
+    }
+  }, [canExpand]);
 
   useEffect(() => {
     if (!expanded || typeof document === "undefined") return;
@@ -364,7 +378,13 @@ export function WebSidebar({ role }: WebSidebarProps) {
   );
 
   const closeProfileMenu = () => {
+    setProfileSwitcherOpen(false);
     setProfileMenuOpen(false);
+  };
+
+  const toggleProfileMenu = () => {
+    setProfileSwitcherOpen(false);
+    setProfileMenuOpen((current) => !current);
   };
 
   const openProfile = () => {
@@ -377,8 +397,98 @@ export function WebSidebar({ role }: WebSidebarProps) {
     await signOut();
   };
 
+  const renderProfileSwitcher = () => (
+    <View
+      {...({
+        dataSet: { goatletaWorkspaceMenu: "true" },
+        "data-goatleta-workspace-menu": "true",
+      } as any)}
+      accessibilityLabel="Alternar workspace"
+      style={{
+        position: "absolute",
+        zIndex: 3201,
+        width: 236,
+        left: "calc(100% - 2px)",
+        top: 10,
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.14)",
+        backgroundColor: "#1F2937",
+        padding: 10,
+        gap: 4,
+        boxShadow: "0 24px 60px rgba(0,0,0,0.42)",
+      } as any}
+    >
+      <Text
+        style={{
+          color: "rgba(255,255,255,0.48)",
+          fontSize: 10,
+          fontWeight: "900",
+          paddingHorizontal: 10,
+          paddingTop: 4,
+          paddingBottom: 6,
+        }}
+      >
+        ALTERNAR WORKSPACE
+      </Text>
+
+      {visibleProfileSwitchOptions.map((option) => {
+        const active = selectedPreview === option.id;
+        return (
+          <Pressable
+            key={option.id}
+            accessibilityLabel={`Abrir workspace ${option.label}`}
+            accessibilityState={{ selected: active }}
+            onPress={() => void applyProfilePreview(option.id)}
+            style={{
+              minHeight: 54,
+              borderRadius: radius.card,
+              paddingHorizontal: 10,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 11,
+              backgroundColor: active ? "rgba(255,255,255,0.10)" : "transparent",
+            }}
+          >
+            <GoAtletaIcon
+              name={option.icon}
+              size={19}
+              color={active ? brandPalette.quadra : "rgba(255,255,255,0.70)"}
+            />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                style={{
+                  color: active ? brandPalette.white : "rgba(255,255,255,0.86)",
+                  fontSize: 13,
+                  fontWeight: "800",
+                }}
+                numberOfLines={1}
+              >
+                {option.label}
+              </Text>
+              <Text
+                style={{ color: "rgba(255,255,255,0.46)", fontSize: 10 }}
+                numberOfLines={1}
+              >
+                {option.subtitle}
+              </Text>
+            </View>
+            {active ? (
+              <GoAtletaIcon
+                name="checkmarkCircle"
+                size={17}
+                color={brandPalette.quadra}
+              />
+            ) : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
   const renderProfileMenu = (placement: "compact" | "expanded") => (
     <View
+      {...({ onMouseLeave: () => setProfileSwitcherOpen(false) } as any)}
       accessibilityLabel="Menu de perfil"
       style={[
         {
@@ -398,9 +508,26 @@ export function WebSidebar({ role }: WebSidebarProps) {
         } as any,
       ]}
     >
+      {canSwitchProfile && profileSwitcherOpen ? renderProfileSwitcher() : null}
+
       <Pressable
-        accessibilityLabel="Abrir perfil e configurações"
-        onPress={openProfile}
+        {...({
+          dataSet: { goatletaWorkspaceTrigger: "true" },
+          "data-goatleta-workspace-trigger": "true",
+          onMouseEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
+          onPointerEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
+        } as any)}
+        accessibilityLabel={canSwitchProfile ? "Alternar workspace" : "Abrir perfil e configurações"}
+        accessibilityState={canSwitchProfile ? { expanded: profileSwitcherOpen } : undefined}
+        onFocus={() => canSwitchProfile && setProfileSwitcherOpen(true)}
+        onHoverIn={() => canSwitchProfile && setProfileSwitcherOpen(true)}
+        onPress={() => {
+          if (canSwitchProfile) {
+            setProfileSwitcherOpen(true);
+            return;
+          }
+          openProfile();
+        }}
         style={{
           minHeight: 62,
           borderRadius: radius.card,
@@ -408,6 +535,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
           flexDirection: "row",
           alignItems: "center",
           gap: 11,
+          backgroundColor: profileSwitcherOpen ? "rgba(255,255,255,0.08)" : "transparent",
         }}
       >
         <View
@@ -457,6 +585,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
       />
 
       <Pressable
+        onHoverIn={() => setProfileSwitcherOpen(false)}
         onPress={openProfile}
         style={{
           minHeight: 44,
@@ -477,72 +606,6 @@ export function WebSidebar({ role }: WebSidebarProps) {
         </Text>
       </Pressable>
 
-      {canSwitchProfile ? (
-        <>
-          <Text
-            style={{
-              color: "rgba(255,255,255,0.44)",
-              fontSize: 10,
-              fontWeight: "900",
-              paddingHorizontal: 10,
-              paddingTop: 6,
-              paddingBottom: 2,
-            }}
-          >
-            TROCAR PERFIL
-          </Text>
-          {visibleProfileSwitchOptions.map((option) => {
-            const active = selectedPreview === option.id;
-            return (
-              <Pressable
-                key={option.id}
-                onPress={() => void applyProfilePreview(option.id)}
-                style={{
-                  minHeight: 44,
-                  borderRadius: radius.card,
-                  paddingHorizontal: 10,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 11,
-                  backgroundColor: active ? "rgba(255,255,255,0.10)" : "transparent",
-                }}
-              >
-                <GoAtletaIcon
-                  name={option.icon}
-                  size={18}
-                  color={active ? brandPalette.quadra : "rgba(255,255,255,0.70)"}
-                />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text
-                    style={{
-                      color: active ? brandPalette.white : "rgba(255,255,255,0.86)",
-                      fontSize: 13,
-                      fontWeight: "800",
-                    }}
-                    numberOfLines={1}
-                  >
-                    {option.label}
-                  </Text>
-                  <Text
-                    style={{ color: "rgba(255,255,255,0.46)", fontSize: 10 }}
-                    numberOfLines={1}
-                  >
-                    {option.subtitle}
-                  </Text>
-                </View>
-                {active ? (
-                  <GoAtletaIcon
-                    name="checkmarkCircle"
-                    size={17}
-                    color={brandPalette.quadra}
-                  />
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </>
-      ) : null}
-
       <View
         style={{
           height: 1,
@@ -554,6 +617,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
 
       <Pressable
         accessibilityLabel="Sair da conta"
+        onHoverIn={() => setProfileSwitcherOpen(false)}
         onPress={() => void handleSignOut()}
         style={{
           minHeight: 44,
@@ -858,6 +922,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
   if (!expanded) {
     return (
       <View
+        accessibilityLabel="Navegação principal"
         style={{
           width: SIDEBAR_COMPACT_WIDTH,
           alignSelf: "stretch",
@@ -915,7 +980,9 @@ export function WebSidebar({ role }: WebSidebarProps) {
           }}
         >
           <BrandMark size={44} />
-          <SidebarToggleButton expanded={false} onPress={() => setSidebarExpanded(true)} />
+          {canExpand ? (
+            <SidebarToggleButton expanded={false} onPress={() => setSidebarExpanded(true)} />
+          ) : null}
         </View>
 
         <ScrollView
@@ -942,7 +1009,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
           <Pressable
             accessibilityLabel={profileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
             accessibilityState={{ expanded: profileMenuOpen }}
-            onPress={() => setProfileMenuOpen((current) => !current)}
+            onPress={toggleProfileMenu}
             style={{
               width: 58,
               height: 58,
@@ -1054,6 +1121,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
 
   return (
     <View
+      accessibilityLabel="Navegação principal"
       style={{
         width: SIDEBAR_COMPACT_WIDTH,
         alignSelf: "stretch",
@@ -1142,7 +1210,7 @@ export function WebSidebar({ role }: WebSidebarProps) {
         <Pressable
           accessibilityLabel={profileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
           accessibilityState={{ expanded: profileMenuOpen }}
-          onPress={() => setProfileMenuOpen((current) => !current)}
+          onPress={toggleProfileMenu}
           style={{
             minHeight: 58,
             borderRadius: 18,

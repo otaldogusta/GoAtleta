@@ -22,7 +22,6 @@ import {
     StyleSheet,
     Text,
     TextInput,
-    useWindowDimensions,
     View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -101,6 +100,7 @@ import { TimeInput } from "../../src/ui/TimeInput";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import { radius, shadow } from "../../src/theme/tokens";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -365,7 +365,7 @@ const getSavedPlanDisplayTitle = (plan: TrainingPlan) => {
 export default function TrainingList() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { width: viewportWidth } = useWindowDimensions();
+  const responsiveLayout = useResponsiveLayout("dashboard");
   const router = useRouter();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -1397,8 +1397,11 @@ export default function TrainingList() {
     [colors, renameTemplateId, renameTemplateText]
   );
 
-  const savedPlanCardWidth =
-    viewportWidth >= 1180 ? "32%" : viewportWidth >= 760 ? "49%" : "100%";
+  const savedPlanCardWidth = responsiveLayout.supportsDenseGrid
+    ? "32%"
+    : responsiveLayout.supportsSplitView
+      ? "49%"
+      : "100%";
 
   const PlanRow = useMemo(
     () =>
@@ -2163,12 +2166,12 @@ export default function TrainingList() {
   const planningShellStyle = useMemo(
     () => ({
       width: "100%" as const,
-      maxWidth: viewportWidth >= 1440 ? 1280 : 1180,
+      maxWidth: responsiveLayout.supportsDenseGrid ? 1280 : 1180,
       alignSelf: "center" as const,
     }),
-    [viewportWidth]
+    [responsiveLayout.supportsDenseGrid]
   );
-  const isPlanningCompact = viewportWidth < 760;
+  const isPlanningCompact = responsiveLayout.isMobile;
 
   const savePlan = async () => {
     if (!classId) {
@@ -3205,7 +3208,10 @@ export default function TrainingList() {
           ref={scrollRef}
           style={{ flex: 1, minHeight: 0 }}
           contentContainerStyle={{
-            paddingBottom: Math.max(insets.bottom + (viewportWidth < 1200 ? 112 : 32), 40),
+            paddingBottom: Math.max(
+              insets.bottom + (responsiveLayout.usesWorkspaceShell ? 32 : 112),
+              40
+            ),
             gap: 12,
             paddingHorizontal: isPlanningCompact ? 12 : 16,
             paddingTop: 10,
@@ -3766,7 +3772,7 @@ export default function TrainingList() {
                       </View>
                       <View
                         style={{
-                          flexDirection: viewportWidth >= 760 ? "row" : "column",
+                          flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column",
                           flexWrap: "wrap",
                           gap: 12,
                         }}

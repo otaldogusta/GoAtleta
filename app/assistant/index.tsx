@@ -23,7 +23,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../src/api/config";
+import { requestAssistantConversation } from "../../src/api/ai";
 import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
 import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
@@ -70,6 +70,7 @@ import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../src/ui/icon-registry";
+import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -135,7 +136,7 @@ type QuickPromptCard = {
 type QuickPromptGridProps = {
   items: QuickPromptCard[];
   onSelectPrompt: (prompt: string) => void;
-  isDesktopLayout: boolean;
+  supportsSplitLayout: boolean;
   isCompactMobile: boolean;
   mode: string;
   borderColor: string;
@@ -187,7 +188,7 @@ const quickPromptGridStyles = StyleSheet.create({
 const MemoQuickPromptGrid = memo(function QuickPromptGrid({
   items,
   onSelectPrompt,
-  isDesktopLayout,
+  supportsSplitLayout,
   isCompactMobile,
   mode,
   borderColor,
@@ -207,7 +208,7 @@ const MemoQuickPromptGrid = memo(function QuickPromptGrid({
           style={[
             quickPromptGridStyles.card,
             {
-              flexBasis: isDesktopLayout ? "31.9%" : isCompactMobile ? "100%" : "48.5%",
+              flexBasis: supportsSplitLayout ? "31.9%" : isCompactMobile ? "100%" : "48.5%",
               borderColor,
               backgroundColor: inputBg,
             },
@@ -667,7 +668,8 @@ export default function AssistantScreen() {
     }
   }, []);
 
-  const isDesktopLayout = Platform.OS === "web" && width >= 1100;
+  const { supportsSplitView } = useResponsiveLayout("dashboard");
+  const supportsSplitLayout = supportsSplitView;
   const isCompactMobile = width < 360;
 
   const userDisplayName = useMemo(() => {
@@ -1056,33 +1058,18 @@ export default function AssistantScreen() {
       setMemoryContextHints(memoryContext);
       const appSnapshot = optionalCopilot?.appSnapshot ?? null;
 
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/assistant`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-          apikey: SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          messages: requestMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          classId,
-          organizationId: activeOrganization?.id ?? "",
-          sport: selectedClass?.modality ?? "volleyball",
-          memoryContext,
-          appSnapshot,
-        }),
-      });
-
-      const payloadText = await response.text();
-      if (!response.ok) {
-        const parsedError = extractEmbeddedReplyError(payloadText);
-        throw new Error(parsedError || payloadText || "Falha no assistente");
-      }
-
-      const data = JSON.parse(payloadText) as AssistantResponse | AssistantErrorPayload;
+      const data = await requestAssistantConversation({
+        accessToken,
+        messages: requestMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
+        classId,
+        organizationId: activeOrganization?.id ?? "",
+        sport: selectedClass?.modality ?? "volleyball",
+        memoryContext,
+        appSnapshot,
+      }) as AssistantResponse | AssistantErrorPayload;
       const payloadError = extractAssistantPayloadError(data);
       const rawReply =
         typeof (data as AssistantResponse).reply === "string" && (data as AssistantResponse).reply.trim()
@@ -1492,11 +1479,11 @@ export default function AssistantScreen() {
       <View
         style={{
           flex: 1,
-          paddingHorizontal: isDesktopLayout ? 20 : 14,
+          paddingHorizontal: supportsSplitLayout ? 20 : 14,
           paddingTop: 12,
           paddingBottom: 12,
           gap: 12,
-          flexDirection: isDesktopLayout ? "row" : "column",
+          flexDirection: supportsSplitLayout ? "row" : "column",
         }}
       >
         <View
@@ -1515,7 +1502,7 @@ export default function AssistantScreen() {
               flexDirection: "row",
               alignItems: "center",
               gap: 10,
-              paddingHorizontal: isDesktopLayout ? 4 : 0,
+              paddingHorizontal: supportsSplitLayout ? 4 : 0,
               paddingBottom: 4,
             }}
           >
@@ -1563,14 +1550,14 @@ export default function AssistantScreen() {
               <View
                 style={{
                   width: "100%",
-                  maxWidth: isDesktopLayout ? 980 : undefined,
+                  maxWidth: supportsSplitLayout ? 980 : undefined,
                   alignSelf: "center",
                   minHeight:
                     Platform.OS === "web"
                       ? Math.max(360, Math.round(height * 0.42))
                       : undefined,
-                  paddingHorizontal: isDesktopLayout ? 20 : 6,
-                  paddingTop: isDesktopLayout ? 34 : 18,
+                  paddingHorizontal: supportsSplitLayout ? 20 : 6,
+                  paddingTop: supportsSplitLayout ? 34 : 18,
                   paddingBottom: 8,
                   gap: 18,
                 }}
@@ -1667,7 +1654,7 @@ export default function AssistantScreen() {
                 <MemoQuickPromptGrid
                   items={quickPrompts}
                   onSelectPrompt={handleSelectQuickPrompt}
-                  isDesktopLayout={isDesktopLayout}
+                  supportsSplitLayout={supportsSplitLayout}
                   isCompactMobile={isCompactMobile}
                   mode={mode}
                   borderColor={colors.border}

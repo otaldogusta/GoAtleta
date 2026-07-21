@@ -2,6 +2,8 @@ import { Children, isValidElement, type ReactNode } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { View } from "react-native";
 
+import { canSplitResponsiveGrid } from "../../ui/responsive-layout";
+import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
 export type ResponsiveGridComposition = "1" | "8/4" | "6/6";
@@ -10,13 +12,13 @@ type ResponsiveGridProps = {
   children: ReactNode;
   columns: {
     compact: "1";
-    desktop: Exclude<ResponsiveGridComposition, "1">;
+    split: Exclude<ResponsiveGridComposition, "1">;
   };
   gap?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-const desktopFlexFor = (
+const splitFlexFor = (
   composition: Exclude<ResponsiveGridComposition, "1">,
   index: number
 ) => {
@@ -30,15 +32,20 @@ export function ResponsiveGrid({
   gap = 16,
   style,
 }: ResponsiveGridProps) {
-  const { isDesktop } = useResponsiveLayout();
+  const viewportLayout = useResponsiveLayout();
+  const { containerRef, onLayout, width: containerWidth } =
+    useContainerResponsiveLayout();
+  const split = canSplitResponsiveGrid(viewportLayout, containerWidth);
   const items = Children.toArray(children);
 
   return (
     <View
+      ref={containerRef}
+      onLayout={onLayout}
       style={[
         {
           width: "100%",
-          flexDirection: isDesktop ? "row" : "column",
+          flexDirection: split ? "row" : "column",
           alignItems: "stretch",
           gap,
         },
@@ -49,8 +56,8 @@ export function ResponsiveGrid({
         <View
           key={isValidElement(item) && item.key ? String(item.key) : `static-region-${index}`}
           style={
-            isDesktop
-              ? { flex: desktopFlexFor(columns.desktop, index), minWidth: 0 }
+            split
+              ? { flex: splitFlexFor(columns.split, index), minWidth: 0 }
               : { width: "100%", minWidth: 0 }
           }
         >

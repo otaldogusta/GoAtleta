@@ -1,10 +1,11 @@
-import { Animated, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Text, View } from "react-native";
 
 import { type ThemeColors } from "../../ui/app-theme";
 import { ClassGenderBadge } from "../../ui/ClassGenderBadge";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getSectionCardStyle } from "../../ui/section-styles";
+import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
 import type { ClassGroup, ClassPlan, PlanningCycle, RecentSessionSummary } from "../../core/models";
 import { isAnnualCycle } from "../../core/periodization-basics";
@@ -90,7 +91,7 @@ export function OverviewTab({
   recentSessionSummaries,
   onReviewEvolution,
 }: OverviewTabProps) {
-  const { width } = useWindowDimensions();
+  const responsiveLayout = useResponsiveLayout();
   if (selectedClass && isRedeEsperancaEightToElevenClass(selectedClass)) {
     return (
       <PeriodizationIntelligenceOverview
@@ -100,7 +101,7 @@ export function OverviewTab({
       />
     );
   }
-  const reserveFloatingActionSpace = width < 760;
+  const reserveFloatingActionSpace = responsiveLayout.isMobile;
   const coveredWeeks = new Set(
     classPlans
       .map((plan) => plan.weekNumber)

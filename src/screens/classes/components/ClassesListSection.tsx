@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import {
   FlatList,
@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -17,6 +16,7 @@ import { radius } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
+import { useContainerResponsiveLayout } from "../../../ui/use-container-responsive-layout";
 import type { ClassCardViewModel } from "../application/class-card-view-model";
 import { ClassCard } from "./ClassCard";
 
@@ -25,8 +25,8 @@ type Conflict = { name: string; day: number; modality?: string; kind: "conflict"
 
 const ALL_UNITS_KEY = "__all_units__";
 const OPEN_MENU_Z_INDEX = 11000;
-const DESKTOP_SPLIT_BREAKPOINT = 1040;
-const TABLE_BREAKPOINT = 1040;
+const UNIT_PANE_MIN_CONTENT_WIDTH = 1040;
+const TABLE_LAYOUT_MIN_WIDTH = 1040;
 
 type Props = {
   grouped: GroupedClasses;
@@ -64,34 +64,15 @@ export const ClassesListSection = memo(function ClassesListSection({
   style,
 }: Props) {
   markRender("screen.classes.render.listSection");
-  const { width: windowWidth } = useWindowDimensions();
-  const sectionRef = useRef<View>(null);
-  const [layoutWidth, setLayoutWidth] = useState(0);
-  const availableWidth = layoutWidth || windowWidth;
-  const isDesktopSplit = availableWidth >= DESKTOP_SPLIT_BREAKPOINT;
-  const showTable = availableWidth >= TABLE_BREAKPOINT;
+  const { containerRef, onLayout, width: availableWidth } =
+    useContainerResponsiveLayout("dashboard");
+  const hasPermanentUnitPane = availableWidth >= UNIT_PANE_MIN_CONTENT_WIDTH;
+  const showTable = availableWidth >= TABLE_LAYOUT_MIN_WIDTH;
   const [selectedUnitKey, setSelectedUnitKey] = useState(ALL_UNITS_KEY);
   const [unitSearch, setUnitSearch] = useState("");
   const [ascending, setAscending] = useState(true);
   const [mobileUnitsOpen, setMobileUnitsOpen] = useState(false);
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (Platform.OS !== "web") return undefined;
-    const element = sectionRef.current as unknown as HTMLElement | null;
-    if (!element?.getBoundingClientRect) return undefined;
-
-    const updateLayoutWidth = () => {
-      const nextWidth = Math.round(element.getBoundingClientRect().width);
-      setLayoutWidth((current) => (current === nextWidth ? current : nextWidth));
-    };
-
-    updateLayoutWidth();
-    if (typeof ResizeObserver === "undefined") return undefined;
-    const observer = new ResizeObserver(updateLayoutWidth);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
 
   const units = useMemo(
     () => grouped.map(([label, items]) => ({ key: unitKey(label), label, items })),
@@ -238,8 +219,8 @@ export const ClassesListSection = memo(function ClassesListSection({
         keyExtractor={(item) => item.key}
         renderItem={renderUnitRow}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={isDesktopSplit}
-        style={isDesktopSplit ? styles.unitListDesktop : styles.unitListMobile}
+        showsVerticalScrollIndicator={hasPermanentUnitPane}
+        style={hasPermanentUnitPane ? styles.unitListDesktop : styles.unitListMobile}
         contentContainerStyle={styles.unitListContent}
       />
       <Text style={[styles.unitFooter, { color: colors.textMuted ?? colors.muted }]}>
@@ -368,14 +349,11 @@ export const ClassesListSection = memo(function ClassesListSection({
 
   return (
     <View
-      ref={sectionRef}
-      onLayout={(event) => {
-        const nextWidth = Math.round(event.nativeEvent.layout.width);
-        setLayoutWidth((current) => (current === nextWidth ? current : nextWidth));
-      }}
+      ref={containerRef}
+      onLayout={onLayout}
       style={[styles.root, { backgroundColor: colors.background }, style]}
     >
-      {isDesktopSplit ? (
+      {hasPermanentUnitPane ? (
         <>
           <View
             style={[

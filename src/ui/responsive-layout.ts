@@ -12,14 +12,25 @@ export type ResponsiveLayout = {
   gutter: number;
   maxContentWidth: number;
   contentWidth: number;
-  isDesktop: boolean;
+  isMobile: boolean;
+  usesWorkspaceShell: boolean;
+  supportsSplitView: boolean;
+  canExpandSidebar: boolean;
+  supportsDenseGrid: boolean;
 };
 
 export const responsiveBreakpoints = {
+  workspace: 768,
+  splitView: 960,
+  expandedSidebar: 1100,
   tablet: 768,
-  desktop: 1200,
+  desktop: 1100,
   wide: 1440,
   ultrawide: 1600,
+} as const;
+
+export const responsiveContainerBreakpoints = {
+  splitGrid: 720,
 } as const;
 
 const gutterByTier: Record<ResponsiveTier, number> = {
@@ -65,6 +76,36 @@ export function resolveResponsiveLayout(
     gutter,
     maxContentWidth,
     contentWidth,
-    isDesktop: safeWidth >= responsiveBreakpoints.desktop,
+    isMobile: safeWidth < responsiveBreakpoints.workspace,
+    usesWorkspaceShell: safeWidth >= responsiveBreakpoints.workspace,
+    supportsSplitView: safeWidth >= responsiveBreakpoints.splitView,
+    canExpandSidebar: safeWidth >= responsiveBreakpoints.expandedSidebar,
+    supportsDenseGrid: safeWidth >= responsiveBreakpoints.wide,
   };
+}
+
+export type ResponsiveNavigation = {
+  showBottomNavigation: boolean;
+  showSidebar: boolean;
+  allowExpandedSidebar: boolean;
+};
+
+export function resolveResponsiveNavigation(
+  layout: Pick<ResponsiveLayout, "usesWorkspaceShell" | "canExpandSidebar">
+): ResponsiveNavigation {
+  return {
+    showBottomNavigation: !layout.usesWorkspaceShell,
+    showSidebar: layout.usesWorkspaceShell,
+    allowExpandedSidebar: layout.usesWorkspaceShell && layout.canExpandSidebar,
+  };
+}
+
+export function canSplitResponsiveGrid(
+  layout: Pick<ResponsiveLayout, "supportsSplitView">,
+  containerWidth: number
+) {
+  return (
+    layout.supportsSplitView &&
+    normalizeWidth(containerWidth) >= responsiveContainerBreakpoints.splitGrid
+  );
 }

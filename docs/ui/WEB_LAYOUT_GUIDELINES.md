@@ -15,8 +15,10 @@ O desktop usa 12 colunas conceituais:
 - `6/6`: duas regiões pares.
 - `1`: fluxo único.
 
-Regiões principais só dividem a linha a partir de 1200 px. Abaixo disso, a ordem
-do DOM define a ordem vertical. Não usar scroll horizontal para resolver layout.
+Regiões principais podem dividir a linha quando `supportsSplitView` estiver
+ativo e a largura medida do container acomodar a composição. Caso contrário, a
+ordem do DOM define a ordem vertical. Não usar scroll horizontal para resolver
+layout.
 
 ## Densidade
 

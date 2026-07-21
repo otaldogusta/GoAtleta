@@ -94,6 +94,7 @@ import { GoAtletaIcon } from "../../ui/icon-registry";
 import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
+import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 import { AgendaCard } from "./components/AgendaCard";
 import { CurrentLessonHero } from "./components/CurrentLessonHero";
 import { TodayScheduleRail } from "./components/TodayScheduleRail";
@@ -159,6 +160,7 @@ export function HomeProfessorScreen({
   const router = useRouter();
 
   const { colors, mode } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout("dashboard");
 
   // Glass overlay function no longer needed - using native component styling instead
 
@@ -1005,10 +1007,10 @@ export function HomeProfessorScreen({
 
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isWebHome = Platform.OS === "web";
-  const isUx2CWebHome = isWebHome && screenWidth >= 1200;
+  const isUx2CWebHome = isWebHome && responsiveLayout.supportsSplitView;
   const isUx2CWithRail = isUx2CWebHome;
-  const isUx2CWideDesktop = screenWidth >= 1440;
-  const isUx2CUltraWide = screenWidth >= 1600;
+  const isUx2CWideDesktop = responsiveLayout.supportsDenseGrid;
+  const isUx2CUltraWide = responsiveLayout.tier === "ultrawide";
   const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
   const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;

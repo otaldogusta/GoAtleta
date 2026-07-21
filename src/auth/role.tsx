@@ -7,12 +7,12 @@ import { getDevProfilePreview, type DevProfilePreview } from "../dev/profile-pre
 import {
   getActiveRolePreference,
   setActiveRolePreference,
-  type SelectableUserRole,
 } from "./active-role";
 import { useAuth } from "./auth";
+import type { SelectableUserRole, UserRole } from "./role-types";
 import { getSessionUserId, getValidAccessToken } from "./session";
 
-export type UserRole = "trainer" | "student" | "pending";
+export type { UserRole } from "./role-types";
 
 type RoleState = {
   role: UserRole | null;

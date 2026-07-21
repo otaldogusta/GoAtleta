@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "roots": ["app", "src", "supabase/functions"],
+  "exclude": [
+    "**/__tests__/**",
+    "**/__mocks__/**",
+    "**/fixtures/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ],
+  "pureCore": ["src/core/**"],
+  "publicModules": [
+    {
+      "root": "src/core/document-intelligence",
+      "entry": "src/core/document-intelligence/index"
+    },
+    {
+      "root": "src/core/consultation",
+      "entry": "src/core/consultation/index"
+    }
+  ],
+  "exceptions": []
+}

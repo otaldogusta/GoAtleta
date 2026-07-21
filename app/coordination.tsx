@@ -85,6 +85,7 @@ import { resolveCoordinationScreenPhase } from "../src/screens/coordination/coor
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
+import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 
 type CoordinationTab = "dashboard" | "members";
 
@@ -105,17 +106,6 @@ const getFirstName = (value: string) => {
   if (!normalized) return "";
   const [first] = normalized.split(/\s+/);
   return first || normalized;
-};
-
-const parseTimeToMinutes = (value: string | null | undefined) => {
-  if (!value) return null;
-  const match = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-  return hour * 60 + minute;
 };
 
 const formatExecutiveSummaryText = (summary: ExecutiveSummaryResult) => {
@@ -345,6 +335,7 @@ export default function CoordinationScreen() {
   const profilePath = getScopedProfilePath("/coordination");
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
+  const responsiveLayout = useResponsiveLayout("dashboard");
   const { activeOrganization, isLoading: organizationLoading } = useOrganization();
   const { syncPausedReason, resumeSync } = useSmartSync();
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
@@ -386,8 +377,8 @@ export default function CoordinationScreen() {
   const [loadedOrganizationId, setLoadedOrganizationId] = useState<string | null>(null);
   const dashboardRequestRef = useRef(0);
 
-  const isDesktopLayout = Platform.OS === "web" && width >= 1180;
-  const isWideLayout = width >= 860;
+  const supportsSplitLayout = responsiveLayout.supportsSplitView;
+  const isWideLayout = responsiveLayout.usesWorkspaceShell;
   const isCompactLayout = width < 430;
 
   const topDelaysByTrainer = useMemo(
@@ -693,21 +684,7 @@ export default function CoordinationScreen() {
         );
       if (requestId !== dashboardRequestRef.current) return;
 
-      const classesById = new Map(classes.map((item) => [item.id, item]));
-      const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
-        now.getDate()
-      ).padStart(2, "0")}`;
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-      const pendingAttendanceVisible = attendanceRows.filter((item) => {
-        if (toDateKey(item.targetDate) !== todayKey) return true;
-        const classRow = classesById.get(item.classId);
-        const classStartMinutes = parseTimeToMinutes(classRow?.startTime);
-        if (classStartMinutes === null) return true;
-        return classStartMinutes <= nowMinutes;
-      });
-
-      setPendingAttendance(pendingAttendanceVisible);
+      setPendingAttendance(attendanceRows);
       setPendingReports(reportRows);
       setRecentActivity(activityRows);
       setPendingWritesDiagnostics(queueDiagnostics);
@@ -1480,7 +1457,7 @@ export default function CoordinationScreen() {
       <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{
-            paddingHorizontal: isDesktopLayout ? 20 : isCompactLayout ? 12 : 16,
+            paddingHorizontal: supportsSplitLayout ? 20 : isCompactLayout ? 12 : 16,
             paddingTop: 12,
             paddingBottom: 28,
             gap: 12,
@@ -1728,7 +1705,7 @@ export default function CoordinationScreen() {
                 />
               </View>
 
-              <View style={{ flex: isDesktopLayout ? 0.8 : 1, gap: 12 }}>
+              <View style={{ flex: supportsSplitLayout ? 0.8 : 1, gap: 12 }}>
                 <SyncSupportPanel
                   colors={colors}
                   loading={loading}

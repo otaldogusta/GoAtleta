@@ -14,12 +14,13 @@ deve truncar ou quebrar dentro da própria região.
 
 ### `ResponsiveGrid`
 
-Organiza regiões em `1`, `8/4` ou `6/6`. Empilha abaixo de 1200 px e não cria
+Organiza regiões em `1`, `8/4` ou `6/6`. Combina a capacidade global
+`supportsSplitView` com a largura medida do próprio container e não cria
 superfícies automaticamente.
 
 ```tsx
 <ResponsivePage variant="dashboard">
-  <ResponsiveGrid columns={{ desktop: "8/4", compact: "1" }}>
+  <ResponsiveGrid columns={{ split: "8/4", compact: "1" }}>
     <MainRegion />
     <SideRegion />
   </ResponsiveGrid>

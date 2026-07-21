@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { Platform, View, useWindowDimensions } from "react-native";
+import { Platform, View } from "react-native";
 
 import type { AppRole } from "../components/navigation/tab-config";
-import { WebSidebar } from "./WebSidebar";
+import { AdaptiveSidebar } from "./AdaptiveSidebar";
+import { useResponsiveLayout } from "./use-responsive-layout";
 import { webShellTokens } from "./web-shell-tokens";
 
 type AppShellProps = {
@@ -10,15 +11,10 @@ type AppShellProps = {
   children: ReactNode;
 };
 
-export const WEB_SHELL_MIN_WIDTH = 1200;
-
 export function AppShell({ role, children }: AppShellProps) {
-  const { width } = useWindowDimensions();
-  const useWebShell =
-    Platform.OS === "web" &&
-    width >= WEB_SHELL_MIN_WIDTH;
+  const layout = useResponsiveLayout("dashboard");
 
-  if (!useWebShell) {
+  if (!layout.usesWorkspaceShell) {
     return <>{children}</>;
   }
 
@@ -31,14 +27,12 @@ export function AppShell({ role, children }: AppShellProps) {
           backgroundColor: webShellTokens.background,
           minHeight: 0,
         },
-        {
-          height: "100vh",
-          maxHeight: "100vh",
-          overflow: "hidden",
-        } as any,
+        Platform.OS === "web"
+          ? ({ height: "100vh", maxHeight: "100vh", overflow: "hidden" } as any)
+          : null,
       ]}
     >
-      <WebSidebar role={role} />
+      <AdaptiveSidebar role={role} canExpand={layout.canExpandSidebar} />
       <View
         style={{
           flex: 1,

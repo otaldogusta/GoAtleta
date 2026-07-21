@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-20",
+  "violations": [
+    {
+      "fingerprint": "7f105394de36bb75",
+      "rule": "core-framework-dependency",
+      "path": "src/core/effective-profile.ts -> react",
+      "justification": "Hook legado mantido no core ate a separacao entre calculo do perfil e adapter React."
+    },
+    {
+      "fingerprint": "c78f4cbcb71d187d",
+      "rule": "core-framework-dependency",
+      "path": "src/core/smart-sync.ts -> react-native",
+      "justification": "Orquestrador legado de sincronizacao ainda depende de AppState; extracao exige teste nativo dedicado."
+    },
+    {
+      "fingerprint": "6f7fb087d2d3a24d",
+      "rule": "core-framework-dependency",
+      "path": "src/core/use-locations.ts -> react",
+      "justification": "Hook legado preservado sem refatoracao funcional neste pacote."
+    },
+    {
+      "fingerprint": "e4d238de045515fa",
+      "rule": "core-framework-dependency",
+      "path": "src/core/use-smart-sync.ts -> react",
+      "justification": "Hook legado preservado sem alterar o ciclo de sincronizacao neste pacote."
+    },
+    {
+      "fingerprint": "5f8197d88236c272",
+      "rule": "dangerous-deep-import",
+      "path": "src/core/models.ts -> src/core/document-intelligence/types.ts",
+      "justification": "Import de tipo preexistente; migracao para a fachada sera feita junto da reducao do ciclo central."
+    },
+    {
+      "fingerprint": "261d6af2e7b0bae1",
+      "rule": "dangerous-deep-import",
+      "path": "src/core/session-planning-context-contract.ts -> src/core/document-intelligence/types.ts",
+      "justification": "Import de tipo preexistente; migracao isolada ampliaria o componente ciclico atual."
+    },
+    {
+      "fingerprint": "445bdbf61f8d0a94",
+      "rule": "app-direct-data-access",
+      "path": "app/reset-password.tsx",
+      "justification": "Fluxo de autenticacao legado usa endpoint Supabase diretamente e nao acessa dados organizacionais."
+    },
+    {
+      "fingerprint": "be245489c1e2c0a6",
+      "rule": "copilot-direct-data-access",
+      "path": "src/copilot/hooks/useContextualInsight.ts",
+      "justification": "Hook legado chama o assistant com workspace explicito; novas rotas paralelas de dados ficam bloqueadas."
+    },
+    {
+      "fingerprint": "e567dbecc8d72c60",
+      "rule": "circular-structural",
+      "path": "src/core/cycle-day-planning/session-decision-trace.ts -> src/core/models.ts -> src/core/cycle-day-planning/session-decision-trace.ts",
+      "justification": "Componente ciclico de tipos preexistente no planejamento pedagogico; nao existe ciclo de inicializacao em runtime."
+    },
+    {
+      "fingerprint": "9a61b423205cf88f",
+      "rule": "circular-structural",
+      "path": "src/db/nfc-sync.ts -> src/db/session.ts -> src/db/nfc-sync.ts",
+      "justification": "Fila NFC usa import dinamico apos inicializacao; separacao exige smoke nativo e fica fora desta refatoracao minima."
+    }
+  ]
+}

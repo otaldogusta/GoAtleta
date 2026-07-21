@@ -1,10 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import type { UserRole } from "./role";
+import type { SelectableUserRole } from "./role-types";
+
+export type { SelectableUserRole } from "./role-types";
 
 const ACTIVE_ROLE_KEY_PREFIX = "goatleta:active-role:";
-
-export type SelectableUserRole = Extract<UserRole, "trainer" | "student">;
 
 const storageKey = (userId: string) => `${ACTIVE_ROLE_KEY_PREFIX}${userId}`;
 

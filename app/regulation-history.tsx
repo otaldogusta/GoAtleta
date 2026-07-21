@@ -134,8 +134,8 @@ export default function RegulationHistoryScreen() {
   const { activeOrganization, activeOrganizationId } = useOrganization();
   const fallbackPath = pathname.startsWith("/coord") ? "/coord/dashboard" : "/prof/home";
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-  const isWide = responsiveLayout.isDesktop;
-  const isMedium = responsiveLayout.tier !== "mobile";
+  const isWide = responsiveLayout.supportsSplitView;
+  const isMedium = responsiveLayout.usesWorkspaceShell;
   markRender("screen.regulationHistory.render.root", { isAdmin: isAdmin ? 1 : 0 });
 
   const [loading, setLoading] = useState(true);
@@ -650,7 +650,7 @@ export default function RegulationHistoryScreen() {
 
         {!loading ? (
           <>
-            <ResponsiveGrid columns={{ compact: "1", desktop: "8/4" }}>
+            <ResponsiveGrid columns={{ compact: "1", split: "8/4" }}>
               <RegulationPanel colors={colors} style={{ gap: 16 }}>
                 <View style={{ flexDirection: isMedium ? "row" : "column", alignItems: isMedium ? "center" : "stretch", gap: 14 }}>
                   <View style={{ width: 62, height: 62, borderRadius: 18, backgroundColor: selectedSource?.enabled ? colors.successBg : colors.secondaryBg, alignItems: "center", justifyContent: "center" }}>
@@ -742,7 +742,7 @@ export default function RegulationHistoryScreen() {
               </RegulationPanel>
             </ResponsiveGrid>
 
-            <ResponsiveGrid columns={{ compact: "1", desktop: "6/6" }}>
+            <ResponsiveGrid columns={{ compact: "1", split: "6/6" }}>
               <RegulationPanel colors={colors} style={{ gap: 12 }}>
                 <RegulationSectionHeader title="Versões" description="Histórico institucional e comparação de regras." colors={colors} />
                 {ruleSets.length ? ruleSets.map(renderRuleSetRow) : renderEmptyState("Sem versões", "Nenhuma versão de regulamento foi cadastrada.")}

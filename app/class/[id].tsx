@@ -781,8 +781,10 @@ export default function ClassDetails() {
   const classStartTime = cls?.startTime || "-";
   const classDuration = cls?.durationMinutes ?? 60;
   const classGoal = cls?.goal || goal;
-  const compactClassWorkspace =
-    Platform.OS !== "web" || !resolveResponsiveLayout(windowWidth, "dashboard").isDesktop;
+  const compactClassWorkspace = !resolveResponsiveLayout(
+    windowWidth,
+    "dashboard"
+  ).supportsSplitView;
   const scheduleDayLabels = classDays.map((day) => dayNames[day]).filter(Boolean);
   const scheduleDaysLabel = scheduleDayLabels.length <= 1
     ? scheduleDayLabels[0] ?? "Sem dias definidos"

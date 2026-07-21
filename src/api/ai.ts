@@ -9,6 +9,16 @@ type AssistantMessage = {
   content: string;
 };
 
+export type AssistantConversationRequest = {
+  accessToken?: string;
+  messages: AssistantMessage[];
+  classId?: string;
+  organizationId?: string;
+  sport?: string;
+  memoryContext?: string[];
+  appSnapshot?: unknown;
+};
+
 type AssistantSource = {
   title: string;
   author: string;
@@ -474,6 +484,40 @@ const postAssistant = async (
     throw new Error(toFriendlyAssistantApiError(parsedError || "Invalid assistant response payload"));
   }
 };
+
+export async function requestAssistantConversation(
+  payload: AssistantConversationRequest
+): Promise<unknown> {
+  const accessToken = payload.accessToken ?? await getValidAccessToken();
+  if (!accessToken) {
+    throw new Error("Missing auth token");
+  }
+
+  const response = await fetch(assistantUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({
+      messages: payload.messages,
+      classId: payload.classId ?? "",
+      organizationId: payload.organizationId ?? "",
+      sport: payload.sport,
+      memoryContext: payload.memoryContext ?? [],
+      appSnapshot: payload.appSnapshot ?? null,
+    }),
+  });
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    const parsedError = extractAssistantApiError(responseText);
+    throw new Error(parsedError || responseText || "Falha no assistente");
+  }
+
+  return JSON.parse(responseText) as unknown;
+}
 
 const buildStructuredPrompt = (task: string, context: unknown, schemaHint: string) => {
   return [

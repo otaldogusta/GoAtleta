@@ -1,0 +1,74 @@
+name: Architecture Hygiene
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "src/**"
+      - "supabase/functions/**"
+      - "scripts/architecture-hygiene/**"
+      - "scripts/architecture-hygiene.config.json"
+      - "scripts/architecture-hygiene-baseline.json"
+      - "scripts/check-architecture-hygiene.js"
+      - "scripts/check-org-scope.js"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "docs/architecture-hygiene.md"
+      - ".github/workflows/architecture-hygiene.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "app/**"
+      - "src/**"
+      - "supabase/functions/**"
+      - "scripts/architecture-hygiene/**"
+      - "scripts/architecture-hygiene.config.json"
+      - "scripts/architecture-hygiene-baseline.json"
+      - "scripts/check-architecture-hygiene.js"
+      - "scripts/check-org-scope.js"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "docs/architecture-hygiene.md"
+      - ".github/workflows/architecture-hygiene.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: architecture-hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guardrails:
+    name: Architecture guardrails
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test architecture analyzer
+        run: npm run test:architecture
+
+      - name: Check architecture
+        run: npm run check:architecture
+
+      - name: Check architecture (strict)
+        run: npm run check:architecture:strict
+
+      - name: Preserve organization scope gate
+        run: npm run check:org-scope

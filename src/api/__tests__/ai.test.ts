@@ -10,7 +10,7 @@ jest.mock("../config", () => ({
   SUPABASE_ANON_KEY: "anon-key",
 }));
 
-import { clearAiCache, rewriteReportText } from "../ai";
+import { clearAiCache, requestAssistantConversation, rewriteReportText } from "../ai";
 
 describe("ai api - rewriteReportText", () => {
   const originalFetch = global.fetch;
@@ -170,5 +170,38 @@ describe("ai api - rewriteReportText", () => {
     ).rejects.toThrow("Missing active workspace context");
 
     expect(global.fetch).toBe(originalFetch);
+  });
+
+  test("encapsulates the full assistant conversation request", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ reply: "Resposta", sources: [], draftTraining: null }),
+    } as Response);
+
+    const result = await requestAssistantConversation({
+      accessToken: "screen-token",
+      messages: [{ role: "user", content: "Planeje a aula" }],
+      organizationId: "org_1",
+      classId: "class_1",
+      sport: "volleyball",
+      memoryContext: ["contexto"],
+      appSnapshot: { screen: "assistant" },
+    });
+
+    expect(result).toEqual({ reply: "Resposta", sources: [], draftTraining: null });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://project.supabase.co/functions/v1/assistant",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer screen-token" }),
+      })
+    );
+    const request = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual(expect.objectContaining({
+      organizationId: "org_1",
+      classId: "class_1",
+      sport: "volleyball",
+      memoryContext: ["contexto"],
+    }));
   });
 });

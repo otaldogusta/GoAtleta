@@ -11,6 +11,7 @@ de entrada antes de abrir arquivos antigos soltos na raiz.
 | Ver prioridades de produto | [ROADMAP.md](../ROADMAP.md) |
 | Acompanhar mudanças entregues | [CHANGELOG.md](../CHANGELOG.md) |
 | Rodar checklist antes de deploy | [production.md](operations/production.md) |
+| Entender fronteiras e guardrails arquiteturais | [architecture-hygiene.md](architecture-hygiene.md) |
 | Regras de performance/refatoração | [perf-hygiene.md](perf-hygiene.md) |
 | Design System e layout web | [ui/README.md](ui/README.md) |
 

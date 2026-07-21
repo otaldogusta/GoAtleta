@@ -1,7 +1,7 @@
 /**
  * Web Shell Visual Tokens
  * BankDash clean language for professional dashboard experience
- * Used only on web (>= 1200px). Mobile/tablet use app theme colors.
+ * Used by the shared tablet/desktop workspace shell.
  */
 
 export const webShellTokens = {

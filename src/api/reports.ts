@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/react-native";
 import { supabaseRestGet } from "./rest";
+import { filterActionablePendingAttendance } from "../core/pending-attendance";
 import { canonicalizeUnitLabel } from "../core/unit-label";
 
 type AdminPendingAttendanceRow = {
@@ -27,6 +28,9 @@ type AdminClassScheduleRow = {
   days: number[] | null;
   daysperweek: number | string | null;
   gender?: string | null;
+  starttime?: string | null;
+  end_time?: string | null;
+  duration?: number | string | null;
 };
 
 type AdminRecentActivityRow = {
@@ -181,14 +185,21 @@ export async function listAdminPendingAttendance(params: {
   organizationId: string;
 }) {
   assertOrganizationId(params.organizationId, "listAdminPendingAttendance");
-  const rows = await withTiming("listAdminPendingAttendance", () =>
-    supabaseRestGet<AdminPendingAttendanceRow[]>(
-      "/v_admin_pending_attendance?organization_id=eq." +
-        encodeURIComponent(params.organizationId) +
-        "&select=*"
-    )
-  );
-  return rows.map<AdminPendingAttendance>((row) => ({
+  const encodedOrgId = encodeURIComponent(params.organizationId);
+  const { rows, classSchedules } = await withTiming("listAdminPendingAttendance", async () => {
+    const [pendingRows, scheduleRows] = await Promise.all([
+      supabaseRestGet<AdminPendingAttendanceRow[]>(
+        "/v_admin_pending_attendance?organization_id=eq." + encodedOrgId + "&select=*"
+      ),
+      supabaseRestGet<AdminClassScheduleRow[]>(
+        "/classes?organization_id=eq." +
+          encodedOrgId +
+          "&select=id,days,daysperweek,starttime,end_time,duration"
+      ),
+    ]);
+    return { rows: pendingRows, classSchedules: scheduleRows };
+  });
+  const candidates = rows.map<AdminPendingAttendance>((row) => ({
     organizationId: row.organization_id,
     classId: row.class_id,
     className: row.class_name,
@@ -197,6 +208,17 @@ export async function listAdminPendingAttendance(params: {
     studentCount: toInt(row.student_count),
     hasAttendanceToday: row.has_attendance_today,
   }));
+  return filterActionablePendingAttendance({
+    candidates,
+    schedules: classSchedules.map((schedule) => ({
+      id: schedule.id,
+      daysOfWeek: schedule.days,
+      startTime: schedule.starttime,
+      endTime: schedule.end_time,
+      durationMinutes: schedule.duration,
+    })),
+    now: new Date(),
+  });
 }
 
 export async function listAdminPendingSessionLogs(params: {
