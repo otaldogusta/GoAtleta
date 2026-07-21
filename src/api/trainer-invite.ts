@@ -116,13 +116,14 @@ export async function createTrainerInvite(options: {
   organizationId: string;
   role: TrainerInviteRole;
   invitedTo?: string;
+  invitedVia?: "email" | "link";
   permissionKeys?: string[];
 }, auth?: AuthOverride) {
   const res = await authedPost("/functions/v1/create-trainer-invite", {
     organizationId: options.organizationId,
     role: options.role,
     invitedTo: options.invitedTo,
-    invitedVia: options.invitedTo ? "email" : "link",
+    invitedVia: options.invitedVia ?? (options.invitedTo ? "email" : "link"),
     permissionKeys: options.permissionKeys ?? [],
     maxUses: 1,
   }, auth);
