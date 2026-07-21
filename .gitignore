@@ -71,3 +71,24 @@ tatus
 testvoleiapp
 
 .vercel
+
+# Codex local runtimes and generated reports
+/.codex-doc-build/
+/.codex-runtime/
+/docs/status/
+/outputs/
+
+# Private academic review and authenticated QA evidence
+/artifacts/academic-bacharelado/
+/artifacts/academic-curation-*/
+/artifacts/e2e-*/
+/artifacts/design-qa/coordination-approved-comparison.png
+/artifacts/design-qa/coordination-approved-layout.png
+/artifacts/design-qa/coordination-approved-layout*.jpg
+/artifacts/design-qa/workspace-switcher-local-*.png
+/artifacts/profile-menu-open-*.png
+/artifacts/profile-menu-source-vs-implementation.jpg
+
+# One-off generators containing production QA snapshots
+/tools/build_e2e_report.py
+/tools/build_e2e_workbook.mjs
