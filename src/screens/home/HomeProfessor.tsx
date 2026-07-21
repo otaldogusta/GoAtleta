@@ -204,7 +204,7 @@ export function HomeProfessorScreen({
     isOrgAdmin ||
     memberPermissions.reports === true;
   const isAdminDashboardContext = adminMode && canRenderCoordinationDashboard;
-  const upcomingWindowDays = isAdminDashboardContext ? 30 : 7;
+  const upcomingWindowDays = 7;
 
   const [inbox, setInbox] = useState<AppNotification[]>([]);
 
@@ -262,10 +262,11 @@ export function HomeProfessorScreen({
   const inboxUnreadBorder =
     mode === "dark" ? "#334155" : "rgba(99, 102, 241, 0.34)";
 
-  const showInitialLoading =
-    (organizationLoading || loadingClasses || loadingEvents) &&
-    classes.length === 0 &&
-    upcomingEvents.length === 0;
+  const showInitialLoading = isAdminDashboardContext
+    ? false
+    : (organizationLoading || loadingClasses || loadingEvents) &&
+      classes.length === 0 &&
+      upcomingEvents.length === 0;
 
   const inboxX = useRef(new Animated.Value(panelWidth)).current;
 
@@ -400,14 +401,10 @@ export function HomeProfessorScreen({
     (async () => {
 
       if (!session || role !== "trainer") {
-        if (alive) {
-          setLoadingClasses(false);
-          setLoadingEvents(false);
-        }
         return;
       }
 
-      if (organizationLoading) {
+      if (!isAdminDashboardContext && organizationLoading) {
         if (alive) {
           setLoadingClasses(true);
           setLoadingEvents(true);
@@ -416,8 +413,10 @@ export function HomeProfessorScreen({
       }
 
       if (alive) {
-        setLoadingClasses(true);
-        setLoadingEvents(true);
+        if (!isAdminDashboardContext) {
+          setLoadingClasses(true);
+          setLoadingEvents(true);
+        }
         setClasses([]);
         setUpcomingEvents([]);
         setManualIndex(null);
@@ -432,7 +431,9 @@ export function HomeProfessorScreen({
         await measureAsync(
           "screen.home.load.schedule",
           async () => {
-            await ensureSeedData();
+            if (!isAdminDashboardContext) {
+              await ensureSeedData();
+            }
 
             const organizationId = activeOrganization?.id ?? null;
 
@@ -467,8 +468,10 @@ export function HomeProfessorScreen({
         }
       } finally {
 
-        if (alive) setLoadingClasses(false);
-        if (alive) setLoadingEvents(false);
+        if (!isAdminDashboardContext && alive) {
+          setLoadingClasses(false);
+          setLoadingEvents(false);
+        }
 
       }
 
@@ -490,7 +493,16 @@ export function HomeProfessorScreen({
 
     };
 
-  }, [session, role, activeOrganization?.id, organizationLoading, loadProfilePhoto, ensureSeedData]);
+  }, [
+    session,
+    role,
+    activeOrganization?.id,
+    organizationLoading,
+    loadProfilePhoto,
+    ensureSeedData,
+    isAdminDashboardContext,
+    upcomingWindowDays,
+  ]);
 
   useEffect(() => {
     if (!showInbox) return;
@@ -1336,21 +1348,24 @@ export function HomeProfessorScreen({
 
     if (session && role === "trainer" && !organizationLoading) {
 
-      setLoadingClasses(true);
-      setLoadingEvents(true);
+      if (!isAdminDashboardContext) {
+        setLoadingClasses(true);
+        setLoadingEvents(true);
+      }
 
       tasks.push(
 
-        ensureSeedData()
-
-          .then(() =>
-            getClasses({ organizationId: activeOrganization?.id ?? null })
-          )
+        (isAdminDashboardContext
+          ? getClasses({ organizationId: activeOrganization?.id ?? null })
+          : ensureSeedData().then(() => getClasses({ organizationId: activeOrganization?.id ?? null }))
+        )
 
           .then(setClasses)
           .catch(() => setClasses([]))
 
-          .finally(() => setLoadingClasses(false))
+          .finally(() => {
+            if (!isAdminDashboardContext) setLoadingClasses(false);
+          })
 
       );
 
@@ -1369,11 +1384,15 @@ export function HomeProfessorScreen({
       );
 
     } else if (organizationLoading) {
-      setLoadingClasses(true);
-      setLoadingEvents(true);
+      if (!isAdminDashboardContext) {
+        setLoadingClasses(true);
+        setLoadingEvents(true);
+      }
     } else {
-      setLoadingClasses(false);
-      setLoadingEvents(false);
+      if (!isAdminDashboardContext) {
+        setLoadingClasses(false);
+        setLoadingEvents(false);
+      }
     }
 
     await measureAsync("screen.home.load.refresh", () => Promise.allSettled(tasks), {
@@ -1390,6 +1409,7 @@ export function HomeProfessorScreen({
     activeOrganization?.id,
     upcomingWindowDays,
     organizationLoading,
+    isAdminDashboardContext,
     loadProfilePhoto,
     loadInbox,
     ensureSeedData,
