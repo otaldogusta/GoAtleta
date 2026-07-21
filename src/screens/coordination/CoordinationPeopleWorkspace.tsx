@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Platform,
   ScrollView,
   Text,
@@ -27,6 +28,7 @@ import {
 import type { AdminPendingAttendance, AdminPendingSessionLogs } from "../../api/reports";
 import {
   createTrainerInvite,
+  revokeTrainerInvite,
   type TrainerInviteItem,
   type TrainerInviteRole,
 } from "../../api/trainer-invite";
@@ -34,9 +36,11 @@ import { radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../ui/app-theme";
+import { useConfirmUndo } from "../../ui/confirm-undo";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
+import { useUndoableListDelete } from "../../ui/useUndoableListDelete";
 
 type SecondaryModuleKey = "attendance" | "classes" | "access" | "reports" | "sync";
 type RoleFilter = "all" | "coordination" | "professor" | "intern";
@@ -44,6 +48,11 @@ type StatusFilter = "all" | "active" | "pending";
 type ModalMode = "invite" | "edit" | "message" | null;
 type Layout = { x: number; y: number; width: number; height: number };
 type InviteAudience = Exclude<TrainerInviteRole, "collaborator"> | "student";
+type InviteNotice = {
+  tone: "success" | "warning" | "error";
+  title: string;
+  message: string;
+};
 
 type CoordinationPeopleWorkspaceProps = {
   organizationId: string;
@@ -343,6 +352,69 @@ function MemberActionMenu({
   );
 }
 
+function InviteActionMenu({
+  invite,
+  onCancel,
+}: {
+  invite: TrainerInviteItem;
+  onCancel: (invite: TrainerInviteItem) => void;
+}) {
+  const { colors } = useAppTheme();
+  const triggerRef = useRef<ViewType | null>(null);
+  const [open, setOpen] = useState(false);
+  const [layout, setLayout] = useState<Layout | null>(null);
+  const inviteLabel = invite.invited_to ?? "pendente";
+
+  return (
+    <>
+      <View ref={triggerRef}>
+        <Pressable
+          accessibilityLabel={`Ações do convite ${inviteLabel}`}
+          onPress={() => {
+            if (open) {
+              setOpen(false);
+              return;
+            }
+            triggerRef.current?.measureInWindow((x, y, width, height) => {
+              setLayout({ x: x - 200 + width, y, width: 200, height });
+              setOpen(true);
+            });
+          }}
+          style={{ width: 30, height: 30, alignItems: "center", justifyContent: "center" }}
+        >
+          <GoAtletaIcon name="ellipsisHorizontal" size={19} color={colors.text} />
+        </Pressable>
+      </View>
+      <AnchoredDropdown
+        visible={open}
+        layout={layout}
+        container={null}
+        animationStyle={{}}
+        zIndex={4300}
+        maxHeight={120}
+        nestedScrollEnabled
+        onRequestClose={() => setOpen(false)}
+        interactiveRefs={[triggerRef]}
+      >
+        <AnchoredDropdownOption
+          active={false}
+          onPress={() => {
+            setOpen(false);
+            onCancel(invite);
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+            <GoAtletaIcon name="trash" size={16} color={colors.dangerText} />
+            <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
+              Cancelar convite
+            </Text>
+          </View>
+        </AnchoredDropdownOption>
+      </AnchoredDropdown>
+    </>
+  );
+}
+
 export function CoordinationPeopleWorkspace({
   organizationId,
   organizationName,
@@ -362,6 +434,7 @@ export function CoordinationPeopleWorkspace({
 }: CoordinationPeopleWorkspaceProps) {
   const { colors } = useAppTheme();
   const router = useRouter();
+  const { confirm: confirmUndo } = useConfirmUndo();
   const { width, height } = useWindowDimensions();
   const desktop = Platform.OS === "web" && width >= 1180;
   const compact = width < 760;
@@ -387,9 +460,15 @@ export function CoordinationPeopleWorkspace({
     "calendar",
     "absence_notices",
   ]);
-  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteBusyChannel, setInviteBusyChannel] = useState<"email" | "link" | null>(
+    null
+  );
   const [inviteResult, setInviteResult] = useState<string | null>(null);
-  const [inviteEmailSent, setInviteEmailSent] = useState<boolean | null>(null);
+  const [inviteResultChannel, setInviteResultChannel] = useState<"email" | "link" | null>(null);
+  const [inviteEmailError, setInviteEmailError] = useState<"missing" | "invalid" | null>(null);
+  const [inviteNotice, setInviteNotice] = useState<InviteNotice | null>(null);
+  const inviteEmailInputRef = useRef<TextInput | null>(null);
+  const inviteEmailShakeAnim = useRef(new Animated.Value(0)).current;
   const [editBusy, setEditBusy] = useState(false);
   const [editRole, setEditRole] = useState<5 | 10 | 50>(10);
   const [editClassIds, setEditClassIds] = useState<string[]>([]);
@@ -397,8 +476,27 @@ export function CoordinationPeopleWorkspace({
   const [permissionLoading, setPermissionLoading] = useState(false);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<MemberPermissionKey[]>([]);
   const [selectedPermissionsLoading, setSelectedPermissionsLoading] = useState(false);
+  const [visiblePendingInvites, setVisiblePendingInvites] = useState(pendingInvites);
   const selectedPermissionRequestRef = useRef(0);
   const editPermissionRequestRef = useRef(0);
+  const getPendingInviteId = useCallback((invite: TrainerInviteItem) => invite.id, []);
+
+  const undoableInviteCancel = useUndoableListDelete({
+    items: visiblePendingInvites,
+    setItems: setVisiblePendingInvites,
+    getId: getPendingInviteId,
+    confirm: confirmUndo,
+    title: "Cancelar convite?",
+    message: "O link deixará de funcionar e o convite será removido desta lista.",
+    confirmLabel: "Cancelar convite",
+    cancelLabel: "Manter convite",
+    undoLabel: "Desfazer",
+    undoMessage: "Convite removido. Deseja desfazer?",
+    delayMs: 4500,
+    deleteItems: async (ids) => {
+      await Promise.all(ids.map((inviteId) => revokeTrainerInvite(inviteId, organizationId)));
+    },
+  });
 
   useEffect(() => {
     void AsyncStorage.getItem(storageKey).then((stored) => {
@@ -416,6 +514,10 @@ export function CoordinationPeopleWorkspace({
       }
     });
   }, [storageKey]);
+
+  useEffect(() => {
+    setVisiblePendingInvites(pendingInvites);
+  }, [pendingInvites]);
 
   useEffect(() => {
     if (selectedMemberId && members.some((member) => member.userId === selectedMemberId)) return;
@@ -455,11 +557,11 @@ export function CoordinationPeopleWorkspace({
   const filteredInvites = useMemo(() => {
     if (statusFilter === "active" || roleFilter !== "all") return [];
     const query = search.trim().toLowerCase();
-    return pendingInvites.filter(
+    return visiblePendingInvites.filter(
       (invite) =>
         !query || (invite.invited_to ?? "convite pendente").toLowerCase().includes(query)
     );
-  }, [pendingInvites, roleFilter, search, statusFilter]);
+  }, [roleFilter, search, statusFilter, visiblePendingInvites]);
 
   const selectedMember =
     members.find((member) => member.userId === selectedMemberId) ?? members[0] ?? null;
@@ -526,9 +628,49 @@ export function CoordinationPeopleWorkspace({
     setInviteRole("professor");
     setInvitePermissionKeys(["classes", "training", "calendar", "absence_notices"]);
     setInviteResult(null);
-    setInviteEmailSent(null);
+    setInviteResultChannel(null);
+    setInviteEmailError(null);
+    setInviteNotice(null);
     setModalMember(null);
     setModalMode("invite");
+  };
+
+  const clearInviteOutcome = () => {
+    setInviteResult(null);
+    setInviteResultChannel(null);
+    setInviteNotice(null);
+  };
+
+  const shakeInviteEmail = () => {
+    const useNativeDriver = Platform.OS !== "web";
+    inviteEmailShakeAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(inviteEmailShakeAnim, {
+        toValue: 8,
+        duration: 50,
+        useNativeDriver,
+      }),
+      Animated.timing(inviteEmailShakeAnim, {
+        toValue: -8,
+        duration: 50,
+        useNativeDriver,
+      }),
+      Animated.timing(inviteEmailShakeAnim, {
+        toValue: 6,
+        duration: 50,
+        useNativeDriver,
+      }),
+      Animated.timing(inviteEmailShakeAnim, {
+        toValue: -6,
+        duration: 50,
+        useNativeDriver,
+      }),
+      Animated.timing(inviteEmailShakeAnim, {
+        toValue: 0,
+        duration: 50,
+        useNativeDriver,
+      }),
+    ]).start();
   };
 
   const openEdit = async (member: OrgMember) => {
@@ -561,42 +703,99 @@ export function CoordinationPeopleWorkspace({
     setModalMode("message");
   };
 
-  const submitInvite = async () => {
+  const submitInvite = async (channel: "email" | "link") => {
     if (inviteRole === "student") {
       router.push("/coord/students" as never);
       setModalMode(null);
       return;
     }
     const email = inviteEmail.trim().toLowerCase();
-    if (!email || !email.includes("@")) {
-      Alert.alert("Convidar pessoa", "Informe um e-mail válido.");
+    if (channel === "email" && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      setInviteEmailError(email ? "invalid" : "missing");
+      setInviteNotice(null);
+      shakeInviteEmail();
+      inviteEmailInputRef.current?.focus();
       return;
     }
-    setInviteBusy(true);
+    setInviteEmailError(null);
+    const roleText =
+      inviteRole === "moderator"
+        ? "coordenação"
+        : inviteRole === "intern"
+          ? "estagiário"
+          : "professor";
+    const buildWhatsAppMessage = (link: string) =>
+      `Você recebeu um convite para acessar ${organizationName} no GoAtleta como ${roleText}.\n\nAbra o link para aceitar:\n${link}`;
+
+    setInviteBusyChannel(channel);
     try {
+      if (channel === "link" && inviteResult && inviteResultChannel === "link") {
+        try {
+          await Clipboard.setStringAsync(buildWhatsAppMessage(inviteResult));
+          setInviteNotice({
+            tone: "success",
+            title: "Mensagem copiada",
+            message: "Agora é só colar a mensagem com o link no WhatsApp.",
+          });
+        } catch {
+          setInviteNotice({
+            tone: "error",
+            title: "Não foi possível copiar",
+            message: "O link continua disponível abaixo para você copiar manualmente.",
+          });
+        }
+        return;
+      }
+
       const result = await createTrainerInvite({
         organizationId,
         role: inviteRole,
-        invitedTo: email,
+        invitedTo: channel === "email" ? email : undefined,
+        invitedVia: channel,
         permissionKeys: inviteRole === "moderator" ? [] : invitePermissionKeys,
       });
       setInviteResult(result.signup_link);
-      setInviteEmailSent(result.email_sent);
-      await Clipboard.setStringAsync(result.signup_link);
+      setInviteResultChannel(channel);
+
+      let copied = false;
+      try {
+        await Clipboard.setStringAsync(
+          channel === "link" ? buildWhatsAppMessage(result.signup_link) : result.signup_link
+        );
+        copied = true;
+      } catch {
+        // O convite continua válido e visível para cópia manual.
+      }
       onRefresh();
-      Alert.alert(
-        result.email_sent ? "Convite enviado" : "Convite criado",
-        result.email_sent
-          ? "O convite foi enviado por e-mail e o link também foi copiado."
-          : "O e-mail não pôde ser enviado. O link foi copiado para você compartilhar."
-      );
+      if (channel === "link") {
+        setInviteNotice({
+          tone: "success",
+          title: copied ? "Link gerado e copiado" : "Link gerado",
+          message: copied
+            ? "A mensagem está pronta para colar no WhatsApp."
+            : "Copie o link abaixo para enviar no WhatsApp.",
+        });
+      } else {
+        setInviteNotice({
+          tone: result.email_sent ? "success" : "warning",
+          title: result.email_sent ? "Convite enviado por e-mail" : "Convite criado sem envio",
+          message: result.email_sent
+            ? copied
+              ? "O envio foi confirmado e o link também foi copiado."
+              : "O envio por e-mail foi confirmado."
+            : copied
+              ? "O provedor não enviou o e-mail; o link foi copiado para compartilhamento manual."
+              : "O provedor não enviou o e-mail; copie o link abaixo para compartilhar.",
+        });
+      }
     } catch (error) {
-      Alert.alert(
-        "Não foi possível convidar",
-        error instanceof Error ? error.message : "Tente novamente em instantes."
-      );
+      setInviteNotice({
+        tone: "error",
+        title: "Não foi possível criar o convite",
+        message: error instanceof Error ? error.message : "Tente novamente em instantes.",
+      });
     } finally {
-      setInviteBusy(false);
+      setInviteBusyChannel(null);
     }
   };
 
@@ -639,6 +838,25 @@ export function CoordinationPeopleWorkspace({
       } Acesse o GoAtleta para conferir os detalhes.`
     : "";
 
+  const inviteRoleSummary =
+    inviteRole === "moderator"
+      ? "Coordenação"
+      : inviteRole === "intern"
+        ? "Estagiário"
+        : inviteRole === "student"
+          ? "Aluno"
+          : "Professor";
+  const inviteAccessSummary =
+    inviteRole === "moderator"
+      ? "acesso administrativo completo"
+      : inviteRole === "student"
+        ? "vínculo ao aluno selecionado"
+        : `${invitePermissionKeys.length} ${
+            invitePermissionKeys.length === 1 ? "permissão selecionada" : "permissões selecionadas"
+          }`;
+  const normalizedInviteEmail = inviteEmail.trim().toLowerCase();
+  const inviteEmailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedInviteEmail);
+
   const uniqueClasses = new Set(memberClassHeads.map((item) => item.classId)).size;
   const moduleMeta: Record<SecondaryModuleKey, { label: string; value: string | number }> = {
     attendance: { label: "Chamadas pendentes", value: pendingAttendance.length },
@@ -662,6 +880,24 @@ export function CoordinationPeopleWorkspace({
   const border = colors.border;
   const panel = colors.card;
   const inner = colors.secondaryBg;
+  const inviteNoticePalette =
+    inviteNotice?.tone === "success"
+      ? {
+          background: colors.successBg,
+          border: colors.successBorder,
+          text: colors.successText,
+        }
+      : inviteNotice?.tone === "warning"
+        ? {
+            background: colors.warningBg,
+            border: colors.warningBorder,
+            text: colors.warningText,
+          }
+        : {
+            background: colors.dangerBg,
+            border: colors.dangerBorder,
+            text: colors.dangerText,
+          };
   const listMaxHeight = Math.max(180, Math.min(310, height * 0.36));
 
   const renderModuleContent = (key: SecondaryModuleKey) => {
@@ -1079,7 +1315,16 @@ export function CoordinationPeopleWorkspace({
                         alignItems: "center",
                       }}
                     >
-                      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <View
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          flexShrink: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
                         <View
                           style={{
                             width: 32,
@@ -1092,14 +1337,29 @@ export function CoordinationPeopleWorkspace({
                         >
                           <GoAtletaIcon name="communications" size={15} color={colors.warningText} />
                         </View>
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
                           <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700" }}>
                             {invite.invited_to ?? "Convite pendente"}
                           </Text>
                           <Text style={{ color: colors.muted, fontSize: 10 }}>Aguardando aceite</Text>
                         </View>
                       </View>
-                      <Text style={{ color: colors.warningText, fontSize: 11 }}>Pendente</Text>
+                      <View
+                        style={{
+                          flexShrink: 0,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        {!compact ? (
+                          <Text style={{ color: colors.warningText, fontSize: 11 }}>Pendente</Text>
+                        ) : null}
+                        <InviteActionMenu
+                          invite={invite}
+                          onCancel={(target) => undoableInviteCancel.deleteOne(target)}
+                        />
+                      </View>
                     </View>
                   ))}
                 </ScrollView>
@@ -1432,32 +1692,99 @@ export function CoordinationPeopleWorkspace({
           <View style={{ flexDirection: compact ? "column" : "row", gap: 18 }}>
             <View style={{ flex: 1, gap: 14 }}>
               {inviteRole !== "student" ? (
-                <View style={{ gap: 7 }}>
-                  <Text style={{ color: colors.text, fontWeight: "700" }}>E-mail</Text>
+                <Animated.View
+                  style={{ gap: 7, transform: [{ translateX: inviteEmailShakeAnim }] }}
+                >
+                  <View style={{ gap: 2 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700" }}>E-mail</Text>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      Obrigatório somente para enviar o convite por e-mail.
+                    </Text>
+                  </View>
+                  {inviteEmailError ? (
+                    <View accessibilityRole="alert" style={{ position: "relative" }}>
+                      <View
+                        style={{
+                          alignSelf: "flex-start",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          borderRadius: 8,
+                          backgroundColor: colors.dangerSolidBg,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <GoAtletaIcon
+                          name="warningCircle"
+                          size={14}
+                          color={colors.dangerSolidText}
+                        />
+                        <Text
+                          style={{
+                            color: colors.dangerSolidText,
+                            fontSize: 12,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {inviteEmailError === "missing"
+                            ? "Digite o e-mail para enviar o convite"
+                            : "Digite um e-mail válido"}
+                        </Text>
+                      </View>
+                      <View
+                        style={{
+                          width: 0,
+                          height: 0,
+                          marginLeft: 16,
+                          borderLeftWidth: 6,
+                          borderRightWidth: 6,
+                          borderTopWidth: 6,
+                          borderLeftColor: "transparent",
+                          borderRightColor: "transparent",
+                          borderTopColor: colors.dangerSolidBg,
+                        }}
+                      />
+                    </View>
+                  ) : null}
                   <TextInput
+                    ref={inviteEmailInputRef}
                     value={inviteEmail}
-                    onChangeText={setInviteEmail}
+                    onChangeText={(value) => {
+                      setInviteEmail(value);
+                      if (inviteEmailError) setInviteEmailError(null);
+                      clearInviteOutcome();
+                    }}
+                    accessibilityLabel="E-mail do convite"
+                    accessibilityHint={
+                      inviteEmailError
+                        ? "Campo obrigatório apenas para enviar o convite por e-mail."
+                        : "Opcional para o link do WhatsApp."
+                    }
                     autoCapitalize="none"
                     keyboardType="email-address"
                     placeholder="nome@exemplo.com"
                     placeholderTextColor={colors.placeholder}
                     style={{
                       borderRadius: radius.internal,
-                      borderWidth: 1,
-                      borderColor: border,
+                      borderWidth: inviteEmailError ? 2 : 1,
+                      borderColor: inviteEmailError ? colors.dangerSolidBg : border,
                       backgroundColor: colors.inputBg,
                       color: colors.inputText,
-                      paddingHorizontal: 12,
-                      paddingVertical: 11,
+                      paddingHorizontal: inviteEmailError ? 11 : 12,
+                      paddingVertical: inviteEmailError ? 10 : 11,
                     }}
                   />
-                </View>
+                </Animated.View>
               ) : null}
               <View style={{ gap: 7 }}>
                 <Text style={{ color: colors.text, fontWeight: "700" }}>Função</Text>
                 <DropdownButton
                   value={inviteRole}
-                  onChange={setInviteRole}
+                  onChange={(value) => {
+                    setInviteRole(value);
+                    clearInviteOutcome();
+                  }}
                   compact
                   options={[
                     { value: "professor", label: "Professor" },
@@ -1558,13 +1885,14 @@ export function CoordinationPeopleWorkspace({
                       return (
                         <Pressable
                           key={option.key}
-                          onPress={() =>
+                          onPress={() => {
+                            clearInviteOutcome();
                             setInvitePermissionKeys((current) =>
                               checked
                                 ? current.filter((key) => key !== option.key)
                                 : [...current, option.key]
-                            )
-                          }
+                            );
+                          }}
                           style={{
                             padding: 10,
                             borderBottomWidth: 1,
@@ -1595,67 +1923,155 @@ export function CoordinationPeopleWorkspace({
               )}
             </View>
           </View>
-          {inviteResult ? (
-            <View
-              style={{
-                borderRadius: radius.internal,
-                borderWidth: 1,
-                borderColor: colors.successBorder,
-                backgroundColor: colors.successBg,
-                padding: 12,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                {inviteEmailSent ? "Convite enviado por e-mail" : "Convite pronto e copiado"}
-              </Text>
-              <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 11 }}>
-                {inviteResult}
-              </Text>
-            </View>
-          ) : null}
         </ScrollView>
         <View
           style={{
-            padding: 16,
             borderTopWidth: 1,
             borderTopColor: border,
-            flexDirection: "row",
-            justifyContent: "flex-end",
-            gap: 10,
           }}
         >
-          <Pressable
-            onPress={() => setModalMode(null)}
+          {inviteNotice ? (
+            <View
+              accessibilityRole="alert"
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 11,
+                backgroundColor: inviteNoticePalette.background,
+                borderBottomWidth: 1,
+                borderBottomColor: inviteNoticePalette.border,
+                gap: 3,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                <GoAtletaIcon
+                  name={inviteNotice.tone === "error" ? "warningCircle" : "checkmarkCircle"}
+                  size={17}
+                  color={inviteNoticePalette.text}
+                />
+                <Text style={{ color: inviteNoticePalette.text, fontWeight: "800" }}>
+                  {inviteNotice.title}
+                </Text>
+              </View>
+              <Text style={{ color: inviteNoticePalette.text, fontSize: 12 }}>
+                {inviteNotice.message}
+              </Text>
+              {inviteResult ? (
+                <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
+                  {inviteResult}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {inviteRole !== "student" ? (
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                borderBottomWidth: 1,
+                borderBottomColor: border,
+                flexDirection: compact ? "column" : "row",
+                alignItems: compact ? "flex-start" : "center",
+                justifyContent: "space-between",
+                gap: 4,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                <GoAtletaIcon name="shield" size={16} color={colors.successText} />
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                  {inviteRoleSummary} • {inviteAccessSummary}
+                </Text>
+              </View>
+              <Text
+                numberOfLines={1}
+                style={{
+                  color:
+                    normalizedInviteEmail && !inviteEmailIsValid
+                      ? colors.warningText
+                      : colors.muted,
+                  fontSize: 11,
+                }}
+              >
+                {inviteEmailIsValid
+                  ? `Envio por e-mail para ${normalizedInviteEmail}`
+                  : normalizedInviteEmail
+                    ? "Corrija o e-mail apenas se quiser enviar por e-mail"
+                    : "WhatsApp: link sem e-mail"}
+              </Text>
+            </View>
+          ) : null}
+
+          <View
             style={{
-              borderRadius: radius.internal,
-              borderWidth: 1,
-              borderColor: border,
-              paddingHorizontal: 18,
-              paddingVertical: 10,
+              padding: 16,
+              flexDirection: compact ? "column-reverse" : "row",
+              justifyContent: "flex-end",
+              gap: 10,
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
-          </Pressable>
-          <Pressable
-            disabled={inviteBusy}
-            onPress={() => void submitInvite()}
-            style={{
-              borderRadius: radius.internal,
-              backgroundColor: colors.primaryBg,
-              paddingHorizontal: 20,
-              paddingVertical: 10,
-              opacity: inviteBusy ? 0.65 : 1,
-            }}
-          >
-            <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
-              {inviteBusy
-                ? "Enviando..."
-                : inviteRole === "student"
-                  ? "Selecionar aluno"
-                  : "Enviar convite por e-mail"}
-            </Text>
-          </Pressable>
+            <Pressable
+              onPress={() => setModalMode(null)}
+              style={{
+                borderRadius: radius.internal,
+                borderWidth: 1,
+                borderColor: border,
+                paddingHorizontal: 18,
+                paddingVertical: 10,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
+            </Pressable>
+            {inviteRole !== "student" ? (
+              <Pressable
+                disabled={inviteBusyChannel !== null}
+                onPress={() => void submitInvite("link")}
+                style={{
+                  borderRadius: radius.internal,
+                  borderWidth: 1,
+                  borderColor: border,
+                  paddingHorizontal: 18,
+                  paddingVertical: 10,
+                  opacity: inviteBusyChannel !== null ? 0.55 : 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <GoAtletaIcon name="whatsapp" size={17} color={colors.text} />
+                <Text style={{ color: colors.text, fontWeight: "800" }}>
+                  {inviteBusyChannel === "link"
+                    ? inviteResult && inviteResultChannel === "link"
+                      ? "Copiando..."
+                      : "Gerando link..."
+                    : inviteResult && inviteResultChannel === "link"
+                      ? "Copiar para WhatsApp"
+                      : "Gerar link para WhatsApp"}
+                </Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              disabled={inviteBusyChannel !== null}
+              onPress={() => void submitInvite("email")}
+              style={{
+                borderRadius: radius.internal,
+                backgroundColor: colors.primaryBg,
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                opacity: inviteBusyChannel !== null ? 0.65 : 1,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+                {inviteBusyChannel === "email"
+                  ? "Enviando..."
+                  : inviteRole === "student"
+                    ? "Selecionar aluno"
+                    : "Enviar convite por e-mail"}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </ModalSheet>
 
