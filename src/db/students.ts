@@ -1691,7 +1691,7 @@ export async function saveAttendanceRecords(
   date: string,
   records: AttendanceRecord[],
   options?: { allowQueue?: boolean; organizationId?: string }
-) {
+): Promise<{ status: "synced" | "queued" }> {
   const allowQueue = options?.allowQueue !== false;
   try {
     const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
@@ -1745,6 +1745,7 @@ export async function saveAttendanceRecords(
     } catch {
       // best-effort compatibility layer; legacy attendance save already succeeded
     }
+    return { status: "synced" };
   } catch (error) {
     if (allowQueue && isNetworkError(error)) {
       await cacheAttendanceByDate(classId, date, records, options?.organizationId ?? null);
@@ -1754,7 +1755,7 @@ export async function saveAttendanceRecords(
         payload: { classId, date, records },
         createdAt: new Date().toISOString(),
       });
-      return;
+      return { status: "queued" };
     }
     throw error;
   }

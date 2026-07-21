@@ -1,4 +1,3 @@
-import { usePathname } from "expo-router";
 import type { ReactNode } from "react";
 import { Platform, View, useWindowDimensions } from "react-native";
 
@@ -13,16 +12,11 @@ type AppShellProps = {
 
 export const WEB_SHELL_MIN_WIDTH = 1200;
 
-export const shouldHideWebShellForPath = (pathname: string) =>
-  /\/(assistant)(\/|$)/.test(pathname);
-
 export function AppShell({ role, children }: AppShellProps) {
-  const pathname = usePathname();
   const { width } = useWindowDimensions();
   const useWebShell =
     Platform.OS === "web" &&
-    width >= WEB_SHELL_MIN_WIDTH &&
-    !shouldHideWebShellForPath(pathname);
+    width >= WEB_SHELL_MIN_WIDTH;
 
   if (!useWebShell) {
     return <>{children}</>;

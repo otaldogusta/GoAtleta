@@ -44,6 +44,7 @@
     "@sentry/react-native": "~7.11.0",
     "@shopify/react-native-skia": "2.6.2",
     "@swc/helpers": "^0.5.18",
+    "@vercel/analytics": "^2.0.1",
     "dotenv": "^17.3.1",
     "expo": "~56.0.15",
     "expo-calendar": "~56.0.9",

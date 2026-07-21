@@ -29,6 +29,9 @@ import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 
+const hasValidEmailFormat = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
+
 // perf-check: ignore-measure - this form has no automatic asynchronous screen load.
 export default function SignupScreen() {
   markRender("screen.signup.render.root");
@@ -51,8 +54,13 @@ export default function SignupScreen() {
   const [showInviteCode, setShowInviteCode] = useState(false);
   const strengthAnim = useRef(new Animated.Value(0)).current;
   const enterAnim = useRef(new Animated.Value(0)).current;
+  const emailShakeAnim = useRef(new Animated.Value(0)).current;
   const passwordShakeAnim = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const emailInputRef = useRef<TextInput | null>(null);
+  const [emailError, setEmailError] = useState<"missing" | "invalid" | null>(
+    null,
+  );
   const [passwordTooShort, setPasswordTooShort] = useState(false);
   const [confirmMismatch, setConfirmMismatch] = useState(false);
 
@@ -124,10 +132,22 @@ export default function SignupScreen() {
   };
 
   const handleSignup = async () => {
-    if (!email.trim()) {
-      setMessage("Informe seu email.");
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setMessage("");
+      setEmailError("missing");
+      runShake(emailShakeAnim);
+      emailInputRef.current?.focus();
       return;
     }
+    if (!hasValidEmailFormat(normalizedEmail)) {
+      setMessage("");
+      setEmailError("invalid");
+      runShake(emailShakeAnim);
+      emailInputRef.current?.focus();
+      return;
+    }
+    setEmailError(null);
     if (!password.trim()) {
       setMessage("Informe sua senha.");
       return;
@@ -266,37 +286,103 @@ export default function SignupScreen() {
                 elevation: 5,
               }}
             >
-              <View
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: 14,
-                  backgroundColor: solidInputBg,
-                  overflow: "hidden",
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  minHeight: 48,
-                }}
+              <Animated.View
+                style={{ transform: [{ translateX: emailShakeAnim }] }}
               >
-
-                <TextInput
-                  placeholder="Email"
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  underlineColorAndroid="transparent"
-                  selectionColor={colors.primaryBg}
+                {emailError ? (
+                  <View
+                    accessibilityRole="alert"
+                    style={{ position: "relative", marginBottom: 6 }}
+                  >
+                    <View
+                      style={{
+                        alignSelf: "flex-start",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        borderRadius: 8,
+                        backgroundColor: colors.dangerSolidBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                      }}
+                    >
+                      <GoAtletaIcon
+                        name="warningCircle"
+                        size={14}
+                        color={colors.dangerSolidText}
+                      />
+                      <Text
+                        style={{
+                          color: colors.dangerSolidText,
+                          fontSize: 12,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {emailError === "missing"
+                          ? "Digite seu e-mail"
+                          : "Digite um e-mail válido"}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: 0,
+                        height: 0,
+                        marginLeft: 16,
+                        borderLeftWidth: 6,
+                        borderRightWidth: 6,
+                        borderTopWidth: 6,
+                        borderLeftColor: "transparent",
+                        borderRightColor: "transparent",
+                        borderTopColor: colors.dangerSolidBg,
+                      }}
+                    />
+                  </View>
+                ) : null}
+                <View
                   style={{
-                    flex: 1,
-                    padding: 0,
-                    color: colors.inputText,
-                    backgroundColor: "transparent",
-                    borderWidth: 0,
+                    borderWidth: emailError ? 2 : 1,
+                    borderColor: emailError
+                      ? colors.dangerSolidBg
+                      : colors.border,
+                    borderRadius: 14,
+                    backgroundColor: solidInputBg,
+                    overflow: "hidden",
+                    paddingHorizontal: emailError ? 11 : 12,
+                    paddingVertical: emailError ? 9 : 10,
+                    minHeight: 48,
                   }}
-                />
-              </View>
+                >
+                  <TextInput
+                    ref={emailInputRef}
+                    accessibilityLabel="E-mail"
+                    accessibilityHint={
+                      emailError
+                        ? emailError === "missing"
+                          ? "Campo obrigatório. Digite seu e-mail."
+                          : "Formato inválido. Digite um e-mail válido."
+                        : undefined
+                    }
+                    placeholder="Email"
+                    value={email}
+                    onChangeText={(value) => {
+                      setEmail(value);
+                      if (emailError) setEmailError(null);
+                    }}
+                    placeholderTextColor={colors.placeholder}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    underlineColorAndroid="transparent"
+                    selectionColor={colors.primaryBg}
+                    style={{
+                      flex: 1,
+                      padding: 0,
+                      color: colors.inputText,
+                      backgroundColor: "transparent",
+                      borderWidth: 0,
+                    }}
+                  />
+                </View>
+              </Animated.View>
 
               <Animated.View style={{ transform: [{ translateX: passwordShakeAnim }] }}>
                 {passwordTooShort ? (

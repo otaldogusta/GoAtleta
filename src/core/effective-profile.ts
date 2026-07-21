@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import type { UserRole } from "../auth/role";
 import { useRole } from "../auth/role";
-import { useOrganization } from "../providers/OrganizationProvider";
+import { useOptionalOrganization } from "../providers/OrganizationProvider";
 
 export type EffectiveProfile = "student" | "professor" | "admin";
 
@@ -20,7 +20,7 @@ export const resolveEffectiveProfile = (params: {
 
 export const useEffectiveProfile = (): EffectiveProfile => {
   const { role, devProfilePreview } = useRole();
-  const { activeOrganization } = useOrganization();
+  const activeOrganization = useOptionalOrganization()?.activeOrganization ?? null;
 
   return useMemo(
     () => {

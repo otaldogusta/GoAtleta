@@ -85,6 +85,9 @@ se o convite foi apenas criado, copiado ou realmente enviado.
 ## Interface
 
 - O botão principal usa `Enviar convite por e-mail`.
+- A ação secundária `Gerar link para WhatsApp` não exige e-mail, não tenta envio
+  por e-mail e copia uma mensagem pronta para compartilhamento manual. A função
+  e as permissões escolhidas continuam registradas no convite.
 - O resultado nunca usa “enviado” quando só houve cópia.
 - A função Aluno explica o vínculo obrigatório e abre a seleção do cadastro.
 - As permissões são uma lista rolável e selecionável.

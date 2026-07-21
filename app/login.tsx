@@ -628,6 +628,7 @@ export default function LoginScreen() {
 
                 <Button
                   label="Entrar"
+                  loadingLabel="Entrando..."
                   onPress={handleLogin}
                   disabled={busy}
                   loading={busy}
