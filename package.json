@@ -19,6 +19,7 @@
     "check:activity-catalog-media": "node scripts/check-activity-catalog-media.js",
     "check:perf-hygiene": "node scripts/check-perf-hygiene.js",
     "check:perf-hygiene:strict": "node scripts/check-perf-hygiene.js --strict",
+    "check:ux-system": "node scripts/check-ux-system.js",
     "check:org-scope": "node scripts/check-org-scope.js",
     "tools:check": "npm run check:encoding && npm run check:edge-jwt && npm run check:org-scope",
     "release:check": "npm run lint && npm run check:org-scope",
