@@ -587,6 +587,10 @@ export default function ClassesScreen() {
     [colors.secondaryBg]
   );
   const chipInactiveTextStyle = useMemo(() => ({ color: colors.text }), [colors.text]);
+  const trainingSpaceHelperTextStyle = useMemo(
+    () => ({ color: colors.muted, fontSize: 10 }),
+    [colors.muted]
+  );
   const getChipStyle = (
     active: boolean,
     palette?: { bg: string; text: string }
@@ -2158,7 +2162,7 @@ export default function ClassesScreen() {
                   ))}
                 </View>
               ) : null}
-              <Text style={{ color: colors.muted, fontSize: 10 }}>
+              <Text style={trainingSpaceHelperTextStyle}>
                 Diferencia conflitos dentro da mesma unidade.
               </Text>
             </View>
