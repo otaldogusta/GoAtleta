@@ -14,6 +14,7 @@ import {
   getActiveOrganizationId,
   getScopedOrganizationId,
   isAuthError,
+  isMissingColumnInSchemaCache,
   isMissingRelation,
   isNetworkError,
   isPermissionError,
@@ -38,6 +39,44 @@ import {
 
 const buildClassesCacheKey = (organizationId: string | null) =>
   organizationId ? `${CACHE_KEYS.classes}_${organizationId}` : CACHE_KEYS.classes;
+
+const omitTrainingSpace = (payload: Record<string, unknown>) => {
+  const compatiblePayload = { ...payload };
+  delete compatiblePayload.training_space;
+  return compatiblePayload;
+};
+
+const recordTrainingSpaceCompatibilityFallback = (operation: "POST" | "PATCH") => {
+  Sentry.addBreadcrumb({
+    category: "supabase-schema",
+    message: `classes.training_space unavailable during ${operation}; compatibility payload used`,
+    level: "warning",
+  });
+};
+
+const postClassPayload = async (payload: Record<string, unknown>) => {
+  try {
+    await supabasePost("/classes", [payload]);
+  } catch (error) {
+    if (!("training_space" in payload) || !isMissingColumnInSchemaCache(error, "training_space")) {
+      throw error;
+    }
+    recordTrainingSpaceCompatibilityFallback("POST");
+    await supabasePost("/classes", [omitTrainingSpace(payload)]);
+  }
+};
+
+const patchClassPayload = async (path: string, payload: Record<string, unknown>) => {
+  try {
+    await supabasePatch(path, payload);
+  } catch (error) {
+    if (!("training_space" in payload) || !isMissingColumnInSchemaCache(error, "training_space")) {
+      throw error;
+    }
+    recordTrainingSpaceCompatibilityFallback("PATCH");
+    await supabasePatch(path, omitTrainingSpace(payload));
+  }
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -232,7 +271,7 @@ export async function getClasses(options: { organizationId?: string | null } = {
       const resolvedLevel: ClassGroup["level"] = row.level === 2 || row.level === 3 ? row.level : 1;
       return {
         id: row.id, name: row.name, organizationId: resolvedOrganizationId, unit: unitLabel, unitId: row.unit_id ?? "",
-        colorKey: row.color_key ?? "", modality: resolvedModality, ageBand: normalizeAgeBand(row.ageband),
+        trainingSpace: row.training_space?.trim() ?? "", colorKey: row.color_key ?? "", modality: resolvedModality, ageBand: normalizeAgeBand(row.ageband),
         gender: resolvedGender, startTime: resolvedStartTime, endTime: resolvedEndTime, durationMinutes: row.duration ?? 60,
         daysOfWeek: Array.isArray(row.days) && row.days.length ? row.days : row.daysperweek === 3 ? [1, 3, 5] : [2, 4],
         daysPerWeek: row.daysperweek, goal: row.goal, equipment: resolvedEquipment, level: resolvedLevel,
@@ -269,7 +308,7 @@ export async function getClassById(id: string, options: { organizationId?: strin
     return {
       id: row.id, name: row.name, organizationId: resolvedOrganizationId,
       unit: (row.unit_id ? unitMap.get(row.unit_id) : undefined) ?? canonicalizeUnitLabel(row.unit ?? null) ?? "Sem unidade",
-      unitId: row.unit_id ?? "", colorKey: row.color_key ?? "",
+      unitId: row.unit_id ?? "", trainingSpace: row.training_space?.trim() ?? "", colorKey: row.color_key ?? "",
       modality: resolveClassModality(row.modality) ?? "fitness",
       ageBand: normalizeAgeBand(row.ageband),
       gender: row.gender === "masculino" || row.gender === "feminino" ? row.gender : "misto",
@@ -292,7 +331,7 @@ export async function getClassById(id: string, options: { organizationId?: strin
   }
 }
 
-export async function updateClass(id: string, data: { name: string; unit: string; daysOfWeek: number[]; goal: ClassGroup["goal"]; ageBand: ClassGroup["ageBand"]; gender: ClassGroup["gender"]; modality?: ClassGroup["modality"]; startTime: string; durationMinutes: number; unitId?: string; mvLevel?: string; colorKey?: string | null; cycleStartDate?: string; cycleLengthWeeks?: number; acwrLow?: number; acwrHigh?: number }) {
+export async function updateClass(id: string, data: { name: string; unit: string; trainingSpace?: string; daysOfWeek: number[]; goal: ClassGroup["goal"]; ageBand: ClassGroup["ageBand"]; gender: ClassGroup["gender"]; modality?: ClassGroup["modality"]; startTime: string; durationMinutes: number; unitId?: string; mvLevel?: string; colorKey?: string | null; cycleStartDate?: string; cycleLengthWeeks?: number; acwrLow?: number; acwrHigh?: number }) {
   const activeOrganizationId = await getActiveOrganizationId();
   const resolvedUnitRow = data.unitId ? { id: data.unitId, name: data.unit } : await ensureUnit(data.unit);
   const payload: Record<string, unknown> = {
@@ -301,6 +340,7 @@ export async function updateClass(id: string, data: { name: string; unit: string
     end_time: computeEndTime(data.startTime, data.durationMinutes), duration: data.durationMinutes,
   };
   if (data.modality) payload.modality = data.modality;
+  if (data.trainingSpace !== undefined) payload.training_space = data.trainingSpace.trim() || null;
   const resolvedUnit = resolvedUnitRow?.id ?? undefined;
   if (resolvedUnit) payload.unit_id = resolvedUnit;
   if (data.colorKey !== undefined) payload.color_key = data.colorKey || null;
@@ -309,7 +349,7 @@ export async function updateClass(id: string, data: { name: string; unit: string
   if (typeof data.cycleLengthWeeks === "number") payload.cycle_length_weeks = data.cycleLengthWeeks;
   if (typeof data.acwrLow === "number") payload.acwr_low = data.acwrLow;
   if (typeof data.acwrHigh === "number") payload.acwr_high = data.acwrHigh;
-  await supabasePatch(
+  await patchClassPayload(
     activeOrganizationId ? "/classes?id=eq." + encodeURIComponent(id) + "&organization_id=eq." + encodeURIComponent(activeOrganizationId) : "/classes?id=eq." + encodeURIComponent(id),
     payload
   );
@@ -331,13 +371,13 @@ export async function updateClassAcwrLimits(id: string, limits: { low: number; h
   );
 }
 
-export async function saveClass(data: { name: string; unit: string; ageBand: ClassGroup["ageBand"]; daysOfWeek: number[]; goal: ClassGroup["goal"]; gender: ClassGroup["gender"]; modality?: ClassGroup["modality"]; startTime: string; durationMinutes: number; unitId?: string; mvLevel?: string; cycleStartDate?: string; cycleLengthWeeks?: number; colorKey?: string | null; organizationId?: string | null }) {
+export async function saveClass(data: { name: string; unit: string; trainingSpace?: string; ageBand: ClassGroup["ageBand"]; daysOfWeek: number[]; goal: ClassGroup["goal"]; gender: ClassGroup["gender"]; modality?: ClassGroup["modality"]; startTime: string; durationMinutes: number; unitId?: string; mvLevel?: string; cycleStartDate?: string; cycleLengthWeeks?: number; colorKey?: string | null; organizationId?: string | null }) {
   const classId = "c_" + Date.now();
   const resolvedUnitRow = data.unitId ? { id: data.unitId, name: data.unit } : await ensureUnit(data.unit);
   const resolvedUnit = resolvedUnitRow?.id ?? undefined;
   const activeOrganizationId = data.organizationId ?? (await getActiveOrganizationId());
   const payload: Record<string, unknown> = {
-    id: classId, name: data.name, unit: resolvedUnitRow?.name ?? data.unit, unit_id: resolvedUnit, color_key: data.colorKey ?? null,
+    id: classId, name: data.name, unit: resolvedUnitRow?.name ?? data.unit, unit_id: resolvedUnit, training_space: data.trainingSpace?.trim() || null, color_key: data.colorKey ?? null,
     modality: data.modality ?? "fitness", ageband: normalizeAgeBand(data.ageBand), gender: data.gender,
     starttime: data.startTime, end_time: computeEndTime(data.startTime, data.durationMinutes), duration: data.durationMinutes,
     days: data.daysOfWeek, daysperweek: data.daysOfWeek.length, goal: data.goal, equipment: "misto", level: 1,
@@ -345,7 +385,7 @@ export async function saveClass(data: { name: string; unit: string; ageBand: Cla
     created_at: new Date().toISOString(),
   };
   if (activeOrganizationId) payload.organization_id = activeOrganizationId;
-  await supabasePost("/classes", [payload]);
+  await postClassPayload(payload);
   return classId;
 }
 
@@ -356,6 +396,7 @@ export async function duplicateClass(base: ClassGroup) {
   const classId = "c_" + Date.now();
   const payload: Record<string, unknown> = {
     id: classId, name: base.name + " (cópia)", unit: resolvedUnitRow?.name ?? base.unit, unit_id: resolvedUnit,
+    training_space: base.trainingSpace?.trim() || null,
     color_key: base.colorKey ?? null, modality: base.modality ?? "fitness", ageband: normalizeAgeBand(base.ageBand),
     gender: base.gender, starttime: base.startTime, end_time: computeEndTime(base.startTime, base.durationMinutes),
     duration: base.durationMinutes, days: base.daysOfWeek, daysperweek: base.daysOfWeek.length, goal: base.goal,
@@ -364,7 +405,7 @@ export async function duplicateClass(base: ClassGroup) {
     created_at: new Date().toISOString(),
   };
   if (activeOrganizationId) payload.organization_id = activeOrganizationId;
-  await supabasePost("/classes", [payload]);
+  await postClassPayload(payload);
   return classId;
 }
 

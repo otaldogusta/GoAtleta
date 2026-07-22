@@ -144,6 +144,14 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
     for (let i = 1; i <= length; i += 1) {
       const template = base[(i - 1) % base.length];
       const plan = savedPlansByWeek.get(i) ?? previewPlansByWeek.get(i) ?? null;
+      const meta = activeCycleStartDate
+        ? buildCompetitiveWeekMeta({
+            weekNumber: i,
+            cycleStartDate: activeCycleStartDate,
+            daysOfWeek: selectedClass.daysOfWeek,
+            exceptions: calendarExceptions,
+          })
+        : null;
 
       if (plan) {
         const normalizedPhase = normalizeText(plan.phase);
@@ -155,15 +163,6 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
         const phaseForPse = normalizedPhase || plan.phase;
         const resolvedPSETarget = normalizedRpe || getPSETarget(phaseForPse, weeklySessions, sportProfile);
         const plannedLoads = getPlannedLoads(resolvedPSETarget, durationMinutes, weeklySessions);
-        const meta = isCompetitiveMode
-          ? buildCompetitiveWeekMeta({
-              weekNumber: i,
-              cycleStartDate: activeCycleStartDate,
-              daysOfWeek: selectedClass.daysOfWeek,
-              exceptions: calendarExceptions,
-            })
-          : null;
-
         weeks.push({
           week: i,
           title: normalizedPhase,
@@ -193,6 +192,8 @@ export function useWeekPlans(params: UseWeekPlansParams): WeekPlan[] {
         week: i,
         title: phase,
         volume: getVolumeForModel(template.volume, periodizationModel, weeklySessions, sportProfile),
+        dateRange: meta?.dateRangeLabel,
+        sessionDatesLabel: meta?.sessionDatesLabel,
         jumpTarget: getJumpTarget(selectedClass?.mvLevel ?? "", ageBand),
         PSETarget: pseTarget,
         plannedSessionLoad: plannedLoads.plannedSessionLoad,

@@ -9,6 +9,7 @@ export type ClassRow = {
   organization_id?: string | null;
   unit?: string;
   unit_id?: string | null;
+  training_space?: string | null;
   color_key?: string | null;
   modality?: string | null;
   ageband: string;

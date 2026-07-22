@@ -29,8 +29,6 @@ type OverviewTabProps = {
   unitTriggerRef: React.RefObject<View | null>;
   setUnitPickerTop: (value: number) => void;
   selectedUnit: string;
-  mesoTriggerRef: React.RefObject<View | null>;
-  showMesoPicker: boolean;
   cycleLength: number;
   microTriggerRef: React.RefObject<View | null>;
   showMicroPicker: boolean;
@@ -47,6 +45,7 @@ type OverviewTabProps = {
   onCompleteMissingCoverage: () => void;
   onGenerateCycle: () => void;
   onRemoveCycle: () => void;
+  isPeriodizationConfigured: boolean;
   unitMismatchWarning: string;
   recentSessionSummaries: RecentSessionSummary[];
   onReviewEvolution: () => void;
@@ -69,8 +68,6 @@ export function OverviewTab({
   unitTriggerRef,
   setUnitPickerTop,
   selectedUnit,
-  mesoTriggerRef,
-  showMesoPicker,
   cycleLength,
   microTriggerRef,
   showMicroPicker,
@@ -87,6 +84,7 @@ export function OverviewTab({
   onCompleteMissingCoverage,
   onGenerateCycle,
   onRemoveCycle,
+  isPeriodizationConfigured,
   unitMismatchWarning,
   recentSessionSummaries,
   onReviewEvolution,
@@ -109,15 +107,17 @@ export function OverviewTab({
   ).size;
   const missingWeeks = Math.max(0, cycleLength - coveredWeeks);
   const showAnnualCoverageWarning = Boolean(
-    selectedClass && isAnnualCycle(cycleLength) && missingWeeks > 0
+    selectedClass && isPeriodizationConfigured && isAnnualCycle(cycleLength) && missingWeeks > 0
   );
   const hasGeneratedCycle = Boolean(activeCycle || hasWeekPlans);
-  const canGenerateCycle = Boolean(selectedClass) && !isSavingPlans && !hasGeneratedCycle;
-  const canRegenerateCycle = Boolean(selectedClass) && !isSavingPlans && hasGeneratedCycle;
+  const canGenerateCycle =
+    Boolean(selectedClass) && isPeriodizationConfigured && !isSavingPlans && !hasGeneratedCycle;
+  const canRegenerateCycle =
+    Boolean(selectedClass) && isPeriodizationConfigured && !isSavingPlans && hasGeneratedCycle;
   const canRemoveCycle = Boolean(selectedClass) && !isSavingPlans;
 
   const handleGenerateCycle = () => {
-    if (!selectedClass || isSavingPlans) return;
+    if (!selectedClass || !isPeriodizationConfigured || isSavingPlans) return;
     onGenerateCycle();
   };
 
@@ -524,93 +524,20 @@ export function OverviewTab({
         ) : null}
 
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 12 }}>
-
           <View
 
             style={[
 
               getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16, shadow: false }),
 
-              { flexBasis: "48%" },
+              { flex: 1, minWidth: 220 },
 
             ]}
 
           >
 
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {normalizeText("Mesociclo")}
-            </Text>
-
-            <View ref={mesoTriggerRef} style={{ position: "relative" }}>
-
-              <Pressable
-
-                onPress={() => togglePicker("meso")}
-
-                style={{
-
-                  marginTop: 6,
-
-                  paddingVertical: 10,
-
-                  paddingHorizontal: 12,
-
-                  borderRadius: 12,
-
-                  backgroundColor: colors.inputBg,
-
-                  borderWidth: 1,
-
-                  borderColor: colors.border,
-
-                }}
-
-              >
-
-                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>
-
-                    {cycleLength} semanas
-
-                  </Text>
-
-                  <Animated.View
-
-                    style={{
-
-                      transform: [{ rotate: showMesoPicker ? "180deg" : "0deg" }],
-
-                    }}
-
-                  >
-
-                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
-
-                  </Animated.View>
-
-                </View>
-
-              </Pressable>
-
-            </View>
-
-          </View>
-
-          <View
-
-            style={[
-
-              getSectionCardStyle(colors, "neutral", { padding: 12, radius: 16, shadow: false }),
-
-              { flexBasis: "48%" },
-
-            ]}
-
-          >
-
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {normalizeText("Microciclo")}
+              {normalizeText("Frequência semanal")}
             </Text>
 
             <View ref={microTriggerRef} style={{ position: "relative" }}>
@@ -761,7 +688,9 @@ export function OverviewTab({
               {selectedClass
                 ? hasGeneratedCycle
                   ? "O ciclo desta turma já está pronto."
-                  : "Gere o ciclo de semanas desta turma."
+                  : isPeriodizationConfigured
+                    ? "Gere o ciclo de semanas desta turma."
+                    : "Conclua e salve a configuração antes de gerar o ciclo."
                 : "Selecione uma turma para visualizar ou gerar o ciclo."}
             </Text>
           </View>
@@ -808,7 +737,13 @@ export function OverviewTab({
                 fontWeight: "700",
               }}
             >
-              {isSavingPlans ? "Salvando..." : !selectedClass ? "Selecione uma turma" : "Gerar ciclo"}
+              {isSavingPlans
+                ? "Salvando..."
+                : !selectedClass
+                  ? "Selecione uma turma"
+                  : !isPeriodizationConfigured
+                    ? "Configure a periodização"
+                    : "Gerar ciclo"}
             </Text>
           </Pressable>
         ) : (

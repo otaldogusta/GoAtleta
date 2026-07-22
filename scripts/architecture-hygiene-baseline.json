@@ -27,12 +27,6 @@
       "justification": "Hook legado preservado sem alterar o ciclo de sincronizacao neste pacote."
     },
     {
-      "fingerprint": "5f8197d88236c272",
-      "rule": "dangerous-deep-import",
-      "path": "src/core/models.ts -> src/core/document-intelligence/types.ts",
-      "justification": "Import de tipo preexistente; migracao para a fachada sera feita junto da reducao do ciclo central."
-    },
-    {
       "fingerprint": "261d6af2e7b0bae1",
       "rule": "dangerous-deep-import",
       "path": "src/core/session-planning-context-contract.ts -> src/core/document-intelligence/types.ts",

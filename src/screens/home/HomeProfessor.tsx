@@ -241,7 +241,7 @@ export function HomeProfessorScreen({
   const { showSaveToast } = useSaveToast();
   const { confirm: confirmDialog } = useConfirmDialog();
 
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const panelWidth = Math.min(screenWidth * 0.85, 360);
   const inboxPanelSurface =
@@ -1014,6 +1014,10 @@ export function HomeProfessorScreen({
   const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
   const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;
+  const ux2CRailHeight = Math.max(
+    isUx2CCompact ? 520 : 560,
+    Math.min(isUx2CCompact ? 680 : 760, screenHeight - (isUx2CCompact ? 132 : 148))
+  );
   const ux2CPageBackground = colors.background;
   const ux2CShortcutSurface = colors.card;
   const ux2CShortcutBorder = colors.border;
@@ -1985,6 +1989,7 @@ export function HomeProfessorScreen({
               totalDurationMinutes={selectedDaySummary?.durationMinutes ?? 0}
               compact={isUx2CCompact}
               width={ux2CRailWidth}
+              height={ux2CRailHeight}
               onOpenLesson={handleOpenLesson}
               onOpenAttendance={handleOpenAttendance}
             />

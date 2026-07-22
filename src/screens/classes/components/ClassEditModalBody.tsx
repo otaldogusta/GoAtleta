@@ -5,7 +5,6 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { type ClassGroup } from "../../../core/models";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
-import { DateInput } from "../../../ui/DateInput";
 import { FadeHorizontalScroll } from "../../../ui/FadeHorizontalScroll";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getSectionCardStyle } from "../../../ui/section-styles";
@@ -77,6 +76,8 @@ type ClassEditModalBodyProps = {
     setEditName: (value: string) => void;
     editUnit: string;
     setEditUnit: (value: string) => void;
+    editTrainingSpace: string;
+    setEditTrainingSpace: (value: string) => void;
     editColorOptions: ColorOption[];
     editColorKey: string | null;
     handleSelectEditColor: (value: string | null) => void;
@@ -117,6 +118,7 @@ type ClassEditModalBodyProps = {
     cycleLengthOptions?: number[];
     modalityOptions?: Option[];
     mvLevelOptions?: Option[];
+    trainingSpaceOptions?: string[];
   };
   actions: {
     closeAllPickers: () => void;
@@ -251,13 +253,6 @@ function ClassEditModalBodyBase({
     return "Selecione";
   };
 
-  const resolveGoalLabel = () => {
-    if (fields.editShowCustomGoal) {
-      return fields.editCustomGoal?.trim() || "Personalizar";
-    }
-    return fields.editGoal?.trim() || "Selecione";
-  };
-
   const resolveAgeBandLabel = () => {
     if (fields.editShowCustomAgeBand) {
       return fields.editCustomAgeBand?.trim() || "Personalizar";
@@ -268,12 +263,7 @@ function ClassEditModalBodyBase({
   const hasAdvancedSection =
     !compact &&
     Boolean(
-      fields.setEditCycleStartDate ||
-        fields.editCycleLengthWeeks !== undefined ||
-        fields.editMvLevel !== undefined ||
-        fields.editModality !== undefined ||
-        options.cycleLengthOptions?.length ||
-        options.mvLevelOptions?.length ||
+      fields.editModality !== undefined ||
         options.modalityOptions?.length
     );
 
@@ -372,7 +362,7 @@ function ClassEditModalBodyBase({
         <EditSectionCard
           section="agenda"
           title="Agenda"
-          summary={`${fields.editStartTime || "--:--"} • ${fields.editEndTime || "--:--"}`}
+          summary={`${fields.editStartTime || "--:--"} • ${fields.editEndTime || "--:--"}${fields.editTrainingSpace ? ` • ${fields.editTrainingSpace}` : ""}`}
           isOpen={openSection === "agenda"}
           onToggle={handleToggleSection}
           colors={colors}
@@ -420,12 +410,53 @@ function ClassEditModalBodyBase({
               </Text>
             </View>
           </View>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>Quadra / espaço</Text>
+            <TextInput
+              accessibilityLabel="Quadra ou espaço"
+              placeholder="Ex.: Quadra 1"
+              value={fields.editTrainingSpace}
+              onChangeText={fields.setEditTrainingSpace}
+              autoCapitalize="words"
+              placeholderTextColor={colors.placeholder}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 10,
+                borderRadius: 12,
+                backgroundColor: colors.background,
+                color: colors.inputText,
+                fontSize: 13,
+              }}
+            />
+            {options.trainingSpaceOptions?.length ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {options.trainingSpaceOptions.map((option) => {
+                  const active = option.trim().toLocaleLowerCase("pt-BR") === fields.editTrainingSpace.trim().toLocaleLowerCase("pt-BR");
+                  return (
+                    <Pressable
+                      key={option}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Usar espaço ${option}`}
+                      onPress={() => fields.setEditTrainingSpace(option)}
+                      style={getChipStyle(active, colors)}
+                    >
+                      <Text style={getChipTextStyle(active, colors)}>{option}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+            <Text style={{ color: colors.muted, fontSize: 10 }}>
+              Turmas só conflitam quando usam a mesma quadra ou quando o espaço não foi informado.
+            </Text>
+          </View>
         </EditSectionCard>
 
         <EditSectionCard
           section="profile"
           title="Perfil esportivo"
-          summary={`${resolveAgeBandLabel()} • ${resolveGenderLabel(fields.editGender)} • ${resolveGoalLabel()}`}
+          summary={`${resolveAgeBandLabel()} • ${resolveGenderLabel(fields.editGender)}`}
           isOpen={openSection === "profile"}
           onToggle={handleToggleSection}
           colors={colors}
@@ -485,103 +516,17 @@ function ClassEditModalBodyBase({
             </View>
           </View>
 
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-            <View ref={refs.editGoalTriggerRef}>
-              <Pressable onPress={() => actions.toggleEditPicker("goal")} style={selectFieldStyle}>
-                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                  {resolveGoalLabel()}
-                </Text>
-                <GoAtletaIcon
-                  name="chevronDown"
-                  size={16}
-                  color={colors.muted}
-                  style={{ transform: [{ rotate: pickers.showEditGoalPicker ? "180deg" : "0deg" }] }}
-                />
-              </Pressable>
-            </View>
-            {fields.editShowCustomGoal ? (
-              <TextInput
-                placeholder="Personalizar objetivo"
-                value={fields.editCustomGoal ?? ""}
-                onChangeText={(value) => {
-                  fields.setEditCustomGoal?.(value);
-                  fields.setEditGoal?.(value);
-                }}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  padding: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.background,
-                  color: colors.inputText,
-                  fontSize: 13,
-                }}
-              />
-            ) : null}
-          </View>
         </EditSectionCard>
 
         {hasAdvancedSection ? (
           <EditSectionCard
             section="advanced"
-            title="Planejamento"
-            summary="Macrociclo, modalidade e nível"
+            title="Modalidade"
+            summary="Configuração esportiva da turma"
             isOpen={openSection === "advanced"}
             onToggle={handleToggleSection}
             colors={colors}
           >
-            {fields.setEditCycleStartDate ? (
-              <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Início do ciclo</Text>
-                <DateInput
-                  value={fields.editCycleStartDate ?? ""}
-                  onChange={(value) => fields.setEditCycleStartDate?.(value)}
-                  placeholder="Início do ciclo"
-                  onOpenCalendar={actions.setShowEditCycleCalendar ? () => actions.setShowEditCycleCalendar?.(true) : undefined}
-                />
-              </View>
-            ) : null}
-
-            {fields.editCycleLengthWeeks !== undefined && actions.handleEditSelectCycleLength && options.cycleLengthOptions?.length ? (
-              <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Macrociclo anual</Text>
-                <View ref={refs.editCycleLengthTriggerRef}>
-                  <Pressable onPress={() => actions.toggleEditPicker("cycle")} style={selectFieldStyle}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {fields.editCycleLengthWeeks ? formatAnnualCycleLabel(fields.editCycleLengthWeeks) : "Selecione"}
-                    </Text>
-                    <GoAtletaIcon
-                      name="chevronDown"
-                      size={16}
-                      color={colors.muted}
-                      style={{ transform: [{ rotate: pickers.showEditCycleLengthPicker ? "180deg" : "0deg" }] }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-
-            {fields.editMvLevel !== undefined && actions.handleEditSelectMvLevel && options.mvLevelOptions?.length ? (
-              <View style={{ gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Nível MV</Text>
-                <View ref={refs.editMvLevelTriggerRef}>
-                  <Pressable onPress={() => actions.toggleEditPicker("level")} style={selectFieldStyle}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      {fields.editMvLevel || "Selecione"}
-                    </Text>
-                    <GoAtletaIcon
-                      name="chevronDown"
-                      size={16}
-                      color={colors.muted}
-                      style={{ transform: [{ rotate: pickers.showEditMvLevelPicker ? "180deg" : "0deg" }] }}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-
             {fields.editModality !== undefined && actions.handleEditSelectModality && options.modalityOptions?.length ? (
               <View style={{ gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>

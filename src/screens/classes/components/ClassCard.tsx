@@ -329,7 +329,7 @@ export const ClassCard = memo(function ClassCard({
             {timeLabel}
           </Text>
           <Text numberOfLines={1} style={[styles.tableSecondaryText, { color: colors.textMuted ?? colors.muted }]}>
-            {daysLabel}
+            {[daysLabel, item.trainingSpace?.trim()].filter(Boolean).join(" · ")}
           </Text>
         </View>
 
@@ -476,7 +476,7 @@ export const ClassCard = memo(function ClassCard({
               <ClassGenderBadge gender={item.gender} />
             </View>
             <Text numberOfLines={1} style={[styles.subtitle, { color: colors.textMuted ?? colors.muted }]}>
-              {timeLabel} · {daysLabel}
+              {[timeLabel, daysLabel, item.trainingSpace?.trim()].filter(Boolean).join(" · ")}
             </Text>
           </View>
         </View>

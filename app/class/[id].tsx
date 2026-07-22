@@ -62,6 +62,7 @@ import {
     ClassEditModalBody,
     ClassEditModalPickers,
 } from "../../src/screens/classes/components/ClassEditModalBody";
+import { getClassScheduleOverlapDays } from "../../src/screens/classes/application/class-schedule-conflicts";
 import {
     ClassContextStrip,
     ClassOperationsWorkspace,
@@ -393,6 +394,7 @@ export default function ClassDetails() {
   const [name, setName] = useState("");
   const [coachNameOverride, setCoachNameOverride] = useState("");
   const [unit, setUnit] = useState("");
+  const [trainingSpace, setTrainingSpace] = useState("");
   const [modality, setModality] = useState<ClassGroup["modality"]>("voleibol");
   const [ageBand, setAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
   const [gender, setGender] = useState<ClassGroup["gender"]>("misto");
@@ -839,27 +841,23 @@ export default function ClassDetails() {
   );
   const conflictSummary = useMemo(() => {
     if (!clsId) return [];
-    const start = toMinutes(startTime.trim());
     const durationValue = parseDurationFromTimeRange(startTime, endTime);
-    if (start === null || !durationValue) return [];
-    const end = start + durationValue;
+    if (!durationValue) return [];
+    const editedSchedule = {
+      unit: currentUnit,
+      trainingSpace,
+      startTime: startTime.trim(),
+      durationMinutes: durationValue,
+      daysOfWeek,
+    };
     return allClasses
       .filter((item) => item.id !== clsId)
-      .filter((item) => (item.unit || "Sem unidade") === currentUnit)
-      .filter((item) => item.daysOfWeek.some((day) => daysOfWeek.includes(day)))
-      .filter((item) => {
-        const otherStart = toMinutes(item.startTime || "");
-        if (otherStart === null) return false;
-        const otherEnd = otherStart + (item.durationMinutes || 60);
-        return start < otherEnd && otherStart < end;
-      })
-      .map((item) => {
-        const sharedDays = item.daysOfWeek.filter((day) =>
-          daysOfWeek.includes(day)
-        );
+      .map((item) => ({ item, sharedDays: getClassScheduleOverlapDays(editedSchedule, item) }))
+      .filter(({ sharedDays }) => sharedDays.length > 0)
+      .map(({ item, sharedDays }) => {
         return `${item.name} (${sharedDays.map((day) => dayNames[day]).join(", ")})`;
       });
-  }, [allClasses, clsId, currentUnit, daysOfWeek, endTime, startTime]);
+  }, [allClasses, clsId, currentUnit, daysOfWeek, endTime, startTime, trainingSpace]);
   const goalSuggestions = useMemo(() => {
     if (!clsUnit) return [];
     const matches = allClasses.filter((item) => item.unit === clsUnit);
@@ -900,6 +898,7 @@ export default function ClassDetails() {
           setIsGeneratingPlan(false);
           setName(data?.name ?? "");
           setUnit(data?.unit ?? "");
+          setTrainingSpace(data?.trainingSpace ?? "");
           setModality(data?.modality ?? "voleibol");
           setAgeBand(data?.ageBand ?? "08-09");
           setGender(data?.gender ?? "misto");
@@ -1030,6 +1029,7 @@ export default function ClassDetails() {
     setName(cls.name ?? "");
     setCoachNameOverride(classCoachName);
     setUnit(cls.unit ?? "");
+    setTrainingSpace(cls.trainingSpace ?? "");
     setModality(cls.modality ?? "voleibol");
     setAgeBand(cls.ageBand ?? "08-09");
     setGender(cls.gender ?? "misto");
@@ -1200,6 +1200,7 @@ export default function ClassDetails() {
       mvLevel: cls.mvLevel ?? "MV1",
       name: cls.name ?? "",
       startTime: baselineStartTime,
+      trainingSpace: cls.trainingSpace ?? "",
       unit: cls.unit ?? "",
     };
   }, [classCoachName, cls]);
@@ -1219,6 +1220,7 @@ export default function ClassDetails() {
       mvLevel,
       name,
       startTime,
+      trainingSpace,
       unit,
     }),
     [
@@ -1239,6 +1241,7 @@ export default function ClassDetails() {
       showEditCustomAgeBand,
       showEditCustomGoal,
       startTime,
+      trainingSpace,
       unit,
     ]
   );
@@ -1386,6 +1389,7 @@ export default function ClassDetails() {
       await updateClass(cls.id, {
         name: name.trim() || cls.name,
         unit: unit.trim() || "Rede Esperança",
+        trainingSpace: trainingSpace.trim(),
         modality,
         daysOfWeek,
         goal: showEditCustomGoal ? editCustomGoal.trim() || goal : goal,
@@ -2353,6 +2357,8 @@ export default function ClassDetails() {
                 setEditName: setName,
                 editUnit: unit,
                 setEditUnit: setUnit,
+                editTrainingSpace: trainingSpace,
+                setEditTrainingSpace: setTrainingSpace,
                 editColorOptions: colorOptions,
                 editColorKey: classColorKey,
                 handleSelectEditColor: handleSelectClassColor,
@@ -2514,6 +2520,8 @@ export default function ClassDetails() {
               setEditName: setName,
               editUnit: unit,
               setEditUnit: setUnit,
+              editTrainingSpace: trainingSpace,
+              setEditTrainingSpace: setTrainingSpace,
               editColorOptions: colorOptions,
               editColorKey: classColorKey,
               handleSelectEditColor: handleSelectClassColor,

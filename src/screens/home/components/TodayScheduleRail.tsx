@@ -15,6 +15,7 @@ type TodayScheduleRailProps = {
   totalDurationMinutes: number;
   compact?: boolean;
   width?: number;
+  height?: number;
   onOpenLesson: (item: HomeScheduleItem) => void;
   onOpenAttendance: (item: HomeScheduleItem) => void;
 };
@@ -26,6 +27,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
   totalDurationMinutes,
   compact = false,
   width = 350,
+  height,
   onOpenLesson,
   onOpenAttendance,
 }: TodayScheduleRailProps) {
@@ -36,6 +38,9 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
     <View
       style={{
         width,
+        height,
+        maxHeight: height,
+        minHeight: 0,
         alignSelf: "stretch",
         backgroundColor: colors.surface,
         borderRadius: radius.container,
@@ -60,7 +65,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
       <View style={{ height: 1, backgroundColor: colors.borderSubtle }} />
 
       {slots.length === 0 ? (
-        <View style={{ padding: 24, gap: 10 }}>
+        <View style={{ flex: 1, padding: 24, gap: 10 }}>
           <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "900" }}>
             Nenhuma aula neste dia
           </Text>
@@ -72,7 +77,11 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
         <FlatList
           data={slots}
           keyExtractor={(slot) => slot.key}
-          scrollEnabled={false}
+          style={{ flex: 1, minHeight: 0 }}
+          scrollEnabled
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item: slot }) => (
             <View>
               {slot.items.map((lesson) => (

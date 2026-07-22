@@ -50,6 +50,7 @@ export function initDb() {
       equipment TEXT NOT NULL,
       level INTEGER NOT NULL,
       unit TEXT NOT NULL DEFAULT '',
+      trainingSpace TEXT NOT NULL DEFAULT '',
       modality TEXT NOT NULL DEFAULT 'fitness',
       unitId TEXT NOT NULL DEFAULT '',
       mvLevel TEXT NOT NULL DEFAULT '',
@@ -788,6 +789,11 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE classes ADD COLUMN unit TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE classes ADD COLUMN trainingSpace TEXT NOT NULL DEFAULT ''"
     );
   } catch {}
   try {

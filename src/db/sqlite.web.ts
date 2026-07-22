@@ -11,6 +11,7 @@ type ClassRow = {
   daysPerWeek: number;
   goal: string;
   equipment: string;
+  trainingSpace?: string;
   level: number;
   acwrLow: number;
   acwrHigh: number;

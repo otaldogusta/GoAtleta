@@ -108,6 +108,7 @@ const defaultProps = {
   onCompleteMissingCoverage: jest.fn(),
   onGenerateCycle: jest.fn(),
   onRemoveCycle: jest.fn(),
+  isPeriodizationConfigured: true,
   unitMismatchWarning: "",
   recentSessionSummaries: [],
   onReviewEvolution: jest.fn(),
@@ -181,6 +182,26 @@ describe("OverviewTab", () => {
 
     expect(findNodeByText(renderer!.root, "Gerar ciclo")).toBeTruthy();
     expect(enabledGenerateButton).toBeTruthy();
+  });
+
+  it("blocks cycle generation until the periodization setup is saved", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(OverviewTab, {
+          ...defaultProps,
+          isPeriodizationConfigured: false,
+        })
+      );
+    });
+
+    const setupButton = renderer!.root.findAll(
+      (node) => node.props.disabled === true && collectText(node).includes("Configure a periodização")
+    )[0];
+
+    expect(setupButton).toBeTruthy();
+    expect(findNodeByText(renderer!.root, "Conclua e salve a configuração")).toBeTruthy();
   });
 
   it("shows the planned versus completed intelligence view for Rede Esperança 8-11", () => {

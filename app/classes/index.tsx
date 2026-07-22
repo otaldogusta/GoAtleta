@@ -44,7 +44,12 @@ import {
   buildClassCardViewModel,
   groupStudentsByClassId,
 } from "../../src/screens/classes/application/class-card-view-model";
+import {
+  getClassScheduleOverlapDays,
+  trainingSpacesMayOverlap,
+} from "../../src/screens/classes/application/class-schedule-conflicts";
 import { ClassesListSection } from "../../src/screens/classes/components/ClassesListSection";
+import { ClassUnitAutocomplete } from "../../src/screens/classes/components/ClassUnitAutocomplete";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { animateLayout } from "../../src/ui/animate-layout";
@@ -54,13 +59,13 @@ import { getClassColorOptions } from "../../src/ui/class-colors";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
-import { DateInput } from "../../src/ui/DateInput";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 
 const ClassEditModalBody = lazy(() =>
@@ -240,6 +245,7 @@ export default function ClassesScreen() {
   const prefillModalityParam = Array.isArray(prefillModality) ? prefillModality[0] : prefillModality;
   const prefillUnitParam = Array.isArray(prefillUnit) ? prefillUnit[0] : prefillUnit;
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout("content");
   const { session } = useAuth();
   const bottomScrollPadding = insets.bottom + 112;
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -305,6 +311,7 @@ export default function ClassesScreen() {
 
   const [newName, setNewName] = useState("");
   const [newUnit, setNewUnit] = useState("");
+  const [newTrainingSpace, setNewTrainingSpace] = useState("");
   const [newModality, setNewModality] = useState<ClassGroup["modality"] | "">("");
   const [newAgeBand, setNewAgeBand] = useState<ClassGroup["ageBand"] | "">("");
   const [newGender, setNewGender] = useState<ClassGroup["gender"] | "">("");
@@ -327,6 +334,7 @@ export default function ClassesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
+  const [editTrainingSpace, setEditTrainingSpace] = useState("");
   const [editModality, setEditModality] = useState<ClassGroup["modality"]>("voleibol");
   const [editAgeBand, setEditAgeBand] = useState<ClassGroup["ageBand"]>("08-09");
   const [editGender, setEditGender] = useState<ClassGroup["gender"]>("misto");
@@ -835,23 +843,12 @@ export default function ClassesScreen() {
 
     for (let i = 0; i < classes.length; i += 1) {
       const a = classes[i];
-      const aStart = toMinutes(a.startTime || "");
-      if (aStart === null) continue;
       const aDuration = a.durationMinutes || 60;
-      const aEnd = aStart + (a.durationMinutes || 60);
-      const aDays = Array.isArray(a.daysOfWeek) ? a.daysOfWeek : [];
       for (let j = i + 1; j < classes.length; j += 1) {
         const b = classes[j];
-        if (unitKey(a.unit) !== unitKey(b.unit)) continue;
-        const bStart = toMinutes(b.startTime || "");
-        if (bStart === null) continue;
-        const bDuration = b.durationMinutes || 60;
-        const bEnd = bStart + (b.durationMinutes || 60);
-        const bDays = Array.isArray(b.daysOfWeek) ? b.daysOfWeek : [];
-        const sharedDays = aDays.filter((day) => bDays.includes(day));
+        const sharedDays = getClassScheduleOverlapDays(a, b);
         if (!sharedDays.length) continue;
-        const overlap = aStart < bEnd && bStart < aEnd;
-        if (!overlap) continue;
+        const bDuration = b.durationMinutes || 60;
         const pairKey = buildPairKey(a.id, b.id);
         const isIntegration = hasPersistedIntegrationRules
           ? integrationPairKeys.has(pairKey)
@@ -904,6 +901,36 @@ export default function ClassesScreen() {
     });
     return sortedEntries.sort((a, b) => a[0].localeCompare(b[0]));
   }, [displayClasses, unitKey, unitLabel]);
+  const existingUnitOptions = useMemo(
+    () => grouped.map(([label]) => label),
+    [grouped]
+  );
+  const getTrainingSpaceOptions = useCallback(
+    (unit: string) => {
+      const targetUnitKey = normalizeUnitKey(unit);
+      if (!targetUnitKey) return [];
+      const labelsByKey = new Map<string, string>();
+      classes.forEach((item) => {
+        if (normalizeUnitKey(item.unit) !== targetUnitKey) return;
+        const label = item.trainingSpace?.trim();
+        const key = normalizeUnitKey(label ?? "");
+        if (!label || !key || labelsByKey.has(key)) return;
+        labelsByKey.set(key, label);
+      });
+      return Array.from(labelsByKey.values()).sort((left, right) =>
+        left.localeCompare(right, "pt-BR", { sensitivity: "base" })
+      );
+    },
+    [classes]
+  );
+  const newTrainingSpaceOptions = useMemo(
+    () => getTrainingSpaceOptions(newUnit),
+    [getTrainingSpaceOptions, newUnit]
+  );
+  const editTrainingSpaceOptions = useMemo(
+    () => getTrainingSpaceOptions(editUnit),
+    [editUnit, getTrainingSpaceOptions]
+  );
 
   const loadClasses = useCallback(async (alive?: { current: boolean }) => {
     const isAlive = () => !alive || alive.current;
@@ -981,16 +1008,6 @@ export default function ClassesScreen() {
       Vibration.vibrate(40);
       return;
     }
-    if (!newGoal) {
-      setFormError("Selecione o objetivo.");
-      Vibration.vibrate(40);
-      return;
-    }
-    if (!newMvLevel) {
-      setFormError("Selecione o Nível.");
-      Vibration.vibrate(40);
-      return;
-    }
     const timeValue = newStartTime.trim();
     if (!isValidTime(timeValue)) {
       setFormError("Horário inválido. Use HH:MM.");
@@ -1014,29 +1031,21 @@ export default function ClassesScreen() {
       Vibration.vibrate(40);
       return;
     }
-    const cycleValue = parseCycleLength(newCycleLengthWeeks);
-    if (!cycleValue) {
-      setFormError("Macrociclo inválido. Selecione 36, 40, 44, 48 ou 52 semanas.");
-      Vibration.vibrate(40);
-      return;
-    }
     setFormError("");
     setSaving(true);
     try {
       const createdClassId = await saveClass({
           name: newName.trim(),
           unit: newUnit.trim() || "Sem unidade",
+          trainingSpace: newTrainingSpace.trim(),
           colorKey: newColorKey ?? null,
           modality: newModality,
           ageBand: newAgeBand,
           gender: newGender,
           daysOfWeek: newDays,
-          goal: newGoal,
+          goal: "",
           startTime: timeValue,
           durationMinutes: durationValue,
-        mvLevel: newMvLevel,
-        cycleStartDate: newCycleStartDate || undefined,
-          cycleLengthWeeks: cycleValue,
       });
       Vibration.vibrate(60);
       resetCreateForm();
@@ -1044,14 +1053,14 @@ export default function ClassesScreen() {
       setMainTab("lista");
       confirmDialog({
         title: "Turma criada",
-        message: "A turma foi gerada com sucesso. Deseja abrir agora?",
-        confirmLabel: "Ver turma",
+        message: "Cadastro concluído. Configure objetivo, nível e ciclo na periodização da turma.",
+        confirmLabel: "Configurar periodização",
         cancelLabel: "Ficar na lista",
         tone: "default",
         onConfirm: () => {
           router.push({
-            pathname: "/class/[id]",
-            params: { id: createdClassId },
+            pathname: "/periodization",
+            params: { classId: createdClassId },
           });
         },
       });
@@ -1091,6 +1100,7 @@ export default function ClassesScreen() {
     return (
       newName.trim() !== "" ||
       newUnit.trim() !== "" ||
+      newTrainingSpace.trim() !== "" ||
       newColorKey !== null ||
       newModality !== "" ||
       newAgeBand !== "" ||
@@ -1106,6 +1116,7 @@ export default function ClassesScreen() {
   }, [
     newName,
     newUnit,
+    newTrainingSpace,
     newColorKey,
     newModality,
     newAgeBand,
@@ -1122,6 +1133,7 @@ export default function ClassesScreen() {
   const resetCreateForm = useCallback(() => {
     setNewName("");
     setNewUnit("");
+    setNewTrainingSpace("");
     setNewColorKey(null);
     setNewModality("");
     setNewAgeBand("");
@@ -1183,6 +1195,7 @@ export default function ClassesScreen() {
     setEditingClass(item);
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
+    setEditTrainingSpace(item.trainingSpace ?? "");
     setEditColorKey(item.colorKey ?? null);
     setEditModality(item.modality ?? "voleibol");
     setEditAgeBand(nextAgeBand as ClassGroup["ageBand"]);
@@ -1237,6 +1250,7 @@ export default function ClassesScreen() {
     return {
       name: (editingClass.name ?? "").trim(),
       unit: (editingClass.unit ?? "").trim(),
+      trainingSpace: (editingClass.trainingSpace ?? "").trim(),
       colorKey: editingClass.colorKey ?? null,
       modality: editingClass.modality ?? "voleibol",
       ageBand: (editingClass.ageBand ?? "08-09").trim(),
@@ -1258,6 +1272,7 @@ export default function ClassesScreen() {
     () => ({
       name: editName.trim(),
       unit: editUnit.trim(),
+      trainingSpace: editTrainingSpace.trim(),
       colorKey: editColorKey ?? null,
       modality: editModality ?? "voleibol",
       ageBand: (editShowCustomAgeBand ? editCustomAgeBand : editAgeBand).trim(),
@@ -1291,6 +1306,7 @@ export default function ClassesScreen() {
       editShowCustomAgeBand,
       editShowCustomGoal,
       editStartTime,
+      editTrainingSpace,
       editUnit,
     ]
   );
@@ -1307,7 +1323,7 @@ export default function ClassesScreen() {
   };
 
   const findIntegrationCandidates = useCallback(
-    (sourceClassId: string, unit: string, modality: ClassGroup["modality"], startTime: string, daysOfWeek: number[]) => {
+    (sourceClassId: string, unit: string, trainingSpace: string, modality: ClassGroup["modality"], startTime: string, daysOfWeek: number[]) => {
       const ruleCandidates = integrationRules
         .filter((rule) => (rule.classIds ?? []).includes(sourceClassId))
         .flatMap((rule) => rule.classIds ?? [])
@@ -1320,6 +1336,7 @@ export default function ClassesScreen() {
       if (uniqueRuleCandidates.length) {
         return uniqueRuleCandidates.filter((item) => {
           if (normalizeUnitKey(item.unit) !== normalizeUnitKey(unit)) return false;
+          if (!trainingSpacesMayOverlap(trainingSpace, item.trainingSpace)) return false;
           if (item.modality !== modality) return false;
           if ((item.startTime ?? "").trim() !== startTime.trim()) return false;
           const itemDays = Array.isArray(item.daysOfWeek) ? item.daysOfWeek : [];
@@ -1334,6 +1351,7 @@ export default function ClassesScreen() {
         if (item.id === sourceClassId) return false;
         if (integrationPairKeys.has(buildPairKey(sourceClassId, item.id))) return false;
         if (normalizeUnitKey(item.unit) !== normalizedUnit) return false;
+        if (!trainingSpacesMayOverlap(trainingSpace, item.trainingSpace)) return false;
         if (item.modality !== modality) return false;
         if ((item.startTime ?? "").trim() !== startTime.trim()) return false;
         const itemDays = Array.isArray(item.daysOfWeek) ? item.daysOfWeek : [];
@@ -1389,6 +1407,7 @@ export default function ClassesScreen() {
       const integrationCandidates = findIntegrationCandidates(
         editingClass.id,
         editUnit.trim() || "Sem unidade",
+        editTrainingSpace.trim(),
         editModality,
         timeValue,
         editDays
@@ -1396,6 +1415,7 @@ export default function ClassesScreen() {
       await updateClass(editingClass.id, {
         name: editName.trim(),
         unit: editUnit.trim() || "Sem unidade",
+        trainingSpace: editTrainingSpace.trim(),
         colorKey: editColorKey ?? null,
         ageBand: ageBandValue || editAgeBand,
         gender: editGender,
@@ -1990,6 +2010,8 @@ export default function ClassesScreen() {
           cardStyle={[
             editModalCardStyle,
             {
+              width: responsiveLayout.isMobile ? responsiveLayout.contentWidth : "100%",
+              maxWidth: responsiveLayout.isMobile ? responsiveLayout.contentWidth : 720,
               paddingBottom: 0,
               maxHeight: "88%",
               height: "auto",
@@ -2004,8 +2026,22 @@ export default function ClassesScreen() {
           contentContainerStyle={{ gap: 12, paddingBottom: 24, paddingHorizontal: 12, paddingTop: 12 }}
         >
         <View style={{ gap: 12 }}>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+          <View
+            style={{
+              flexDirection: responsiveLayout.isMobile ? "column" : "row",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <View
+              style={{
+                flex: responsiveLayout.isMobile ? undefined : 1,
+                width: responsiveLayout.isMobile ? "100%" : undefined,
+                minWidth: 0,
+                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                gap: 4,
+              }}
+            >
               <Text style={{ color: colors.muted, fontSize: 11 }}>Nome da turma</Text>
               <TextInput
                 placeholder="Nome da turma"
@@ -2023,27 +2059,39 @@ export default function ClassesScreen() {
                 }}
               />
             </View>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
-              <TextInput
-                placeholder="Unidade"
+            <View
+              style={{
+                flex: responsiveLayout.isMobile ? undefined : 1,
+                width: responsiveLayout.isMobile ? "100%" : undefined,
+                minWidth: 0,
+                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                zIndex: 5300,
+              }}
+            >
+              <ClassUnitAutocomplete
+                colors={colors}
                 value={newUnit}
+                units={existingUnitOptions}
                 onChangeText={setNewUnit}
-                placeholderTextColor={colors.placeholder}
-                style={{
-                  backgroundColor: colors.background,
-                  borderColor: colors.border,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: 10,
-                  fontSize: 13,
-                  color: colors.text,
-                }}
               />
             </View>
           </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+          <View
+            style={{
+              flexDirection: responsiveLayout.isMobile ? "column" : "row",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <View
+              style={{
+                flex: responsiveLayout.isMobile ? undefined : 1,
+                width: responsiveLayout.isMobile ? "100%" : undefined,
+                minWidth: 0,
+                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                gap: 4,
+              }}
+            >
               <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
               <View ref={genderTriggerRef}>
                 <Pressable
@@ -2066,49 +2114,71 @@ export default function ClassesScreen() {
                 </Pressable>
               </View>
             </View>
-              <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo</Text>
-                <View ref={goalTriggerRef} style={{ width: "100%" }}>
-                  <Pressable
-                    onPress={() => toggleNewPicker("goal")}
-                    style={[selectFieldStyle, { width: "100%" }]}
-                  >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {newGoal || "Selecione"}
-                  </Text>
-                  <GoAtletaIcon
-                    name="chevronDown"
-                    size={16}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showGoalPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
-                </Pressable>
-              </View>
-              { showAllGoals ? (
-                <TextInput
-                  placeholder="Objetivo (ex: Força, Potência)"
-                  value={newGoal}
-                  onChangeText={setNewGoal}
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    padding: 10,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    color: colors.inputText,
-                    fontSize: 13,
-                  }}
-                />
+            <View
+              style={{
+                flex: responsiveLayout.isMobile ? undefined : 1,
+                width: responsiveLayout.isMobile ? "100%" : undefined,
+                minWidth: 0,
+                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                gap: 4,
+              }}
+            >
+              <Text style={{ color: colors.muted, fontSize: 11 }}>Quadra / espaço</Text>
+              <TextInput
+                accessibilityLabel="Quadra ou espaço"
+                placeholder="Ex.: Quadra 1"
+                value={newTrainingSpace}
+                onChangeText={setNewTrainingSpace}
+                autoCapitalize="words"
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: 10,
+                  fontSize: 13,
+                  color: colors.text,
+                }}
+              />
+              {newTrainingSpaceOptions.length ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {newTrainingSpaceOptions.map((option) => (
+                    <Pressable
+                      key={normalizeUnitKey(option)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Usar espaço ${option}`}
+                      onPress={() => setNewTrainingSpace(option)}
+                      style={getChipStyle(normalizeUnitKey(newTrainingSpace) === normalizeUnitKey(option))}
+                    >
+                      <Text style={getChipTextStyle(normalizeUnitKey(newTrainingSpace) === normalizeUnitKey(option))}>
+                        {option}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               ) : null}
+              <Text style={{ color: colors.muted, fontSize: 10 }}>
+                Diferencia conflitos dentro da mesma unidade.
+              </Text>
             </View>
           </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+          <View
+            style={{
+              flexDirection: responsiveLayout.isMobile ? "column" : "row",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <View
+              style={{
+                flex: responsiveLayout.isMobile ? undefined : 1,
+                width: responsiveLayout.isMobile ? "100%" : undefined,
+                minWidth: 0,
+                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                gap: 4,
+              }}
+            >
               <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
               <View ref={modalityTriggerRef}>
                 <Pressable
@@ -2131,7 +2201,15 @@ export default function ClassesScreen() {
                 </Pressable>
               </View>
             </View>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+            <View
+              style={{
+                flex: responsiveLayout.isMobile ? undefined : 1,
+                width: responsiveLayout.isMobile ? "100%" : undefined,
+                minWidth: 0,
+                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                gap: 4,
+              }}
+            >
               <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
               <View ref={ageBandTriggerRef}>
                 <Pressable
@@ -2172,8 +2250,22 @@ export default function ClassesScreen() {
               ) : null}
             </View>
           </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+          <View
+            style={{
+              flexDirection: responsiveLayout.isMobile ? "column" : "row",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <View
+              style={{
+                flex: responsiveLayout.isMobile ? undefined : 1,
+                width: responsiveLayout.isMobile ? "100%" : undefined,
+                minWidth: 0,
+                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                gap: 4,
+              }}
+            >
               <Text style={{ color: colors.muted, fontSize: 11 }}>Horário de início</Text>
               <TextInput
                 placeholder="HH:MM"
@@ -2192,7 +2284,15 @@ export default function ClassesScreen() {
                 }}
               />
             </View>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
+            <View
+              style={{
+                flex: responsiveLayout.isMobile ? undefined : 1,
+                width: responsiveLayout.isMobile ? "100%" : undefined,
+                minWidth: 0,
+                flexBasis: responsiveLayout.isMobile ? "auto" : 0,
+                gap: 4,
+              }}
+            >
               <Text style={{ color: colors.muted, fontSize: 11 }}>Horário de término</Text>
               <TextInput
                 placeholder="HH:MM"
@@ -2231,65 +2331,6 @@ export default function ClassesScreen() {
                 );
               })}
             </View>
-          </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Nível</Text>
-              <View ref={mvLevelTriggerRef}>
-                <Pressable
-                  onPress={() => toggleNewPicker("level")}
-                  style={selectFieldStyle}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {getOptionLabel(newMvLevel, mvLevelOptions) || "Selecione"}
-                  </Text>
-                  <GoAtletaIcon
-                    name="chevronDown"
-                    size={16}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showMvLevelPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
-                </Pressable>
-              </View>
-            </View>
-            <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Macrociclo anual</Text>
-              <View ref={cycleLengthTriggerRef}>
-                <Pressable
-                  onPress={() => toggleNewPicker("cycle")}
-                  style={selectFieldStyle}
-                >
-                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                    {newCycleLengthWeeks
-                      ? formatAnnualCycleLabel(newCycleLengthWeeks)
-                      : "Selecione"}
-                  </Text>
-                  <GoAtletaIcon
-                    name="chevronDown"
-                    size={16}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showCycleLengthPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-          <View style={{ gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>Início do ciclo</Text>
-            <DateInput
-              value={newCycleStartDate}
-              onChange={setNewCycleStartDate}
-              onOpenCalendar={() => setShowNewCycleCalendar(true)}
-              placeholder="DD/MM/AAAA"
-            />
           </View>
           { formError ? (
             <Text style={{ color: colors.dangerText, fontSize: 12 }}>
@@ -2565,6 +2606,8 @@ export default function ClassesScreen() {
               setEditName,
               editUnit,
               setEditUnit,
+              editTrainingSpace,
+              setEditTrainingSpace,
               editColorOptions,
               editColorKey,
               handleSelectEditColor,
@@ -2603,6 +2646,7 @@ export default function ClassesScreen() {
               modalityOptions,
               mvLevelOptions,
               goalOptions,
+              trainingSpaceOptions: editTrainingSpaceOptions,
               customOptionLabel,
             }}
             actions={{

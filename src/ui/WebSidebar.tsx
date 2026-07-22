@@ -20,6 +20,10 @@ import {
   type ProfileSwitchId,
 } from "./profile-switch-options";
 import { webShellTokens } from "./web-shell-tokens";
+import {
+  orderWebSidebarItems,
+  shouldUseHardWebSidebarNavigation,
+} from "./web-sidebar-navigation";
 
 type WebSidebarProps = {
   role: AppRole;
@@ -232,6 +236,15 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const navigateTo = useCallback(
     (href: string) => {
       if (href === pathname) return;
+      const currentPathname =
+        typeof window !== "undefined" ? window.location.pathname : pathname;
+      if (
+        typeof window !== "undefined" &&
+        shouldUseHardWebSidebarNavigation(currentPathname)
+      ) {
+        window.location.assign(href);
+        return;
+      }
       router.push(href as never);
     },
     [pathname, router]
@@ -781,6 +794,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     ],
   };
   const operationalItems = operationalItemsByRole[role].filter(canShowItem);
+  const navigationItems = orderWebSidebarItems(role, [...mainItems, ...operationalItems]);
 
   const isClassRoute =
     pathname === "/classes" || pathname === "/class" || pathname.startsWith("/class/");
@@ -990,18 +1004,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
           contentContainerStyle={{ gap: 6, alignItems: "center", paddingVertical: 2, paddingBottom: 6 }}
           showsVerticalScrollIndicator={false}
         >
-          {mainItems.map(renderCompactNavItem)}
-          {operationalItems.length ? (
-            <View
-              style={{
-                width: 34,
-                height: 1,
-                backgroundColor: "rgba(255,255,255,0.10)",
-                marginVertical: 2,
-              }}
-            />
-          ) : null}
-          {operationalItems.map(renderCompactNavItem)}
+          {navigationItems.map(renderCompactNavItem)}
         </ScrollView>
 
         <View ref={profileMenuRootRef} style={{ position: "relative", alignSelf: "center" }}>
@@ -1174,34 +1177,8 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         showsVerticalScrollIndicator={false}
       >
         <View style={{ gap: 6 }}>
-          <Text
-            style={{
-              color: "rgba(255,255,255,0.46)",
-              fontSize: 10,
-              fontWeight: "900",
-              paddingHorizontal: 4,
-            }}
-          >
-            PRINCIPAL
-          </Text>
-          {mainItems.map(renderNavItem)}
+          {navigationItems.map(renderNavItem)}
         </View>
-
-        {operationalItems.length ? (
-          <View style={{ gap: 6 }}>
-            <Text
-              style={{
-                color: "rgba(255,255,255,0.46)",
-                fontSize: 10,
-                fontWeight: "900",
-                paddingHorizontal: 4,
-              }}
-            >
-              OPERACIONAL
-            </Text>
-            {operationalItems.map(renderNavItem)}
-          </View>
-        ) : null}
       </ScrollView>
 
       <View ref={profileMenuRootRef} style={{ position: "relative" }}>
