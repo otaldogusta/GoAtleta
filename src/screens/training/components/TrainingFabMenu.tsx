@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, Platform, Text, View } from "react-native";
 
 import { useAppTheme } from "../../../ui/app-theme";
@@ -26,7 +26,7 @@ export function TrainingFabMenu({
   onImportPress,
 }: TrainingFabMenuProps) {
   const { colors } = useAppTheme();
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
   const [mounted, setMounted] = useState(visible);
 
   useEffect(() => {

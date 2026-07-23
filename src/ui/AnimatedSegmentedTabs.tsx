@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { Pressable } from "./Pressable";
@@ -10,7 +10,7 @@ export type AnimatedSegmentedTabItem<T extends string> = {
 };
 
 type AnimatedSegmentedTabsProps<T extends string> = {
-  tabs: ReadonlyArray<AnimatedSegmentedTabItem<T>>;
+  tabs: readonly AnimatedSegmentedTabItem<T>[];
   activeTab: T;
   onChange: (tab: T) => void;
   style?: StyleProp<ViewStyle>;
@@ -35,20 +35,21 @@ export function AnimatedSegmentedTabs<T extends string>({
   itemPaddingVertical = 10,
 }: AnimatedSegmentedTabsProps<T>) {
   const { colors } = useAppTheme();
-  const animRef = useRef<Record<string, Animated.Value>>({});
+  const [progressById] = useState(
+    () =>
+      new Map(
+        tabs.map((tab) => [
+          tab.id,
+          new Animated.Value(activeTab === tab.id ? 1 : 0),
+        ])
+      )
+  );
   const containerRadius = 999;
   const itemRadius = 999;
 
-  const getProgress = (tabId: T) => {
-    if (!animRef.current[tabId]) {
-      animRef.current[tabId] = new Animated.Value(activeTab === tabId ? 1 : 0);
-    }
-    return animRef.current[tabId];
-  };
-
   useEffect(() => {
     tabs.forEach((tab) => {
-      const value = getProgress(tab.id);
+      const value = progressById.get(tab.id);
       if (!value) return;
       Animated.timing(value, {
         toValue: activeTab === tab.id ? 1 : 0,
@@ -56,7 +57,7 @@ export function AnimatedSegmentedTabs<T extends string>({
         useNativeDriver: false,
       }).start();
     });
-  }, [activeTab, tabs]);
+  }, [activeTab, progressById, tabs]);
 
   return (
     <View
@@ -74,7 +75,8 @@ export function AnimatedSegmentedTabs<T extends string>({
       ]}
     >
       {tabs.map((tab) => {
-        const progress = getProgress(tab.id);
+        const progress = progressById.get(tab.id);
+        if (!progress) return null;
         const tabBackground = progress.interpolate({
           inputRange: [0, 1],
           outputRange: [

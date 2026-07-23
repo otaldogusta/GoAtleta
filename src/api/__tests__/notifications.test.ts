@@ -1,3 +1,11 @@
+import {
+  clearMyNotifications,
+  createNotification,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "../notifications";
+
 const mockGetSessionUserId = jest.fn();
 const mockGetValidAccessToken = jest.fn();
 const mockGetActiveOrganizationId = jest.fn();
@@ -32,14 +40,6 @@ jest.mock("../config", () => ({
   SUPABASE_ANON_KEY: "anon-key",
   SUPABASE_URL: "https://example.supabase.co",
 }));
-
-import {
-  clearMyNotifications,
-  createNotification,
-  listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from "../notifications";
 
 describe("notifications api", () => {
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -112,7 +112,7 @@ export function ModalSheet({
   bottomOffset,
   containerPadding = 16,
 }: ModalSheetProps) {
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
   const [isMounted, setIsMounted] = useState(visible);
   const isCenter = position === "center";
   const isRight = position === "right";
@@ -238,6 +238,7 @@ export function ModalSheet({
   );
 
   if (Platform.OS === "web") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ReactDOM = require("react-dom");
     return ReactDOM.createPortal(content, document.body);
   }

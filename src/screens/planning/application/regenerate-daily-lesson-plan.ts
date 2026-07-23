@@ -300,7 +300,7 @@ const SECTION_LABEL_PATTERNS: Record<DailySection, RegExp> = {
   observations: /^\s*observa(c|ç)(o|õ)es\s*:\s*/i,
 };
 
-const HARDBLACKLIST_PATTERNS: Array<[RegExp, string]> = [
+const HARDBLACKLIST_PATTERNS: [RegExp, string][] = [
   [/ativa(c|ç)(a|ã)o espec(i|í)fica/gi, "aquecimento com bola"],
   [/mobilidade espec(i|í)fica/gi, "movimento com bola"],
   [/parte principal orientada por/gi, "atividade principal com"],
@@ -317,7 +317,7 @@ const HARDBLACKLIST_PATTERNS: Array<[RegExp, string]> = [
   [/proposta da atividade\s*:/gi, ""],
 ];
 
-const NATURAL_LANGUAGE_REPLACEMENTS: Array<[RegExp, string]> = [
+const NATURAL_LANGUAGE_REPLACEMENTS: [RegExp, string][] = [
   [/revis(a|ã)o ativa dos movimentos-?chave/gi, "revisão dos movimentos básicos"],
   [/movimentos-?chave/gi, "movimentos básicos"],
   [/progress(a|ã)o da aula/gi, "sequência da atividade"],

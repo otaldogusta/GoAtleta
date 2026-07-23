@@ -10,7 +10,7 @@ import {
 const mockGetClassById = jest.fn();
 const mockEnsureDefaultVisualPresets = jest.fn();
 const mockSaveTechnicalVisual = jest.fn();
-const keyboardListeners: Array<(event: KeyboardEvent) => void> = [];
+const keyboardListeners: ((event: KeyboardEvent) => void)[] = [];
 
 const dispatchKeyboardShortcut = (event: Partial<KeyboardEvent>) => {
   const preventDefault = jest.fn();

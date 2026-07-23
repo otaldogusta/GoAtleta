@@ -129,7 +129,7 @@ function DropdownButton<T extends string | number>({
   density = "default",
 }: {
   value: T;
-  options: Array<{ value: T; label: string }>;
+  options: { value: T; label: string }[];
   onChange: (value: T) => void;
   compact?: boolean;
   density?: "default" | "compact";
@@ -312,12 +312,12 @@ function MemberActionMenu({
   const triggerRef = useRef<ViewType | null>(null);
   const [open, setOpen] = useState(false);
   const [layout, setLayout] = useState<Layout | null>(null);
-  const actions: Array<{
+  const actions: {
     label: string;
     icon: GoAtletaIconName;
     destructive?: boolean;
     onPress: () => void;
-  }> = [
+  }[] = [
     { label: "Perfil e permissões", icon: "edit", onPress: () => onEdit(member) },
     { label: "Editar turmas", icon: "classes", onPress: () => onEdit(member) },
     { label: "Gerar mensagem", icon: "message", onPress: () => onMessage(member) },
@@ -517,7 +517,7 @@ export function CoordinationPeopleWorkspace({
   const [inviteEmailError, setInviteEmailError] = useState<"missing" | "invalid" | null>(null);
   const [inviteNotice, setInviteNotice] = useState<InviteNotice | null>(null);
   const inviteEmailInputRef = useRef<TextInput | null>(null);
-  const inviteEmailShakeAnim = useRef(new Animated.Value(0)).current;
+  const [inviteEmailShakeAnim] = useState(() => new Animated.Value(0));
   const [editBusy, setEditBusy] = useState(false);
   const [editRole, setEditRole] = useState<5 | 10 | 50>(10);
   const [editClassIds, setEditClassIds] = useState<string[]>([]);
@@ -1018,13 +1018,13 @@ export function CoordinationPeopleWorkspace({
     sync: { label: "Suporte e sincronização", value: syncHealthy ? "Tudo certo" : "Atenção" },
   };
 
-  const roleOptions: Array<{ value: RoleFilter; label: string }> = [
+  const roleOptions: { value: RoleFilter; label: string }[] = [
     { value: "all", label: "Todas as funções" },
     { value: "coordination", label: "Coordenação" },
     { value: "professor", label: "Professores" },
     { value: "intern", label: "Estagiários" },
   ];
-  const statusOptions: Array<{ value: StatusFilter; label: string }> = [
+  const statusOptions: { value: StatusFilter; label: string }[] = [
     { value: "all", label: "Todos os status" },
     { value: "active", label: "Ativos" },
     { value: "pending", label: "Pendentes" },

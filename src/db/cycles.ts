@@ -1,4 +1,4 @@
-﻿import type { PlanningCycle } from "../core/models";
+import type { PlanningCycle } from "../core/models";
 import { resolvePlanningCycleWindow } from "../core/planning-cycle-window";
 import { db } from "./sqlite";
 

@@ -18,7 +18,7 @@ if (Platform.OS === "web") {
   db = {
     execSync: (sql: string) => {
       // no-op on web; keep a console warning for debugging
-      // eslint-disable-next-line no-console
+
       console.warn("[sqlite stub] execSync called on web; SQL omitted for brevity.");
     },
     // Async methods are no-ops on web — SQLite is only used on native
@@ -29,7 +29,7 @@ if (Platform.OS === "web") {
 } else {
   // Native path: use expo-sqlite as before
   // Lazy require to avoid bundling native-only module into web build.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const SQLite = require("expo-sqlite");
   db = SQLite.openDatabaseSync("coachperiod.db");
 }

@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
     Animated,
     Text,
@@ -13,7 +13,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 export default function WelcomeScreen() {
   const { colors } = useAppTheme();
   const router = useRouter();
-  const enterAnim = useRef(new Animated.Value(0)).current;
+  const [enterAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     Animated.timing(enterAnim, {

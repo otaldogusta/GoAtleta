@@ -20,7 +20,7 @@ export const formatTrainingPlanDisplayText = (value: string | null | undefined) 
     .replace(/\bvolta\s+a\s+calma\b/gi, (match) => preserveCase(match, "volta à calma"))
     .replace(/\bsaque\s+recepcao\b/gi, (match) => preserveCase(match, "saque-recepção"));
 
-  const replacements: Array<[RegExp, string]> = [
+  const replacements: [RegExp, string][] = [
     [/\badaptacao\b/gi, "adaptação"],
     [/\badaptacoes\b/gi, "adaptações"],
     [/\bcoordenacao\b/gi, "coordenação"],

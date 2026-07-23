@@ -111,7 +111,7 @@ const readConflictValue = (value: unknown, side: "incoming" | "existing" = "inco
 };
 
 const buildApplyErrorHint = (
-  rows: Array<{ rowNumber: number; errorMessage: string | null; flags?: string[] | null }>
+  rows: { rowNumber: number; errorMessage: string | null; flags?: string[] | null }[]
 ) => {
   const samples = rows
     .map((row) => {
@@ -145,7 +145,7 @@ type ModalityClassMap = Record<string, string | null>;
 type RowDecision = "import" | "anamnesis" | "ignore";
 type DropdownLayout = { x: number; y: number; width: number; height: number };
 
-const ROW_DECISION_OPTIONS: Array<{ key: RowDecision; label: string }> = [
+const ROW_DECISION_OPTIONS: { key: RowDecision; label: string }[] = [
   { key: "import", label: "Importar" },
   { key: "anamnesis", label: "Anamnese" },
   { key: "ignore", label: "Ignorar" },
@@ -524,13 +524,13 @@ export function StudentsFormsSyncModal({
       (previewResult.rows ?? []).map((item) => [Number(item.rowNumber), item] as const)
     );
 
-    const details: Array<{
+    const details: {
       rowNumber: number;
       name: string;
       sexLabel: string;
       reason: string;
       action: string;
-    }> = [];
+    }[] = [];
 
     const totals = {
       total: 0,

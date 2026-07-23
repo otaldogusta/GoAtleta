@@ -268,7 +268,7 @@ const joinShortList = (items: string[]) => {
   return `${unique.slice(0, 2).join(", ")} +${unique.length - 2}`;
 };
 
-const buildMonthFocusSummary = (weeklyItems: Array<{ plan: ClassPlan }>) => {
+const buildMonthFocusSummary = (weeklyItems: { plan: ClassPlan }[]) => {
   const focuses = weeklyItems
     .map((item) => item.plan.theme || item.plan.technicalFocus || item.plan.generalObjective || "")
     .map((item) => item.trim())

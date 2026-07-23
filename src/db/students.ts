@@ -454,7 +454,7 @@ const mapWeeklyAutopilotProposal = (
         ? parsed.diffs.map((diff) => ({
             weekStart: String((diff as { weekStart?: unknown }).weekStart ?? ""),
             changes: Array.isArray((diff as { changes?: unknown }).changes)
-              ? ((diff as { changes?: unknown }).changes as Array<Record<string, unknown>>).map(
+              ? ((diff as { changes?: unknown }).changes as Record<string, unknown>[]).map(
                   (change) => ({
                     field: String(change.field ?? ""),
                     before: change.before,

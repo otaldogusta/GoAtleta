@@ -83,7 +83,7 @@ export type ActivityCatalogVariant = {
   id: string;
   taxonomy: ActivityCatalogTaxonomy;
   visualProfile?: ActivityCatalogVisualProfile;
-  periodizationFit: Array<"exploration" | "technical" | "decision" | "pressure" | "game_transfer">;
+  periodizationFit: ("exploration" | "technical" | "decision" | "pressure" | "game_transfer")[];
   name: string;
   players: string;
   setup: string;
@@ -154,11 +154,11 @@ export type ActivityCatalogAudit = {
   byAgeStage: Record<ActivityPatternAgeStage, number>;
   byPedagogicalIntent: Record<PedagogicalIntent, number>;
   byPeriodizationCompatibility: Record<PhaseIntent, number>;
-  gaps: Array<{
+  gaps: {
     skill: VolleyballSkill;
     ageStage: ActivityPatternAgeStage;
     recommendedPhase: ActivityPatternStage;
-  }>;
+  }[];
 };
 
 const allAgeStages: ActivityPatternAgeStage[] = [

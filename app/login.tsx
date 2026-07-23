@@ -76,14 +76,14 @@ export default function LoginScreen() {
   const [showReset, setShowReset] = useState(false);
   const [resetCountdown, setResetCountdown] = useState(0);
   const [resetSent, setResetSent] = useState(false);
-  const enterAnim = useRef(new Animated.Value(0)).current;
+  const [enterAnim] = useState(() => new Animated.Value(0));
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberTouched, setRememberTouched] = useState(false);
   const [showRememberToast, setShowRememberToast] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricHint, setBiometricHint] = useState("");
-  const rememberToastAnim = useRef(new Animated.Value(0)).current;
+  const [rememberToastAnim] = useState(() => new Animated.Value(0));
   const rememberMeRef = useRef(false);
   const loginInFlightRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);

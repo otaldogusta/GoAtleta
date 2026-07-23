@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Linking, Platform, Pressable, Text, View } from "react-native";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -27,8 +27,8 @@ const confidenceColor = (confidence: number, colors: ReturnType<typeof useAppThe
 export function InsightCard({ insight, onDismiss, onOpenAssistant, compact = false, embedded = false }: InsightCardProps) {
   const { colors, mode } = useAppTheme();
   const [showJustification, setShowJustification] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(-8)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(-8));
 
   const handleActionPress = () => {
     if (!insight.action) return;

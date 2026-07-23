@@ -16,7 +16,7 @@ export type CheckLessonAlignmentWithPeriodizationInput = {
     lessonKind?: LessonKind;
   };
   ageBand?: string;
-  recentHistory?: Array<Pick<DailyLessonPlan, "date" | "weeklyPlanId" | "generationContextSnapshotJson">>;
+  recentHistory?: Pick<DailyLessonPlan, "date" | "weeklyPlanId" | "generationContextSnapshotJson">[];
   activeCycle?: {
     startDate?: string;
     endDate?: string;
@@ -111,7 +111,7 @@ const normalizeIsoDate = (value: string | undefined): string => {
 };
 
 const extractKindsFromRecentHistory = (
-  items: Array<Pick<DailyLessonPlan, "date" | "weeklyPlanId" | "generationContextSnapshotJson">> | undefined,
+  items: Pick<DailyLessonPlan, "date" | "weeklyPlanId" | "generationContextSnapshotJson">[] | undefined,
   currentDate: string,
   currentWeekId: string
 ): LessonKind[] => {

@@ -67,11 +67,11 @@ type PlanUndoEntry = {
   pdfStatusLabel: string;
 };
 
-const BLOCKS: Array<{
+const BLOCKS: {
   key: TrainingPlanBlockKey;
   label: string;
   icon: GoAtletaIconName;
-}> = CLASS_PLAN_BLOCK_KEYS.map((key) => ({ key, ...CLASS_PLAN_BLOCK_PRESENTATION[key] }));
+}[] = CLASS_PLAN_BLOCK_KEYS.map((key) => ({ key, ...CLASS_PLAN_BLOCK_PRESENTATION[key] }));
 
 const formatDuration = (value: string | undefined) => {
   const text = String(value ?? "").trim();
@@ -153,7 +153,7 @@ export function ClassPlanPreviewModal({
     height: number;
   } | null>(null);
   const menuTriggerRef = useRef<View | null>(null);
-  const menuAnimation = useRef(new Animated.Value(1)).current;
+  const [menuAnimation] = useState(() => new Animated.Value(1));
   const workingPlanRef = useRef(plan);
   const undoStackRef = useRef<PlanUndoEntry[]>([]);
 

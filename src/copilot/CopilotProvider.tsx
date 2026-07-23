@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -251,7 +252,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
 
-  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const [pulseAnim] = useState(() => new Animated.Value(0));
   const lastSeenSnapshotRef = useRef<CentralSnapshot | null>(null);
   const lastComputedSnapshotRef = useRef<CentralSnapshot | null>(null);
   const currentSnapshotRef = useRef<CentralSnapshot | null>(null);
@@ -279,7 +280,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const [assistantTyping, setAssistantTyping] = useState(false);
   const [contextPreview, setContextPreview] = useState<{ actionTitle: string; message: string } | null>(null);
   const stateRef = useRef(state);
-  const thinkingPulse = useRef(new Animated.Value(0)).current;
+  const [thinkingPulse] = useState(() => new Animated.Value(0));
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -470,7 +471,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       state.signals,
     ]
   );
-  operationalContextRef.current = operationalContext;
+  useEffect(() => {
+    operationalContextRef.current = operationalContext;
+  }, [operationalContext]);
 
   const currentSnapshot = useMemo(() => {
     return buildCentralSnapshot({
@@ -1106,7 +1109,7 @@ export function useCopilotContext(input: CopilotContextData | null) {
   const actionsContext = useContext(CopilotActionsContext);
   const setContext = actionsContext?.setContext;
   const clearContext = actionsContext?.clearContext;
-  const ownerIdRef = useRef(`copilot_ctx_${Math.random().toString(36).slice(2, 10)}`);
+  const ownerId = `copilot_ctx_${useId()}`;
   const contextSignature = useMemo(() => buildContextSignature(input), [input]);
   const payload = useMemo<CopilotContextData | null>(() => {
     if (!input) return null;
@@ -1120,16 +1123,15 @@ export function useCopilotContext(input: CopilotContextData | null) {
 
   useEffect(() => {
     if (!setContext) return;
-    const ownerId = ownerIdRef.current;
     setContext(ownerId, payload);
-  }, [payload, setContext]);
+  }, [ownerId, payload, setContext]);
 
   useEffect(
     () => () => {
       if (!clearContext) return;
-      clearContext(ownerIdRef.current);
+      clearContext(ownerId);
     },
-    [clearContext]
+    [clearContext, ownerId]
   );
 }
 
@@ -1137,24 +1139,23 @@ export function useCopilotActions(actions: CopilotAction[]) {
   const actionsContext = useContext(CopilotActionsContext);
   const setActions = actionsContext?.setActions;
   const clearActions = actionsContext?.clearActions;
-  const ownerIdRef = useRef(`copilot_actions_${Math.random().toString(36).slice(2, 10)}`);
+  const ownerId = `copilot_actions_${useId()}`;
   const stableActions = useMemo(() => actions, [actions]);
 
   useEffect(() => {
     if (!setActions || !clearActions) return;
-    const ownerId = ownerIdRef.current;
     setActions(ownerId, stableActions);
     return () => {
       clearActions(ownerId);
     };
-  }, [clearActions, setActions, stableActions]);
+  }, [clearActions, ownerId, setActions, stableActions]);
 }
 
 export function useCopilotSignals(signals: CopilotSignal[]) {
   const actionsContext = useContext(CopilotActionsContext);
   const setSignals = actionsContext?.setSignals;
   const clearSignals = actionsContext?.clearSignals;
-  const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
+  const ownerId = `copilot_signals_${useId()}`;
   const signalsSignature = useMemo(() => buildSignalsSignature(signals), [signals]);
   const stableSignals = useMemo(
     () => sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal)),
@@ -1163,12 +1164,11 @@ export function useCopilotSignals(signals: CopilotSignal[]) {
 
   useEffect(() => {
     if (!setSignals || !clearSignals) return;
-    const ownerId = ownerIdRef.current;
     setSignals(ownerId, stableSignals);
     return () => {
       clearSignals(ownerId);
     };
-  }, [clearSignals, setSignals, stableSignals]);
+  }, [clearSignals, ownerId, setSignals, stableSignals]);
 }
 
 const styles = StyleSheet.create({

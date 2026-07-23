@@ -212,7 +212,7 @@ function FilterRow({
   onSelect,
 }: {
   title: string;
-  values: Array<{ value: string; label: string }>;
+  values: { value: string; label: string }[];
   activeValue: string;
   testPrefix: string;
   onSelect: (value: string) => void;

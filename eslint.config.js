@@ -10,6 +10,12 @@ module.exports = defineConfig([
     },
   },
   {
-    ignores: ['dist/*'],
+    files: ['**/__tests__/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    ignores: ['dist/**', 'storybook-static/**'],
   },
 ]);

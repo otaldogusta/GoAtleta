@@ -729,12 +729,12 @@ export type TrainingPlanPedagogy = {
       domain?: KnowledgeBaseDomain;
       knowledgeBaseVersionId?: string;
       knowledgeBaseVersionLabel?: string;
-      alternatives?: Array<{
+      alternatives?: {
         ruleId: string;
         ruleKey: string;
         ruleLabel?: string;
         score: number;
-      }>;
+      }[];
     };
   };
   pedagogicalApproach?: PedagogicalApproachDetection;
@@ -756,14 +756,14 @@ export type TrainingPlanPedagogy = {
       decisionMaking: "baixa" | "media" | "alta";
       taskComplexity: "baixa" | "media" | "alta";
       feedbackFrequency: "baixa" | "media" | "alta";
-      adjustments?: Array<{
+      adjustments?: {
         dimension: string;
         oldLevel: "baixa" | "media" | "alta";
         newLevel: "baixa" | "media" | "alta";
         reason: string;
         delta: number;
         timestamp: string;
-      }>;
+      }[];
       refinedAt?: string;
     };
     derivedAt?: string;

@@ -105,7 +105,7 @@ export type AutoPlanForCycleDayResult = {
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
 };
 
-const uniqueStrings = (values: Array<string | null | undefined>) =>
+const uniqueStrings = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
 const resolvePlanDate = (plan: TrainingPlan) => {

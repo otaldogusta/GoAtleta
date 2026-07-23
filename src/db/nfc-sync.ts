@@ -1,4 +1,4 @@
-﻿// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // NFC checkin + pending writes queue
 // ---------------------------------------------------------------------------
 
@@ -12,7 +12,6 @@ import {
   isNetworkError,
   type PendingWriteErrorKind,
   readCache,
-  SYNC_PAUSE_PREFIX,
   supabasePost,
   writeCache,
 } from "./client";

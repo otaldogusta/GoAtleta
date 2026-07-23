@@ -55,7 +55,7 @@ const normalizeText = (value: string | null | undefined) =>
     .toLowerCase()
     .trim();
 
-const uniqueStrings = (values: Array<string | null | undefined>) =>
+const uniqueStrings = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
 const splitMaterials = (value: string) =>
@@ -93,7 +93,7 @@ const parseRpeTarget = (rpeTarget?: string): number | undefined => {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 };
 
-const skillSignals: Array<{ skill: VolleyballSkill; pattern: RegExp }> = [
+const skillSignals: { skill: VolleyballSkill; pattern: RegExp }[] = [
   { skill: "passe", pattern: /\b(passe|passes|recep\w*|manchete|primeiro contato)\b/ },
   { skill: "levantamento", pattern: /\b(levant\w*|segundo contato|toque)\b/ },
   { skill: "ataque", pattern: /\b(ataq\w*|cortada|spike)\b/ },
@@ -482,7 +482,7 @@ const resolveWeeklyOperationalDecision = (params: {
       weeklyOperationalStrategy?:
         | WeeklyOperationalStrategySnapshot
         | {
-            decisions?: Array<{
+            decisions?: {
               sessionIndexInWeek?: number;
               sessionRole?: string;
               quarterFocus?: string;
@@ -490,7 +490,7 @@ const resolveWeeklyOperationalDecision = (params: {
               driftRisks?: string[];
               quarter?: "Q1" | "Q2" | "Q3" | "Q4" | "unknown";
               closingType?: "exploracao" | "consolidacao" | "aplicacao" | "fechamento" | "unknown";
-            }>;
+            }[];
           };
     };
     const decisions = parsed.weeklyOperationalStrategy?.decisions;

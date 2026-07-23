@@ -11,10 +11,10 @@ const normalizeText = (value: string | null | undefined) =>
 
 const cleanText = (value: unknown) => String(value ?? "").trim();
 
-const uniqueStrings = (values: Array<string | null | undefined>) =>
+const uniqueStrings = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => cleanText(value)).filter(Boolean))];
 
-const skillSignals: Array<{ skill: VolleyballSkill; pattern: RegExp }> = [
+const skillSignals: { skill: VolleyballSkill; pattern: RegExp }[] = [
   { skill: "passe", pattern: /\b(passe|passes|recep\w*|manchete|primeiro contato)\b/ },
   { skill: "levantamento", pattern: /\b(levant\w*|segundo contato|toque)\b/ },
   { skill: "ataque", pattern: /\b(ataq\w*|cortada|spike)\b/ },

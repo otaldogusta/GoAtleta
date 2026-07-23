@@ -1,3 +1,10 @@
+import {
+    nextBiometricFailureState,
+    shouldAllowBiometricLoginPrompt,
+    shouldLockBiometricSession,
+    shouldRelockOnForeground,
+} from "../biometric-lock";
+
 jest.mock("../biometric-settings", () => ({
   getBiometricsEnabled: jest.fn(async () => false),
   setBiometricsEnabled: jest.fn(async () => undefined),
@@ -6,13 +13,6 @@ jest.mock("../biometric-settings", () => ({
 jest.mock("../biometrics", () => ({
   promptBiometrics: jest.fn(async () => false),
 }));
-
-import {
-    nextBiometricFailureState,
-    shouldAllowBiometricLoginPrompt,
-    shouldLockBiometricSession,
-    shouldRelockOnForeground,
-} from "../biometric-lock";
 
 describe("biometric-lock core", () => {
   test("starts locked only for native + session + enabled", () => {

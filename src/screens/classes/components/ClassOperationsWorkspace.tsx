@@ -1,4 +1,4 @@
-import { memo, type ReactNode, useEffect, useMemo, useRef } from "react";
+import { memo, type ReactNode, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View } from "react-native";
 
 import type { TrainingPlan } from "../../../core/models";
@@ -306,7 +306,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   onExportRoster,
   onOpenWhatsApp,
 }: ClassOperationsWorkspaceProps) {
-  const lessonContentAnim = useRef(new Animated.Value(1)).current;
+  const [lessonContentAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     if (isLoadingLessonPlan) {

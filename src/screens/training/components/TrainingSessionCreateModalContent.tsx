@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
 import { buildTrainingSessionWindow } from "../../../db/training-sessions";

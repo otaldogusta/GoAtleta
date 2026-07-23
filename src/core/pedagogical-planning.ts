@@ -1,4 +1,4 @@
-﻿import { parseAgeBandRange } from "./age-band";
+import { parseAgeBandRange } from "./age-band";
 import { inferSkillsFromText, progressionPlanToDraft, volleyballLessonPlanToDraft } from "./ai-operations";
 import { resolveClassModality } from "./class-modality";
 import type { ClassGroup, Student, VolleyballSkill } from "./models";

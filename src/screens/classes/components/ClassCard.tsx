@@ -276,6 +276,7 @@ export const ClassCard = memo(function ClassCard({
     actionMenuOpen &&
     actionMenuLayout &&
     typeof document !== "undefined"
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       ? require("react-dom").createPortal(actionMenuContent, document.body)
       : null;
 

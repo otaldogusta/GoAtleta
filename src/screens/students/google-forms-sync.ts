@@ -15,12 +15,12 @@ export type LoadedGoogleFormsSheet = {
   rawRows: GoogleFormsRawRow[];
   classSuggestionDiagnostics: FormsClassSuggestionDiagnostics | null;
   hasClassColumn: boolean;
-  detectedModalities: Array<{
+  detectedModalities: {
     normalized: string;
     label: string;
     count: number;
     isVolleyball: boolean;
-  }>;
+  }[];
 };
 
 const toKey = (value: string) =>

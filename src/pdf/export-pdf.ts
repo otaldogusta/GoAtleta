@@ -1,9 +1,9 @@
 import type { ReactElement } from "react";
 import { Linking, Platform } from "react-native";
 import * as FileSystem from "expo-file-system";
-const { cacheDirectory, copyAsync, documentDirectory, EncodingType, getContentUriAsync, writeAsStringAsync } = FileSystem as any;
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+const { cacheDirectory, copyAsync, documentDirectory, EncodingType, getContentUriAsync, writeAsStringAsync } = FileSystem as any;
 
 export const safeFileName = (value: string) =>
   value

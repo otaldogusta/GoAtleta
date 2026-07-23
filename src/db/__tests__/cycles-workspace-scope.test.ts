@@ -1,3 +1,9 @@
+import {
+  ensureActiveCycleForYear,
+  getActivePlanningCycle,
+  getPlanningCycles,
+} from "../cycles";
+
 const mockGetAllAsync = jest.fn();
 const mockGetFirstAsync = jest.fn();
 const mockRunAsync = jest.fn();
@@ -9,12 +15,6 @@ jest.mock("../sqlite", () => ({
     runAsync: (...args: unknown[]) => mockRunAsync(...args),
   },
 }));
-
-import {
-  ensureActiveCycleForYear,
-  getActivePlanningCycle,
-  getPlanningCycles,
-} from "../cycles";
 
 describe("planning cycles workspace scope", () => {
   beforeEach(() => {

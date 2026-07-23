@@ -245,7 +245,7 @@ const APPROACH_SIGNALS: DetectionSignal[] = [
 ];
 
 const topKey = <TKey extends string>(scores: Record<TKey, number>): TKey | null => {
-  const entries = Object.entries(scores) as Array<[TKey, number]>;
+  const entries = Object.entries(scores) as [TKey, number][];
   entries.sort((left, right) => right[1] - left[1]);
   return entries[0]?.[1] ? entries[0][0] : null;
 };
@@ -271,7 +271,7 @@ const resolveSecondaryApproaches = (
   scores: Record<ApproachBucket, number>,
   primary: PedagogicalApproach
 ) => {
-  const entries = (Object.entries(scores) as Array<[ApproachBucket, number]>)
+  const entries = (Object.entries(scores) as [ApproachBucket, number][])
     .filter(([approach, score]) => score > 0 && approach !== primary)
     .sort((left, right) => right[1] - left[1]);
 
@@ -393,7 +393,7 @@ export const detectPedagogicalApproach = (
     tags.push("co-construcao");
   }
 
-  const rankedApproaches = (Object.entries(scores) as Array<[ApproachBucket, number]>).sort(
+  const rankedApproaches = (Object.entries(scores) as [ApproachBucket, number][]).sort(
     (left, right) => right[1] - left[1]
   );
   const topApproach = rankedApproaches[0]?.[0] ?? "tradicional";

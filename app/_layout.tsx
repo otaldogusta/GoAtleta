@@ -209,7 +209,7 @@ function RootLayoutContent() {
   const hadSessionRef = useRef(false);
   const initialRouteGuardAppliedRef = useRef(false);
   const stuckEventsGuardRef = useRef(false);
-  const appStartedAtRef = useRef(Date.now());
+  const [appStartedAt] = useState(() => Date.now());
   const lastBootPhaseRef = useRef<string | null>(null);
   const pushRegistrationInFlightRef = useRef(false);
   const lastPushRegistrationKeyRef = useRef("");
@@ -435,7 +435,7 @@ function RootLayoutContent() {
     if (normalizedPathname !== "/events") return;
 
     const routeCount = Array.isArray(rootState?.routes) ? rootState.routes.length : 0;
-    const elapsedMs = Date.now() - appStartedAtRef.current;
+    const elapsedMs = Date.now() - appStartedAt;
     if (routeCount <= 1 && elapsedMs < 15_000) {
       stuckEventsGuardRef.current = true;
       router.replace(appHomeHref);
@@ -480,7 +480,7 @@ function RootLayoutContent() {
       redirectTo = "/welcome";
     } else if (!session && !isPublicRoute) {
       if (Platform.OS === "web") {
-        const elapsedMs = Date.now() - appStartedAtRef.current;
+        const elapsedMs = Date.now() - appStartedAt;
         if (elapsedMs < 2500) {
           return;
         }

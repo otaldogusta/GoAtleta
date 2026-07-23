@@ -15,7 +15,7 @@ type Props = {
 
 const nextActivityId = () => `act_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
-const structuredFields: Array<{ key: keyof LessonActivity; label: string }> = [
+const structuredFields: { key: keyof LessonActivity; label: string }[] = [
   { key: "organization", label: "Organização" },
   { key: "execution", label: "Execução" },
   { key: "coachFocus", label: "Foco do professor" },

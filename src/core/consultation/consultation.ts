@@ -196,7 +196,7 @@ export function findNextStudentWorkout(
   );
 }
 
-const averageScale = (values: Array<number | undefined>) => {
+const averageScale = (values: (number | undefined)[]) => {
   const validValues = values.filter(
     (value): value is number => typeof value === "number" && Number.isFinite(value)
   );
