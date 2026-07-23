@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Platform, Text, View } from "react-native";
+import { FlatList, Platform, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
@@ -74,6 +74,12 @@ const LazyCatalogAuditPanel = lazy(() =>
     default: module.CatalogAuditPanel,
   }))
 );
+const styles = StyleSheet.create({
+  catalogAuditFallback: {
+    height: 180,
+    borderRadius: 16,
+  },
+});
 
 export default function ReportsScreen() {
   markRender("screen.reportsAdmin.render.root");
@@ -602,7 +608,7 @@ export default function ReportsScreen() {
         ListHeaderComponent={header}
         ListEmptyComponent={
           tab === "catalog" ? (
-            <Suspense fallback={<ShimmerBlock style={{ height: 180, borderRadius: 16 }} />}>
+            <Suspense fallback={<ShimmerBlock style={styles.catalogAuditFallback} />}>
               <LazyCatalogAuditPanel
                 report={catalogAuditReport}
                 loading={catalogLoading}
