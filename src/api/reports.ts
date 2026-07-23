@@ -33,6 +33,11 @@ type AdminClassScheduleRow = {
   duration?: number | string | null;
 };
 
+type AdminClassScheduleCacheEntry = {
+  expiresAt: number;
+  promise: Promise<AdminClassScheduleRow[]>;
+};
+
 type AdminRecentActivityRow = {
   organization_id: string;
   kind: "attendance" | "session_log";
@@ -111,6 +116,29 @@ const formatDateKey = (value: Date) => {
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const ADMIN_CLASS_SCHEDULE_CACHE_MS = 5_000;
+const adminClassScheduleCache = new Map<string, AdminClassScheduleCacheEntry>();
+
+const loadAdminClassSchedules = (organizationId: string) => {
+  const now = Date.now();
+  const cached = adminClassScheduleCache.get(organizationId);
+  if (cached && cached.expiresAt > now) return cached.promise;
+
+  const promise = supabaseRestGet<AdminClassScheduleRow[]>(
+    "/classes?organization_id=eq." +
+      encodeURIComponent(organizationId) +
+      "&select=id,days,daysperweek,starttime,end_time,duration,gender"
+  );
+  adminClassScheduleCache.set(organizationId, {
+    expiresAt: now + ADMIN_CLASS_SCHEDULE_CACHE_MS,
+    promise,
+  });
+  void promise.catch(() => {
+    const current = adminClassScheduleCache.get(organizationId);
+    if (current?.promise === promise) adminClassScheduleCache.delete(organizationId);
+  });
+  return promise;
+};
 
 const parseDateKeyLocal = (value: string) => {
   const parts = value.split("-");
@@ -185,17 +213,14 @@ export async function listAdminPendingAttendance(params: {
   organizationId: string;
 }) {
   assertOrganizationId(params.organizationId, "listAdminPendingAttendance");
-  const encodedOrgId = encodeURIComponent(params.organizationId);
   const { rows, classSchedules } = await withTiming("listAdminPendingAttendance", async () => {
     const [pendingRows, scheduleRows] = await Promise.all([
       supabaseRestGet<AdminPendingAttendanceRow[]>(
-        "/v_admin_pending_attendance?organization_id=eq." + encodedOrgId + "&select=*"
+        "/v_admin_pending_attendance?organization_id=eq." +
+          encodeURIComponent(params.organizationId) +
+          "&select=*"
       ),
-      supabaseRestGet<AdminClassScheduleRow[]>(
-        "/classes?organization_id=eq." +
-          encodedOrgId +
-          "&select=id,days,daysperweek,starttime,end_time,duration"
-      ),
+      loadAdminClassSchedules(params.organizationId),
     ]);
     return { rows: pendingRows, classSchedules: scheduleRows };
   });
@@ -231,9 +256,7 @@ export async function listAdminPendingSessionLogs(params: {
       supabaseRestGet<AdminPendingSessionLogsRow[]>(
         "/v_admin_pending_session_logs?organization_id=eq." + encodedOrgId + "&select=*"
       ),
-      supabaseRestGet<AdminClassScheduleRow[]>(
-        "/classes?organization_id=eq." + encodedOrgId + "&select=id,days,daysperweek,gender"
-      ),
+      loadAdminClassSchedules(params.organizationId),
     ]);
     return { rows: pendingRows, classSchedules: scheduleRows };
   });

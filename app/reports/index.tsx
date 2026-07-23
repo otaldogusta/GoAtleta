@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Platform, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,11 +19,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import type { ActivityCatalogAuditReport } from "../../src/core/volleyball/activity-catalog-audit";
-import { buildActivityCatalogAuditReport } from "../../src/core/volleyball/activity-catalog-audit";
-import { getTrainingPlans } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
-import TrainerReportsScreen from "./trainer";
-import { CatalogAuditPanel } from "../../src/screens/reports/CatalogAuditPanel";
 
 type DashboardTab = "attendance" | "session" | "activity" | "catalog";
 
@@ -72,6 +68,13 @@ const tabItems: { id: DashboardTab; label: string }[] = [
   { id: "catalog", label: "Catálogo" },
 ];
 
+const LazyTrainerReportsScreen = lazy(() => import("./trainer"));
+const LazyCatalogAuditPanel = lazy(() =>
+  import("../../src/screens/reports/CatalogAuditPanel").then((module) => ({
+    default: module.CatalogAuditPanel,
+  }))
+);
+
 export default function ReportsScreen() {
   markRender("screen.reportsAdmin.render.root");
 
@@ -88,6 +91,9 @@ export default function ReportsScreen() {
   const [pendingSessions, setPendingSessions] = useState<AdminPendingSessionLogs[]>([]);
   const [recentActivity, setRecentActivity] = useState<AdminRecentActivity[]>([]);
   const [catalogAuditReport, setCatalogAuditReport] = useState<ActivityCatalogAuditReport | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const catalogRequestedOrgIdRef = useRef<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     const organizationId = activeOrganization?.id;
@@ -95,7 +101,6 @@ export default function ReportsScreen() {
       setPendingAttendance([]);
       setPendingSessions([]);
       setRecentActivity([]);
-      setCatalogAuditReport(null);
       setError(null);
       setLoading(false);
       return;
@@ -103,40 +108,97 @@ export default function ReportsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [attendanceRows, sessionRows, activityRows, trainingPlans] = await measureAsync(
+      const [attendanceRows, sessionRows, activityRows] = await measureAsync(
         "screen.reportsAdmin.load.dashboard",
         () =>
           Promise.all([
             listAdminPendingAttendance({ organizationId }),
             listAdminPendingSessionLogs({ organizationId }),
             listAdminRecentActivity({ organizationId, limit: 50 }),
-            getTrainingPlans({
-              organizationId,
-              status: "final",
-              orderBy: "createdat_desc",
-              limit: 300,
-            }),
           ]),
         { screen: "reportsAdmin", organizationId }
       );
       setPendingAttendance(attendanceRows);
       setPendingSessions(sessionRows);
       setRecentActivity(activityRows);
-      setCatalogAuditReport(buildActivityCatalogAuditReport(trainingPlans));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar dashboard.");
       setPendingAttendance([]);
       setPendingSessions([]);
       setRecentActivity([]);
-      setCatalogAuditReport(null);
     } finally {
       setLoading(false);
     }
   }, [activeOrganization?.id, isAdmin]);
 
+  const loadCatalogAudit = useCallback(
+    async (force = false) => {
+      const organizationId = activeOrganization?.id;
+      if (!organizationId || !isAdmin) {
+        setCatalogAuditReport(null);
+        setCatalogError(null);
+        setCatalogLoading(false);
+        return;
+      }
+      if (!force && catalogRequestedOrgIdRef.current === organizationId) return;
+
+      catalogRequestedOrgIdRef.current = organizationId;
+      setCatalogLoading(true);
+      setCatalogError(null);
+      try {
+        const [{ buildActivityCatalogAuditReport }, { getTrainingPlans }] = await Promise.all([
+          import("../../src/core/volleyball/activity-catalog-audit"),
+          import("../../src/db/seed"),
+        ]);
+        const trainingPlans = await measureAsync(
+          "screen.reportsAdmin.load.catalog",
+          () =>
+            getTrainingPlans({
+              organizationId,
+              status: "final",
+              orderBy: "createdat_desc",
+              limit: 300,
+            }),
+          { screen: "reportsAdmin", organizationId }
+        );
+        if (catalogRequestedOrgIdRef.current !== organizationId) return;
+        setCatalogAuditReport(buildActivityCatalogAuditReport(trainingPlans));
+      } catch (err) {
+        if (catalogRequestedOrgIdRef.current !== organizationId) return;
+        setCatalogAuditReport(null);
+        setCatalogError(err instanceof Error ? err.message : "Falha ao carregar auditoria.");
+      } finally {
+        if (catalogRequestedOrgIdRef.current === organizationId) {
+          setCatalogLoading(false);
+        }
+      }
+    },
+    [activeOrganization?.id, isAdmin]
+  );
+
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    catalogRequestedOrgIdRef.current = null;
+    setCatalogAuditReport(null);
+    setCatalogError(null);
+    setCatalogLoading(false);
+  }, [activeOrganization?.id]);
+
+  useEffect(() => {
+    if (tab === "catalog") {
+      void loadCatalogAudit();
+    }
+  }, [loadCatalogAudit, tab]);
+
+  const reloadVisibleData = useCallback(() => {
+    void loadDashboard();
+    if (tab === "catalog") {
+      void loadCatalogAudit(true);
+    }
+  }, [loadCatalogAudit, loadDashboard, tab]);
 
   const listItems = useMemo<DashboardListItem[]>(() => {
     if (tab === "attendance") {
@@ -490,7 +552,13 @@ export default function ReportsScreen() {
     </View>
   );
 
-  if (!isAdmin) return <TrainerReportsScreen />;
+  if (!isAdmin) {
+    return (
+      <Suspense fallback={<ScreenLoadingState />}>
+        <LazyTrainerReportsScreen />
+      </Suspense>
+    );
+  }
 
   if (loading) {
     return <ScreenLoadingState />;
@@ -504,7 +572,7 @@ export default function ReportsScreen() {
         onBack={() => navigateBackOrReplace({ router, fallback: "/coord/dashboard" })}
         right={
           <Pressable
-            onPress={() => void loadDashboard()}
+            onPress={reloadVisibleData}
             style={{
               alignSelf: "flex-start",
               paddingHorizontal: 10,
@@ -534,12 +602,14 @@ export default function ReportsScreen() {
         ListHeaderComponent={header}
         ListEmptyComponent={
           tab === "catalog" ? (
-            <CatalogAuditPanel
-              report={catalogAuditReport}
-              loading={loading}
-              error={error}
-              onRefresh={loadDashboard}
-            />
+            <Suspense fallback={<ShimmerBlock style={{ height: 180, borderRadius: 16 }} />}>
+              <LazyCatalogAuditPanel
+                report={catalogAuditReport}
+                loading={catalogLoading}
+                error={catalogError}
+                onRefresh={() => void loadCatalogAudit(true)}
+              />
+            </Suspense>
           ) : (
             <View
               style={{

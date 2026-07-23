@@ -1,18 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
-import {
-    cacheDirectory,
-    documentDirectory,
-    EncodingType,
-    writeAsStringAsync,
-} from "expo-file-system/legacy";
 import { useFocusEffect, useRouter } from "expo-router";
-import * as Sharing from "expo-sharing";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { getSignals, type Signal } from "../src/ai/signal-engine";
+import { type Signal } from "../src/ai/signal-engine";
 import {
     classifySyncError,
     generateExecutiveSummary,
@@ -35,7 +28,7 @@ import { sendPushToUser } from "../src/api/push";
 import {
     AdminPendingAttendance,
     AdminPendingSessionLogs,
-    AdminRecentActivity,
+    type AdminRecentActivity,
     listAdminPendingAttendance,
     listAdminPendingSessionLogs,
     listAdminRecentActivity,
@@ -53,10 +46,6 @@ import {
     type CopilotAction,
     type CopilotContextData,
 } from "../src/copilot/CopilotProvider";
-import {
-    buildNextClassSuggestion,
-    type NextClassSuggestion,
-} from "../src/core/intelligence/suggestion-engine";
 import { useSmartSync } from "../src/core/use-smart-sync";
 import {
     clearPendingWritesDeadLetterCandidates,
@@ -74,12 +63,8 @@ import {
 } from "../src/db/seed";
 import { getScopedProfilePath } from "../src/navigation/profile-routes";
 import { markRender, measureAsync } from "../src/observability/perf";
-import { CoordinationAiDocument } from "../src/pdf/coordination-ai-document";
-import { exportPdf, safeFileName } from "../src/pdf/export-pdf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
-import { ClassRadarPanel, type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
-import { ConsistencyPanel } from "../src/screens/coordination/ConsistencyPanel";
-import { SyncSupportPanel } from "../src/screens/coordination/SyncSupportPanel";
+import { type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
 import { resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -88,6 +73,22 @@ import { Pressable } from "../src/ui/Pressable";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 
 type CoordinationTab = "dashboard" | "members";
+
+const ClassRadarPanel = lazy(() =>
+  import("../src/screens/coordination/ClassRadarPanel").then((module) => ({
+    default: module.ClassRadarPanel,
+  }))
+);
+const ConsistencyPanel = lazy(() =>
+  import("../src/screens/coordination/ConsistencyPanel").then((module) => ({
+    default: module.ConsistencyPanel,
+  }))
+);
+const SyncSupportPanel = lazy(() =>
+  import("../src/screens/coordination/SyncSupportPanel").then((module) => ({
+    default: module.SyncSupportPanel,
+  }))
+);
 
 const formatDateBr = (value: string | null | undefined) => {
   if (!value) return "-";
@@ -664,21 +665,32 @@ export default function CoordinationScreen() {
     setLoading(true);
     setError(null);
     try {
-      const now = new Date();
-      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-      const [attendanceRows, reportRows, activityRows, classes, sessionLogs, queueDiagnostics, failed] =
+      const [
+        attendanceRows,
+        reportRows,
+        classes,
+        queueDiagnostics,
+        failed,
+        memberRows,
+        classHeadRows,
+        classRows,
+        inviteRows,
+      ] =
         await measureAsync(
           "screen.coordination.load.dashboard",
           () =>
             Promise.all([
               listAdminPendingAttendance({ organizationId }),
               listAdminPendingSessionLogs({ organizationId }),
-              listAdminRecentActivity({ organizationId, limit: 12 }),
               getClasses({ organizationId }),
-              getSessionLogsByRange(start.toISOString(), now.toISOString(), { organizationId }),
               getPendingWritesDiagnostics(10),
               listPendingWriteFailures(12),
+              adminListOrgMembers(organizationId).catch(() => [] as OrgMember[]),
+              adminListOrgMemberClassHeads(organizationId).catch(() => [] as MemberClassHead[]),
+              adminListOrgClasses(organizationId).catch(() => [] as OrgClass[]),
+              listTrainerInvites(organizationId)
+                .then((result) => result.invites.filter((invite) => !invite.revoked))
+                .catch(() => [] as TrainerInviteItem[]),
             ]),
           { screen: "coordination", organizationId }
         );
@@ -686,19 +698,9 @@ export default function CoordinationScreen() {
 
       setPendingAttendance(attendanceRows);
       setPendingReports(reportRows);
-      setRecentActivity(activityRows);
+      setRecentActivity([]);
       setPendingWritesDiagnostics(queueDiagnostics);
       setFailedWrites(failed);
-
-      const [memberRows, classHeadRows, classRows, inviteRows] = await Promise.all([
-        adminListOrgMembers(organizationId).catch(() => [] as OrgMember[]),
-        adminListOrgMemberClassHeads(organizationId).catch(() => [] as MemberClassHead[]),
-        adminListOrgClasses(organizationId).catch(() => [] as OrgClass[]),
-        listTrainerInvites(organizationId)
-          .then((result) => result.invites.filter((invite) => !invite.revoked))
-          .catch(() => [] as TrainerInviteItem[]),
-      ]);
-      if (requestId !== dashboardRequestRef.current) return;
 
       setOrganizationMembers(memberRows);
       setMemberClassHeads(classHeadRows);
@@ -716,43 +718,58 @@ export default function CoordinationScreen() {
       );
       setPendingTrainerInvites(inviteRows);
 
-      const logsByClass = sessionLogs.reduce<Record<string, typeof sessionLogs>>((acc, item) => {
-        if (!acc[item.classId]) acc[item.classId] = [];
-        acc[item.classId].push(item);
-        return acc;
-      }, {});
+      const now = new Date();
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      void Promise.all([
+        listAdminRecentActivity({ organizationId, limit: 12 }),
+        getSessionLogsByRange(start.toISOString(), now.toISOString(), { organizationId }),
+        import("../src/ai/signal-engine").then((module) => module.getSignals({ organizationId })),
+      ])
+        .then(async ([activityRows, sessionLogs, signalRows]) => {
+          const { buildNextClassSuggestion } = await import(
+            "../src/core/intelligence/suggestion-engine"
+          );
+          if (requestId !== dashboardRequestRef.current) return;
 
-      const radarRows: ClassRadarItem[] = classes
-        .map((item) => {
-          const logs = logsByClass[item.id] ?? [];
-          const suggestion: NextClassSuggestion = buildNextClassSuggestion({
-            className: item.name,
-            logs,
-          });
-          return {
-            classId: item.id,
-            className: item.name,
-            unit: item.unit,
-            radarScore: suggestion.radarScore,
-            trendLabel: suggestion.trendLabel,
-            alerts: suggestion.alerts,
-            nextTrainingPrompt: suggestion.nextTrainingPrompt,
-            logsCount: logs.length,
-          };
+          const logsByClass = sessionLogs.reduce<Record<string, typeof sessionLogs>>(
+            (acc, item) => {
+              if (!acc[item.classId]) acc[item.classId] = [];
+              acc[item.classId].push(item);
+              return acc;
+            },
+            {}
+          );
+          const radarRows: ClassRadarItem[] = classes
+            .map((item) => {
+              const logs = logsByClass[item.id] ?? [];
+              const suggestion = buildNextClassSuggestion({
+                className: item.name,
+                logs,
+              });
+              return {
+                classId: item.id,
+                className: item.name,
+                unit: item.unit,
+                radarScore: suggestion.radarScore,
+                trendLabel: suggestion.trendLabel,
+                alerts: suggestion.alerts,
+                nextTrainingPrompt: suggestion.nextTrainingPrompt,
+                logsCount: logs.length,
+              };
+            })
+            .sort((a, b) => a.radarScore - b.radarScore)
+            .slice(0, 6);
+
+          setRecentActivity(activityRows);
+          setClassRadarItems(radarRows);
+          setSignals(signalRows);
         })
-        .sort((a, b) => a.radarScore - b.radarScore)
-        .slice(0, 6);
-
-      setClassRadarItems(radarRows);
-
-      try {
-        const signalRows = await getSignals({ organizationId });
-        if (requestId !== dashboardRequestRef.current) return;
-        setSignals(signalRows);
-      } catch {
-        if (requestId !== dashboardRequestRef.current) return;
-        setSignals([]);
-      }
+        .catch(() => {
+          if (requestId !== dashboardRequestRef.current) return;
+          setRecentActivity([]);
+          setClassRadarItems([]);
+          setSignals([]);
+        });
     } catch (err) {
       if (requestId !== dashboardRequestRef.current) return;
       setPendingAttendance([]);
@@ -1174,6 +1191,7 @@ export default function CoordinationScreen() {
         return;
       }
 
+      const { safeFileName } = await import("../src/pdf/export-pdf");
       const fileName = `${safeFileName(bundle.title)}_${safeFileName(bundle.generatedAt)}.md`;
 
       if (Platform.OS === "web") {
@@ -1192,6 +1210,13 @@ export default function CoordinationScreen() {
         }
       }
 
+      const [
+        { cacheDirectory, documentDirectory, EncodingType, writeAsStringAsync },
+        Sharing,
+      ] = await Promise.all([
+        import("expo-file-system/legacy"),
+        import("expo-sharing"),
+      ]);
       const base = documentDirectory ?? cacheDirectory ?? "";
       if (!base) {
         await Clipboard.setStringAsync(bundle.markdown);
@@ -1234,6 +1259,10 @@ export default function CoordinationScreen() {
         return;
       }
 
+      const [{ CoordinationAiDocument }, { exportPdf, safeFileName }] = await Promise.all([
+        import("../src/pdf/coordination-ai-document"),
+        import("../src/pdf/export-pdf"),
+      ]);
       const fileName = `${safeFileName(bundle.title)}_${safeFileName(bundle.generatedAt)}.pdf`;
       const webDocument = (
         <CoordinationAiDocument

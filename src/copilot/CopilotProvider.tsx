@@ -1,5 +1,15 @@
 import { usePathname, useRouter } from "expo-router";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   Platform,
@@ -20,7 +30,6 @@ import { markRender, measureAsync } from "../observability/perf";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { useAppTheme } from "../ui/app-theme";
 import { CopilotFab } from "./components/CopilotFab";
-import { CopilotModal } from "./components/CopilotModal";
 import {
   buildDefaultContextReply,
   buildNfcQuickActionReply,
@@ -57,6 +66,12 @@ import {
   buildCentralSnapshot,
   type CentralSnapshot,
 } from "./updates-utils";
+
+const LazyCopilotModal = lazy(() =>
+  import("./components/CopilotModal").then((module) => ({
+    default: module.CopilotModal,
+  }))
+);
 
 type CopilotDataContextValue = {
   state: CopilotState;
@@ -975,53 +990,57 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         />
       ) : null}
 
-      <CopilotModal
-        visible={state.open}
-        isWebModal={isWebModal}
-        viewportWidth={viewportWidth}
-        viewportHeight={viewportHeight}
-        sheetMaxWidth={sheetMaxWidth}
-        sheetMaxHeight={sheetMaxHeight}
-        sheetMinHeight={sheetMinHeight}
-        sheetContentBottomPadding={sheetContentBottomPadding}
-        colors={colors}
-        insightsView={insightsView}
-        setInsightsView={setInsightsView}
-        operationalContext={operationalContext}
-        state={state}
-        signalsByCategory={signalsByCategory}
-        hasRegulationDetails={hasRegulationDetails}
-        latestRegulationSourceUrl={latestRegulationSourceUrl}
-        detailRegulationUpdate={detailRegulationUpdate}
-        activeDrawerSignal={activeDrawerSignal}
-        activeCategoryLabel={activeCategoryLabel}
-        selectedSeverityColor={selectedSeverityColor}
-        selectedSeverityLabel={selectedSeverityLabel}
-        recommendedActionIds={recommendedActionIds}
-        orderedActions={orderedActions}
-        recommendedActions={recommendedActions}
-        rootQuickActions={rootQuickActions}
-        canExpandRootActions={canExpandRootActions}
-        showAllRootActions={showAllRootActions}
-        setShowAllRootActions={setShowAllRootActions}
-        assistantTyping={assistantTyping}
-        thinkingPulse={thinkingPulse}
-        contextPreview={contextPreview}
-        composerValue={composerValue}
-        setComposerValue={setComposerValue}
-        composerInputHeight={composerInputHeight}
-        setComposerInputHeight={setComposerInputHeight}
-        nowMs={nowMs}
-        setActiveSignal={setActiveSignal}
-        runAction={runAction}
-        close={close}
-        onNavigateToHistory={() => { close(); router.push(scopedAssistantPath); }}
-        onNavigateToAssistant={() => { close(); router.push(scopedAssistantPath); }}
-        onNavigateToRegulationHistory={() => { close(); router.push("/regulation-history"); }}
-        onNavigateToImpactAction={(route) => { close(); router.push(route as never); }}
-        submitComposer={submitComposer}
-        handleComposerKeyPress={handleComposerKeyPress}
-      />
+      {state.open ? (
+        <Suspense fallback={null}>
+          <LazyCopilotModal
+            visible
+            isWebModal={isWebModal}
+            viewportWidth={viewportWidth}
+            viewportHeight={viewportHeight}
+            sheetMaxWidth={sheetMaxWidth}
+            sheetMaxHeight={sheetMaxHeight}
+            sheetMinHeight={sheetMinHeight}
+            sheetContentBottomPadding={sheetContentBottomPadding}
+            colors={colors}
+            insightsView={insightsView}
+            setInsightsView={setInsightsView}
+            operationalContext={operationalContext}
+            state={state}
+            signalsByCategory={signalsByCategory}
+            hasRegulationDetails={hasRegulationDetails}
+            latestRegulationSourceUrl={latestRegulationSourceUrl}
+            detailRegulationUpdate={detailRegulationUpdate}
+            activeDrawerSignal={activeDrawerSignal}
+            activeCategoryLabel={activeCategoryLabel}
+            selectedSeverityColor={selectedSeverityColor}
+            selectedSeverityLabel={selectedSeverityLabel}
+            recommendedActionIds={recommendedActionIds}
+            orderedActions={orderedActions}
+            recommendedActions={recommendedActions}
+            rootQuickActions={rootQuickActions}
+            canExpandRootActions={canExpandRootActions}
+            showAllRootActions={showAllRootActions}
+            setShowAllRootActions={setShowAllRootActions}
+            assistantTyping={assistantTyping}
+            thinkingPulse={thinkingPulse}
+            contextPreview={contextPreview}
+            composerValue={composerValue}
+            setComposerValue={setComposerValue}
+            composerInputHeight={composerInputHeight}
+            setComposerInputHeight={setComposerInputHeight}
+            nowMs={nowMs}
+            setActiveSignal={setActiveSignal}
+            runAction={runAction}
+            close={close}
+            onNavigateToHistory={() => { close(); router.push(scopedAssistantPath); }}
+            onNavigateToAssistant={() => { close(); router.push(scopedAssistantPath); }}
+            onNavigateToRegulationHistory={() => { close(); router.push("/regulation-history"); }}
+            onNavigateToImpactAction={(route) => { close(); router.push(route as never); }}
+            submitComposer={submitComposer}
+            handleComposerKeyPress={handleComposerKeyPress}
+          />
+        </Suspense>
+      ) : null}
       </CopilotDataContext.Provider>
     </CopilotActionsContext.Provider>
   );
@@ -1171,4 +1190,3 @@ const styles = StyleSheet.create({
 });
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal, InsightsCategory, InsightsView } from "./types";
-
