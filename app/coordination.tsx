@@ -1547,7 +1547,7 @@ export default function CoordinationScreen() {
               pendingWritesDiagnostics.highRetry === 0
             }
             notifySending={notifySending}
-            onRefresh={() => void loadDashboard()}
+            onRefresh={loadDashboard}
             onOpenAttendance={(item) =>
               router.push({
                 pathname: "/class/[id]/attendance",

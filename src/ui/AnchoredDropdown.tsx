@@ -30,9 +30,11 @@ type AnchoredDropdownProps = {
   showVerticalScrollIndicator?: boolean;
   portalToBodyOnWeb?: boolean;
   interactiveRefs?: Array<React.RefObject<View | null>>;
+  density?: "default" | "compact";
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;
+const COMPACT_DROPDOWN_MAX_HEIGHT = 180;
 
 export function AnchoredDropdown({
   visible,
@@ -49,6 +51,7 @@ export function AnchoredDropdown({
   showVerticalScrollIndicator = true,
   portalToBodyOnWeb = true,
   interactiveRefs,
+  density = "default",
 }: AnchoredDropdownProps) {
   const { colors, mode } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
@@ -223,7 +226,12 @@ export function AnchoredDropdown({
   const availableWidth = Math.max(180, windowWidth - 24);
   const measuredWidth = layout.width > 0 ? layout.width : 240;
   const resolvedWidth = Math.min(measuredWidth, availableWidth);
-  const resolvedMaxHeight = Math.min(maxHeight, DEFAULT_DROPDOWN_MAX_HEIGHT, Math.floor(windowHeight * 0.23));
+  const isCompact = density === "compact";
+  const resolvedMaxHeight = Math.min(
+    maxHeight,
+    isCompact ? COMPACT_DROPDOWN_MAX_HEIGHT : DEFAULT_DROPDOWN_MAX_HEIGHT,
+    Math.floor(windowHeight * (isCompact ? 0.35 : 0.23))
+  );
   const leftBase = useViewportCoordinates || !container ? layout.x : layout.x - container.x;
   const left = Math.max(16, Math.min(leftBase, windowWidth - 16 - resolvedWidth));
   const defaultTop = useViewportCoordinates || !container
@@ -276,7 +284,7 @@ export function AnchoredDropdown({
           {
             height: resolvedMaxHeight,
             maxHeight: resolvedMaxHeight,
-            borderRadius: 18,
+            borderRadius: isCompact ? 14 : 18,
             overflow: "hidden",
             borderWidth: 1,
             borderColor: colors.border,
@@ -295,7 +303,12 @@ export function AnchoredDropdown({
           style={[
             { height: resolvedMaxHeight, maxHeight: resolvedMaxHeight },
           ]}
-          contentContainerStyle={[{ padding: 8, gap: 6, paddingBottom: 10 }, scrollContentStyle]}
+          contentContainerStyle={[
+            isCompact
+              ? { padding: 6, gap: 4 }
+              : { padding: 8, gap: 6, paddingBottom: 10 },
+            scrollContentStyle,
+          ]}
           nestedScrollEnabled={nestedScrollEnabled}
           showsVerticalScrollIndicator={showVerticalScrollIndicator}
           persistentScrollbar={Platform.OS === "android"}

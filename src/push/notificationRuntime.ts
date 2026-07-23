@@ -33,10 +33,11 @@ export const ensureNotificationHandlerConfigured = () => {
   if (handlerConfigured) return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: false,
       shouldSetBadge: false,
-    } as any),
+    }),
   });
   handlerConfigured = true;
 };

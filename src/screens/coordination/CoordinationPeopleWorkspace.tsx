@@ -16,6 +16,7 @@ import {
 
 import {
   adminListMemberPermissions,
+  adminRemoveOrgMember,
   adminSetMemberClassHeads,
   adminSetMemberPermission,
   adminUpdateMemberRole,
@@ -56,6 +57,10 @@ import {
   createMemberAccessFormSnapshot,
   type MemberAccessFormSnapshot,
 } from "./application/member-access-form";
+import {
+  formatMemberDeactivationError,
+  getMemberDeactivationBlockReason,
+} from "./application/member-deactivation";
 import { formatMemberLastAccess } from "./application/member-last-access";
 
 type SecondaryModuleKey = "attendance" | "access" | "reports" | "sync";
@@ -83,7 +88,7 @@ type CoordinationPeopleWorkspaceProps = {
   pendingReports: AdminPendingSessionLogs[];
   syncHealthy: boolean;
   notifySending: boolean;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
   onOpenAttendance: (item: AdminPendingAttendance) => void;
   onNotifyAttendance: (item: AdminPendingAttendance, member: OrgMember) => void;
 };
@@ -121,17 +126,23 @@ function DropdownButton<T extends string | number>({
   options,
   onChange,
   compact,
+  density = "default",
 }: {
   value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
   compact?: boolean;
+  density?: "default" | "compact";
 }) {
   const { colors } = useAppTheme();
   const triggerRef = useRef<ViewType | null>(null);
   const [open, setOpen] = useState(false);
   const [layout, setLayout] = useState<Layout | null>(null);
   const activeLabel = options.find((option) => option.value === value)?.label ?? value;
+  const isDense = density === "compact";
+  const dropdownHeight = isDense
+    ? Math.min(180, options.length * 35 + Math.max(0, options.length - 1) * 4 + 12)
+    : 220;
 
   const toggle = () => {
     if (open) {
@@ -150,24 +161,36 @@ function DropdownButton<T extends string | number>({
         <Pressable
           onPress={toggle}
           style={{
-          minWidth: compact ? 0 : 160,
-          flex: compact ? 1 : undefined,
-          borderRadius: radius.internal,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.inputBg,
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
+            minWidth: compact ? 0 : 160,
+            flex: compact ? 1 : undefined,
+            borderRadius: radius.internal,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.inputBg,
+            paddingHorizontal: isDense ? 10 : 12,
+            paddingVertical: isDense ? 7 : 10,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: isDense ? 8 : 10,
           }}
         >
-          <Text numberOfLines={1} style={{ color: colors.text, flex: 1 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: colors.text,
+              flex: 1,
+              fontSize: isDense ? 14 : undefined,
+              fontWeight: isDense ? "600" : undefined,
+            }}
+          >
             {activeLabel}
           </Text>
-          <GoAtletaIcon name={open ? "chevronUp" : "chevronDown"} size={16} color={colors.text} />
+          <GoAtletaIcon
+            name={open ? "chevronUp" : "chevronDown"}
+            size={isDense ? 14 : 16}
+            color={colors.text}
+          />
         </Pressable>
       </View>
       <AnchoredDropdown
@@ -176,15 +199,18 @@ function DropdownButton<T extends string | number>({
         container={null}
         animationStyle={{}}
         zIndex={4200}
-        maxHeight={220}
+        maxHeight={dropdownHeight}
         nestedScrollEnabled
         onRequestClose={() => setOpen(false)}
         interactiveRefs={[triggerRef]}
+        density={density}
+        showVerticalScrollIndicator={!isDense}
       >
         {options.map((option) => (
           <AnchoredDropdownOption
             key={option.value}
             active={option.value === value}
+            density={density}
             onPress={() => {
               onChange(option.value);
               setOpen(false);
@@ -194,6 +220,7 @@ function DropdownButton<T extends string | number>({
               style={{
                 color: option.value === value ? colors.primaryText : colors.text,
                 fontWeight: "700",
+                fontSize: isDense ? 13 : undefined,
               }}
             >
               {option.label}
@@ -274,10 +301,12 @@ function MemberActionMenu({
   member,
   onEdit,
   onMessage,
+  onDeactivate,
 }: {
   member: OrgMember;
   onEdit: (member: OrgMember) => void;
   onMessage: (member: OrgMember) => void;
+  onDeactivate: (member: OrgMember) => void;
 }) {
   const { colors } = useAppTheme();
   const triggerRef = useRef<ViewType | null>(null);
@@ -289,18 +318,14 @@ function MemberActionMenu({
     destructive?: boolean;
     onPress: () => void;
   }> = [
-    { label: "Editar perfil e permissões", icon: "edit", onPress: () => onEdit(member) },
+    { label: "Perfil e permissões", icon: "edit", onPress: () => onEdit(member) },
     { label: "Editar turmas", icon: "classes", onPress: () => onEdit(member) },
     { label: "Gerar mensagem", icon: "message", onPress: () => onMessage(member) },
     {
       label: "Desativar acesso",
       icon: "trash",
       destructive: true,
-      onPress: () =>
-        Alert.alert(
-          "Desativar acesso",
-          "A desativação permanece disponível na gestão completa de membros para evitar alterações acidentais."
-        ),
+      onPress: () => onDeactivate(member),
     },
   ];
 
@@ -315,7 +340,7 @@ function MemberActionMenu({
             return;
           }
           triggerRef.current?.measureInWindow((x, y, width, height) => {
-            setLayout({ x: x - 180 + width, y, width: 180, height });
+            setLayout({ x: x - 188 + width, y, width: 188, height });
             setOpen(true);
           });
           }}
@@ -330,8 +355,10 @@ function MemberActionMenu({
         container={null}
         animationStyle={{}}
         zIndex={4300}
-        maxHeight={260}
+        maxHeight={166}
         nestedScrollEnabled
+        density="compact"
+        showVerticalScrollIndicator={false}
         onRequestClose={() => setOpen(false)}
         interactiveRefs={[triggerRef]}
       >
@@ -339,21 +366,23 @@ function MemberActionMenu({
           <AnchoredDropdownOption
             key={action.label}
             active={false}
+            density="compact"
             onPress={() => {
               setOpen(false);
               action.onPress();
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <GoAtletaIcon
                 name={action.icon}
-                size={16}
+                size={15}
                 color={action.destructive ? colors.dangerText : colors.text}
               />
               <Text
                 style={{
                   color: action.destructive ? colors.dangerText : colors.text,
-                  fontWeight: "700",
+                  fontSize: 13,
+                  fontWeight: "600",
                 }}
               >
                 {action.label}
@@ -390,7 +419,7 @@ function InviteActionMenu({
               return;
             }
             triggerRef.current?.measureInWindow((x, y, width, height) => {
-              setLayout({ x: x - 200 + width, y, width: 200, height });
+              setLayout({ x: x - 188 + width, y, width: 188, height });
               setOpen(true);
             });
           }}
@@ -405,21 +434,24 @@ function InviteActionMenu({
         container={null}
         animationStyle={{}}
         zIndex={4300}
-        maxHeight={120}
+        maxHeight={48}
         nestedScrollEnabled
+        density="compact"
+        showVerticalScrollIndicator={false}
         onRequestClose={() => setOpen(false)}
         interactiveRefs={[triggerRef]}
       >
         <AnchoredDropdownOption
           active={false}
+          density="compact"
           onPress={() => {
             setOpen(false);
             onCancel(invite);
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
-            <GoAtletaIcon name="trash" size={16} color={colors.dangerText} />
-            <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <GoAtletaIcon name="trash" size={15} color={colors.dangerText} />
+            <Text style={{ color: colors.dangerText, fontSize: 13, fontWeight: "600" }}>
               Cancelar convite
             </Text>
           </View>
@@ -493,6 +525,12 @@ export function CoordinationPeopleWorkspace({
   const [editInitialSnapshot, setEditInitialSnapshot] =
     useState<MemberAccessFormSnapshot | null>(null);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [deactivateMember, setDeactivateMember] = useState<OrgMember | null>(null);
+  const [deactivateBusy, setDeactivateBusy] = useState(false);
+  const [deactivateIssue, setDeactivateIssue] = useState<{
+    message: string;
+    blocking: boolean;
+  } | null>(null);
   const [permissionLoading, setPermissionLoading] = useState(false);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<MemberPermissionKey[]>([]);
   const [selectedPermissionsLoading, setSelectedPermissionsLoading] = useState(false);
@@ -799,6 +837,41 @@ export function CoordinationPeopleWorkspace({
   const openMessage = (member: OrgMember) => {
     setModalMember(member);
     setModalMode("message");
+  };
+
+  const openDeactivateMember = (member: OrgMember) => {
+    const assignedClassCount = (classesByUser.get(member.userId) ?? []).length;
+    const blockReason = getMemberDeactivationBlockReason(
+      member,
+      members,
+      assignedClassCount
+    );
+    setDeactivateIssue(
+      blockReason ? { message: blockReason, blocking: true } : null
+    );
+    setDeactivateMember(member);
+  };
+
+  const closeDeactivateMember = () => {
+    if (deactivateBusy) return;
+    setDeactivateMember(null);
+    setDeactivateIssue(null);
+  };
+
+  const submitDeactivateMember = async () => {
+    if (!deactivateMember || deactivateBusy || deactivateIssue?.blocking) return;
+    setDeactivateBusy(true);
+    setDeactivateIssue(null);
+    try {
+      await adminRemoveOrgMember(organizationId, deactivateMember.userId);
+      setDeactivateMember(null);
+      setDeactivateIssue(null);
+      await onRefresh();
+    } catch (error) {
+      setDeactivateIssue(formatMemberDeactivationError(error));
+    } finally {
+      setDeactivateBusy(false);
+    }
   };
 
   const submitInvite = async (channel: "email" | "link") => {
@@ -1222,12 +1295,14 @@ export function CoordinationPeopleWorkspace({
                     options={roleOptions}
                     onChange={setRoleFilter}
                     compact={compact}
+                    density="compact"
                   />
                   <DropdownButton
                     value={statusFilter}
                     options={statusOptions}
                     onChange={setStatusFilter}
                     compact={compact}
+                    density="compact"
                   />
                 </View>
 
@@ -1358,6 +1433,7 @@ export function CoordinationPeopleWorkspace({
                               member={member}
                               onEdit={(value) => void openEdit(value)}
                               onMessage={openMessage}
+                              onDeactivate={openDeactivateMember}
                             />
                           </>
                         ) : (
@@ -1365,6 +1441,7 @@ export function CoordinationPeopleWorkspace({
                             member={member}
                             onEdit={(value) => void openEdit(value)}
                             onMessage={openMessage}
+                            onDeactivate={openDeactivateMember}
                           />
                         )}
                       </Pressable>
@@ -2323,6 +2400,94 @@ export function CoordinationPeopleWorkspace({
         onConfirm={closeEditModal}
         onCancel={() => setShowEditCloseConfirm(false)}
       />
+
+      <ModalSheet
+        visible={Boolean(deactivateMember)}
+        onClose={closeDeactivateMember}
+        position="center"
+        overlayZIndex={30000}
+        backdropOpacity={0.7}
+        cardStyle={{
+          width: compact ? "100%" : 440,
+          maxWidth: "100%",
+          padding: 18,
+          gap: 16,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+              {deactivateIssue?.blocking
+                ? "Acesso não pode ser desativado"
+                : `Desativar acesso de ${deactivateMember?.displayName.split(" ")[0]}?`}
+            </Text>
+            <Text style={{ color: colors.muted, lineHeight: 20 }}>
+              {deactivateIssue?.message ??
+                `A pessoa perderá o acesso a ${organizationName} e às turmas atribuídas.`}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar aviso de desativação"
+            disabled={deactivateBusy}
+            onPress={closeDeactivateMember}
+            style={{ width: 34, height: 34, alignItems: "center", justifyContent: "center" }}
+          >
+            <GoAtletaIcon name="close" size={21} color={colors.text} />
+          </Pressable>
+        </View>
+
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10 }}>
+          {deactivateIssue?.blocking ? (
+            <Pressable
+              onPress={closeDeactivateMember}
+              style={{
+                borderRadius: radius.internal,
+                backgroundColor: colors.secondaryBg,
+                paddingHorizontal: 18,
+                paddingVertical: 10,
+              }}
+            >
+              <Text style={{ color: colors.secondaryText, fontWeight: "800" }}>Entendi</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                disabled={deactivateBusy}
+                onPress={closeDeactivateMember}
+                style={{
+                  borderRadius: radius.internal,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 18,
+                  paddingVertical: 10,
+                  opacity: deactivateBusy ? 0.55 : 1,
+                }}
+              >
+                <Text style={{ color: colors.secondaryText, fontWeight: "800" }}>
+                  Manter acesso
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: deactivateBusy }}
+                disabled={deactivateBusy}
+                onPress={() => void submitDeactivateMember()}
+                style={{
+                  borderRadius: radius.internal,
+                  backgroundColor: colors.dangerSolidBg,
+                  paddingHorizontal: 18,
+                  paddingVertical: 10,
+                  opacity: deactivateBusy ? 0.55 : 1,
+                }}
+              >
+                <Text style={{ color: colors.dangerSolidText, fontWeight: "800" }}>
+                  {deactivateBusy ? "Desativando..." : "Desativar"}
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </ModalSheet>
 
       <ModalSheet
         visible={modalMode === "message" && Boolean(modalMember)}

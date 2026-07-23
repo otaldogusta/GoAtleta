@@ -49,6 +49,14 @@ const maxContentWidthByVariant: Record<ResponsivePageVariant, number> = {
 const normalizeWidth = (width: number) =>
   Number.isFinite(width) ? Math.max(0, width) : 0;
 
+export function resolveResponsiveViewportWidth(
+  measuredWidth: number,
+  webLayoutViewportWidth?: number | null
+) {
+  const layoutWidth = normalizeWidth(webLayoutViewportWidth ?? 0);
+  return layoutWidth > 0 ? layoutWidth : normalizeWidth(measuredWidth);
+}
+
 export function resolveResponsiveTier(width: number): ResponsiveTier {
   const safeWidth = normalizeWidth(width);
   if (safeWidth < responsiveBreakpoints.tablet) return "mobile";
