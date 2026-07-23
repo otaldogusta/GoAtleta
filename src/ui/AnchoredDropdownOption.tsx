@@ -11,6 +11,7 @@ type Props = {
   rightAccessory?: ReactNode;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  density?: "default" | "compact";
 };
 
 export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
@@ -20,10 +21,12 @@ export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
   rightAccessory,
   disabled,
   style,
+  density = "default",
 }: Props) {
   const { colors } = useAppTheme();
   const backgroundColor = active ? colors.primaryBg : colors.card;
   const borderColor = active ? colors.primaryBg : colors.border;
+  const isCompact = density === "compact";
 
   return (
     <Pressable
@@ -31,10 +34,10 @@ export const AnchoredDropdownOption = memo(function AnchoredDropdownOption({
       disabled={disabled}
       style={[
         {
-          paddingVertical: 12,
-          paddingHorizontal: 12,
-          borderRadius: 14,
-          marginVertical: 3,
+          paddingVertical: isCompact ? 7 : 12,
+          paddingHorizontal: isCompact ? 8 : 12,
+          borderRadius: isCompact ? 12 : 14,
+          marginVertical: isCompact ? 0 : 3,
           backgroundColor,
           borderWidth: 1,
           borderColor,

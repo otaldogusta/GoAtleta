@@ -55,6 +55,7 @@ const plugins = [
 	"expo-secure-store",
 	"expo-sharing",
 	"expo-sqlite",
+	"expo-notifications",
 	"expo-web-browser",
 	"react-native-nfc-manager",
 	"@react-native-community/datetimepicker",
@@ -92,6 +93,26 @@ module.exports = {
 			bundleIdentifier: "com.otaldogusta.goatleta",
 			associatedDomains: ["applinks:goatleta.com", "applinks:go-atleta.vercel.app"],
 			usesNonExemptEncryption: false,
+			privacyManifests: {
+				NSPrivacyAccessedAPITypes: [
+					{
+						NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
+						NSPrivacyAccessedAPITypeReasons: ["CA92.1"],
+					},
+					{
+						NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryFileTimestamp",
+						NSPrivacyAccessedAPITypeReasons: ["0A2A.1", "3B52.1", "C617.1"],
+					},
+					{
+						NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryDiskSpace",
+						NSPrivacyAccessedAPITypeReasons: ["E174.1", "85F4.1"],
+					},
+					{
+						NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategorySystemBootTime",
+						NSPrivacyAccessedAPITypeReasons: ["35F9.1"],
+					},
+				],
+			},
 			infoPlist: {
 				ITSAppUsesNonExemptEncryption: false,
 			},
@@ -106,6 +127,7 @@ module.exports = {
 			edgeToEdgeEnabled: true,
 			softwareKeyboardLayoutMode: "resize",
 			predictiveBackGestureEnabled: false,
+			blockedPermissions: ["android.permission.RECORD_AUDIO"],
 			package: "com.otaldogusta.goatleta",
 			intentFilters: [
 				{
