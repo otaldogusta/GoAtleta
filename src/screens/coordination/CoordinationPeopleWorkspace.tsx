@@ -56,6 +56,7 @@ import {
   createMemberAccessFormSnapshot,
   type MemberAccessFormSnapshot,
 } from "./application/member-access-form";
+import { formatMemberLastAccess } from "./application/member-last-access";
 
 type SecondaryModuleKey = "attendance" | "access" | "reports" | "sync";
 type RoleFilter = "all" | "coordination" | "professor" | "intern";
@@ -1237,7 +1238,7 @@ export function CoordinationPeopleWorkspace({
                       ["Função", 1],
                       ["Turmas", 0.8],
                       ["Chamadas pendentes", 1.05],
-                      ["Status", 0.7],
+                      ["Último acesso", 0.9],
                     ].map(([label, flex]) => (
                       <Text
                         key={String(label)}
@@ -1332,15 +1333,25 @@ export function CoordinationPeopleWorkspace({
                             </Text>
                             <View
                               style={{
-                                flex: 0.7,
+                                flex: 0.9,
                                 flexDirection: "row",
                                 alignItems: "center",
                                 gap: 6,
                               }}
                             >
-                              <GoAtletaIcon name="circle" size={7} color={colors.successText} />
-                              <Text style={{ color: colors.text, fontSize: 12 }}>
-                                {attendanceCount ? "Ativo" : "Em dia"}
+                              <GoAtletaIcon
+                                name="time"
+                                size={14}
+                                color={member.lastAccessAt ? colors.secondaryText : colors.muted}
+                              />
+                              <Text
+                                numberOfLines={1}
+                                style={{
+                                  color: member.lastAccessAt ? colors.text : colors.muted,
+                                  fontSize: 12,
+                                }}
+                              >
+                                {formatMemberLastAccess(member.lastAccessAt)}
                               </Text>
                             </View>
                             <MemberActionMenu
@@ -1563,7 +1574,9 @@ export function CoordinationPeopleWorkspace({
                   <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
                     {selectedMember.displayName}
                   </Text>
-                  <Text style={{ color: colors.muted }}>{roleLabel(selectedMember.roleLevel)} • Ativo</Text>
+                  <Text style={{ color: colors.muted }}>
+                    {formatMemberLastAccess(selectedMember.lastAccessAt)}
+                  </Text>
                 </View>
                 <Pressable
                   onPress={() => void openEdit(selectedMember)}

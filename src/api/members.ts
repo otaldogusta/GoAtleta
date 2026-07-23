@@ -7,6 +7,7 @@ export type OrgMember = {
   createdAt: string;
   displayName: string;
   email: string | null;
+  lastAccessAt: string | null;
 };
 
 export type OrgClass = {
@@ -32,6 +33,7 @@ type OrgMemberRow = {
   created_at: string;
   display_name?: string | null;
   email?: string | null;
+  last_access_at?: string | null;
 };
 
 type OrgClassRow = {
@@ -54,6 +56,7 @@ const mapMember = (row: OrgMemberRow): OrgMember => ({
   createdAt: row.created_at,
   displayName: row.display_name || row.email || row.user_id,
   email: row.email ?? null,
+  lastAccessAt: row.last_access_at ?? null,
 });
 
 const mapOrgClass = (row: OrgClassRow): OrgClass => ({
