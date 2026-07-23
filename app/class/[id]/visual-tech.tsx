@@ -48,10 +48,10 @@ type VisualHistoryEntry = {
   stepIndex: number;
 };
 
-const legendActorItems: Array<{
+const legendActorItems: {
   color: string;
   label: CourtVisualLegendActorLabel;
-}> = [
+}[] = [
   { color: "#3DDC84", label: "Lv" },
   { color: "#22C55E", label: "Op" },
   { color: "#60A5FA", label: "P" },

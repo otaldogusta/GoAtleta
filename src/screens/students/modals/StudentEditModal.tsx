@@ -48,7 +48,7 @@ type Layout = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
 type StudentValidationField = "unitClass" | "name" | "birthDate" | "ra";
 
-const VOLLEYBALL_POSITION_OPTIONS: Array<{ value: Student["positionPrimary"]; label: string }> = [
+const VOLLEYBALL_POSITION_OPTIONS: { value: Student["positionPrimary"]; label: string }[] = [
     { value: "levantador", label: "Levantador" },
     { value: "oposto", label: "Oposto" },
     { value: "ponteiro", label: "Ponteiro" },

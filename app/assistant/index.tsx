@@ -510,7 +510,7 @@ export default function AssistantScreen() {
   );
   const appliedPromptRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
-  const thinkingPulse = useRef(new Animated.Value(0)).current;
+  const [thinkingPulse] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const incomingPrompt = String(params.prompt ?? "").trim();

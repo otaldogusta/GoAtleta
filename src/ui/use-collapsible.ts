@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Animated } from "react-native";
 
 type CollapsibleOptions = {
@@ -12,7 +12,7 @@ export function useCollapsibleAnimation(
   options: CollapsibleOptions = {}
 ) {
   const { durationIn = 180, durationOut = 160, translateY = -8 } = options;
-  const anim = useRef(new Animated.Value(open ? 1 : 0)).current;
+  const [anim] = useState(() => new Animated.Value(open ? 1 : 0));
   const [visible, setVisible] = useState(open);
 
   useEffect(() => {

@@ -83,9 +83,6 @@ import {
 import { buildRecentSessionSummary } from "../../src/screens/session/application/build-recent-session-summary";
 import { isRedeEsperancaEightToElevenClass } from "../../src/core/pedagogy/rede-esperanca-july-2026-alignment";
 
-const DEFAULT_ANNUAL_CYCLE_LENGTH =
-  annualCycleOptions[annualCycleOptions.length - 1];
-
 import type {
   ClassCalendarException,
   ClassCompetitiveProfile,
@@ -202,6 +199,9 @@ import { PeriodizationSetupCard } from "../../src/screens/periodization/Periodiz
 import { resolvePeriodizationScreenContext } from "../../src/screens/periodization/resolve-periodization-screen-context";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+
+const DEFAULT_ANNUAL_CYCLE_LENGTH =
+  annualCycleOptions[annualCycleOptions.length - 1];
 
 type WeekPlan = {
   week: number;
@@ -767,7 +767,7 @@ export default function PeriodizationScreen() {
   } = pickers;
   const [isImportingPlansFile, setIsImportingPlansFile] = useState(false);
   const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
-  const planFabAnim = useRef(new Animated.Value(0)).current;
+  const [planFabAnim] = useState(() => new Animated.Value(0));
 
   const containerRef = useRef<View>(null);
 
@@ -1977,8 +1977,8 @@ export default function PeriodizationScreen() {
   const cyclePanelRowGap = 5;
 
   const cyclePanelScrollRef = useRef<ScrollView>(null);
-  const weekSwitchOpacity = useRef(new Animated.Value(1)).current;
-  const weekSwitchTranslateX = useRef(new Animated.Value(0)).current;
+  const [weekSwitchOpacity] = useState(() => new Animated.Value(1));
+  const [weekSwitchTranslateX] = useState(() => new Animated.Value(0));
   const weekSwitchDirectionRef = useRef<-1 | 0 | 1>(1);
   const shouldRealignCurrentWeekRef = useRef(false);
 
@@ -1993,7 +1993,7 @@ export default function PeriodizationScreen() {
 
   const macroSegments = useMemo(() => {
     if (!weekPlans.length)
-      return [] as Array<{ label: string; length: number }>;
+      return [] as { label: string; length: number }[];
     const lengths = splitSegmentLengths(weekPlans.length, 3);
     if (periodizationModel === "iniciacao") {
       return [
@@ -2042,14 +2042,14 @@ export default function PeriodizationScreen() {
 
   const mesoSegments = useMemo(() => {
     if (!weekPlans.length)
-      return [] as Array<{ label: string; length: number }>;
+      return [] as { label: string; length: number }[];
     const desiredBlocks = Math.min(
       4,
       Math.max(2, Math.ceil(weekPlans.length / 4)),
     );
     const baseSize = Math.floor(weekPlans.length / desiredBlocks);
     let remainder = weekPlans.length % desiredBlocks;
-    const segments: Array<{ label: string; length: number }> = [];
+    const segments: { label: string; length: number }[] = [];
 
     for (let i = 0; i < desiredBlocks; i += 1) {
       const extra = remainder > 0 ? 1 : 0;
@@ -2072,7 +2072,7 @@ export default function PeriodizationScreen() {
 
   const dominantBlockSegments = useMemo(() => {
     if (!weekPlans.length)
-      return [] as Array<{ label: string; length: number }>;
+      return [] as { label: string; length: number }[];
 
     if (periodizationModel === "iniciacao") {
       const lengths = splitSegmentLengths(weekPlans.length, 4);
@@ -2284,7 +2284,7 @@ export default function PeriodizationScreen() {
 
   const resolveSegmentLabelForWeek = useCallback(
     (
-      segments: Array<{ label: string; length: number }>,
+      segments: { label: string; length: number }[],
       weekNumber: number,
     ) => {
       let cursor = 0;

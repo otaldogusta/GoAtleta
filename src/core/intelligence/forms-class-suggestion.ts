@@ -22,7 +22,7 @@ export type FormsClassSuggestionDiagnostics = {
   suggestedCount: number;
   unresolvedCount: number;
   suggestions: FormsClassSuggestion[];
-  unresolvedClassNames: Array<{ className: string; unit: string; count: number }>;
+  unresolvedClassNames: { className: string; unit: string; count: number }[];
 };
 
 const normalizeText = (value: string | null | undefined) =>
@@ -60,7 +60,7 @@ const scoreTokenOverlap = (left: string[], right: string[]) => {
 const buildDisplayKey = (className: string, unit: string) => `${className}::${unit}`;
 
 export const buildFormsClassSuggestions = (input: {
-  rows: Array<{ sourceRowNumber?: number; classId?: string; className?: string; unit?: string }>;
+  rows: { sourceRowNumber?: number; classId?: string; className?: string; unit?: string }[];
   classes: ClassGroup[];
 }) => {
   const suggestions: FormsClassSuggestion[] = [];

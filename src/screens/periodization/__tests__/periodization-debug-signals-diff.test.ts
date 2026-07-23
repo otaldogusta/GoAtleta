@@ -118,7 +118,7 @@ describe("periodization debug signals diff", () => {
     ).toBe(true);
 
     // Intentional debug output to support quick side-by-side audits.
-    // eslint-disable-next-line no-console
+
     console.log(
       JSON.stringify(
         {

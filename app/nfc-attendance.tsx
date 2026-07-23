@@ -141,14 +141,19 @@ export default function NfcAttendanceScreen() {
   const syncBusyRef = useRef(false);
   const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSignalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const scanPulseA = useRef(new Animated.Value(0)).current;
-  const scanPulseB = useRef(new Animated.Value(0)).current;
-  const scanVisualTransition = useRef(new Animated.Value(0)).current;
-  const perfSnapshotRef = useRef<{ at: number; totalScans: number; duplicateScans: number }>({
+  const [scanPulseA] = useState(() => new Animated.Value(0));
+  const [scanPulseB] = useState(() => new Animated.Value(0));
+  const [scanVisualTransition] = useState(() => new Animated.Value(0));
+  const [initialPerfSnapshot] = useState(() => ({
     at: Date.now(),
     totalScans: 0,
     duplicateScans: 0,
-  });
+  }));
+  const perfSnapshotRef = useRef<{
+    at: number;
+    totalScans: number;
+    duplicateScans: number;
+  }>(initialPerfSnapshot);
 
   const studentsById = useMemo(
     () => new Map(students.map((item) => [item.id, item] as const)),

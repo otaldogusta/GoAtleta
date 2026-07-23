@@ -104,7 +104,7 @@ export type SessionDecisionTrace = {
   teacherFacingSummary: string;
 };
 
-const cleanList = (values: Array<string | null | undefined>) =>
+const cleanList = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
 const hasRealClassPlan = (classPlan?: ClassPlan | null) =>

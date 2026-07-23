@@ -454,11 +454,11 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
     };
   }, [attendanceRouteTarget, organizationId]);
 
+  const [screenOpenedAt] = useState(() => Date.now());
   const managerMetrics = useMemo<MetricItem[]>(() => {
-    const now = Date.now();
     const recent24h = recentActivity.filter((item) => {
       const parsed = new Date(item.occurredAt).getTime();
-      return Number.isFinite(parsed) && now - parsed <= 24 * 60 * 60 * 1000;
+      return Number.isFinite(parsed) && screenOpenedAt - parsed <= 24 * 60 * 60 * 1000;
     });
     const activeClasses24h = new Set(recent24h.map((item) => item.classId)).size;
     const criticalLogs = pendingSessionLogs.filter((item) => item.daysWithoutReport >= 2).length;
@@ -489,7 +489,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
         hint: "Com atividade recente",
       },
     ];
-  }, [pendingAttendance.length, pendingSessionLogs, recentActivity]);
+  }, [pendingAttendance.length, pendingSessionLogs, recentActivity, screenOpenedAt]);
 
   const topRecent = useMemo(() => recentActivity.slice(0, 3), [recentActivity]);
 

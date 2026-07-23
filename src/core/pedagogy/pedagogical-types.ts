@@ -118,11 +118,11 @@ export type NextPedagogicalStep = {
   pedagogicalConstraints: string[];
   blockRecommendations: PedagogicalBlockRecommendation;
   selectionReason: string;
-  sourceTrail: Array<{
+  sourceTrail: {
     methodology: SourceMethodology;
     sourceLabel: string;
     sourceRef?: string;
-  }>;
+  }[];
 };
 
 export type PlanningAlignmentCheck = {

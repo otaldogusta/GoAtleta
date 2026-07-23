@@ -1464,7 +1464,7 @@ const getActorIdAtLegalZone = (
 ) =>
   visibleActorIds.find((actorId) => resolveCourtZone(positions[actorId]) === zone);
 
-const pickFirstDefined = (...values: Array<string | undefined>) =>
+const pickFirstDefined = (...values: (string | undefined)[]) =>
   values.find((value): value is string => Boolean(value));
 
 const buildDefensiveRoles = (

@@ -1,4 +1,4 @@
-﻿import * as DocumentPicker from "expo-document-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";

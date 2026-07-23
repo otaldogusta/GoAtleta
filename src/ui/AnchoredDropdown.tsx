@@ -29,7 +29,7 @@ type AnchoredDropdownProps = {
   onRequestClose?: () => void;
   showVerticalScrollIndicator?: boolean;
   portalToBodyOnWeb?: boolean;
-  interactiveRefs?: Array<React.RefObject<View | null>>;
+  interactiveRefs?: React.RefObject<View | null>[];
   density?: "default" | "compact";
 };
 
@@ -323,6 +323,7 @@ export function AnchoredDropdown({
   );
 
   if (Platform.OS === "web" && portalToBodyOnWeb && typeof document !== "undefined") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ReactDOM = require("react-dom");
     return ReactDOM.createPortal(dropdown, document.body);
   }

@@ -16,7 +16,7 @@ export function useIsOnline(): boolean {
     const setupNetworkListener = async () => {
       try {
         // Try to dynamically import NetInfo - it may not be installed
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         const NetInfo: any = await import("@react-native-community/netinfo" as any);
 
         // Get initial state

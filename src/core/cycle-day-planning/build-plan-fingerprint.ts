@@ -25,7 +25,7 @@ const normalizeLoadIntent = (value: string | null | undefined): WeeklyLoadIntent
   return undefined;
 };
 
-const serializeParts = (parts: Array<string | number | undefined>) =>
+const serializeParts = (parts: (string | number | undefined)[]) =>
   parts.map((part) => String(part ?? "")).join(":");
 
 export const buildPlanFingerprint = (params: BuildPlanFingerprintParams): PlanFingerprint => ({

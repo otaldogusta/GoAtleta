@@ -750,7 +750,7 @@ export default function ClassDetails() {
             const auto = rosterAutoFundamentalsByDay[day] ?? [];
             const overrides = rosterFundamentalOverrides[day] ?? {};
             const selected = new Set<RosterFundamental>(auto as RosterFundamental[]);
-            (Object.entries(overrides) as Array<[RosterFundamental, boolean]>).forEach(
+            (Object.entries(overrides) as [RosterFundamental, boolean][]).forEach(
               ([fundamental, value]) => {
                 if (value) {
                   selected.add(fundamental);
@@ -1855,7 +1855,7 @@ export default function ClassDetails() {
         const auto = autoFundamentalsByDay[entry.day] ?? [];
         const overrides = rosterFundamentalOverrides[entry.day] ?? {};
         const selected = new Set<RosterFundamental>(auto as RosterFundamental[]);
-        (Object.entries(overrides) as Array<[RosterFundamental, boolean]>).forEach(([fundamental, value]) => {
+        (Object.entries(overrides) as [RosterFundamental, boolean][]).forEach(([fundamental, value]) => {
           if (value) {
             selected.add(fundamental);
           } else {

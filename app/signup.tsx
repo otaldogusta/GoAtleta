@@ -52,11 +52,11 @@ export default function SignupScreen() {
   const [message, setMessage] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [showInviteCode, setShowInviteCode] = useState(false);
-  const strengthAnim = useRef(new Animated.Value(0)).current;
-  const enterAnim = useRef(new Animated.Value(0)).current;
-  const emailShakeAnim = useRef(new Animated.Value(0)).current;
-  const passwordShakeAnim = useRef(new Animated.Value(0)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const [strengthAnim] = useState(() => new Animated.Value(0));
+  const [enterAnim] = useState(() => new Animated.Value(0));
+  const [emailShakeAnim] = useState(() => new Animated.Value(0));
+  const [passwordShakeAnim] = useState(() => new Animated.Value(0));
+  const [shakeAnim] = useState(() => new Animated.Value(0));
   const emailInputRef = useRef<TextInput | null>(null);
   const [emailError, setEmailError] = useState<"missing" | "invalid" | null>(
     null,

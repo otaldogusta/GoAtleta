@@ -2,7 +2,7 @@ import type { DailyLessonPlan, LessonActivity, LessonBlock } from "../../../core
 import { summarizeLessonActivity, type LessonBlockType } from "../../../pdf/summarize-lesson-activity";
 import { getLessonBlockTimes } from "../../../utils/lesson-block-times";
 
-const BLOCK_META: Array<{ key: LessonBlock["key"]; label: string; fallbackDuration: number }> = [
+const BLOCK_META: { key: LessonBlock["key"]; label: string; fallbackDuration: number }[] = [
   { key: "warmup", label: "Aquecimento", fallbackDuration: 10 },
   { key: "main", label: "Parte principal", fallbackDuration: 45 },
   { key: "cooldown", label: "Volta à calma", fallbackDuration: 5 },

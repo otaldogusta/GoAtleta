@@ -334,8 +334,8 @@ export const resolveVariationCandidates = (params: {
   strategy: SessionStrategy;
   context: CycleDayPlanningContext;
   reason?: RepetitionReason;
-}): Array<{ strategy: SessionStrategy; changedFields: string[] }> => {
-  const candidates: Array<{ strategy: SessionStrategy; changedFields: string[] }> = [];
+}): { strategy: SessionStrategy; changedFields: string[] }[] => {
+  const candidates: { strategy: SessionStrategy; changedFields: string[] }[] = [];
 
   const familyCandidate = rotateDrillFamilies(params.strategy, params.context);
   if (familyCandidate) {

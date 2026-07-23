@@ -25,7 +25,6 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import {
   getLinkKey,
-  LINK_METADATA_FALLBACK_STATUS,
   requestLinkMetadata,
   type LinkMetadata,
 } from "../../src/api/link-metadata";

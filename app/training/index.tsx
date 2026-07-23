@@ -101,7 +101,7 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
-import { radius, shadow } from "../../src/theme/tokens";
+import {  shadow } from "../../src/theme/tokens";
 import { formatClock, formatDuration } from "../../src/utils/format-time";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
@@ -648,7 +648,7 @@ export default function TrainingList() {
   const [showTrainingFabMenu, setShowTrainingFabMenu] = useState(false);
   const [showTrainingSessionCreate, setShowTrainingSessionCreate] = useState(false);
   const [handledCreateSessionRequestRaw, setHandledCreateSessionRequestRaw] = useState<string | null>(null);
-  const trainingFabAnim = useRef(new Animated.Value(0)).current;
+  const [trainingFabAnim] = useState(() => new Animated.Value(0));
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId),

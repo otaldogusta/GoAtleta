@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, type StyleProp, View, type ViewStyle } from "react-native";
 
 import { Pressable } from "./Pressable";
@@ -42,7 +42,7 @@ export function CollapsibleSection({
   contentDurationOut = 180,
   chevronDuration = 180,
 }: Props) {
-  const chevronAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const [chevronAnim] = useState(() => new Animated.Value(expanded ? 1 : 0));
   const { animatedStyle, isVisible } = useCollapsibleAnimation(expanded, {
     durationIn: contentDurationIn,
     durationOut: contentDurationOut,

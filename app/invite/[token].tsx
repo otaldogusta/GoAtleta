@@ -44,8 +44,8 @@ export default function StudentInviteScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [inviteState, setInviteState] = useState<"checking" | "valid" | "invalid">("checking");
-  const strengthAnim = useRef(new Animated.Value(0)).current;
-  const enterAnim = useRef(new Animated.Value(0)).current;
+  const [strengthAnim] = useState(() => new Animated.Value(0));
+  const [enterAnim] = useState(() => new Animated.Value(0));
   const lastClaimUserRef = useRef<string | null>(null);
   const claimInFlightRef = useRef(false);
 

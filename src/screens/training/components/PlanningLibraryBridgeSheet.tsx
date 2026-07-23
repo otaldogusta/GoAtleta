@@ -59,7 +59,7 @@ type Props = {
 const tabs = [
   { id: "catalog", label: "Catálogo GoAtleta" },
   { id: "links", label: "Meus Links" },
-] satisfies ReadonlyArray<{ id: LibraryTab; label: string }>;
+] satisfies readonly { id: LibraryTab; label: string }[];
 
 const defaultPhaseByBlock: Record<TrainingPlanBlockKey, ActivityPatternStage> = {
   warmup: "warmup",

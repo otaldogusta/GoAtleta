@@ -359,8 +359,8 @@ export default function StudentsScreen() {
   const [pendingStudentInviteBusyId, setPendingStudentInviteBusyId] = useState<string | null>(null);
   const saveNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const whatsappNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveNoticeAnim = useRef(new Animated.Value(0)).current;
-  const studentsFabAnim = useRef(new Animated.Value(0)).current;
+  const [saveNoticeAnim] = useState(() => new Animated.Value(0));
+  const [studentsFabAnim] = useState(() => new Animated.Value(0));
   const [lastBirthdayNotice, setLastBirthdayNotice] = usePersistedState<string>(
     "students_birthday_notice_v1",
     ""

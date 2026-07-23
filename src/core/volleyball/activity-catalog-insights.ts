@@ -148,7 +148,7 @@ const referenceReasonLabels: Record<string, string> = {
 
 const countBy = <T extends string>(
   values: T[]
-): Array<{ key: T; count: number }> => {
+): { key: T; count: number }[] => {
   const counts: Record<string, number> = {};
   values.forEach((value) => {
     counts[value] = (counts[value] ?? 0) + 1;

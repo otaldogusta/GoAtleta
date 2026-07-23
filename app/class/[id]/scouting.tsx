@@ -123,13 +123,13 @@ export default function ClassScoutingRoute() {
     });
     return map;
   }, [actions]);
+  const [screenOpenedAt] = useState(() => Date.now());
 
   const nextContext = useMemo(() => {
-    const now = Date.now();
     return [...trainingSessions]
-      .filter((session) => new Date(session.startAt).getTime() >= now)
+      .filter((session) => new Date(session.startAt).getTime() >= screenOpenedAt)
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())[0] ?? null;
-  }, [trainingSessions]);
+  }, [screenOpenedAt, trainingSessions]);
 
   const signals = useMemo(() => buildScoutingTeamSignals(actions), [actions]);
   const priorities = useMemo(() => buildScoutingWeeklyPriorities(actions), [actions]);

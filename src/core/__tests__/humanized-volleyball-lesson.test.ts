@@ -175,11 +175,11 @@ describe("humanized volleyball lesson activities", () => {
   });
 
   it("keeps a controlled knowledge seed by focus and activity stage", () => {
-    const focusDefinitions: Array<{
+    const focusDefinitions: {
       label: string;
       skill: VolleyballSkill;
       variant?: ActivityFocusVariant;
-    }> = [
+    }[] = [
       { label: "passe", skill: "passe" },
       { label: "manchete", skill: "passe", variant: "manchete" },
       { label: "saque", skill: "saque" },

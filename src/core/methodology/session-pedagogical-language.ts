@@ -20,7 +20,7 @@ import {
 export type SessionPedagogicalBlockKey = "warmup" | "main" | "cooldown";
 
 export const buildSessionPedagogicalApproachInput = (
-  parts: Array<string | null | undefined>
+  parts: (string | null | undefined)[]
 ) =>
   parts
     .map((part) => String(part ?? "").trim())
@@ -28,7 +28,7 @@ export const buildSessionPedagogicalApproachInput = (
     .join(". ");
 
 export const detectSessionPedagogicalApproach = (
-  parts: Array<string | null | undefined>
+  parts: (string | null | undefined)[]
 ): PedagogicalApproachDetection =>
   detectPedagogicalApproach(buildSessionPedagogicalApproachInput(parts));
 

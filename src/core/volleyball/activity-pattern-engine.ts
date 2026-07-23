@@ -77,7 +77,7 @@ export type ActivityPattern = {
   playerFormat: string;
   space: string;
   materials: string[];
-  periodizationFit: Array<"exploration" | "technical" | "decision" | "pressure" | "game_transfer">;
+  periodizationFit: ("exploration" | "technical" | "decision" | "pressure" | "game_transfer")[];
   catalogTaxonomy?: ActivityCatalogTaxonomy;
   build: (context: ActivityPatternSelectionContext) => ActivityPatternActivitySpec;
 };

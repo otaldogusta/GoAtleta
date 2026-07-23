@@ -4,7 +4,6 @@ import {
     useContext,
     useEffect,
     useMemo,
-    useRef,
     useState,
 } from "react";
 import { Animated, Easing, Text, View } from "react-native";
@@ -47,7 +46,7 @@ export function ConfirmUndoProvider({
   const [confirmOptions, setConfirmOptions] = useState<ConfirmUndoOptions | null>(null);
   const [pending, setPending] = useState<PendingState | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const undoProgressAnim = useRef(new Animated.Value(1)).current;
+  const [undoProgressAnim] = useState(() => new Animated.Value(1));
   const [bannerWidth, setBannerWidth] = useState(0);
 
   useEffect(() => {

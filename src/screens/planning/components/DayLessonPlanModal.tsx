@@ -81,7 +81,7 @@ function LessonBlockPreview({
     >
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>{block.label}</Text>
-        <Text style={{ color: colors.muted, fontSize: 11 }}>{block.durationMinutes}'</Text>
+        <Text style={{ color: colors.muted, fontSize: 11 }}>{block.durationMinutes} min</Text>
       </View>
       <Text style={{ color: colors.text, fontSize: 12, lineHeight: 17 }}>
         {previewText(firstActivity?.name || firstActivity?.description, "Atividade da aula")}

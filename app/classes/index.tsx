@@ -5,7 +5,6 @@ import {
     Easing,
     KeyboardAvoidingView,
     Platform,
-    ScrollView,
     Text,
     TextInput,
     Vibration,
@@ -354,10 +353,10 @@ export default function ClassesScreen() {
   const [mainTab, setMainTab] = useState<"lista" | "criar">("lista");
   const [showCreateTabConfirm, setShowCreateTabConfirm] = useState(false);
   const [pendingMainTab, setPendingMainTab] = useState<"lista" | "criar" | null>(null);
-  const mainTabAnim = useRef<Record<"lista" | "criar", Animated.Value>>({
+  const [mainTabAnim] = useState<Record<"lista" | "criar", Animated.Value>>(() => ({
     lista: new Animated.Value(1),
     criar: new Animated.Value(0),
-  }).current;
+  }));
   const [editSaving, setEditSaving] = useState(false);
   const [editFormError, setEditFormError] = useState("");
   const [editShowCustomAgeBand, setEditShowCustomAgeBand] = useState(false);

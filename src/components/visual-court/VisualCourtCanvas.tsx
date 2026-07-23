@@ -24,7 +24,6 @@ import {
 import {
   getDidacticSlotBounds,
   normalizeExtendedCourtPoint,
-  normalizeCourtPoint,
   resolveCourtZone,
   getStepAtIndex,
   getVisibleLayerIdsForStep,
@@ -455,7 +454,7 @@ export function VisualCourtCanvas({
   const { colors, mode } = useAppTheme();
   const dragStartPointRef = useRef<Record<string, CourtPoint>>({});
   const dragPointerOffsetRef = useRef<Record<string, { x: number; y: number }>>({});
-  const selectionPulse = useRef(new Animated.Value(0)).current;
+  const [selectionPulse] = useState(() => new Animated.Value(0));
   const isTeamHalfView = payload.court.courtView === "team_half";
   const isCoachBoard = payload.court.renderStyle === "coach_board";
   const minCanvasHeight = isTeamHalfView ? MIN_TEAM_HALF_CANVAS_HEIGHT : MIN_CANVAS_HEIGHT;

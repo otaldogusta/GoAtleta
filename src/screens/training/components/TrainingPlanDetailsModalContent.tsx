@@ -43,12 +43,12 @@ const getSimpleActivityDescription = (value: string | undefined) => {
 
 function TrainingPlanDetailsModalContentBase({ plan }: Props) {
   const { colors } = useAppTheme();
-  const sections: Array<{
+  const sections: {
     key: TrainingPlanBlockKey;
     title: string;
     time: string;
     backgroundColor: string;
-  }> = [
+  }[] = [
     {
       key: "warmup",
       title: "Aquecimento",

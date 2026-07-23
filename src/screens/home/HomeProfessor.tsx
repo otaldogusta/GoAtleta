@@ -1,4 +1,4 @@
-﻿import * as Clipboard from "expo-clipboard";
+import * as Clipboard from "expo-clipboard";
 
 import { Link, useFocusEffect, useRouter } from "expo-router";
 
@@ -270,7 +270,7 @@ export function HomeProfessorScreen({
       classes.length === 0 &&
       upcomingEvents.length === 0;
 
-  const inboxX = useRef(new Animated.Value(panelWidth)).current;
+  const [inboxX] = useState(() => new Animated.Value(panelWidth));
 
   const agendaScrollRef = useRef<FlatList<(typeof scheduleWindow)[number]> | null>(null);
 

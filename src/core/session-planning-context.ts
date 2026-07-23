@@ -7,7 +7,6 @@ import type {
   SessionCoachGuidance,
   SessionStrategy,
   TrainingPlan,
-  VolleyballSkill,
 } from "./models";
 import {
   SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
@@ -38,7 +37,7 @@ const normalizeText = (value: string | null | undefined) =>
     .toLowerCase()
     .trim();
 
-const uniqueStrings = (values: Array<string | null | undefined>) =>
+const uniqueStrings = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
 const getStructuredActivities = (plan: TrainingPlan) => [
