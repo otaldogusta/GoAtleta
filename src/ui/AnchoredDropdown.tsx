@@ -10,6 +10,7 @@ import {
     ViewStyle,
 } from "react-native";
 import { useAppTheme } from "./app-theme";
+import { resolveFloatingListZIndex } from "./overlay-layers";
 
 type Layout = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
@@ -216,6 +217,9 @@ export function AnchoredDropdown({
   const windowWidth = Dimensions.get("window").width;
   const windowHeight = Dimensions.get("window").height;
   const useViewportCoordinates = Platform.OS === "web" && portalToBodyOnWeb;
+  const resolvedZIndex = useViewportCoordinates
+    ? resolveFloatingListZIndex(zIndex)
+    : zIndex;
   const availableWidth = Math.max(180, windowWidth - 24);
   const measuredWidth = layout.width > 0 ? layout.width : 240;
   const resolvedWidth = Math.min(measuredWidth, availableWidth);
@@ -260,8 +264,8 @@ export function AnchoredDropdown({
           top,
           width: resolvedWidth,
           minWidth: resolvedWidth,
-          zIndex,
-          elevation: zIndex,
+          zIndex: resolvedZIndex,
+          elevation: resolvedZIndex,
         } as unknown as ViewStyle,
         animationStyle,
       ]}

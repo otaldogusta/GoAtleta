@@ -62,6 +62,7 @@ describe("class card view model", () => {
     });
 
     expect(viewModel.studentCount).toBe(0);
+    expect(viewModel.developmentLevelLabel).toBe("Iniciação");
     expect(viewModel.visibleStudents).toEqual([]);
     expect(viewModel.extraStudentCount).toBe(0);
     expect(viewModel.teacher).toMatchObject({
@@ -69,6 +70,14 @@ describe("class card view model", () => {
       initials: "PD",
       isFallback: true,
     });
+  });
+
+  it("shows the canonical development level instead of the class goal", () => {
+    const viewModel = buildClassCardViewModel({
+      classGroup: buildClass({ mvLevel: "MV3", goal: "Fundamentos" }),
+    });
+
+    expect(viewModel.developmentLevelLabel).toBe("Rendimento");
   });
 
   it("groups students by class id", () => {

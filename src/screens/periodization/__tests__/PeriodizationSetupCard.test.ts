@@ -72,7 +72,7 @@ describe("PeriodizationSetupCard", () => {
     expect(root.findByProps({ accessibilityLabel: "Objetivo da periodização" }).props.value).toBe(
       "Fundamentos"
     );
-    expect(root.findByProps({ accessibilityLabel: "Nível Iniciante" })).toBeTruthy();
+    expect(root.findByProps({ accessibilityLabel: "Nível Iniciação" })).toBeTruthy();
     expect(root.findByProps({ accessibilityLabel: "Duração do macrociclo anual" })).toBeTruthy();
   });
 

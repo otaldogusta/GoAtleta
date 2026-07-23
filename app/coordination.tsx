@@ -702,7 +702,18 @@ export default function CoordinationScreen() {
 
       setOrganizationMembers(memberRows);
       setMemberClassHeads(classHeadRows);
-      setOrganizationClasses(classRows);
+      const scheduleByClassId = new Map(classes.map((classGroup) => [classGroup.id, classGroup]));
+      setOrganizationClasses(
+        classRows.map((classGroup) => {
+          const schedule = scheduleByClassId.get(classGroup.id);
+          return {
+            ...classGroup,
+            daysOfWeek: schedule?.daysOfWeek ?? [],
+            startTime: schedule?.startTime ?? "",
+            endTime: schedule?.endTime ?? "",
+          };
+        })
+      );
       setPendingTrainerInvites(inviteRows);
 
       const logsByClass = sessionLogs.reduce<Record<string, typeof sessionLogs>>((acc, item) => {

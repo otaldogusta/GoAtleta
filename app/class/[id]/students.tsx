@@ -20,6 +20,11 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { uploadStudentPhoto } from "../../../src/api/student-photo-storage";
 import { ScreenPageHeader } from "../../../src/components/ui/ScreenPageHeader";
+import {
+  useCopilotActions,
+  useCopilotContext,
+  type CopilotAction,
+} from "../../../src/copilot/CopilotProvider";
 import { getClassModalityLabel, matchesClassModalityText } from "../../../src/core/class-modality";
 import { matchAthleteIntakeToStudents, type AthleteIntake } from "../../../src/core/athlete-intake";
 import { useEffectiveProfile } from "../../../src/core/effective-profile";
@@ -31,6 +36,7 @@ import {
     getClassById,
     getClasses,
     getStudentClassIds,
+    getStudents,
     getStudentsByClass,
     linkExistingStudentByIdentity,
     moveStudentsToClass,
@@ -53,6 +59,11 @@ import { useAppTheme } from "../../../src/ui/app-theme";
 import { useConfirmUndo } from "../../../src/ui/confirm-undo";
 import { getSectionCardStyle } from "../../../src/ui/section-styles";
 import { GoAtletaIcon } from "../../../src/ui/icon-registry";
+import {
+  FormFieldValidationFeedback,
+  getValidationFieldStyle,
+  useFormValidationFeedback,
+} from "../../../src/ui/form-validation-feedback";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { useUndoableListDelete } from "../../../src/ui/useUndoableListDelete";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
@@ -65,6 +76,24 @@ import { buildWaMeLink, getContactPhone, openWhatsApp } from "../../../src/utils
 import { StudentAcademicFields } from "../../../src/screens/students/components/StudentAcademicFields";
 import { StudentDocumentsFields } from "../../../src/screens/students/components/StudentDocumentsFields";
 import { StudentMultiSelectOption, StudentSelectOption } from "../../../src/screens/students/components/StudentDropdownOptions";
+import {
+  StudentExistingAutocomplete,
+  type ExistingStudentOption,
+} from "../../../src/screens/students/components/StudentExistingAutocomplete";
+import {
+  StudentDuplicateBadge,
+  StudentDuplicateReviewPrompt,
+} from "../../../src/screens/students/components/StudentDuplicateNotice";
+import {
+  buildPossibleDuplicateReviewSignature,
+  findPossibleDuplicateStudentGroups,
+  findStudentsWithSameNormalizedName,
+  type PossibleDuplicateStudentGroup,
+} from "../../../src/screens/students/application/student-duplicates";
+import {
+  loadReviewedDuplicateSignatures,
+  saveReviewedDuplicateSignature,
+} from "../../../src/screens/students/application/student-duplicate-reviews";
 
 const guardianRelationOptions = ["Mãe", "Pai", "Avó", "Avô", "Irmão", "Irmã", "Tio", "Tia", "Outro"] as const;
 const positionOptions = ["indefinido", "levantador", "oposto", "ponteiro", "central", "libero"] as const;
@@ -74,6 +103,12 @@ type Layout = { x: number; y: number; width: number; height: number };
 type StudentSectionKey = "studentData" | "academic" | "sportProfile" | "documents" | "health" | "guardian" | "links" | null;
 type CreateSectionKey = "studentData" | "academic" | "sportProfile" | "health" | "documents" | "guardian" | "links" | null;
 type ScreenTab = "alunos" | "cadastro";
+type DuplicateReviewTarget = {
+  group: PossibleDuplicateStudentGroup;
+  student: Student;
+};
+type CreateStudentValidationField = "name" | "birthDate" | "ra";
+type EditStudentValidationField = "name" | "birthDate" | "ra" | "classes";
 
 const inputStyle = (colors: ReturnType<typeof useAppTheme>["colors"]) => ({
   borderWidth: 1,
@@ -210,9 +245,17 @@ export default function ClassStudentsScreen() {
     radius: 18,
     gap: 12,
   });
+  const duplicateReviewModalCardStyle = useModalCardStyle({
+    maxWidth: 420,
+    padding: 16,
+    radius: 16,
+    gap: 12,
+  });
 
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [organizationStudents, setOrganizationStudents] = useState<Student[]>([]);
+  const [organizationClasses, setOrganizationClasses] = useState<ClassGroup[]>([]);
   const [athleteIntakes, setAthleteIntakes] = useState<AthleteIntake[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -223,6 +266,11 @@ export default function ClassStudentsScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
+  const [reviewedDuplicateSignatures, setReviewedDuplicateSignatures] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [duplicateReviewsLoaded, setDuplicateReviewsLoaded] = useState(false);
+  const [duplicateReviewTarget, setDuplicateReviewTarget] = useState<DuplicateReviewTarget | null>(null);
   const debouncedSearch = useDebouncedValue(search, 250);
   const [dropKey, setDropKey] = useState<DropKey>(null);
   const [showPositionPicker, setShowPositionPicker] = useState(false);
@@ -298,7 +346,19 @@ export default function ClassStudentsScreen() {
   const [createPhotoUrl, setCreatePhotoUrl] = useState<string | null>(null);
   const [createPhotoMimeType, setCreatePhotoMimeType] = useState<string | null>(null);
   const [createError, setCreateError] = useState("");
+  const {
+    issue: createValidationIssue,
+    showValidationError: showCreateValidationError,
+    clearValidationError: clearCreateValidationError,
+  } = useFormValidationFeedback<CreateStudentValidationField>();
+  const {
+    issue: editValidationIssue,
+    showValidationError: showEditValidationError,
+    clearValidationError: clearEditValidationError,
+  } = useFormValidationFeedback<EditStudentValidationField>();
   const [creatingStudent, setCreatingStudent] = useState(false);
+  const [duplicateNameConfirmed, setDuplicateNameConfirmed] = useState(false);
+  const [selectedExistingStudent, setSelectedExistingStudent] = useState<ExistingStudentOption | null>(null);
   const [editSnapshot, setEditSnapshot] = useState<{
     name: string;
     phone: string;
@@ -326,6 +386,12 @@ export default function ClassStudentsScreen() {
   } | null>(null);
 
   const containerRef = useRef<View>(null);
+  const createNameInputRef = useRef<TextInput | null>(null);
+  const createBirthDateInputRef = useRef<TextInput | null>(null);
+  const createRaInputRef = useRef<TextInput | null>(null);
+  const editNameInputRef = useRef<TextInput | null>(null);
+  const editBirthDateInputRef = useRef<TextInput | null>(null);
+  const editRaInputRef = useRef<TextInput | null>(null);
   const guardianRef = useRef<View>(null);
   const primaryRef = useRef<View>(null);
   const secondaryRef = useRef<View>(null);
@@ -444,6 +510,25 @@ export default function ClassStudentsScreen() {
       if (!isAlive()) return;
       setCls(classData);
       setStudents(list.slice().sort((a, b) => a.name.localeCompare(b.name)));
+      setOrganizationStudents(list);
+      setOrganizationClasses(classData ? [classData] : []);
+      if (classData?.organizationId) {
+        void Promise.all([
+          getStudents({ organizationId: classData.organizationId }),
+          getClasses({ organizationId: classData.organizationId }),
+        ])
+          .then(([organizationStudentRows, organizationClassRows]) => {
+            if (!isAlive()) return;
+            setOrganizationStudents(
+              organizationStudentRows.slice().sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+            );
+            setOrganizationClasses(organizationClassRows);
+          })
+          .catch((error) => {
+            if (!isAlive()) return;
+            console.warn("Existing students autocomplete load failed", error);
+          });
+      }
       void (async () => {
         try {
           const intakes = await measureAsync(
@@ -598,6 +683,84 @@ export default function ClassStudentsScreen() {
     if (dropKey) syncLayouts();
   }, [dropKey, syncLayouts]);
 
+  const detectedDuplicateGroups = useMemo(
+    () => findPossibleDuplicateStudentGroups(students),
+    [students]
+  );
+  const possibleDuplicateGroups = useMemo(
+    () =>
+      duplicateReviewsLoaded
+        ? detectedDuplicateGroups.filter(
+            (group) =>
+              !reviewedDuplicateSignatures.has(buildPossibleDuplicateReviewSignature(group))
+          )
+        : [],
+    [detectedDuplicateGroups, duplicateReviewsLoaded, reviewedDuplicateSignatures]
+  );
+  const duplicateGroupByStudentId = useMemo(() => {
+    const byStudentId = new Map<string, PossibleDuplicateStudentGroup>();
+    for (const group of possibleDuplicateGroups) {
+      for (const studentId of group.studentIds) byStudentId.set(studentId, group);
+    }
+    return byStudentId;
+  }, [possibleDuplicateGroups]);
+
+  useEffect(() => {
+    if (!id || !cls?.organizationId) return;
+    let cancelled = false;
+    setDuplicateReviewsLoaded(false);
+    void loadReviewedDuplicateSignatures({
+      organizationId: cls.organizationId,
+      classId: id,
+    })
+      .then((signatures) => {
+        if (!cancelled) setReviewedDuplicateSignatures(signatures);
+      })
+      .catch(() => {
+        if (!cancelled) setReviewedDuplicateSignatures(new Set());
+      })
+      .finally(() => {
+        if (!cancelled) setDuplicateReviewsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cls?.organizationId, id]);
+
+  useCopilotContext(
+    useMemo(
+      () => ({
+        screen: "class_students",
+        title: cls?.name?.trim() || "Alunos da turma",
+        subtitle: possibleDuplicateGroups.length
+          ? `${possibleDuplicateGroups.length} nome${possibleDuplicateGroups.length === 1 ? "" : "s"} repetido${possibleDuplicateGroups.length === 1 ? "" : "s"} para revisar`
+          : cls?.unit?.trim() || "Alunos",
+      }),
+      [cls?.name, cls?.unit, possibleDuplicateGroups.length]
+    )
+  );
+
+  const duplicateCopilotActions = useMemo<CopilotAction[]>(() => {
+    const group = possibleDuplicateGroups[0];
+    const student = group
+      ? students.find((item) => item.id === group.studentIds[0]) ?? null
+      : null;
+    if (!group || !student) return [];
+    return [
+      {
+        id: "review_student_duplicate",
+        title: "Revisar nome repetido",
+        description: group.displayName,
+        run: () => {
+          setScreenTab("alunos");
+          setDuplicateReviewTarget({ group, student });
+          return { message: "Revisão aberta." };
+        },
+      },
+    ];
+  }, [possibleDuplicateGroups, students]);
+  useCopilotActions(duplicateCopilotActions);
+
   const filtered = useMemo(() => {
     const t = debouncedSearch.trim().toLowerCase();
     return students.filter((s) => {
@@ -716,6 +879,7 @@ export default function ClassStudentsScreen() {
   }, []);
 
   const openEdit = (s: Student) => {
+    clearEditValidationError();
     setEditingStudent(s);
     setDropKey(null);
     setShowGuardianRelationPicker(false);
@@ -786,6 +950,38 @@ export default function ClassStudentsScreen() {
     });
   };
 
+  const reviewDuplicateStudent = () => {
+    const target = duplicateReviewTarget;
+    if (!target) return;
+    setDuplicateReviewTarget(null);
+    openEdit(target.student);
+  };
+
+  const keepDuplicateStudents = async () => {
+    const target = duplicateReviewTarget;
+    if (!target || !id || !cls?.organizationId) return;
+    const signature = buildPossibleDuplicateReviewSignature(target.group);
+    setDuplicateReviewTarget(null);
+    setReviewedDuplicateSignatures((current) => new Set([...current, signature]));
+    try {
+      await saveReviewedDuplicateSignature({
+        organizationId: cls.organizationId,
+        classId: id,
+        signature,
+      });
+    } catch {
+      setReviewedDuplicateSignatures((current) => {
+        const next = new Set(current);
+        next.delete(signature);
+        return next;
+      });
+      showSaveToast({
+        message: "Não foi possível guardar a decisão.",
+        variant: "warning",
+      });
+    }
+  };
+
   const isEditDirty = useMemo(() => {
     if (!editingStudent || !editSnapshot) return false;
     return (
@@ -854,7 +1050,8 @@ export default function ClassStudentsScreen() {
     setPhotoUrl(null);
     setPhotoMimeType(null);
     setPhotoChanged(false);
-  }, []);
+    clearEditValidationError();
+  }, [clearEditValidationError]);
 
   const requestCloseEditModal = useCallback(() => {
     if (isEditDirty) {
@@ -886,9 +1083,12 @@ export default function ClassStudentsScreen() {
     setCreatePhotoUrl(null);
     setCreatePhotoMimeType(null);
     setCreateError("");
+    clearCreateValidationError();
+    setDuplicateNameConfirmed(false);
+    setSelectedExistingStudent(null);
     setOpenCreateSection("studentData");
     setCreateDropKey(null);
-  }, []);
+  }, [clearCreateValidationError]);
 
   const createFormDirty = useMemo(() => {
     const hasTextChanges = [
@@ -1010,7 +1210,20 @@ export default function ClassStudentsScreen() {
     });
   }, [id, requestDiscardCreateForm, router, screenTab, selectionModeEnabled]);
 
-  const canSubmitCreateStudent = createFormDirty && !creatingStudent;
+  const canSubmitCreateStudent =
+    (Boolean(selectedExistingStudent) || createFormDirty) && !creatingStudent;
+
+  const currentClassStudentIds = useMemo(
+    () => students.map((student) => student.id),
+    [students]
+  );
+
+  const handleCreateNameChange = useCallback((nextValue: string) => {
+    setCreateName(nextValue);
+    setDuplicateNameConfirmed(false);
+    setSelectedExistingStudent(null);
+    setCreateError("");
+  }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -1021,28 +1234,75 @@ export default function ClassStudentsScreen() {
     return () => subscription.remove();
   }, [handleBackPress, screenTab]);
 
+  const reportCreateValidation = useCallback(
+    (field: CreateStudentValidationField, message: string) => {
+      setCreateError("");
+      showCreateValidationError(field, message);
+      setOpenCreateSection(field === "ra" ? "academic" : "studentData");
+      const targetRef =
+        field === "name"
+          ? createNameInputRef
+          : field === "birthDate"
+            ? createBirthDateInputRef
+            : createRaInputRef;
+      setTimeout(() => targetRef.current?.focus(), 180);
+    },
+    [showCreateValidationError]
+  );
+
+  const reportEditValidation = useCallback(
+    (field: EditStudentValidationField, message: string) => {
+      showEditValidationError(field, message);
+      setOpenSection(field === "ra" ? "academic" : field === "classes" ? "links" : "studentData");
+      const targetRef =
+        field === "name"
+          ? editNameInputRef
+          : field === "birthDate"
+            ? editBirthDateInputRef
+            : field === "ra"
+              ? editRaInputRef
+              : null;
+      if (targetRef) setTimeout(() => targetRef.current?.focus(), 180);
+    },
+    [showEditValidationError]
+  );
+
   const createStudent = useCallback(async () => {
     if (!id) return;
     const cleanName = createName.trim();
     if (!cleanName) {
-      setCreateError("Informe o nome do aluno.");
+      reportCreateValidation("name", "Informe o nome do aluno.");
+      return;
+    }
+    clearCreateValidationError("name");
+    const sameNameStudents = findStudentsWithSameNormalizedName(students, cleanName);
+    if (sameNameStudents.length && !duplicateNameConfirmed) {
+      setDuplicateNameConfirmed(true);
+      setCreateError("Já existe aluno com esse nome. Manter mesmo assim?");
       return;
     }
     const birthIso = brToIso(createBirthText.trim());
     if (!birthIso) {
-      setCreateError("Informe uma data de nascimento válida.");
+      reportCreateValidation(
+        "birthDate",
+        createBirthText.trim()
+          ? "Confira a data de nascimento."
+          : "Informe a data de nascimento."
+      );
       return;
     }
+    clearCreateValidationError("birthDate");
     const ageResolved = calculateAgeFromIso(birthIso);
     if (ageResolved === null) {
-      setCreateError("Não foi possível calcular a idade.");
+      reportCreateValidation("birthDate", "Confira a data de nascimento.");
       return;
     }
     const raValidation = validateStudentRa(createRa);
     if (raValidation) {
-      setCreateError(raValidation);
+      reportCreateValidation("ra", raValidation);
       return;
     }
+    clearCreateValidationError();
 
     setCreatingStudent(true);
     setCreateError("");
@@ -1132,7 +1392,7 @@ export default function ClassStudentsScreen() {
       setCreatingStudent(false);
     }
   }, [
-    cls?.organizationId,
+    cls,
     createBirthText,
     createCpf,
     createEmail,
@@ -1153,23 +1413,45 @@ export default function ClassStudentsScreen() {
     createCollegeCourse,
     createPhotoMimeType,
     createPhotoUrl,
+    duplicateNameConfirmed,
+    clearCreateValidationError,
     id,
+    isOnline,
     load,
+    reportCreateValidation,
     resetCreateForm,
+    showSaveToast,
+    students,
   ]);
 
   const performSave = async () => {
-    if (!editingStudent || !name.trim() || !isEditDirty) return;
+    if (!editingStudent || !isEditDirty) return;
+    if (!name.trim()) {
+      reportEditValidation("name", "Informe o nome do aluno.");
+      return;
+    }
+    clearEditValidationError("name");
+    const parsed = brToIso(birthText.trim());
+    if (!parsed) {
+      reportEditValidation(
+        "birthDate",
+        birthText.trim()
+          ? "Confira a data de nascimento."
+          : "Informe a data de nascimento."
+      );
+      return;
+    }
+    clearEditValidationError("birthDate");
+    setDocumentsError({});
+    const raValidation = validateStudentRa(ra);
+    if (raValidation) {
+      setDocumentsError((prev) => ({ ...prev, ra: raValidation }));
+      reportEditValidation("ra", raValidation);
+      return;
+    }
+    clearEditValidationError();
     setSaving(true);
     try {
-      setDocumentsError({});
-      const raValidation = validateStudentRa(ra);
-      if (raValidation) {
-        setDocumentsError((prev) => ({ ...prev, ra: raValidation }));
-        Alert.alert("RA", raValidation);
-        return;
-      }
-      const parsed = birthText.trim() ? brToIso(birthText.trim()) : "";
       let resolvedPhotoUrl = editingStudent.photoUrl ?? undefined;
       if (photoChanged && photoUrl && cls?.organizationId) {
         setPhotoSaving(true);
@@ -1187,7 +1469,7 @@ export default function ClassStudentsScreen() {
         photoUrl: resolvedPhotoUrl,
         phone: phone.trim(),
         loginEmail: email.trim(),
-        birthDate: (parsed || birthIso || "").trim(),
+        birthDate: parsed,
         age: Number.isFinite(Number(age)) && Number(age) > 0 ? Number(age) : editingStudent.age,
         guardianName: guardianName.trim(),
         guardianPhone: guardianPhone.trim(),
@@ -1221,14 +1503,15 @@ export default function ClassStudentsScreen() {
 
   const save = () => {
     if (!editingStudent || !isEditDirty) return;
+    if (!editClassIds.length) {
+      reportEditValidation("classes", "Selecione pelo menos uma turma.");
+      return;
+    }
+    clearEditValidationError("classes");
     const beforeKey = [...initialEditClassIds].sort().join("|");
     const afterKey = [...editClassIds].sort().join("|");
     if (beforeKey === afterKey) {
       void performSave();
-      return;
-    }
-    if (!editClassIds.length) {
-      Alert.alert("Turmas", "Selecione pelo menos uma turma para o aluno.");
       return;
     }
     const beforeNames = moveClasses.filter((item) => initialEditClassIds.includes(item.id)).map((item) => item.name);
@@ -1481,6 +1764,53 @@ export default function ClassStudentsScreen() {
     showSaveToast,
   ]);
 
+  const addSelectedExistingStudent = useCallback(async () => {
+    if (!id || !selectedExistingStudent) return;
+    if (!isOnline) {
+      setCreateError("Conecte-se à internet para adicionar o aluno à turma.");
+      return;
+    }
+
+    setCreatingStudent(true);
+    setCreateError("");
+    try {
+      const currentClassIds = await getStudentClassIds(selectedExistingStudent.student.id, {
+        organizationId: cls?.organizationId ?? null,
+      });
+      if (!currentClassIds.includes(id)) {
+        await setStudentClassIds(
+          selectedExistingStudent.student.id,
+          [...currentClassIds, id],
+          { organizationId: cls?.organizationId ?? null }
+        );
+      }
+
+      const studentName = selectedExistingStudent.student.name;
+      resetCreateForm();
+      await load();
+      setScreenTab("alunos");
+      setSearch(studentName);
+      showSaveToast({
+        message: `${studentName} foi adicionado à turma.`,
+        variant: "success",
+      });
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "Não foi possível adicionar o aluno à turma.";
+      setCreateError(detail);
+    } finally {
+      setCreatingStudent(false);
+    }
+  }, [
+    cls?.organizationId,
+    id,
+    isOnline,
+    load,
+    resetCreateForm,
+    selectedExistingStudent,
+    showSaveToast,
+  ]);
+
   const handleSelectionMore = useCallback(() => {
     const actions: { text: string; onPress?: () => void; style?: "default" | "cancel" | "destructive" }[] = [];
     actions.push({
@@ -1652,13 +1982,18 @@ export default function ClassStudentsScreen() {
   }, [guardianName, guardianPhone]);
 
   const createStudentDataSummary = useMemo(() => {
+    if (selectedExistingStudent) {
+      return [selectedExistingStudent.className, selectedExistingStudent.unitName]
+        .filter(Boolean)
+        .join(" • ");
+    }
     const parts = [
       createBirthText.trim() || "Nascimento não informado",
       createPhone.trim() ? "Telefone informado" : "Sem telefone",
       createEmail.trim() ? "E-mail informado" : "Sem e-mail",
     ];
     return parts.join(" • ");
-  }, [createBirthText, createEmail, createPhone]);
+  }, [createBirthText, createEmail, createPhone, selectedExistingStudent]);
 
   const createAcademicSummary = useMemo(() => {
     const parts = [
@@ -1977,6 +2312,7 @@ export default function ClassStudentsScreen() {
                   const c = getContactPhone(s);
                   const hasPhone = c.status === "ok" && Boolean(c.phoneDigits);
                   const selected = selectedStudentIds.includes(s.id);
+                  const duplicateGroup = duplicateGroupByStudentId.get(s.id) ?? null;
                   return (
                     <Pressable
                       key={s.id}
@@ -2037,6 +2373,12 @@ export default function ClassStudentsScreen() {
                         )}
                       </View>
                       <View style={{ flex: 1, gap: 2 }}>
+                        {duplicateGroup ? (
+                          <StudentDuplicateBadge
+                            colors={colors}
+                            onPress={() => setDuplicateReviewTarget({ group: duplicateGroup, student: s })}
+                          />
+                        ) : null}
                         <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>{s.name}</Text>
                       </View>
                       <View style={{ gap: 8 }}>
@@ -2072,6 +2414,7 @@ export default function ClassStudentsScreen() {
           <View style={{ flex: 1, marginTop: 12 }}>
           <ScrollView contentContainerStyle={{ gap: 10, paddingBottom: 16 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator persistentScrollbar={Platform.OS === "android"}>
 
+            {!selectedExistingStudent ? (
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, padding: 12 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                 <Pressable
@@ -2107,6 +2450,7 @@ export default function ClassStudentsScreen() {
                 </View>
               </View>
             </View>
+            ) : null}
 
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
               <Pressable
@@ -2123,21 +2467,95 @@ export default function ClassStudentsScreen() {
               {(openCreateSection === "studentData" || createStudentDataAnim.isVisible) ? (
                 <Animated.View style={[createStudentDataAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={linksContentStyle}>
-                    <TextInput value={createName} onChangeText={setCreateName} placeholder="Nome do aluno" placeholderTextColor={colors.placeholder} style={inputStyle(colors)} />
-                    <View style={{ flexDirection: "row", gap: 10 }}>
-                      <View style={{ flex: 1 }}>
-                        <TextInput value={createBirthText} onChangeText={(v) => setCreateBirthText(formatBrInput(v))} placeholder="Nascimento (DD/MM/AAAA)" placeholderTextColor={colors.placeholder} keyboardType="numeric" style={inputStyle(colors)} />
+                    <FormFieldValidationFeedback
+                      message={createValidationIssue?.field === "name" ? createValidationIssue.message : ""}
+                      attempt={createValidationIssue?.field === "name" ? createValidationIssue.attempt : 0}
+                    >
+                      <StudentExistingAutocomplete
+                        colors={colors}
+                        value={createName}
+                        students={organizationStudents}
+                        classes={organizationClasses}
+                        currentClassStudentIds={currentClassStudentIds}
+                        selectedStudentId={selectedExistingStudent?.student.id}
+                        inputRef={createNameInputRef}
+                        invalid={createValidationIssue?.field === "name"}
+                        onChangeText={(value) => {
+                          clearCreateValidationError("name");
+                          handleCreateNameChange(value);
+                        }}
+                        onSelect={(option) => {
+                          clearCreateValidationError("name");
+                          setSelectedExistingStudent(option);
+                          setDuplicateNameConfirmed(false);
+                          setCreateError("");
+                        }}
+                      />
+                    </FormFieldValidationFeedback>
+                    {selectedExistingStudent ? (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                          borderRadius: 12,
+                          borderWidth: 1,
+                          borderColor: colors.successBorder,
+                          backgroundColor: colors.successBg,
+                        }}
+                      >
+                        <GoAtletaIcon name="checkmark" size={15} color={colors.successText} />
+                        <Text numberOfLines={1} style={{ flex: 1, color: colors.successText, fontSize: 12, fontWeight: "600" }}>
+                          {[selectedExistingStudent.className, selectedExistingStudent.unitName]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </Text>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <TextInput value={createPhone} onChangeText={(value) => setCreatePhone(formatPhoneBrWithCountry(value))} placeholder="+55 (DDD) 0 0000-0000" placeholderTextColor={colors.placeholder} keyboardType="phone-pad" style={inputStyle(colors)} />
-                      </View>
-                    </View>
-                    <TextInput value={createEmail} onChangeText={setCreateEmail} placeholder="E-mail de login (opcional)" placeholderTextColor={colors.placeholder} autoCapitalize="none" style={inputStyle(colors)} />
+                    ) : (
+                      <>
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                          <View style={{ flex: 1 }}>
+                            <FormFieldValidationFeedback
+                              message={createValidationIssue?.field === "birthDate" ? createValidationIssue.message : ""}
+                              attempt={createValidationIssue?.field === "birthDate" ? createValidationIssue.attempt : 0}
+                            >
+                              <TextInput
+                                ref={createBirthDateInputRef}
+                                value={createBirthText}
+                                onChangeText={(value) => {
+                                  clearCreateValidationError("birthDate");
+                                  setCreateBirthText(formatBrInput(value));
+                                }}
+                                placeholder="Nascimento (DD/MM/AAAA)"
+                                placeholderTextColor={colors.placeholder}
+                                keyboardType="numeric"
+                                accessibilityLabel="Data de nascimento do aluno"
+                                style={[
+                                  inputStyle(colors),
+                                  getValidationFieldStyle(
+                                    createValidationIssue?.field === "birthDate",
+                                    colors.dangerSolidBg
+                                  ),
+                                ]}
+                              />
+                            </FormFieldValidationFeedback>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <TextInput value={createPhone} onChangeText={(value) => setCreatePhone(formatPhoneBrWithCountry(value))} placeholder="+55 (DDD) 0 0000-0000" placeholderTextColor={colors.placeholder} keyboardType="phone-pad" style={inputStyle(colors)} />
+                          </View>
+                        </View>
+                        <TextInput value={createEmail} onChangeText={setCreateEmail} placeholder="E-mail de login (opcional)" placeholderTextColor={colors.placeholder} autoCapitalize="none" style={inputStyle(colors)} />
+                      </>
+                    )}
                   </View>
                 </Animated.View>
               ) : null}
             </View>
 
+            {!selectedExistingStudent ? (
+            <>
             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
               <Pressable
                 onPress={() => toggleCreateSection("academic")}
@@ -2156,8 +2574,16 @@ export default function ClassStudentsScreen() {
                     <StudentAcademicFields
                       ra={createRa}
                       collegeCourse={createCollegeCourse}
-                      onChangeRa={setCreateRa}
+                      onChangeRa={(value) => {
+                        clearCreateValidationError("ra");
+                        setCreateRa(value);
+                      }}
                       onChangeCollegeCourse={setCreateCollegeCourse}
+                      errors={{
+                        ra: createValidationIssue?.field === "ra" ? createValidationIssue.message : undefined,
+                      }}
+                      raInputRef={createRaInputRef}
+                      validationAttempt={createValidationIssue?.field === "ra" ? createValidationIssue.attempt : 0}
                     />
                   </View>
                 </Animated.View>
@@ -2381,12 +2807,16 @@ export default function ClassStudentsScreen() {
                 </Animated.View>
               ) : null}
             </View>
+            </>
+            ) : null}
 
           </ScrollView>
           <View style={{ paddingTop: 10, paddingBottom: Math.max(insets.bottom + 24, 28), borderTopWidth: 1, borderTopColor: colors.border, gap: 8, backgroundColor: colors.background }}>
             {createError ? <Text style={{ color: colors.dangerText, fontSize: 12 }}>{createError}</Text> : null}
             <Pressable
-              onPress={() => void createStudent()}
+              onPress={() =>
+                void (selectedExistingStudent ? addSelectedExistingStudent() : createStudent())
+              }
               disabled={!canSubmitCreateStudent}
               style={{
                 borderRadius: 12,
@@ -2399,13 +2829,33 @@ export default function ClassStudentsScreen() {
               }}
             >
               <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                {creatingStudent ? "Salvando..." : "Cadastrar aluno"}
+                {creatingStudent
+                  ? "Salvando..."
+                  : selectedExistingStudent
+                    ? "Adicionar à turma"
+                    : duplicateNameConfirmed
+                      ? "Cadastrar mesmo assim"
+                    : "Cadastrar aluno"}
               </Text>
             </Pressable>
           </View>
           </View>
         )}
       </View>
+
+      <ModalSheet
+        visible={Boolean(duplicateReviewTarget)}
+        onClose={() => setDuplicateReviewTarget(null)}
+        position="center"
+        cardStyle={duplicateReviewModalCardStyle}
+      >
+        <StudentDuplicateReviewPrompt
+          colors={colors}
+          studentName={duplicateReviewTarget?.group.displayName ?? ""}
+          onReview={reviewDuplicateStudent}
+          onKeep={() => void keepDuplicateStudents()}
+        />
+      </ModalSheet>
 
       <ModalSheet
         visible={Boolean(editingStudent)}
@@ -2501,7 +2951,29 @@ export default function ClassStudentsScreen() {
                     <View style={rowStyle}>
                       <View style={colStyle}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
-                        <TextInput value={name} onChangeText={setName} placeholder="Nome" placeholderTextColor={colors.placeholder} style={inputStyle(colors)} />
+                        <FormFieldValidationFeedback
+                          message={editValidationIssue?.field === "name" ? editValidationIssue.message : ""}
+                          attempt={editValidationIssue?.field === "name" ? editValidationIssue.attempt : 0}
+                        >
+                          <TextInput
+                            ref={editNameInputRef}
+                            value={name}
+                            onChangeText={(value) => {
+                              clearEditValidationError("name");
+                              setName(value);
+                            }}
+                            placeholder="Nome"
+                            placeholderTextColor={colors.placeholder}
+                            accessibilityLabel="Nome do aluno"
+                            style={[
+                              inputStyle(colors),
+                              getValidationFieldStyle(
+                                editValidationIssue?.field === "name",
+                                colors.dangerSolidBg
+                              ),
+                            ]}
+                          />
+                        </FormFieldValidationFeedback>
                       </View>
                       <View style={colStyle}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>E-mail de login</Text>
@@ -2512,20 +2984,34 @@ export default function ClassStudentsScreen() {
                     <View style={rowStyle}>
                       <View style={colStyle}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Nascimento</Text>
-                        <TextInput
-                          value={birthText}
-                          onChangeText={(v) => {
-                            const f = formatBrInput(v);
-                            setBirthText(f);
-                            const iso = brToIso(f);
-                            if (iso) setBirthIso(iso);
-                            if (!f) setBirthIso("");
-                          }}
-                          placeholder="DD/MM/AAAA"
-                          placeholderTextColor={colors.placeholder}
-                          style={inputStyle(colors)}
-                          keyboardType="numeric"
-                        />
+                        <FormFieldValidationFeedback
+                          message={editValidationIssue?.field === "birthDate" ? editValidationIssue.message : ""}
+                          attempt={editValidationIssue?.field === "birthDate" ? editValidationIssue.attempt : 0}
+                        >
+                          <TextInput
+                            ref={editBirthDateInputRef}
+                            value={birthText}
+                            onChangeText={(value) => {
+                              clearEditValidationError("birthDate");
+                              const formatted = formatBrInput(value);
+                              setBirthText(formatted);
+                              const iso = brToIso(formatted);
+                              if (iso) setBirthIso(iso);
+                              if (!formatted) setBirthIso("");
+                            }}
+                            placeholder="DD/MM/AAAA"
+                            placeholderTextColor={colors.placeholder}
+                            accessibilityLabel="Data de nascimento do aluno"
+                            style={[
+                              inputStyle(colors),
+                              getValidationFieldStyle(
+                                editValidationIssue?.field === "birthDate",
+                                colors.dangerSolidBg
+                              ),
+                            ]}
+                            keyboardType="numeric"
+                          />
+                        </FormFieldValidationFeedback>
                       </View>
                       <View style={colStyle}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do aluno</Text>
@@ -2563,11 +3049,14 @@ export default function ClassStudentsScreen() {
                       ra={ra}
                       collegeCourse={collegeCourse}
                       onChangeRa={(value) => {
+                        clearEditValidationError("ra");
                         setRa(normalizeRaDigits(value));
                         setDocumentsError((prev) => ({ ...prev, ra: undefined }));
                       }}
                       onChangeCollegeCourse={setCollegeCourse}
                       errors={documentsError}
+                      raInputRef={editRaInputRef}
+                      validationAttempt={editValidationIssue?.field === "ra" ? editValidationIssue.attempt : 0}
                     />
                   </View>
                 </Animated.View>
@@ -2869,10 +3358,24 @@ export default function ClassStudentsScreen() {
                       </View>
                       <View style={colStyle}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
-                        <Pressable onPress={() => setShowEditClassPicker((current) => !current)} style={selectFieldStyle}>
-                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>{selectedEditClasses.length === 1 ? `${selectedEditClasses[0].name} (${classGenderLabel[selectedEditClasses[0].gender]})` : selectedEditClasses.length ? `${selectedEditClasses.length} turmas` : "Selecione"}</Text>
-                          <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
-                        </Pressable>
+                        <FormFieldValidationFeedback
+                          message={editValidationIssue?.field === "classes" ? editValidationIssue.message : ""}
+                          attempt={editValidationIssue?.field === "classes" ? editValidationIssue.attempt : 0}
+                        >
+                          <Pressable
+                            onPress={() => setShowEditClassPicker((current) => !current)}
+                            style={[
+                              selectFieldStyle,
+                              getValidationFieldStyle(
+                                editValidationIssue?.field === "classes",
+                                colors.dangerSolidBg
+                              ),
+                            ]}
+                          >
+                            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>{selectedEditClasses.length === 1 ? `${selectedEditClasses[0].name} (${classGenderLabel[selectedEditClasses[0].gender]})` : selectedEditClasses.length ? `${selectedEditClasses.length} turmas` : "Selecione"}</Text>
+                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
+                          </Pressable>
+                        </FormFieldValidationFeedback>
                         {editClassPickerAnim.isVisible ? (
                           <Animated.View style={[editClassPickerAnim.animatedStyle, { overflow: "hidden" }]}>
                             <View style={{ maxHeight: 142, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, overflow: "hidden" }}>
@@ -2883,7 +3386,10 @@ export default function ClassStudentsScreen() {
                                     label={`${item.name} (${classGenderLabel[item.gender]})`}
                                     value={item.id}
                                     active={editClassIds.includes(item.id)}
-                                    onToggle={(value) => setEditClassIds((current) => current.includes(value) ? current.filter((id) => id !== value) : [...current, value])}
+                                    onToggle={(value) => {
+                                      clearEditValidationError("classes");
+                                      setEditClassIds((current) => current.includes(value) ? current.filter((id) => id !== value) : [...current, value]);
+                                    }}
                                     isFirst={index === 0}
                                     compact
                                   />
@@ -2941,13 +3447,13 @@ export default function ClassStudentsScreen() {
           >
             <Pressable
               onPress={() => void save()}
-              disabled={saving || photoSaving || !isEditDirty || !name.trim()}
+              disabled={saving || photoSaving || !isEditDirty}
               style={{
                 borderRadius: 12,
                 backgroundColor: colors.primaryBg,
                 paddingVertical: 11,
                 alignItems: "center",
-                opacity: saving || photoSaving ? 0.7 : !isEditDirty || !name.trim() ? 0.45 : 1,
+                opacity: saving || photoSaving ? 0.7 : !isEditDirty ? 0.45 : 1,
               }}
             >
               <Text

@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import type { RefObject } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
     Animated,
     Text,
@@ -14,6 +14,11 @@ import { radius } from "../../theme/tokens";
 import type { ThemeColors } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { DateInput } from "../../ui/DateInput";
+import {
+    FormFieldValidationFeedback,
+    type FormValidationIssue,
+    getValidationFieldStyle,
+} from "../../ui/form-validation-feedback";
 import { Pressable } from "../../ui/Pressable";
 import { StudentAcademicFields } from "./components/StudentAcademicFields";
 import { StudentDocumentsFields } from "./components/StudentDocumentsFields";
@@ -41,6 +46,7 @@ type DocumentsError = {
     cpf?: string;
     rg?: string;
 };
+type StudentValidationField = "unitClass" | "name" | "birthDate" | "ra";
 
 type SelectFieldStyle = {
     paddingVertical: number;
@@ -95,6 +101,8 @@ export type StudentRegistrationTabProps = {
     classTriggerRef: RefObject<View | null>;
 
     studentFormError: string;
+    validationIssue?: FormValidationIssue<StudentValidationField> | null;
+    onClearValidation?: (field?: StudentValidationField) => void;
     existingStudentMatches?: ExistingStudentMatch[];
     onReviewExistingStudents?: () => void;
     onDismissExistingStudentWarning?: () => void;
@@ -204,6 +212,8 @@ export function StudentRegistrationTab({
     showClassPicker,
     classTriggerRef,
     studentFormError,
+    validationIssue,
+    onClearValidation,
     existingStudentMatches = [],
     onReviewExistingStudents,
     onDismissExistingStudentWarning,
@@ -265,6 +275,25 @@ export function StudentRegistrationTab({
     doResetForm,
     confirmDialog,
 }: StudentRegistrationTabProps) {
+    const nameInputRef = useRef<TextInput | null>(null);
+    const birthDateInputRef = useRef<TextInput | null>(null);
+    const raInputRef = useRef<TextInput | null>(null);
+
+    useEffect(() => {
+        if (!validationIssue) return undefined;
+        const target =
+            validationIssue.field === "name"
+                ? nameInputRef
+                : validationIssue.field === "birthDate"
+                    ? birthDateInputRef
+                    : validationIssue.field === "ra"
+                        ? raInputRef
+                        : null;
+        if (!target) return undefined;
+        const timer = setTimeout(() => target.current?.focus(), 180);
+        return () => clearTimeout(timer);
+    }, [validationIssue]);
+
     const createHealthAssessment = useMemo(
         () =>
             deriveStudentHealthAssessment({
@@ -328,12 +357,36 @@ export function StudentRegistrationTab({
               {createStudentDataAnim.isVisible ? (
                 <Animated.View style={[createStudentDataAnim.animatedStyle, { overflow: "hidden" }]}>
                   <View style={{ gap: 10, padding: 12 }}>
-                    <TextInput placeholder="Nome do aluno" value={name} onChangeText={setName} onBlur={() => setName(formatName(name))} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.borderSubtle, padding: 12, borderRadius: radius.internal, backgroundColor: colors.inputBg, color: colors.textPrimary }} />
+                    <FormFieldValidationFeedback
+                      message={validationIssue?.field === "name" ? validationIssue.message : ""}
+                      attempt={validationIssue?.field === "name" ? validationIssue.attempt : 0}
+                    >
+                      <TextInput
+                        ref={nameInputRef}
+                        placeholder="Nome do aluno"
+                        value={name}
+                        onChangeText={(value) => {
+                          onClearValidation?.("name");
+                          setName(value);
+                        }}
+                        onBlur={() => setName(formatName(name))}
+                        placeholderTextColor={colors.placeholder}
+                        accessibilityLabel="Nome do aluno"
+                        style={[
+                          { borderWidth: 1, borderColor: colors.borderSubtle, padding: 12, borderRadius: radius.internal, backgroundColor: colors.inputBg, color: colors.textPrimary },
+                          getValidationFieldStyle(validationIssue?.field === "name", colors.dangerSolidBg),
+                        ]}
+                      />
+                    </FormFieldValidationFeedback>
+                    <FormFieldValidationFeedback
+                      message={validationIssue?.field === "unitClass" ? validationIssue.message : ""}
+                      attempt={validationIssue?.field === "unitClass" ? validationIssue.attempt : 0}
+                    >
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                       <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
                         <View ref={unitTriggerRef}>
-                          <Pressable onPress={() => toggleFormPicker("unit")} style={selectFieldStyle}>
+                          <Pressable onPress={() => { onClearValidation?.("unitClass"); toggleFormPicker("unit"); }} style={[selectFieldStyle, getValidationFieldStyle(validationIssue?.field === "unitClass", colors.dangerSolidBg)]}>
                             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{unit || "Selecione a unidade"}</Text>
                             <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showUnitPicker ? "180deg" : "0deg" }] }} />
                           </Pressable>
@@ -342,13 +395,14 @@ export function StudentRegistrationTab({
                       <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
                         <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
                         <View ref={classTriggerRef}>
-                          <Pressable onPress={() => toggleFormPicker("class")} style={selectFieldStyle}>
+                          <Pressable onPress={() => { onClearValidation?.("unitClass"); toggleFormPicker("class"); }} style={[selectFieldStyle, getValidationFieldStyle(validationIssue?.field === "unitClass", colors.dangerSolidBg)]}>
                             <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{selectedClassName || "Selecione a turma"}</Text>
                             <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showClassPicker ? "180deg" : "0deg" }] }} />
                           </Pressable>
                         </View>
                       </View>
                     </View>
+                    </FormFieldValidationFeedback>
                     {studentFormError ? <Text style={{ color: colors.dangerText, fontSize: 12 }}>{studentFormError}</Text> : null}
                     {topExistingMatch ? (
                       <View
@@ -423,7 +477,22 @@ export function StudentRegistrationTab({
                     ) : null}
                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
                       <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <DateInput value={birthDate} onChange={setBirthDate} placeholder="Data de nascimento" onOpenCalendar={() => setShowCalendar(true)} />
+                        <FormFieldValidationFeedback
+                          message={validationIssue?.field === "birthDate" ? validationIssue.message : ""}
+                          attempt={validationIssue?.field === "birthDate" ? validationIssue.attempt : 0}
+                        >
+                          <DateInput
+                            inputRef={birthDateInputRef}
+                            value={birthDate}
+                            onChange={(value) => {
+                              onClearValidation?.("birthDate");
+                              setBirthDate(value);
+                            }}
+                            placeholder="Data de nascimento"
+                            onOpenCalendar={() => setShowCalendar(true)}
+                            invalid={validationIssue?.field === "birthDate"}
+                          />
+                        </FormFieldValidationFeedback>
                         <Text style={{ color: colors.muted, fontSize: 12 }}>{ageNumber !== null ? `Idade: ${ageNumber} anos` : "Idade calculada automaticamente"}</Text>
                       </View>
                       <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
@@ -451,11 +520,17 @@ export function StudentRegistrationTab({
                       ra={ra}
                       collegeCourse={collegeCourse}
                       onChangeRa={(value) => {
+                        onClearValidation?.("ra");
                         setRa(value);
                         setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
                       }}
                       onChangeCollegeCourse={setCollegeCourse}
-                      errors={studentDocumentsError}
+                      errors={{
+                        ...studentDocumentsError,
+                        ra: validationIssue?.field === "ra" ? validationIssue.message : studentDocumentsError.ra,
+                      }}
+                      raInputRef={raInputRef}
+                      validationAttempt={validationIssue?.field === "ra" ? validationIssue.attempt : 0}
                     />
                   </View>
                 </Animated.View>

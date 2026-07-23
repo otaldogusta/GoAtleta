@@ -13,6 +13,9 @@ export type OrgClass = {
   id: string;
   name: string;
   unit: string;
+  daysOfWeek?: number[];
+  startTime?: string;
+  endTime?: string;
 };
 
 export type MemberClassHead = {

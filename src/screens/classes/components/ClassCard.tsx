@@ -338,7 +338,7 @@ export const ClassCard = memo(function ClassCard({
             {item.ageBand || "Faixa não definida"}
           </Text>
           <Text numberOfLines={1} style={[styles.tableSecondaryText, { color: colors.textMuted ?? colors.muted }]}>
-            {[item.goal || "Objetivo", canIntegrate ? "Integrado" : null].filter(Boolean).join(" · ")}
+            {[viewModel.developmentLevelLabel, canIntegrate ? "Integrado" : null].filter(Boolean).join(" · ")}
           </Text>
         </View>
 
@@ -579,7 +579,7 @@ export const ClassCard = memo(function ClassCard({
 
       <View style={styles.metaGrid}>
         <MetaPill label={item.ageBand || "Faixa não definida"} colors={colors} />
-        <MetaPill label={item.goal || "Objetivo"} colors={colors} />
+        <MetaPill label={viewModel.developmentLevelLabel} colors={colors} />
         {canIntegrate ? (
           <View style={styles.integrationWrap}>
             <Pressable

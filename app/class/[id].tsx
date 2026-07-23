@@ -23,6 +23,7 @@ import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { resolveResponsiveLayout } from "../../src/ui/responsive-layout";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
+import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-development-level";
 import type { ClassGroup, ScoutingLog, TrainingPlan } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
@@ -485,11 +486,7 @@ export default function ClassDetails() {
   const DEFAULT_CLASS_CYCLE_LENGTH_WEEKS = annualCycleOptions[annualCycleOptions.length - 1];
   const cycleLengthOptions = [...annualCycleOptions];
   const modalityOptions = [...CLASS_MODALITY_OPTIONS];
-  const mvLevelOptions = [
-    { value: "MV1", label: "Iniciante" },
-    { value: "MV2", label: "Intermediário" },
-    { value: "MV3", label: "Avançado" },
-  ];
+  const mvLevelOptions = [...CLASS_DEVELOPMENT_LEVEL_OPTIONS];
   const parseCycleLength = (value: number) => {
     if (!Number.isFinite(value) || !Number.isInteger(value)) return null;
     return cycleLengthOptions.includes(value as (typeof annualCycleOptions)[number])

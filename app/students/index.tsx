@@ -104,6 +104,9 @@ import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { useSaveToast } from "../../src/ui/save-toast";
+import {
+    useFormValidationFeedback,
+} from "../../src/ui/form-validation-feedback";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
@@ -160,6 +163,7 @@ const athletePositionOptions = [
 ] as const;
 const athleteObjectiveOptions = ["ludico", "base", "rendimento"] as const;
 const athleteLearningStyleOptions = ["misto", "visual", "auditivo", "cinestesico"] as const;
+type StudentValidationField = "unitClass" | "name" | "birthDate" | "ra";
 
 const formatStartTimeLabel = (value: string) => {
   const raw = value.trim();
@@ -291,6 +295,11 @@ export default function StudentsScreen() {
     openCreateSection, openEditSection,
     formError: studentFormError, documentsError: studentDocumentsError, editSnapshot,
   } = form;
+  const {
+    issue: studentValidationIssue,
+    showValidationError: showStudentValidationError,
+    clearValidationError: clearStudentValidationError,
+  } = useFormValidationFeedback<StudentValidationField>();
   const debouncedExistingStudentName = useDebouncedValue(name, 400);
 
   // --- Pr?-cadastro (useReducer) ---
@@ -950,17 +959,32 @@ export default function StudentsScreen() {
   };
 
 
+  const reportStudentValidation = (
+    field: StudentValidationField,
+    message: string
+  ) => {
+    setStudentFormError("");
+    showStudentValidationError(field, message);
+    if (editingId) {
+      setOpenEditSection(field === "ra" ? "academic" : field === "unitClass" ? "links" : "studentData");
+    } else {
+      setOpenCreateSection(field === "ra" ? "academic" : "studentData");
+    }
+  };
+
   const onSave = async () => {
     const wasEditing = !!editingId;
     setStudentDocumentsError({});
     if (!unit || !classId) {
-      setStudentFormError("Selecione a unidade e a turma.");
+      reportStudentValidation("unitClass", "Selecione a unidade e a turma.");
       return false;
     }
+    clearStudentValidationError("unitClass");
     if (!classId || !name.trim()) {
-      setStudentFormError("Preencha o nome do aluno.");
+      reportStudentValidation("name", "Informe o nome do aluno.");
       return false;
     }
+    clearStudentValidationError("name");
     if (!isOnline) {
       setStudentFormError("Conecte-se ? internet para salvar o aluno.");
       return false;
@@ -972,9 +996,10 @@ export default function StudentsScreen() {
         : null
       : null;
     if (resolvedAge === null || Number.isNaN(resolvedAge)) {
-      setStudentFormError("Informe a data de nascimento.");
+      reportStudentValidation("birthDate", "Informe a data de nascimento.");
       return false;
     }
+    clearStudentValidationError("birthDate");
     const nowIso = new Date().toISOString();
     const studentId = editingId ? editingId : "s_" + Date.now();
     const resolvedOrganizationId =
@@ -986,9 +1011,10 @@ export default function StudentsScreen() {
       const raValidation = validateStudentRa(ra);
       if (raValidation) {
         setStudentDocumentsError((prev) => ({ ...prev, ra: raValidation }));
-        setStudentFormError(raValidation);
+        reportStudentValidation("ra", raValidation);
         return false;
       }
+      clearStudentValidationError();
       let resolvedPhotoUrl: string | undefined = photoUrl || undefined;
       const isRemotePhoto = /^https?:\/\//i.test(photoUrl ?? "");
 
@@ -1098,11 +1124,7 @@ export default function StudentsScreen() {
     editingId;
 
   const canSaveStudent =
-    !!unit &&
-    !!classId &&
-    !!name.trim() &&
-    ageNumber !== null &&
-    (!!birthDate.trim() || !!editingId);
+    true;
 
   const isEditDirty = useMemo(() => {
     if (!editingId || !editSnapshot) return false;
@@ -1169,14 +1191,16 @@ export default function StudentsScreen() {
   const doResetForm = useCallback(() => {
     closeAllPickers();
     setShowForm(false);
+    clearStudentValidationError();
     resetForm();
-  }, [closeAllPickers, resetForm, setShowForm]);
+  }, [clearStudentValidationError, closeAllPickers, resetForm, setShowForm]);
 
   const doResetCreateForm = useCallback(() => {
     closeAllPickers();
     setDismissedExistingStudentProbe("");
+    clearStudentValidationError();
     resetCreateForm();
-  }, [closeAllPickers, resetCreateForm]);
+  }, [clearStudentValidationError, closeAllPickers, resetCreateForm]);
 
   const { savePreRegistration } = useSavePreRegistration({
     activeOrganizationId: activeOrganization?.id,
@@ -2162,6 +2186,8 @@ export default function StudentsScreen() {
               showClassPicker={showClassPicker}
               classTriggerRef={classTriggerRef}
               studentFormError={studentFormError}
+              validationIssue={studentValidationIssue}
+              onClearValidation={clearStudentValidationError}
               existingStudentMatches={existingStudentMatches}
               onReviewExistingStudents={reviewExistingStudents}
               onDismissExistingStudentWarning={() => setDismissedExistingStudentProbe(existingStudentProbeKey)}
@@ -2567,6 +2593,8 @@ export default function StudentsScreen() {
         phone={phone}
         setPhone={setPhone}
         studentFormError={studentFormError}
+        validationIssue={studentValidationIssue}
+        onClearValidation={clearStudentValidationError}
         setShowCalendar={setShowCalendar}
         formatName={formatName}
         formatEmail={formatEmail}

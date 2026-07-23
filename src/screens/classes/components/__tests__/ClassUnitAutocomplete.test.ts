@@ -1,6 +1,6 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
-import { StyleSheet, TextInput } from "react-native";
+import { TextInput } from "react-native";
 
 import type { ThemeColors } from "../../../../ui/app-theme";
 import {
@@ -14,6 +14,24 @@ jest.mock("@expo/vector-icons", () => ({
     const ReactRuntime = require("react");
     return ReactRuntime.createElement("Ionicons", props);
   },
+}));
+
+jest.mock("../../../../ui/AnchoredDropdown", () => ({
+  AnchoredDropdown: ({ visible, children, ...props }: Record<string, unknown>) => {
+    const ReactRuntime = require("react");
+    return ReactRuntime.createElement(
+      "AnchoredDropdown",
+      { ...props, visible },
+      visible ? children : null
+    );
+  },
+}));
+
+jest.mock("../../../../ui/use-collapsible", () => ({
+  useCollapsibleAnimation: (open: boolean) => ({
+    animatedStyle: { opacity: open ? 1 : 0 },
+    isVisible: open,
+  }),
 }));
 
 const colors = {
@@ -68,12 +86,13 @@ describe("ClassUnitAutocomplete", () => {
     const input = renderer!.root.findByType(TextInput);
     act(() => input.props.onFocus());
     expect(renderer!.root.findAllByProps({ children: "Unidades existentes" })).toHaveLength(0);
-    const suggestions = renderer!.root.findByProps({
-      accessibilityLabel: "Sugestões de unidades existentes",
-    });
-    expect(StyleSheet.flatten(suggestions.props.style)).toEqual(
-      expect.objectContaining({ position: "absolute", top: "100%" })
+    const dropdown = renderer!.root.findByType("AnchoredDropdown");
+    expect(dropdown.props).toEqual(
+      expect.objectContaining({ visible: true, container: null })
     );
+    expect(
+      renderer!.root.findByProps({ accessibilityLabel: "Sugestões de unidades existentes" })
+    ).toBeTruthy();
     expect(
       renderer!.root.findByProps({ accessibilityLabel: "Usar unidade Rede Esperança" })
     ).toBeTruthy();
@@ -84,7 +103,7 @@ describe("ClassUnitAutocomplete", () => {
     const option = renderer!.root.findByProps({
       accessibilityLabel: "Usar unidade Rede Esperança",
     });
-    act(() => option.props.onPressIn());
+    act(() => option.props.onPress());
     expect(onChangeText).toHaveBeenLastCalledWith("Rede Esperança");
   });
 

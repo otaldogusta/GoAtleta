@@ -24,6 +24,7 @@ import {
 } from "../../src/api/class-responsibles";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
+import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-development-level";
 import { compareClassesBySchedule } from "../../src/core/class-schedule-sort";
 import type { ClassGroup, Student, TrainingSessionIntegrationRule } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
@@ -465,11 +466,7 @@ export default function ClassesScreen() {
     "Prevenção de lesões",
   ];
   const cycleLengthOptions = [...annualCycleOptions];
-  const mvLevelOptions = [
-    { value: "MV1", label: "Iniciante" },
-    { value: "MV2", label: "Intermediário" },
-    { value: "MV3", label: "Avançado" },
-  ];
+  const mvLevelOptions = [...CLASS_DEVELOPMENT_LEVEL_OPTIONS];
   const [showNewCycleCalendar, setShowNewCycleCalendar] = useState(false);
   const [showEditCycleCalendar, setShowEditCycleCalendar] = useState(false);
   const [showCycleLengthPicker, setShowCycleLengthPicker] = useState(false);

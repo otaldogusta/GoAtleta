@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Text, TextInput, View } from "react-native";
 
 import { normalizeUnitKey } from "../../../core/unit-key";
+import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
+import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
 
 const MAX_VISIBLE_UNITS = 6;
+
+type Layout = { x: number; y: number; width: number; height: number };
 
 export const buildExistingUnitOptions = (units: string[]) => {
   const labelsByKey = new Map<string, string>();
@@ -54,13 +58,25 @@ export function ClassUnitAutocomplete({
   onChangeText,
 }: ClassUnitAutocompleteProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [triggerLayout, setTriggerLayout] = useState<Layout | null>(null);
+  const triggerRef = useRef<View | null>(null);
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pressInSelectionRef = useRef<string | null>(null);
   const suggestions = useMemo(
     () => filterExistingUnitOptions(units, value),
     [units, value]
   );
   const selectedKey = normalizeUnitKey(value);
+  const { animatedStyle, isVisible } = useCollapsibleAnimation(showSuggestions, {
+    durationIn: 140,
+    durationOut: 100,
+    translateY: -4,
+  });
+
+  const measureTrigger = useCallback(() => {
+    triggerRef.current?.measureInWindow((x, y, width, height) => {
+      setTriggerLayout({ x, y, width, height });
+    });
+  }, []);
 
   useEffect(
     () => () => {
@@ -71,6 +87,7 @@ export function ClassUnitAutocomplete({
 
   const keepSuggestionsOpen = () => {
     if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+    measureTrigger();
     setShowSuggestions(true);
   };
 
@@ -84,24 +101,12 @@ export function ClassUnitAutocomplete({
     setShowSuggestions(false);
   };
 
-  const handleOptionPressIn = (unit: string) => {
-    pressInSelectionRef.current = normalizeUnitKey(unit);
-    handleSelect(unit);
-  };
-
-  const handleOptionPress = (unit: string) => {
-    const key = normalizeUnitKey(unit);
-    if (pressInSelectionRef.current === key) {
-      pressInSelectionRef.current = null;
-      return;
-    }
-    handleSelect(unit);
-  };
+  const suggestionsHeight = Math.min(214, Math.max(54, suggestions.length * 42 + 12));
 
   return (
-    <View style={{ position: "relative", zIndex: showSuggestions ? 5300 : 1, gap: 4 }}>
+    <View style={{ gap: 4 }}>
       <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
-      <View style={{ position: "relative", zIndex: showSuggestions ? 5301 : 1 }}>
+      <View ref={triggerRef} collapsable={false} style={{ position: "relative" }}>
         <TextInput
           accessibilityLabel="Unidade"
           autoCapitalize="words"
@@ -112,6 +117,7 @@ export function ClassUnitAutocomplete({
           onBlur={handleBlur}
           onChangeText={(nextValue) => {
             onChangeText(nextValue);
+            measureTrigger();
             setShowSuggestions(true);
           }}
           placeholderTextColor={colors.placeholder}
@@ -140,82 +146,67 @@ export function ClassUnitAutocomplete({
         >
           <GoAtletaIcon name="search" size={15} color={colors.muted} />
         </View>
-        {showSuggestions ? (
-          <View
-            accessibilityLabel="Sugestões de unidades existentes"
-            style={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              right: 0,
-              marginTop: 6,
-              height: Math.min(214, Math.max(54, suggestions.length * 42 + 12)),
-              padding: 6,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 14,
-              backgroundColor: colors.card,
-              overflow: "hidden",
-              zIndex: 5301,
-              elevation: 30,
-              shadowColor: "#000",
-              shadowOpacity: 0.2,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 10 },
-            }}
-          >
-            {suggestions.length ? (
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled
-                showsVerticalScrollIndicator={suggestions.length > 4}
-              >
-                {suggestions.map((unit) => {
-                  const active = normalizeUnitKey(unit) === selectedKey;
-                  return (
-                    <Pressable
-                      key={normalizeUnitKey(unit)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Usar unidade ${unit}`}
-                      onPressIn={() => handleOptionPressIn(unit)}
-                      onPress={() => handleOptionPress(unit)}
-                      style={{
-                        minHeight: 42,
-                        paddingHorizontal: 10,
-                        borderRadius: 10,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
-                        backgroundColor: active ? colors.primaryBg : "transparent",
-                      }}
-                    >
-                      <Text
-                        numberOfLines={1}
-                        style={{
-                          flex: 1,
-                          color: active ? colors.primaryText : colors.text,
-                          fontSize: 13,
-                          fontWeight: active ? "700" : "600",
-                        }}
-                      >
-                        {unit}
-                      </Text>
-                      {active ? (
-                        <GoAtletaIcon name="checkmark" size={15} color={colors.primaryText} />
-                      ) : null}
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            ) : (
-              <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-                Nenhuma correspondência. Você pode usar o nome digitado.
-              </Text>
-            )}
-          </View>
-        ) : null}
       </View>
+
+      <AnchoredDropdown
+        visible={isVisible}
+        layout={triggerLayout}
+        container={null}
+        animationStyle={animatedStyle}
+        zIndex={5301}
+        maxHeight={suggestionsHeight}
+        nestedScrollEnabled
+        showVerticalScrollIndicator={suggestions.length > 4}
+        onRequestClose={() => setShowSuggestions(false)}
+        interactiveRefs={[triggerRef]}
+        panelStyle={{ borderRadius: 14 }}
+        scrollContentStyle={{ padding: 6, gap: 0, paddingBottom: 6 }}
+      >
+        <View accessibilityLabel="Sugestões de unidades existentes">
+          {suggestions.length ? (
+            suggestions.map((unit) => {
+              const active = normalizeUnitKey(unit) === selectedKey;
+              return (
+                <Pressable
+                  key={normalizeUnitKey(unit)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Usar unidade ${unit}`}
+                  onPress={() => handleSelect(unit)}
+                  style={{
+                    minHeight: 42,
+                    paddingHorizontal: 10,
+                    borderRadius: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    backgroundColor: active ? colors.primaryBg : "transparent",
+                  }}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      color: active ? colors.primaryText : colors.text,
+                      fontSize: 13,
+                      fontWeight: active ? "700" : "600",
+                    }}
+                  >
+                    {unit}
+                  </Text>
+                  {active ? (
+                    <GoAtletaIcon name="checkmark" size={15} color={colors.primaryText} />
+                  ) : null}
+                </Pressable>
+              );
+            })
+          ) : (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+              Nenhuma correspondência. Você pode usar o nome digitado.
+            </Text>
+          )}
+        </View>
+      </AnchoredDropdown>
     </View>
   );
 }

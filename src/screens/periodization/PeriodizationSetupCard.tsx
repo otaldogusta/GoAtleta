@@ -1,6 +1,7 @@
 import type React from "react";
 import { Text, TextInput, View } from "react-native";
 
+import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../core/class-development-level";
 import { Button } from "../../ui/Button";
 import { DateInput } from "../../ui/DateInput";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -8,11 +9,7 @@ import { Pressable } from "../../ui/Pressable";
 import { getSectionCardStyle } from "../../ui/section-styles";
 import type { ThemeColors } from "../../ui/app-theme";
 
-const LEVEL_OPTIONS = [
-  { value: "MV1", label: "Iniciante" },
-  { value: "MV2", label: "Intermediário" },
-  { value: "MV3", label: "Avançado" },
-] as const;
+const LEVEL_OPTIONS = CLASS_DEVELOPMENT_LEVEL_OPTIONS;
 
 type PeriodizationSetupCardProps = {
   colors: ThemeColors;

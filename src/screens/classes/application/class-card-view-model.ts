@@ -1,4 +1,8 @@
 import type { ClassGroup, Student } from "../../../core/models";
+import {
+  resolveClassDevelopmentLevelLabel,
+  type ClassDevelopmentLevelLabel,
+} from "../../../core/class-development-level";
 
 export type ClassCardStudentAvatar = {
   id: string;
@@ -15,6 +19,7 @@ export type ClassCardTeacherViewModel = {
 };
 
 export type ClassCardViewModel = {
+  developmentLevelLabel: ClassDevelopmentLevelLabel;
   studentCount: number;
   visibleStudents: ClassCardStudentAvatar[];
   extraStudentCount: number;
@@ -74,6 +79,7 @@ export function buildClassCardViewModel({
   const teacherName = teacher?.name?.trim() || FALLBACK_TEACHER_NAME;
 
   return {
+    developmentLevelLabel: resolveClassDevelopmentLevelLabel(classGroup),
     studentCount: orderedStudents.length,
     visibleStudents,
     extraStudentCount: Math.max(0, orderedStudents.length - visibleStudents.length),

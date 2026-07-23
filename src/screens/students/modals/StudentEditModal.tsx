@@ -4,6 +4,7 @@ import {
     type RefObject,
     useEffect,
     useMemo,
+    useRef,
     useState,
 } from "react";
 import {
@@ -22,6 +23,11 @@ import { normalizeRaDigits } from "../../../utils/student-ra";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { DateInput } from "../../../ui/DateInput";
+import {
+    FormFieldValidationFeedback,
+    type FormValidationIssue,
+    getValidationFieldStyle,
+} from "../../../ui/form-validation-feedback";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import type { ClassModalityFilterValue } from "../components/ClassModalityFilterChips";
@@ -40,6 +46,7 @@ type CollapsibleAnim = {
 
 type Layout = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
+type StudentValidationField = "unitClass" | "name" | "birthDate" | "ra";
 
 const VOLLEYBALL_POSITION_OPTIONS: Array<{ value: Student["positionPrimary"]; label: string }> = [
     { value: "levantador", label: "Levantador" },
@@ -103,6 +110,8 @@ export type StudentEditModalProps = {
     phone: string;
     setPhone: (value: string) => void;
     studentFormError: string;
+    validationIssue?: FormValidationIssue<StudentValidationField> | null;
+    onClearValidation?: (field?: StudentValidationField) => void;
     setShowCalendar: (value: boolean) => void;
 
     // Formatters
@@ -246,6 +255,8 @@ export function StudentEditModal({
     phone,
     setPhone,
     studentFormError,
+    validationIssue,
+    onClearValidation,
     setShowCalendar,
     formatName,
     formatEmail,
@@ -329,6 +340,25 @@ export function StudentEditModal({
     colors,
     SelectOption,
 }: StudentEditModalProps) {
+    const nameInputRef = useRef<TextInput | null>(null);
+    const birthDateInputRef = useRef<TextInput | null>(null);
+    const raInputRef = useRef<TextInput | null>(null);
+
+    useEffect(() => {
+        if (!showEditModal || !validationIssue) return undefined;
+        const target =
+            validationIssue.field === "name"
+                ? nameInputRef
+                : validationIssue.field === "birthDate"
+                    ? birthDateInputRef
+                    : validationIssue.field === "ra"
+                        ? raInputRef
+                        : null;
+        if (!target) return undefined;
+        const timer = setTimeout(() => target.current?.focus(), 180);
+        return () => clearTimeout(timer);
+    }, [showEditModal, validationIssue]);
+
     const [classModalityFilter, setClassModalityFilter] = useState<ClassModalityFilterValue>("all");
     const [showSportModalityPicker, setShowSportModalityPicker] = useState(false);
     const sportModalityPickerAnim = useCollapsibleAnimation(showSportModalityPicker, {
@@ -510,13 +540,26 @@ export function StudentEditModal({
                                             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                                                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                                                     <Text style={{ color: colors.muted, fontSize: 11 }}>Nome do aluno</Text>
-                                                    <TextInput
-                                                        placeholder="Nome do aluno"
-                                                        value={name}
-                                                        onChangeText={setName}
-                                                        placeholderTextColor={colors.placeholder}
-                                                        style={{ borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }}
-                                                    />
+                                                    <FormFieldValidationFeedback
+                                                        message={validationIssue?.field === "name" ? validationIssue.message : ""}
+                                                        attempt={validationIssue?.field === "name" ? validationIssue.attempt : 0}
+                                                    >
+                                                        <TextInput
+                                                            ref={nameInputRef}
+                                                            placeholder="Nome do aluno"
+                                                            value={name}
+                                                            onChangeText={(value) => {
+                                                                onClearValidation?.("name");
+                                                                setName(value);
+                                                            }}
+                                                            accessibilityLabel="Nome do aluno"
+                                                            placeholderTextColor={colors.placeholder}
+                                                            style={[
+                                                                { borderWidth: 1, borderColor: colors.border, padding: 10, fontSize: 13, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText },
+                                                                getValidationFieldStyle(validationIssue?.field === "name", colors.dangerSolidBg),
+                                                            ]}
+                                                        />
+                                                    </FormFieldValidationFeedback>
                                                 </View>
                                                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                                                     <Text style={{ color: colors.muted, fontSize: 11 }}>Email do aluno (login)</Text>
@@ -535,7 +578,22 @@ export function StudentEditModal({
                                             {studentFormError ? <Text style={{ color: colors.dangerText, fontSize: 12 }}>{studentFormError}</Text> : null}
                                             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                                                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
-                                                    <DateInput value={birthDate} onChange={setBirthDate} placeholder="Data de nascimento" onOpenCalendar={() => setShowCalendar(true)} />
+                                                    <FormFieldValidationFeedback
+                                                        message={validationIssue?.field === "birthDate" ? validationIssue.message : ""}
+                                                        attempt={validationIssue?.field === "birthDate" ? validationIssue.attempt : 0}
+                                                    >
+                                                        <DateInput
+                                                            inputRef={birthDateInputRef}
+                                                            value={birthDate}
+                                                            onChange={(value) => {
+                                                                onClearValidation?.("birthDate");
+                                                                setBirthDate(value);
+                                                            }}
+                                                            placeholder="Data de nascimento"
+                                                            onOpenCalendar={() => setShowCalendar(true)}
+                                                            invalid={validationIssue?.field === "birthDate"}
+                                                        />
+                                                    </FormFieldValidationFeedback>
                                                     <Text style={{ color: colors.muted, fontSize: 12 }}>{ageNumber !== null ? `Idade: ${ageNumber} anos` : "Idade calculada automaticamente"}</Text>
                                                 </View>
                                                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
@@ -573,11 +631,17 @@ export function StudentEditModal({
                                                 ra={ra}
                                                 collegeCourse={collegeCourse}
                                                 onChangeRa={(value) => {
+                                                    onClearValidation?.("ra");
                                                     setRa(normalizeRaDigits(value));
                                                     setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
                                                 }}
                                                 onChangeCollegeCourse={setCollegeCourse}
-                                                errors={studentDocumentsError}
+                                                errors={{
+                                                    ...studentDocumentsError,
+                                                    ra: validationIssue?.field === "ra" ? validationIssue.message : studentDocumentsError.ra,
+                                                }}
+                                                raInputRef={raInputRef}
+                                                validationAttempt={validationIssue?.field === "ra" ? validationIssue.attempt : 0}
                                             />
                                         </View>
                                     </Animated.View>
@@ -977,10 +1041,21 @@ export function StudentEditModal({
                                                 <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
                                                     <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
                                                     <View ref={editClassTriggerRef}>
-                                                        <Pressable onPress={() => toggleEditPicker("class")} style={selectFieldStyle as StyleProp<ViewStyle>}>
-                                                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{selectedClassName || "Selecione a turma"}</Text>
-                                                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
-                                                        </Pressable>
+                                                        <FormFieldValidationFeedback
+                                                            message={validationIssue?.field === "unitClass" ? validationIssue.message : ""}
+                                                            attempt={validationIssue?.field === "unitClass" ? validationIssue.attempt : 0}
+                                                        >
+                                                            <Pressable
+                                                                onPress={() => toggleEditPicker("class")}
+                                                                style={[
+                                                                    selectFieldStyle as StyleProp<ViewStyle>,
+                                                                    getValidationFieldStyle(validationIssue?.field === "unitClass", colors.dangerSolidBg),
+                                                                ]}
+                                                            >
+                                                                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>{selectedClassName || "Selecione a turma"}</Text>
+                                                                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showEditClassPicker ? "180deg" : "0deg" }] }} />
+                                                            </Pressable>
+                                                        </FormFieldValidationFeedback>
                                                     </View>
                                                     {showEditClassPickerContent ? (
                                                         <Animated.View style={[editClassPickerAnimStyle, { overflow: "hidden" }]}>
@@ -1004,7 +1079,10 @@ export function StudentEditModal({
                                                                         classOptions={classOptions}
                                                                         filteredClassOptions={filteredClassOptions}
                                                                         selectedClassId={classId}
-                                                                        onSelectClass={handleSelectEditClass}
+                                                                        onSelectClass={(value) => {
+                                                                            onClearValidation?.("unitClass");
+                                                                            handleSelectEditClass(value);
+                                                                        }}
                                                                         compact
                                                                     />
                                                                 </ScrollView>
@@ -1062,13 +1140,13 @@ export function StudentEditModal({
                                     setEditSaving(false);
                                 }
                             }}
-                            disabled={editSaving || !isEditDirty || !name.trim()}
+                            disabled={editSaving || !isEditDirty}
                             style={{
                                 borderRadius: 12,
                                 backgroundColor: colors.primaryBg,
                                 paddingVertical: 11,
                                 alignItems: "center",
-                                opacity: editSaving ? 0.7 : !isEditDirty || !name.trim() ? 0.45 : 1,
+                                opacity: editSaving ? 0.7 : !isEditDirty ? 0.45 : 1,
                             }}
                         >
                             <Text style={{ color: colors.primaryText, fontWeight: "700" }}>

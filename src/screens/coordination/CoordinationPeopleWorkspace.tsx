@@ -36,12 +36,26 @@ import { radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../ui/app-theme";
+import { ConfirmCloseOverlay } from "../../ui/ConfirmCloseOverlay";
 import { useConfirmUndo } from "../../ui/confirm-undo";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import { useUndoableListDelete } from "../../ui/useUndoableListDelete";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
+import { resolveAccessModalLayout } from "./application/access-modal-layout";
+import { formatClassAssignmentMeta } from "./application/class-assignment-meta";
+import {
+  areInviteFormSnapshotsEqual,
+  createInviteFormSnapshot,
+  DEFAULT_INVITE_PERMISSION_KEYS,
+  type InviteFormSnapshot,
+} from "./application/invite-form";
+import {
+  areMemberAccessFormSnapshotsEqual,
+  createMemberAccessFormSnapshot,
+  type MemberAccessFormSnapshot,
+} from "./application/member-access-form";
 
 type SecondaryModuleKey = "attendance" | "access" | "reports" | "sync";
 type RoleFilter = "all" | "coordination" | "professor" | "intern";
@@ -434,10 +448,12 @@ export function CoordinationPeopleWorkspace({
   const { colors } = useAppTheme();
   const router = useRouter();
   const { confirm: confirmUndo } = useConfirmUndo();
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const responsiveLayout = useResponsiveLayout("dashboard");
   const supportsSplitLayout = responsiveLayout.supportsSplitView;
   const compact = responsiveLayout.isMobile;
+  const splitAccessModal = resolveAccessModalLayout(width) === "split";
+  const stackedAccessModalHeight = Math.max(320, Math.min(760, height - 96));
   const storageKey = `coordination_workspace_order_v1:${organizationId}`;
 
   const [search, setSearch] = useState("");
@@ -454,12 +470,12 @@ export function CoordinationPeopleWorkspace({
   const [modalMember, setModalMember] = useState<OrgMember | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteAudience>("professor");
-  const [invitePermissionKeys, setInvitePermissionKeys] = useState<MemberPermissionKey[]>([
-    "classes",
-    "training",
-    "calendar",
-    "absence_notices",
+  const [invitePermissionKeys, setInvitePermissionKeys] = useState<MemberPermissionKey[]>(() => [
+    ...DEFAULT_INVITE_PERMISSION_KEYS,
   ]);
+  const [inviteInitialSnapshot, setInviteInitialSnapshot] =
+    useState<InviteFormSnapshot | null>(null);
+  const [showInviteCloseConfirm, setShowInviteCloseConfirm] = useState(false);
   const [inviteBusyChannel, setInviteBusyChannel] = useState<"email" | "link" | null>(
     null
   );
@@ -473,6 +489,9 @@ export function CoordinationPeopleWorkspace({
   const [editRole, setEditRole] = useState<5 | 10 | 50>(10);
   const [editClassIds, setEditClassIds] = useState<string[]>([]);
   const [editPermissionKeys, setEditPermissionKeys] = useState<MemberPermissionKey[]>([]);
+  const [editInitialSnapshot, setEditInitialSnapshot] =
+    useState<MemberAccessFormSnapshot | null>(null);
+  const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [permissionLoading, setPermissionLoading] = useState(false);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<MemberPermissionKey[]>([]);
   const [selectedPermissionsLoading, setSelectedPermissionsLoading] = useState(false);
@@ -571,6 +590,33 @@ export function CoordinationPeopleWorkspace({
   const selectedAttendance = selectedClasses
     .map((head) => attendanceByClass.get(head.classId))
     .filter((item): item is AdminPendingAttendance => Boolean(item));
+  const currentInviteSnapshot = useMemo(
+    () =>
+      createInviteFormSnapshot({
+        email: inviteEmail,
+        role: inviteRole,
+        permissionKeys: invitePermissionKeys,
+      }),
+    [inviteEmail, invitePermissionKeys, inviteRole]
+  );
+  const isInviteDirty = Boolean(
+    inviteInitialSnapshot &&
+      !areInviteFormSnapshotsEqual(inviteInitialSnapshot, currentInviteSnapshot)
+  );
+  const currentEditSnapshot = useMemo(
+    () =>
+      createMemberAccessFormSnapshot({
+        role: editRole,
+        classIds: editClassIds,
+        permissionKeys: editPermissionKeys,
+      }),
+    [editClassIds, editPermissionKeys, editRole]
+  );
+  const isEditDirty = Boolean(
+    editInitialSnapshot &&
+      !areMemberAccessFormSnapshotsEqual(editInitialSnapshot, currentEditSnapshot)
+  );
+  const editSaveDisabled = editBusy || permissionLoading || !isEditDirty;
 
   useEffect(() => {
     const requestId = selectedPermissionRequestRef.current + 1;
@@ -624,9 +670,14 @@ export function CoordinationPeopleWorkspace({
   );
 
   const openInvite = () => {
+    const permissionKeys = [...DEFAULT_INVITE_PERMISSION_KEYS];
     setInviteEmail("");
     setInviteRole("professor");
-    setInvitePermissionKeys(["classes", "training", "calendar", "absence_notices"]);
+    setInvitePermissionKeys(permissionKeys);
+    setInviteInitialSnapshot(
+      createInviteFormSnapshot({ email: "", role: "professor", permissionKeys })
+    );
+    setShowInviteCloseConfirm(false);
     setInviteResult(null);
     setInviteResultChannel(null);
     setInviteEmailError(null);
@@ -640,6 +691,21 @@ export function CoordinationPeopleWorkspace({
     setInviteResultChannel(null);
     setInviteNotice(null);
   };
+
+  const closeInviteModal = useCallback(() => {
+    setShowInviteCloseConfirm(false);
+    setInviteInitialSnapshot(null);
+    setModalMode(null);
+  }, []);
+
+  const requestCloseInviteModal = useCallback(() => {
+    if (inviteBusyChannel !== null) return;
+    if (isInviteDirty) {
+      setShowInviteCloseConfirm(true);
+      return;
+    }
+    closeInviteModal();
+  }, [closeInviteModal, inviteBusyChannel, isInviteDirty]);
 
   const shakeInviteEmail = () => {
     const useNativeDriver = Platform.OS !== "web";
@@ -676,17 +742,31 @@ export function CoordinationPeopleWorkspace({
   const openEdit = async (member: OrgMember) => {
     const requestId = editPermissionRequestRef.current + 1;
     editPermissionRequestRef.current = requestId;
+    const initialRole = member.roleLevel >= 50 ? 50 : member.roleLevel >= 10 ? 10 : 5;
+    const initialClassIds = (classesByUser.get(member.userId) ?? []).map(
+      (item) => item.classId
+    );
     setModalMember(member);
-    setEditRole(member.roleLevel >= 50 ? 50 : member.roleLevel >= 10 ? 10 : 5);
-    setEditClassIds((classesByUser.get(member.userId) ?? []).map((item) => item.classId));
+    setEditRole(initialRole);
+    setEditClassIds(initialClassIds);
     setEditPermissionKeys([]);
+    setEditInitialSnapshot(null);
+    setShowEditCloseConfirm(false);
     setPermissionLoading(true);
     setModalMode("edit");
     try {
       const permissions = await adminListMemberPermissions(organizationId, member.userId);
       if (editPermissionRequestRef.current !== requestId) return;
-      setEditPermissionKeys(
-        permissions.filter((permission) => permission.isAllowed).map((permission) => permission.permissionKey)
+      const initialPermissionKeys = permissions
+        .filter((permission) => permission.isAllowed)
+        .map((permission) => permission.permissionKey);
+      setEditPermissionKeys(initialPermissionKeys);
+      setEditInitialSnapshot(
+        createMemberAccessFormSnapshot({
+          role: initialRole,
+          classIds: initialClassIds,
+          permissionKeys: initialPermissionKeys,
+        })
       );
     } catch {
       if (editPermissionRequestRef.current !== requestId) return;
@@ -698,6 +778,23 @@ export function CoordinationPeopleWorkspace({
     }
   };
 
+  const closeEditModal = useCallback(() => {
+    editPermissionRequestRef.current += 1;
+    setShowEditCloseConfirm(false);
+    setEditInitialSnapshot(null);
+    setModalMember(null);
+    setModalMode(null);
+  }, []);
+
+  const requestCloseEditModal = useCallback(() => {
+    if (editBusy) return;
+    if (isEditDirty) {
+      setShowEditCloseConfirm(true);
+      return;
+    }
+    closeEditModal();
+  }, [closeEditModal, editBusy, isEditDirty]);
+
   const openMessage = (member: OrgMember) => {
     setModalMember(member);
     setModalMode("message");
@@ -706,7 +803,7 @@ export function CoordinationPeopleWorkspace({
   const submitInvite = async (channel: "email" | "link") => {
     if (inviteRole === "student") {
       router.push("/coord/students" as never);
-      setModalMode(null);
+      closeInviteModal();
       return;
     }
     const email = inviteEmail.trim().toLowerCase();
@@ -756,6 +853,7 @@ export function CoordinationPeopleWorkspace({
       });
       setInviteResult(result.signup_link);
       setInviteResultChannel(channel);
+      setInviteInitialSnapshot(currentInviteSnapshot);
 
       let copied = false;
       try {
@@ -800,7 +898,7 @@ export function CoordinationPeopleWorkspace({
   };
 
   const submitEdit = async () => {
-    if (!modalMember) return;
+    if (!modalMember || editSaveDisabled) return;
     setEditBusy(true);
     try {
       if (modalMember.roleLevel < 50 || editRole === 50) {
@@ -817,7 +915,7 @@ export function CoordinationPeopleWorkspace({
           )
         )
       );
-      setModalMode(null);
+      closeEditModal();
       onRefresh();
       Alert.alert("Alterações salvas", "Função, turmas e permissões foram atualizadas.");
     } catch (error) {
@@ -837,25 +935,6 @@ export function CoordinationPeopleWorkspace({
           : "Sua operação está em dia."
       } Acesse o GoAtleta para conferir os detalhes.`
     : "";
-
-  const inviteRoleSummary =
-    inviteRole === "moderator"
-      ? "Coordenação"
-      : inviteRole === "intern"
-        ? "Estagiário"
-        : inviteRole === "student"
-          ? "Aluno"
-          : "Professor";
-  const inviteAccessSummary =
-    inviteRole === "moderator"
-      ? "acesso administrativo completo"
-      : inviteRole === "student"
-        ? "vínculo ao aluno selecionado"
-        : `${invitePermissionKeys.length} ${
-            invitePermissionKeys.length === 1 ? "permissão selecionada" : "permissões selecionadas"
-          }`;
-  const normalizedInviteEmail = inviteEmail.trim().toLowerCase();
-  const inviteEmailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedInviteEmail);
 
   const uniqueClasses = new Set(memberClassHeads.map((item) => item.classId)).size;
   const moduleMeta: Record<SecondaryModuleKey, { label: string; value: string | number }> = {
@@ -1646,7 +1725,7 @@ export function CoordinationPeopleWorkspace({
 
       <ModalSheet
         visible={modalMode === "invite"}
-        onClose={() => setModalMode(null)}
+        onClose={requestCloseInviteModal}
         position="center"
         cardStyle={{
           width: compact ? "100%" : 650,
@@ -1663,7 +1742,11 @@ export function CoordinationPeopleWorkspace({
               Defina o acesso inicial. Turmas específicas podem ser atribuídas após o aceite.
             </Text>
           </View>
-          <Pressable onPress={() => setModalMode(null)}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar convite"
+            onPress={requestCloseInviteModal}
+          >
             <GoAtletaIcon name="close" size={22} color={colors.text} />
           </Pressable>
         </View>
@@ -1826,7 +1909,7 @@ export function CoordinationPeopleWorkspace({
               {inviteRole === "student" ? (
                 <Pressable
                   onPress={() => {
-                    setModalMode(null);
+                    closeInviteModal();
                     router.push("/coord/students" as never);
                   }}
                   style={{
@@ -1942,44 +2025,6 @@ export function CoordinationPeopleWorkspace({
             </View>
           ) : null}
 
-          {inviteRole !== "student" ? (
-            <View
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderBottomWidth: 1,
-                borderBottomColor: border,
-                flexDirection: compact ? "column" : "row",
-                alignItems: compact ? "flex-start" : "center",
-                justifyContent: "space-between",
-                gap: 4,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-                <GoAtletaIcon name="shield" size={16} color={colors.successText} />
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                  {inviteRoleSummary} • {inviteAccessSummary}
-                </Text>
-              </View>
-              <Text
-                numberOfLines={1}
-                style={{
-                  color:
-                    normalizedInviteEmail && !inviteEmailIsValid
-                      ? colors.warningText
-                      : colors.muted,
-                  fontSize: 11,
-                }}
-              >
-                {inviteEmailIsValid
-                  ? `Envio por e-mail para ${normalizedInviteEmail}`
-                  : normalizedInviteEmail
-                    ? "Corrija o e-mail apenas se quiser enviar por e-mail"
-                    : "WhatsApp: link sem e-mail"}
-              </Text>
-            </View>
-          ) : null}
-
           <View
             style={{
               padding: 16,
@@ -1988,19 +2033,6 @@ export function CoordinationPeopleWorkspace({
               gap: 10,
             }}
           >
-            <Pressable
-              onPress={() => setModalMode(null)}
-              style={{
-                borderRadius: radius.internal,
-                borderWidth: 1,
-                borderColor: border,
-                paddingHorizontal: 18,
-                paddingVertical: 10,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
-            </Pressable>
             {inviteRole !== "student" ? (
               <Pressable
                 disabled={inviteBusyChannel !== null}
@@ -2054,32 +2086,60 @@ export function CoordinationPeopleWorkspace({
         </View>
       </ModalSheet>
 
+      <ConfirmCloseOverlay
+        visible={showInviteCloseConfirm}
+        title="Sair sem salvar?"
+        message="Você tem alterações não salvas."
+        confirmLabel="Sair sem salvar"
+        cancelLabel="Continuar editando"
+        onConfirm={closeInviteModal}
+        onCancel={() => setShowInviteCloseConfirm(false)}
+      />
+
       <ModalSheet
         visible={modalMode === "edit" && Boolean(modalMember)}
-        onClose={() => setModalMode(null)}
+        onClose={requestCloseEditModal}
         position="center"
         cardStyle={{
-          width: compact ? "100%" : 760,
+          width: compact ? Math.max(0, width - 32) : splitAccessModal ? 980 : 760,
           maxWidth: "100%",
-          maxHeight: "90%",
+          height: splitAccessModal ? undefined : stackedAccessModalHeight,
+          maxHeight: splitAccessModal ? "90%" : stackedAccessModalHeight,
+          flexDirection: "column",
           padding: 0,
           overflow: "hidden",
         }}
       >
         <View style={{ padding: 18, borderBottomWidth: 1, borderBottomColor: border, flexDirection: "row" }}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
-              Editar perfil e permissões
+              Perfil e permissões
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12, marginTop: 3 }}>
               {modalMember?.displayName}
             </Text>
           </View>
-          <Pressable onPress={() => setModalMode(null)}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar perfil e permissões"
+            onPress={requestCloseEditModal}
+            style={{
+              width: 36,
+              height: 36,
+              flexShrink: 0,
+              marginLeft: 12,
+              borderRadius: 18,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             <GoAtletaIcon name="close" size={22} color={colors.text} />
           </Pressable>
         </View>
-        <ScrollView contentContainerStyle={{ padding: 18, gap: 18 }}>
+        <ScrollView
+          style={splitAccessModal ? undefined : { flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ padding: 18, gap: 18 }}
+        >
           <View style={{ gap: 8 }}>
             <Text style={{ color: colors.text, fontWeight: "800" }}>Função</Text>
             <DropdownButton
@@ -2094,74 +2154,39 @@ export function CoordinationPeopleWorkspace({
             />
             {modalMember?.roleLevel && modalMember.roleLevel >= 50 ? (
               <Text style={{ color: colors.muted, fontSize: 11 }}>
-                O acesso administrativo existente não será reduzido por este formulário.
+                O acesso administrativo atual será mantido.
               </Text>
             ) : null}
           </View>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>
-              Turmas atribuídas ({editClassIds.length})
-            </Text>
-            <ScrollView
-              style={{ maxHeight: 220, borderWidth: 1, borderColor: border, borderRadius: radius.internal }}
-              showsVerticalScrollIndicator
-              nestedScrollEnabled
-            >
-              {organizationClasses.map((item) => {
-                const checked = editClassIds.includes(item.id);
-                return (
-                  <Pressable
-                    key={item.id}
-                    onPress={() =>
-                      setEditClassIds((current) =>
-                        checked ? current.filter((id) => id !== item.id) : [...current, item.id]
-                      )
-                    }
-                    style={{
-                      padding: 11,
-                      borderBottomWidth: 1,
-                      borderBottomColor: border,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
-                  >
-                    <GoAtletaIcon
-                      name={checked ? "checkbox" : "square"}
-                      size={19}
-                      color={checked ? colors.successText : colors.muted}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>{item.name}</Text>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>{item.unit}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>
-              Permissões ({editPermissionKeys.length})
-            </Text>
-            {permissionLoading ? (
-              <Text style={{ color: colors.muted }}>Carregando permissões...</Text>
-            ) : (
+          <View
+            style={{
+              flexDirection: splitAccessModal ? "row" : "column",
+              alignItems: "stretch",
+              gap: 16,
+            }}
+          >
+            <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>
+                Turmas atribuídas ({editClassIds.length})
+              </Text>
               <ScrollView
-                style={{ maxHeight: 240, borderWidth: 1, borderColor: border, borderRadius: radius.internal }}
+                style={{
+                  height: splitAccessModal ? 330 : 220,
+                  borderWidth: 1,
+                  borderColor: border,
+                  borderRadius: radius.internal,
+                }}
                 showsVerticalScrollIndicator
                 nestedScrollEnabled
               >
-                {MEMBER_PERMISSION_OPTIONS.map((option) => {
-                  const checked = editPermissionKeys.includes(option.key);
+                {organizationClasses.map((item) => {
+                  const checked = editClassIds.includes(item.id);
                   return (
                     <Pressable
-                      key={option.key}
+                      key={item.id}
                       onPress={() =>
-                        setEditPermissionKeys((current) =>
-                          checked
-                            ? current.filter((key) => key !== option.key)
-                            : [...current, option.key]
+                        setEditClassIds((current) =>
+                          checked ? current.filter((id) => id !== item.id) : [...current, item.id]
                         )
                       }
                       style={{
@@ -2179,47 +2204,94 @@ export function CoordinationPeopleWorkspace({
                         color={checked ? colors.successText : colors.muted}
                       />
                       <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.text, fontWeight: "700" }}>{option.label}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>{option.description}</Text>
+                        <Text style={{ color: colors.text, fontWeight: "700" }}>{item.name}</Text>
+                        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
+                          {formatClassAssignmentMeta(item)}
+                        </Text>
                       </View>
                     </Pressable>
                   );
                 })}
               </ScrollView>
-            )}
+            </View>
+            <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: "800" }}>
+                Permissões ({editPermissionKeys.length})
+              </Text>
+              <View
+                style={{
+                  height: splitAccessModal ? 330 : 220,
+                  borderWidth: 1,
+                  borderColor: border,
+                  borderRadius: radius.internal,
+                  overflow: "hidden",
+                }}
+              >
+                {permissionLoading ? (
+                  <View style={{ padding: 14 }}>
+                    <Text style={{ color: colors.muted }}>Carregando permissões...</Text>
+                  </View>
+                ) : (
+                  <ScrollView showsVerticalScrollIndicator nestedScrollEnabled>
+                    {MEMBER_PERMISSION_OPTIONS.map((option) => {
+                      const checked = editPermissionKeys.includes(option.key);
+                      return (
+                        <Pressable
+                          key={option.key}
+                          onPress={() =>
+                            setEditPermissionKeys((current) =>
+                              checked
+                                ? current.filter((key) => key !== option.key)
+                                : [...current, option.key]
+                            )
+                          }
+                          style={{
+                            padding: 11,
+                            borderBottomWidth: 1,
+                            borderBottomColor: border,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 10,
+                          }}
+                        >
+                          <GoAtletaIcon
+                            name={checked ? "checkbox" : "square"}
+                            size={19}
+                            color={checked ? colors.successText : colors.muted}
+                          />
+                          <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
           </View>
         </ScrollView>
         <View
           style={{
+            flexShrink: 0,
             padding: 16,
             borderTopWidth: 1,
             borderTopColor: border,
             flexDirection: "row",
             justifyContent: "flex-end",
-            gap: 10,
           }}
         >
           <Pressable
-            onPress={() => setModalMode(null)}
-            style={{
-              borderRadius: radius.internal,
-              borderWidth: 1,
-              borderColor: border,
-              paddingHorizontal: 18,
-              paddingVertical: 10,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
-          </Pressable>
-          <Pressable
-            disabled={editBusy || permissionLoading}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: editSaveDisabled }}
+            disabled={editSaveDisabled}
             onPress={() => void submitEdit()}
             style={{
               borderRadius: radius.internal,
               backgroundColor: colors.primaryBg,
               paddingHorizontal: 20,
               paddingVertical: 10,
-              opacity: editBusy || permissionLoading ? 0.65 : 1,
+              opacity: editSaveDisabled ? 0.45 : 1,
             }}
           >
             <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
@@ -2228,6 +2300,16 @@ export function CoordinationPeopleWorkspace({
           </Pressable>
         </View>
       </ModalSheet>
+
+      <ConfirmCloseOverlay
+        visible={showEditCloseConfirm}
+        title="Sair sem salvar?"
+        message="Você tem alterações não salvas."
+        confirmLabel="Sair sem salvar"
+        cancelLabel="Continuar editando"
+        onConfirm={closeEditModal}
+        onCancel={() => setShowEditCloseConfirm(false)}
+      />
 
       <ModalSheet
         visible={modalMode === "message" && Boolean(modalMember)}

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
 import {
     TextInput,
+    type TextInputProps,
     View,
 } from "react-native";
 import { Pressable } from "./Pressable";
@@ -47,17 +48,29 @@ const parseDateInputToIso = (value: string) => {
   return `${year}-${monthText}-${dayText}`;
 };
 
+export type DateInputProps = {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  onOpenCalendar?: () => void;
+  invalid?: boolean;
+  onFocus?: TextInputProps["onFocus"];
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+  inputRef?: Ref<TextInput>;
+};
+
 export function DateInput({
   value,
   onChange,
   placeholder = "Selecione a data",
   onOpenCalendar,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  placeholder?: string;
-  onOpenCalendar?: () => void;
-}) {
+  invalid = false,
+  onFocus,
+  accessibilityLabel,
+  accessibilityHint,
+  inputRef,
+}: DateInputProps) {
   const { colors } = useAppTheme();
   const [inputValue, setInputValue] = useState("");
   const canOpenCalendar = Boolean(onOpenCalendar);
@@ -71,8 +84,8 @@ export function DateInput({
       style={{
         flexDirection: "row",
         alignItems: "center",
-        borderWidth: 1,
-        borderColor: colors.border,
+        borderWidth: invalid ? 2 : 1,
+        borderColor: invalid ? colors.dangerSolidBg : colors.border,
         borderRadius: 12,
         backgroundColor: colors.background,
         paddingHorizontal: 12,
@@ -82,6 +95,7 @@ export function DateInput({
       }}
     >
       <TextInput
+        ref={inputRef}
         placeholder={placeholder}
         value={inputValue}
         onChangeText={(text) => {
@@ -97,6 +111,9 @@ export function DateInput({
           }
         }}
         keyboardType="numeric"
+        onFocus={onFocus}
+        accessibilityLabel={accessibilityLabel ?? placeholder}
+        accessibilityHint={accessibilityHint}
         placeholderTextColor={colors.placeholder}
         style={{
           flex: 1,
