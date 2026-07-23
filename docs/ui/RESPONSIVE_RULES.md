@@ -45,6 +45,9 @@ A viewport define as capacidades do shell. A largura interna do container define
 se um componente realmente comporta colunas, tabela ou painel permanente.
 
 - `useResponsiveLayout` resolve as capacidades da viewport.
+- No web, a largura responsiva vem da viewport de layout do documento. Isso
+  preserva o mobile normal e permite que “site para computador” no navegador
+  móvel ative o workspace, mesmo quando o navegador reduz a escala visual.
 - `useContainerResponsiveLayout` mede o container com `onLayout` e,
   quando disponível na web, `ResizeObserver`.
 - `ResponsiveGrid` só divide regiões quando a viewport autoriza split view e o

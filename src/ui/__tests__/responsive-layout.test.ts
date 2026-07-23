@@ -3,6 +3,7 @@ import {
   resolveResponsiveLayout,
   resolveResponsiveNavigation,
   resolveResponsiveTier,
+  resolveResponsiveViewportWidth,
 } from "../responsive-layout";
 
 describe("responsive layout", () => {
@@ -100,6 +101,23 @@ describe("responsive layout", () => {
     expect(invalid.isMobile).toBe(true);
     expect(negative.contentWidth).toBe(0);
     expect(negative.usesWorkspaceShell).toBe(false);
+  });
+
+  it("uses the web layout viewport when desktop-site mode scales the visual viewport", () => {
+    expect(resolveResponsiveViewportWidth(412, 980)).toBe(980);
+    expect(resolveResponsiveLayout(resolveResponsiveViewportWidth(412, 980))).toEqual(
+      expect.objectContaining({
+        isMobile: false,
+        usesWorkspaceShell: true,
+        supportsSplitView: true,
+      })
+    );
+  });
+
+  it("falls back to the measured width when the web layout viewport is unavailable", () => {
+    expect(resolveResponsiveViewportWidth(412, null)).toBe(412);
+    expect(resolveResponsiveViewportWidth(412, 0)).toBe(412);
+    expect(resolveResponsiveViewportWidth(412, Number.NaN)).toBe(412);
   });
 
   it("shows exactly one primary navigation model for each width", () => {
