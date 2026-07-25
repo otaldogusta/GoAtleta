@@ -446,7 +446,7 @@ function RootLayoutContent() {
       stuckEventsGuardRef.current = true;
       router.replace(appHomeHref);
     }
-  }, [appHomeHref, appStartedAt, bootstrapLoading, loading, navReady, normalizedPathname, rootState.routes, router]);
+  }, [appHomeHref, appStartedAtRef, bootstrapLoading, loading, navReady, normalizedPathname, rootState.routes, router]);
 
   useEffect(() => {
     // If web OAuth code is present, let the code-exchange effect handle navigation first
@@ -583,7 +583,7 @@ function RootLayoutContent() {
         return;
       }
     }
-  }, [biometricsEnabled, isInviteRoute, isPublicRoute, hasCredentialLoginBypass, isUnlocked, isDevStudentConsultationPreview, effectiveProfile, entryInviteCode, loading, memberPermissions, navReady, normalizedPathname, needsHybridEmailVerification, permissionsLoading, bootstrapLoading, router, role, roleLoading, session, isAdminProfile, appHomeHref, organizationLoading, appStartedAt]);
+  }, [biometricsEnabled, isInviteRoute, isPublicRoute, hasCredentialLoginBypass, isUnlocked, isDevStudentConsultationPreview, effectiveProfile, entryInviteCode, loading, memberPermissions, navReady, normalizedPathname, needsHybridEmailVerification, permissionsLoading, bootstrapLoading, router, role, roleLoading, session, isAdminProfile, appHomeHref, organizationLoading, appStartedAtRef]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
