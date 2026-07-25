@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Platform, Pressable, Text, View } from "react-native";
 import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";
 
@@ -252,11 +252,15 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
                 backgroundColor: colors.primaryBg,
                 borderWidth: 1,
                 borderColor: colors.border,
-                shadowColor: "#000",
-                shadowOpacity: 0.2,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 4 },
-                elevation: 6,
+                ...(Platform.OS === "web"
+                  ? { boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.2)" }
+                  : {
+                      shadowColor: "#000",
+                      shadowOpacity: 0.2,
+                      shadowRadius: 8,
+                      shadowOffset: { width: 0, height: 4 },
+                      elevation: 6,
+                    }),
               }}
             >
               <Animated.View

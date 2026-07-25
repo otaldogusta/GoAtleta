@@ -178,11 +178,15 @@ export function SaveToastProvider({
           backgroundColor,
           borderWidth: 1,
           borderColor,
-          shadowColor: "#000",
-          shadowOpacity: 0.16,
-          shadowRadius: 22,
-          shadowOffset: { width: 0, height: 10 },
-          elevation: 7,
+          ...(Platform.OS === "web"
+            ? { boxShadow: "0px 10px 22px rgba(0, 0, 0, 0.16)" }
+            : {
+                shadowColor: "#000",
+                shadowOpacity: 0.16,
+                shadowRadius: 22,
+                shadowOffset: { width: 0, height: 10 },
+                elevation: 7,
+              }),
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",

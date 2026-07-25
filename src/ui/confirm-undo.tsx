@@ -7,7 +7,7 @@ import {
     useRef,
     useState,
 } from "react";
-import { Animated, Easing, Text, View } from "react-native";
+import { Animated, Easing, Platform, Text, View } from "react-native";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
@@ -252,11 +252,15 @@ export function ConfirmUndoProvider({
               backgroundColor: colors.card,
               borderWidth: 1,
               borderColor: colors.border,
-              shadowColor: "#000",
-              shadowOpacity: 0.12,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 6 },
-              elevation: 4,
+              ...(Platform.OS === "web"
+                ? { boxShadow: "0px 6px 10px rgba(0, 0, 0, 0.12)" }
+                : {
+                    shadowColor: "#000",
+                    shadowOpacity: 0.12,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 4,
+                  }),
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
