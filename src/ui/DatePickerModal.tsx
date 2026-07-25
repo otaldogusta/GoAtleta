@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { Pressable } from "./Pressable";
 
 import { useAppTheme } from "./app-theme";
@@ -214,11 +214,15 @@ export function DatePickerModal({
                     viewMode === "month" ? colors.primaryBg : colors.card,
                   borderWidth: viewMode === "month" ? 1 : 0,
                   borderColor: viewMode === "month" ? colors.primaryText : colors.border,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.06,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 3 },
-                  elevation: 2,
+                  ...(Platform.OS === "web"
+                    ? { boxShadow: "0px 3px 6px rgba(0, 0, 0, 0.06)" }
+                    : {
+                        shadowColor: "#000",
+                        shadowOpacity: 0.06,
+                        shadowRadius: 6,
+                        shadowOffset: { width: 0, height: 3 },
+                        elevation: 2,
+                      }),
                 }}
               >
                 <Text
@@ -242,11 +246,15 @@ export function DatePickerModal({
                     viewMode === "year" ? colors.primaryBg : colors.card,
                   borderWidth: viewMode === "year" ? 1 : 0,
                   borderColor: viewMode === "year" ? colors.primaryText : colors.border,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.06,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 3 },
-                  elevation: 2,
+                  ...(Platform.OS === "web"
+                    ? { boxShadow: "0px 3px 6px rgba(0, 0, 0, 0.06)" }
+                    : {
+                        shadowColor: "#000",
+                        shadowOpacity: 0.06,
+                        shadowRadius: 6,
+                        shadowOffset: { width: 0, height: 3 },
+                        elevation: 2,
+                      }),
                 }}
               >
                 <Text
