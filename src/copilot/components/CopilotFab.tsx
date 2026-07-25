@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, StyleSheet, Text, View } from "react-native";
 
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { Pressable } from "../../ui/Pressable";
@@ -86,11 +86,15 @@ export const CopilotFab = memo(function CopilotFab({
           backgroundColor: "#111111",
           alignItems: "center",
           justifyContent: "center",
-          shadowColor: "#000",
-          shadowOpacity: 0.26,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 7,
+          ...(Platform.OS === "web"
+            ? { boxShadow: "0px 8px 14px rgba(0, 0, 0, 0.26)" }
+            : {
+                shadowColor: "#000",
+                shadowOpacity: 0.26,
+                shadowRadius: 14,
+                shadowOffset: { width: 0, height: 8 },
+                elevation: 7,
+              }),
         }}
       >
         <GoAtletaIcon

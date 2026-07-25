@@ -493,11 +493,15 @@ export default function LoginScreen() {
                   overflow: "hidden",
                   alignItems: "center",
                   justifyContent: "center",
-                  shadowColor: "#000",
-                  shadowOpacity: 0.12,
-                  shadowRadius: 8,
-                  shadowOffset: { width: 0, height: 4 },
-                  elevation: 3,
+                  ...(Platform.OS === "web"
+                    ? { boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.12)" }
+                    : {
+                        shadowColor: "#000",
+                        shadowOpacity: 0.12,
+                        shadowRadius: 8,
+                        shadowOffset: { width: 0, height: 4 },
+                        elevation: 3,
+                      }),
                 }}
               >
                 <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
@@ -518,11 +522,15 @@ export default function LoginScreen() {
                 borderColor: colors.border,
                 overflow: "hidden",
                 gap: 14,
-                shadowColor: "#000",
-                shadowOpacity: 0.08,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 8 },
-                elevation: 5,
+                ...(Platform.OS === "web"
+                    ? { boxShadow: "0px 8px 16px rgba(0, 0, 0, 0.08)" }
+                    : {
+                        shadowColor: "#000",
+                        shadowOpacity: 0.08,
+                        shadowRadius: 16,
+                        shadowOffset: { width: 0, height: 8 },
+                        elevation: 5,
+                      }),
               }}
             >
               <View
