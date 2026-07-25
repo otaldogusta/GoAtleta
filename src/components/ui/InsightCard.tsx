@@ -12,17 +12,9 @@ type InsightCardProps = {
   embedded?: boolean;
 };
 
-const confidenceLabel = (confidence: number): string => {
-  if (confidence >= 0.85) return "Alta confiança";
-  if (confidence >= 0.70) return "Média confiança";
-  return "Baixa confiança";
-};
 
-const confidenceColor = (confidence: number, colors: ReturnType<typeof useAppTheme>["colors"]): string => {
-  if (confidence >= 0.85) return colors.successText ?? "#22c55e";
-  if (confidence >= 0.70) return colors.warningText ?? "#f59e0b";
-  return colors.muted ?? "#94a3b8";
-};
+
+
 
 export function InsightCard({ insight, onDismiss, onOpenAssistant, compact = false, embedded = false }: InsightCardProps) {
   const { colors, mode } = useAppTheme();

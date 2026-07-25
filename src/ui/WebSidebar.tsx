@@ -212,7 +212,11 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const organizationContext = useOptionalOrganization();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
-  const [sidebarExpanded, setSidebarExpandedState] = useState(false);
+  const [sidebarExpanded, setSidebarExpandedState] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const stored = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
+    return stored === "expanded";
+  });
   const [hoveredCompactItemKey, setHoveredCompactItemKey] = useState<string | null>(null);
   const [compactTooltip, setCompactTooltip] = useState<{
     key: string;
@@ -232,10 +236,17 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
   const selectedPreview = rolePreview[role];
   const profilePath = getScopedProfilePath(pathname || "/");
+  const isProfileMenuOpen = expanded && profileMenuOpen;
+  const isProfileSwitcherOpen = isProfileMenuOpen && profileSwitcherOpen;
+  const closeProfileMenu = useCallback(() => {
+    setProfileSwitcherOpen(false);
+    setProfileMenuOpen(false);
+  }, []);
 
   const navigateTo = useCallback(
     (href: string) => {
       if (href === pathname) return;
+      closeProfileMenu();
       const currentPathname =
         typeof window !== "undefined" ? window.location.pathname : pathname;
       if (
@@ -247,52 +258,20 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       }
       router.push(href as never);
     },
-    [pathname, router]
+    [pathname, router, closeProfileMenu]
   );
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
-    if (stored === "expanded") {
-      setSidebarExpandedState(true);
-    } else if (stored === "compact") {
-      setSidebarExpandedState(false);
-    }
-  }, []);
 
   const setSidebarExpanded = useCallback((nextExpanded: boolean) => {
     setSidebarExpandedState(nextExpanded);
     if (!nextExpanded) {
-      setProfileMenuOpen(false);
+      closeProfileMenu();
     }
     if (typeof window === "undefined") return;
     window.localStorage.setItem(
       SIDEBAR_EXPANDED_STORAGE_KEY,
       nextExpanded ? "expanded" : "compact"
     );
-  }, []);
-
-  useEffect(() => {
-    setProfileMenuOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!profileMenuOpen) {
-      setProfileSwitcherOpen(false);
-    }
-  }, [profileMenuOpen]);
-
-  useEffect(() => {
-    if (!expanded) {
-      setProfileMenuOpen(false);
-    }
-  }, [expanded]);
-
-  useEffect(() => {
-    if (!canExpand) {
-      setSidebarExpandedState(false);
-    }
-  }, [canExpand]);
+  }, [closeProfileMenu]);
 
   useEffect(() => {
     if (!expanded || typeof document === "undefined") return;
@@ -308,7 +287,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   }, [expanded, setSidebarExpanded]);
 
   useEffect(() => {
-    if (!profileMenuOpen || typeof document === "undefined") return;
+    if (!isProfileMenuOpen || typeof document === "undefined") return;
 
     const isEventInsideMenu = (target: EventTarget | null) => {
       if (typeof Node === "undefined" || !(target instanceof Node)) return false;
@@ -317,7 +296,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     };
 
     const closeMenu = () => {
-      setProfileMenuOpen(false);
+      closeProfileMenu();
     };
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -359,11 +338,11 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       document.removeEventListener("scroll", handleScroll, true);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [profileMenuOpen]);
+  }, [isProfileMenuOpen, closeProfileMenu]);
 
   const applyProfilePreview = useCallback(
     async (preview: ProfileSwitchId) => {
-      setProfileMenuOpen(false);
+      closeProfileMenu();
       const realRole: Extract<UserRole, "trainer" | "student"> =
         preview === "student" ? "student" : "trainer";
       if (hasHybridAccount) {
@@ -379,7 +358,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       }
       router.replace(previewRoutes[preview] as never);
     },
-    [hasHybridAccount, refreshRole, router, setActiveRole, setDevProfilePreview]
+    [closeProfileMenu, hasHybridAccount, refreshRole, router, setActiveRole, setDevProfilePreview]
   );
 
   const visibleProfileSwitchIds = resolveVisibleProfileSwitchIds({
@@ -389,11 +368,6 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) =>
     visibleProfileSwitchIds.includes(option.id)
   );
-
-  const closeProfileMenu = () => {
-    setProfileSwitcherOpen(false);
-    setProfileMenuOpen(false);
-  };
 
   const toggleProfileMenu = () => {
     setProfileSwitcherOpen(false);
@@ -521,7 +495,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         } as any,
       ]}
     >
-      {canSwitchProfile && profileSwitcherOpen ? renderProfileSwitcher() : null}
+      {canSwitchProfile && isProfileSwitcherOpen ? renderProfileSwitcher() : null}
 
       <Pressable
         {...({
@@ -531,7 +505,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
           onPointerEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
         } as any)}
         accessibilityLabel={canSwitchProfile ? "Alternar workspace" : "Abrir perfil e configurações"}
-        accessibilityState={canSwitchProfile ? { expanded: profileSwitcherOpen } : undefined}
+        accessibilityState={canSwitchProfile ? { expanded: isProfileSwitcherOpen } : undefined}
         onFocus={() => canSwitchProfile && setProfileSwitcherOpen(true)}
         onHoverIn={() => canSwitchProfile && setProfileSwitcherOpen(true)}
         onPress={() => {
@@ -548,7 +522,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
           flexDirection: "row",
           alignItems: "center",
           gap: 11,
-          backgroundColor: profileSwitcherOpen ? "rgba(255,255,255,0.08)" : "transparent",
+          backgroundColor: isProfileSwitcherOpen ? "rgba(255,255,255,0.08)" : "transparent",
         }}
       >
         <View
@@ -845,7 +819,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         onHoverIn={showCompactTooltip}
         onHoverOut={hideCompactTooltip}
         onPress={() => {
-          setProfileMenuOpen(false);
+          closeProfileMenu();
           setSidebarExpanded(false);
           navigateTo(item.href);
         }}
@@ -1008,10 +982,10 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         </ScrollView>
 
         <View ref={profileMenuRootRef} style={{ position: "relative", alignSelf: "center" }}>
-          {profileMenuOpen ? renderProfileMenu("compact") : null}
-          <Pressable
-            accessibilityLabel={profileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
-            accessibilityState={{ expanded: profileMenuOpen }}
+           {isProfileMenuOpen ? renderProfileMenu("compact") : null}
+           <Pressable
+            accessibilityLabel={isProfileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
+            accessibilityState={{ expanded: isProfileMenuOpen }}
             onPress={toggleProfileMenu}
             style={{
               width: 58,
@@ -1020,11 +994,11 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
               alignSelf: "center",
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: profileMenuOpen
-                ? "rgba(255,255,255,0.13)"
-                : "rgba(255,255,255,0.08)",
+               backgroundColor: isProfileMenuOpen
+                 ? "rgba(255,255,255,0.13)"
+                 : "rgba(255,255,255,0.08)",
               borderWidth: 1,
-              borderColor: profileMenuOpen
+              borderColor: isProfileMenuOpen
                 ? "rgba(65, 217, 132, 0.62)"
                 : "rgba(255,255,255,0.10)",
             }}
@@ -1057,7 +1031,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       <Pressable
         key={item.key}
         onPress={() => {
-          setProfileMenuOpen(false);
+          closeProfileMenu();
           navigateTo(item.href);
         }}
         style={{
@@ -1182,18 +1156,18 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       </ScrollView>
 
       <View ref={profileMenuRootRef} style={{ position: "relative" }}>
-        {profileMenuOpen ? renderProfileMenu("expanded") : null}
+        {isProfileMenuOpen ? renderProfileMenu("expanded") : null}
 
         <Pressable
-          accessibilityLabel={profileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
-          accessibilityState={{ expanded: profileMenuOpen }}
+          accessibilityLabel={isProfileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
+          accessibilityState={{ expanded: isProfileMenuOpen }}
           onPress={toggleProfileMenu}
           style={{
             minHeight: 58,
             borderRadius: 18,
             borderWidth: 1,
-            borderColor: profileMenuOpen ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
-            backgroundColor: profileMenuOpen ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.08)",
+            borderColor: isProfileMenuOpen ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
+            backgroundColor: isProfileMenuOpen ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.08)",
             paddingHorizontal: 12,
             flexDirection: "row",
             alignItems: "center",
@@ -1225,7 +1199,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
             </Text>
           </View>
           <GoAtletaIcon
-            name={profileMenuOpen ? "chevronDown" : "chevronUp"}
+            name={isProfileMenuOpen ? "chevronDown" : "chevronUp"}
             size={17}
             color="rgba(255,255,255,0.62)"
           />

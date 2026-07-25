@@ -243,7 +243,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   }, [session]);
 
   useEffect(() => {
-    void refresh();
+    Promise.resolve().then(() => {
+      void refresh();
+    });
   }, [refresh]);
 
   const setActiveRole = useCallback(

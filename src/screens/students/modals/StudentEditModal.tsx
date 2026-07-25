@@ -419,14 +419,18 @@ export function StudentEditModal({
 
     useEffect(() => {
         if (!showEditClassPicker) return;
-        setClassModalityFilter(selectedClassModality ?? "all");
+        Promise.resolve().then(() => {
+          setClassModalityFilter(selectedClassModality ?? "all");
+        });
     }, [selectedClassModality, showEditClassPicker]);
 
     useEffect(() => {
         if (!showEditClassPicker) return;
         if (classModalityFilter === "all") return;
         if (!classModalities.includes(classModalityFilter)) {
-            setClassModalityFilter(selectedClassModality ?? "all");
+            Promise.resolve().then(() => {
+              setClassModalityFilter(selectedClassModality ?? "all");
+            });
         }
     }, [classModalities, classModalityFilter, selectedClassModality, showEditClassPicker]);
 

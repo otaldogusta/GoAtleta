@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
@@ -34,10 +34,6 @@ export function ActivityCatalogFilterSheet({
 }: Props) {
   const { colors } = useAppTheme();
   const [draft, setDraft] = useState<CatalogFilterState>(filters);
-
-  useEffect(() => {
-    if (visible) setDraft(filters);
-  }, [filters, visible]);
 
   const apply = () => {
     onApply(draft);

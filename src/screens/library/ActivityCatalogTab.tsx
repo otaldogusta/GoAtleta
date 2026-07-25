@@ -90,6 +90,7 @@ export function ActivityCatalogTab() {
       </View>
 
       <ActivityCatalogFilterSheet
+        key={showFilters ? `filters-open:${JSON.stringify(filters)}` : "filters-closed"}
         visible={showFilters}
         filters={filters}
         options={options}
@@ -98,6 +99,7 @@ export function ActivityCatalogTab() {
       />
 
       <ActivityCatalogVideoDetailSheet
+        key={detailItem ? `detail:${detailItem.id}` : "detail-closed"}
         item={detailItem}
         onClose={() => setDetailItem(null)}
         onAddToLesson={setAddItem}

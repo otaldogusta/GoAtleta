@@ -15,15 +15,10 @@ import {
     supabasePatch,
     supabasePost,
 } from "./client";
-import {
-    buildScoutingLogClientId,
-    buildSessionLogClientId,
-    buildStudentScoutingClientId,
-    enqueueWrite,
-} from "./nfc-sync";
 import type { ScoutingLogRow, SessionLogRow, StudentScoutingRow } from "./row-types";
 import { getTrainingPlans } from "./training";
 import { resolveTrainingPlanForDate, syncTrainingSessionFromReport } from "./training-sessions";
+import { enqueueWrite } from "./pending-write-queue";
 
 // ---------------------------------------------------------------------------
 // Row mappers
@@ -72,6 +67,29 @@ const studentScoutingRowToLog = (row: StudentScoutingRow): StudentScoutingLog =>
   createdAt: row.createdat,
   updatedAt: row.updatedat ?? row.createdat,
 });
+
+const buildSessionLogClientId = (log: SessionLog) => {
+  const existing = (log.clientId || log.id || "").trim();
+  if (existing) return existing;
+  const timestamp = Number.isFinite(Date.parse(log.createdAt)) ? Date.parse(log.createdAt) : Date.now();
+  const suffix = Number.isFinite(Date.parse(log.createdAt)) ? "" : `_${Math.random().toString(16).slice(2, 6)}`;
+  return `session_${log.classId}_${timestamp}${suffix}`;
+};
+
+const buildScoutingLogClientId = (log: ScoutingLog) => {
+  const existing = (log.clientId || log.id || "").trim();
+  if (existing) return existing;
+  const datePart = log.date ? log.date.trim() : "unknown";
+  const mode = log.mode === "jogo" ? "jogo" : "treino";
+  return `scout_${log.classId}_${datePart}_${mode}`;
+};
+
+const buildStudentScoutingClientId = (log: StudentScoutingLog) => {
+  const existing = (log.id || "").trim();
+  if (existing) return existing;
+  const datePart = log.date ? log.date.trim() : "unknown";
+  return `student_scout_${log.studentId}_${log.classId}_${datePart}`;
+};
 
 // ---------------------------------------------------------------------------
 // Scouting logs

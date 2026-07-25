@@ -245,23 +245,37 @@ export function PlanningLibraryBridgeSheet({
 
   useEffect(() => {
     if (!visible) {
-      setSelectedCatalogItem(null);
-      setShowFilters(false);
+      Promise.resolve().then(() => {
+        setSelectedCatalogItem(null);
+      });
+      Promise.resolve().then(() => {
+        setShowFilters(false);
+      });
       return;
     }
-    setActiveTab("catalog");
-    setFilters({
-      ...EMPTY_CATALOG_FILTERS,
-      recommendedPhase: blockKey ? defaultPhaseByBlock[blockKey] : "",
+    Promise.resolve().then(() => {
+      setActiveTab("catalog");
     });
-    setLinkQuery("");
+    Promise.resolve().then(() => {
+      setFilters({
+            ...EMPTY_CATALOG_FILTERS,
+            recommendedPhase: blockKey ? defaultPhaseByBlock[blockKey] : "",
+          });
+    });
+    Promise.resolve().then(() => {
+      setLinkQuery("");
+    });
   }, [blockKey, visible]);
 
   useEffect(() => {
     if (!visible || activeTab !== "links") return;
     let alive = true;
-    setLoadingLinks(true);
-    setLinksError("");
+    Promise.resolve().then(() => {
+      setLoadingLinks(true);
+    });
+    Promise.resolve().then(() => {
+      setLinksError("");
+    });
     getExercises()
       .then((items) => {
         if (alive) setLinks(items);

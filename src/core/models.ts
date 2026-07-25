@@ -1,8 +1,8 @@
 import type { ClassModality } from "./class-modality";
-import type { SessionDecisionTrace } from "./cycle-day-planning/session-decision-trace";
+import type { SessionDecisionTrace } from "./cycle-day-planning/session-decision-trace-types";
 import type { AppliedPedagogicalReference } from "./document-intelligence";
 import type { PedagogicalApproachDetection } from "./methodology/pedagogical-approach-detector";
-import type { SessionPlanningContext } from "./session-planning-context-contract";
+import type { SessionPlanningContext } from "./session-planning-context-types";
 
 export type AgeBand = string;
 export type Goal = string;

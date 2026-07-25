@@ -96,7 +96,9 @@ export function useDailyLessonPlan(
   ]);
 
   useEffect(() => {
-    void load();
+    Promise.resolve().then(() => {
+      void load();
+    });
   }, [load]);
 
   const save = useCallback(

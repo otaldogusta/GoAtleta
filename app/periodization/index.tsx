@@ -273,38 +273,9 @@ const emptyWeek: WeekPlan = {
   source: "AUTO",
 };
 
-const planReviewFieldLabels: Record<string, string> = {
-  phase: "Fase",
-  objective: "Objetivo",
-  loadTarget: "Carga",
-  intensityTarget: "Intensidade",
-  technicalFocus: "Foco técnico",
-  physicalFocus: "Foco físico",
-  constraints: "Restrições",
-  progressionModel: "Progressão",
-};
 
-const formatPlanReviewValue = (value: unknown) => {
-  if (Array.isArray(value)) {
-    return (
-      value
-        .map((item) => normalizeText(String(item ?? "")))
-        .filter(Boolean)
-        .join(" • ") || "Sem valor"
-    );
-  }
-  if (value == null) return "Sem valor";
-  if (typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "Sim" : "Não";
-  if (typeof value === "object") {
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return "Sem valor";
-    }
-  }
-  return normalizeText(String(value)) || "Sem valor";
-};
+
+
 
 const formatPeriodizationContextModel = (
   value: PeriodizationContext["model"],
@@ -376,24 +347,7 @@ const getVolumePalette = (level: VolumeLevel, colors: ThemeColors) => {
   };
 };
 
-const getPhaseTrackPalette = (phase: string, colors: ThemeColors) => {
-  const normalized = normalizeText(phase).toLowerCase();
-  if (normalized.includes("recuper")) {
-    return { bg: colors.successBg, text: colors.successText };
-  }
-  if (
-    normalized.includes("base") ||
-    normalized.includes("prepara") ||
-    normalized.includes("desenvol") ||
-    normalized.includes("consol")
-  ) {
-    return { bg: colors.warningBg, text: colors.warningText };
-  }
-  if (normalized.includes("compet")) {
-    return { bg: colors.dangerBg, text: colors.dangerText };
-  }
-  return { bg: colors.secondaryBg, text: colors.text };
-};
+
 
 const formatIsoDate = (value: Date) => {
   const y = value.getFullYear();
@@ -692,7 +646,6 @@ export default function PeriodizationScreen() {
     setEditPSETarget,
     setEditSource,
     setIsSavingWeek,
-    resetWeekEditor,
   } = useWeekEditor();
   const {
     editingWeek,
@@ -725,7 +678,6 @@ export default function PeriodizationScreen() {
     setPainAlertDates,
   } = useAcwrState();
   const {
-    acwrRatio,
     acwrMessage,
     acwrLimitError,
     acwrLimits,
@@ -757,8 +709,6 @@ export default function PeriodizationScreen() {
     showClassPicker,
     showMesoPicker,
     showMicroPicker,
-    classPickerTop,
-    unitPickerTop,
     classTriggerLayout,
     unitTriggerLayout,
     mesoTriggerLayout,
@@ -828,8 +778,7 @@ export default function PeriodizationScreen() {
   const { animatedStyle: cycleAnimStyle, isVisible: showCycleContent } =
     useCollapsibleAnimation(sectionOpen.cycle);
 
-  const { animatedStyle: weekAnimStyle, isVisible: showWeekContent } =
-    useCollapsibleAnimation(sectionOpen.week);
+  useCollapsibleAnimation(sectionOpen.week);
 
   const {
     animatedStyle: competitiveProfileAnimStyle,
@@ -866,7 +815,7 @@ export default function PeriodizationScreen() {
     isVisible: showMicroPickerContent,
   } = useCollapsibleAnimation(showMicroPicker);
 
-  const syncPickerLayouts = useCallback(() => {
+  useCallback(() => {
     if (!isPickerOpen) return;
 
     requestAnimationFrame(() => {
@@ -898,17 +847,7 @@ export default function PeriodizationScreen() {
         setContainerWindow({ x, y });
       });
     });
-  }, [
-    isPickerOpen,
-
-    showClassPicker,
-
-    showUnitPicker,
-
-    showMesoPicker,
-
-    showMicroPicker,
-  ]);
+  }, [isPickerOpen, showClassPicker, showUnitPicker, showMesoPicker, showMicroPicker, setClassTriggerLayout, setUnitTriggerLayout, setMesoTriggerLayout, setMicroTriggerLayout, setContainerWindow]);
 
   const closeAllPickers = closeAllPickersFromHook;
 
@@ -920,7 +859,7 @@ export default function PeriodizationScreen() {
         setClassTriggerLayout({ x, y, width, height });
       });
     });
-  }, [showClassPicker]);
+  }, [setClassTriggerLayout, showClassPicker]);
 
   useEffect(() => {
     if (!showUnitPicker) return;
@@ -930,7 +869,7 @@ export default function PeriodizationScreen() {
         setUnitTriggerLayout({ x, y, width, height });
       });
     });
-  }, [showUnitPicker]);
+  }, [setUnitTriggerLayout, showUnitPicker]);
 
   useEffect(() => {
     if (!showMesoPicker) return;
@@ -940,7 +879,7 @@ export default function PeriodizationScreen() {
         setMesoTriggerLayout({ x, y, width, height });
       });
     });
-  }, [showMesoPicker]);
+  }, [setMesoTriggerLayout, showMesoPicker]);
 
   useEffect(() => {
     if (!showMicroPicker) return;
@@ -950,7 +889,7 @@ export default function PeriodizationScreen() {
         setMicroTriggerLayout({ x, y, width, height });
       });
     });
-  }, [showMicroPicker]);
+  }, [setMicroTriggerLayout, showMicroPicker]);
 
   useEffect(() => {
     if (
@@ -966,7 +905,7 @@ export default function PeriodizationScreen() {
         setContainerWindow({ x, y });
       });
     });
-  }, [showUnitPicker, showClassPicker, showMesoPicker, showMicroPicker]);
+  }, [showUnitPicker, showClassPicker, showMesoPicker, showMicroPicker, setContainerWindow]);
 
   useEffect(() => {
     let alive = true;
@@ -993,7 +932,9 @@ export default function PeriodizationScreen() {
     const currentClass =
       classes.find((item) => item.id === selectedClassId) ?? null;
     if (!currentClass?.id) {
-      setPlanningCycles([]);
+      Promise.resolve().then(() => {
+        setPlanningCycles([]);
+      });
       return;
     }
     (async () => {
@@ -1022,27 +963,41 @@ export default function PeriodizationScreen() {
       const match = classes.find((item) => item.id === classParam);
 
       if (match) {
-        if (match.unit) setSelectedUnit(match.unit);
+        if (match.unit) Promise.resolve().then(() => {
+          setSelectedUnit(match.unit);
+        });
 
-        setSelectedClassId(match.id);
+        Promise.resolve().then(() => {
+          setSelectedClassId(match.id);
+        });
 
-        setAllowEmptyClass(false);
+        Promise.resolve().then(() => {
+          setAllowEmptyClass(false);
+        });
 
-        setDidApplyParams(true);
+        Promise.resolve().then(() => {
+          setDidApplyParams(true);
+        });
 
         return;
       }
 
-      setDidApplyParams(true);
+      Promise.resolve().then(() => {
+        setDidApplyParams(true);
+      });
 
       return;
     }
 
     if (unitParam) {
-      setSelectedUnit(unitParam);
+      Promise.resolve().then(() => {
+        setSelectedUnit(unitParam);
+      });
     }
 
-    setDidApplyParams(true);
+    Promise.resolve().then(() => {
+      setDidApplyParams(true);
+    });
   }, [classes, didApplyParams, initialClassParam, initialUnitParam]);
 
   const unitOptions = useMemo(() => {
@@ -1090,10 +1045,18 @@ export default function PeriodizationScreen() {
   );
 
   useEffect(() => {
-    setPeriodizationGoal(selectedClass?.goal ?? "");
-    setPeriodizationMvLevel(selectedClass?.mvLevel ?? "");
-    setPeriodizationCycleStartDate(selectedClass?.cycleStartDate ?? "");
-    setPeriodizationSetupError("");
+    Promise.resolve().then(() => {
+      setPeriodizationGoal(selectedClass?.goal ?? "");
+    });
+    Promise.resolve().then(() => {
+      setPeriodizationMvLevel(selectedClass?.mvLevel ?? "");
+    });
+    Promise.resolve().then(() => {
+      setPeriodizationCycleStartDate(selectedClass?.cycleStartDate ?? "");
+    });
+    Promise.resolve().then(() => {
+      setPeriodizationSetupError("");
+    });
   }, [
     selectedClass?.cycleStartDate,
     selectedClass?.goal,
@@ -1136,13 +1099,7 @@ export default function PeriodizationScreen() {
       selectedClass
         ? resolveWeeklyAutopilotKnowledgeDomain(selectedClass)
         : null,
-    [
-      selectedClass?.ageBand,
-      selectedClass?.equipment,
-      selectedClass?.goal,
-      selectedClass?.level,
-      selectedClass?.mvLevel,
-    ],
+    [selectedClass],
   );
   const isCompetitiveMode = isCompetitivePlanningMode(
     competitiveProfile?.planningMode,
@@ -1156,13 +1113,21 @@ export default function PeriodizationScreen() {
     let alive = true;
 
     if (!selectedClass || !periodizationKnowledgeDomain) {
-      setPeriodizationKnowledgeSnapshot(null);
-      setIsLoadingPeriodizationKnowledge(false);
+      Promise.resolve().then(() => {
+        setPeriodizationKnowledgeSnapshot(null);
+      });
+      Promise.resolve().then(() => {
+        setIsLoadingPeriodizationKnowledge(false);
+      });
       return;
     }
 
-    setPeriodizationKnowledgeSnapshot(null);
-    setIsLoadingPeriodizationKnowledge(true);
+    Promise.resolve().then(() => {
+      setPeriodizationKnowledgeSnapshot(null);
+    });
+    Promise.resolve().then(() => {
+      setIsLoadingPeriodizationKnowledge(true);
+    });
 
     const timer = setTimeout(() => {
       (async () => {
@@ -1200,7 +1165,7 @@ export default function PeriodizationScreen() {
     };
   }, [activeOrganization?.id, periodizationKnowledgeDomain, selectedClass]);
 
-  const chatbotConflictBottom = Math.max(insets.bottom + 92, 108);
+
   const plansFabBottom = Math.max(insets.bottom + 166, 182);
   const plansFabMenuBottom = plansFabBottom + 74;
   const plansFabRight = 16;
@@ -1241,7 +1206,7 @@ export default function PeriodizationScreen() {
   const classUnitLabel = normalizeText(
     selectedClass?.unit ?? (selectedUnit || "Selecione"),
   );
-  const classAgeBandLabel = normalizeText(selectedClass?.ageBand ?? "09-11");
+
   const classGenderLabel = selectedClass?.gender ?? "misto";
   const classStartTimeLabel = selectedClass?.startTime
     ? normalizeText(`Horário ${selectedClass.startTime}`)
@@ -1454,12 +1419,24 @@ export default function PeriodizationScreen() {
 
   useEffect(() => {
     if (!selectedClassId) {
-      setCompetitiveProfile(null);
-      setCalendarExceptions([]);
-      setExceptionDateInput("");
-      setExceptionReasonInput("");
-      setCompetitiveTargetDateInput("");
-      setCompetitiveCycleStartDateInput("");
+      Promise.resolve().then(() => {
+        setCompetitiveProfile(null);
+      });
+      Promise.resolve().then(() => {
+        setCalendarExceptions([]);
+      });
+      Promise.resolve().then(() => {
+        setExceptionDateInput("");
+      });
+      Promise.resolve().then(() => {
+        setExceptionReasonInput("");
+      });
+      Promise.resolve().then(() => {
+        setCompetitiveTargetDateInput("");
+      });
+      Promise.resolve().then(() => {
+        setCompetitiveCycleStartDateInput("");
+      });
       return;
     }
 
@@ -1498,21 +1475,29 @@ export default function PeriodizationScreen() {
 
   useEffect(() => {
     if (!selectedClass) {
-      setCompetitiveTargetDateInput("");
-      setCompetitiveCycleStartDateInput("");
+      Promise.resolve().then(() => {
+        setCompetitiveTargetDateInput("");
+      });
+      Promise.resolve().then(() => {
+        setCompetitiveCycleStartDateInput("");
+      });
       return;
     }
 
-    setCompetitiveTargetDateInput(
-      formatDateForInput(competitiveProfile?.targetDate ?? ""),
-    );
-    setCompetitiveCycleStartDateInput(
-      formatDateForInput(
-        competitiveProfile?.cycleStartDate ??
-          selectedClass.cycleStartDate ??
-          formatIsoDate(new Date()),
-      ),
-    );
+    Promise.resolve().then(() => {
+      setCompetitiveTargetDateInput(
+            formatDateForInput(competitiveProfile?.targetDate ?? ""),
+          );
+    });
+    Promise.resolve().then(() => {
+      setCompetitiveCycleStartDateInput(
+            formatDateForInput(
+              competitiveProfile?.cycleStartDate ??
+                selectedClass.cycleStartDate ??
+                formatIsoDate(new Date()),
+            ),
+          );
+    });
   }, [
     competitiveProfile?.cycleStartDate,
     competitiveProfile?.targetDate,
@@ -1521,7 +1506,9 @@ export default function PeriodizationScreen() {
 
   useEffect(() => {
     if (!selectedClass) {
-      setRecentSessionSummaries([]);
+      Promise.resolve().then(() => {
+        setRecentSessionSummaries([]);
+      });
       return;
     }
 
@@ -1581,13 +1568,17 @@ export default function PeriodizationScreen() {
     if (hasInitialClass) return;
 
     if (!hasUnitSelected) {
-      setSelectedClassId("");
+      Promise.resolve().then(() => {
+        setSelectedClassId("");
+      });
 
       return;
     }
 
     if (!filteredClasses.length) {
-      setSelectedClassId("");
+      Promise.resolve().then(() => {
+        setSelectedClassId("");
+      });
 
       return;
     }
@@ -1603,12 +1594,16 @@ export default function PeriodizationScreen() {
       return;
     }
 
-    setSelectedClassId(filteredClasses[0].id);
-  }, [allowEmptyClass, filteredClasses, hasUnitSelected, selectedClassId]);
+    Promise.resolve().then(() => {
+      setSelectedClassId(filteredClasses[0].id);
+    });
+  }, [allowEmptyClass, filteredClasses, hasInitialClass, hasUnitSelected, selectedClassId]);
 
   useEffect(() => {
     if (!hasUnitSelected) {
-      setUnitMismatchWarning("");
+      Promise.resolve().then(() => {
+        setUnitMismatchWarning("");
+      });
 
       return;
     }
@@ -1617,16 +1612,22 @@ export default function PeriodizationScreen() {
       selectedClass &&
       normalizeUnitKey(selectedClass.unit) !== normalizeUnitKey(selectedUnit)
     ) {
-      setSelectedClassId("");
+      Promise.resolve().then(() => {
+        setSelectedClassId("");
+      });
 
-      setUnitMismatchWarning(
-        "A turma selecionada pertence a outra unidade. Selecione uma turma desta unidade.",
-      );
+      Promise.resolve().then(() => {
+        setUnitMismatchWarning(
+                "A turma selecionada pertence a outra unidade. Selecione uma turma desta unidade.",
+              );
+      });
 
       return;
     }
 
-    setUnitMismatchWarning("");
+    Promise.resolve().then(() => {
+      setUnitMismatchWarning("");
+    });
   }, [hasUnitSelected, selectedClass, selectedUnit]);
 
   useEffect(() => {
@@ -1634,7 +1635,9 @@ export default function PeriodizationScreen() {
 
     const next = resolvePlanBand(normalizeAgeBand(selectedClass.ageBand));
 
-    setAgeBand(next);
+    Promise.resolve().then(() => {
+      setAgeBand(next);
+    });
 
     if (typeof selectedClass.cycleLengthWeeks === "number") {
       const cycleValue =
@@ -1645,12 +1648,18 @@ export default function PeriodizationScreen() {
           cycleValue as (typeof annualCycleOptions)[number],
         )
       ) {
-        setCycleLength(cycleValue);
+        Promise.resolve().then(() => {
+          setCycleLength(cycleValue);
+        });
       } else {
-        setCycleLength(DEFAULT_ANNUAL_CYCLE_LENGTH);
+        Promise.resolve().then(() => {
+          setCycleLength(DEFAULT_ANNUAL_CYCLE_LENGTH);
+        });
       }
     } else {
-      setCycleLength(DEFAULT_ANNUAL_CYCLE_LENGTH);
+      Promise.resolve().then(() => {
+        setCycleLength(DEFAULT_ANNUAL_CYCLE_LENGTH);
+      });
     }
 
     if (selectedClass.daysOfWeek.length) {
@@ -1658,7 +1667,9 @@ export default function PeriodizationScreen() {
         .length as (typeof sessionsOptions)[number];
 
       if (sessionsOptions.includes(nextSessions)) {
-        setSessionsPerWeek(nextSessions);
+        Promise.resolve().then(() => {
+          setSessionsPerWeek(nextSessions);
+        });
       }
     }
   }, [selectedClass]);
@@ -1687,13 +1698,13 @@ export default function PeriodizationScreen() {
     setAcwrLimits(next);
 
     acwrSavedRef.current = next;
-  }, [selectedClass]);
+  }, [selectedClass, setAcwrLimits]);
 
   useEffect(() => {
     const validation = validateAcwrLimits(acwrLimits);
 
     setAcwrLimitError(validation.ok ? "" : validation.message);
-  }, [acwrLimits.high, acwrLimits.low]);
+  }, [acwrLimits, acwrLimits.high, acwrLimits.low, setAcwrLimitError]);
 
   const persistAcwrLimits = useCallback(
     async (next: { high: string; low: string }) => {
@@ -1728,7 +1739,7 @@ export default function PeriodizationScreen() {
               : item,
           ),
         );
-      } catch (error) {
+      } catch {
         logAction("acwr_limits_save_failed", {
           classId: selectedClassId,
 
@@ -1750,7 +1761,7 @@ export default function PeriodizationScreen() {
     }, 600);
 
     return () => clearTimeout(handle);
-  }, [acwrLimits.high, acwrLimits.low, persistAcwrLimits, selectedClassId]);
+  }, [acwrLimits, acwrLimits.high, acwrLimits.low, persistAcwrLimits, selectedClassId]);
 
   useClassPlansLoader({
     selectedClassId,
@@ -1894,7 +1905,7 @@ export default function PeriodizationScreen() {
   const canExportPlans =
     Boolean(selectedClass) && hasPeriodizationRows && hasWeekPlans;
 
-  const summary = useMemo(() => {
+  const summary = (() => {
     if (isCompetitiveMode) {
       return [
         "Planejamento competitivo por turma com datas reais",
@@ -1932,19 +1943,12 @@ export default function PeriodizationScreen() {
 
       "Monitorar PSE e recuperação",
     ];
-  }, [
-    ageBand,
-    competitiveProfile?.targetCompetition,
-    competitiveProfile?.tacticalSystem,
-    isCompetitiveMode,
-  ]);
+  })();
 
   const progressBars = weekPlans.map((week) => volumeToRatio[week.volume]);
 
   const {
     currentWeek,
-    currentClassPlanForContext,
-    currentWeekPlanForContext,
     periodizationContext,
   } = useMemo(
     () =>
@@ -2263,9 +2267,11 @@ export default function PeriodizationScreen() {
   useEffect(() => {
     if (!hasWeekPlans || activeTab !== "semana") return;
     const fallbackWeek = Math.max(1, Math.min(currentWeek, weekPlans.length));
-    setAgendaWeekNumber((prev) => {
-      if (prev == null) return fallbackWeek;
-      return Math.max(1, Math.min(prev, weekPlans.length));
+    Promise.resolve().then(() => {
+      setAgendaWeekNumber((prev) => {
+            if (prev == null) return fallbackWeek;
+            return Math.max(1, Math.min(prev, weekPlans.length));
+          });
     });
   }, [activeTab, currentWeek, hasWeekPlans, weekPlans.length]);
 
@@ -2309,19 +2315,25 @@ export default function PeriodizationScreen() {
 
   useEffect(() => {
     if (!hasWeekPlans) {
-      setAgendaWeekNumber(null);
+      Promise.resolve().then(() => {
+        setAgendaWeekNumber(null);
+      });
       return;
     }
 
     const fallbackWeek = Math.max(1, Math.min(currentWeek, weekPlans.length));
-    setAgendaWeekNumber((prev) => {
-      if (prev == null) return fallbackWeek;
-      return Math.max(1, Math.min(prev, weekPlans.length));
+    Promise.resolve().then(() => {
+      setAgendaWeekNumber((prev) => {
+            if (prev == null) return fallbackWeek;
+            return Math.max(1, Math.min(prev, weekPlans.length));
+          });
     });
   }, [currentWeek, hasWeekPlans, weekPlans.length]);
 
   useEffect(() => {
-    setSelectedDayIndex(null);
+    Promise.resolve().then(() => {
+      setSelectedDayIndex(null);
+    });
   }, [activeWeek.week]);
 
   useEffect(() => {
@@ -2386,7 +2398,7 @@ export default function PeriodizationScreen() {
     return false;
   }, [weekPlans]);
 
-  const warningMessage = useMemo(() => {
+  useMemo(() => {
     if (highLoadStreak) {
       return "Duas semanas seguidas em carga alta. Considere uma semana de recuperação.";
     }
@@ -2461,19 +2473,7 @@ export default function PeriodizationScreen() {
 
       setShowWeekEditor(true);
     },
-    [
-      activeCycleStartDate,
-      ageBand,
-      calendarExceptions,
-      competitiveProfile,
-      effectiveCycleLength,
-      isCompetitiveMode,
-      periodizationModel,
-      sportProfile,
-      selectedClass,
-      visibleClassPlans,
-      weeklySessions,
-    ],
+    [selectedClass, visibleClassPlans, isCompetitiveMode, effectiveCycleLength, activeCycleStartDate, calendarExceptions, competitiveProfile, ageBand, periodizationModel, weeklySessions, sportProfile, setEditingWeek, setEditingPlanId, setEditPhase, setEditTheme, setEditPedagogicalRule, setEditTechnicalFocus, setEditPhysicalFocus, setEditConstraints, setEditMvFormat, setEditWarmupProfile, setEditJumpTarget, setEditPSETarget, setEditSource],
   );
 
   const buildManualPlanForWeek = useCallback(
@@ -2638,7 +2638,9 @@ export default function PeriodizationScreen() {
     let alive = true;
 
     if (!selectedClass) {
-      setRecentDailyLessonPlans([]);
+      Promise.resolve().then(() => {
+        setRecentDailyLessonPlans([]);
+      });
       return;
     }
 
@@ -2656,12 +2658,14 @@ export default function PeriodizationScreen() {
     return () => {
       alive = false;
     };
-  }, [selectedClass?.id]);
+  }, [selectedClass]);
 
   // Load observability history for the selected class from local SQLite
   useEffect(() => {
     if (!selectedClass?.id) {
-      setPlanObservabilityHistory([]);
+      Promise.resolve().then(() => {
+        setPlanObservabilityHistory([]);
+      });
       return;
     }
     listPlanObservabilitySummariesByClass(selectedClass.id)
@@ -2801,7 +2805,7 @@ export default function PeriodizationScreen() {
     setEditPSETarget(normalizeText(plan.rpeTarget));
 
     setEditSource("AUTO");
-  }, [buildAutoPlanForWeek, editingWeek, selectedClass, visibleClassPlans]);
+  }, [buildAutoPlanForWeek, editingWeek, selectedClass, setEditConstraints, setEditJumpTarget, setEditMvFormat, setEditPSETarget, setEditPhase, setEditPhysicalFocus, setEditSource, setEditTechnicalFocus, setEditTheme, setEditWarmupProfile, visibleClassPlans]);
 
   const { handleSaveWeek } = useSaveWeek({
     selectedClass,
@@ -2893,7 +2897,7 @@ export default function PeriodizationScreen() {
         setUnitMismatchWarning("");
       }
     },
-    [selectedClass, selectedUnit],
+    [selectedClass, selectedUnit, setShowUnitPicker],
   );
 
   const handleSelectClass = useCallback((cls: ClassGroup) => {
@@ -2906,7 +2910,7 @@ export default function PeriodizationScreen() {
     setUnitMismatchWarning("");
 
     setShowClassPicker(false);
-  }, []);
+  }, [setShowClassPicker]);
 
   const handleClearClass = useCallback(() => {
     setSelectedClassId("");
@@ -2916,7 +2920,7 @@ export default function PeriodizationScreen() {
     setUnitMismatchWarning("");
 
     setShowClassPicker(false);
-  }, []);
+  }, [setShowClassPicker]);
 
   const handleSelectMeso = useCallback(
     (value: (typeof cycleOptions)[number]) => {
@@ -2924,7 +2928,7 @@ export default function PeriodizationScreen() {
 
       setShowMesoPicker(false);
     },
-    [],
+    [setShowMesoPicker],
   );
 
   const handleSelectMicro = useCallback(
@@ -2934,7 +2938,7 @@ export default function PeriodizationScreen() {
       setShowMicroPicker(false);
     },
 
-    [],
+    [setShowMicroPicker],
   );
 
   const UnitOption = useMemo(
@@ -3305,7 +3309,7 @@ export default function PeriodizationScreen() {
     selectedClass,
   ]);
 
-  const getWeekSchedule = (week: WeekPlan | undefined, sessions: number) => {
+  const getWeekSchedule = useCallback((week: WeekPlan | undefined, sessions: number) => {
     if (!week) return [];
 
     if (isCompetitiveMode && week.week) {
@@ -3353,25 +3357,11 @@ export default function PeriodizationScreen() {
       mesoLabel: activeMesoLabel,
       recentSessions: recentSessionSummaries,
     });
-  };
+  }, [activeClassPlan, activeCycleStartDate, activeDominantBlockLabel, activeMacroLabel, activeMesoLabel, calendarExceptions, isCompetitiveMode, periodizationModel, recentSessionSummaries, selectedClass, sportProfile]);
 
   const weekSchedule = useMemo(
     () => getWeekSchedule(activeWeek, sessionsPerWeek),
-    [
-      activeClassPlan,
-      activeCycleStartDate,
-      activeDominantBlockLabel,
-      activeMacroLabel,
-      activeMesoLabel,
-      activeWeek,
-      calendarExceptions,
-      isCompetitiveMode,
-      periodizationModel,
-      recentSessionSummaries,
-      selectedClass,
-      sessionsPerWeek,
-      sportProfile,
-    ],
+    [activeWeek, getWeekSchedule, sessionsPerWeek],
   );
 
   const [qaModeEnabled, setQaModeEnabled] = usePersistedState<boolean>(
@@ -3382,7 +3372,9 @@ export default function PeriodizationScreen() {
 
   useEffect(() => {
     if (!qaModeEnabled && showQaDebugPanel) {
-      setShowQaDebugPanel(false);
+      Promise.resolve().then(() => {
+        setShowQaDebugPanel(false);
+      });
     }
   }, [qaModeEnabled, showQaDebugPanel]);
 
@@ -3460,7 +3452,7 @@ export default function PeriodizationScreen() {
         }
       })
       .catch(() => {});
-  }, [activeClassPlan?.id, weeklyObservabilitySummary]);
+  }, [activeClassPlan, weeklyObservabilitySummary]);
 
   const isSelectedDayRest = selectedDay
     ? !normalizeText(selectedDay.session ?? "").trim()
@@ -3472,7 +3464,7 @@ export default function PeriodizationScreen() {
       : nextDateForDayNumber(selectedDay.dayNumber)
     : null;
 
-  const volumeCounts = useMemo(() => {
+  useMemo(() => {
     return weekPlans.reduce(
       (acc, week) => {
         acc[week.volume] += 1;

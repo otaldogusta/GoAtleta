@@ -279,8 +279,12 @@ export function AuthProvider({
   useEffect(() => {
     let alive = true;
     if (initialSession !== undefined) {
-      setSession(initialSession ?? null);
-      setLoading(false);
+      Promise.resolve().then(() => {
+        setSession(initialSession ?? null);
+      });
+      Promise.resolve().then(() => {
+        setLoading(false);
+      });
       return () => {
         alive = false;
       };

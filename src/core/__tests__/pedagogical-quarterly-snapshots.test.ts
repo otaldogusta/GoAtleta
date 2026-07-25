@@ -1,7 +1,7 @@
 import { PEDAGOGICAL_QUARTER_MONTH_INDEX } from "../pedagogy/pedagogical-quarterly-matrix";
 import { resolveNextPedagogicalStepFromPeriodization } from "../pedagogy/resolve-next-pedagogical-step-from-periodization";
 
-type QuarterKey = keyof typeof PEDAGOGICAL_QUARTER_MONTH_INDEX;
+
 
 const buildQuarterlySnapshot = (ageBand: "08-10" | "11-12" | "13-14") => {
   const q1 = resolveNextPedagogicalStepFromPeriodization({ ageBand, monthIndex: PEDAGOGICAL_QUARTER_MONTH_INDEX.Q1 });

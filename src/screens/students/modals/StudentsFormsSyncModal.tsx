@@ -111,7 +111,7 @@ const readConflictValue = (value: unknown, side: "incoming" | "existing" = "inco
 };
 
 const buildApplyErrorHint = (
-  rows: Array<{ rowNumber: number; errorMessage: string | null; flags?: string[] | null }>
+  rows: { rowNumber: number; errorMessage: string | null; flags?: string[] | null }[]
 ) => {
   const samples = rows
     .map((row) => {
@@ -145,11 +145,7 @@ type ModalityClassMap = Record<string, string | null>;
 type RowDecision = "import" | "anamnesis" | "ignore";
 type DropdownLayout = { x: number; y: number; width: number; height: number };
 
-const ROW_DECISION_OPTIONS: Array<{ key: RowDecision; label: string }> = [
-  { key: "import", label: "Importar" },
-  { key: "anamnesis", label: "Anamnese" },
-  { key: "ignore", label: "Ignorar" },
-];
+
 
 const getClassLabel = (item: ClassGroup) => {
   const gender = item.gender === "feminino" ? "Feminino" : item.gender === "masculino" ? "Masculino" : "Misto";
@@ -392,8 +388,11 @@ export function StudentsFormsSyncModal({
     if (!intakes.length) return null;
     return buildAthleteIntakeSummary(intakes);
   }, [loadedSheet]);
-  const modalityStats = loadedSheet?.detectedModalities ?? [];
-  const volleyballModalities = useMemo(
+  const modalityStats = useMemo(
+    () => loadedSheet?.detectedModalities ?? [],
+    [loadedSheet]
+  );
+  useMemo(
     () => modalityStats.filter((item) => item.isVolleyball),
     [modalityStats]
   );
@@ -430,7 +429,7 @@ export function StudentsFormsSyncModal({
     });
     return next;
   }, [storedModalityClassMap, validClassIds]);
-  const classChoices = useMemo(
+  useMemo(
     () => classes.map((item) => ({ id: item.id, label: getClassLabel(item) })),
     [classes]
   );
@@ -524,13 +523,13 @@ export function StudentsFormsSyncModal({
       (previewResult.rows ?? []).map((item) => [Number(item.rowNumber), item] as const)
     );
 
-    const details: Array<{
+    const details: {
       rowNumber: number;
       name: string;
       sexLabel: string;
       reason: string;
       action: string;
-    }> = [];
+    }[] = [];
 
     const totals = {
       total: 0,
@@ -624,15 +623,21 @@ export function StudentsFormsSyncModal({
   useEffect(() => {
     if (!visible) return;
     if (!unitOptions.length) {
-      setSelectedUnit("");
+      Promise.resolve().then(() => {
+        setSelectedUnit("");
+      });
       return;
     }
     if (selectedDefaultClass?.unit) {
-      setSelectedUnit(selectedDefaultClass.unit);
+      Promise.resolve().then(() => {
+        setSelectedUnit(selectedDefaultClass.unit);
+      });
       return;
     }
     if (!selectedUnit || !unitOptions.includes(selectedUnit)) {
-      setSelectedUnit("");
+      Promise.resolve().then(() => {
+        setSelectedUnit("");
+      });
     }
   }, [selectedDefaultClass?.unit, selectedUnit, unitOptions, visible]);
 
@@ -691,7 +696,7 @@ export function StudentsFormsSyncModal({
       }
       return nextOpen;
     });
-  }, [syncSyncDropdownLayouts]);
+  }, []);
 
   const openClassDropdown = useCallback(() => {
     setShowUnitDropdown(false);
@@ -709,7 +714,7 @@ export function StudentsFormsSyncModal({
       }
       return nextOpen;
     });
-  }, [syncSyncDropdownLayouts]);
+  }, []);
 
   const resetFeedback = useCallback(() => {
     setFlowError(null);
@@ -723,9 +728,11 @@ export function StudentsFormsSyncModal({
   }, [closeSyncDropdowns]);
 
   useEffect(() => {
-    setForceApplyConflictRows((current) =>
-      current.filter((rowNumber) => validConflictRowNumbers.has(Number(rowNumber)))
-    );
+    Promise.resolve().then(() => {
+      setForceApplyConflictRows((current) =>
+            current.filter((rowNumber) => validConflictRowNumbers.has(Number(rowNumber)))
+          );
+    });
   }, [validConflictRowNumbers]);
 
   const toggleForceApplyConflictRow = useCallback((rowNumber: number) => {
@@ -821,7 +828,7 @@ export function StudentsFormsSyncModal({
     setNeedsPreviewRefresh(true);
   }, [modalityClassMap, setStoredModalityClassMap]);
 
-  const handlePreview = useCallback(async () => {
+  const handlePreview = async () => {
     if (!organizationId) {
       Alert.alert("Sincronizar Forms", "Selecione uma organização ativa.");
       return;
@@ -880,20 +887,7 @@ export function StudentsFormsSyncModal({
       setPreviewResult(null);
       setLoadedSheet(null);
     }
-  }, [
-    buildRowsWithModalityMapping,
-    classes,
-    defaultClassId,
-    modalityClassMap,
-    organizationId,
-    session?.access_token,
-    selectedUnit,
-    storedDefaultClassIdLoaded,
-    rowDecisions,
-    setStoredModalityClassMap,
-    sheetUrl,
-    storedModalityClassMapLoaded,
-  ]);
+  };
 
   const handleApply = useCallback(() => {
     if (!organizationId || !loadedSheet || !previewResult) {
@@ -930,16 +924,7 @@ export function StudentsFormsSyncModal({
         : `Serão aplicadas ${safeRowsCount} linhas seguras. ${summary?.conflict ?? 0} conflito(s) serão ignorados.`,
       confirmLabel: `Aplicar ${effectiveSafeRowsCount} linhas`,
     });
-  }, [
-    loadedSheet,
-    organizationId,
-    previewResult,
-    effectiveSafeRowsCount,
-    safeRowsCount,
-    selectedForceApplyRows.length,
-    summary?.conflict,
-    rowDecisionCounts,
-  ]);
+  }, [loadedSheet, organizationId, previewResult, effectiveSafeRowsCount, safeRowsCount, selectedForceApplyRows.length, summary?.conflict]);
 
   const executeApply = useCallback(async (mode: "all" | "safe") => {
     if (!organizationId || !loadedSheet || !previewResult) {
@@ -1095,22 +1080,7 @@ export function StudentsFormsSyncModal({
       setApplyLoading(false);
       setApplyProgress(null);
     }
-  }, [
-    buildRowsWithModalityMapping,
-    classes,
-    defaultClassId,
-    loadedSheet,
-    modalityClassMap,
-    onImportApplied,
-    organizationId,
-    previewResult,
-    effectiveSafeRowsCount,
-    safeRowsCount,
-    selectedForceApplyRows,
-    selectedUnit,
-    session?.access_token,
-    resolveRowDecision,
-  ]);
+  }, [buildRowsWithModalityMapping, classes, defaultClassId, effectiveSafeRowsCount, loadedSheet, modalityClassMap, onImportApplied, organizationId, previewResult, resolveRowDecision, selectedForceApplyRows, selectedUnit, session]);
 
   const requestCloseWhileApplying = useCallback(async () => {
     if (applyLoading || applyConfirmLoading) {

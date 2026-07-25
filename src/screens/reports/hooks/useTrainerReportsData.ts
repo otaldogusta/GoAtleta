@@ -126,7 +126,9 @@ export function useTrainerReportsData({
   useEffect(() => {
     let alive = true;
     if (!organizationId) {
-      setSessionLogs([]);
+      Promise.resolve().then(() => {
+        setSessionLogs([]);
+      });
       return () => {
         alive = false;
       };
@@ -154,13 +156,17 @@ export function useTrainerReportsData({
   useEffect(() => {
     let alive = true;
     if (reportTab !== "students") {
-      setStudentScoutingLogs([]);
+      Promise.resolve().then(() => {
+        setStudentScoutingLogs([]);
+      });
       return () => {
         alive = false;
       };
     }
     if (!classId) {
-      setStudentScoutingLogs([]);
+      Promise.resolve().then(() => {
+        setStudentScoutingLogs([]);
+      });
       return () => {
         alive = false;
       };

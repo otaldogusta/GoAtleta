@@ -315,19 +315,25 @@ export function PeriodizationOverviewWorkspace({
   const compactHeader = width < 900;
   const timelineScrollRef = useRef<ScrollView | null>(null);
   const animateNextTimelineScrollRef = useRef(false);
-  const [interactiveWeekNumber, setInteractiveWeekNumber] = useState(selectedWeekNumber);
-
-  useEffect(() => {
-    setInteractiveWeekNumber(selectedWeekNumber);
-  }, [selectedWeekNumber]);
+  const [interactiveWeekSelection, setInteractiveWeekSelection] = useState<{
+    sourceWeekNumber: number;
+    selectedWeekNumber: number;
+  } | null>(null);
+  const interactiveWeekNumber =
+    interactiveWeekSelection?.sourceWeekNumber === selectedWeekNumber
+      ? interactiveWeekSelection.selectedWeekNumber
+      : selectedWeekNumber;
 
   const selectWeek = useCallback(
     (weekNumber: number) => {
       animateNextTimelineScrollRef.current = true;
-      setInteractiveWeekNumber(weekNumber);
+      setInteractiveWeekSelection({
+        sourceWeekNumber: selectedWeekNumber,
+        selectedWeekNumber: weekNumber,
+      });
       onSelectedWeekChange(weekNumber);
     },
-    [onSelectedWeekChange],
+    [onSelectedWeekChange, selectedWeekNumber],
   );
 
   const selectedWeek =

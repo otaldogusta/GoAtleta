@@ -12,7 +12,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
-import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
@@ -217,7 +216,9 @@ export default function ReportsScreen() {
 
   useEffect(() => {
     if (!unitFilter && units.length) {
-      setUnitFilter(units[0]);
+      Promise.resolve().then(() => {
+        setUnitFilter(units[0]);
+      });
     }
   }, [unitFilter, units]);
 
@@ -236,7 +237,9 @@ export default function ReportsScreen() {
 
   useEffect(() => {
     if (!classId && classesForUnit.length) {
-      setClassId(classesForUnit[0].id);
+      Promise.resolve().then(() => {
+        setClassId(classesForUnit[0].id);
+      });
     }
   }, [classId, classesForUnit]);
 

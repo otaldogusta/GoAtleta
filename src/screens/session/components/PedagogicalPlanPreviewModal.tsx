@@ -111,10 +111,16 @@ export function PedagogicalPlanPreviewModal({
 
   useEffect(() => {
     if (!visible || !sourceDraft) return;
-    setSelectedBlockName(null);
-    setHasChanges(false);
+    Promise.resolve().then(() => {
+      setSelectedBlockName(null);
+    });
+    Promise.resolve().then(() => {
+      setHasChanges(false);
+    });
     // Isolated editable state to avoid mutating generated/final payloads directly.
-    setEditingDraft(JSON.parse(JSON.stringify(sourceDraft)) as LessonPlanDraft);
+    Promise.resolve().then(() => {
+      setEditingDraft(JSON.parse(JSON.stringify(sourceDraft)) as LessonPlanDraft);
+    });
   }, [visible, sourceDraft]);
 
   const draft = editingDraft ?? sourceDraft;

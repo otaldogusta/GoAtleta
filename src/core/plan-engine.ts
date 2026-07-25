@@ -918,7 +918,7 @@ export const detectImpact = (plan: PlanGraph, change: PlanChange): DetectImpactR
   };
 };
 
-const getNumericLoadScore = (week: PlanWeek) => clamp(week.loadTarget, 0, 1);
+
 
 const getNextWeekForReplan = (
   week: PlanWeek,

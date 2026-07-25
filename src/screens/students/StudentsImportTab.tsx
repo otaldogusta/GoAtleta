@@ -290,13 +290,21 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
   }, []);
 
   useEffect(() => {
-    void loadRuns();
+    Promise.resolve().then(() => {
+      void loadRuns();
+    });
   }, [loadRuns]);
 
   useEffect(() => {
-    setPreviewResult(null);
-    setApplyResult(null);
-    setSelectedFlagFilter("Todas");
+    Promise.resolve().then(() => {
+      setPreviewResult(null);
+    });
+    Promise.resolve().then(() => {
+      setApplyResult(null);
+    });
+    Promise.resolve().then(() => {
+      setSelectedFlagFilter("Todas");
+    });
   }, [importRows, policy, selectedFileName]);
 
   const pickImportFile = useCallback(async () => {

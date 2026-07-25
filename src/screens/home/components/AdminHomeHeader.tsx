@@ -397,7 +397,9 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
   }, [isOperationalAdmin, organizationId, sanitizeAttendanceRows, sanitizeRecentRows, sanitizeSessionRows]);
 
   useEffect(() => {
-    void loadSummary();
+    Promise.resolve().then(() => {
+      void loadSummary();
+    });
     return () => {
       latestSummaryRequestRef.current += 1;
     };
@@ -413,14 +415,18 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
     latestHeadRequestRef.current = requestId;
 
     if (!organizationId || !attendanceRouteTarget) {
-      setNotifyPreview(null);
+      Promise.resolve().then(() => {
+        setNotifyPreview(null);
+      });
       return;
     }
 
-    setNotifyPreview({
-      target: attendanceRouteTarget,
-      head: null,
-      loading: true,
+    Promise.resolve().then(() => {
+      setNotifyPreview({
+            target: attendanceRouteTarget,
+            head: null,
+            loading: true,
+          });
     });
 
     void measureAsync(

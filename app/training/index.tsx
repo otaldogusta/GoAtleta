@@ -18,7 +18,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Share,
     StyleSheet,
     Text,
     TextInput,
@@ -96,13 +95,12 @@ import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
 import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
-import { TimeInput } from "../../src/ui/TimeInput";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
-import { radius, shadow } from "../../src/theme/tokens";
-import { formatClock, formatDuration } from "../../src/utils/format-time";
+import {  shadow } from "../../src/theme/tokens";
+
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 const TemplateEditorModalContent = lazy(() =>
@@ -124,6 +122,10 @@ const TrainingPlanDetailsModalContent = lazy(() =>
     })
   )
 );
+
+function createTrainingTemplateId() {
+  return `tpl_${Date.now()}`;
+}
 
 const TrainingPlanActionsModalContent = lazy(() =>
   import("../../src/screens/training/components/TrainingPlanActionsModalContent").then(
@@ -424,7 +426,6 @@ export default function TrainingList() {
     setEditingId,
     setEditingCreatedAt,
     setFormUnit,
-    resetPlanForm,
   } = useTrainingPlanForm();
   const {
     title,
@@ -436,7 +437,6 @@ export default function TrainingList() {
     mainTime,
     cooldownTime,
     editingId,
-    editingCreatedAt,
     formUnit,
   } = planForm;
   const [items, setItems] = useState<TrainingPlan[]>([]);
@@ -503,7 +503,6 @@ export default function TrainingList() {
     setRenameTemplateText,
     setShowTemplateEditor,
     setShowTemplateCloseConfirm,
-    resetTemplateForm,
   } = useTemplateEditorForm();
   const {
     templateTitle,
@@ -648,14 +647,13 @@ export default function TrainingList() {
   const [showTrainingFabMenu, setShowTrainingFabMenu] = useState(false);
   const [showTrainingSessionCreate, setShowTrainingSessionCreate] = useState(false);
   const [handledCreateSessionRequestRaw, setHandledCreateSessionRequestRaw] = useState<string | null>(null);
-  const trainingFabAnim = useRef(new Animated.Value(0)).current;
+  const [trainingFabAnim] = useState(() => new Animated.Value(0));
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId),
     [classes, classId]
   );
-  const trainingSessionDefaultClassIds = useMemo(
-    () =>
+  const trainingSessionDefaultClassIds = (() =>
       createSessionClassIdsRaw
         ? createSessionClassIdsRaw
             .split(",")
@@ -663,9 +661,7 @@ export default function TrainingList() {
             .filter(Boolean)
         : selectedClass?.id
           ? [selectedClass.id]
-          : [],
-    [createSessionClassIdsRaw, selectedClass?.id]
-  );
+          : [])();
   const createSessionRequestKey = useMemo(
     () => createSessionClassIdsRaw.split(",").map((item) => item.trim()).filter(Boolean).join(","),
     [createSessionClassIdsRaw]
@@ -709,15 +705,21 @@ export default function TrainingList() {
 
   useEffect(() => {
     if (planningTab === "formulario" && showTrainingFabMenu) {
-      setShowTrainingFabMenu(false);
+      Promise.resolve().then(() => {
+        setShowTrainingFabMenu(false);
+      });
     }
   }, [planningTab, showTrainingFabMenu]);
 
   useEffect(() => {
     if (!createSessionRequestKey) return;
     if (createSessionRequestKey === handledCreateSessionRequestRaw) return;
-    setHandledCreateSessionRequestRaw(createSessionRequestKey);
-    setShowTrainingSessionCreate(true);
+    Promise.resolve().then(() => {
+      setHandledCreateSessionRequestRaw(createSessionRequestKey);
+    });
+    Promise.resolve().then(() => {
+      setShowTrainingSessionCreate(true);
+    });
   }, [createSessionRequestKey, handledCreateSessionRequestRaw]);
 
   const sortedClasses = useMemo(
@@ -782,14 +784,16 @@ export default function TrainingList() {
     if (selectedUnit && selectedUnit !== formUnit) {
       setFormUnit(selectedUnit);
     }
-  }, [classId, classes, formUnit]);
+  }, [classId, classes, formUnit, setFormUnit]);
 
   useEffect(() => {
     if (!formUnit || !classId) return;
     const selected = classes.find((item) => item.id === classId);
     if (!selected) return;
     if (unitLabel(selected.unit) !== formUnit) {
-      setClassId("");
+      Promise.resolve().then(() => {
+        setClassId("");
+      });
     }
   }, [formUnit, classId, classes]);
 
@@ -807,27 +811,47 @@ export default function TrainingList() {
       const freshClassId = lastCreatedClassId;
       const freshClass = classes.find((item) => item.id === freshClassId);
       const freshUnit = freshClass ? unitLabel(freshClass.unit) : "";
-      setApplyUnit(freshUnit);
-      setApplyClassId(freshClassId || "");
-      setApplyDays([]);
-      setApplyDate("");
-      setApplySnapshot({
-        unit: freshUnit,
-        classId: freshClassId || "",
-        days: [],
-        date: "",
+      Promise.resolve().then(() => {
+        setApplyUnit(freshUnit);
+      });
+      Promise.resolve().then(() => {
+        setApplyClassId(freshClassId || "");
+      });
+      Promise.resolve().then(() => {
+        setApplyDays([]);
+      });
+      Promise.resolve().then(() => {
+        setApplyDate("");
+      });
+      Promise.resolve().then(() => {
+        setApplySnapshot({
+                unit: freshUnit,
+                classId: freshClassId || "",
+                days: [],
+                date: "",
+              });
       });
       return;
     }
-    setApplyUnit(resolvedUnit);
-    setApplyClassId(resolvedClassId);
-    setApplyDays(applyPlan.applyDays ?? []);
-    setApplyDate(resolvedDate);
-    setApplySnapshot({
-      unit: resolvedUnit,
-      classId: resolvedClassId,
-      days: (applyPlan.applyDays ?? []).slice().sort((a, b) => a - b),
-      date: resolvedDate,
+    Promise.resolve().then(() => {
+      setApplyUnit(resolvedUnit);
+    });
+    Promise.resolve().then(() => {
+      setApplyClassId(resolvedClassId);
+    });
+    Promise.resolve().then(() => {
+      setApplyDays(applyPlan.applyDays ?? []);
+    });
+    Promise.resolve().then(() => {
+      setApplyDate(resolvedDate);
+    });
+    Promise.resolve().then(() => {
+      setApplySnapshot({
+            unit: resolvedUnit,
+            classId: resolvedClassId,
+            days: (applyPlan.applyDays ?? []).slice().sort((a, b) => a - b),
+            date: resolvedDate,
+          });
     });
   }, [applyPlan, classes, lastCreatedClassId, lastCreatedPlanId, targetClassId, targetDate]);
 
@@ -835,19 +859,29 @@ export default function TrainingList() {
     if (!applyPlanId || applyPlanId === handledApplyPlanId) return;
     const plan = items.find((item) => item.id === applyPlanId);
     if (!plan) return;
-    setApplyPlan(plan);
-    setShowApplyModal(true);
-    setHandledApplyPlanId(applyPlanId);
+    Promise.resolve().then(() => {
+      setApplyPlan(plan);
+    });
+    Promise.resolve().then(() => {
+      setShowApplyModal(true);
+    });
+    Promise.resolve().then(() => {
+      setHandledApplyPlanId(applyPlanId);
+    });
   }, [applyPlanId, handledApplyPlanId, items]);
 
   useEffect(() => {
     if (!viewPlanId || viewPlanId === handledViewPlanId) return;
     const plan = items.find((item) => item.id === viewPlanId);
     if (!plan) return;
-    setSelectedPlan(plan);
+    Promise.resolve().then(() => {
+      setSelectedPlan(plan);
+    });
     setShowSavedPlans(true);
-    setHandledViewPlanId(viewPlanId);
-  }, [handledViewPlanId, items, viewPlanId]);
+    Promise.resolve().then(() => {
+      setHandledViewPlanId(viewPlanId);
+    });
+  }, [handledViewPlanId, items, setShowSavedPlans, viewPlanId]);
 
 
   const parseTimeParts = (value: string) => {
@@ -902,7 +936,9 @@ export default function TrainingList() {
       (item) => item.id === applyClassId
     );
     if (!stillValid) {
-      setApplyClassId(classOptionsForUnit[0]?.id ?? "");
+      Promise.resolve().then(() => {
+        setApplyClassId(classOptionsForUnit[0]?.id ?? "");
+      });
     }
   }, [classOptionsForUnit, applyClassId]);
 
@@ -1077,7 +1113,7 @@ export default function TrainingList() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [classId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -1093,7 +1129,7 @@ export default function TrainingList() {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [setTemplateEditorKeyboardHeight]);
 
 
   const tagCounts = useMemo(() => {
@@ -1394,7 +1430,7 @@ export default function TrainingList() {
           </View>
         );
       }),
-    [colors, renameTemplateId, renameTemplateText]
+    [colors.border, colors.card, colors.inputBg, colors.muted, colors.primaryBg, colors.primaryText, colors.secondaryBg, colors.text, renameTemplateId, renameTemplateText, setRenameTemplateId, setRenameTemplateText, templateAgeBand]
   );
 
   const savedPlanCardWidth = responsiveLayout.supportsDenseGrid
@@ -1669,9 +1705,9 @@ export default function TrainingList() {
       sessionDurationMinutes: selectedClassForMethodology?.durationMinutes ?? 60,
       objectiveHint: title || templateTitle,
     });
-  }, [classId, classes, selectedClassForMethodology, templateAgeBand, templateTitle, title]);
+  }, [selectedClassForMethodology, templateAgeBand, templateTitle, title]);
 
-  const suggestions = useMemo(() => {
+  useMemo(() => {
     const planText = [
       title,
       warmup,
@@ -1727,7 +1763,7 @@ export default function TrainingList() {
     return result.slice(0, 8);
   }, [cooldown, currentTags, main, methodologyTranslation, tagCounts, title, warmup]);
 
-  const autoPlanningTags = useMemo(() => {
+  const autoPlanningTags = (() => {
     const structuredActivities = planningBlockKeys.flatMap(
       (blockKey) => planningActivities[blockKey] ?? []
     );
@@ -1775,16 +1811,7 @@ export default function TrainingList() {
       ],
       8
     );
-  }, [
-    cooldown,
-    main,
-    methodologyTranslation,
-    planningActivities,
-    selectedClassForMethodology?.ageBand,
-    tagsText,
-    title,
-    warmup,
-  ]);
+  })();
 
   const templateSuggestions = useMemo(() => {
     const templateText = [
@@ -2270,7 +2297,7 @@ export default function TrainingList() {
     }
     const nowIso = new Date().toISOString();
     const template: TrainingTemplate = {
-      id: editingTemplateId ?? "tpl_" + Date.now(),
+      id: editingTemplateId ?? createTrainingTemplateId(),
       title: title.trim() || "Modelo sem título",
       ageBand: band,
       tags: autoPlanningTags,
@@ -2416,7 +2443,7 @@ export default function TrainingList() {
     setMainTime(template.mainTime);
     setCooldownTime(template.cooldownTime);
     setScrollRequested(true);
-  }, []);
+  }, [applyLegacyActivitiesToPlanningForm, setCooldown, setCooldownTime, setEditingCreatedAt, setEditingId, setMain, setMainTime, setTagsText, setTitle, setWarmup, setWarmupTime]);
 
   const applyTemplateAsPlan = useCallback((template: {
     id: string;
@@ -2581,7 +2608,7 @@ export default function TrainingList() {
     });
   };
 
-  const openTemplateForEdit = useCallback((template: {
+  useCallback((template: {
     id: string;
     title: string;
     tags: string[];
@@ -2651,7 +2678,7 @@ export default function TrainingList() {
       return;
     }
     const copy: TrainingTemplate = {
-      id: "tpl_" + Date.now(),
+      id: createTrainingTemplateId(),
       title: (templateTitle.trim() || "Modelo sem título") + " (cópia)",
       ageBand: band,
       tags: templateTags
@@ -2713,7 +2740,7 @@ export default function TrainingList() {
       cooldownTime: template.cooldownTime,
     });
     setShowTemplateEditor(true);
-  }, [templateAgeBand]);
+  }, [setShowTemplateEditor, setTemplateAge, setTemplateCooldown, setTemplateCooldownTime, setTemplateEditorCreatedAt, setTemplateEditorId, setTemplateEditorSource, setTemplateEditorTemplateId, setTemplateMain, setTemplateMainTime, setTemplateTags, setTemplateTitle, setTemplateWarmup, setTemplateWarmupTime, templateAgeBand]);
 
   const closeTemplateEditor = () => {
     setShowTemplateEditor(false);
@@ -2749,7 +2776,7 @@ export default function TrainingList() {
     setShowFormClassPicker(false);
   };
 
-  const syncApplyPickerLayouts = () => {
+  const syncApplyPickerLayouts = useCallback(() => {
     if (!showApplyUnitPicker && !showApplyClassPicker) return;
     requestAnimationFrame(() => {
       if (showApplyUnitPicker) {
@@ -2766,9 +2793,9 @@ export default function TrainingList() {
         setApplyContainerWindow({ x, y });
       });
     });
-  };
+  }, [showApplyClassPicker, showApplyUnitPicker]);
 
-  const syncFormPickerLayouts = () => {
+  const syncFormPickerLayouts = useCallback(() => {
     if (!showFormUnitPicker && !showFormClassPicker) return;
     requestAnimationFrame(() => {
       if (showFormUnitPicker) {
@@ -2785,7 +2812,7 @@ export default function TrainingList() {
         setFormContainerWindow({ x, y });
       });
     });
-  };
+  }, [showFormClassPicker, showFormUnitPicker]);
 
   const closeApplyModal = () => {
     setShowApplyModal(false);
@@ -2806,11 +2833,11 @@ export default function TrainingList() {
 
   useEffect(() => {
     syncApplyPickerLayouts();
-  }, [showApplyUnitPicker, showApplyClassPicker]);
+  }, [showApplyUnitPicker, showApplyClassPicker, syncApplyPickerLayouts]);
 
   useEffect(() => {
     syncFormPickerLayouts();
-  }, [showFormUnitPicker, showFormClassPicker]);
+  }, [showFormUnitPicker, showFormClassPicker, syncFormPickerLayouts]);
 
   const saveTemplateEditor = async () => {
     const ageBand = templateAge.trim() || templateAgeBand;
@@ -2820,7 +2847,7 @@ export default function TrainingList() {
     }
     const nowIso = new Date().toISOString();
     const template: TrainingTemplate = {
-      id: templateEditorId ?? "tpl_" + Date.now(),
+      id: templateEditorId ?? createTrainingTemplateId(),
       title: templateTitle.trim() || "Modelo sem título",
       ageBand,
       tags: templateTags
@@ -2875,59 +2902,11 @@ export default function TrainingList() {
     setTemplateEditorSource("custom");
   };
 
-  const buildShareText = (plan: TrainingPlan) => {
-    const lines = [
-      plan.title,
-      "Turma: " + getClassName(plan.classId),
-      "",
-      "Aquecimento " + (plan.warmupTime ? "(" + formatDuration(plan.warmupTime) + ")" : ""),
-      plan.warmup.length ? "- " + plan.warmup.join("\n- ") : "- Sem itens",
-      "",
-      "Parte principal " + (plan.mainTime ? "(" + formatClock(plan.mainTime) + ")" : ""),
-      plan.main.length ? "- " + plan.main.join("\n- ") : "- Sem itens",
-      "",
-      "Volta à calma " + (plan.cooldownTime ? "(" + formatDuration(plan.cooldownTime) + ")" : ""),
-      plan.cooldown.length ? "- " + plan.cooldown.join("\n- ") : "- Sem itens",
-    ];
-    if (plan.tags.length) {
-      lines.push("");
-      lines.push("Tags: " + plan.tags.join(", "));
-    }
-    return lines.join("\n");
-  };
 
-  const shareTraining = async (plan: TrainingPlan) => {
-    const message = buildShareText(plan);
-    await Share.share({ message });
-  };
 
-  const saveCurrentAsTemplate = async () => {
-    const band =
-      selectedClass?.ageBand ||
-      templateAgeBand ||
-      (classes[0] ? classes[0].ageBand : "");
-    if (!band) {
-      Alert.alert("Selecione uma turma", "Defina a faixa etária primeiro.");
-      return;
-    }
-    const nowIso = new Date().toISOString();
-    const template: TrainingTemplate = {
-      id: "tpl_" + Date.now(),
-      title: title.trim() || "Modelo sem título",
-      ageBand: band,
-      tags: autoPlanningTags,
-      warmup: toLines(warmup),
-      main: toLines(main),
-      cooldown: toLines(cooldown),
-      warmupTime: warmupTime.trim(),
-      mainTime: mainTime.trim(),
-      cooldownTime: cooldownTime.trim(),
-      createdAt: nowIso,
-    };
-    await saveTrainingTemplate(template);
-    setTemplateItems((current) => [template, ...current.filter((item) => item.id !== template.id)]);
-    Alert.alert("Modelo salvo", "Agora ele aparece em Modelos prontos.");
-  };
+
+
+
 
   const savePlanAsTemplate = async (plan: TrainingPlan) => {
     const band =
@@ -2939,7 +2918,7 @@ export default function TrainingList() {
       return;
     }
     const template: TrainingTemplate = {
-      id: "tpl_" + Date.now(),
+      id: createTrainingTemplateId(),
       title: plan.title,
       ageBand: band,
       tags: plan.tags ?? [],
@@ -2956,15 +2935,7 @@ export default function TrainingList() {
     Alert.alert("Modelo salvo", "Agora ele aparece em Modelos prontos.");
   };
 
-  const isFormDirty =
-    title.trim() ||
-    warmup.trim() ||
-    main.trim() ||
-    cooldown.trim() ||
-    warmupTime.trim() ||
-    mainTime.trim() ||
-    cooldownTime.trim() ||
-    editingId;
+
 
   const hasFormContent = Boolean(
     title.trim() ||
@@ -3002,24 +2973,28 @@ export default function TrainingList() {
     void savePlan();
   };
 
-  const scrollToForm = () => {
+  const scrollToForm = useCallback(() => {
     setTimeout(() => {
       scrollRef.current?.scrollTo({
         y: Math.max(formY - 8, 0),
         animated: true,
       });
     }, 50);
-  };
+  }, [formY]);
 
   useEffect(() => {
     if (!scrollRequested) return;
     scrollToForm();
-    setScrollRequested(false);
-  }, [formY, scrollRequested]);
+    Promise.resolve().then(() => {
+      setScrollRequested(false);
+    });
+  }, [formY, scrollRequested, scrollToForm]);
 
   useEffect(() => {
     if (!initialTab) return;
-    setPlanningTab(initialTab);
+    Promise.resolve().then(() => {
+      setPlanningTab(initialTab);
+    });
     if (initialTab === "salvos") {
       setShowSavedPlans(true);
     }
@@ -3027,7 +3002,9 @@ export default function TrainingList() {
 
   useEffect(() => {
     if (!targetClassId) return;
-    setClassId(targetClassId);
+    Promise.resolve().then(() => {
+      setClassId(targetClassId);
+    });
   }, [targetClassId]);
 
   useEffect(() => {
@@ -3035,25 +3012,37 @@ export default function TrainingList() {
     const shouldApplyAiDraft = parsedAiDraft && aiDraftRaw !== handledAiDraftRaw;
     setEditingId(null);
     setEditingCreatedAt(null);
-    setEditingTemplateId(null);
-    setEditingTemplateCreatedAt(null);
-    setFormMode("plan");
+    Promise.resolve().then(() => {
+      setEditingTemplateId(null);
+    });
+    Promise.resolve().then(() => {
+      setEditingTemplateCreatedAt(null);
+    });
+    Promise.resolve().then(() => {
+      setFormMode("plan");
+    });
     if (shouldApplyAiDraft && parsedAiDraft) {
-      setPlanningTab("formulario");
+      Promise.resolve().then(() => {
+        setPlanningTab("formulario");
+      });
       setTitle(parsedAiDraft.title || "Planejamento assistido");
       setTagsText(parsedAiDraft.tags.join(", "));
       setWarmup(parsedAiDraft.warmup.join("\n"));
       setMain(parsedAiDraft.main.join("\n"));
       setCooldown(parsedAiDraft.cooldown.join("\n"));
-      applyLegacyActivitiesToPlanningForm({
-        warmup: parsedAiDraft.warmup,
-        main: parsedAiDraft.main,
-        cooldown: parsedAiDraft.cooldown,
+      Promise.resolve().then(() => {
+        applyLegacyActivitiesToPlanningForm({
+                warmup: parsedAiDraft.warmup,
+                main: parsedAiDraft.main,
+                cooldown: parsedAiDraft.cooldown,
+              });
       });
       setWarmupTime(parsedAiDraft.warmupTime);
       setMainTime(parsedAiDraft.mainTime);
       setCooldownTime(parsedAiDraft.cooldownTime);
-      setHandledAiDraftRaw(aiDraftRaw);
+      Promise.resolve().then(() => {
+        setHandledAiDraftRaw(aiDraftRaw);
+      });
       showSaveToast("Planejamento assistido aplicado ao formulário.");
     } else {
       setTitle("");
@@ -3061,60 +3050,68 @@ export default function TrainingList() {
       setWarmup("");
       setMain("");
       setCooldown("");
-      resetPlanningActivities();
+      Promise.resolve().then(() => {
+        resetPlanningActivities();
+      });
       setWarmupTime("");
       setMainTime("");
       setCooldownTime("");
     }
-    setScrollRequested(true);
+    Promise.resolve().then(() => {
+      setScrollRequested(true);
+    });
     if (targetClassId) {
-      setClassId(targetClassId);
+      Promise.resolve().then(() => {
+        setClassId(targetClassId);
+      });
       const targetClass = classes.find((item) => item.id === targetClassId);
       setFormUnit(unitLabel(targetClass?.unit ?? ""));
     }
-  }, [
-    openForm,
-    parsedAiDraft,
-    aiDraftRaw,
-    handledAiDraftRaw,
-    targetClassId,
-    classes,
-    showSaveToast,
-    applyLegacyActivitiesToPlanningForm,
-    resetPlanningActivities,
-  ]);
+  }, [openForm, parsedAiDraft, aiDraftRaw, handledAiDraftRaw, targetClassId, classes, showSaveToast, applyLegacyActivitiesToPlanningForm, resetPlanningActivities, setEditingId, setEditingCreatedAt, setTitle, setTagsText, setWarmup, setMain, setCooldown, setWarmupTime, setMainTime, setCooldownTime, setFormUnit]);
 
   useEffect(() => {
     if (!pendingPlanCreate) return;
     setEditingId(null);
     setEditingCreatedAt(null);
-    setEditingTemplateId(null);
-    setEditingTemplateCreatedAt(null);
-    setFormMode("plan");
+    Promise.resolve().then(() => {
+      setEditingTemplateId(null);
+    });
+    Promise.resolve().then(() => {
+      setEditingTemplateCreatedAt(null);
+    });
+    Promise.resolve().then(() => {
+      setFormMode("plan");
+    });
     setTitle("");
     setTagsText("");
     setWarmup("");
     setMain("");
     setCooldown("");
-    resetPlanningActivities();
+    Promise.resolve().then(() => {
+      resetPlanningActivities();
+    });
     setWarmupTime("");
     setMainTime("");
     setCooldownTime("");
-    setScrollRequested(true);
+    Promise.resolve().then(() => {
+      setScrollRequested(true);
+    });
     if (pendingPlanCreate.classId) {
-      setClassId(pendingPlanCreate.classId);
+      Promise.resolve().then(() => {
+        setClassId(pendingPlanCreate.classId);
+      });
       const pendingClass = classes.find(
         (item) => item.id === pendingPlanCreate.classId
       );
       setFormUnit(unitLabel(pendingClass?.unit ?? ""));
     }
     setPendingPlanCreate(null);
-  }, [pendingPlanCreate, setPendingPlanCreate, classes, resetPlanningActivities]);
+  }, [pendingPlanCreate, setPendingPlanCreate, classes, resetPlanningActivities, setEditingId, setEditingCreatedAt, setTitle, setTagsText, setWarmup, setMain, setCooldown, setWarmupTime, setMainTime, setCooldownTime, setFormUnit]);
 
   const handleRenameTemplate = useCallback((id: string, title: string) => {
     setRenameTemplateId(id);
     setRenameTemplateText(title);
-  }, []);
+  }, [setRenameTemplateId, setRenameTemplateText]);
 
   const handleUseTemplate = useCallback(
     (template: (typeof templates)[number]) => {
@@ -4073,11 +4070,9 @@ export default function TrainingList() {
           fallback={<SectionLoadingState />}
         >
           <TrainingApplyModalContent
-            refs={{
-              applyContainerRef,
-              applyUnitTriggerRef,
-              applyClassTriggerRef,
-            }}
+            applyContainerRef={applyContainerRef}
+            applyUnitTriggerRef={applyUnitTriggerRef}
+            applyClassTriggerRef={applyClassTriggerRef}
             layouts={{
               applyContainerWindow,
               applyUnitTriggerLayout,

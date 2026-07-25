@@ -5,7 +5,7 @@ import type {
   VolleyballSkill,
   WeeklyLoadIntent,
 } from "../models";
-import type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-engine";
+import type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-types";
 
 export type ActivityCatalogComplexity = "baixa" | "moderada" | "alta";
 export type ActivityCatalogDemand = "baixa" | "media" | "alta";

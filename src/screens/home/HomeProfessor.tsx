@@ -52,9 +52,9 @@ import type { ClassGroup } from "../../core/models";
 import { useAuth } from "../../auth/auth";
 
 import { useRole } from "../../auth/role";
-import { useEffectiveProfile } from "../../core/effective-profile";
+import { useEffectiveProfile } from "../../hooks/use-effective-profile";
 
-import { useSmartSync } from "../../core/use-smart-sync";
+import { useSmartSync } from "../../hooks/use-smart-sync";
 
 import {
     getClasses,
@@ -231,12 +231,13 @@ export function HomeProfessorScreen({
   const [loadingEvents, setLoadingEvents] = useState(false);
 
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
+  const [manualIndex, setManualIndex] = useState<number | null>(null);
 
   const didInitialAgendaScroll = useRef(false);
   const hasSeededRef = useRef(false);
 
   // Use smart sync instead of manual pending writes management
-  const { syncing, pendingCount, lastSyncAt, lastError, syncNow } = useSmartSync();
+  const { syncing, pendingCount, lastError, syncNow } = useSmartSync();
 
   const { showSaveToast } = useSaveToast();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -351,7 +352,7 @@ export function HomeProfessorScreen({
     } catch {
       return null;
     }
-  }, [role, session?.user?.id]);
+  }, [role, session]);
 
   const ensureSeedData = useCallback(async () => {
     if (hasSeededRef.current) return;
@@ -509,8 +510,10 @@ export function HomeProfessorScreen({
   useEffect(() => {
     if (!showInbox) return;
     let alive = true;
-    void loadInbox().finally(() => {
-      if (!alive) return;
+    Promise.resolve().then(() => {
+      void loadInbox().finally(() => {
+            if (!alive) return;
+          });
     });
     return () => {
       alive = false;
@@ -598,7 +601,7 @@ export function HomeProfessorScreen({
 
 
 
-  const openSwipe = useRef(
+  const [openSwipe] = useState(() =>
 
     PanResponder.create({
 
@@ -616,11 +619,11 @@ export function HomeProfessorScreen({
 
     })
 
-  ).current;
+  );
 
 
 
-  const closeSwipe = useRef(
+  const [closeSwipe] = useState(() =>
 
     PanResponder.create({
 
@@ -638,7 +641,7 @@ export function HomeProfessorScreen({
 
     })
 
-  ).current;
+  );
 
 
 
@@ -754,7 +757,9 @@ export function HomeProfessorScreen({
   const nowTime = useMemo(() => now.getTime(), [now]);
 
   useEffect(() => {
-    setSelectedDateKey(todayDateKey);
+    Promise.resolve().then(() => {
+      setSelectedDateKey(todayDateKey);
+    });
   }, [todayDateKey]);
 
   const scheduleBaseDate = useMemo(() => {
@@ -871,7 +876,7 @@ export function HomeProfessorScreen({
 
     return items.sort((a, b) => a.startTime - b.startTime);
 
-  }, [classesByWeekday, scheduleBaseDate]);
+  }, [classes.length, classesByWeekday, scheduleBaseDate]);
 
 
 
@@ -955,23 +960,21 @@ export function HomeProfessorScreen({
 
   }, [agendaScrollItems, nowTime, todayDateKey]);
 
-  const [manualIndex, setManualIndex] = useState<number | null>(null);
-
-
-
   useEffect(() => {
 
     if (!agendaScrollItems.length || autoIndex === null) {
-
-      setManualIndex(null);
+      Promise.resolve().then(() => {
+        setManualIndex(null);
+      });
 
       return;
 
     }
 
     if (manualIndex == null) {
-
-      setManualIndex(autoIndex);
+      Promise.resolve().then(() => {
+        setManualIndex(autoIndex);
+      });
 
     }
 
@@ -984,16 +987,18 @@ export function HomeProfessorScreen({
     if (manualIndex == null) return;
 
     if (!agendaScrollItems.length) {
-
-      setManualIndex(null);
+      Promise.resolve().then(() => {
+        setManualIndex(null);
+      });
 
       return;
 
     }
 
     if (manualIndex >= agendaScrollItems.length) {
-
-      setManualIndex(null);
+      Promise.resolve().then(() => {
+        setManualIndex(null);
+      });
 
       return;
 
@@ -1008,7 +1013,7 @@ export function HomeProfessorScreen({
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isWebHome = Platform.OS === "web";
   const isUx2CWebHome = isWebHome && responsiveLayout.supportsSplitView;
-  const isUx2CWithRail = isUx2CWebHome;
+
   const isUx2CWideDesktop = responsiveLayout.supportsDenseGrid;
   const isUx2CUltraWide = responsiveLayout.tier === "ultrawide";
   const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
@@ -1123,9 +1128,7 @@ export function HomeProfessorScreen({
 
 
 
-  const handleAgendaScrollEnd = useCallback(
-
-    (event: any) => {
+  const handleAgendaScrollEnd = (event: any) => {
 
       if (!agendaScrollItems.length) return;
 
@@ -1139,15 +1142,9 @@ export function HomeProfessorScreen({
 
       setManualIndex(index);
 
-    },
+    };
 
-    [agendaCardGap, agendaCardWidth, agendaScrollItems.length]
-
-  );
-
-  const handleAgendaCardPress = useCallback(
-
-    (index: number) => {
+  const handleAgendaCardPress = (index: number) => {
 
       setManualIndex(index);
 
@@ -1157,11 +1154,7 @@ export function HomeProfessorScreen({
 
     agendaScrollRef.current?.scrollToOffset({ offset: index * size, animated: true });
 
-    },
-
-    [agendaCardGap, agendaCardWidth]
-
-  );
+    };
 
   useEffect(() => {
 
@@ -1192,7 +1185,9 @@ export function HomeProfessorScreen({
   }, [activeOrganization?.id, agendaScrollItems.length, todayDateKey]);
 
   useEffect(() => {
-    setManualIndex(null);
+    Promise.resolve().then(() => {
+      setManualIndex(null);
+    });
     didInitialAgendaScroll.current = false;
     requestAnimationFrame(() => {
       agendaScrollRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -1340,7 +1335,7 @@ export function HomeProfessorScreen({
 
 
 
-  const refreshHomeData = useCallback(async () => {
+  const refreshHomeData = async () => {
 
     const tasks: Promise<unknown>[] = [
       loadInbox(),
@@ -1409,17 +1404,7 @@ export function HomeProfessorScreen({
 
     setNow(new Date());
 
-  }, [
-    role,
-    session,
-    activeOrganization?.id,
-    upcomingWindowDays,
-    organizationLoading,
-    isAdminDashboardContext,
-    loadProfilePhoto,
-    loadInbox,
-    ensureSeedData,
-  ]);
+  };
 
 
 

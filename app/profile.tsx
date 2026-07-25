@@ -468,7 +468,9 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (academicDriveStatus.status !== "connected") {
-      closeAcademicDriveMenu();
+      Promise.resolve().then(() => {
+        closeAcademicDriveMenu();
+      });
     }
   }, [academicDriveStatus.status, closeAcademicDriveMenu]);
 
@@ -572,7 +574,7 @@ export default function ProfileScreen() {
   const currentClass = useMemo(() => {
     if (!student || !student.classId) return null;
     return classes.find((item) => item.id === student.classId) ?? null;
-  }, [classes, student?.classId]);
+  }, [classes, student]);
 
   const nameParts = useMemo(() => {
     const full = (
@@ -689,14 +691,7 @@ export default function ProfileScreen() {
           : "Conta em modo híbrido: confirme o e-mail por código para liberar ações sensíveis."
         : "Sua conta usa autenticação por e-mail e senha.",
     };
-  }, [
-    session?.user?.app_metadata?.provider,
-    session?.user?.app_metadata?.providers,
-    session?.user?.confirmed_at,
-    session?.user?.email_confirmed_at,
-    session?.user?.identities,
-    session?.user?.user_metadata,
-  ]);
+  }, [session?.user?.app_metadata?.provider, session?.user?.app_metadata?.providers, session?.user?.confirmed_at, session?.user?.email, session?.user?.email_confirmed_at, session?.user?.identities, session?.user?.user_metadata]);
 
   const toggleGoogleMenu = useCallback(() => {
     if (!accountSecurity.googleConnected || unlinkingGoogle) return;
@@ -766,7 +761,9 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!accountSecurity.googleConnected) {
-      closeGoogleMenu();
+      Promise.resolve().then(() => {
+        closeGoogleMenu();
+      });
     }
   }, [accountSecurity.googleConnected, closeGoogleMenu]);
 

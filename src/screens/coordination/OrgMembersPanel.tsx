@@ -47,7 +47,7 @@ import {
     revokeTrainerInvite
 } from "../../api/trainer-invite";
 import { useAuth } from "../../auth/auth";
-import { useEffectiveProfile } from "../../core/effective-profile";
+import { useEffectiveProfile } from "../../hooks/use-effective-profile";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { ModalSheet } from "../../ui/ModalSheet";
@@ -331,8 +331,12 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
 
   useEffect(() => {
     const nextIds = asSortedUniqueIds(selectedMemberClassHeadIds);
-    setClassHeadInitialIds((current) => (hasSameIds(current, nextIds) ? current : nextIds));
-    setClassHeadDraftIds((current) => (hasSameIds(current, nextIds) ? current : nextIds));
+    Promise.resolve().then(() => {
+      setClassHeadInitialIds((current) => (hasSameIds(current, nextIds) ? current : nextIds));
+    });
+    Promise.resolve().then(() => {
+      setClassHeadDraftIds((current) => (hasSameIds(current, nextIds) ? current : nextIds));
+    });
   }, [selectedMemberClassHeadIds, selectedMember?.userId]);
 
   const loadPendingTrainerInvites = useCallback(async () => {
@@ -432,7 +436,9 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
   }, [organizationId, organizationLoading]);
 
   useEffect(() => {
-    void loadMembers();
+    Promise.resolve().then(() => {
+      void loadMembers();
+    });
   }, [loadMembers]);
 
   useEffect(() => {
@@ -462,7 +468,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     [organizationId]
   );
 
-  const openMemberDetails = (member: OrgMember) => {
+  const openMemberDetails = useCallback((member: OrgMember) => {
     const nextIds = asSortedUniqueIds(
       (classHeadsByUser.get(member.userId) ?? []).map((row) => row.classId)
     );
@@ -480,7 +486,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     });
     setShowMemberSheet(true);
     void loadMemberPermissions(member);
-  };
+  }, [classHeadsByUser, loadMemberPermissions]);
 
   useEffect(() => {
     const requestedMemberId = typeof memberId === "string" ? memberId.trim() : "";
@@ -494,8 +500,10 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
     const requestedMember = members.find((member) => member.userId === requestedMemberId);
     if (!requestedMember) return;
     memberParamHandledRef.current = requestedMemberId;
-    openMemberDetails(requestedMember);
-  }, [memberId, members]);
+    Promise.resolve().then(() => {
+      openMemberDetails(requestedMember);
+    });
+  }, [memberId, members, openMemberDetails]);
 
   const animateExpandCollapse = useCallback(() => {
     if (Platform.OS === "web") {

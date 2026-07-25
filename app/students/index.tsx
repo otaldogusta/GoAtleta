@@ -33,12 +33,11 @@ import {
 import { useAuth } from "../../src/auth/auth";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
-import { getClassModalityLabel } from "../../src/core/class-modality";
 import {
     sortClassesBySchedule,
 } from "../../src/core/class-schedule-sort";
-import { useEffectiveProfile } from "../../src/core/effective-profile";
-import type { ClassGroup, Student, StudentPreRegistration } from "../../src/core/models";
+import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
+import type { ClassGroup, Student } from "../../src/core/models";
 import { deriveStudentHealthAssessment } from "../../src/core/student-health";
 import {
     findPossibleExistingStudents,
@@ -46,10 +45,8 @@ import {
 } from "../../src/core/students/find-possible-existing-students";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
-    convertStudentPreRegistration,
     deleteStudent,
     getClasses,
-    getStudentPreRegistrations,
     getStudents,
     revealStudentCpf,
     saveStudent,
@@ -83,7 +80,6 @@ import { exportStudentsXlsx } from "../../src/screens/students/export/exportStud
 import { useBuildStudentMessage } from "../../src/screens/students/hooks/useBuildStudentMessage";
 import { useOnEditStudent } from "../../src/screens/students/hooks/useOnEditStudent";
 import { usePreRegistrationForm } from "../../src/screens/students/hooks/usePreRegistrationForm";
-import { useSavePreRegistration } from "../../src/screens/students/hooks/useSavePreRegistration";
 import { useStudentForm } from "../../src/screens/students/hooks/useStudentForm";
 import { useStudentInvites } from "../../src/screens/students/hooks/useStudentInvites";
 import { useWhatsAppModal } from "../../src/screens/students/hooks/useWhatsAppModal";
@@ -123,6 +119,52 @@ import {
     WHATSAPP_TEMPLATES,
     type WhatsAppTemplateId
 } from "../../src/utils/whatsapp-templates";
+
+const createStudentId = () => `s_${Date.now()}`;
+
+const formatIsoDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseIsoDate = (value: string) => {
+  if (!value) return null;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const local = new Date(year, month - 1, day);
+    return Number.isNaN(local.getTime()) ? null : local;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const calculateAge = (iso: string) => {
+  const date = parseIsoDate(iso);
+  if (!date) return null;
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const monthDiff = today.getMonth() - date.getMonth();
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+  return age;
+};
+
+const hasBirthDateWarning = (birthDate: string) => {
+  const raw = String(birthDate ?? "").trim();
+  if (!raw) return false;
+  const age = calculateAge(raw);
+  if (age === null) return true;
+  return age < 5 || age > 60;
+};
 
 const StudentRegistrationTab = lazy(() =>
   import("../../src/screens/students/StudentRegistrationTab").then((module) => ({
@@ -193,11 +235,11 @@ type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
 type StudentsTab = "cadastro" | "aniversarios" | "alunos";
 
 export default function StudentsScreen() {
-  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
   const isCompactForm = Platform.OS !== "web" && windowWidth <= 760;
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
   const canRevealCpf = effectiveProfile === "admin";
@@ -220,11 +262,6 @@ export default function StudentsScreen() {
     gap: 8,
   };
   const editModalCardStyle = useModalCardStyle({ maxHeight: Platform.OS === "web" ? "92%" : "96%", maxWidth: isCompactForm ? 700 : 960, padding: 16, radius: 16 });
-  const editModalStandardHeight = useMemo(() => {
-    if (Platform.OS === "web") return undefined;
-    const target = Math.round(windowHeight * 0.78);
-    return Math.max(520, Math.min(target, 700));
-  }, [windowHeight]);
   const whatsappModalCardStyle = useModalCardStyle({
     maxHeight: "70%",
     maxWidth: 440,
@@ -233,7 +270,6 @@ export default function StudentsScreen() {
   const photoSheetCardStyle = useModalCardStyle({ maxHeight: "55%", maxWidth: 320 });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  const [preRegistrations, setPreRegistrations] = useState<StudentPreRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isMountedRef = useRef(true);
@@ -277,7 +313,7 @@ export default function StudentsScreen() {
     setEditingId, setEditingCreatedAt,
     setOpenCreateSection, setOpenEditSection,
     setStudentFormError, setStudentDocumentsError, setEditSnapshot,
-    resetForm, resetCreateForm,
+    resetForm,
   } = useStudentForm();
 
   const {
@@ -304,18 +340,8 @@ export default function StudentsScreen() {
 
   // --- Pr?-cadastro (useReducer) ---
   const {
-    preForm,
-    setEditingPreId, setPreChildName, setPreGuardianName, setPreGuardianPhone,
-    setPreClassInterest, setPreUnitInterest, setPreTrialDate,
-    setPreNotes, setPreStatus, setPreRegistrationError, setPreRegistrationSearch,
     resetPreRegistrationForm,
   } = usePreRegistrationForm();
-
-  const {
-    editingPreId, preChildName, preGuardianName, preGuardianPhone,
-    preClassInterest, preUnitInterest, preTrialDate,
-    preNotes, preStatus, preRegistrationError, preRegistrationSearch,
-  } = preForm;
 
   // --- Modal WhatsApp (useReducer) ---
   const {
@@ -477,12 +503,6 @@ export default function StudentsScreen() {
   }, []);
   const loadSupplementaryStudentsData = useCallback(
     async (aliveRef: { current: boolean }) => {
-      const preRegistrationsPromise = getStudentPreRegistrations({
-        organizationId: activeOrganization?.id,
-      }).catch((error) => {
-        console.warn("StudentsScreen pre-registration load failed", error);
-        return [];
-      });
       const invitesPromise =
         session?.access_token
           ? listStudentPendingInvites().catch((error) => {
@@ -491,15 +511,11 @@ export default function StudentsScreen() {
             })
           : Promise.resolve({ invites: [] });
 
-      const [preRegistrationList, pendingInvitesResult] = await Promise.all([
-        preRegistrationsPromise,
-        invitesPromise,
-      ]);
+      const pendingInvitesResult = await invitesPromise;
       if (!aliveRef.current) return;
-      setPreRegistrations(preRegistrationList);
       setPendingStudentInvites(pendingInvitesResult.invites ?? []);
     },
-    [activeOrganization?.id, session?.access_token]
+    [session?.access_token]
   );
 
   useEffect(() => {
@@ -527,7 +543,6 @@ export default function StudentsScreen() {
         if (!alive.current) return;
         setClasses([]);
         setStudents([]);
-        setPreRegistrations([]);
         setPendingStudentInvites([]);
         console.warn("StudentsScreen initial load failed", error);
       } finally {
@@ -537,9 +552,9 @@ export default function StudentsScreen() {
     return () => {
       alive.current = false;
     };
-  }, [activeOrganization?.id, loadSupplementaryStudentsData]);
+  }, [activeOrganization, loadSupplementaryStudentsData]);
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     try {
       const [studentList] = await Promise.all([
         getStudents({ organizationId: activeOrganization?.id }),
@@ -549,7 +564,7 @@ export default function StudentsScreen() {
     } catch (error) {
       console.warn("StudentsScreen reload failed", error);
     }
-  };
+  }, [activeOrganization, loadSupplementaryStudentsData]);
 
   useEffect(() => {
     if ((studentsTab as string) === "importar") {
@@ -563,7 +578,7 @@ export default function StudentsScreen() {
     };
   }, []);
 
-  const handleExportStudents = useCallback(async () => {
+  const handleExportStudents = async () => {
     const organizationId = activeOrganization?.id ?? null;
     if (!organizationId) {
       Alert.alert("Alunos", "Selecione uma organização ativa.");
@@ -586,7 +601,7 @@ export default function StudentsScreen() {
     } finally {
       setStudentsExportBusy(false);
     }
-  }, [activeOrganization?.id]);
+  };
   const studentsFabBottom = Math.max(insets.bottom + 166, 182);
   const studentsFabRight = 16;
   const studentsFabRotate = useMemo(
@@ -616,7 +631,9 @@ export default function StudentsScreen() {
 
   useEffect(() => {
     if (studentsTab === "cadastro" && showStudentsFabMenu) {
-      setShowStudentsFabMenu(false);
+      Promise.resolve().then(() => {
+        setShowStudentsFabMenu(false);
+      });
     }
   }, [studentsTab, showStudentsFabMenu]);
 
@@ -631,7 +648,7 @@ export default function StudentsScreen() {
     setShowGuardianRelationPicker(false);
     setShowTypePicker(false);
     setShowTemplateList(false);
-  }, []);
+  }, [setShowTemplateList]);
   const closeAllEditPickers = useCallback(() => {
     setShowEditUnitPicker(false);
     setShowEditClassPicker(false);
@@ -690,7 +707,7 @@ export default function StudentsScreen() {
   const handleSelectUnit = useCallback((value: string) => {
     setUnit(value);
     setShowUnitPicker(false);
-  }, []);
+  }, [setUnit]);
 
   const handleSelectClass = useCallback((value: ClassGroup) => {
     setClassId(value.id);
@@ -698,17 +715,17 @@ export default function StudentsScreen() {
     setAgeBand(value.ageBand);
     setCustomAgeBand("");
     setShowClassPicker(false);
-  }, [unitLabel]);
+  }, [setAgeBand, setClassId, setCustomAgeBand, setUnit, unitLabel]);
 
   const handleSelectGuardianRelation = useCallback((value: string) => {
     setGuardianRelation(value);
     setShowGuardianRelationPicker(false);
-  }, []);
+  }, [setGuardianRelation]);
 
   const handleSelectType = useCallback((value: string) => {
     setIsExperimental(value === "experimental");
     setShowTypePicker(false);
-  }, []);
+  }, [setIsExperimental]);
 
   const handleToggleEditUnitFilter = useCallback((value: string) => {
     setEditUnitFilters((current) => {
@@ -727,12 +744,12 @@ export default function StudentsScreen() {
     setAgeBand(value.ageBand);
     setCustomAgeBand("");
     setShowEditClassPicker(false);
-  }, [unitLabel]);
+  }, [setAgeBand, setClassId, setCustomAgeBand, setUnit, unitLabel]);
 
   const handleSelectEditGuardianRelation = useCallback((value: string) => {
     setGuardianRelation(value);
     setShowEditGuardianRelationPicker(false);
-  }, []);
+  }, [setGuardianRelation]);
 
   const syncPickerLayouts = useCallback(() => {
     const hasPickerOpen = showUnitPicker || showClassPicker || showGuardianRelationPicker || showTypePicker;
@@ -777,7 +794,7 @@ export default function StudentsScreen() {
         setEditContainerWindow({ x, y });
       });
     });
-  }, [showEditGuardianRelationPicker]);
+  }, [setEditContainerWindow, showEditGuardianRelationPicker]);
 
   const syncTemplateLayout = useCallback(() => {
     requestAnimationFrame(() => {
@@ -788,7 +805,7 @@ export default function StudentsScreen() {
         setWhatsappContainerWindow({ x, y });
       });
     });
-  }, []);
+  }, [setTemplateTriggerLayout, setWhatsappContainerWindow]);
 
   const unitOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -865,10 +882,14 @@ export default function StudentsScreen() {
   }, [showTemplateList, showWhatsAppModal, syncTemplateLayout]);
 
   useEffect(() => {
-    if (!showForm) closeAllPickers();
+    if (!showForm) Promise.resolve().then(() => {
+      closeAllPickers();
+    });
   }, [closeAllPickers, showForm]);
   useEffect(() => {
-    if (!showEditModal) closeAllEditPickers();
+    if (!showEditModal) Promise.resolve().then(() => {
+      closeAllEditPickers();
+    });
   }, [closeAllEditPickers, showEditModal]);
 
   useEffect(() => {
@@ -887,15 +908,7 @@ export default function StudentsScreen() {
     if (matching.some((item) => item.id === classId)) return;
     // Removido auto-seleção: usuário deve escolher turma manualmente
     // setClassId(matching[0].id);
-  }, [classes, unit, unitLabel]);
-
-  useEffect(() => {
-    if (!birthDate) {
-      setAgeNumber(null);
-      return;
-    }
-    setAgeNumber(calculateAge(birthDate));
-  }, [birthDate]);
+  }, [classId, classes, setClassId, unit, unitLabel]);
 
   const pickStudentPhoto = async (source: "camera" | "library" | "remove") => {
     try {
@@ -1001,7 +1014,7 @@ export default function StudentsScreen() {
     }
     clearStudentValidationError("birthDate");
     const nowIso = new Date().toISOString();
-    const studentId = editingId ? editingId : "s_" + Date.now();
+    const studentId = editingId || createStudentId();
     const resolvedOrganizationId =
       classById.get(classId)?.organizationId ??
       activeOrganization?.id ??
@@ -1195,105 +1208,7 @@ export default function StudentsScreen() {
     resetForm();
   }, [clearStudentValidationError, closeAllPickers, resetForm, setShowForm]);
 
-  const doResetCreateForm = useCallback(() => {
-    closeAllPickers();
-    setDismissedExistingStudentProbe("");
-    clearStudentValidationError();
-    resetCreateForm();
-  }, [clearStudentValidationError, closeAllPickers, resetCreateForm]);
-
-  const { savePreRegistration } = useSavePreRegistration({
-    activeOrganizationId: activeOrganization?.id,
-    editingPreId,
-    preChildName,
-    preGuardianName,
-    preGuardianPhone,
-    preClassInterest,
-    preUnitInterest,
-    preTrialDate,
-    preStatus,
-    preNotes,
-    setPreRegistrationError,
-    resetPreRegistrationForm,
-    reload,
-  });
-
-  const startEditPreRegistration = useCallback((item: StudentPreRegistration) => {
-    setEditingPreId(item.id);
-    setPreChildName(item.childName);
-    setPreGuardianName(item.guardianName);
-    setPreGuardianPhone(item.guardianPhone);
-    setPreClassInterest(item.classInterest ?? "");
-    setPreUnitInterest(item.unitInterest ?? "");
-    setPreTrialDate(item.trialDate ?? "");
-    setPreNotes(item.notes ?? "");
-    setPreStatus(item.status);
-    setPreRegistrationError("");
-  }, []);
-
-  const convertPreRegistrationToStudent = useCallback(
-    async (item: StudentPreRegistration) => {
-      const organizationId = activeOrganization?.id ?? "";
-      if (!organizationId) {
-        Alert.alert("Experimentais", "Selecione uma organização ativa.");
-        return;
-      }
-      const targetClass = classes.find((cls) => cls.name === (item.classInterest ?? ""));
-      if (!targetClass) {
-        Alert.alert(
-          "Experimentais",
-          "Defina uma turma válida no Pré-cadastro antes de converter."
-        );
-        return;
-      }
-      const nowIso = new Date().toISOString();
-      const studentId = `s_${Date.now()}`;
-      await convertStudentPreRegistration(item, {
-        id: studentId,
-        name: item.childName,
-        organizationId,
-        classId: targetClass.id,
-        age: 0,
-        phone: "",
-        loginEmail: "",
-        guardianName: item.guardianName,
-        guardianPhone: item.guardianPhone,
-        guardianRelation: "",
-        birthDate: "",
-        healthIssue: false,
-        healthIssueNotes: "",
-        medicationUse: false,
-        medicationNotes: "",
-        healthObservations: "",
-        positionPrimary: "indefinido",
-        positionSecondary: "indefinido",
-        athleteObjective: "base",
-        learningStyle: "misto",
-        createdAt: nowIso,
-      });
-      await reload();
-      showSaveToast({
-        message: "Pré-cadastro convertido em aluno.",
-        variant: "success",
-      });
-    },
-    [activeOrganization?.id, classes, reload]
-  );
-
-  const filteredPreRegistrations = useMemo(() => {
-    const term = preRegistrationSearch.trim().toLowerCase();
-    if (!term) return preRegistrations;
-    return preRegistrations.filter((item) => {
-      return (
-        item.childName.toLowerCase().includes(term) ||
-        item.guardianName.toLowerCase().includes(term) ||
-        item.guardianPhone.toLowerCase().includes(term)
-      );
-    });
-  }, [preRegistrationSearch, preRegistrations]);
-
-  const requestSwitchStudentsTab = useCallback(
-    (nextTab: StudentsTab) => {
+  const requestSwitchStudentsTab = (nextTab: StudentsTab) => {
       if (nextTab === studentsTab) return;
       if (studentsTab === "cadastro" && isFormDirty) {
         setPendingStudentsTab(nextTab);
@@ -1308,9 +1223,7 @@ export default function StudentsScreen() {
         setShowForm(true);
       }
       setStudentsTab(nextTab);
-    },
-    [doResetForm, isFormDirty, resetPreRegistrationForm, setShowForm, studentsTab]
-  );
+    };
 
   const showSaveNotice = (message: string) => {
     setSaveNotice(message);
@@ -1344,7 +1257,7 @@ export default function StudentsScreen() {
       setWhatsappNotice("");
       whatsappNoticeTimer.current = null;
     }, 2200);
-  }, []);
+  }, [setWhatsappNotice]);
 
   const closeEditModal = () => {
     setShowEditModal(false);
@@ -1402,10 +1315,6 @@ export default function StudentsScreen() {
     },
   });
 
-  const onDelete = (id: string) => {
-    undoableStudentDelete.deleteOne(id);
-  };
-
   const deleteEditingStudent = useCallback(() => {
     if (!editingId) return;
     undoableStudentDelete.deleteOne(editingId);
@@ -1445,14 +1354,7 @@ export default function StudentsScreen() {
     } finally {
       setRevealCpfBusy(false);
     }
-  }, [
-    canRevealCpf,
-    cpfMaskedOriginal,
-    cpfRevealUnavailable,
-    cpfRevealedValue,
-    editingId,
-    isCpfVisible,
-  ]);
+  }, [canRevealCpf, cpfMaskedOriginal, cpfRevealUnavailable, cpfRevealedValue, editingId, isCpfVisible, setCpfDisplay, setCpfRevealUnavailable, setCpfRevealedValue, setIsCpfVisible, setRevealCpfBusy, setStudentDocumentsError]);
 
   const selectedClassName = useMemo(
     () => classById.get(classId)?.name ?? "",
@@ -1508,11 +1410,6 @@ export default function StudentsScreen() {
         : "Misto";
     return `${cls.name} (${genderLabel})`;
   }, [classById, classId]);
-  const selectedClassModalityLabel = useMemo(() => {
-    const cls = classById.get(classId) ?? null;
-    if (!cls) return "";
-    return getClassModalityLabel(cls.modality);
-  }, [classById, classId]);
   const editDocumentsSummary = useMemo(() => {
     const parts = [
       cpfDisplay ? "CPF cadastrado" : "CPF não informado",
@@ -1558,49 +1455,13 @@ export default function StudentsScreen() {
     return `${day}/${month}/${year}`;
   };
 
-  const formatIsoDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const parseIsoDate = (value: string) => {
-    if (!value) return null;
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (match) {
-      const year = Number(match[1]);
-      const month = Number(match[2]);
-      const day = Number(match[3]);
-      const local = new Date(year, month - 1, day);
-      return Number.isNaN(local.getTime()) ? null : local;
+  useEffect(() => {
+    if (!birthDate) {
+      setAgeNumber(null);
+      return;
     }
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  };
-
-  const calculateAge = (iso: string) => {
-    const date = parseIsoDate(iso);
-    if (!date) return null;
-    const today = new Date();
-    let age = today.getFullYear() - date.getFullYear();
-    const monthDiff = today.getMonth() - date.getMonth();
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < date.getDate())
-    ) {
-      age -= 1;
-    }
-    return age;
-  };
-
-  const hasBirthDateWarning = (birthDate: string) => {
-    const raw = String(birthDate ?? "").trim();
-    if (!raw) return false;
-    const age = calculateAge(raw);
-    if (age === null) return true;
-    return age < 5 || age > 60;
-  };
+    setAgeNumber(calculateAge(birthDate));
+  }, [birthDate, setAgeNumber]);
 
   const { onEdit } = useOnEditStudent({
     ageBandOptions,
@@ -1654,7 +1515,7 @@ export default function StudentsScreen() {
     setOpenEditSection,
   });
 
-  const normalizeSearch = useCallback(normalizeStudentSearchText, []);
+  const normalizeSearch = normalizeStudentSearchText;
 
   const getDaysUntilBirthday = (birthDate: Date, today: Date) => {
     const thisYear = today.getFullYear();
@@ -1688,8 +1549,6 @@ export default function StudentsScreen() {
     }
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
-
-  const sanitizePhone = (value: string) => value.replace(/\D/g, "");
 
   const formatEmail = (value: string) => value.trim().toLowerCase();
 
@@ -1728,7 +1587,7 @@ export default function StudentsScreen() {
       setSelectedStudentId(student.id);
       setShowWhatsAppModal(true);
     },
-    [buildStudentMessage, classById]
+    [buildStudentMessage, classById, setCustomFields, setCustomStudentMessage, setSelectedContactType, setSelectedStudentId, setSelectedTemplateId, setSelectedTemplateLabel, setShowWhatsAppModal]
   );
 
   const closeWhatsAppModal = useCallback(() => {
@@ -1747,9 +1606,9 @@ export default function StudentsScreen() {
       clearTimeout(whatsappNoticeTimer.current);
       whatsappNoticeTimer.current = null;
     }
-  }, []);
+  }, [setCustomFields, setCustomStudentMessage, setSelectedContactType, setSelectedStudentId, setSelectedTemplateId, setSelectedTemplateLabel, setShowRevokeConfirm, setShowTemplateList, setShowWhatsAppModal, setWhatsappNotice]);
 
-  const { applyStudentInviteTemplate, onGenerateInviteFromList, onCancelPendingStudentInvite } = useStudentInvites({
+  const { applyStudentInviteTemplate, onGenerateInviteFromList } = useStudentInvites({
     classes,
     studentInviteBusy,
     pendingStudentInviteBusyId,
@@ -1820,14 +1679,18 @@ export default function StudentsScreen() {
 
   useEffect(() => {
     if (!showClassPicker) return;
-    setClassModalityFilter(selectedClassModality ?? "all");
+    Promise.resolve().then(() => {
+      setClassModalityFilter(selectedClassModality ?? "all");
+    });
   }, [selectedClassModality, showClassPicker]);
 
   useEffect(() => {
     if (!showClassPicker) return;
     if (classModalityFilter === "all") return;
     if (!classModalities.includes(classModalityFilter)) {
-      setClassModalityFilter(selectedClassModality ?? "all");
+      Promise.resolve().then(() => {
+        setClassModalityFilter(selectedClassModality ?? "all");
+      });
     }
   }, [classModalities, classModalityFilter, selectedClassModality, showClassPicker]);
 
@@ -2030,8 +1893,7 @@ export default function StudentsScreen() {
     };
   }, []);
 
-  const renderStudentItem = useCallback(
-    ({
+  const renderStudentItem = ({
       item,
       paletteOverride,
       unitNameOverride,
@@ -2064,17 +1926,7 @@ export default function StudentsScreen() {
             hasBirthDateWarning={hasBirthDateWarning(item.birthDate)}
           />
         );
-    },
-    [
-      classById,
-      colors,
-      onEdit,
-      onGenerateInviteFromList,
-      openPhotoPreview,
-      openStudentWhatsApp,
-      unitLabel,
-    ]
-  );
+    };
 
   const goBackFromStudents = useCallback(() => {
     navigateBackOrReplace({ router, fallback: "/prof/home" });

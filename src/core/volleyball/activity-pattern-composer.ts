@@ -1,9 +1,9 @@
 import type {
   ActivityPatternActivitySpec,
-  ActivityPatternAgeStage,
   ActivityPatternSelectionContext,
 } from "./activity-pattern-engine";
 import type { ActivityKnowledgePattern } from "./activity-knowledge-patterns";
+import type { ActivityPatternAgeStage } from "./activity-pattern-types";
 
 const normalizeInline = (value: string | null | undefined) =>
   String(value ?? "").replace(/\s+/g, " ").trim();

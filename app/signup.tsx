@@ -35,7 +35,7 @@ const hasValidEmailFormat = (value: string) =>
 // perf-check: ignore-measure - this form has no automatic asynchronous screen load.
 export default function SignupScreen() {
   markRender("screen.signup.render.root");
-  const { colors, mode } = useAppTheme();
+  const { colors } = useAppTheme();
   const { signUp, signInWithOAuth } = useAuth();
   const { inviteCode: inviteCodeParam } = useLocalSearchParams<{
     inviteCode?: string;
@@ -43,7 +43,7 @@ export default function SignupScreen() {
   const solidInputBg = colors.inputBg;
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
+  useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -114,8 +114,12 @@ export default function SignupScreen() {
   useEffect(() => {
     if (hasInviteCodeFromLink) {
       const normalizedCode = inviteCodeParam.trim().toUpperCase();
-      setInviteCode(normalizedCode);
-      setShowInviteCode(true);
+      Promise.resolve().then(() => {
+        setInviteCode(normalizedCode);
+      });
+      Promise.resolve().then(() => {
+        setShowInviteCode(true);
+      });
       void savePendingTrainerInvite(normalizedCode);
     }
   }, [hasInviteCodeFromLink, inviteCodeParam]);

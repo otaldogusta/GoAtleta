@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Text, useWindowDimensions, View } from "react-native";
 
 import { ModalDialogFrame } from "../../ui/ModalDialogFrame";
@@ -42,11 +42,6 @@ export function ActivityCatalogVideoDetailSheet({
   const dimensions = useWindowDimensions();
   const [showGuidance, setShowGuidance] = useState(false);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
-
-  useEffect(() => {
-    setShowGuidance(false);
-    setShowTechnicalDetails(false);
-  }, [item?.id]);
 
   if (!item) return null;
 

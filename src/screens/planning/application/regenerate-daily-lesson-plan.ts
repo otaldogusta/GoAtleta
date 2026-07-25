@@ -1093,7 +1093,7 @@ const renderDailyText = (params: {
     translationTestPassed: boolean;
   };
 } => {
-  const { profile, decision, weeklyPlan, session, nextPedagogicalStep, sessionRole } = params;
+  const { profile, decision, weeklyPlan, nextPedagogicalStep, sessionRole } = params;
   const theme = normalizeFocus(weeklyPlan.theme, "Fundamentos da semana");
   const pedagogicalRule = (weeklyPlan.pedagogicalRule ?? "").trim();
   const canonicalObjective = nextPedagogicalStep

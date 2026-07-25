@@ -443,25 +443,9 @@ export const getNextOfficialRotationZone = (zone: CourtZone): CourtZone => {
   ];
 };
 
-const getOppositeOfficialZone = (zone: CourtZone): CourtZone => {
-  const oppositeMap: Record<CourtZone, CourtZone> = {
-    1: 4,
-    2: 5,
-    3: 6,
-    4: 1,
-    5: 2,
-    6: 3,
-  };
-  return oppositeMap[zone];
-};
 
-const rotateZoneBackwards = (zone: CourtZone, steps: number): CourtZone => {
-  let next = zone;
-  for (let index = 0; index < steps; index += 1) {
-    next = getNextOfficialRotationZone(next);
-  }
-  return next;
-};
+
+
 
 export const build5x1RotationZones = (setterZone: CourtZone) => {
   const lineup =
@@ -1262,25 +1246,7 @@ const DEFENSE_BASE_6_BACK_BY_SETTER_POSITION: Record<
   },
 };
 
-const getAttackZoneIds = (
-  zones: Record<TacticalActorKey, CourtZone>,
-  visibleActorIds: string[]
-) => {
-  const frontRowAttackers = (Object.entries(zones) as [TacticalActorKey, CourtZone][])
-    .filter(([key, zone]) => key !== "LEV" && !backRowZones.includes(zone))
-    .sort(([, zoneA], [, zoneB]) => (
-      frontRowZones.indexOf(zoneA) - frontRowZones.indexOf(zoneB)
-    ))
-    .map(([key]) => tacticalActorIdByKey[key])
-    .filter((actorId) => visibleActorIds.includes(actorId));
 
-  if (frontRowAttackers.length >= 3) return frontRowAttackers;
-
-  const backRowOption = ["p1", "p2", "op"].find(
-    (actorId) => visibleActorIds.includes(actorId) && !frontRowAttackers.includes(actorId)
-  );
-  return backRowOption ? [...frontRowAttackers, backRowOption] : frontRowAttackers;
-};
 
 const buildReceive3RotationSteps = (
   rotationNumber: number,
@@ -1415,47 +1381,9 @@ export const build5x1Receive3Preset = (): CourtVisualPayload => {
   });
 };
 
-const rolePointByAttackOrigin: Record<
-  CourtVisualAttackOrigin,
-  Record<CourtVisualDefenseKind, CourtPoint>
-> = {
-  left: {
-    parallel: { x: 0.18, y: 0.66 },
-    diagonal: { x: 0.82, y: 0.7 },
-    deep: { x: 0.5, y: 0.88 },
-    short_tip: { x: 0.5, y: 0.36 },
-  },
-  middle: {
-    parallel: { x: 0.2, y: 0.7 },
-    diagonal: { x: 0.8, y: 0.7 },
-    deep: { x: 0.5, y: 0.9 },
-    short_tip: { x: 0.5, y: 0.33 },
-  },
-  right: {
-    parallel: { x: 0.82, y: 0.66 },
-    diagonal: { x: 0.18, y: 0.7 },
-    deep: { x: 0.5, y: 0.88 },
-    short_tip: { x: 0.5, y: 0.36 },
-  },
-};
 
-const defenseKindOffset: Record<CourtVisualDefenseKind, Partial<Record<CourtVisualDefenseKind, CourtPoint>>> = {
-  parallel: {
-    parallel: { x: 0, y: -0.04 },
-    diagonal: { x: 0, y: 0.03 },
-  },
-  diagonal: {
-    diagonal: { x: 0, y: -0.04 },
-    deep: { x: 0, y: 0.02 },
-  },
-  deep: {
-    deep: { x: 0, y: 0.05 },
-  },
-  short_tip: {
-    short_tip: { x: 0, y: -0.07 },
-    deep: { x: 0, y: 0.02 },
-  },
-};
+
+
 
 const getActorIdAtLegalZone = (
   positions: Record<string, CourtPoint>,
@@ -1971,13 +1899,7 @@ export const normalizeDefenseBase6BackPayload = (
   });
 };
 
-const getStepSavedBaselineActorPositions = (step: CourtVisualStep) => ({
-  ...getDefaultReceiveBaselinePositions(step),
-  ...getDefaultDefenseBaselinePositions(step),
-  ...step.actorPositions,
-  ...getManualMoveOriginPositions(step),
-  ...(step.baselineActorPositions ?? {}),
-});
+
 
 export const getCourtVisualStepAlignmentPositions = (
   payload: CourtVisualPayload,

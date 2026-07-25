@@ -49,13 +49,21 @@ export default function VerifyEmailScreen() {
   useEffect(() => {
     if (typeof params.email === "string" && params.email.trim()) {
       const incoming = params.email.trim();
-      setEmail(incoming);
-      setEmailDraft(incoming);
+      Promise.resolve().then(() => {
+        setEmail(incoming);
+      });
+      Promise.resolve().then(() => {
+        setEmailDraft(incoming);
+      });
       return;
     }
     if (session?.user?.email) {
-      setEmail(session.user.email);
-      setEmailDraft(session.user.email);
+      Promise.resolve().then(() => {
+        setEmail(session.user.email);
+      });
+      Promise.resolve().then(() => {
+        setEmailDraft(session.user.email);
+      });
     }
   }, [params.email, session?.user?.email]);
 
@@ -139,7 +147,9 @@ export default function VerifyEmailScreen() {
 
   useEffect(() => {
     if (code.length >= 6) {
-      setCursorVisible(false);
+      Promise.resolve().then(() => {
+        setCursorVisible(false);
+      });
       return;
     }
     const timer = setInterval(() => {

@@ -125,7 +125,6 @@ export function ModalSheet({
 
   useEffect(() => {
     if (visible) {
-      setIsMounted(true);
       anim.setValue(0);
       Animated.timing(anim, {
         toValue: 1,
@@ -166,7 +165,7 @@ export function ModalSheet({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose, visible]);
 
-  if (!isMounted) {
+  if (!isMounted && !visible) {
     return null;
   }
 
@@ -244,7 +243,7 @@ export function ModalSheet({
 
   return (
     <Modal
-      visible={isMounted}
+      visible={visible || isMounted}
       animationType="fade"
       transparent
       onRequestClose={onClose}

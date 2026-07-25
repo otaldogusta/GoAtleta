@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     useEffect,
     useMemo,
-    useRef,
     useState
 } from "react";
 import {
@@ -20,7 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { markRender } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
 
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/api/config";
+import { updatePasswordWithAccessToken } from "../src/api/auth-password";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 
@@ -69,7 +68,7 @@ export default function ResetPasswordScreen() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const strengthAnim = useRef(new Animated.Value(0)).current;
+  const [strengthAnim] = useState(() => new Animated.Value(0));
 
   const passwordChecks = useMemo(() => {
     const value = password;
@@ -109,7 +108,10 @@ export default function ResetPasswordScreen() {
 
   useEffect(() => {
     if (typeof params.access_token === "string" && params.access_token) {
-      setToken(params.access_token);
+      const accessToken = params.access_token;
+      Promise.resolve().then(() => {
+        setToken(accessToken);
+      });
       return;
     }
     if (Platform.OS !== "web") return;
@@ -132,7 +134,7 @@ export default function ResetPasswordScreen() {
       active = false;
       sub.remove();
     };
-  }, []);
+  }, [params.access_token]);
 
   const submit = async () => {
     if (!token) {
@@ -154,22 +156,7 @@ export default function ResetPasswordScreen() {
     setMessage("");
     setBusy(true);
     try {
-      const res = await fetch(
-        SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user",
-        {
-          method: "PUT",
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ password }),
-        }
-      );
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Falha ao atualizar senha.");
-      }
+      await updatePasswordWithAccessToken(token, password);
       setPassword("");
       setConfirm("");
       setToken("");

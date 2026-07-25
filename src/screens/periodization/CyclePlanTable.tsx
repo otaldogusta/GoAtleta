@@ -203,14 +203,7 @@ export function CyclePlanTable({
       lastAppliedScrollXRef.current = nextOffsetX;
       cyclePanelScrollRef.current?.scrollTo({ x: nextOffsetX, animated });
     },
-    [
-      cyclePanelScrollRef,
-      cycleSnapInterval,
-      hasWeekPlans,
-      onSelectedWeekChange,
-      weekPlans,
-      weekPlans.length,
-    ]
+    [cyclePanelScrollRef, cycleSnapInterval, hasWeekPlans, onSelectedWeekChange, weekPlans]
   );
 
   const handleCycleSnapEnd = useCallback(

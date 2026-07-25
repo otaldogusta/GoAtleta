@@ -447,23 +447,7 @@ const resolveAnnualTemplate = (options: {
   return annualVolleyballPlans[options.ageBand] ?? annualVolleyballPlans["09-11"];
 };
 
-const getAnnualPhaseForWeek = (options: {
-  ageBand: (typeof ageBands)[number];
-  cycleLength: number;
-  weekNumber: number;
-  model: PeriodizationModel;
-  sport: SportProfile;
-}) => {
-  const template = resolveAnnualTemplate(options);
-  if (!template?.length) return null;
-  const fitted = fitTemplateToCycleLength(template, options.cycleLength);
-  let cursor = 0;
-  for (const phase of fitted) {
-    cursor += phase.durationWeeks;
-    if (options.weekNumber <= cursor) return phase;
-  }
-  return fitted[fitted.length - 1] ?? null;
-};
+
 
 type AnnualPhasePlacement = {
   phase: AnnualPhaseTemplate;

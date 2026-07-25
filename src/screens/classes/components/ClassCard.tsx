@@ -218,7 +218,9 @@ export const ClassCard = memo(function ClassCard({
 
   useEffect(() => {
     if (actionMenuOpen) return;
-    setActionMenuLayout(null);
+    Promise.resolve().then(() => {
+      setActionMenuLayout(null);
+    });
   }, [actionMenuOpen]);
 
   const actionMenuContent = (

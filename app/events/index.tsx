@@ -31,7 +31,6 @@ import { useOptionalOrganization } from "../../src/providers/OrganizationProvide
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
-import { Pressable as AppPressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import type { ConfirmDialogOptions } from "../../src/ui/confirm-dialog";
@@ -227,7 +226,7 @@ export default function EventsScreen() {
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
-  const isWideLayout = width >= 980;
+
   const isFormRowLayout = width >= 0;
 
   useCopilotContext(
@@ -241,7 +240,7 @@ export default function EventsScreen() {
     )
   );
 
-  const [monthDate, setMonthDate] = useState(() => new Date());
+  const [monthDate, ] = useState(() => new Date());
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [events, setEvents] = useState<EventListItem[]>([]);
@@ -330,9 +329,9 @@ export default function EventsScreen() {
     setShowReminderDropdown(false);
   };
 
-  const closeAllDropdowns = () => {
+  const closeAllDropdowns = useCallback(() => {
     closeCreateDropdowns();
-  };
+  }, []);
 
   const openEventTypeDropdown = () => {
     const next = !showEventTypeDropdown;
@@ -452,10 +451,12 @@ export default function EventsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeOrganization?.id, monthDate, session?.user?.id]);
+  }, [activeOrganization, monthDate, session]);
 
   useEffect(() => {
-    loadData();
+    Promise.resolve().then(() => {
+      loadData();
+    });
   }, [loadData]);
 
   const submitCreate = async () => {
@@ -583,13 +584,19 @@ export default function EventsScreen() {
     if (!start) return;
 
     const end = new Date(start.getTime() + Math.max(15, durationMinutes) * 60000);
-    setStartsInput(toInputDate(start));
-    setEndsInput(toInputDate(end));
+    Promise.resolve().then(() => {
+      setStartsInput(toInputDate(start));
+    });
+    Promise.resolve().then(() => {
+      setEndsInput(toInputDate(end));
+    });
   }, [startDateInput, startTimeInput, durationInput]);
 
   useEffect(() => {
-    closeAllDropdowns();
-  }, [width]);
+    Promise.resolve().then(() => {
+      closeAllDropdowns();
+    });
+  }, [closeAllDropdowns, width]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>

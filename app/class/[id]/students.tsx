@@ -27,7 +27,7 @@ import {
 } from "../../../src/copilot/CopilotProvider";
 import { getClassModalityLabel, matchesClassModalityText } from "../../../src/core/class-modality";
 import { matchAthleteIntakeToStudents, type AthleteIntake } from "../../../src/core/athlete-intake";
-import { useEffectiveProfile } from "../../../src/core/effective-profile";
+import { useEffectiveProfile } from "../../../src/hooks/use-effective-profile";
 import type { ClassGroup, Student } from "../../../src/core/models";
 import {
     deleteStudent,
@@ -652,7 +652,9 @@ export default function ClassStudentsScreen() {
 
   useEffect(() => {
     const alive = { current: true };
-    void load(alive);
+    Promise.resolve().then(() => {
+      void load(alive);
+    });
     return () => {
       alive.current = false;
     };
@@ -708,7 +710,9 @@ export default function ClassStudentsScreen() {
   useEffect(() => {
     if (!id || !cls?.organizationId) return;
     let cancelled = false;
-    setDuplicateReviewsLoaded(false);
+    Promise.resolve().then(() => {
+      setDuplicateReviewsLoaded(false);
+    });
     void loadReviewedDuplicateSignatures({
       organizationId: cls.organizationId,
       classId: id,
@@ -1010,37 +1014,7 @@ export default function ClassStudentsScreen() {
       [...editClassIds].sort().join("|") !== [...initialEditClassIds].sort().join("|") ||
       photoChanged
     );
-  }, [
-    age,
-    birthIso,
-    birthText,
-    cpfDisplay,
-    cpfWasEdited,
-    editSnapshot,
-    editClassIds,
-    initialEditClassIds,
-    editingStudent,
-    cls?.id,
-    email,
-    guardianName,
-    guardianPhone,
-    guardianRelation,
-    collegeCourse,
-    healthIssue,
-    healthIssueNotes,
-    healthObs,
-    learningStyle,
-    medicationNotes,
-    medicationUse,
-    name,
-    objective,
-    phone,
-    primaryPos,
-    photoChanged,
-    rgDocument,
-    ra,
-    secondaryPos,
-  ]);
+  }, [age, birthIso, birthText, cpfDisplay, cpfWasEdited, editSnapshot, editClassIds, initialEditClassIds, editingStudent, email, guardianName, guardianPhone, guardianRelation, collegeCourse, healthIssue, healthIssueNotes, healthObs, learningStyle, medicationNotes, medicationUse, name, objective, phone, primaryPos, photoChanged, rgDocument, ra, secondaryPos]);
 
   const closeEditModal = useCallback(() => {
     setDropKey(null);
@@ -1764,7 +1738,7 @@ export default function ClassStudentsScreen() {
     showSaveToast,
   ]);
 
-  const addSelectedExistingStudent = useCallback(async () => {
+  const addSelectedExistingStudent = async () => {
     if (!id || !selectedExistingStudent) return;
     if (!isOnline) {
       setCreateError("Conecte-se à internet para adicionar o aluno à turma.");
@@ -1801,15 +1775,7 @@ export default function ClassStudentsScreen() {
     } finally {
       setCreatingStudent(false);
     }
-  }, [
-    cls?.organizationId,
-    id,
-    isOnline,
-    load,
-    resetCreateForm,
-    selectedExistingStudent,
-    showSaveToast,
-  ]);
+  };
 
   const handleSelectionMore = useCallback(() => {
     const actions: { text: string; onPress?: () => void; style?: "default" | "cancel" | "destructive" }[] = [];
@@ -2048,7 +2014,7 @@ export default function ClassStudentsScreen() {
       return `${cls?.name || "Sem turma"} • ${cls?.unit || "Sem unidade"}`;
     }
     return modalities.join(" • ");
-  }, [cls?.modality, cls?.name, cls?.unit, editingIntake]);
+  }, [cls?.name, cls?.unit, editingIntake]);
 
   const intakeHealthSignals = useMemo(() => {
     if (!editingIntake) return [] as string[];
@@ -2094,7 +2060,7 @@ export default function ClassStudentsScreen() {
     return intakeHealthSignals.slice(0, 4);
   }, [editingIntake, intakeHealthSignals]);
 
-  const sportsLinkBadges = useMemo(() => {
+  useMemo(() => {
     const badges: string[] = [];
     if (cls?.modality) {
       badges.push(getClassModalityLabel(cls.modality));

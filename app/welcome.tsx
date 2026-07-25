@@ -8,9 +8,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 
+import { markRender } from "../src/observability/perf";
 import { useAppTheme } from "../src/ui/app-theme";
 
+// perf-check: ignore-measure - rota estática sem carregamento assíncrono.
 export default function WelcomeScreen() {
+  markRender("screen.welcome.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const enterAnim = useRef(new Animated.Value(0)).current;

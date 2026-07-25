@@ -38,7 +38,10 @@ export function AnimatedBottomTabs({
   const { colors } = useAppTheme();
   const organization = useOptionalOrganization();
   const activeOrganization = organization?.activeOrganization ?? null;
-  const memberPermissions = organization?.memberPermissions ?? {};
+  const memberPermissions = useMemo(
+    () => organization?.memberPermissions ?? {},
+    [organization]
+  );
   const permissionsLoading = organization?.permissionsLoading ?? true;
   const insets = useSafeAreaInsets();
   const { usesWorkspaceShell } = useResponsiveLayout();

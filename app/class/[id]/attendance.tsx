@@ -147,10 +147,18 @@ export default function AttendanceScreen() {
       initialNotes[student.id] = "";
       initialPain[student.id] = 0;
     });
-    setStatusById(initialStatus);
-    setNoteById(initialNotes);
-    setPainById(initialPain);
-    setBaseline({ status: initialStatus, note: initialNotes, pain: initialPain });
+    Promise.resolve().then(() => {
+      setStatusById(initialStatus);
+    });
+    Promise.resolve().then(() => {
+      setNoteById(initialNotes);
+    });
+    Promise.resolve().then(() => {
+      setPainById(initialPain);
+    });
+    Promise.resolve().then(() => {
+      setBaseline({ status: initialStatus, note: initialNotes, pain: initialPain });
+    });
   }, [students]);
 
   const items = useMemo(
@@ -273,7 +281,9 @@ export default function AttendanceScreen() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return;
     const parsed = new Date(dateParam);
     if (Number.isNaN(parsed.getTime())) return;
-    void loadDate(dateParam);
+    Promise.resolve().then(() => {
+      void loadDate(dateParam);
+    });
   }, [cls, dateParam, loadDate]);
 
   useEffect(() => {
@@ -419,7 +429,9 @@ export default function AttendanceScreen() {
 
   useEffect(() => {
     if (hasChanges && !isSavingAttendance && savePhase !== "idle") {
-      setSavePhase("idle");
+      Promise.resolve().then(() => {
+        setSavePhase("idle");
+      });
     }
   }, [hasChanges, isSavingAttendance, savePhase]);
 

@@ -181,7 +181,9 @@ export default function StudentHome() {
   useEffect(() => {
     if (manualAgendaIndex == null) return;
     if (!scheduleWindow.length || manualAgendaIndex >= scheduleWindow.length) {
-      setManualAgendaIndex(null);
+      Promise.resolve().then(() => {
+        setManualAgendaIndex(null);
+      });
     }
   }, [manualAgendaIndex, scheduleWindow.length]);
 
@@ -249,7 +251,9 @@ export default function StudentHome() {
   }, [agendaCardGap, agendaCardWidth, agendaWidth, autoAgendaIndex, manualAgendaIndex]);
 
   useEffect(() => {
-    setManualAgendaIndex(null);
+    Promise.resolve().then(() => {
+      setManualAgendaIndex(null);
+    });
   }, [classes.length]);
 
   const canOpenDayPlan = Boolean(activeAgendaItem?.classId);

@@ -133,7 +133,6 @@ export function ConfirmUndoProvider({
 
   useEffect(() => {
     if (!pending) {
-      setRemainingSeconds(0);
       undoProgressAnim.stopAnimation();
       undoProgressAnim.setValue(1);
       return;
@@ -148,7 +147,7 @@ export function ConfirmUndoProvider({
     tick();
     const intervalId = setInterval(tick, 250);
     return () => clearInterval(intervalId);
-  }, [pending]);
+  }, [pending, undoProgressAnim]);
 
   const modalTitle = confirmOptions?.title ?? "Confirmar";
   const modalMessage =

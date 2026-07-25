@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import {
@@ -37,14 +37,13 @@ export function NativeSidebar({ role, canExpand }: NativeSidebarProps) {
   const router = useRouter();
   const organization = useOptionalOrganization();
   const activeOrganization = organization?.activeOrganization ?? null;
-  const memberPermissions = organization?.memberPermissions ?? {};
+  const memberPermissions = useMemo(
+    () => organization?.memberPermissions ?? {},
+    [organization?.memberPermissions]
+  );
   const permissionsLoading = organization?.permissionsLoading ?? true;
   const [expandedRequested, setExpandedRequested] = useState(false);
   const expanded = canExpand && expandedRequested;
-
-  useEffect(() => {
-    if (!canExpand) setExpandedRequested(false);
-  }, [canExpand]);
 
   const items = useMemo<NativeNavItem[]>(() => {
     const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;

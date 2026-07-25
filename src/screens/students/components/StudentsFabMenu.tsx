@@ -33,7 +33,9 @@ export function StudentsFabMenu({
 
   useEffect(() => {
     if (visible) {
-      setMounted(true);
+      Promise.resolve().then(() => {
+        setMounted(true);
+      });
       Animated.timing(anim, {
         toValue: 1,
         duration: 180,

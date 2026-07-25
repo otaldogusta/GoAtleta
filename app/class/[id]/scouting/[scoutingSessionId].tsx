@@ -106,13 +106,17 @@ export default function ClassScoutingSessionRoute() {
   }, [classId, sessionId]);
 
   useEffect(() => {
-    void loadData();
+    Promise.resolve().then(() => {
+      void loadData();
+    });
   }, [loadData]);
 
   useEffect(() => {
     const options = getScoutingResultOptions(fundamental);
     if (!options.some((option) => option.key === resultKey)) {
-      setResultKey(options[0]?.key ?? "erro");
+      Promise.resolve().then(() => {
+        setResultKey(options[0]?.key ?? "erro");
+      });
     }
   }, [fundamental, resultKey]);
 

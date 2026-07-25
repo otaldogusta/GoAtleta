@@ -74,7 +74,9 @@ export function PeriodizationManagerSheet({
   const [mountedOnce, setMountedOnce] = useState(visible);
 
   useEffect(() => {
-    if (visible) setMountedOnce(true);
+    if (visible) Promise.resolve().then(() => {
+      setMountedOnce(true);
+    });
   }, [visible]);
 
   const content =

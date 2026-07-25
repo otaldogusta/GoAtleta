@@ -11,7 +11,6 @@ import { Animated, Platform, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "./Pressable";
-import { useAppTheme } from "./app-theme";
 import { getFriendlyErrorMessage } from "./error-messages";
 
 type SaveToastOptions = {
@@ -34,7 +33,6 @@ export function SaveToastProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<SaveToastOptions | null>(null);
   const anim = useRef(new Animated.Value(0)).current;

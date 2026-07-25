@@ -3,9 +3,9 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import {
   resolveEffectiveProfile,
-  useEffectiveProfile,
   type EffectiveProfile,
 } from "../effective-profile";
+import { useEffectiveProfile } from "../../hooks/use-effective-profile";
 
 describe("effective profile", () => {
   it("uses the professor fallback while the organization provider is unavailable", () => {

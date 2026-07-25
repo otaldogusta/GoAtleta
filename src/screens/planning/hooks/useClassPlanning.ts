@@ -145,7 +145,9 @@ export function useClassPlanning(classId: string) {
   }, [classId]);
 
   useEffect(() => {
-    void load();
+    Promise.resolve().then(() => {
+      void load();
+    });
   }, [load]);
 
   const months = useMemo(

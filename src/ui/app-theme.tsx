@@ -1,10 +1,8 @@
 import {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
 } from "react";
 import { Platform, useColorScheme as useSystemColorScheme } from "react-native";
 import { brandPalette, semanticColors } from "../theme/tokens";
@@ -143,21 +141,14 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useSystemColorScheme() === "dark" ? "dark" : "light";
   const [overrideMode, setOverrideMode, overrideLoaded] =
     usePersistedState<ThemeMode | null>("theme_override_v1", null);
-  const [mode, setModeState] = useState<ThemeMode>(systemScheme);
+  const mode = useMemo<ThemeMode>(
+    () => (overrideLoaded && overrideMode ? overrideMode : systemScheme),
+    [overrideLoaded, overrideMode, systemScheme]
+  );
 
-  useEffect(() => {
-    if (!overrideLoaded) return;
-    if (overrideMode) {
-      setModeState(overrideMode);
-      return;
-    }
-    setModeState(systemScheme);
-  }, [overrideLoaded, overrideMode, systemScheme]);
-
-  const setMode = useCallback(async (next: ThemeMode) => {
-    setModeState(next);
+  const setMode = useCallback((next: ThemeMode) => {
     setOverrideMode(next);
-  }, []);
+  }, [setOverrideMode]);
 
   const toggleMode = useCallback(() => {
     void setMode(mode === "dark" ? "light" : "dark");

@@ -1,9 +1,10 @@
 import { usePathname } from "expo-router";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 import type { AppRole } from "../components/navigation/tab-config";
-import { useEffectiveProfile, type EffectiveProfile } from "../core/effective-profile";
+import { useEffectiveProfile } from "../hooks/use-effective-profile";
+import { type EffectiveProfile } from "../core/effective-profile";
 import { AppShell } from "./AppShell";
 
 const WEB_SHELL_LAST_SCOPE_KEY = "goatleta:web-shell-last-scope";
@@ -44,23 +45,25 @@ const getFallbackRole = (effectiveProfile: EffectiveProfile): AppRole => {
   return "prof";
 };
 
+const getStoredWebScopeRole = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(WEB_SHELL_LAST_SCOPE_KEY);
+    return isAppRole(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+};
+
 export function RootWebShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const effectiveProfile = useEffectiveProfile();
   const explicitRole = getExplicitRoleForPath(pathname);
-  const [lastExplicitRole, setLastExplicitRole] = useState<AppRole | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(WEB_SHELL_LAST_SCOPE_KEY);
-    if (isAppRole(stored)) {
-      setLastExplicitRole(stored);
-    }
-  }, []);
+  const storedRole = typeof window === "undefined" ? null : getStoredWebScopeRole();
+  const selectedRole = explicitRole ?? storedRole;
 
   useEffect(() => {
     if (!explicitRole) return;
-    setLastExplicitRole(explicitRole);
     if (typeof window === "undefined") return;
     window.localStorage.setItem(WEB_SHELL_LAST_SCOPE_KEY, explicitRole);
   }, [explicitRole]);
@@ -70,7 +73,7 @@ export function RootWebShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppShell role={lastExplicitRole ?? getFallbackRole(effectiveProfile)}>
+    <AppShell role={selectedRole ?? getFallbackRole(effectiveProfile)}>
       {children}
     </AppShell>
   );

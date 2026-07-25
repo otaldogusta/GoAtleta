@@ -117,9 +117,15 @@ export function useSessionData({
 
   useEffect(() => {
     let alive = true;
-    setIsLoadingSession(true);
-    setSessionDataStatus("loading");
-    setSessionDataError(null);
+    Promise.resolve().then(() => {
+      setIsLoadingSession(true);
+    });
+    Promise.resolve().then(() => {
+      setSessionDataStatus("loading");
+    });
+    Promise.resolve().then(() => {
+      setSessionDataError(null);
+    });
 
     (async () => {
       try {
@@ -253,7 +259,7 @@ export function useSessionData({
     return () => {
       cancelled = true;
     };
-  }, [cls?.id, cls?.organizationId, reloadToken, sessionDate]);
+  }, [cls, reloadToken, sessionDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -341,11 +347,7 @@ export function useSessionData({
     return () => {
       cancelled = true;
     };
-  }, [
-    plan?.pedagogy?.methodology?.kbRuleKey,
-    plan?.pedagogy?.methodology?.reasoning?.knowledgeBaseVersionId,
-    reloadToken,
-  ]);
+  }, [plan?.pedagogy?.methodology, reloadToken]);
 
   useEffect(() => {
     let alive = true;

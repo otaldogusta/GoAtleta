@@ -168,19 +168,41 @@ export function ClassPlanPreviewModal({
 
   useEffect(() => {
     if (!visible) return;
-    setPdfPlan(plan);
-    setWorkingPlan(plan);
+    Promise.resolve().then(() => {
+      setPdfPlan(plan);
+    });
+    Promise.resolve().then(() => {
+      setWorkingPlan(plan);
+    });
     workingPlanRef.current = plan;
     undoStackRef.current = [];
-    setIsDirty(false);
-    setIsEditing(initialMode === "edit");
-    setIsEditorExpanded(initialMode === "edit");
-    setIsPdfContentExpanded(false);
-    setSelectedBlockKey("main");
-    setFocusedActivityDescriptionIndex(null);
-    setMobileView(initialMode === "edit" ? "outline" : "pdf");
-    setPdfStatusLabel("PDF sincronizado");
-    setShowMenu(false);
+    Promise.resolve().then(() => {
+      setIsDirty(false);
+    });
+    Promise.resolve().then(() => {
+      setIsEditing(initialMode === "edit");
+    });
+    Promise.resolve().then(() => {
+      setIsEditorExpanded(initialMode === "edit");
+    });
+    Promise.resolve().then(() => {
+      setIsPdfContentExpanded(false);
+    });
+    Promise.resolve().then(() => {
+      setSelectedBlockKey("main");
+    });
+    Promise.resolve().then(() => {
+      setFocusedActivityDescriptionIndex(null);
+    });
+    Promise.resolve().then(() => {
+      setMobileView(initialMode === "edit" ? "outline" : "pdf");
+    });
+    Promise.resolve().then(() => {
+      setPdfStatusLabel("PDF sincronizado");
+    });
+    Promise.resolve().then(() => {
+      setShowMenu(false);
+    });
   }, [initialMode, plan, visible]);
 
   const pdfData = useMemo(
@@ -197,16 +219,26 @@ export function ClassPlanPreviewModal({
   useEffect(() => {
     if (!visible) return undefined;
     if (Platform.OS !== "web") {
-      setPreviewStatus("idle");
+      Promise.resolve().then(() => {
+        setPreviewStatus("idle");
+      });
       return undefined;
     }
 
     let active = true;
     let generatedUrl = "";
-    setPreviewStatus("loading");
-    setPdfUrl("");
-    setPdfBlob(null);
-    setPdfSize(null);
+    Promise.resolve().then(() => {
+      setPreviewStatus("loading");
+    });
+    Promise.resolve().then(() => {
+      setPdfUrl("");
+    });
+    Promise.resolve().then(() => {
+      setPdfBlob(null);
+    });
+    Promise.resolve().then(() => {
+      setPdfSize(null);
+    });
 
     void (async () => {
       try {

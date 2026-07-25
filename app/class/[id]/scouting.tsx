@@ -26,6 +26,7 @@ import {
   getTrainingSessionsByClass,
 } from "../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { Button } from "../../../src/ui/Button";
 import { DateInput } from "../../../src/ui/DateInput";
 import { ModalDialogFrame } from "../../../src/ui/ModalDialogFrame";
@@ -65,6 +66,7 @@ const sessionTypeLabel = (type: ScoutingSessionType) =>
   scoutingSessionTypes.find((item) => item.id === type)?.label ?? "Treino";
 
 export default function ClassScoutingRoute() {
+  markRender("screen.scouting.render.root");
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -88,13 +90,22 @@ export default function ClassScoutingRoute() {
     setLoading(true);
     setError("");
     try {
-      const [classData, scoutingSessions, upcomingContext] = await Promise.all([
-        getClassById(classId),
-        getScoutingSessionsByClass(classId, { limit: 12 }),
-        getTrainingSessionsByClass(classId),
-      ]);
-      const details = await Promise.all(
-        scoutingSessions.slice(0, 8).map((session) => getScoutingSessionById(session.id))
+      const { classData, scoutingSessions, upcomingContext, details } = await measureAsync(
+        "screen.scouting.load.initial",
+        async () => {
+          const [classData, scoutingSessions, upcomingContext] = await Promise.all([
+            getClassById(classId),
+            getScoutingSessionsByClass(classId, { limit: 12 }),
+            getTrainingSessionsByClass(classId),
+          ]);
+          const details = await Promise.all(
+            scoutingSessions
+              .slice(0, 8)
+              .map((session) => getScoutingSessionById(session.id))
+          );
+          return { classData, scoutingSessions, upcomingContext, details };
+        },
+        { classId }
       );
       setCls(classData);
       setSessions(scoutingSessions);
@@ -112,7 +123,9 @@ export default function ClassScoutingRoute() {
   }, [classId]);
 
   useEffect(() => {
-    void loadData();
+    Promise.resolve().then(() => {
+      void loadData();
+    });
   }, [loadData]);
 
   const latestSession = sessions[0] ?? null;

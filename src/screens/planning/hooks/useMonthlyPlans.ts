@@ -333,7 +333,9 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
   }, [classId, monthKey]);
 
   useEffect(() => {
-    void load();
+    Promise.resolve().then(() => {
+      void load();
+    });
   }, [load]);
 
   const monthPlans = useMemo(

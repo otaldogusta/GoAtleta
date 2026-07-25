@@ -32,15 +32,13 @@ const formatAnnualCycleLabel = (weeks: number) => {
 type ClassEditModalBodyProps = {
   compact?: boolean;
   renderPickers?: boolean;
-  refs: {
-    editContainerRef: RefObject<View | null>;
-    editAgeBandTriggerRef: RefObject<View | null>;
-    editGenderTriggerRef: RefObject<View | null>;
-    editGoalTriggerRef: RefObject<View | null>;
-    editCycleLengthTriggerRef?: RefObject<View | null>;
-    editMvLevelTriggerRef?: RefObject<View | null>;
-    editModalityTriggerRef?: RefObject<View | null>;
-  };
+  editContainerRef: RefObject<View | null>;
+  editAgeBandTriggerRef: RefObject<View | null>;
+  editGenderTriggerRef: RefObject<View | null>;
+  editGoalTriggerRef: RefObject<View | null>;
+  editCycleLengthTriggerRef?: RefObject<View | null>;
+  editMvLevelTriggerRef?: RefObject<View | null>;
+  editModalityTriggerRef?: RefObject<View | null>;
   layouts: {
     editContainerWindow: WindowPosition | null;
     editAgeBandTriggerLayout: PickerLayout | null;
@@ -220,7 +218,13 @@ SelectOption.displayName = "SelectOption";
 function ClassEditModalBodyBase({
   compact = false,
   renderPickers = true,
-  refs,
+  editContainerRef,
+  editAgeBandTriggerRef,
+  editGenderTriggerRef,
+  editGoalTriggerRef,
+  editCycleLengthTriggerRef,
+  editMvLevelTriggerRef,
+  editModalityTriggerRef,
   layouts,
   pickers,
   fields,
@@ -464,7 +468,7 @@ function ClassEditModalBodyBase({
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Faixa etária</Text>
-              <View ref={refs.editAgeBandTriggerRef}>
+              <View ref={editAgeBandTriggerRef}>
                 <Pressable onPress={() => actions.toggleEditPicker("age")} style={selectFieldStyle}>
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {resolveAgeBandLabel()}
@@ -500,7 +504,7 @@ function ClassEditModalBodyBase({
             </View>
             <View style={{ flex: 1, minWidth: 140, flexBasis: 0, gap: 4 }}>
               <Text style={{ color: colors.muted, fontSize: 11 }}>Gênero</Text>
-              <View ref={refs.editGenderTriggerRef}>
+              <View ref={editGenderTriggerRef}>
                 <Pressable onPress={() => actions.toggleEditPicker("gender")} style={selectFieldStyle}>
                   <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                     {resolveGenderLabel(fields.editGender)}
@@ -530,7 +534,7 @@ function ClassEditModalBodyBase({
             {fields.editModality !== undefined && actions.handleEditSelectModality && options.modalityOptions?.length ? (
               <View style={{ gap: 4 }}>
                 <Text style={{ color: colors.muted, fontSize: 11 }}>Modalidade</Text>
-                <View ref={refs.editModalityTriggerRef}>
+                <View ref={editModalityTriggerRef}>
                   <Pressable onPress={() => actions.toggleEditPicker("modality")} style={selectFieldStyle}>
                     <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
                       {fields.editModality || "Selecione"}
@@ -571,7 +575,13 @@ function ClassEditModalBodyBase({
       </View>
       {renderPickers ? (
         <ClassEditModalPickers
-          refs={refs}
+          editContainerRef={editContainerRef}
+          editAgeBandTriggerRef={editAgeBandTriggerRef}
+          editGenderTriggerRef={editGenderTriggerRef}
+          editGoalTriggerRef={editGoalTriggerRef}
+          editCycleLengthTriggerRef={editCycleLengthTriggerRef}
+          editMvLevelTriggerRef={editMvLevelTriggerRef}
+          editModalityTriggerRef={editModalityTriggerRef}
           layouts={layouts}
           pickers={pickers}
           fields={fields}
@@ -584,7 +594,12 @@ function ClassEditModalBodyBase({
 }
 
 function ClassEditModalPickersBase({
-  refs,
+  editAgeBandTriggerRef,
+  editGenderTriggerRef,
+  editGoalTriggerRef,
+  editCycleLengthTriggerRef,
+  editMvLevelTriggerRef,
+  editModalityTriggerRef,
   layouts,
   pickers,
   fields,
@@ -609,7 +624,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        interactiveRefs={refs.editCycleLengthTriggerRef ? [refs.editCycleLengthTriggerRef] : undefined}
+        interactiveRefs={editCycleLengthTriggerRef ? [editCycleLengthTriggerRef] : undefined}
       >
         <View style={{ gap: 6 }}>
           {(options.cycleLengthOptions ?? []).map((option) => (
@@ -633,7 +648,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        interactiveRefs={refs.editMvLevelTriggerRef ? [refs.editMvLevelTriggerRef] : undefined}
+        interactiveRefs={editMvLevelTriggerRef ? [editMvLevelTriggerRef] : undefined}
       >
         <View style={{ gap: 6 }}>
           {(options.mvLevelOptions ?? []).map((option) => (
@@ -657,7 +672,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        interactiveRefs={[refs.editAgeBandTriggerRef]}
+        interactiveRefs={[editAgeBandTriggerRef]}
       >
         <View style={{ gap: 6 }}>
           {options.ageBandOptions.map((option) => (
@@ -687,7 +702,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        interactiveRefs={[refs.editGenderTriggerRef]}
+        interactiveRefs={[editGenderTriggerRef]}
       >
         <View style={{ gap: 6 }}>
           {options.genderOptions.map((option) => (
@@ -711,7 +726,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        interactiveRefs={refs.editModalityTriggerRef ? [refs.editModalityTriggerRef] : undefined}
+        interactiveRefs={editModalityTriggerRef ? [editModalityTriggerRef] : undefined}
       >
         <View style={{ gap: 6 }}>
           {(options.modalityOptions ?? []).map((option) => (
@@ -735,7 +750,7 @@ function ClassEditModalPickersBase({
         maxHeight={220}
         nestedScrollEnabled
         onRequestClose={actions.closeAllPickers}
-        interactiveRefs={[refs.editGoalTriggerRef]}
+        interactiveRefs={[editGoalTriggerRef]}
       >
         <View style={{ gap: 6 }}>
           {options.goalOptions.map((goal) => (

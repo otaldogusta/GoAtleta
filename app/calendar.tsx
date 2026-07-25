@@ -229,7 +229,9 @@ export default function CalendarScreen() {
     if (!targetDate) return;
     const seed = new Date(targetDate + "T00:00:00");
     if (Number.isNaN(seed.getTime())) return;
-    setVisibleMonth(new Date(seed.getFullYear(), seed.getMonth(), 1));
+    Promise.resolve().then(() => {
+      setVisibleMonth(new Date(seed.getFullYear(), seed.getMonth(), 1));
+    });
   }, [targetDate]);
 
   const earliestClassStart = useMemo(() => {
@@ -288,7 +290,9 @@ export default function CalendarScreen() {
   useEffect(() => {
     let alive = true;
     if (!activeOrganization?.id) {
-      setEvents([]);
+      Promise.resolve().then(() => {
+        setEvents([]);
+      });
       return () => {
         alive = false;
       };
@@ -324,10 +328,18 @@ export default function CalendarScreen() {
     const targetClass = classById[targetClassId];
     if (!targetClass) return;
     const unitName = unitLabel(targetClass.unit);
-    setUnitFilter(unitName);
-    setApplyPickerClassId(targetClassId);
-    setApplyPickerDate(targetDate);
-    setShowApplyPicker(true);
+    Promise.resolve().then(() => {
+      setUnitFilter(unitName);
+    });
+    Promise.resolve().then(() => {
+      setApplyPickerClassId(targetClassId);
+    });
+    Promise.resolve().then(() => {
+      setApplyPickerDate(targetDate);
+    });
+    Promise.resolve().then(() => {
+      setShowApplyPicker(true);
+    });
     applyTargetHandled.current = true;
   }, [
     openApply,

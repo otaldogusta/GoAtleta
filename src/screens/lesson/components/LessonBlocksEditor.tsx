@@ -26,7 +26,7 @@ export function LessonBlocksEditor({ blocks, onChange, maxHeight = 420 }: Props)
     if (!blocks.some((block) => block.key === expandedBlockKey)) {
       setExpandedBlockKey(blocks[0]?.key ?? null);
     }
-  }, [blocks, expandedBlockKey]);
+  }, [blocks, expandedBlockKey, setExpandedBlockKey]);
 
   return (
     <ScrollView style={{ maxHeight }} contentContainerStyle={{ gap: 10 }} showsVerticalScrollIndicator>

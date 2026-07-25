@@ -4,7 +4,7 @@ import {
   type ActivityCatalogTaxonomy,
   type ActivityCatalogVariant,
 } from "./activity-catalog";
-import type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-engine";
+import type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-types";
 
 export type ActivityFocusVariant = "manchete";
 

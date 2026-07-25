@@ -5,6 +5,10 @@ import type {
   VolleyballSkill,
   WeeklyLoadIntent,
 } from "../models";
+import type {
+  ActivityPatternAgeStage,
+  ActivityPatternStage,
+} from "./activity-pattern-types";
 import type { ActivityCatalogTaxonomy } from "./activity-catalog";
 import type { SessionPlanningContext } from "../session-planning-context";
 import { composeActivityPattern } from "./activity-pattern-composer";
@@ -13,14 +17,7 @@ import {
   type ActivityFocusVariant,
   type ActivityKnowledgePattern,
 } from "./activity-knowledge-patterns";
-
-export type ActivityPatternStage = "warmup" | "drill" | "game" | "cooldown";
-export type ActivityPatternAgeStage =
-  | "early"
-  | "base"
-  | "transition"
-  | "formation"
-  | "specialization";
+export type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-types";
 
 export type ActivityPatternAgeProfile = {
   stage: ActivityPatternAgeStage;

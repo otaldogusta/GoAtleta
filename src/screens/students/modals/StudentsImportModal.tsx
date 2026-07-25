@@ -446,7 +446,9 @@ export function StudentsImportModal({
   useEffect(() => {
     if (!visible) {
       hasAutoTriedRef.current = false;
-      resetState();
+      Promise.resolve().then(() => {
+        resetState();
+      });
       return;
     }
     if (hasAutoTriedRef.current) return;
@@ -505,7 +507,7 @@ export function StudentsImportModal({
         { label: "Conflitos", value: summary.conflict },
       ]
     : [];
-  const computedFlagTotals = useMemo(() => {
+  const computedFlagTotals = (() => {
     const totals: Record<string, number> = {};
     if (summary?.flags) {
       for (const [flag, total] of Object.entries(summary.flags)) {
@@ -525,7 +527,7 @@ export function StudentsImportModal({
       totals.LOW_CONFIDENCE_MATCH = Number(summary?.conflict ?? 0);
     }
     return totals;
-  }, [previewResult?.rows, summary?.conflict, summary?.flags]);
+  })();
 
   const topConflictFlags = useMemo(() => {
     if (!summary) return [];

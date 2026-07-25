@@ -379,7 +379,6 @@ export default function NfcAttendanceScreen() {
 
   const {
     state: scanState,
-    isScanning,
     start: startScan,
     pause: pauseScan,
     resume: resumeScan,
@@ -492,9 +491,15 @@ export default function NfcAttendanceScreen() {
     let alive = true;
     const orgId = activeOrganization?.id ?? "";
     if (!orgId) {
-      setClasses([]);
-      setStudents([]);
-      setBindings([]);
+      Promise.resolve().then(() => {
+        setClasses([]);
+      });
+      Promise.resolve().then(() => {
+        setStudents([]);
+      });
+      Promise.resolve().then(() => {
+        setBindings([]);
+      });
       return;
     }
     (async () => {
@@ -592,7 +597,7 @@ export default function NfcAttendanceScreen() {
         ),
         getRecentScanCacheSize: () => 0,
       };
-    } catch (_e) {
+    } catch {
       // ignore
     }
 
@@ -631,7 +636,7 @@ export default function NfcAttendanceScreen() {
           totalScans: metrics.totalScans,
           duplicateScans: metrics.duplicateScans,
         };
-      } catch (_e) {
+      } catch {
         // ignore
       }
     }, 60_000);
@@ -641,14 +646,18 @@ export default function NfcAttendanceScreen() {
 
   useEffect(() => {
     if (!activeOrganization?.id) return;
-    void handleSyncNow("mount");
+    Promise.resolve().then(() => {
+      void handleSyncNow("mount");
+    });
   }, [activeOrganization?.id, handleSyncNow]);
 
   useEffect(() => {
     let alive = true;
     const orgId = activeOrganization?.id ?? "";
     if (!orgId) {
-      setMetrics(emptyMetrics());
+      Promise.resolve().then(() => {
+        setMetrics(emptyMetrics());
+      });
       return;
     }
     (async () => {
@@ -689,8 +698,7 @@ export default function NfcAttendanceScreen() {
     return bindingsByStudentId.get(bindingStudentId) ?? null;
   }, [bindingStudentId, bindingsByStudentId]);
 
-  const removeBindingForStudent = useCallback(
-    async (
+  const removeBindingForStudent = useCallback(async (
       binding: NfcTagBinding,
       options?: {
         silent?: boolean;
@@ -734,9 +742,7 @@ export default function NfcAttendanceScreen() {
       } finally {
         setRemovingBindingId("");
       }
-    },
-    [activeOrganization?.id, loadBindings, showSaveToast, studentsById]
-  );
+    }, [activeOrganization, loadBindings, showSaveToast, studentsById]);
 
   const confirmRemoveBinding = useCallback(
     (binding: NfcTagBinding) => {
@@ -770,7 +776,7 @@ export default function NfcAttendanceScreen() {
     }
   }, [resumeScan]);
 
-  const confirmBind = useCallback(async () => {
+  const confirmBind = async () => {
     if (!pendingUid || !bindingStudentId) return;
     if (!activeOrganization?.id) return;
     if (!session?.user?.id) {
@@ -816,19 +822,7 @@ export default function NfcAttendanceScreen() {
     } finally {
       setSavingBinding(false);
     }
-  }, [
-    activeOrganization?.id,
-    bindingStudentId,
-    bindingsByStudentId,
-    closeBindModal,
-    loadBindings,
-    pendingUid,
-    recordMetric,
-    removeBindingForStudent,
-    registerCheckin,
-    session?.user?.id,
-    showSaveToast,
-  ]);
+  };
 
   const toggleScanning = useCallback(async () => {
     if (Platform.OS === "web") {

@@ -114,7 +114,7 @@ export default function AbsenceNoticesScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeOrganization?.id]);
+  }, [activeOrganization]);
 
   useEffect(() => {
     let alive = true;

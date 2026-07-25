@@ -1,5 +1,4 @@
 import * as Sentry from "@sentry/react-native";
-import { AppState, AppStateStatus } from "react-native";
 import { flushPendingWrites, getPendingWritesCount } from "../db/seed";
 
 const isSyncPausedError = (message: string) =>
@@ -46,7 +45,6 @@ class SmartSyncService {
   private retryCount = 0;
   private maxRetries = 5;
   private isInitialized = false;
-  private appStateSubscription: any = null;
   private syncGeneration = 0;
 
   /**
@@ -58,12 +56,6 @@ class SmartSyncService {
 
     // Refresh pending count immediately on init
     void this.refreshPendingCount();
-
-    // Listen to app state changes (foreground/background)
-    this.appStateSubscription = AppState.addEventListener(
-      "change",
-      this.handleAppStateChange
-    );
 
     // Initial sync after init
     this.scheduleSyncSoon("app_init");
@@ -79,13 +71,9 @@ class SmartSyncService {
    * Cleanup listeners
    */
   destroy() {
-    if (this.syncTimer) {
+   if (this.syncTimer) {
       clearTimeout(this.syncTimer);
       this.syncTimer = null;
-    }
-    if (this.appStateSubscription) {
-      this.appStateSubscription.remove();
-      this.appStateSubscription = null;
     }
     this.queuedSyncReason = null;
     this.isInitialized = false;
@@ -146,10 +134,8 @@ class SmartSyncService {
   /**
    * Handle app state change (foreground/background)
    */
-  private handleAppStateChange = (nextAppState: AppStateStatus) => {
-    if (nextAppState === "active") {
-      this.scheduleSyncSoon("app_foreground");
-    }
+  syncOnAppForeground() {
+    this.scheduleSyncSoon("app_foreground");
   };
 
   /**

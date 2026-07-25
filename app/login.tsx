@@ -126,17 +126,25 @@ export default function LoginScreen() {
       void savePendingTrainerInvite(inviteCode);
     }
     if (typeof prefillEmail === "string" && prefillEmail.trim()) {
-      setEmail(prefillEmail.trim());
+      Promise.resolve().then(() => {
+        setEmail(prefillEmail.trim());
+      });
     }
     if (typeof prefillPassword === "string" && prefillPassword) {
-      setPassword(prefillPassword);
+      Promise.resolve().then(() => {
+        setPassword(prefillPassword);
+      });
     }
     if (pendingHint === "1") {
-      setMessage("Conta encontrada sem vínculo ativo. Entre para validar seu convite na tela de acesso pendente.");
+      Promise.resolve().then(() => {
+        setMessage("Conta encontrada sem vínculo ativo. Entre para validar seu convite na tela de acesso pendente.");
+      });
       return;
     }
     if (fromSignup === "1") {
-      setMessage("Este email já está cadastrado. Entrar com os dados preenchidos.");
+      Promise.resolve().then(() => {
+        setMessage("Este email já está cadastrado. Entrar com os dados preenchidos.");
+      });
     }
   }, [fromSignup, inviteCode, pendingHint, prefillEmail, prefillPassword]);
 
@@ -185,10 +193,14 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (!showReset && resetCountdown > 0) {
-      setResetCountdown(0);
+      Promise.resolve().then(() => {
+        setResetCountdown(0);
+      });
     }
     if (!showReset && resetSent) {
-      setResetSent(false);
+      Promise.resolve().then(() => {
+        setResetSent(false);
+      });
     }
   }, [showReset, resetCountdown, resetSent]);
 

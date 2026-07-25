@@ -1,4 +1,4 @@
-import { useEffect, useState, type Ref } from "react";
+import { useState, type Ref } from "react";
 import {
     TextInput,
     type TextInputProps,
@@ -72,12 +72,8 @@ export function DateInput({
   inputRef,
 }: DateInputProps) {
   const { colors } = useAppTheme();
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState(value ? formatShortDate(value) : "");
   const canOpenCalendar = Boolean(onOpenCalendar);
-
-  useEffect(() => {
-    setInputValue(value ? formatShortDate(value) : "");
-  }, [value]);
 
   return (
     <View
@@ -95,6 +91,7 @@ export function DateInput({
       }}
     >
       <TextInput
+        key={value || "empty-date-value"}
         ref={inputRef}
         placeholder={placeholder}
         value={inputValue}

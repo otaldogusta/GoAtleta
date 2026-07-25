@@ -29,8 +29,6 @@ import { validateTournamentRules } from "../../src/regulation/tournament-rule-ch
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { ModalSheet } from "../../src/ui/ModalSheet";
-import { Pressable as AppPressable } from "../../src/ui/Pressable";
-import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -259,7 +257,7 @@ export default function EventDetailsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeOrganization?.id, eventId, router, session?.user?.id]);
+  }, [activeOrganization, eventId, router, session]);
 
   useEffect(() => {
     if (!session) {
@@ -282,7 +280,9 @@ export default function EventDetailsScreen() {
   }, [activeOrganization?.id, organizationLoading, router]);
 
   useEffect(() => {
-    loadData();
+    Promise.resolve().then(() => {
+      loadData();
+    });
   }, [loadData]);
 
   const submitUpdate = async () => {
@@ -423,7 +423,9 @@ export default function EventDetailsScreen() {
   };
 
   useEffect(() => {
-    closeDetailDropdowns();
+    Promise.resolve().then(() => {
+      closeDetailDropdowns();
+    });
   }, [width]);
 
   if (!session || !eventId || (organizationLoading && !activeOrganization?.id)) {

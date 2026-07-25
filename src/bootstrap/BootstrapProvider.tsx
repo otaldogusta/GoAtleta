@@ -38,7 +38,9 @@ export function BootstrapProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void run();
+    Promise.resolve().then(() => {
+      void run();
+    });
   }, [run]);
 
   return (

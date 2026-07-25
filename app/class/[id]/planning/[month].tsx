@@ -9,9 +9,7 @@ import type { ClassGroup, ClassPlan } from "../../../../src/core/models";
 import { resolveLearningObjectives } from "../../../../src/core/pedagogy/objective-language";
 import {
     getClassById,
-    getDailyLessonPlanByWeekAndDate,
     listDailyLessonPlansByWeekIds,
-    upsertDailyLessonPlan,
 } from "../../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../../src/navigation/safe-router";
 import { markRender, measureAsync } from "../../../../src/observability/perf";
@@ -34,16 +32,16 @@ import type {
   ProfessorAgendaCalendarDay,
   ProfessorAgendaEvent,
 } from "../../../../src/screens/planning/application/professor-agenda-events";
-import { regenerateDailyLessonPlanFromWeek } from "../../../../src/screens/planning/application/regenerate-daily-lesson-plan";
+
 import type { MonthRegenerationProgress } from "../../../../src/screens/planning/application/regenerate-month-plans";
 import { regenerateMonthPlans } from "../../../../src/screens/planning/application/regenerate-month-plans";
 import { DayLessonPlanModal } from "../../../../src/screens/planning/components/DayLessonPlanModal";
-import { PlanningSyncStatusChip } from "../../../../src/screens/planning/components/PlanningSyncStatusChip";
+
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../../src/ui/icon-registry";
 import { useDailyLessonPlan } from "../../../../src/screens/planning/hooks/useDailyLessonPlan";
 import { useMonthlyPlans } from "../../../../src/screens/planning/hooks/useMonthlyPlans";
 import { useAppTheme } from "../../../../src/ui/app-theme";
-import { CollapsibleSection } from "../../../../src/ui/CollapsibleSection";
+
 import { DatePickerModal } from "../../../../src/ui/DatePickerModal";
 import { Pressable } from "../../../../src/ui/Pressable";
 import { useSaveToast } from "../../../../src/ui/save-toast";
@@ -90,21 +88,9 @@ const toMonthPickerLabel = (value: string) => {
   return label.replace(/^./, (char) => char.toUpperCase()).replace(/\s+de\s+/i, " ");
 };
 
-const trimPreview = (value: string | undefined, fallback: string) => {
-  const cleaned = (value ?? "").trim();
-  if (!cleaned) return fallback;
-  return cleaned.length > 110 ? `${cleaned.slice(0, 107).trimEnd()}...` : cleaned;
-};
 
-const compactSummaryLine = (value: string | undefined, fallback: string) => {
-  const raw = trimPreview(value, fallback)
-    .replace(/^(aquecimento|parte principal|volta\s*a\s*calma)\s*:\s*/i, "")
-    .replace(/^os alunos\s+/i, "")
-    .replace(/^a turma\s+/i, "")
-    .trim();
-  if (!raw) return fallback;
-  return raw.charAt(0).toUpperCase() + raw.slice(1);
-};
+
+
 
 const isGenericPlanningText = (value: string | undefined) => {
   const text = (value ?? "").trim();
@@ -143,112 +129,9 @@ const buildMainDescriptionText = (mainDescription: string | undefined, specificO
   return `Organizar estações de ${skillSet} com alvo. Depois, os alunos aplicam os fundamentos em uma atividade curta de jogo, com um novo desafio a cada rodada.`;
 };
 
-function WeekAccordionCard({
-  label,
-  weekStartLabel,
-  weekEndLabel,
-  sessionsCount,
-  summary,
-  isExpanded,
-  weekStatus,
-  onToggle,
-  colors,
-  children,
-}: {
-  label: string;
-  weekStartLabel: string;
-  weekEndLabel: string;
-  sessionsCount: number;
-  summary: string;
-  isExpanded: boolean;
-  weekStatus: "out_of_sync" | null;
-  onToggle: () => void;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  children: React.ReactNode;
-}) {
-  return (
-    <CollapsibleSection
-      expanded={isExpanded}
-      onToggle={onToggle}
-      containerStyle={[
-        getSectionCardStyle(colors, "primary", { padding: 11, radius: 14, shadow: false }),
-        { borderWidth: 1, borderColor: colors.border, gap: 6 },
-      ]}
-      header={
-        <View style={{ gap: 5 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>{label}</Text>
-            <View
-              style={{
-                borderRadius: 999,
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                {sessionsCount} aula{sessionsCount === 1 ? "" : "s"}
-              </Text>
-            </View>
-          </View>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {weekStartLabel} - {weekEndLabel}
-          </Text>
-          <Text style={{ color: colors.text, fontSize: 13, lineHeight: 17 }} numberOfLines={1}>
-            {summary}
-          </Text>
-        </View>
-      }
-      headerStyle={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-      contentContainerStyle={{
-        gap: 8,
-        marginTop: 8,
-        paddingTop: 8,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-      }}
-      rightAdornment={weekStatus ? <PlanningSyncStatusChip status={weekStatus} compact /> : null}
-      chevronColor={colors.muted}
-      contentDurationIn={220}
-      contentDurationOut={180}
-      contentTranslateY={-8}
-    >
-      {children}
-    </CollapsibleSection>
-  );
-}
 
-function PlanningPill({
-  icon,
-  label,
-  colors,
-}: {
-  icon?: GoAtletaIconName;
-  label: string;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-}) {
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-        maxWidth: "100%",
-        paddingHorizontal: 9,
-        paddingVertical: 5,
-        borderRadius: 999,
-        backgroundColor: colors.secondaryBg,
-        borderWidth: 1,
-        borderColor: colors.border,
-      }}
-    >
-      {icon ? <GoAtletaIcon name={icon} size={13} color={colors.muted} /> : null}
-      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", flexShrink: 1 }}>{label}</Text>
-    </View>
-  );
-}
+
+
 
 const WEEKDAY_HEADERS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 
@@ -597,7 +480,6 @@ export default function ClassPlanningMonthRoute() {
     weeklyItems,
     agendaEvents,
     monthCalendarDays,
-    dailyPlansByKey,
     isLoading,
     error,
     reload,
@@ -623,38 +505,13 @@ export default function ClassPlanningMonthRoute() {
     }
   }, [expandedWeekId, setExpandedWeekId, weeklyItems]);
 
-  const handleToggleWeek = useCallback((weekId: string) => {
+  useCallback((weekId: string) => {
     toggleExpandedWeek(weekId);
   }, [toggleExpandedWeek]);
 
-  const handleRegenerateWeekSessions = async (plan: ClassPlan, sessions: WeekSessionPreview[]) => {
-    const recentPlans = Object.values(dailyPlansByKey)
-      .filter((item) => item.classId === plan.classId)
-      .sort((a, b) => (a.date < b.date ? 1 : -1))
-      .slice(0, 12);
 
-    for (const session of sessions) {
-      const existing = await getDailyLessonPlanByWeekAndDate(plan.id, session.date);
-      const regenerated = regenerateDailyLessonPlanFromWeek({
-        existing,
-        weeklyPlan: plan,
-        session,
-        context: {
-          className: selectedClass?.name,
-          ageBand: selectedClass?.ageBand,
-          durationMinutes: selectedClass?.durationMinutes,
-          cycleStartDate: activeCycle?.startDate,
-          cycleEndDate: activeCycle?.endDate,
-          classGroup: selectedClass,
-          recentPlans,
-        },
-      });
-      await upsertDailyLessonPlan(regenerated);
-    }
-    await reload();
-  };
 
-  const handleRegenerateMonth = useCallback(async () => {
+  const handleRegenerateMonth = async () => {
     setIsRegeneratingMonth(true);
     setMonthRegenProgress(null);
     try {
@@ -712,21 +569,7 @@ export default function ClassPlanningMonthRoute() {
     } finally {
       setIsRegeneratingMonth(false);
     }
-  }, [
-    activeCycle?.endDate,
-    activeCycle?.id,
-    activeCycle?.startDate,
-    calendarExceptions,
-    classPlans,
-    classId,
-    monthKey,
-    recentAttendance,
-    recentSessionLogs,
-    students,
-    weeklyItems,
-    reload,
-    showSaveToast,
-  ]);
+  };
 
   const monthTitle = useMemo(
     () => toMonthTitle(monthKey).replace(/^./, (char) => char.toUpperCase()),

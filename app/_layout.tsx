@@ -43,7 +43,7 @@ import { resolveBootStatus } from "../src/bootstrap/boot-status";
 import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-context";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
-import { useEffectiveProfile } from "../src/core/effective-profile";
+import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
 import { VercelWebAnalytics } from "../src/observability/VercelWebAnalytics";
@@ -321,12 +321,16 @@ function RootLayoutContent() {
 
   useEffect(() => {
     if (!isBooting) {
-      setBootElapsedMs(0);
+      Promise.resolve().then(() => {
+        setBootElapsedMs(0);
+      });
       return;
     }
 
     const startedAt = Date.now();
-    setBootElapsedMs(0);
+    Promise.resolve().then(() => {
+      setBootElapsedMs(0);
+    });
     const interval = setInterval(() => {
       setBootElapsedMs(Date.now() - startedAt);
     }, 500);
@@ -348,7 +352,9 @@ function RootLayoutContent() {
   }, [bootStatus.blocking, bootStatus.phase]);
 
   useEffect(() => {
-    setEmailBannerDismissed(false);
+    Promise.resolve().then(() => {
+      setEmailBannerDismissed(false);
+    });
   }, [session?.user?.id, emailConfirmedAt]);
 
   useEffect(() => {
@@ -440,7 +446,7 @@ function RootLayoutContent() {
       stuckEventsGuardRef.current = true;
       router.replace(appHomeHref);
     }
-  }, [appHomeHref, bootstrapLoading, loading, navReady, normalizedPathname, rootState?.routes, router]);
+  }, [appHomeHref, appStartedAt, bootstrapLoading, loading, navReady, normalizedPathname, rootState.routes, router]);
 
   useEffect(() => {
     // If web OAuth code is present, let the code-exchange effect handle navigation first
@@ -577,30 +583,7 @@ function RootLayoutContent() {
         return;
       }
     }
-  }, [
-    biometricsEnabled,
-    isInviteRoute,
-    isPublicRoute,
-    hasCredentialLoginBypass,
-    isUnlocked,
-    isDevStudentConsultationPreview,
-    effectiveProfile,
-    entryInviteCode,
-    loading,
-    memberPermissions,
-    navReady,
-    normalizedPathname,
-    needsHybridEmailVerification,
-    permissionsLoading,
-    bootstrapLoading,
-    router,
-    role,
-    roleLoading,
-    session,
-    isAdminProfile,
-    appHomeHref,
-    organizationLoading,
-  ]);
+  }, [biometricsEnabled, isInviteRoute, isPublicRoute, hasCredentialLoginBypass, isUnlocked, isDevStudentConsultationPreview, effectiveProfile, entryInviteCode, loading, memberPermissions, navReady, normalizedPathname, needsHybridEmailVerification, permissionsLoading, bootstrapLoading, router, role, roleLoading, session, isAdminProfile, appHomeHref, organizationLoading, appStartedAt]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;

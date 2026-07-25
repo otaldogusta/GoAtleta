@@ -459,7 +459,9 @@ export default function ExercisesScreen() {
 
   useEffect(() => {
     if (!videoUrl.trim()) {
-      setMetaStatus("");
+      Promise.resolve().then(() => {
+        setMetaStatus("");
+      });
       return;
     }
     const normalizedVideoUrl = normalizeLinkFormValue(videoUrl);

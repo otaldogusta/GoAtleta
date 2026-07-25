@@ -1,122 +1,42 @@
 import type {
-  CycleDayPlanningContext,
+  AppliedPedagogicalReference,
+  DocumentReadOnlyActionContract,
+} from "./document-intelligence";
+import type {
+  ParsedSessionPlanningContext,
   AdaptiveLessonEnvelope,
   ClassReadinessState,
   PedagogicalFeedbackSignal,
   PedagogicalIntent,
   ProgressionDimension,
   SessionCoachGuidance,
+  SessionPlanningClassProfile,
+  SessionPlanningContext,
+  SessionPlanningContextSchemaVersion,
+  SessionPlanningDailyPlanAnchor,
+  ReportFeedbackSignal,
+  SessionPlanningDocumentSupport,
+  SessionPlanningUpcomingEvent,
   VolleyballSkill,
   WeeklyLoadIntent,
-} from "./models";
-import type {
-  AppliedPedagogicalReference,
-  DocumentReadOnlyActionContract,
-} from "./document-intelligence/types";
+} from "./session-planning-context-types";
+import { SESSION_PLANNING_CONTEXT_SCHEMA_VERSION } from "./session-planning-context-types";
 
-export const SESSION_PLANNING_CONTEXT_SCHEMA_VERSION = 1 as const;
-
-export type SessionPlanningContextSchemaVersion =
-  typeof SESSION_PLANNING_CONTEXT_SCHEMA_VERSION;
-
-export type SessionPlanningUpcomingEvent = {
-  title: string;
-  date: string;
-  classScoped: boolean;
+export {
+  SESSION_PLANNING_CONTEXT_SCHEMA_VERSION,
+} from "./session-planning-context-types";
+export type {
+  ParsedSessionPlanningContext,
+  ReportFeedbackSignal,
+  SessionCoachGuidance,
+  SessionPlanningClassProfile,
+  SessionPlanningContext,
+  SessionPlanningContextSchemaVersion,
+  SessionPlanningDailyPlanAnchor,
+  SessionPlanningDocumentSupport,
+  SessionPlanningUpcomingEvent,
+  VolleyballSkill,
 };
-
-export type SessionPlanningClassProfile = {
-  level: number;
-  daysPerWeek: number;
-  size: number;
-  heterogeneity: string;
-};
-
-export type ReportFeedbackSignal = {
-  participationLevel?: "low" | "normal";
-  techniqueSignal?: "recurring_difficulty" | "stable";
-  classClimate?: "agitated" | "conflict" | "stable";
-  loadSignal?: "low_frequency" | "normal";
-  notes: string[];
-};
-
-export type SessionPlanningDailyPlanAnchor = {
-  schemaVersion: 1;
-  dailyPlanId: string;
-  weeklyPlanId: string;
-  sessionDate: string;
-  title: string;
-  objectiveHint?: string;
-  plannedBlocks: Array<{
-    key: "warmup" | "main" | "cooldown";
-    label: string;
-    activities: string[];
-  }>;
-  observations?: string;
-  syncStatus?: "in_sync" | "out_of_sync" | "overridden" | "stale_parent";
-  skillHints: VolleyballSkill[];
-  activityHints: string[];
-  constraintHints: string[];
-  conflictResolved: boolean;
-  conflictReasons: string[];
-};
-
-export type SessionPlanningDocumentSupport = {
-  status: "available" | "no_relevant_content" | "unavailable";
-  references: AppliedPedagogicalReference[];
-  warnings: string[];
-  retrievalMode?: "semantic" | "lexical_fallback" | "contextual";
-  actionDate?: string;
-  actionContract?: DocumentReadOnlyActionContract;
-};
-
-export type SessionPlanningContext = {
-  schemaVersion: SessionPlanningContextSchemaVersion;
-  classId: string;
-  sessionDate: string;
-  ageBand: string;
-  sport: "volleyball";
-  skillFocus: VolleyballSkill;
-  secondarySkill?: VolleyballSkill;
-  cycleGoal?: string;
-  weekGoal?: string;
-  weekNumber?: number;
-  sessionIndexInWeek?: number;
-  periodizationPhase?: CycleDayPlanningContext["planningPhase"];
-  progressionDimension: ProgressionDimension;
-  pedagogicalIntent: PedagogicalIntent;
-  loadIntent: WeeklyLoadIntent;
-  previousSessionSummary?: string;
-  recentDifficulties: string[];
-  recentActivityFamilies: string[];
-  recentActivityNames?: string[];
-  recentActivityPatternIds?: string[];
-  upcomingEvents: SessionPlanningUpcomingEvent[];
-  availableDuration: number;
-  materials: string[];
-  classProfile: SessionPlanningClassProfile;
-  constraints: string[];
-  reportFeedback?: ReportFeedbackSignal;
-  dailyPlanAnchor?: SessionPlanningDailyPlanAnchor;
-  readinessState?: ClassReadinessState;
-  adaptiveEnvelope?: AdaptiveLessonEnvelope;
-  coachGuidance?: SessionCoachGuidance;
-  documentSupport?: SessionPlanningDocumentSupport;
-  /** Compatibilidade de leitura para snapshots criados antes da camada unificada. */
-  academicSupport?: SessionPlanningDocumentSupport;
-};
-
-export type ParsedSessionPlanningContext =
-  | {
-      status: "current" | "legacy";
-      context: SessionPlanningContext;
-      warnings: string[];
-    }
-  | {
-      status: "invalid";
-      context: null;
-      warnings: string[];
-    };
 
 const volleyballSkills: VolleyballSkill[] = [
   "passe",

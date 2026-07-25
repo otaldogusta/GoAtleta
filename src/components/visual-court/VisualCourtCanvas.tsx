@@ -8,7 +8,7 @@ import {
   Skia,
   vec,
 } from "@shopify/react-native-skia";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Animated,
   Easing,
@@ -24,7 +24,6 @@ import {
 import {
   getDidacticSlotBounds,
   normalizeExtendedCourtPoint,
-  normalizeCourtPoint,
   resolveCourtZone,
   getStepAtIndex,
   getVisibleLayerIdsForStep,
@@ -453,9 +452,9 @@ export function VisualCourtCanvas({
   onCanvasPress,
 }: Props) {
   const { colors, mode } = useAppTheme();
-  const dragStartPointRef = useRef<Record<string, CourtPoint>>({});
-  const dragPointerOffsetRef = useRef<Record<string, { x: number; y: number }>>({});
-  const selectionPulse = useRef(new Animated.Value(0)).current;
+  const [dragStartPoints] = useState<Record<string, CourtPoint>>({});
+  const [dragPointerOffsets] = useState<Record<string, { x: number; y: number }>>({});
+  const [selectionPulse] = useState(() => new Animated.Value(0));
   const isTeamHalfView = payload.court.courtView === "team_half";
   const isCoachBoard = payload.court.renderStyle === "coach_board";
   const minCanvasHeight = isTeamHalfView ? MIN_TEAM_HALF_CANVAS_HEIGHT : MIN_CANVAS_HEIGHT;
@@ -598,7 +597,7 @@ export function VisualCourtCanvas({
     gesture?: PanResponderGestureState
   ) => {
     const pointer = getResponderPagePoint(event, gesture);
-    const offset = dragPointerOffsetRef.current[actorId] ?? { x: 0, y: 0 };
+    const offset = dragPointerOffsets[actorId] ?? { x: 0, y: 0 };
     const nextPixel = { x: pointer.x + offset.x, y: pointer.y + offset.y };
     if (!Number.isFinite(nextPixel.x) || !Number.isFinite(nextPixel.y)) {
       return null;
@@ -710,7 +709,7 @@ export function VisualCourtCanvas({
             Math.abs(gesture.dx) + Math.abs(gesture.dy) > 2,
           onPanResponderGrant: (event) => {
             onActorSelect?.(actorId);
-            dragStartPointRef.current[actorId] = currentPoint;
+            dragStartPoints[actorId] = currentPoint;
             const pointer = getResponderPagePoint(event);
             const actorPixel = resolveCourtPoint(
               currentPoint,
@@ -718,7 +717,7 @@ export function VisualCourtCanvas({
               isDidacticSlots,
               payload.court.courtView
             );
-            dragPointerOffsetRef.current[actorId] = {
+            dragPointerOffsets[actorId] = {
               x: actorPixel.x - pointer.x,
               y: actorPixel.y - pointer.y,
             };
@@ -727,7 +726,7 @@ export function VisualCourtCanvas({
             event: GestureResponderEvent,
             gesture: PanResponderGestureState
           ) => {
-            const startPoint = dragStartPointRef.current[actorId] ?? currentPoint;
+            const startPoint = dragStartPoints[actorId] ?? currentPoint;
             onActorMove?.(
               actorId,
               resolveDraggedPointFromPointer(actorId, event, gesture) ??
@@ -738,24 +737,24 @@ export function VisualCourtCanvas({
             event: GestureResponderEvent,
             gesture: PanResponderGestureState
           ) => {
-            const startPoint = dragStartPointRef.current[actorId] ?? currentPoint;
+            const startPoint = dragStartPoints[actorId] ?? currentPoint;
             const nextPoint =
               resolveDraggedPointFromPointer(actorId, event, gesture) ??
               resolveDraggedPointFromDelta(startPoint, gesture);
-            delete dragStartPointRef.current[actorId];
-            delete dragPointerOffsetRef.current[actorId];
+            delete dragStartPoints[actorId];
+            delete dragPointerOffsets[actorId];
             onActorMoveEnd?.(actorId, nextPoint);
           },
           onPanResponderTerminate: (
             event: GestureResponderEvent,
             gesture: PanResponderGestureState
           ) => {
-            const startPoint = dragStartPointRef.current[actorId] ?? currentPoint;
+            const startPoint = dragStartPoints[actorId] ?? currentPoint;
             const nextPoint =
               resolveDraggedPointFromPointer(actorId, event, gesture) ??
               resolveDraggedPointFromDelta(startPoint, gesture);
-            delete dragStartPointRef.current[actorId];
-            delete dragPointerOffsetRef.current[actorId];
+            delete dragStartPoints[actorId];
+            delete dragPointerOffsets[actorId];
             onActorMoveEnd?.(actorId, nextPoint);
           },
         }).panHandlers;

@@ -118,17 +118,25 @@ export function DayLessonPlanModal({
 
   useEffect(() => {
     if (!visible) return;
-    setTitle(initialPlan?.title ?? "");
-    setBlocks(
-      resolveLessonBlocksFromDailyPlan({
-        warmup: initialPlan?.warmup ?? "",
-        mainPart: initialPlan?.mainPart ?? "",
-        cooldown: initialPlan?.cooldown ?? "",
-        blocksJson: initialPlan?.blocksJson,
-      })
-    );
-    setObservations(initialPlan?.observations ?? "");
-    setIsEditing(false);
+    Promise.resolve().then(() => {
+      setTitle(initialPlan?.title ?? "");
+    });
+    Promise.resolve().then(() => {
+      setBlocks(
+            resolveLessonBlocksFromDailyPlan({
+              warmup: initialPlan?.warmup ?? "",
+              mainPart: initialPlan?.mainPart ?? "",
+              cooldown: initialPlan?.cooldown ?? "",
+              blocksJson: initialPlan?.blocksJson,
+            })
+          );
+    });
+    Promise.resolve().then(() => {
+      setObservations(initialPlan?.observations ?? "");
+    });
+    Promise.resolve().then(() => {
+      setIsEditing(false);
+    });
   }, [initialPlan, visible]);
 
   const inputStyle = useMemo(

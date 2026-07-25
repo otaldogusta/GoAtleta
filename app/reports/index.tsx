@@ -183,19 +183,29 @@ export default function ReportsScreen() {
   );
 
   useEffect(() => {
-    void loadDashboard();
+    Promise.resolve().then(() => {
+      void loadDashboard();
+    });
   }, [loadDashboard]);
 
   useEffect(() => {
     catalogRequestedOrgIdRef.current = null;
-    setCatalogAuditReport(null);
-    setCatalogError(null);
-    setCatalogLoading(false);
+    Promise.resolve().then(() => {
+      setCatalogAuditReport(null);
+    });
+    Promise.resolve().then(() => {
+      setCatalogError(null);
+    });
+    Promise.resolve().then(() => {
+      setCatalogLoading(false);
+    });
   }, [activeOrganization?.id]);
 
   useEffect(() => {
     if (tab === "catalog") {
-      void loadCatalogAudit();
+      Promise.resolve().then(() => {
+        void loadCatalogAudit();
+      });
     }
   }, [loadCatalogAudit, tab]);
 

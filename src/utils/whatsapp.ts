@@ -53,7 +53,7 @@ export async function openWhatsApp(url: string): Promise<void> {
       }
     }
     await Linking.openURL(url);
-  } catch (err) {
+  } catch {
     // No-op; callers can present alerts as needed
   }
 }

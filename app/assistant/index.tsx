@@ -490,10 +490,10 @@ export default function AssistantScreen() {
   const [draft, setDraft] = useState<DraftTraining | null>(null);
   const [sources, setSources] = useState<AssistantSource[]>([]);
   const [showSavedLink, setShowSavedLink] = useState(false);
-  const [confidence, setConfidence] = useState<number | null>(null);
+  const [, setConfidence] = useState<number | null>(null);
   const [citations, setCitations] = useState<{ sourceTitle: string; evidence: string }[]>([]);
-  const [missingData, setMissingData] = useState<string[]>([]);
-  const [assumptions, setAssumptions] = useState<string[]>([]);
+  const [, setMissingData] = useState<string[]>([]);
+  const [, setAssumptions] = useState<string[]>([]);
   const [autoFixSuggestions, setAutoFixSuggestions] = useState<AutoFixSuggestion[]>([]);
   const [nextClassSuggestion, setNextClassSuggestion] = useState<NextClassSuggestion | null>(null);
   const [simulationResult, setSimulationResult] = useState<EvolutionSimulationResult | null>(null);
@@ -545,7 +545,7 @@ export default function AssistantScreen() {
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id]);
+  }, [activeOrganization?.id, classId]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -696,7 +696,9 @@ export default function AssistantScreen() {
     const contextClassId = optionalCopilot?.appSnapshot?.activeSignal?.classId;
     if (!contextClassId) return;
     if (!classes.some((item) => item.id === contextClassId)) return;
-    setClassId((current) => (current === contextClassId ? current : contextClassId));
+    Promise.resolve().then(() => {
+      setClassId((current) => (current === contextClassId ? current : contextClassId));
+    });
   }, [classes, optionalCopilot?.appSnapshot?.activeSignal?.classId]);
 
   const assistantScopeLabel = selectedClassDisplayName
@@ -1009,7 +1011,7 @@ export default function AssistantScreen() {
     });
   }, []);
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if (!input.trim() || loading || assistantTyping) return;
     const nextMessages = [...messages, { role: "user" as const, content: input.trim() }];
     const requestMessages = nextMessages.slice(-ASSISTANT_CONTEXT_MESSAGES);
@@ -1161,7 +1163,7 @@ export default function AssistantScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeOrganization, assistantTyping, classId, input, loading, messages, optionalCopilot, selectedClass, session, typeAssistantReply]);
 
   const saveDraft = async () => {
     if (!draft || !classId) return;
@@ -1220,7 +1222,7 @@ export default function AssistantScreen() {
     );
   }, [activeOrganization?.id, classId]);
 
-  const handleGenerateProgression = useCallback(async () => {
+  useCallback(async () => {
     if (!classId || !selectedClass) {
       Alert.alert("Atenção", "Selecione uma turma para gerar progressão.");
       return;
@@ -1277,14 +1279,14 @@ export default function AssistantScreen() {
       pushAssistantMessage(
         `Gerei a próxima aula com foco em ${plan.primaryFocus.skill}/${plan.secondaryFocus.skill}, regras explícitas (${plan.rulesTriggered.length}) e critérios mensuráveis.`
       );
-    } catch (error) {
+    } catch {
       pushAssistantMessage("Não consegui gerar a progressão automática agora.");
     } finally {
       setLoading(false);
     }
   }, [classId, conversationText, getRecentLogs, input, pushAssistantMessage, selectedClass]);
 
-  const handleExecutiveSummary = useCallback(async () => {
+  useCallback(async () => {
     if (!classId || !selectedClass) return;
     setLoading(true);
     try {
@@ -1313,7 +1315,7 @@ export default function AssistantScreen() {
     }
   }, [activeOrganization?.id, classId, getRecentLogs, pushAssistantMessage, selectedClass]);
 
-  const handleCommunicationCopilot = useCallback(() => {
+  useCallback(() => {
     if (!selectedClass) return;
     const text = buildCommunicationDraft({
       className: selectedClass.name,
@@ -1324,7 +1326,7 @@ export default function AssistantScreen() {
     pushAssistantMessage("Copiloto de comunicação pronto. Ajuste o texto e envie no canal desejado.");
   }, [pushAssistantMessage, selectedClass]);
 
-  const handleSupportMode = useCallback(async () => {
+  useCallback(async () => {
     setLoading(true);
     try {
       const health = await buildSyncHealthReport({ organizationId: activeOrganization?.id });
@@ -1337,7 +1339,7 @@ export default function AssistantScreen() {
     }
   }, [activeOrganization?.id, pushAssistantMessage]);
 
-  const handlePostSessionIntelligence = useCallback(async () => {
+  useCallback(async () => {
     if (!classId || !selectedClass) return;
     setLoading(true);
     try {
@@ -1371,7 +1373,7 @@ export default function AssistantScreen() {
     });
   }, [nextClassSuggestion, pushAssistantMessage]);
 
-  const handleRunEvolutionSimulation = useCallback(async () => {
+  useCallback(async () => {
     if (!selectedClass) return;
     setLoading(true);
     try {

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Animated,
     KeyboardAvoidingView,
@@ -112,12 +112,20 @@ export default function StudentInviteScreen() {
   useEffect(() => {
     let active = true;
     if (!tokenValue) {
-      setInviteState("invalid");
-      setMessage("Convite inválido. Peça um novo link ao professor.");
+      Promise.resolve().then(() => {
+        setInviteState("invalid");
+      });
+      Promise.resolve().then(() => {
+        setMessage("Convite inválido. Peça um novo link ao professor.");
+      });
       return () => { active = false; };
     }
-    setInviteState("checking");
-    setMessage("Verificando convite...");
+    Promise.resolve().then(() => {
+      setInviteState("checking");
+    });
+    Promise.resolve().then(() => {
+      setMessage("Verificando convite...");
+    });
     void measureAsync(
       "screen.studentInvite.load.validation",
       () => validateStudentInvite(tokenValue)
@@ -135,7 +143,7 @@ export default function StudentInviteScreen() {
     return () => { active = false; };
   }, [tokenValue]);
 
-  const handleClaim = async () => {
+  const handleClaim = useCallback(async () => {
     if (claimInFlightRef.current) return;
     if (!tokenValue) {
       setMessage("Convite inválido.");
@@ -155,20 +163,22 @@ export default function StudentInviteScreen() {
       claimInFlightRef.current = false;
       setBusy(false);
     }
-  };
+  }, [refresh, router, tokenValue]);
 
   useEffect(() => {
     if (!session || !tokenValue || inviteState !== "valid") return;
     if (roleLoading) return;
     if (role === "trainer") {
-      setMessage("Esse convite é para alunos. Saia e use outra conta.");
+      Promise.resolve().then(() => {
+        setMessage("Esse convite é para alunos. Saia e use outra conta.");
+      });
       return;
     }
     const userId = session.user.id ?? "unknown";
     if (lastClaimUserRef.current === userId) return;
     lastClaimUserRef.current = userId;
     void handleClaim();
-  }, [inviteState, role, roleLoading, session, tokenValue]);
+  }, [handleClaim, inviteState, role, roleLoading, session, tokenValue]);
 
   const canSubmit = useMemo(() => {
     if (!email.trim() || !password.trim()) return false;

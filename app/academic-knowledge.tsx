@@ -89,7 +89,9 @@ export default function AcademicKnowledgeScreen() {
   }, []);
 
   useEffect(() => {
-    void reload();
+    Promise.resolve().then(() => {
+      void reload();
+    });
   }, [reload]);
 
   const counts = useMemo(

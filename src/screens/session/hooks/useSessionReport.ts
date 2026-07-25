@@ -69,25 +69,53 @@ export function useSessionReport({
 
   useEffect(() => {
     const empty = emptyReportBaseline();
-    setReportBaseline(empty);
-    setPSE(empty.PSE);
-    setTechnique(empty.technique);
-    setActivity(empty.activity);
-    setConclusion(empty.conclusion);
-    setParticipantsCount(empty.participantsCount);
-    setPhotos(empty.photos);
+    Promise.resolve().then(() => {
+      setReportBaseline(empty);
+    });
+    Promise.resolve().then(() => {
+      setPSE(empty.PSE);
+    });
+    Promise.resolve().then(() => {
+      setTechnique(empty.technique);
+    });
+    Promise.resolve().then(() => {
+      setActivity(empty.activity);
+    });
+    Promise.resolve().then(() => {
+      setConclusion(empty.conclusion);
+    });
+    Promise.resolve().then(() => {
+      setParticipantsCount(empty.participantsCount);
+    });
+    Promise.resolve().then(() => {
+      setPhotos(empty.photos);
+    });
   }, [classId, sessionDate]);
 
   useEffect(() => {
     if (!sessionLog) return;
     const nextState = buildReportStateFromSessionLog(sessionLog);
-    setPSE(nextState.PSE);
-    setTechnique(nextState.technique);
-    setActivity(nextState.activity);
-    setConclusion(nextState.conclusion);
-    setParticipantsCount(nextState.participantsCount);
-    setPhotos(nextState.photos);
-    setReportBaseline(nextState);
+    Promise.resolve().then(() => {
+      setPSE(nextState.PSE);
+    });
+    Promise.resolve().then(() => {
+      setTechnique(nextState.technique);
+    });
+    Promise.resolve().then(() => {
+      setActivity(nextState.activity);
+    });
+    Promise.resolve().then(() => {
+      setConclusion(nextState.conclusion);
+    });
+    Promise.resolve().then(() => {
+      setParticipantsCount(nextState.participantsCount);
+    });
+    Promise.resolve().then(() => {
+      setPhotos(nextState.photos);
+    });
+    Promise.resolve().then(() => {
+      setReportBaseline(nextState);
+    });
   }, [sessionLog]);
 
   const saveReport = useCallback(

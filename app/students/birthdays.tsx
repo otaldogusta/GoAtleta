@@ -30,13 +30,7 @@ const monthNames = [
   "Dezembro",
 ];
 
-const formatShortDate = (value: string) => {
-  if (!value) return "";
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return value;
-  const [, year, month, day] = match;
-  return `${day}/${month}/${year}`;
-};
+
 
 const parseIsoDate = (value: string) => {
   if (!value) return null;
@@ -70,15 +64,15 @@ const unitLabel = (value: string) =>
 const getDaysUntilBirthday = (birthDate: Date, today: Date) => {
   const thisYear = today.getFullYear();
   const nextBirthday = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
-  
+
   // Se já passou este ano, considera o próximo ano
   if (nextBirthday < today) {
     nextBirthday.setFullYear(thisYear + 1);
   }
-  
+
   const diffTime = nextBirthday.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   return diffDays;
 };
 
@@ -87,7 +81,7 @@ const hasBirthdayPassed = (birthDate: Date, today: Date) => {
   const birthDay = birthDate.getDate();
   const todayMonth = today.getMonth();
   const todayDay = today.getDate();
-  
+
   if (birthMonth < todayMonth) return true;
   if (birthMonth === todayMonth && birthDay < todayDay) return true;
   return false;
@@ -157,7 +151,7 @@ export default function BirthdaysScreen() {
         return { student, date, daysLeft };
       })
       .sort((a, b) => a.daysLeft - b.daysLeft);
-    
+
     return withDates.slice(0, 10); // Primeiros 10
   }, [filteredStudents, today]);
   const monthGroups = useMemo(() => {
@@ -300,7 +294,7 @@ export default function BirthdaysScreen() {
               }}
             >
               {upcomingBirthdays.map(({ student, date, daysLeft }) => {
-                const cls = classes.find((item) => item.id === student.classId);
+
                 const age = calculateAge(student.birthDate);
                 return (
                   <View

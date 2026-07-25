@@ -481,14 +481,20 @@ export default function CoordinationScreen() {
   useEffect(() => {
     let alive = true;
     if (!organizationId || !notifyAttendanceTarget) {
-      setNotifyHead(null);
-      setNotifyHeadLoading(false);
+      Promise.resolve().then(() => {
+        setNotifyHead(null);
+      });
+      Promise.resolve().then(() => {
+        setNotifyHeadLoading(false);
+      });
       return () => {
         alive = false;
       };
     }
 
-    setNotifyHeadLoading(true);
+    Promise.resolve().then(() => {
+      setNotifyHeadLoading(true);
+    });
     void listClassHeadsByClassIds({
       organizationId,
       classIds: [notifyAttendanceTarget.classId],

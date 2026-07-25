@@ -79,14 +79,7 @@ export function useRevealCpf(params: Params) {
     } finally {
       setRevealCpfBusy(false);
     }
-  }, [
-    canRevealCpf,
-    cpfMaskedOriginal,
-    cpfRevealUnavailable,
-    cpfRevealedValue,
-    editingId,
-    isCpfVisible,
-  ]);
+  }, [canRevealCpf, cpfMaskedOriginal, cpfRevealUnavailable, cpfRevealedValue, editingId, isCpfVisible, setCpfDisplay, setCpfRevealUnavailable, setCpfRevealedValue, setIsCpfVisible, setRevealCpfBusy, setStudentDocumentsError]);
 
   return { handleRevealEditingCpf };
 }

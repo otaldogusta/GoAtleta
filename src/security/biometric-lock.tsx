@@ -91,9 +91,15 @@ export function BiometricLockProvider({
 
   useEffect(() => {
     if (!shouldLock) {
-      setIsUnlocked(true);
-      setHasCredentialLoginBypass(false);
-      setFailedAttempts(0);
+      Promise.resolve().then(() => {
+        setIsUnlocked(true);
+      });
+      Promise.resolve().then(() => {
+        setHasCredentialLoginBypass(false);
+      });
+      Promise.resolve().then(() => {
+        setFailedAttempts(0);
+      });
       failedAttemptsRef.current = 0;
       return;
     }

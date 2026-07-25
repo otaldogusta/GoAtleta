@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -13,7 +14,6 @@ import {
 import {
   Animated,
   Platform,
-  StyleSheet,
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -96,8 +96,8 @@ const CopilotActionsContext = createContext<CopilotActionsContextValue | null>(n
 
 const MAX_HISTORY_ITEMS = 12;
 const CONTEXT_COMPOSER_MIN_HEIGHT = 40;
-const CONTEXT_COMPOSER_MAX_HEIGHT = 120;
-const CONTEXT_COMPOSER_MAX_HEIGHT_WEB = 84;
+
+
 
 const publicRoutes = new Set([
   "/welcome",
@@ -133,25 +133,9 @@ const signalToCategory = (signalType: CopilotSignal["type"]): SignalInsightsCate
   }
 };
 
-const regulationDateLabel = (value: string | null | undefined) => {
-  if (!value) return "-";
-  const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) return "-";
-  return new Date(parsed).toLocaleDateString("pt-BR");
-};
 
-const regulationRelativeLabel = (value: string | null | undefined, nowMs: number) => {
-  if (!value) return "sem data";
-  const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) return "sem data";
-  const diffHours = Math.max(0, (nowMs - parsed) / 36e5);
-  if (diffHours < 1) return "agora";
-  if (diffHours < 24) return `h? ${Math.floor(diffHours)}h`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return "ontem";
-  if (diffDays < 7) return `h? ${diffDays}d`;
-  return regulationDateLabel(value);
-};
+
+
 
 const toActionResult = (value: CopilotActionResult | string | void): CopilotActionResult => {
   if (!value) return { message: "Ação concluída." };
@@ -251,7 +235,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
 
-  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const [pulseAnim] = useState(() => new Animated.Value(0));
   const lastSeenSnapshotRef = useRef<CentralSnapshot | null>(null);
   const lastComputedSnapshotRef = useRef<CentralSnapshot | null>(null);
   const currentSnapshotRef = useRef<CentralSnapshot | null>(null);
@@ -279,7 +263,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const [assistantTyping, setAssistantTyping] = useState(false);
   const [contextPreview, setContextPreview] = useState<{ actionTitle: string; message: string } | null>(null);
   const stateRef = useRef(state);
-  const thinkingPulse = useRef(new Animated.Value(0)).current;
+  const [thinkingPulse] = useState(() => new Animated.Value(0));
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -303,10 +287,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, [state.open]);
 
   const {
-    contextRegistryRef,
-    actionsRegistryRef,
-    signalsRegistryRef,
-    activeOwnerRef,
     setContext,
     clearContext,
     setActions,
@@ -316,12 +296,14 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     setActiveSignal,
   } = useRegistryManager(setState);
 
-  const { loadRegulationUpdates } = useRegulationUpdates(setState, activeOrganizationId, session, state.open);
+  useRegulationUpdates(setState, activeOrganizationId, session, state.open);
 
   useEffect(() => {
     if (!state.open) return;
 
-    setNowMs(Date.now());
+    Promise.resolve().then(() => {
+      setNowMs(Date.now());
+    });
     const timer = setInterval(() => {
       setNowMs(Date.now());
     }, 60_000);
@@ -333,7 +315,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     if (!shouldLoadScheduleWindows) {
-      setScheduleWindows([]);
+      Promise.resolve().then(() => {
+        setScheduleWindows([]);
+      });
       return;
     }
 
@@ -470,7 +454,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       state.signals,
     ]
   );
-  operationalContextRef.current = operationalContext;
+  useEffect(() => {
+    operationalContextRef.current = operationalContext;
+  }, [operationalContext]);
 
   const currentSnapshot = useMemo(() => {
     return buildCentralSnapshot({
@@ -615,20 +601,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       state,
       operationalContext,
     }),
-    [
-      operationalContext,
-      state.context,
-      state.actions,
-      state.signals,
-      state.regulationUpdates,
-      state.regulationRuleSets,
-      state.selectedSignalId,
-      state.open,
-      state.runningActionId,
-      state.history,
-      state.hasUnreadUpdates,
-      state.unreadCount,
-    ]
+    [state, operationalContext]
   );
 
   const actionsValue = useMemo<CopilotActionsContextValue>(
@@ -729,39 +702,51 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     if (insightsView.mode === "category") {
       if (insightsView.category === "regulation") {
         if (!unreadRegulationCount) {
-          setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+          Promise.resolve().then(() => {
+            setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+          });
         }
         return;
       }
       const signalCategory = insightsView.category as SignalInsightsCategory;
       if (!signalsByCategory[signalCategory].length) {
-        setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+        Promise.resolve().then(() => {
+          setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+        });
       }
       return;
     }
     if (insightsView.category === "regulation") {
       if (detailRegulationUpdate) return;
       if (unreadRegulationCount) {
-        setInsightsView((prev) =>
-          prev.mode === "category" && prev.category === "regulation"
-            ? prev
-            : { mode: "category", category: "regulation" }
-        );
+        Promise.resolve().then(() => {
+          setInsightsView((prev) =>
+                    prev.mode === "category" && prev.category === "regulation"
+                      ? prev
+                      : { mode: "category", category: "regulation" }
+                  );
+        });
       } else {
-        setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+        Promise.resolve().then(() => {
+          setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+        });
       }
       return;
     }
     if (!detailSignal) {
       const signalCategory = insightsView.category as SignalInsightsCategory;
       if (signalsByCategory[signalCategory].length) {
-        setInsightsView((prev) =>
-          prev.mode === "category" && prev.category === insightsView.category
-            ? prev
-            : { mode: "category", category: insightsView.category }
-        );
+        Promise.resolve().then(() => {
+          setInsightsView((prev) =>
+                    prev.mode === "category" && prev.category === insightsView.category
+                      ? prev
+                      : { mode: "category", category: insightsView.category }
+                  );
+        });
       } else {
-        setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+        Promise.resolve().then(() => {
+          setInsightsView((prev) => prev.mode === "root" ? prev : { mode: "root" });
+        });
       }
     }
   }, [detailRegulationUpdate, detailSignal, insightsView, signalsByCategory, unreadRegulationCount]);
@@ -854,12 +839,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       showFab,
       panel: operationalContext.panel,
     });
-  }, [
-    operationalContext.panel.attentionSignals,
-    operationalContext.panel.topImpactAreas,
-    operationalContext.panel.unreadRegulationCount,
-    showFab,
-  ]);
+  }, [operationalContext.panel, showFab]);
   const shouldPulseFab = useMemo(
     () =>
       shouldPulseCopilotFab({
@@ -876,7 +856,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       publicRoutes.has(normalizedPath) ||
       normalizedPath.startsWith("/invite");
     if (!mustHideCopilot) return;
-    setState((prev) => (prev.open ? { ...prev, open: false } : prev));
+    Promise.resolve().then(() => {
+      setState((prev) => (prev.open ? { ...prev, open: false } : prev));
+    });
   }, [normalizedPath, session]);
   const fabBottomOffset = Math.max(insets.bottom + 92, 108);
   const sheetContentBottomPadding = Math.max(
@@ -1106,8 +1088,8 @@ export function useCopilotContext(input: CopilotContextData | null) {
   const actionsContext = useContext(CopilotActionsContext);
   const setContext = actionsContext?.setContext;
   const clearContext = actionsContext?.clearContext;
-  const ownerIdRef = useRef(`copilot_ctx_${Math.random().toString(36).slice(2, 10)}`);
-  const contextSignature = useMemo(() => buildContextSignature(input), [input]);
+  const ownerId = `copilot_ctx_${useId()}`;
+  useMemo(() => buildContextSignature(input), [input]);
   const payload = useMemo<CopilotContextData | null>(() => {
     if (!input) return null;
     return {
@@ -1116,20 +1098,19 @@ export function useCopilotContext(input: CopilotContextData | null) {
       subtitle: input.subtitle,
       activeSignal: input.activeSignal ?? undefined,
     };
-  }, [contextSignature]);
+  }, [input]);
 
   useEffect(() => {
     if (!setContext) return;
-    const ownerId = ownerIdRef.current;
     setContext(ownerId, payload);
-  }, [payload, setContext]);
+  }, [ownerId, payload, setContext]);
 
   useEffect(
     () => () => {
       if (!clearContext) return;
-      clearContext(ownerIdRef.current);
+      clearContext(ownerId);
     },
-    [clearContext]
+    [clearContext, ownerId]
   );
 }
 
@@ -1137,56 +1118,38 @@ export function useCopilotActions(actions: CopilotAction[]) {
   const actionsContext = useContext(CopilotActionsContext);
   const setActions = actionsContext?.setActions;
   const clearActions = actionsContext?.clearActions;
-  const ownerIdRef = useRef(`copilot_actions_${Math.random().toString(36).slice(2, 10)}`);
+  const ownerId = `copilot_actions_${useId()}`;
   const stableActions = useMemo(() => actions, [actions]);
 
   useEffect(() => {
     if (!setActions || !clearActions) return;
-    const ownerId = ownerIdRef.current;
     setActions(ownerId, stableActions);
     return () => {
       clearActions(ownerId);
     };
-  }, [clearActions, setActions, stableActions]);
+  }, [clearActions, ownerId, setActions, stableActions]);
 }
 
 export function useCopilotSignals(signals: CopilotSignal[]) {
   const actionsContext = useContext(CopilotActionsContext);
   const setSignals = actionsContext?.setSignals;
   const clearSignals = actionsContext?.clearSignals;
-  const ownerIdRef = useRef(`copilot_signals_${Math.random().toString(36).slice(2, 10)}`);
-  const signalsSignature = useMemo(() => buildSignalsSignature(signals), [signals]);
+  const ownerId = `copilot_signals_${useId()}`;
+  useMemo(() => buildSignalsSignature(signals), [signals]);
   const stableSignals = useMemo(
     () => sortCopilotSignals((signals ?? []).filter(isValidCopilotSignal)),
-    [signalsSignature]
+    [signals]
   );
 
   useEffect(() => {
     if (!setSignals || !clearSignals) return;
-    const ownerId = ownerIdRef.current;
     setSignals(ownerId, stableSignals);
     return () => {
       clearSignals(ownerId);
     };
-  }, [clearSignals, setSignals, stableSignals]);
+  }, [clearSignals, ownerId, setSignals, stableSignals]);
 }
 
-const styles = StyleSheet.create({
-  fabWrapper: {
-    position: "absolute",
-    right: 16,
-    bottom: 24,
-    zIndex: 5200,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fabPulseRing: {
-    position: "absolute",
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 2,
-  },
-});
+
 
 export type { CopilotAction, CopilotActionResult, CopilotContextData, CopilotSignal, InsightsCategory, InsightsView } from "./types";

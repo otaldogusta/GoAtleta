@@ -1816,7 +1816,9 @@ export function SessionScreen({
 
   useEffect(() => {
     if (!isEditingSessionObjective) {
-      setSessionObjectiveDraft(visibleSessionObjective);
+      Promise.resolve().then(() => {
+        setSessionObjectiveDraft(visibleSessionObjective);
+      });
     }
   }, [isEditingSessionObjective, visibleSessionObjective]);
 
@@ -1942,8 +1944,12 @@ export function SessionScreen({
   }, [planFabAnim, showPlanFabMenu]);
 
   useEffect(() => {
-    setShowSavedClassPlans(false);
-    setIsApplyingSavedPlanId(null);
+    Promise.resolve().then(() => {
+      setShowSavedClassPlans(false);
+    });
+    Promise.resolve().then(() => {
+      setIsApplyingSavedPlanId(null);
+    });
   }, [id, sessionDate]);
 
   const togglePicker = (target: "pse" | "technique") => {
@@ -2225,7 +2231,7 @@ export function SessionScreen({
     }
   };
 
-  const syncPickerLayouts = () => {
+  const syncPickerLayouts = useCallback(() => {
     const hasPickerOpen = showPsePicker || showTechniquePicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
@@ -2243,19 +2249,21 @@ export function SessionScreen({
         setContainerWindow({ x, y });
       });
     });
-  };
+  }, [showPsePicker, showTechniquePicker]);
 
   useEffect(() => {
     if (!plan) return;
     const fallback = buildSimpleActivityFromPlan(plan);
     if (fallback) {
-      setAutoActivity(fallback);
+      Promise.resolve().then(() => {
+        setAutoActivity(fallback);
+      });
     }
   }, [plan]);
 
   useEffect(() => {
     syncPickerLayouts();
-  }, [showPsePicker, showTechniquePicker]);
+  }, [showPsePicker, showTechniquePicker, syncPickerLayouts]);
 
   async function handleSaveReport() {
     try {
@@ -2354,7 +2362,9 @@ export function SessionScreen({
   });
 
   useEffect(() => {
-    setDismissResistanceUnavailable(false);
+    Promise.resolve().then(() => {
+      setDismissResistanceUnavailable(false);
+    });
   }, [currentDailyLessonPlan?.id, sessionDate]);
 
   const resistancePreview = useMemo(() => {
@@ -3454,7 +3464,9 @@ export function SessionScreen({
       return;
     }
     if (tab === "treino" || tab === "relatório") {
-      setSessionTab(tab);
+      Promise.resolve().then(() => {
+        setSessionTab(tab);
+      });
     }
   }, [id, router, tab]);
 

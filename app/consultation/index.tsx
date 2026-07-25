@@ -98,6 +98,42 @@ const formatDateTime = (value: string | null) => {
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
+function ProfileSection({
+  title,
+  children,
+  attention,
+}: {
+  title: string;
+  children: ReactNode;
+  attention?: boolean;
+}) {
+  const { colors } = useAppTheme();
+
+  return (
+    <View
+      style={{
+        gap: 10,
+        padding: 12,
+        borderRadius: radius.internal,
+        backgroundColor: attention ? colors.warningBg : colors.secondaryBg,
+        borderWidth: 1,
+        borderColor: attention ? colors.warningBorder : colors.border,
+      }}
+    >
+      <Text
+        style={{
+          color: attention ? colors.warningText : colors.text,
+          fontWeight: "900",
+          fontSize: 13,
+        }}
+      >
+        {title}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
 const progressFlagCopy: Record<ConsultationProgressAttentionFlag, string> = {
   high_pain_recent: "Atenção: dor alta relatada recentemente",
   high_rpe_recent: "Atenção: esforço alto relatado recentemente",
@@ -366,7 +402,9 @@ export function ConsultationScreen() {
   };
 
   useEffect(() => {
-    void reload();
+    Promise.resolve().then(() => {
+      void reload();
+    });
   }, []);
 
   const consultationStudents = useMemo(
@@ -409,19 +447,37 @@ export function ConsultationScreen() {
 
   useEffect(() => {
     if (!selectedProfile) return;
-    setGoal(selectedProfile.goal);
-    setEnvironment(selectedProfile.environment);
-    setEquipment(selectedProfile.availableEquipment);
-    setRestrictions((selectedProfile.restrictions ?? []).join(", "));
-    setInjuries((selectedProfile.injuries ?? []).join(", "));
-    setTrainingDays(String(selectedProfile.trainingDaysPerWeek));
-    setDuration(String(selectedProfile.preferredSessionDurationMin ?? 45));
-    setProfileNotes(selectedProfile.notes ?? "");
-  }, [selectedProfile?.studentId]);
+    Promise.resolve().then(() => {
+      setGoal(selectedProfile.goal);
+    });
+    Promise.resolve().then(() => {
+      setEnvironment(selectedProfile.environment);
+    });
+    Promise.resolve().then(() => {
+      setEquipment(selectedProfile.availableEquipment);
+    });
+    Promise.resolve().then(() => {
+      setRestrictions((selectedProfile.restrictions ?? []).join(", "));
+    });
+    Promise.resolve().then(() => {
+      setInjuries((selectedProfile.injuries ?? []).join(", "));
+    });
+    Promise.resolve().then(() => {
+      setTrainingDays(String(selectedProfile.trainingDaysPerWeek));
+    });
+    Promise.resolve().then(() => {
+      setDuration(String(selectedProfile.preferredSessionDurationMin ?? 45));
+    });
+    Promise.resolve().then(() => {
+      setProfileNotes(selectedProfile.notes ?? "");
+    });
+  }, [selectedProfile]);
 
   useEffect(() => {
-    setIsProfileEditorOpen(!selectedProfile && Boolean(selectedStudentId));
-  }, [selectedProfile?.studentId, selectedStudentId]);
+    Promise.resolve().then(() => {
+      setIsProfileEditorOpen(!selectedProfile && Boolean(selectedStudentId));
+    });
+  }, [selectedProfile, selectedStudentId]);
 
   const profileDraft = useMemo<OnlineConsultationProfile | null>(() => {
     if (!selectedStudentId) return null;
@@ -731,32 +787,6 @@ export function ConsultationScreen() {
         {label}
       </Text>
     </Pressable>
-  );
-
-  const ProfileSection = ({
-    title,
-    children,
-    attention,
-  }: {
-    title: string;
-    children: ReactNode;
-    attention?: boolean;
-  }) => (
-    <View
-      style={{
-        gap: 10,
-        padding: 12,
-        borderRadius: radius.internal,
-        backgroundColor: attention ? colors.warningBg : colors.secondaryBg,
-        borderWidth: 1,
-        borderColor: attention ? colors.warningBorder : colors.border,
-      }}
-    >
-      <Text style={{ color: attention ? colors.warningText : colors.text, fontWeight: "900", fontSize: 13 }}>
-        {title}
-      </Text>
-      {children}
-    </View>
   );
 
   return (

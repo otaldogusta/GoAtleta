@@ -25,7 +25,7 @@ export function DatePickerModal({
   closeOnMonthYearSelect?: boolean;
   initialViewMode?: ViewMode;
 }) {
-  const { colors, mode } = useAppTheme();
+  const { colors } = useAppTheme();
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [yearPageStart, setYearPageStart] = useState(
@@ -104,7 +104,6 @@ export function DatePickerModal({
   }, [value, visible, initialViewMode]);
 
   const todayIso = useMemo(() => formatIsoDate(new Date()), []);
-  const unselectedText = mode === "dark" ? colors.primaryText : colors.text;
   const calendarDays = useMemo(() => {
     const year = calendarMonth.getFullYear();
     const month = calendarMonth.getMonth();

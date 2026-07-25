@@ -34,10 +34,18 @@ export function ActivityCatalogAddToLessonModal({
   useEffect(() => {
     let cancelled = false;
     if (!item) return undefined;
-    setLoading(true);
-    setError("");
-    setDestinations([]);
-    setSelectedId("");
+    Promise.resolve().then(() => {
+      setLoading(true);
+    });
+    Promise.resolve().then(() => {
+      setError("");
+    });
+    Promise.resolve().then(() => {
+      setDestinations([]);
+    });
+    Promise.resolve().then(() => {
+      setSelectedId("");
+    });
     loadCatalogLessonDestinations()
       .then((nextDestinations) => {
         if (cancelled) return;

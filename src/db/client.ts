@@ -34,6 +34,52 @@ const summarizeResponse = (text: string) => {
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const SUPABASE_FETCH_TIMEOUT_MS = 20_000;
+
+class SupabaseRequestTimeoutError extends Error {
+  constructor() {
+    super("A conexão demorou demais. Verifique sua internet e tente novamente.");
+    this.name = "SupabaseRequestTimeoutError";
+  }
+}
+
+const fetchWithTimeout = async (
+  input: string,
+  init?: RequestInit,
+  timeoutMs: number = SUPABASE_FETCH_TIMEOUT_MS
+) => {
+  const controller = new AbortController();
+  const timeoutError = new SupabaseRequestTimeoutError();
+  const timeoutId = setTimeout(() => {
+    controller.abort(timeoutError);
+  }, timeoutMs);
+  const forwardAbort = () => {
+    controller.abort(init?.signal?.reason ?? new Error("Request aborted"));
+  };
+
+  if (init?.signal) {
+    if (init.signal.aborted) {
+      clearTimeout(timeoutId);
+      throw init.signal.reason ?? new Error("Request aborted");
+    }
+    init.signal.addEventListener("abort", forwardAbort, { once: true });
+  }
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.reason === timeoutError) {
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    init?.signal?.removeEventListener("abort", forwardAbort);
+  }
+};
 
 const isTransientFetchError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -54,7 +100,7 @@ const doFetch = (
   body?: unknown,
   extraHeaders?: Record<string, string>
 ) =>
-  fetch(REST_BASE + path, {
+  fetchWithTimeout(REST_BASE + path, {
     method,
     headers: makeAuthHeaders(token, extraHeaders),
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -106,7 +152,12 @@ export const supabaseRequest = async (
       break;
     } catch (error) {
       lastError = error;
-      if (method !== "GET" || !isTransientFetchError(error) || attempt >= maxAttempts - 1) {
+      if (
+        error instanceof SupabaseRequestTimeoutError ||
+        method !== "GET" ||
+        !isTransientFetchError(error) ||
+        attempt >= maxAttempts - 1
+      ) {
         throw error;
       }
       await sleep(150 * (attempt + 1));

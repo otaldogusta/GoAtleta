@@ -37,6 +37,7 @@ import {
   saveTechnicalVisual,
 } from "../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { Button } from "../../../src/ui/Button";
 import { Pressable } from "../../../src/ui/Pressable";
 import { useAppTheme } from "../../../src/ui/app-theme";
@@ -294,6 +295,7 @@ const buildLocalDidacticDocument = (
 };
 
 export default function ClassVisualTechRoute() {
+  markRender("screen.visualTech.render.root");
   const { id } = useLocalSearchParams<{ id: string }>();
   const classId = typeof id === "string" ? id : "";
   const router = useRouter();
@@ -377,7 +379,9 @@ export default function ClassVisualTechRoute() {
 
   useEffect(() => {
     if (selectedActorId && !visibleActorIds.has(selectedActorId)) {
-      setSelectedActorId(null);
+      Promise.resolve().then(() => {
+        setSelectedActorId(null);
+      });
     }
   }, [selectedActorId, visibleActorIds]);
 
@@ -426,11 +430,18 @@ export default function ClassVisualTechRoute() {
     setError("");
     setStatusMessage("");
     try {
-      const classData = await getClassById(classId);
-      const visualPresets = await ensureDefaultVisualPresets({
-        classId,
-        organizationId: classData?.organizationId,
-      });
+      const { classData, visualPresets } = await measureAsync(
+        "screen.visualTech.load.initial",
+        async () => {
+          const classData = await getClassById(classId);
+          const visualPresets = await ensureDefaultVisualPresets({
+            classId,
+            organizationId: classData?.organizationId,
+          });
+          return { classData, visualPresets };
+        },
+        { classId }
+      );
       const fallback = buildLocalRotationDocument(classId, classData?.organizationId);
       const serving = buildLocalServingDocument(classId, classData?.organizationId);
       const defense = buildLocalDefenseDocument(classId, classData?.organizationId);
@@ -473,20 +484,25 @@ export default function ClassVisualTechRoute() {
   }, [classId, clearHistory, setSavedPayloadSnapshot]);
 
   useEffect(() => {
-    void loadData();
+    Promise.resolve().then(() => {
+      void loadData();
+    });
   }, [loadData]);
 
   useEffect(() => {
     if (!isPlaying) return;
     if (!canPlayCurrentStep) {
-      setIsPlaying(false);
-      setAnimationProgress(undefined);
+      Promise.resolve().then(() => {
+        setIsPlaying(false);
+      });
+      Promise.resolve().then(() => {
+        setAnimationProgress(undefined);
+      });
       return;
     }
     const step = getStepAtIndex(payload, playbackAnimationStepIndex);
     const duration = Math.max(450, step.durationMs / speed);
     const startedAt = Date.now();
-    setAnimationProgress(0);
     const progressTimer = setInterval(() => {
       setAnimationProgress(Math.min(1, (Date.now() - startedAt) / duration));
     }, 32);
@@ -779,7 +795,9 @@ export default function ClassVisualTechRoute() {
     if (!canPlayCurrentStep && !isPlaying) return;
     setIsPositionEditMode(false);
     setIsAnimationEditMode(false);
-    setIsPlaying((current) => !current);
+    const nextPlaying = !isPlaying;
+    if (nextPlaying) setAnimationProgress(0);
+    setIsPlaying(nextPlaying);
   }, [canPlayCurrentStep, isPlaying]);
 
   const handleSave = async () => {

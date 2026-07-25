@@ -1,5 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Animated,
     Easing,
@@ -74,6 +74,37 @@ const ClassEditModalBody = lazy(() =>
     default: module.ClassEditModalBody,
   }))
 );
+
+type SelectOptionValue = string | number;
+
+function SelectOption({
+  label,
+  value,
+  active,
+  onSelect,
+}: {
+  label: string;
+  value: SelectOptionValue;
+  active: boolean;
+  onSelect: (value: SelectOptionValue) => void;
+  isFirst?: boolean;
+}) {
+  const { colors } = useAppTheme();
+
+  return (
+    <AnchoredDropdownOption active={active} onPress={() => onSelect(value)}>
+      <Text
+        style={{
+          color: active ? colors.primaryText : colors.text,
+          fontSize: 14,
+          fontWeight: active ? "700" : "500",
+        }}
+      >
+        {label}
+      </Text>
+    </AnchoredDropdownOption>
+  );
+}
 
 const CLASS_LIST_PREVIEW_ITEMS: ClassGroup[] = [
   {
@@ -292,15 +323,8 @@ export default function ClassesScreen() {
   );
 
   const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
-  type SelectOptionValue = string | number;
-  const formatDays = (days: number[]) =>
-    days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
-  const formatIsoDate = (value: Date) => {
-    const y = value.getFullYear();
-    const m = String(value.getMonth() + 1).padStart(2, "0");
-    const d = String(value.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
+
+
 
   const formatAnnualCycleLabel = (weeks: number) => {
     const months = Math.round((weeks / 52) * 12);
@@ -349,8 +373,6 @@ export default function ClassesScreen() {
   const [editCycleLengthWeeks, setEditCycleLengthWeeks] = useState(DEFAULT_CLASS_CYCLE_LENGTH_WEEKS);
   const [editColorKey, setEditColorKey] = useState<string | null>(null);
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showCreateCloseConfirm, setShowCreateCloseConfirm] = useState(false);
   const [mainTab, setMainTab] = useState<"lista" | "criar">("lista");
   const [showCreateTabConfirm, setShowCreateTabConfirm] = useState(false);
   const [pendingMainTab, setPendingMainTab] = useState<"lista" | "criar" | null>(null);
@@ -424,47 +446,38 @@ export default function ClassesScreen() {
     "classes_show_all_goals_v1",
     false
   );
-  const {
-    animatedStyle: allGoalsAnimStyle,
-    isVisible: showAllGoalsContent,
-  } = useCollapsibleAnimation(showAllGoals, { translateY: -6 });
+  useCollapsibleAnimation(showAllGoals, { translateY: -6 });
   const [showAllAges, setShowAllAges] = usePersistedState<boolean>(
     "classes_show_all_ages_v1",
     false
   );
-  const {
-    animatedStyle: allAgesAnimStyle,
-    isVisible: showAllAgesContent,
-  } = useCollapsibleAnimation(showAllAges, { translateY: -6 });
-  const ageBandOptions = [
-    "06-08",
-    "08-09",
-    "08-11",
-    "09-11",
-    "10-12",
-    "12-14",
-    "13-15",
-    "16-18",
-  ];
+  useCollapsibleAnimation(showAllAges, { translateY: -6 });
+  const ageBandOptions = useMemo(
+    () => ["06-08", "08-09", "08-11", "09-11", "10-12", "12-14", "13-15", "16-18"],
+    []
+  );
   const genderOptions: { value: ClassGroup["gender"]; label: string }[] = [
     { value: "masculino", label: "Masculino" },
     { value: "feminino", label: "Feminino" },
     { value: "misto", label: "Misto" },
   ];
   const modalityOptions = [...CLASS_MODALITY_OPTIONS];
-  const goals: ClassGroup["goal"][] = [
-    "Fundamentos",
-    "Força Geral",
-    "Potência/Agilidade",
-    "Força+Potência",
-    "Velocidade",
-    "Agilidade",
-    "Resistência",
-    "Potência",
-    "Mobilidade",
-    "Coordenação",
-    "Prevenção de lesões",
-  ];
+  const goals = useMemo<ClassGroup["goal"][]>(
+    () => [
+      "Fundamentos",
+      "Força Geral",
+      "Potência/Agilidade",
+      "Força+Potência",
+      "Velocidade",
+      "Agilidade",
+      "Resistência",
+      "Potência",
+      "Mobilidade",
+      "Coordenação",
+      "Prevenção de lesões",
+    ],
+    []
+  );
   const cycleLengthOptions = [...annualCycleOptions];
   const mvLevelOptions = [...CLASS_DEVELOPMENT_LEVEL_OPTIONS];
   const [showNewCycleCalendar, setShowNewCycleCalendar] = useState(false);
@@ -475,7 +488,7 @@ export default function ClassesScreen() {
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showModalityPicker, setShowModalityPicker] = useState(false);
   const [showGoalPicker, setShowGoalPicker] = useState(false);
-  const newColorOptions = useMemo(
+  useMemo(
     () => getClassColorOptions(colors, newUnit.trim() || "Sem unidade"),
     [colors, newUnit]
   );
@@ -684,7 +697,7 @@ export default function ClassesScreen() {
       .map(([goal]) => goal)
       .filter((goal) => goal && !goals.includes(goal))
       .slice(0, 4);
-  }, [classes, goals, newAgeBand, newUnit]);
+  }, [classes, goals, newAgeBand, newUnit, unitKey]);
   const goalOptions = useMemo(() => {
     const list = [...goalSuggestions, ...goals];
     return list.filter((item, index) => list.indexOf(item) === index);
@@ -696,19 +709,19 @@ export default function ClassesScreen() {
     return digits.slice(0, 2) + ":" + digits.slice(2);
   };
 
-  const isValidTime = (value: string) => {
+  const isValidTime = useCallback((value: string) => {
     const match = value.match(/^(\d{2}):(\d{2})$/);
     if (!match) return false;
     const hour = Number(match[1]);
     const minute = Number(match[2]);
     return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
-  };
+  }, []);
 
-  const toMinutes = (value: string) => {
+  const toMinutes = useCallback((value: string) => {
     if (!isValidTime(value)) return null;
     const [h, m] = value.split(":").map(Number);
     return h * 60 + m;
-  };
+  }, [isValidTime]);
 
   const parseCycleLength = (value: number) => {
     if (!Number.isFinite(value)) return null;
@@ -716,48 +729,41 @@ export default function ClassesScreen() {
     return annualCycleOptions.includes(value as (typeof annualCycleOptions)[number]) ? value : null;
   };
 
-  const computeEndTimeFromDuration = (startTime: string, durationMinutes: number) => {
+  const computeEndTimeFromDuration = useCallback((startTime: string, durationMinutes: number) => {
     const start = toMinutes(startTime.trim());
     if (start === null) return "";
     const total = start + durationMinutes;
     const endHour = Math.floor(total / 60) % 24;
     const endMinute = total % 60;
     return `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`;
-  };
+  }, [toMinutes]);
 
-  const parseDurationFromTimeRange = (startTime: string, endTime: string) => {
+  const parseDurationFromTimeRange = useCallback((startTime: string, endTime: string) => {
     const start = toMinutes(startTime.trim());
     const end = toMinutes(endTime.trim());
     if (start === null || end === null) return null;
     const durationMinutes = end - start;
     if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return null;
     return durationMinutes;
-  };
+  }, [toMinutes]);
 
-  const parseTime = (value: string) => {
-    const match = value.match(/^(\d{2}):(\d{2})$/);
-    if (!match) return null;
-    return { hour: Number(match[1]), minute: Number(match[2]) };
-  };
 
-  const formatTimeRange = (hour: number, minute: number, duration: number) => {
-    const start = hour * 60 + minute;
-    const end = start + duration;
-    const endHour = Math.floor(end / 60) % 24;
-    const endMinute = end % 60;
-    const pad = (val: number) => String(val).padStart(2, "0");
-    return `${pad(hour)}:${pad(minute)} - ${pad(endHour)}:${pad(endMinute)}`;
-  };
+
+
 
   useEffect(() => {
     const durationMinutes = parseDurationFromTimeRange(newStartTime, newEndTime);
-    setNewDuration(durationMinutes ? String(durationMinutes) : "");
-  }, [newEndTime, newStartTime]);
+    Promise.resolve().then(() => {
+      setNewDuration(durationMinutes ? String(durationMinutes) : "");
+    });
+  }, [newEndTime, newStartTime, parseDurationFromTimeRange]);
 
   useEffect(() => {
     const durationMinutes = parseDurationFromTimeRange(editStartTime, editEndTime);
-    setEditDuration(durationMinutes ? String(durationMinutes) : "");
-  }, [editEndTime, editStartTime]);
+    Promise.resolve().then(() => {
+      setEditDuration(durationMinutes ? String(durationMinutes) : "");
+    });
+  }, [editEndTime, editStartTime, parseDurationFromTimeRange]);
 
   const isComplementaryGenderPair = useCallback(
     (a: ClassGroup["gender"], b: ClassGroup["gender"]) => {
@@ -1084,20 +1090,11 @@ export default function ClassesScreen() {
     closeEditModal();
   };
 
-  const closeCreateModal = () => {
-    setShowCreateModal(false);
-    setShowCreateCloseConfirm(false);
-  };
 
-  const requestCloseCreateModal = () => {
-    if (isCreateDirty) {
-      setShowCreateCloseConfirm(true);
-      return;
-    }
-    closeCreateModal();
-  };
 
-  const isCreateDirty = useMemo(() => {
+
+
+  const isCreateDirty = (() => {
     return (
       newName.trim() !== "" ||
       newUnit.trim() !== "" ||
@@ -1114,22 +1111,7 @@ export default function ClassesScreen() {
       newCycleStartDate.trim() !== "" ||
       newCycleLengthWeeks !== DEFAULT_CLASS_CYCLE_LENGTH_WEEKS
     );
-  }, [
-    newName,
-    newUnit,
-    newTrainingSpace,
-    newColorKey,
-    newModality,
-    newAgeBand,
-    newGender,
-    newGoal,
-    newStartTime,
-    newEndTime,
-    newDays,
-    newMvLevel,
-    newCycleStartDate,
-    newCycleLengthWeeks,
-  ]);
+  })();
 
   const resetCreateForm = useCallback(() => {
     setNewName("");
@@ -1156,10 +1138,9 @@ export default function ClassesScreen() {
     setShowGenderPicker(false);
     setShowModalityPicker(false);
     setShowGoalPicker(false);
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, setShowAllAges, setShowAllGoals]);
 
-  const requestSwitchMainTab = useCallback(
-    (nextTab: "lista" | "criar") => {
+  const requestSwitchMainTab = (nextTab: "lista" | "criar") => {
       if (nextTab === mainTab) return;
       if (mainTab === "criar" && isCreateDirty) {
         setPendingMainTab(nextTab);
@@ -1173,9 +1154,7 @@ export default function ClassesScreen() {
         resetCreateForm();
       }
       setMainTab(nextTab);
-    },
-    [isCreateDirty, mainTab, resetCreateForm]
-  );
+    };
 
   useEffect(() => {
     (["lista", "criar"] as const).forEach((tabKey) => {
@@ -1219,16 +1198,24 @@ export default function ClassesScreen() {
     );
     setEditFormError("");
     setShowEditModal(true);
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, goalOptions]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, computeEndTimeFromDuration, goalOptions]);
 
   useEffect(() => {
     if (tabParam !== "criar") return;
-    setMainTab("criar");
-    if (prefillNameParam) setNewName(prefillNameParam);
-    if (prefillUnitParam) setNewUnit(prefillUnitParam);
+    Promise.resolve().then(() => {
+      setMainTab("criar");
+    });
+    if (prefillNameParam) Promise.resolve().then(() => {
+      setNewName(prefillNameParam);
+    });
+    if (prefillUnitParam) Promise.resolve().then(() => {
+      setNewUnit(prefillUnitParam);
+    });
     if (prefillModalityParam) {
       const resolved = resolveClassModality(prefillModalityParam);
-      if (resolved) setNewModality(resolved);
+      if (resolved) Promise.resolve().then(() => {
+        setNewModality(resolved);
+      });
     }
   }, [prefillModalityParam, prefillNameParam, prefillUnitParam, tabParam]);
 
@@ -1237,8 +1224,12 @@ export default function ClassesScreen() {
     if (classes.length === 0 || showEditModal) return;
     const classToEdit = classes.find((cls) => cls.id === editParam);
     if (classToEdit) {
-      setHandledEditId(editParam);
-      openEditModal(classToEdit);
+      Promise.resolve().then(() => {
+        setHandledEditId(editParam);
+      });
+      Promise.resolve().then(() => {
+        openEditModal(classToEdit);
+      });
     }
   }, [editParam, handledEditId, classes, showEditModal, openEditModal]);
 
@@ -1267,7 +1258,7 @@ export default function ClassesScreen() {
         parseCycleLength(editingClass.cycleLengthWeeks ?? Number.NaN) ??
         DEFAULT_CLASS_CYCLE_LENGTH_WEEKS,
     };
-  }, [editingClass]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, computeEndTimeFromDuration, editingClass, parseDurationFromTimeRange]);
 
   const editCurrentSnapshot = useMemo(
     () => ({
@@ -1289,33 +1280,13 @@ export default function ClassesScreen() {
       cycleStartDate: editCycleStartDate,
       cycleLengthWeeks: editCycleLengthWeeks,
     }),
-    [
-      editAgeBand,
-      editColorKey,
-      editCustomAgeBand,
-      editCustomGoal,
-      editCycleLengthWeeks,
-      editCycleStartDate,
-      editDays,
-      editDuration,
-      editEndTime,
-      editGender,
-      editGoal,
-      editModality,
-      editMvLevel,
-      editName,
-      editShowCustomAgeBand,
-      editShowCustomGoal,
-      editStartTime,
-      editTrainingSpace,
-      editUnit,
-    ]
+    [editAgeBand, editColorKey, editCustomAgeBand, editCustomGoal, editCycleLengthWeeks, editCycleStartDate, editDays, editDuration, editEndTime, editGender, editGoal, editModality, editMvLevel, editName, editShowCustomAgeBand, editShowCustomGoal, editStartTime, editTrainingSpace, editUnit, parseDurationFromTimeRange]
   );
 
-  const isEditDirty = useMemo(() => {
+  const isEditDirty = (() => {
     if (!editBaselineSnapshot) return false;
     return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot);
-  }, [editBaselineSnapshot, editCurrentSnapshot]);
+  })();
 
   const toggleEditDay = (value: number) => {
     setEditDays((prev) =>
@@ -1532,7 +1503,7 @@ export default function ClassesScreen() {
       setNewAgeBand(String(value));
       setShowAgeBandPicker(false);
     },
-    [customOptionLabel, showAllAges]
+    [setShowAllAges, showAllAges]
   );
 
   const handleSelectGender = useCallback((value: SelectOptionValue) => {
@@ -1560,7 +1531,7 @@ export default function ClassesScreen() {
       setNewGoal(String(value));
       setShowGoalPicker(false);
     },
-    [customOptionLabel, showAllGoals]
+    [setShowAllGoals, showAllGoals]
   );
 
   const toggleEditPicker = useCallback(
@@ -1825,87 +1796,12 @@ export default function ClassesScreen() {
     [undoableClassDelete]
   );
 
-  const handleSelectNewColor = useCallback((value: string | null) => {
+  useCallback((value: string | null) => {
     setNewColorKey(value);
   }, []);
   const handleSelectEditColor = useCallback((value: string | null) => {
     setEditColorKey(value);
   }, []);
-
-  const SelectOption = useMemo(
-    () =>
-      memo(function SelectOptionItem({
-        label,
-        value,
-        active,
-        onSelect,
-        isFirst = false,
-      }: {
-        label: string;
-        value: SelectOptionValue;
-        active: boolean;
-        onSelect: (value: SelectOptionValue) => void;
-        isFirst?: boolean;
-      }) {
-        return (
-          <AnchoredDropdownOption active={active} onPress={() => onSelect(value)}>
-            <Text
-              style={{
-                color: active ? colors.primaryText : colors.text,
-                fontSize: 14,
-                fontWeight: active ? "700" : "500",
-              }}
-            >
-              {label}
-            </Text>
-          </AnchoredDropdownOption>
-        );
-      }),
-    [colors]
-  );
-
-  const ColorOption = useMemo(
-    () =>
-      memo(function ColorOptionItem({
-        label,
-        value,
-        active,
-        palette,
-        onSelect,
-        isFirst,
-      }: {
-        label: string;
-        value: string | null;
-        active: boolean;
-        palette: { bg: string; text: string };
-        onSelect: (value: string | null) => void;
-        isFirst: boolean;
-      }) {
-        return (
-          <Pressable
-            onPress={() => onSelect(value)}
-            style={{
-              alignItems: "center",
-              gap: 4,
-              marginLeft: isFirst ? 6 : 0,
-              marginRight: 2,
-            }}
-          >
-            <View
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 999,
-                backgroundColor: palette.bg,
-                borderWidth: active ? 3 : 1,
-                borderColor: active ? colors.text : colors.border,
-              }}
-            />
-          </Pressable>
-        );
-      }),
-    [colors]
-  );
 
   if (loading && !classes.length) {
     return (
@@ -2563,15 +2459,13 @@ export default function ClassesScreen() {
           }
         >
           <ClassEditModalBody
-            refs={{
-              editContainerRef,
-              editCycleLengthTriggerRef,
-              editMvLevelTriggerRef,
-              editAgeBandTriggerRef,
-              editGenderTriggerRef,
-              editModalityTriggerRef,
-              editGoalTriggerRef,
-            }}
+            editContainerRef={editContainerRef}
+            editCycleLengthTriggerRef={editCycleLengthTriggerRef}
+            editMvLevelTriggerRef={editMvLevelTriggerRef}
+            editAgeBandTriggerRef={editAgeBandTriggerRef}
+            editGenderTriggerRef={editGenderTriggerRef}
+            editModalityTriggerRef={editModalityTriggerRef}
+            editGoalTriggerRef={editGoalTriggerRef}
             layouts={{
               editContainerWindow,
               editCycleLengthTriggerLayout,

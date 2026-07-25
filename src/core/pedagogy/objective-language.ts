@@ -215,12 +215,7 @@ const detectDimension = (input: ResolveLearningObjectivesInput): KnowledgeDimens
   return "procedimental";
 };
 
-const chooseVerbFromDimension = (dimension: KnowledgeDimension, fallback: string) => {
-  if (dimension === "conceitual") return CONCEPTUAL_VERBS[0];
-  if (dimension === "atitudinal") return ATTITUDINAL_VERBS[0];
-  if (PROCEDURAL_VERBS.includes(fallback)) return fallback;
-  return PROCEDURAL_VERBS[0];
-};
+
 
 const lessonGeneralVerbOptions: Record<LessonType, string[]> = {
   "introducao": ["introduzir", "reconhecer", "explorar"],
@@ -262,25 +257,9 @@ const pickSpecificVerb = (
   return chosen ?? lessonCandidates[0];
 };
 
-const generalVerbByLessonType: Record<LessonType, string> = {
-  "introducao": "introduzir",
-  "pratica-guiada": "fortalecer",
-  "revisao": "revisar",
-  "aplicacao": "aplicar",
-  "mini-jogo": "ampliar",
-  "consolidacao": "consolidar",
-  "sociocultural": "problematizar",
-};
 
-const specificVerbByLessonType: Record<LessonType, string> = {
-  "introducao": "experimentar",
-  "pratica-guiada": "praticar",
-  "revisao": "praticar",
-  "aplicacao": "utilizar",
-  "mini-jogo": "aplicar",
-  "consolidacao": "demonstrar",
-  "sociocultural": "adaptar",
-};
+
+
 
 const isTooGenericGeneral = (value: string) =>
   /desenvolver\s+.+progress(iva|ivas|ivo|ivos)|progress(oes|oes pedag)/i.test(value) ||

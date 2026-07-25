@@ -162,6 +162,8 @@ function DropdownButton<T extends string | number>({
           onPress={toggle}
           style={{
             minWidth: compact ? 0 : 160,
+            width: compact ? "100%" : 176,
+            maxWidth: compact ? undefined : 210,
             flex: compact ? 1 : undefined,
             borderRadius: radius.internal,
             borderWidth: 1,
@@ -574,12 +576,16 @@ export function CoordinationPeopleWorkspace({
   }, [storageKey]);
 
   useEffect(() => {
-    setVisiblePendingInvites(pendingInvites);
+    Promise.resolve().then(() => {
+      setVisiblePendingInvites(pendingInvites);
+    });
   }, [pendingInvites]);
 
   useEffect(() => {
     if (selectedMemberId && members.some((member) => member.userId === selectedMemberId)) return;
-    setSelectedMemberId(members[0]?.userId ?? null);
+    Promise.resolve().then(() => {
+      setSelectedMemberId(members[0]?.userId ?? null);
+    });
   }, [members, selectedMemberId]);
 
   const classesByUser = useMemo(() => {
@@ -662,17 +668,27 @@ export function CoordinationPeopleWorkspace({
     selectedPermissionRequestRef.current = requestId;
 
     if (!selectedMember) {
-      setSelectedPermissionKeys([]);
-      setSelectedPermissionsLoading(false);
+      Promise.resolve().then(() => {
+        setSelectedPermissionKeys([]);
+      });
+      Promise.resolve().then(() => {
+        setSelectedPermissionsLoading(false);
+      });
       return;
     }
     if (selectedMember.roleLevel >= 50) {
-      setSelectedPermissionKeys(MEMBER_PERMISSION_OPTIONS.map((option) => option.key));
-      setSelectedPermissionsLoading(false);
+      Promise.resolve().then(() => {
+        setSelectedPermissionKeys(MEMBER_PERMISSION_OPTIONS.map((option) => option.key));
+      });
+      Promise.resolve().then(() => {
+        setSelectedPermissionsLoading(false);
+      });
       return;
     }
 
-    setSelectedPermissionsLoading(true);
+    Promise.resolve().then(() => {
+      setSelectedPermissionsLoading(true);
+    });
     void adminListMemberPermissions(organizationId, selectedMember.userId)
       .then((permissions) => {
         if (selectedPermissionRequestRef.current !== requestId) return;

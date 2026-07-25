@@ -39,7 +39,6 @@ import {
     deleteClassCascade,
     deleteTrainingPlan,
     deleteTrainingPlansByClassAndDate,
-    duplicateClass,
     getAttendanceByClass,
     getClassById,
     getClassPlansByClass,
@@ -72,7 +71,7 @@ import { ClassPlanPreviewModal } from "../../src/screens/classes/components/Clas
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
-import { getClassColorOptions, getClassPalette } from "../../src/ui/class-colors";
+import { getClassColorOptions } from "../../src/ui/class-colors";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
@@ -81,7 +80,7 @@ import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
-import { getUnitPalette, toRgba } from "../../src/ui/unit-colors";
+import { toRgba } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
@@ -227,7 +226,7 @@ export default function ClassDetails() {
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const insets = useSafeAreaInsets();
-  const { confirm: confirmDialog } = useConfirmDialog();
+  useConfirmDialog();
   const { confirm } = useConfirmUndo();
   const {
     defaultMessageEnabled,
@@ -272,7 +271,7 @@ export default function ClassDetails() {
   const whatsappSelectedBg = mode === "dark" ? toRgba(colors.successBg, 0.28) : toRgba(colors.successBg, 0.18);
   const whatsappSelectedBorder = mode === "dark" ? toRgba(colors.successBg, 0.7) : toRgba(colors.successBg, 0.55);
   const whatsappSelectedText = mode === "dark" ? colors.text : colors.successText;
-  const whatsappModalSurface = colors.card;
+
   const whatsappModalSubtleSurface = colors.inputBg;
   const whatsappModalBorder = colors.border;
   const whatsappModalMuted = mode === "light" ? toRgba(colors.text, 0.72) : colors.muted;
@@ -444,7 +443,10 @@ export default function ClassDetails() {
     animatedStyle: editGoalPickerAnimStyle,
     isVisible: showEditGoalPickerContent,
   } = useCollapsibleAnimation(showEditGoalPicker, { translateY: -6 });
-  const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  const dayNames = useMemo(
+    () => ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"],
+    []
+  );
   const monthNames = [
     "Janeiro",
     "Fevereiro",
@@ -459,40 +461,37 @@ export default function ClassDetails() {
     "Novembro",
     "Dezembro",
   ];
-  const ageBandOptions = [
-    "06-08",
-    "08-09",
-    "08-11",
-    "09-11",
-    "10-12",
-    "12-14",
-    "13-15",
-    "16-18",
-  ];
-  const goals: ClassGroup["goal"][] = [
-    "Fundamentos",
-    "Força Geral",
-    "Potência/Agilidade",
-    "Força+Potência",
-    "Velocidade",
-    "Agilidade",
-    "Resistência",
-    "Potência",
-    "Mobilidade",
-    "Coordenação",
-    "Prevenção de lesões",
-  ];
+  const ageBandOptions = useMemo(
+    () => ["06-08", "08-09", "08-11", "09-11", "10-12", "12-14", "13-15", "16-18"],
+    []
+  );
+  const goals = useMemo<ClassGroup["goal"][]>(
+    () => [
+      "Fundamentos",
+      "Força Geral",
+      "Potência/Agilidade",
+      "Força+Potência",
+      "Velocidade",
+      "Agilidade",
+      "Resistência",
+      "Potência",
+      "Mobilidade",
+      "Coordenação",
+      "Prevenção de lesões",
+    ],
+    []
+  );
   const genderOptions: ClassGroup["gender"][] = ["feminino", "masculino", "misto"];
   const DEFAULT_CLASS_CYCLE_LENGTH_WEEKS = annualCycleOptions[annualCycleOptions.length - 1];
-  const cycleLengthOptions = [...annualCycleOptions];
+  const cycleLengthOptions = useMemo(() => [...annualCycleOptions], []);
   const modalityOptions = [...CLASS_MODALITY_OPTIONS];
   const mvLevelOptions = [...CLASS_DEVELOPMENT_LEVEL_OPTIONS];
-  const parseCycleLength = (value: number) => {
+  const parseCycleLength = useCallback((value: number) => {
     if (!Number.isFinite(value) || !Number.isInteger(value)) return null;
     return cycleLengthOptions.includes(value as (typeof annualCycleOptions)[number])
       ? value
       : null;
-  };
+  }, [cycleLengthOptions]);
   const formatDays = (days: number[]) =>
     days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
   const chipBaseStyle = useMemo(
@@ -515,7 +514,7 @@ export default function ClassDetails() {
     [colors.secondaryBg]
   );
   const chipInactiveTextStyle = useMemo(() => ({ color: colors.text }), [colors.text]);
-  const getChipStyle = useCallback(
+  useCallback(
     (active: boolean, palette?: { bg: string; text: string }) => [
       chipBaseStyle,
       active
@@ -524,14 +523,14 @@ export default function ClassDetails() {
     ],
     [chipBaseStyle, chipInactiveStyle, colors.primaryBg]
   );
-  const getChipTextStyle = useCallback(
+  useCallback(
     (active: boolean, palette?: { bg: string; text: string }) => [
       chipTextBaseStyle,
       active ? { color: palette?.text ?? colors.primaryText } : chipInactiveTextStyle,
     ],
     [chipInactiveTextStyle, chipTextBaseStyle, colors.primaryText]
   );
-  const selectFieldStyle = useMemo(
+  useMemo(
     () => ({
       paddingVertical: 10,
       paddingHorizontal: 12,
@@ -551,18 +550,14 @@ export default function ClassDetails() {
     if (digits.length <= 2) return digits;
     return digits.slice(0, 2) + ":" + digits.slice(2);
   };
-  const isValidTime = (value: string) => {
+  const isValidTime = useCallback((value: string) => {
     const match = value.match(/^(\d{2}):(\d{2})$/);
     if (!match) return false;
     const hour = Number(match[1]);
     const minute = Number(match[2]);
     return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
-  };
-  const parseDuration = (value: string) => {
-    const minutes = Number(value);
-    if (!Number.isFinite(minutes)) return null;
-    return minutes >= 30 && minutes <= 180 ? minutes : null;
-  };
+  }, []);
+
   const parseTime = (value: string) => {
     const match = value.match(/^(\d{2}):(\d{2})$/);
     if (!match) return null;
@@ -635,7 +630,9 @@ export default function ClassDetails() {
   }, [contextualInsight, dismissContextualInsight]);
 
   useEffect(() => {
-    setIsOperationalInsightDismissed(false);
+    Promise.resolve().then(() => {
+      setIsOperationalInsightDismissed(false);
+    });
   }, [id]);
   const parseIsoDate = (value?: string) => {
     if (!value) return null;
@@ -681,42 +678,44 @@ export default function ClassDetails() {
     }
     return `(${ddd}) ${rest}`;
   };
-  const toMinutes = (value: string) => {
+  const toMinutes = useCallback((value: string) => {
     if (!isValidTime(value)) return null;
     const [hour, minute] = value.split(":").map(Number);
     return hour * 60 + minute;
-  };
-  const computeEndTimeFromDuration = (value: string, durationMinutes: number) => {
+  }, [isValidTime]);
+  const computeEndTimeFromDuration = useCallback((value: string, durationMinutes: number) => {
     const start = toMinutes(value.trim());
     if (start === null) return "";
     const total = start + durationMinutes;
     const endHour = Math.floor(total / 60) % 24;
     const endMinute = total % 60;
     return `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`;
-  };
-  const parseDurationFromTimeRange = (startValue: string, endValue: string) => {
+  }, [toMinutes]);
+  const parseDurationFromTimeRange = useCallback((startValue: string, endValue: string) => {
     const start = toMinutes(startValue.trim());
     const end = toMinutes(endValue.trim());
     if (start === null || end === null) return null;
     const durationMinutes = end - start;
     if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return null;
     return durationMinutes;
-  };
-  const resolveEndTime = (
+  }, [toMinutes]);
+  const resolveEndTime = useCallback((
     startValue: string,
     endValue: string | undefined,
     durationMinutes: number
   ) =>
     endValue && isValidTime(endValue)
       ? endValue
-      : computeEndTimeFromDuration(startValue, durationMinutes);
+      : computeEndTimeFromDuration(startValue, durationMinutes), [computeEndTimeFromDuration, isValidTime]);
   const normalizeDaysKey = (days: number[]) =>
     JSON.stringify([...days].sort((a, b) => a - b));
 
   useEffect(() => {
     const durationMinutes = parseDurationFromTimeRange(startTime, endTime);
-    setDuration(durationMinutes ? String(durationMinutes) : "");
-  }, [endTime, startTime]);
+    Promise.resolve().then(() => {
+      setDuration(durationMinutes ? String(durationMinutes) : "");
+    });
+  }, [endTime, parseDurationFromTimeRange, startTime]);
 
   const rosterMonthKey = formatMonthKey(rosterMonthValue);
   const rosterMonthEntries = useMemo(
@@ -776,10 +775,10 @@ export default function ClassDetails() {
   const className = cls?.name || "Turma";
   const classAgeBand = cls?.ageBand || ageBand;
   const classGender = cls?.gender || gender;
-  const classDays = cls?.daysOfWeek ?? [];
+  const classDays = useMemo(() => cls?.daysOfWeek ?? [], [cls]);
   const classStartTime = cls?.startTime || "-";
   const classDuration = cls?.durationMinutes ?? 60;
-  const classGoal = cls?.goal || goal;
+
   const compactClassWorkspace = !resolveResponsiveLayout(
     windowWidth,
     "dashboard"
@@ -826,17 +825,13 @@ export default function ClassDetails() {
   }, [classDays, lessonDate, nextClassDate]);
   const classCoachName = clsId ? coachNameByClass[clsId] ?? "" : "";
   const resolvedCoachName = classCoachName || coachName;
-  const unitPalette = getUnitPalette(unitLabel, colors);
-  const classPalette =
-    getClassPalette(classColorKey, colors, currentUnit) ?? {
-      bg: colors.primaryBg,
-      text: colors.primaryText,
-    };
+
+
   const colorOptions = useMemo(
     () => getClassColorOptions(colors, currentUnit),
     [colors, currentUnit]
   );
-  const conflictSummary = useMemo(() => {
+  useMemo(() => {
     if (!clsId) return [];
     const durationValue = parseDurationFromTimeRange(startTime, endTime);
     if (!durationValue) return [];
@@ -854,7 +849,7 @@ export default function ClassDetails() {
       .map(({ item, sharedDays }) => {
         return `${item.name} (${sharedDays.map((day) => dayNames[day]).join(", ")})`;
       });
-  }, [allClasses, clsId, currentUnit, daysOfWeek, endTime, startTime, trainingSpace]);
+  }, [allClasses, clsId, currentUnit, dayNames, daysOfWeek, endTime, parseDurationFromTimeRange, startTime, trainingSpace]);
   const goalSuggestions = useMemo(() => {
     if (!clsUnit) return [];
     const matches = allClasses.filter((item) => item.unit === clsUnit);
@@ -933,16 +928,22 @@ export default function ClassDetails() {
     return () => {
       alive = false;
     };
-  }, [coachNameByClass, id]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, coachNameByClass, id, parseCycleLength, parseDurationFromTimeRange, resolveEndTime]);
 
   useEffect(() => {
     if (!id || !selectedLessonDateKey) {
-      setAppliedPlan(null);
-      setIsLoadingLessonPlan(false);
+      Promise.resolve().then(() => {
+        setAppliedPlan(null);
+      });
+      Promise.resolve().then(() => {
+        setIsLoadingLessonPlan(false);
+      });
       return;
     }
     let alive = true;
-    setIsLoadingLessonPlan(true);
+    Promise.resolve().then(() => {
+      setIsLoadingLessonPlan(true);
+    });
     (async () => {
       try {
         const byDate = await getTrainingPlans({
@@ -1016,7 +1017,7 @@ export default function ClassDetails() {
     return () => {
       alive = false;
     };
-  }, [cls, showRosterExportModal]);
+  }, [cls, id, showRosterExportModal]);
 
   const resetEditFields = useCallback(() => {
     if (!cls) return;
@@ -1050,7 +1051,7 @@ export default function ClassDetails() {
     setEditCustomGoal(customGoalSelected ? nextGoal : "");
     setShowEditCustomGoal(customGoalSelected);
     setFormError("");
-  }, [ageBandOptions, classCoachName, cls, goalOptions]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, classCoachName, cls, goalOptions, parseCycleLength, parseDurationFromTimeRange, resolveEndTime]);
 
   const closeEditPickers = useCallback(() => {
     setShowEditCycleLengthPicker(false);
@@ -1157,7 +1158,7 @@ export default function ClassDetails() {
     const nextCycleLength = parseCycleLength(parsed);
     if (nextCycleLength) setCycleLengthWeeks(nextCycleLength);
     closeEditPickers();
-  }, [closeEditPickers]);
+  }, [closeEditPickers, parseCycleLength]);
 
   const handleEditSelectMvLevel = useCallback((value: string | number) => {
     setMvLevel(String(value));
@@ -1200,7 +1201,7 @@ export default function ClassDetails() {
       trainingSpace: cls.trainingSpace ?? "",
       unit: cls.unit ?? "",
     };
-  }, [classCoachName, cls]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, classCoachName, cls, parseCycleLength, parseDurationFromTimeRange, resolveEndTime]);
 
   const editCurrentSnapshot = useMemo(
     () => ({
@@ -1349,7 +1350,7 @@ export default function ClassDetails() {
     );
   };
 
-  const saveUnit = async (): Promise<boolean> => {
+  const saveUnit = useCallback(async (): Promise<boolean> => {
     if (!cls) return false;
     const timeValue = startTime.trim();
     if (!isValidTime(timeValue)) {
@@ -1407,7 +1408,7 @@ export default function ClassDetails() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [ageBand, cls, coachNameOverride, cycleLengthWeeks, cycleStartDate, daysOfWeek, editCustomAgeBand, editCustomGoal, endTime, gender, goal, isValidTime, modality, mvLevel, name, parseCycleLength, parseDurationFromTimeRange, setCoachNameForClass, showEditCustomAgeBand, showEditCustomGoal, startTime, trainingSpace, unit]);
 
   const closeEditModal = useCallback(() => {
     setShowEditModal(false);
@@ -1493,10 +1494,10 @@ export default function ClassDetails() {
     measureTrigger();
   }, [showRosterColumnsPicker]);
 
-  const openRosterMonthPicker = useCallback(() => {
+  const openRosterMonthPicker = () => {
     setShowRosterColumnsPicker(false);
     setShowRosterMonthPicker(true);
-  }, []);
+  };
 
   const toggleRosterFundamentalCell = useCallback(
     (day: number, fundamental: RosterFundamental) => {
@@ -1554,12 +1555,16 @@ export default function ClassDetails() {
   }, []);
 
   useEffect(() => {
-    setRosterFundamentalOverrides({});
+    Promise.resolve().then(() => {
+      setRosterFundamentalOverrides({});
+    });
   }, [rosterMonthValue]);
 
   useEffect(() => {
     if (!showRosterExportModal) {
-      cancelRosterFundamentalLabelEdit();
+      Promise.resolve().then(() => {
+        cancelRosterFundamentalLabelEdit();
+      });
     }
   }, [cancelRosterFundamentalLabelEdit, showRosterExportModal]);
 
@@ -1698,14 +1703,7 @@ export default function ClassDetails() {
     } finally {
       setIsGeneratingPlan(false);
     }
-  }, [
-    classDays,
-    cls,
-    getStudentsByClass,
-    isGeneratingPlan,
-    selectedLessonDateKey,
-    showSaveToast,
-  ]);
+  }, [cls, isGeneratingPlan, selectedLessonDateKey, showSaveToast]);
 
   if (loading) {
     return <ScreenLoadingState />;
@@ -1724,20 +1722,7 @@ export default function ClassDetails() {
   }
 
 
-  const onDuplicate = async () => {
-    if (!cls) return;
-    const shouldDuplicate = await confirmDialog({
-      title: "Duplicar turma",
-      message: "Deseja criar uma cópia desta turma?",
-      confirmLabel: "Duplicar",
-      cancelLabel: "Cancelar",
-      tone: "default",
-      onConfirm: async () => {},
-    });
-    if (!shouldDuplicate) return;
-    await duplicateClass(cls);
-    router.replace("/classes");
-  };
+
 
   const onDelete = () => {
     if (!cls) return;
@@ -1791,7 +1776,7 @@ export default function ClassDetails() {
     try {
       await updateClassColor(cls.id, value);
       setCls((prev) => (prev ? { ...prev, colorKey: value ?? "" } : prev));
-    } catch (error) {
+    } catch {
       setClassColorKey(previous ?? null);
       Alert.alert("Falha ao atualizar cor", "Tente novamente.");
     } finally {
@@ -1961,7 +1946,7 @@ export default function ClassDetails() {
         month: monthKey,
         includeAttendance: options.includeAttendance,
       });
-    } catch (error) {
+    } catch {
       Alert.alert("Falha ao exportar lista", "Tente novamente.");
     }
   };
@@ -2310,15 +2295,13 @@ export default function ClassDetails() {
             >
               <ClassEditModalBody
                 renderPickers={false}
-              refs={{
-                editContainerRef,
-                editCycleLengthTriggerRef,
-                editMvLevelTriggerRef,
-                editAgeBandTriggerRef,
-                editGenderTriggerRef,
-                editModalityTriggerRef,
-                editGoalTriggerRef,
-              }}
+              editContainerRef={editContainerRef}
+              editCycleLengthTriggerRef={editCycleLengthTriggerRef}
+              editMvLevelTriggerRef={editMvLevelTriggerRef}
+              editAgeBandTriggerRef={editAgeBandTriggerRef}
+              editGenderTriggerRef={editGenderTriggerRef}
+              editModalityTriggerRef={editModalityTriggerRef}
+              editGoalTriggerRef={editGoalTriggerRef}
               layouts={{
                 editContainerWindow,
                 editCycleLengthTriggerLayout,
@@ -2473,15 +2456,13 @@ export default function ClassDetails() {
           </View>
 
           <ClassEditModalPickers
-            refs={{
-              editContainerRef,
-              editCycleLengthTriggerRef,
-              editMvLevelTriggerRef,
-              editAgeBandTriggerRef,
-              editGenderTriggerRef,
-              editModalityTriggerRef,
-              editGoalTriggerRef,
-            }}
+            editContainerRef={editContainerRef}
+            editCycleLengthTriggerRef={editCycleLengthTriggerRef}
+            editMvLevelTriggerRef={editMvLevelTriggerRef}
+            editAgeBandTriggerRef={editAgeBandTriggerRef}
+            editGenderTriggerRef={editGenderTriggerRef}
+            editModalityTriggerRef={editModalityTriggerRef}
+            editGoalTriggerRef={editGoalTriggerRef}
             layouts={{
               editContainerWindow,
               editCycleLengthTriggerLayout,

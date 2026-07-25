@@ -44,7 +44,7 @@ import {
     supabasePost,
     writeCache,
 } from "./client";
-import { enqueueWrite } from "./nfc-sync";
+import { enqueueWrite } from "./pending-write-queue";
 import { resolveTrainingPlanForDate, syncTrainingSessionFromAttendance } from "./training-sessions";
 import { getTrainingPlans } from "./training";
 import type {

@@ -40,6 +40,52 @@ const normalizeMediaUrl = (url: string) => {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 };
 
+const createWorkoutExecutionLogId = (workoutId: string) =>
+  `log_${workoutId}_${Date.now()}`;
+
+function ScalePicker({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const { colors } = useAppTheme();
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: colors.text, fontWeight: "900" }}>{label}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+        {scaleValues.map((item) => {
+          const active = item === value;
+          return (
+            <Pressable
+              key={`${label}-${item}`}
+              onPress={() => onChange(item)}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: radius.full,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: active ? colors.primaryBg : colors.card,
+                borderWidth: 1,
+                borderColor: active ? colors.primaryBg : colors.border,
+              }}
+            >
+              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "900" }}>
+                {item}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function StudentConsultationScreen() {
   markRender("screen.studentConsultation.render.root");
   const { colors } = useAppTheme();
@@ -101,28 +147,27 @@ export default function StudentConsultationScreen() {
   };
 
   useEffect(() => {
-    void reload();
-  }, [devStudentEmail, devStudentId]);
+    Promise.resolve().then(() => {
+      void reload();
+    });
+  }, [devStudentEmail, devStudentId, reload]);
 
-  const workout = useMemo<PrescribedWorkout | null>(() => {
+  const workout = (() => {
     if (!activeStudent?.id) return null;
     return findNextStudentWorkout(state.workouts, activeStudent.id);
-  }, [state.workouts, activeStudent?.id]);
+  })();
 
   const profile = state.profiles.find((item) => item.studentId === activeStudent?.id);
   const latestLog = state.executionLogs.find((item) => item.workoutId === doneWorkoutId);
   const attention = latestLog ? getWorkoutAttentionSignal(latestLog) : null;
-  const progressSummary = useMemo(
-    () =>
+  const progressSummary = (() =>
       activeStudent?.id
         ? buildConsultationProgressSummary({
             studentId: activeStudent.id,
             workouts: state.workouts,
             executionLogs: state.executionLogs,
           })
-        : null,
-    [state.executionLogs, state.workouts, activeStudent?.id]
-  );
+        : null)();
   const currentAttention =
     pain >= 7
       ? { tone: "danger" as const, label: "Dor alta", description: "Interrompa se a dor estiver forte e avise o profissional." }
@@ -133,7 +178,7 @@ export default function StudentConsultationScreen() {
   const submit = async () => {
     if (!workout) return;
     const log = createWorkoutExecutionLog({
-      id: `log_${workout.id}_${Date.now()}`,
+      id: createWorkoutExecutionLogId(workout.id),
       workout,
       completedAt: new Date().toISOString(),
       perceivedExertion: pse,
@@ -178,45 +223,6 @@ export default function StudentConsultationScreen() {
       Alert.alert("Link indisponível", "Não foi possível abrir a demonstração deste exercício.");
     }
   };
-
-  const ScalePicker = ({
-    label,
-    value,
-    onChange,
-  }: {
-    label: string;
-    value: number;
-    onChange: (value: number) => void;
-  }) => (
-    <View style={{ gap: 8 }}>
-      <Text style={{ color: colors.text, fontWeight: "900" }}>{label}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-        {scaleValues.map((item) => {
-          const active = item === value;
-          return (
-            <Pressable
-              key={`${label}-${item}`}
-              onPress={() => onChange(item)}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: radius.full,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: active ? colors.primaryBg : colors.card,
-                borderWidth: 1,
-                borderColor: active ? colors.primaryBg : colors.border,
-              }}
-            >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "900" }}>
-                {item}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>

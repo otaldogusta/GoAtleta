@@ -71,9 +71,21 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
     }).start();
   }, [scale]);
 
+  const setGuidanceContent = useCallback(
+    (next: GuidanceContent | null) => {
+      setGuidance(next);
+      if (!next) {
+        setOpen(false);
+        setExpandedItem(null);
+        return;
+      }
+      setExpandedItem(null);
+    },
+    []
+  );
+
   useEffect(() => {
-    if (!guidanceKey) return;
-    setExpandedItem(null);
+    if (!guidance || !guidanceKey) return;
     pulse.setValue(0);
     Animated.sequence([
       Animated.timing(pulse, {
@@ -97,15 +109,12 @@ export function GuidanceProvider({ children }: { children: React.ReactNode }) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [guidanceKey, pulse]);
+  }, [guidance, guidanceKey, pulse]);
 
-  useEffect(() => {
-    if (guidance !== null) return;
-    setOpen(false);
-    setExpandedItem(null);
-  }, [guidance]);
-
-  const value = useMemo(() => ({ setGuidance }), [setGuidance]);
+  const value = useMemo(
+    () => ({ setGuidance: setGuidanceContent }),
+    [setGuidanceContent]
+  );
   const hasGuidance = currentGuidance.items.length > 0;
 
   return (

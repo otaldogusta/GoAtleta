@@ -1,5 +1,5 @@
 import type { TrainingPlan, TrainingPlanActivity, VolleyballSkill } from "../models";
-import type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-engine";
+import type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-types";
 import {
   ACTIVITY_CATALOG_FAMILIES,
   ACTIVITY_CATALOG_VARIANTS,

@@ -64,17 +64,25 @@ function TrainingSessionCreateModalContentBase({
   useEffect(() => {
     if (!visible) return;
     const initialIds = defaultClassIds.filter(Boolean);
-    setSelectedClassIds(initialIds);
-    setDate(/^\d{4}-\d{2}-\d{2}$/.test(defaultDate ?? "") ? String(defaultDate) : todayIso());
+    Promise.resolve().then(() => {
+      setSelectedClassIds(initialIds);
+    });
+    Promise.resolve().then(() => {
+      setDate(/^\d{4}-\d{2}-\d{2}$/.test(defaultDate ?? "") ? String(defaultDate) : todayIso());
+    });
     const initialClass = initialIds.length
       ? classes.find((item) => item.id === initialIds[0])
       : null;
-    setStartTime(
-      /^\d{2}:\d{2}$/.test(defaultStartTime ?? "")
-        ? String(defaultStartTime)
-        : initialClass?.startTime || nextRoundedClock()
-    );
-    setSaving(false);
+    Promise.resolve().then(() => {
+      setStartTime(
+            /^\d{2}:\d{2}$/.test(defaultStartTime ?? "")
+              ? String(defaultStartTime)
+              : initialClass?.startTime || nextRoundedClock()
+          );
+    });
+    Promise.resolve().then(() => {
+      setSaving(false);
+    });
   }, [classes, defaultClassIds, defaultDate, defaultStartTime, visible]);
 
   const groupedClasses = useMemo(() => {

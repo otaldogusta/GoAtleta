@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getValidAccessToken } from "../../auth/session";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../../api/config";
+import { requestContextualInsight } from "../../api/contextual-insight";
 import { buildWorkspaceScopeKey } from "../../core/ai-workspace-context";
 
 export type ContextualInsight = {
@@ -33,11 +32,44 @@ type UseContextualInsightResult = {
   dismiss: () => void;
 };
 
-const ASSISTANT_URL = `${SUPABASE_URL}/functions/v1/assistant`;
 const PROACTIVE_DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 const buildDismissKey = (scopeKey: string) =>
   `contextual_insight_dismissed_v2:${scopeKey}`;
+
+const parseInsightAction = (
+  value: unknown
+): ContextualInsight["action"] => {
+  if (!value || typeof value !== "object") return null;
+
+  const action = value as {
+    type?: unknown;
+    label?: unknown;
+    params?: {
+      phone?: unknown;
+      message?: unknown;
+    };
+  };
+
+  if (
+    typeof action.type !== "string" ||
+    typeof action.label !== "string" ||
+    !action.params ||
+    typeof action.params.phone !== "string" ||
+    typeof action.params.message !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    type: action.type,
+    label: action.label,
+    params: {
+      phone: action.params.phone,
+      message: action.params.message,
+    },
+  };
+};
 
 const isDismissedToday = async (scopeKey: string): Promise<boolean> => {
   try {
@@ -83,43 +115,18 @@ export function useContextualInsight(
     const alreadyDismissed = await isDismissedToday(scopeKey);
     if (alreadyDismissed) return;
 
-    const token = await getValidAccessToken();
-    if (!token) return;
-
     setLoading(true);
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
-      const response = await fetch(ASSISTANT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          apikey: SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          mode: "proactive",
-          organizationId: workspaceId,
-          classId: id,
-          sport: "volleyball",
-          classSnapshot: {
-            name: snapshot.name,
-            ageBand: snapshot.ageBand,
-            modality: snapshot.modality,
-            goal: snapshot.goal,
-            daysOfWeek: snapshot.daysOfWeek?.join(", "),
-            mvLevel: snapshot.mvLevel,
-          },
-        }),
+      const payload = await requestContextualInsight({
+        organizationId: workspaceId,
+        classId: id,
+        classSnapshot: snapshot,
         signal: controller.signal,
       });
-
-      if (!response.ok) return;
-
-      const data = await response.json();
-      const payload = data?.data ?? data;
 
       if (
         payload?.insight &&
@@ -131,7 +138,7 @@ export function useContextualInsight(
           insight: payload.insight,
           confidence: payload.confidence,
           based_on: Array.isArray(payload.based_on) ? payload.based_on : [],
-          action: payload.action || null,
+          action: parseInsightAction(payload.action),
         });
       }
     } catch (err: unknown) {
@@ -143,8 +150,12 @@ export function useContextualInsight(
 
   useEffect(() => {
     abortRef.current?.abort();
-    setInsight(null);
-    setLoading(false);
+    Promise.resolve().then(() => {
+      setInsight(null);
+    });
+    Promise.resolve().then(() => {
+      setLoading(false);
+    });
     fetchedForRef.current = null;
 
     if (!organizationId || !classId || !classSnapshot) return;

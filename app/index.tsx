@@ -1,7 +1,7 @@
 import { Redirect } from "expo-router";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { useRole } from "../src/auth/role";
-import { useEffectiveProfile } from "../src/core/effective-profile";
+import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
 import { useOptionalOrganization } from "../src/providers/OrganizationProvider";
 
 // perf-check: ignore-render

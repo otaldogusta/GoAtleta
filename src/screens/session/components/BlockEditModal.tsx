@@ -65,13 +65,21 @@ export function BlockEditModal({
   useEffect(() => {
     if (!visible) return;
     const visibleActivities = activities.map((item) => toVisibleActivity({ ...item }));
-    setDraftDuration(String(durationMinutes));
-    setDraftActivities(visibleActivities);
-    setBaseline({
-      durationMinutes,
-      activities: visibleActivities.map((item) => ({ ...item })),
+    Promise.resolve().then(() => {
+      setDraftDuration(String(durationMinutes));
     });
-    setShowCloseConfirm(false);
+    Promise.resolve().then(() => {
+      setDraftActivities(visibleActivities);
+    });
+    Promise.resolve().then(() => {
+      setBaseline({
+            durationMinutes,
+            activities: visibleActivities.map((item) => ({ ...item })),
+          });
+    });
+    Promise.resolve().then(() => {
+      setShowCloseConfirm(false);
+    });
   }, [visible, durationMinutes, activities]);
 
   const hasChanges = useMemo(() => {

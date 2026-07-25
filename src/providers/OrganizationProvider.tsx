@@ -266,15 +266,23 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (!session || !activeOrganizationId) {
-      setMemberPermissions({});
-      setPermissionsLoading(false);
+      Promise.resolve().then(() => {
+        setMemberPermissions({});
+      });
+      Promise.resolve().then(() => {
+        setPermissionsLoading(false);
+      });
       return;
     }
 
     // Clear stale permissions from previous org/profile before fresh load.
-    setMemberPermissions({});
-    setPermissionsLoading(true);
-  }, [activeOrganizationId, session?.user?.id]);
+    Promise.resolve().then(() => {
+      setMemberPermissions({});
+    });
+    Promise.resolve().then(() => {
+      setPermissionsLoading(true);
+    });
+  }, [activeOrganizationId, session]);
 
   const fetchOrganizations = useCallback(async () => {
     const accessToken = session?.access_token ?? "";
@@ -401,8 +409,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     smartSync.resumeSync();
   }, [activeOrganizationId]);
 
-  const createOrganization = useCallback(
-    async (name: string): Promise<string> => {
+  const createOrganization = useCallback(async (name: string): Promise<string> => {
       if (!session?.access_token) throw new Error("Not authenticated");
 
       const res = await postSupabaseRpc({
@@ -417,12 +424,12 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       await fetchOrganizations();
       await setActiveOrganizationId(orgId);
       return orgId;
-    },
-    [session?.access_token, fetchOrganizations, setActiveOrganizationId]
-  );
+    }, [fetchOrganizations, session, setActiveOrganizationId]);
 
   useEffect(() => {
-    void fetchOrganizations();
+    Promise.resolve().then(() => {
+      void fetchOrganizations();
+    });
   }, [fetchOrganizations]);
 
   useEffect(() => {
@@ -433,7 +440,9 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   useEffect(() => {
-    void refreshMemberPermissions();
+    Promise.resolve().then(() => {
+      void refreshMemberPermissions();
+    });
   }, [refreshMemberPermissions]);
 
   const activeOrganization = useMemo(() => {

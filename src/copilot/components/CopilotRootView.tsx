@@ -6,7 +6,7 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import type { OperationalContextResult } from "../operational-context";
 import type { CopilotAction, InsightsCategory, InsightsView } from "../types";
 
-type SignalInsightsCategory = Exclude<InsightsCategory, "regulation">;
+
 
 const categoryLabelById: Record<InsightsCategory, string> = {
   reports: "Relatórios",

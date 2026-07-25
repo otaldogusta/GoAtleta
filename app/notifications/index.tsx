@@ -131,10 +131,6 @@ export default function NotificationsScreen() {
     router.replace(profilePreviewRoutes[preview] as never);
   };
 
-  const SectionTitle = ({ children }: { children: string }) => (
-    <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>{children}</Text>
-  );
-
   const formatTime = (value: string) => {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return value;
@@ -158,7 +154,9 @@ export default function NotificationsScreen() {
           <View style={{ marginTop: 12, gap: 12 }}>
           <View style={{ gap: 8 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-              <SectionTitle>Notificações</SectionTitle>
+              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+                Notificações
+              </Text>
               {items.length ? (
                 <Pressable
                   onPress={() => {
@@ -218,7 +216,9 @@ export default function NotificationsScreen() {
           </View>
 
           <View style={{ gap: 8 }}>
-            <SectionTitle>Configurações</SectionTitle>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+              Configurações
+            </Text>
             <SettingsRow
               icon="notifications"
               iconBg="rgba(135, 120, 255, 0.14)"
@@ -282,7 +282,9 @@ export default function NotificationsScreen() {
 
           {__DEV__ ? (
             <View style={{ gap: 8 }}>
-              <SectionTitle>Preview de perfil (DEV)</SectionTitle>
+              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+                Preview de perfil (DEV)
+              </Text>
               <View style={{ gap: 8 }}>
                 <SettingsRow
                   icon="professor"
@@ -322,7 +324,9 @@ export default function NotificationsScreen() {
           ) : null}
 
           <View style={{ gap: 8 }}>
-            <SectionTitle>Conta</SectionTitle>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
+              Conta
+            </Text>
             <SettingsRow
               icon="logout"
               iconBg="rgba(255, 130, 130, 0.16)"

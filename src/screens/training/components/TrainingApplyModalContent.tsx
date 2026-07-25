@@ -15,11 +15,9 @@ type PickerLayout = { x: number; y: number; width: number; height: number };
 type WindowPosition = { x: number; y: number };
 
 type TrainingApplyModalContentProps = {
-  refs: {
-    applyContainerRef: RefObject<View | null>;
-    applyUnitTriggerRef: RefObject<View | null>;
-    applyClassTriggerRef: RefObject<View | null>;
-  };
+  applyContainerRef: RefObject<View | null>;
+  applyUnitTriggerRef: RefObject<View | null>;
+  applyClassTriggerRef: RefObject<View | null>;
   layouts: {
     applyContainerWindow: WindowPosition | null;
     applyUnitTriggerLayout: PickerLayout | null;
@@ -62,7 +60,9 @@ type TrainingApplyModalContentProps = {
 };
 
 function TrainingApplyModalContentBase({
-  refs,
+  applyContainerRef,
+  applyUnitTriggerRef,
+  applyClassTriggerRef,
   layouts,
   pickers,
   state,
@@ -83,14 +83,14 @@ function TrainingApplyModalContentBase({
         onScrollBeginDrag={actions.closeApplyPickers}
       >
         <View
-          ref={refs.applyContainerRef}
+          ref={applyContainerRef}
           onLayout={actions.syncApplyPickerLayouts}
           style={{ gap: 10, position: "relative" }}
         >
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
-              <View ref={refs.applyUnitTriggerRef}>
+              <View ref={applyUnitTriggerRef}>
                 <Pressable
                   onPress={() => actions.toggleApplyPicker("unit")}
                   style={{
@@ -125,7 +125,7 @@ function TrainingApplyModalContentBase({
             </View>
             <View style={{ flex: 1, gap: 6 }}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
-              <View ref={refs.applyClassTriggerRef}>
+              <View ref={applyClassTriggerRef}>
                 <Pressable
                   onPress={() => actions.toggleApplyPicker("class")}
                   style={{
@@ -214,7 +214,7 @@ function TrainingApplyModalContentBase({
             nestedScrollEnabled
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={actions.closeApplyPickers}
-            interactiveRefs={[refs.applyUnitTriggerRef, refs.applyClassTriggerRef]}
+            interactiveRefs={[applyUnitTriggerRef, applyClassTriggerRef]}
           >
             {[
               { label: "Selecione uma unidade", value: "" },
@@ -256,7 +256,7 @@ function TrainingApplyModalContentBase({
             nestedScrollEnabled
             scrollContentStyle={{ padding: 8, gap: 6 }}
             onRequestClose={actions.closeApplyPickers}
-            interactiveRefs={[refs.applyUnitTriggerRef, refs.applyClassTriggerRef]}
+            interactiveRefs={[applyUnitTriggerRef, applyClassTriggerRef]}
           >
             {data.classOptionsForUnit.length ? (
               data.classOptionsForUnit.map((item) => {
