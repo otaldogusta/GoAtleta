@@ -51,7 +51,7 @@ A IA orienta a construção de exercícios do catálogo pedagógico baseando-se 
 | **4. Task Complexity** | Baixa (Simple) \| Média (Moderate) \| Alta (Complex) | Demandas coordenadas e cognitivas do exercício | Fitts & Posner (1967) / Modelo de Newell (1986) |
 | **5. Feedback Frequency** | Baixa (Low) \| Média (Moderate) \| Alta (High) | Frequência de intervenção e correção do coach | Guidance Hypothesis (Schmidt & Lee, 2020) |
 
-* *Referência técnica*: [src/config/pedagogical-dimensions.json](file:///c:/Users/gusta/Downloads/GoAtleta/src/config/pedagogical-dimensions.json) e [docs/PEDAGOGICAL_DIMENSIONS_SYSTEM.md](file:///c:/Users/gusta/Downloads/GoAtleta/docs/PEDAGOGICAL_DIMENSIONS_SYSTEM.md)
+* *Referência técnica*: [src/config/pedagogical-dimensions.json](file:///c:/Users/gusta/Downloads/GoAtleta/src/config/pedagogical-dimensions.json) e [docs/pedagogy/README.md](pedagogy/README.md)
 
 ---
 

@@ -83,29 +83,57 @@ export const radius = {
   full: 999,
 } as const;
 
-export const shadow = {
-  none: {
-    shadowColor: "#000",
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0,
+import { Platform } from "react-native";
+
+export interface ShadowStyle {
+  shadowColor?: string;
+  shadowOpacity?: number;
+  shadowRadius?: number;
+  shadowOffset?: { width: number; height: number };
+  elevation?: number;
+  boxShadow?: string;
+}
+
+export const shadow: {
+  readonly none: ShadowStyle;
+  readonly card: ShadowStyle;
+  readonly elevated: ShadowStyle;
+} = Platform.select({
+  web: {
+    none: {
+      boxShadow: "none",
+    },
+    card: {
+      boxShadow: "0px 4px 10px rgba(10, 19, 34, 0.05)",
+    },
+    elevated: {
+      boxShadow: "0px 10px 18px rgba(10, 19, 34, 0.08)",
+    },
   },
-  card: {
-    shadowColor: "#0A1322",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 1,
+  default: {
+    none: {
+      shadowColor: "#000",
+      shadowOpacity: 0,
+      shadowRadius: 0,
+      shadowOffset: { width: 0, height: 0 },
+      elevation: 0,
+    },
+    card: {
+      shadowColor: "#0A1322",
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 1,
+    },
+    elevated: {
+      shadowColor: "#0A1322",
+      shadowOpacity: 0.08,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 3,
+    },
   },
-  elevated: {
-    shadowColor: "#0A1322",
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 3,
-  },
-} as const;
+})!;
 
 export const borders = {
   hairline: 1,

@@ -330,10 +330,8 @@ Ler em ordem:
 
 ### Documentos auxiliares do núcleo pedagógico
 
-- `docs/PEDAGOGICAL_DIMENSIONS_SYSTEM.md`
-- `docs/PEDAGOGICAL_DIMENSIONS_VERIFICATION.md`
-- `docs/expansao-catalogo-pedagogico.md`
-- `docs/ficha-validacao-pedagogica-humana.md`
+- `docs/pedagogy/README.md`
+- `docs/pedagogy/ficha-validacao-humana.md`
 
 ### Documentos operacionais canônicos
 
@@ -362,7 +360,7 @@ Leia:
 
 1. `ROADMAP.md`
 2. `DOCUMENTATION_GUIDE.md`
-3. `docs/PEDAGOGICAL_DIMENSIONS_SYSTEM.md`
+3. `docs/pedagogy/README.md`
 4. Codigo em `src/core/`, `src/db/`, `src/screens/periodization/` e `app/periodization/`
 
 Tempo: ~45-60 min
@@ -395,8 +393,7 @@ Tempo: ~1 hora
 | 1 | `README.md` | entrada do projeto |
 | 2 | `ROADMAP.md` | backlog e prioridade de execucao |
 | 3 | `DOCUMENTATION_GUIDE.md` | memoria funcional das fases 2.x e 3.x |
-| 4 | `docs/PEDAGOGICAL_DIMENSIONS_SYSTEM.md` | estrutura conceitual pedagogica |
-| 5 | `docs/PEDAGOGICAL_DIMENSIONS_VERIFICATION.md` | verificacao do sistema pedagogico |
+| 4 | `docs/pedagogy/README.md` | dimensões pedagógicas e plano de expansão |
 
 ## ✅ Leitura de foco do produto
 

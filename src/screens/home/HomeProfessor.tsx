@@ -1,4 +1,4 @@
-﻿import * as Clipboard from "expo-clipboard";
+import * as Clipboard from "expo-clipboard";
 
 import { Link, useFocusEffect, useRouter } from "expo-router";
 
@@ -1728,16 +1728,15 @@ export function HomeProfessorScreen({
               alignItems: "center",
 
               justifyContent: "center",
-
-              shadowColor: "#000",
-
-              shadowOpacity: 0.1,
-
-              shadowRadius: 10,
-
-              shadowOffset: { width: 0, height: 6 },
-
-              elevation: 4,
+              ...(Platform.OS === "web"
+                ? { boxShadow: "0px 6px 10px rgba(0, 0, 0, 0.1)" }
+                : {
+                    shadowColor: "#000",
+                    shadowOpacity: 0.1,
+                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 4,
+                  }),
 
             }}
 
@@ -1946,10 +1945,14 @@ export function HomeProfessorScreen({
                   borderWidth: 1,
                   borderColor: ux2CShortcutBorder,
                   padding: isUx2CCompact ? 12 : 16,
-                  shadowColor: "#0F172A",
-                  shadowOpacity: ux2CShortcutShadow,
-                  shadowRadius: 18,
-                  shadowOffset: { width: 0, height: 8 },
+                  ...(Platform.OS === "web"
+                    ? { boxShadow: `0px 8px 18px rgba(15, 23, 42, ${ux2CShortcutShadow})` }
+                    : {
+                        shadowColor: "#0F172A",
+                        shadowOpacity: ux2CShortcutShadow,
+                        shadowRadius: 18,
+                        shadowOffset: { width: 0, height: 8 },
+                      }),
                 }}
               >
                 <Suspense fallback={<HomeProfessorBelowFoldFallback />}>
@@ -2479,16 +2482,15 @@ export function HomeProfessorScreen({
               borderTopLeftRadius: 22,
 
               borderBottomLeftRadius: 22,
-
-              shadowColor: "#000",
-
-              shadowOpacity: 0.2,
-
-              shadowRadius: 12,
-
-              shadowOffset: { width: -6, height: 0 },
-
-              elevation: 6,
+              ...(Platform.OS === "web"
+                ? { boxShadow: "-6px 0px 12px rgba(0, 0, 0, 0.2)" }
+                : {
+                    shadowColor: "#000",
+                    shadowOpacity: 0.2,
+                    shadowRadius: 12,
+                    shadowOffset: { width: -6, height: 0 },
+                    elevation: 6,
+                  }),
 
               gap: 12,
 

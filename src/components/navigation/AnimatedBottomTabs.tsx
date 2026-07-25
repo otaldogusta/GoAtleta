@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { Platform, Text, View } from "react-native";
 import Animated, {
     Easing,
@@ -31,7 +31,7 @@ type AnimatedBottomTabsProps = {
   };
 };
 
-export function AnimatedBottomTabs({
+export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
   role,
   navigation,
 }: AnimatedBottomTabsProps) {
@@ -242,4 +242,4 @@ export function AnimatedBottomTabs({
       </View>
     </View>
   );
-}
+});

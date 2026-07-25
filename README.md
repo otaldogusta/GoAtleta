@@ -16,7 +16,7 @@ Leitura principal:
 - [`docs/operations/production.md`](docs/operations/production.md) — produção, deploy e rollback.
 - [`docs/security/overview.md`](docs/security/overview.md) — postura de segurança.
 - [`docs/nfc/overview.md`](docs/nfc/overview.md) — estado atual do NFC.
-- [`docs/perf-hygiene.md`](docs/perf-hygiene.md) — regras de performance e refatoração.
+- [`docs/architecture-hygiene.md`](docs/architecture-hygiene.md) — regras de arquitetura e performance.
 
 ---
 

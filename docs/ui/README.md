@@ -6,6 +6,7 @@ A Home do professor é a referência de densidade, navegação e hierarquia.
 | Tema | Documento |
 | --- | --- |
 | Identidade, tokens e hierarquia | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
+| Diretrizes de Marca e Estilo Visual | [brand-guidelines.md](brand-guidelines.md) |
 | Estrutura de páginas desktop | [WEB_LAYOUT_GUIDELINES.md](WEB_LAYOUT_GUIDELINES.md) |
 | Breakpoints e reflow | [RESPONSIVE_RULES.md](RESPONSIVE_RULES.md) |
 | Primitives e componentes | [COMPONENT_LIBRARY.md](COMPONENT_LIBRARY.md) |
