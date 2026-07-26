@@ -922,29 +922,39 @@ export function ClassPlanPreviewModal({
         {selectedBlock.activities.map((activity, index) => (
           <View
             key={`${selectedBlockKey}-${index}`}
-            style={[styles.activityEditor, !splitLayout ? styles.activityEditorCompact : null, { borderColor: colors.border }]}
+            style={[styles.activityEditor, { borderColor: colors.border }]}
           >
-            <View style={[styles.activityNumber, { borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}>
-              <Text style={[styles.activityNumberLabel, { color: colors.text }]}>{index + 1}</Text>
+            <View style={styles.activityHeaderRow}>
+              <View style={[styles.activityNumber, { borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}>
+                <Text style={[styles.activityNumberLabel, { color: colors.text }]}>{index + 1}</Text>
+              </View>
+              <TextInput
+                value={activity.name}
+                onChangeText={(name) =>
+                  updateSelectedBlock((draft) => ({
+                    ...draft,
+                    activities: draft.activities.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, name } : item
+                    ),
+                  }))
+                }
+                placeholder="Nome da atividade"
+                placeholderTextColor={colors.muted}
+                style={[
+                  styles.activityNameInput,
+                  { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle },
+                ]}
+                accessibilityLabel={`Nome da atividade ${index + 1}`}
+              />
+              <Pressable
+                onPress={() => handleDeleteActivity(index)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remover atividade ${index + 1}`}
+                style={({ pressed }) => [styles.activityDelete, { opacity: pressed ? 0.6 : 1 }]}
+              >
+                <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
+              </Pressable>
             </View>
-            <TextInput
-              value={activity.name}
-              onChangeText={(name) =>
-                updateSelectedBlock((draft) => ({
-                  ...draft,
-                  activities: draft.activities.map((item, itemIndex) =>
-                    itemIndex === index ? { ...item, name } : item
-                  ),
-                }))
-              }
-              placeholder="Nome da atividade"
-              placeholderTextColor={colors.muted}
-              style={[
-                styles.activityNameInput,
-                { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle },
-              ]}
-              accessibilityLabel={`Nome da atividade ${index + 1}`}
-            />
             <TextInput
               value={activity.description ?? ""}
               onChangeText={(description) =>
@@ -969,14 +979,6 @@ export function ClassPlanPreviewModal({
               ]}
               accessibilityLabel={`Descrição da atividade ${index + 1}`}
             />
-            <Pressable
-              onPress={() => handleDeleteActivity(index)}
-              accessibilityRole="button"
-              accessibilityLabel={`Remover atividade ${index + 1}`}
-              style={({ pressed }) => [styles.activityDelete, { opacity: pressed ? 0.6 : 1 }]}
-            >
-              <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
-            </Pressable>
           </View>
         ))}
         <Pressable
@@ -1306,28 +1308,29 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 11, fontWeight: "700" },
   inputSuffix: { fontSize: 12 },
   textInput: { minHeight: 52, maxHeight: 110, borderWidth: 1, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9, fontSize: 12, lineHeight: 18, outlineStyle: "none" } as any,
-  activityEditor: { borderWidth: 1, borderRadius: 10, padding: 10, flexDirection: "row", alignItems: "center", gap: 8 },
-  activityEditorCompact: { flexWrap: "wrap", alignItems: "flex-start" },
+  activityEditor: { borderWidth: 1, borderRadius: 10, padding: 10, flexDirection: "column", gap: 8, width: "100%" },
+  activityEditorCompact: { flexWrap: "nowrap" },
+  activityHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%" },
   activityNumber: { width: 32, height: 36, borderWidth: 1, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   activityNumberLabel: { fontSize: 12, fontWeight: "800" },
-  activityNameInput: { width: 230, minHeight: 42, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, fontWeight: "600", outlineStyle: "none" } as any,
-  activityDescriptionInput: { flex: 1, minWidth: 240, borderWidth: 1, borderRadius: 8, paddingHorizontal: 11, fontSize: 12, lineHeight: 18, textAlignVertical: "top", outlineStyle: "none" } as any,
-  activityDescriptionInputCompact: { minHeight: 72, maxHeight: 130, paddingVertical: 8 },
-  activityDescriptionInputFocused: { minHeight: 120, maxHeight: 180, paddingVertical: 10 },
+  activityNameInput: { flex: 1, minWidth: 0, minHeight: 38, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, fontWeight: "600", outlineStyle: "none" } as any,
+  activityDescriptionInput: { width: "100%", borderWidth: 1, borderRadius: 8, paddingHorizontal: 11, fontSize: 12, lineHeight: 18, textAlignVertical: "top", outlineStyle: "none" } as any,
+  activityDescriptionInputCompact: { minHeight: 64, maxHeight: 120, paddingVertical: 8 },
+  activityDescriptionInputFocused: { minHeight: 110, maxHeight: 160, paddingVertical: 9 },
   activityDelete: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   addActivity: { minHeight: 40, alignSelf: "flex-start", borderWidth: 1, borderRadius: 9, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 },
   addActivityLabel: { fontSize: 12, fontWeight: "700" },
-  editFooter: { minHeight: 64, borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 18, paddingVertical: 9, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  editFooterCompact: { minHeight: 116, paddingHorizontal: 12, paddingVertical: 10, flexDirection: "column" },
-  pdfStatus: { minHeight: 38, borderWidth: 1, borderRadius: 9, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 7 },
-  pdfStatusLabel: { fontSize: 12, fontWeight: "700" },
-  footerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  editFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "column", gap: 8, width: "100%" },
+  editFooterCompact: { paddingHorizontal: 12, paddingVertical: 10 },
+  pdfStatus: { minHeight: 34, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 7, width: "100%" },
+  pdfStatusLabel: { fontSize: 11, fontWeight: "700" },
+  footerActions: { width: "100%", flexDirection: "row", alignItems: "center", gap: 8 },
   footerActionsCompact: { width: "100%", flexDirection: "row" },
-  cancelButton: { minHeight: 42, borderWidth: 1, borderRadius: 9, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
-  cancelButtonLabel: { fontSize: 13, fontWeight: "700" },
-  saveButton: { minHeight: 42, borderRadius: 9, paddingHorizontal: 20, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  cancelButton: { minHeight: 38, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" },
+  cancelButtonLabel: { fontSize: 12, fontWeight: "700" },
+  saveButton: { flex: 1, minHeight: 38, borderRadius: 8, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   saveButtonCompact: { flex: 1 },
-  saveButtonLabel: { fontSize: 13, fontWeight: "800" },
+  saveButtonLabel: { fontSize: 12, fontWeight: "800" },
   previewFooter: { minHeight: 66, borderTopWidth: StyleSheet.hairlineWidth, padding: 10, flexDirection: "row", gap: 8 },
   footerDownloadButton: {
     flex: 1,
