@@ -732,11 +732,26 @@ export function ClassPlanPreviewModal({
     <View
       style={[
         styles.editorPane,
-        !isEditorExpanded ? styles.editorPaneCollapsed : null,
-        { borderTopColor: colors.border, backgroundColor: colors.card },
+        splitLayout ? styles.editorPaneDesktop : styles.editorPaneCompact,
+        !isEditorExpanded && !splitLayout ? styles.editorPaneCollapsed : null,
+        { borderTopColor: colors.border, borderLeftColor: colors.border, backgroundColor: colors.card },
       ]}
     >
-      <View style={styles.editorHeader}>
+      <View style={[styles.editorHeader, splitLayout ? styles.editorHeaderDesktop : null]}>
+        {splitLayout ? (
+          <Pressable
+            onPress={() => setIsEditing(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Voltar para o Roteiro da aula"
+            style={({ pressed }) => [
+              styles.backToOutlineButton,
+              { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <GoAtletaIcon name="chevronBack" size={14} color={colors.text} />
+            <Text style={[styles.backToOutlineLabel, { color: colors.text }]}>Voltar ao Roteiro</Text>
+          </Pressable>
+        ) : null}
         <Text style={[styles.editorTitle, { color: colors.text }]}>{editorSectionLabel}</Text>
         <View style={styles.editorHeaderActions}>
           {!isPdfContentExpanded ? (
@@ -754,18 +769,20 @@ export function ClassPlanPreviewModal({
               </View>
             </View>
           ) : null}
-          <Pressable
-            onPress={() => setIsEditorExpanded((current) => !current)}
-            accessibilityRole="button"
-            accessibilityLabel={`${isEditorExpanded ? "Recolher" : "Expandir"} edição de ${editorSectionLabel}`}
-            accessibilityState={{ expanded: isEditorExpanded }}
-            style={({ pressed }) => [styles.editorCollapseAction, { opacity: pressed ? 0.6 : 1 }]}
-          >
-            <GoAtletaIcon name={isEditorExpanded ? "chevronUp" : "chevronDown"} size={18} color={colors.muted} />
-          </Pressable>
+          {!splitLayout ? (
+            <Pressable
+              onPress={() => setIsEditorExpanded((current) => !current)}
+              accessibilityRole="button"
+              accessibilityLabel={`${isEditorExpanded ? "Recolher" : "Expandir"} edição de ${editorSectionLabel}`}
+              accessibilityState={{ expanded: isEditorExpanded }}
+              style={({ pressed }) => [styles.editorCollapseAction, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <GoAtletaIcon name={isEditorExpanded ? "chevronUp" : "chevronDown"} size={18} color={colors.muted} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
-      {isEditorExpanded ? (
+      {isEditorExpanded || splitLayout ? (
         <ScrollView
           style={styles.editorScroll}
           contentContainerStyle={styles.editorContent}
@@ -1025,7 +1042,7 @@ export function ClassPlanPreviewModal({
           {splitLayout ? (
             <>
               {preview}
-              {outline}
+              {isEditing ? editor : outline}
             </>
           ) : mobileView === "pdf" ? (
             preview
@@ -1040,7 +1057,7 @@ export function ClassPlanPreviewModal({
             </ScrollView>
           )}
         </View>
-        {splitLayout ? editor : null}
+        {!splitLayout && isEditing ? editor : null}
       </View>
 
       {isEditing ? (
@@ -1244,9 +1261,14 @@ const styles = StyleSheet.create({
   fileSize: { fontSize: 11, textAlign: "center" },
   compactOutlineScroll: { flex: 1 },
   compactOutlineContent: { paddingBottom: 18 },
-  editorPane: { height: 380, minHeight: 280, borderTopWidth: 1 },
+  editorPane: { flex: 1, minHeight: 0 },
+  editorPaneDesktop: { width: 380, height: "100%", borderLeftWidth: 1, borderTopWidth: 0 },
+  editorPaneCompact: { height: 380, minHeight: 280, borderTopWidth: 1 },
   editorPaneCollapsed: { height: 62, minHeight: 62 },
   editorHeader: { minHeight: 62, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  editorHeaderDesktop: { minHeight: 88, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "column", alignItems: "stretch", gap: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  backToOutlineButton: { minHeight: 32, alignSelf: "flex-start", borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 6 },
+  backToOutlineLabel: { fontSize: 12, fontWeight: "700" },
   editorTitle: { minWidth: 0, fontSize: 16, fontWeight: "800" },
   editorHeaderActions: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   headerDurationField: { flexDirection: "row", alignItems: "center", gap: 8 },
