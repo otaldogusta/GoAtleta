@@ -348,6 +348,10 @@ export function ClassPlanPreviewModal({
           setIsEditing(true);
           setIsEditorExpanded(true);
         }
+      } else if (event.data?.type === "GOATLETA_PDF_SECTION_CLICK" && event.data?.section === "pedagogy") {
+        setIsPdfContentExpanded(true);
+        setIsEditing(true);
+        setIsEditorExpanded(true);
       } else if (event.data?.type === "GOATLETA_PDF_BACKGROUND_CLICK") {
         setIsEditing(false);
       } else if (event.data?.type === "GOATLETA_PDF_EDIT") {
@@ -743,6 +747,58 @@ export function ClassPlanPreviewModal({
   const selectedBlockLabel = BLOCKS.find((item) => item.key === selectedBlockKey)?.label ?? "Bloco";
   const editorSectionLabel = isPdfContentExpanded ? "Conteúdo Pedagógico" : selectedBlockLabel;
 
+  const renderEditFooter = (isCompact: boolean) => (
+    <View
+      style={[
+        styles.editFooter,
+        isCompact ? styles.editFooterCompact : null,
+        { borderTopColor: colors.border, backgroundColor: colors.card },
+      ]}
+    >
+      {!isCompact ? (
+        <View style={[styles.pdfStatus, { borderColor: isDirty ? colors.warningBorder : colors.successBorder }]}>
+          <GoAtletaIcon
+            name={isDirty ? "warningCircle" : "success"}
+            size={17}
+            color={isDirty ? colors.warningText : colors.successText}
+          />
+          <Text numberOfLines={1} style={[styles.pdfStatusLabel, { color: isDirty ? colors.warningText : colors.successText }]}>
+            {pdfStatusLabel}
+          </Text>
+        </View>
+      ) : null}
+      <View style={[styles.footerActions, isCompact ? styles.footerActionsCompact : null]}>
+        {!isCompact ? (
+          <Pressable
+            onPress={handleCancelEditing}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.cancelButton, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
+          >
+            <Text style={[styles.cancelButtonLabel, { color: colors.text }]}>Cancelar</Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          onPress={handleSave}
+          disabled={!isDirty || isSaving}
+          accessibilityRole="button"
+          accessibilityLabel="Salvar e atualizar PDF"
+          style={({ pressed }) => [
+            styles.saveButton,
+            isCompact ? styles.saveButtonCompact : null,
+            {
+              backgroundColor: colors.primaryBg,
+              opacity: !isDirty || isSaving ? 0.48 : pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          {isSaving ? <ActivityIndicator size="small" color={colors.primaryText} /> : null}
+          <Text style={[styles.saveButtonLabel, { color: colors.primaryText }]}>Salvar e atualizar PDF</Text>
+        </Pressable>
+        {isCompact ? menuButton : null}
+      </View>
+    </View>
+  );
+
   const editor = isEditing ? (
     <View
       style={[
@@ -936,6 +992,7 @@ export function ClassPlanPreviewModal({
         ) : null}
         </ScrollView>
       ) : null}
+      {splitLayout ? renderEditFooter(false) : null}
     </View>
   ) : null;
 
@@ -1075,57 +1132,7 @@ export function ClassPlanPreviewModal({
         {!splitLayout && isEditing ? editor : null}
       </View>
 
-      {isEditing ? (
-        <View
-          style={[
-            styles.editFooter,
-            !splitLayout ? styles.editFooterCompact : null,
-            { borderTopColor: colors.border, backgroundColor: colors.card },
-          ]}
-        >
-          {splitLayout ? (
-            <View style={[styles.pdfStatus, { borderColor: isDirty ? colors.warningBorder : colors.successBorder }]}>
-              <GoAtletaIcon
-                name={isDirty ? "warningCircle" : "success"}
-                size={17}
-                color={isDirty ? colors.warningText : colors.successText}
-              />
-              <Text style={[styles.pdfStatusLabel, { color: isDirty ? colors.warningText : colors.successText }]}>
-                {pdfStatusLabel}
-              </Text>
-            </View>
-          ) : null}
-          <View style={[styles.footerActions, !splitLayout ? styles.footerActionsCompact : null]}>
-            {splitLayout ? (
-              <Pressable
-                onPress={handleCancelEditing}
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.cancelButton, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
-              >
-                <Text style={[styles.cancelButtonLabel, { color: colors.text }]}>Cancelar</Text>
-              </Pressable>
-            ) : null}
-            <Pressable
-              onPress={handleSave}
-              disabled={!isDirty || isSaving}
-              accessibilityRole="button"
-              accessibilityLabel="Salvar e atualizar PDF"
-              style={({ pressed }) => [
-                styles.saveButton,
-                !splitLayout ? styles.saveButtonCompact : null,
-                {
-                  backgroundColor: colors.primaryBg,
-                  opacity: !isDirty || isSaving ? 0.48 : pressed ? 0.8 : 1,
-                },
-              ]}
-            >
-              {isSaving ? <ActivityIndicator size="small" color={colors.primaryText} /> : null}
-              <Text style={[styles.saveButtonLabel, { color: colors.primaryText }]}>Salvar e atualizar PDF</Text>
-            </Pressable>
-            {!splitLayout ? menuButton : null}
-          </View>
-        </View>
-      ) : !splitLayout ? (
+      {isEditing && !splitLayout ? renderEditFooter(true) : !splitLayout ? (
         <View style={[styles.previewFooter, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
           {phoneLayout ? (
             <Pressable

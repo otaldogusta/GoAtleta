@@ -74,27 +74,30 @@ const lessonCardHtmlWithProfessor = (
   pageLabel = "",
   options?: { editable?: boolean }
 ) => {
-  const editable = options?.editable !== false;
+  const editable = Boolean(options?.editable);
+  const editAttr = (field: string, extra = "") =>
+    editable ? ` contenteditable="true" data-field="${field}" class="pdf-editable-cell"${extra ? ` ${extra}` : ""}` : "";
+
   const getBlockKey = (period: string) =>
     period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
 
   const rows = lesson.blocks
     .map((block) => {
       const blockKey = getBlockKey(block.period);
-      const blockAttr = editable ? ` data-block-key="${blockKey}" class="block-row pdf-interactive-block block-${blockKey}"` : ` class="block-row block-${blockKey}"`;
+      const bKeyAttr = editable ? `data-block-key="${blockKey}"` : "";
       return block.period === "Volta à calma"
         ? `
-        <tr${blockAttr}>
+        <tr class="block-row block-cooldown">
           <th class="label-cell period">Volta à calma:</th>
-          <td colspan="3">${esc(block.activities || block.description || "-")}</td>
+          <td colspan="3"${editAttr(`block-description-${block.period}`, bKeyAttr)}>${esc(block.activities || block.description || "-")}</td>
         </tr>
       `
         : `
-        <tr${blockAttr}>
-          <td class="period">${esc(block.period)}</td>
-          <td class="activities">${multilineBlockHtml(block.activities)}</td>
-          <td class="time">${esc(block.time)}</td>
-          <td class="description">${multilineBlockHtml(block.description)}</td>
+        <tr class="block-row block-${block.period === "Parte principal" ? "main" : "warmup"}">
+          <td class="period"${bKeyAttr ? ` ${bKeyAttr}` : ""}>${esc(block.period)}</td>
+          <td class="activities"${editAttr(`block-activities-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.activities)}</td>
+          <td class="time"${editAttr(`block-time-${block.period}`, bKeyAttr)}>${esc(block.time)}</td>
+          <td class="description"${editAttr(`block-description-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.description)}</td>
         </tr>
       `;
     })
@@ -132,15 +135,15 @@ const lessonCardHtmlWithProfessor = (
           </tr>
           <tr class="content-row">
             <th class="label-cell">Objetivo geral:</th>
-            <td class="value-cell" colspan="3">${esc(lesson.generalObjective)}</td>
+            <td class="value-cell"${editAttr("generalObjective", 'data-section="pedagogy"')} colspan="3">${esc(lesson.generalObjective)}</td>
           </tr>
           <tr class="content-row specific-row">
             <th class="label-cell">Objetivo específico:</th>
-            <td class="value-cell" colspan="3">${specificObjectiveHtml(lesson.specificObjective)}</td>
+            <td class="value-cell"${editAttr("specificObjective", 'data-section="pedagogy"')} colspan="3">${specificObjectiveHtml(lesson.specificObjective)}</td>
           </tr>
           <tr class="content-row situation-row">
             <th class="label-cell">Situação-problema:</th>
-            <td class="value-cell situation-value" colspan="3">${esc(lesson.situationProblem || "-")}</td>
+            <td class="value-cell situation-value"${editAttr("situationProblem", 'data-section="pedagogy"')} colspan="3">${esc(lesson.situationProblem || "-")}</td>
           </tr>
           <tr class="table-header-row">
             <th>Período</th>
@@ -151,7 +154,7 @@ const lessonCardHtmlWithProfessor = (
           ${rows}
           <tr class="observations-row">
             <th class="label-cell">Observações:</th>
-            <td colspan="3">${esc(lesson.observations || "")}</td>
+            <td${editAttr("observations", 'data-section="pedagogy"')} colspan="3">${esc(lesson.observations || "")}</td>
           </tr>
         </tbody>
       </table>
