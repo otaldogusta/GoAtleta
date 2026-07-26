@@ -340,7 +340,17 @@ export function ClassPlanPreviewModal({
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === "GOATLETA_PDF_EDIT") {
+      if (event.data?.type === "GOATLETA_PDF_BLOCK_CLICK") {
+        const { blockKey } = event.data;
+        if (blockKey === "warmup" || blockKey === "main" || blockKey === "cooldown") {
+          setSelectedBlockKey(blockKey);
+          setIsPdfContentExpanded(false);
+          setIsEditing(true);
+          setIsEditorExpanded(true);
+        }
+      } else if (event.data?.type === "GOATLETA_PDF_BACKGROUND_CLICK") {
+        setIsEditing(false);
+      } else if (event.data?.type === "GOATLETA_PDF_EDIT") {
         const { field, text } = event.data;
         if (!field || typeof text !== "string") return;
 
@@ -595,9 +605,14 @@ export function ClassPlanPreviewModal({
   }, [isEditing, splitLayout]);
 
   const preview = (
-    <View style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}>
+    <Pressable
+      onPress={() => {
+        if (isEditing) setIsEditing(false);
+      }}
+      style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}
+    >
       {previewStatus === "ready" && pdfUrl ? (
-        <PdfPreviewFrame url={pdfUrl} html={previewHtml} title={`PDF do plano ${pdfPlan.title}`} editable={isEditing} />
+        <PdfPreviewFrame url={pdfUrl} html={previewHtml} title={`PDF do plano ${pdfPlan.title}`} editable={true} />
       ) : previewStatus === "error" ? (
         <View style={styles.previewState} accessibilityLiveRegion="polite">
           <GoAtletaIcon name="document" size={30} color={colors.muted} />
@@ -626,7 +641,7 @@ export function ClassPlanPreviewModal({
           <Text style={[styles.previewStateText, { color: colors.muted }]}>Organizando o plano completo desta aula.</Text>
         </View>
       )}
-    </View>
+    </Pressable>
   );
 
   const outline = (

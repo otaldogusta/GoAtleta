@@ -12,19 +12,17 @@ const buildPreviewHtml = (html: string, editable?: boolean) => {
       ${
         editable
           ? `
-      [contenteditable="true"] {
-        outline: none;
-        transition: background 0.15s ease, box-shadow 0.15s ease;
-        cursor: text;
-        border-radius: 3px;
+      .pdf-interactive-block {
+        cursor: pointer;
+        transition: background 0.15s ease, outline 0.15s ease;
       }
-      [contenteditable="true"]:hover {
-        background: #f0f7ff !important;
-        box-shadow: inset 0 0 0 1.5px #3b82f6 !important;
+      .pdf-interactive-block:hover {
+        background: #eef6ff !important;
+        outline: 2px dashed #2563eb !important;
+        outline-offset: -2px;
       }
-      [contenteditable="true"]:focus {
-        background: #ffffff !important;
-        box-shadow: inset 0 0 0 2px #2563eb !important;
+      .pdf-interactive-block:hover td, .pdf-interactive-block:hover th {
+        background: #eef6ff !important;
       }
       `
           : ""
@@ -51,12 +49,13 @@ const buildPreviewHtml = (html: string, editable?: boolean) => {
       editable
         ? `
     <script>
-      document.addEventListener('blur', function(e) {
-        var el = e.target;
-        if (el && el.hasAttribute && el.hasAttribute('data-field')) {
-          var field = el.getAttribute('data-field');
-          var text = el.innerText ? el.innerText.trim() : '';
-          window.parent.postMessage({ type: 'GOATLETA_PDF_EDIT', field: field, text: text }, '*');
+      document.addEventListener('click', function(e) {
+        var target = e.target ? e.target.closest('[data-block-key]') : null;
+        if (target) {
+          var blockKey = target.getAttribute('data-block-key');
+          window.parent.postMessage({ type: 'GOATLETA_PDF_BLOCK_CLICK', blockKey: blockKey }, '*');
+        } else {
+          window.parent.postMessage({ type: 'GOATLETA_PDF_BACKGROUND_CLICK' }, '*');
         }
       }, true);
     </script>
