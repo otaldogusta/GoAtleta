@@ -10,6 +10,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { Image } from "expo-image";
 import type { ClassGroup, Student } from "../../src/core/models";
 import { getClasses, getStudents } from "../../src/db/seed";
+import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { shadow } from "../../src/theme/tokens";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -95,17 +96,24 @@ export default function BirthdaysScreen() {
   const [students, setStudents] = useState<Student[]>([]);
   const [unitFilter, setUnitFilter] = useState("Todas");
 
+  markRender("screen.students.birthdays.render.root");
+
   useEffect(() => {
     let alive = true;
-    (async () => {
-      const [classList, studentList] = await Promise.all([
-        getClasses({ organizationId: activeOrganization?.id }),
-        getStudents({ organizationId: activeOrganization?.id }),
-      ]);
-      if (!alive) return;
-      setClasses(classList);
-      setStudents(studentList);
-    })();
+    void measureAsync(
+      "screen.students.birthdays.load.initial",
+      async () => {
+        const [classList, studentList] = await Promise.all([
+          getClasses({ organizationId: activeOrganization?.id }),
+          getStudents({ organizationId: activeOrganization?.id }),
+        ]);
+        if (!alive) return;
+        setClasses(classList);
+        setStudents(studentList);
+      }
+    ).catch((error) => {
+      console.warn("BirthdaysScreen initial load failed", error);
+    });
     return () => {
       alive = false;
     };

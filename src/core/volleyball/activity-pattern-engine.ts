@@ -1,16 +1,16 @@
 import type {
-  PedagogicalIntent,
   PhaseIntent,
-  ProgressionDimension,
   VolleyballSkill,
-  WeeklyLoadIntent,
 } from "../models";
 import type {
   ActivityPatternAgeStage,
   ActivityPatternStage,
 } from "./activity-pattern-types";
 import type { ActivityCatalogTaxonomy } from "./activity-catalog";
-import type { SessionPlanningContext } from "../session-planning-context";
+import type {
+  ActivityPatternActivitySpec,
+  ActivityPatternSelectionContext,
+} from "./activity-pattern-contracts";
 import { composeActivityPattern } from "./activity-pattern-composer";
 import {
   VOLLEYBALL_ACTIVITY_KNOWLEDGE_PATTERNS,
@@ -18,51 +18,11 @@ import {
   type ActivityKnowledgePattern,
 } from "./activity-knowledge-patterns";
 export type { ActivityPatternAgeStage, ActivityPatternStage } from "./activity-pattern-types";
-
-export type ActivityPatternAgeProfile = {
-  stage: ActivityPatternAgeStage;
-  label: string;
-  gameForm: "mini_2x2" | "mini_3x3" | "mini_4x4" | "game_applied";
-  organizationCue: string;
-  challengeCue: string;
-};
-
-export type ActivityPatternSelectionContext = {
-  primarySkill: VolleyballSkill;
-  focusVariant?: ActivityFocusVariant;
-  ageProfile: ActivityPatternAgeProfile;
-  periodizationPhase?: SessionPlanningContext["periodizationPhase"];
-  phaseIntent?: PhaseIntent;
-  progressionDimension?: ProgressionDimension;
-  pedagogicalIntent?: PedagogicalIntent;
-  loadIntent?: WeeklyLoadIntent;
-  materials: string[];
-  classSize: number;
-  recentActivityFamilies: string[];
-  recentActivityNames?: string[];
-  recentActivityPatternIds?: string[];
-  upcomingEvents?: SessionPlanningContext["upcomingEvents"];
-};
-
-export type ActivityPatternActivitySpec = {
-  id: string;
-  stage: ActivityPatternStage;
-  name: string;
-  participants: string;
-  organization: string;
-  starter: string;
-  action: string;
-  rotation: string;
-  simpleRule: string;
-  scoring?: string;
-  materials: string[];
-  space: string;
-  execution: string;
-  coachFocus: string;
-  successCriteria: string;
-  adaptation: string;
-  sourcePatternId?: string;
-};
+export type {
+  ActivityPatternActivitySpec,
+  ActivityPatternAgeProfile,
+  ActivityPatternSelectionContext,
+} from "./activity-pattern-contracts";
 
 export type ActivityPattern = {
   id: string;
@@ -74,7 +34,7 @@ export type ActivityPattern = {
   playerFormat: string;
   space: string;
   materials: string[];
-  periodizationFit: Array<"exploration" | "technical" | "decision" | "pressure" | "game_transfer">;
+  periodizationFit: ("exploration" | "technical" | "decision" | "pressure" | "game_transfer")[];
   catalogTaxonomy?: ActivityCatalogTaxonomy;
   build: (context: ActivityPatternSelectionContext) => ActivityPatternActivitySpec;
 };

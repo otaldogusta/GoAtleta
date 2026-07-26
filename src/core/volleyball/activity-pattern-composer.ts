@@ -1,7 +1,7 @@
 import type {
   ActivityPatternActivitySpec,
   ActivityPatternSelectionContext,
-} from "./activity-pattern-engine";
+} from "./activity-pattern-contracts";
 import type { ActivityKnowledgePattern } from "./activity-knowledge-patterns";
 import type { ActivityPatternAgeStage } from "./activity-pattern-types";
 
