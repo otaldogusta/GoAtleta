@@ -1,4 +1,4 @@
-import { createElement, useMemo, type CSSProperties } from "react";
+import { createElement, useEffect, useMemo, useRef, memo, type CSSProperties } from "react";
 
 type PdfPreviewFrameProps = {
   url: string;
@@ -102,7 +102,8 @@ const buildPreviewHtml = (html: string, editable?: boolean) => {
   return html.replace("</style>", stylesAndScript);
 };
 
-export function PdfPreviewFrame({ url, title, html, editable }: PdfPreviewFrameProps) {
+export const PdfPreviewFrame = memo(function PdfPreviewFrame({ url, title, html, editable }: PdfPreviewFrameProps) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const style: CSSProperties = {
     width: "100%",
     height: "100%",
@@ -111,12 +112,21 @@ export function PdfPreviewFrame({ url, title, html, editable }: PdfPreviewFrameP
     background: "#ffffff",
   };
   const previewHtml = useMemo(() => (html ? buildPreviewHtml(html, editable) : undefined), [html, editable]);
+  const lastHtmlRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (iframe && previewHtml && previewHtml !== lastHtmlRef.current) {
+      lastHtmlRef.current = previewHtml;
+      iframe.srcdoc = previewHtml;
+    }
+  }, [previewHtml]);
 
   return createElement("iframe", {
+    ref: iframeRef,
     src: previewHtml ? undefined : `${url}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`,
-    srcDoc: previewHtml,
     sandbox: editable ? "allow-scripts allow-same-origin" : undefined,
     title,
     style,
   });
-}
+});
