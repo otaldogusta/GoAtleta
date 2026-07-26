@@ -99,6 +99,26 @@ export const appendClassPlanActivity = (
   };
 };
 
+export const removeClassPlanActivity = (
+  draft: ClassPlanBlockDraft,
+  index: number
+): ClassPlanBlockDraft => {
+  if (
+    draft.activities.length <= 1 ||
+    index < 0 ||
+    index >= draft.activities.length
+  ) {
+    return draft;
+  }
+
+  return {
+    ...draft,
+    activities: draft.activities.filter(
+      (_, activityIndex) => activityIndex !== index
+    ),
+  };
+};
+
 const durationFieldByBlock: Record<
   TrainingPlanBlockKey,
   "warmupTime" | "mainTime" | "cooldownTime"

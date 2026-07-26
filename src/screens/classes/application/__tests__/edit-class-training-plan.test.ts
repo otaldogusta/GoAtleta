@@ -5,6 +5,7 @@ import {
   getClassPlanPdfContentDraft,
   getClassPlanSpecificObjective,
   normalizeClassTrainingPlan,
+  removeClassPlanActivity,
   updateClassPlanPdfContent,
   updateClassPlanSpecificObjective,
   updateClassTrainingPlanBlock,
@@ -113,6 +114,27 @@ describe("edit-class-training-plan", () => {
 
     expect(first.activities.at(-1)).toEqual({ name: "Nova atividade", description: "" });
     expect(second.activities.at(-1)).toEqual({ name: "Nova atividade 2", description: "" });
+  });
+
+  it("removes only the selected activity and preserves the final activity in a block", () => {
+    const draft = {
+      ...buildClassPlanBlockDraft(plan, "main"),
+      activities: [
+        { name: "Primeira atividade", description: "Descrição 1" },
+        { name: "Segunda atividade", description: "Descrição 2" },
+      ],
+    };
+
+    expect(removeClassPlanActivity(draft, 0).activities).toEqual([
+      { name: "Segunda atividade", description: "Descrição 2" },
+    ]);
+
+    const originalFinalActivityDraft = buildClassPlanBlockDraft(plan, "warmup");
+    const finalActivityDraft = removeClassPlanActivity(
+      originalFinalActivityDraft,
+      0
+    );
+    expect(finalActivityDraft).toBe(originalFinalActivityDraft);
   });
 
   it("updates the lesson specific objective without changing block summaries or descriptions", () => {

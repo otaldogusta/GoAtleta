@@ -35,6 +35,7 @@ import {
   buildClassPlanBlockDraft,
   getClassPlanPdfContentDraft,
   normalizeClassTrainingPlan,
+  removeClassPlanActivity,
   updateClassPlanPdfContent,
   updateClassTrainingPlanBlock,
   type ClassPlanBlockDraft,
@@ -158,7 +159,7 @@ export function ClassPlanPreviewModal({
   const undoStackRef = useRef<PlanUndoEntry[]>([]);
 
   const cardStyle = useModalCardStyle({
-    maxHeight: splitLayout ? "94%" : "100%",
+    maxHeight: "100%",
     maxWidth: splitLayout ? 1160 : undefined,
     fullWidth: !splitLayout,
     padding: 0,
@@ -379,20 +380,53 @@ export function ClassPlanPreviewModal({
 
   const handleDeleteActivity = useCallback(
     (index: number) => {
+      const currentDraft = buildClassPlanBlockDraft(
+        workingPlanRef.current,
+        selectedBlockKey
+      );
+      const nextDraft = removeClassPlanActivity(currentDraft, index);
+
+      if (nextDraft === currentDraft) {
+        showSaveToast({
+          message:
+            "Mantenha uma atividade neste bloco. Edite a atual ou adicione outra antes de removê-la.",
+          variant: "warning",
+        });
+        return;
+      }
+
       undoStackRef.current = [
         ...undoStackRef.current.slice(-19),
         { plan: workingPlanRef.current, isDirty, pdfStatusLabel },
       ];
-      updateSelectedBlock((draft) => ({
-        ...draft,
-        activities: draft.activities.filter((_, itemIndex) => itemIndex !== index),
-      }));
+      updateSelectedBlock((draft) => removeClassPlanActivity(draft, index));
       showSaveToast({
-        message: "Atividade removida. Use Ctrl+Z para desfazer.",
+        message: "Atividade removida.",
+        actionLabel: "Desfazer",
+        onAction: () => {
+          const previous = undoStackRef.current.pop();
+          if (!previous) return;
+
+          workingPlanRef.current = previous.plan;
+          setWorkingPlan(previous.plan);
+          setIsDirty(previous.isDirty);
+          setPdfStatusLabel(previous.pdfStatusLabel);
+          showSaveToast({
+            message: "Atividade restaurada.",
+            variant: "success",
+          });
+        },
+        durationMs: 9000,
         variant: "success",
       });
     },
-    [isDirty, pdfStatusLabel, showSaveToast, updateSelectedBlock]
+    [
+      isDirty,
+      pdfStatusLabel,
+      selectedBlockKey,
+      showSaveToast,
+      updateSelectedBlock,
+    ]
   );
 
   useEffect(() => {
@@ -825,7 +859,7 @@ export function ClassPlanPreviewModal({
       visible={visible}
       onClose={onClose}
       position="center"
-      containerPadding={splitLayout ? 16 : 0}
+      containerPadding={splitLayout ? 8 : 0}
       cardStyle={[
         cardStyle,
         styles.modalCard,
@@ -1056,7 +1090,7 @@ export function ClassPlanPreviewModal({
 
 const styles = StyleSheet.create({
   modalCard: { overflow: "hidden", paddingBottom: 0, marginBottom: 0, gap: 0 },
-  modalCardDesktop: { height: "94%" },
+  modalCardDesktop: { height: "100%" },
   modalCardCompact: {
     width: "100%",
     maxWidth: "100%",
