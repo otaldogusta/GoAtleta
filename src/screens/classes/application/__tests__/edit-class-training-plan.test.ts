@@ -2,6 +2,7 @@ import type { TrainingPlan } from "../../../../core/models";
 import {
   appendClassPlanActivity,
   buildClassPlanBlockDraft,
+  findClassPlanUnnamedActivity,
   getClassPlanPdfContentDraft,
   getClassPlanSpecificObjective,
   normalizeClassTrainingPlan,
@@ -81,7 +82,53 @@ describe("edit-class-training-plan", () => {
       name: " Passe em duplas ",
       description: " Trocas com alvo. ",
     });
+    expect(buildClassPlanBlockDraft(next, "main").activities[1]).toEqual({
+      name: "",
+      description: "Em edição",
+    });
     expect(plan.main).toEqual(["Atividade antiga"]);
+  });
+
+  it("preserves an unnamed activity when another block is edited", () => {
+    const mainInProgress = updateClassTrainingPlanBlock(plan, "main", {
+      duration: "45",
+      objective: "Objetivo antigo",
+      activities: [
+        { name: "", description: "Descrição que ainda está sendo editada" },
+      ],
+    });
+    const next = updateClassTrainingPlanBlock(mainInProgress, "warmup", {
+      duration: "12",
+      objective: "",
+      activities: [{ name: "Novo aquecimento", description: "" }],
+    });
+
+    expect(buildClassPlanBlockDraft(next, "main").activities).toEqual([
+      { name: "", description: "Descrição que ainda está sendo editada" },
+    ]);
+    expect(findClassPlanUnnamedActivity(next)).toEqual({
+      blockKey: "main",
+      index: 0,
+    });
+  });
+
+  it("keeps the legacy fallback when a stored rich block has no activities", () => {
+    const planWithEmptyStoredWarmup: TrainingPlan = {
+      ...plan,
+      warmup: ["Aquecimento legado"],
+      pedagogy: {
+        ...plan.pedagogy,
+        blocks: {
+          ...plan.pedagogy?.blocks,
+          warmup: { activities: [] },
+        },
+      },
+    };
+
+    expect(
+      buildClassPlanBlockDraft(planWithEmptyStoredWarmup, "warmup")
+        .activities[0]?.name
+    ).toBe("Aquecimento legado");
   });
 
   it("normalizes text and removes empty activities only when saving", () => {

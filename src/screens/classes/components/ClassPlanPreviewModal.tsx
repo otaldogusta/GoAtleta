@@ -33,6 +33,7 @@ import { buildClassPlanPdfData } from "../application/build-class-plan-pdf-data"
 import {
   appendClassPlanActivity,
   buildClassPlanBlockDraft,
+  findClassPlanUnnamedActivity,
   getClassPlanPdfContentDraft,
   normalizeClassTrainingPlan,
   removeClassPlanActivity,
@@ -338,6 +339,22 @@ export function ClassPlanPreviewModal({
 
   const handleSave = useCallback(async () => {
     if (isSaving || !isDirty) return;
+    const unnamedActivity = findClassPlanUnnamedActivity(workingPlan);
+    if (unnamedActivity) {
+      setSelectedBlockKey(unnamedActivity.blockKey);
+      setIsPdfContentExpanded(false);
+      setIsEditing(true);
+      setIsEditorExpanded(true);
+      if (!splitLayout) setMobileView("outline");
+      const blockLabel =
+        CLASS_PLAN_BLOCK_PRESENTATION[unnamedActivity.blockKey].label;
+      showSaveToast({
+        message: `Dê um nome à atividade ${unnamedActivity.index + 1} de ${blockLabel}.`,
+        variant: "warning",
+      });
+      return;
+    }
+
     const normalizedPlan = normalizeClassTrainingPlan(workingPlan);
     if (!resolveTrainingPlanBlock(normalizedPlan, "main").activities.length) {
       showSaveToast({
@@ -365,7 +382,14 @@ export function ClassPlanPreviewModal({
     } finally {
       setIsSaving(false);
     }
-  }, [isDirty, isSaving, onSavePlan, showSaveToast, workingPlan]);
+  }, [
+    isDirty,
+    isSaving,
+    onSavePlan,
+    showSaveToast,
+    splitLayout,
+    workingPlan,
+  ]);
 
   const handleCancelEditing = useCallback(() => {
     setWorkingPlan(pdfPlan);

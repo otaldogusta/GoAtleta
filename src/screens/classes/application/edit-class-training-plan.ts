@@ -20,6 +20,11 @@ export type ClassPlanPdfContentDraft = {
   observations: string;
 };
 
+export type ClassPlanUnnamedActivity = {
+  blockKey: TrainingPlanBlockKey;
+  index: number;
+};
+
 export const getClassPlanPdfContentDraft = (plan: TrainingPlan): ClassPlanPdfContentDraft => ({
   generalObjective:
     plan.pedagogy?.learningObjectives?.general ||
@@ -210,11 +215,32 @@ export const resolveClassPlanActivityDescription = (
   return buildLegacyClassPlanActivityDescription(plan, blockKey, activity.name);
 };
 
+const resolveEditableClassPlanBlock = (
+  plan: TrainingPlan,
+  blockKey: TrainingPlanBlockKey
+) => {
+  const storedBlock = plan.pedagogy?.blocks?.[blockKey];
+  if (storedBlock?.activities?.length) {
+    return {
+      summary: String(storedBlock.summary ?? ""),
+      activities: (storedBlock.activities ?? []).map((activity) => ({
+        ...activity,
+      })),
+    };
+  }
+
+  const resolvedBlock = resolveTrainingPlanBlock(plan, blockKey);
+  return {
+    summary: resolvedBlock.summary,
+    activities: resolvedBlock.activities.map((activity) => ({ ...activity })),
+  };
+};
+
 export const buildClassPlanBlockDraft = (
   plan: TrainingPlan,
   blockKey: TrainingPlanBlockKey
 ): ClassPlanBlockDraft => {
-  const block = resolveTrainingPlanBlock(plan, blockKey);
+  const block = resolveEditableClassPlanBlock(plan, blockKey);
   return {
     duration: plan[durationFieldByBlock[blockKey]],
     objective: block.summary,
@@ -235,18 +261,21 @@ export const updateClassTrainingPlanBlock = (
   const durationField = durationFieldByBlock[blockKey];
   const legacyField = legacyFieldByBlock[blockKey];
   const activities = draft.activities.map((activity) => ({ ...activity }));
+  const warmup = resolveEditableClassPlanBlock(plan, "warmup");
+  const main = resolveEditableClassPlanBlock(plan, "main");
+  const cooldown = resolveEditableClassPlanBlock(plan, "cooldown");
   const blocks = {
     warmup: {
-      summary: resolveTrainingPlanBlock(plan, "warmup").summary,
-      activities: resolveTrainingPlanBlock(plan, "warmup").activities.map((activity) => ({ ...activity })),
+      summary: warmup.summary,
+      activities: warmup.activities,
     },
     main: {
-      summary: resolveTrainingPlanBlock(plan, "main").summary,
-      activities: resolveTrainingPlanBlock(plan, "main").activities.map((activity) => ({ ...activity })),
+      summary: main.summary,
+      activities: main.activities,
     },
     cooldown: {
-      summary: resolveTrainingPlanBlock(plan, "cooldown").summary,
-      activities: resolveTrainingPlanBlock(plan, "cooldown").activities.map((activity) => ({ ...activity })),
+      summary: cooldown.summary,
+      activities: cooldown.activities,
     },
   };
 
@@ -264,6 +293,26 @@ export const updateClassTrainingPlanBlock = (
       blocks,
     },
   };
+};
+
+export const findClassPlanUnnamedActivity = (
+  plan: TrainingPlan
+): ClassPlanUnnamedActivity | null => {
+  for (const blockKey of [
+    "warmup",
+    "main",
+    "cooldown",
+  ] as TrainingPlanBlockKey[]) {
+    const index = buildClassPlanBlockDraft(
+      plan,
+      blockKey
+    ).activities.findIndex(
+      (activity) => !String(activity.name ?? "").trim()
+    );
+    if (index >= 0) return { blockKey, index };
+  }
+
+  return null;
 };
 
 export const normalizeClassTrainingPlan = (plan: TrainingPlan): TrainingPlan => {
