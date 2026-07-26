@@ -211,7 +211,7 @@ export function ClassPlanPreviewModal({
     () => buildClassPlanPdfData({ classGroup, plan: pdfPlan, lessonDate, coachName }),
     [classGroup, coachName, lessonDate, pdfPlan]
   );
-  const previewHtml = useMemo(() => sessionPlanHtml(pdfData, { editable: isEditing }), [pdfData, isEditing]);
+  const previewHtml = useMemo(() => sessionPlanHtml(pdfData, { editable: true }), [pdfData]);
   const fileName = useMemo(() => {
     const date = lessonDate || pdfPlan.applyDate || "aula";
     const className = classGroup.name || "turma";

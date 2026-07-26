@@ -74,7 +74,7 @@ const lessonCardHtmlWithProfessor = (
   pageLabel = "",
   options?: { editable?: boolean }
 ) => {
-  const editable = Boolean(options?.editable);
+  const editable = options?.editable !== false;
   const getBlockKey = (period: string) =>
     period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
 
