@@ -160,5 +160,5 @@ export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPl
   };
 };
 
-export const sessionPlanHtml = (data: SessionPlanPdfData) =>
-  monthlyPlanHtml(buildSessionMonthlyPlanData(data));
+export const sessionPlanHtml = (data: SessionPlanPdfData, options?: { editable?: boolean }) =>
+  monthlyPlanHtml(buildSessionMonthlyPlanData(data), options);

@@ -211,7 +211,7 @@ export function ClassPlanPreviewModal({
     () => buildClassPlanPdfData({ classGroup, plan: pdfPlan, lessonDate, coachName }),
     [classGroup, coachName, lessonDate, pdfPlan]
   );
-  const previewHtml = useMemo(() => sessionPlanHtml(pdfData), [pdfData]);
+  const previewHtml = useMemo(() => sessionPlanHtml(pdfData, { editable: isEditing }), [pdfData, isEditing]);
   const fileName = useMemo(() => {
     const date = lessonDate || pdfPlan.applyDate || "aula";
     const className = classGroup.name || "turma";
@@ -336,6 +336,56 @@ export function ClassPlanPreviewModal({
     setIsDirty(true);
     setPdfStatusLabel("Alterações não salvas");
   }, [classGroup, coachName, lessonDate]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "GOATLETA_PDF_EDIT") {
+        const { field, text } = event.data;
+        if (!field || typeof text !== "string") return;
+
+        if (field === "generalObjective") {
+          updatePdfContentField("generalObjective", text);
+        } else if (field === "specificObjective") {
+          updatePdfContentField("specificObjective", text);
+        } else if (field === "situationProblem") {
+          updatePdfContentField("situationProblem", text);
+        } else if (field === "observations") {
+          updatePdfContentField("observations", text);
+        } else if (field.startsWith("block-description-")) {
+          const period = field.replace("block-description-", "");
+          const blockKey: TrainingPlanBlockKey =
+            period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
+          setSelectedBlockKey(blockKey);
+          updateSelectedBlock((draft) => {
+            const activities = draft.activities.length > 0
+              ? draft.activities.map((act, i) => (i === 0 ? { ...act, description: text } : act))
+              : [{ name: "Atividade 1", description: text }];
+            return { ...draft, activities };
+          });
+        } else if (field.startsWith("block-activities-")) {
+          const period = field.replace("block-activities-", "");
+          const blockKey: TrainingPlanBlockKey =
+            period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
+          setSelectedBlockKey(blockKey);
+          updateSelectedBlock((draft) => {
+            const activities = draft.activities.length > 0
+              ? draft.activities.map((act, i) => (i === 0 ? { ...act, name: text } : act))
+              : [{ name: text, description: "" }];
+            return { ...draft, activities };
+          });
+        } else if (field.startsWith("block-time-")) {
+          const period = field.replace("block-time-", "");
+          const blockKey: TrainingPlanBlockKey =
+            period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
+          setSelectedBlockKey(blockKey);
+          updateSelectedBlock((draft) => ({ ...draft, duration: text }));
+        }
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [updatePdfContentField, updateSelectedBlock]);
 
   const handleSave = useCallback(async () => {
     if (isSaving || !isDirty) return;
@@ -547,7 +597,7 @@ export function ClassPlanPreviewModal({
   const preview = (
     <View style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}>
       {previewStatus === "ready" && pdfUrl ? (
-        <PdfPreviewFrame url={pdfUrl} html={previewHtml} title={`PDF do plano ${pdfPlan.title}`} />
+        <PdfPreviewFrame url={pdfUrl} html={previewHtml} title={`PDF do plano ${pdfPlan.title}`} editable={isEditing} />
       ) : previewStatus === "error" ? (
         <View style={styles.previewState} accessibilityLiveRegion="polite">
           <GoAtletaIcon name="document" size={30} color={colors.muted} />

@@ -71,23 +71,28 @@ const lessonCardHtmlWithProfessor = (
   className: string,
   ageGroup?: string,
   genderLabel?: string,
-  pageLabel = ""
+  pageLabel = "",
+  options?: { editable?: boolean }
 ) => {
+  const editable = Boolean(options?.editable);
+  const editAttr = (field: string) =>
+    editable ? ` contenteditable="true" data-field="${field}"` : "";
+
   const rows = lesson.blocks
     .map((block) =>
       block.period === "Volta à calma"
         ? `
         <tr class="block-row block-cooldown">
           <th class="label-cell period">Volta à calma:</th>
-          <td colspan="3">${esc(block.activities || block.description || "-")}</td>
+          <td colspan="3"${editAttr(`block-description-${block.period}`)}>${esc(block.activities || block.description || "-")}</td>
         </tr>
       `
         : `
         <tr class="block-row block-${block.period === "Parte principal" ? "main" : "warmup"}">
           <td class="period">${esc(block.period)}</td>
-          <td class="activities">${multilineBlockHtml(block.activities)}</td>
-          <td class="time">${esc(block.time)}</td>
-          <td class="description">${multilineBlockHtml(block.description)}</td>
+          <td class="activities"${editAttr(`block-activities-${block.period}`)}>${multilineBlockHtml(block.activities)}</td>
+          <td class="time"${editAttr(`block-time-${block.period}`)}>${esc(block.time)}</td>
+          <td class="description"${editAttr(`block-description-${block.period}`)}>${multilineBlockHtml(block.description)}</td>
         </tr>
       `
     )
@@ -125,15 +130,15 @@ const lessonCardHtmlWithProfessor = (
           </tr>
           <tr class="content-row">
             <th class="label-cell">Objetivo geral:</th>
-            <td class="value-cell" colspan="3">${esc(lesson.generalObjective)}</td>
+            <td class="value-cell"${editAttr("generalObjective")} colspan="3">${esc(lesson.generalObjective)}</td>
           </tr>
           <tr class="content-row specific-row">
             <th class="label-cell">Objetivo específico:</th>
-            <td class="value-cell" colspan="3">${specificObjectiveHtml(lesson.specificObjective)}</td>
+            <td class="value-cell"${editAttr("specificObjective")} colspan="3">${specificObjectiveHtml(lesson.specificObjective)}</td>
           </tr>
           <tr class="content-row situation-row">
             <th class="label-cell">Situação-problema:</th>
-            <td class="value-cell situation-value" colspan="3">${esc(lesson.situationProblem || "-")}</td>
+            <td class="value-cell situation-value"${editAttr("situationProblem")} colspan="3">${esc(lesson.situationProblem || "-")}</td>
           </tr>
           <tr class="table-header-row">
             <th>Período</th>
@@ -144,7 +149,7 @@ const lessonCardHtmlWithProfessor = (
           ${rows}
           <tr class="observations-row">
             <th class="label-cell">Observações:</th>
-            <td colspan="3">${esc(lesson.observations || "")}</td>
+            <td${editAttr("observations")} colspan="3">${esc(lesson.observations || "")}</td>
           </tr>
         </tbody>
       </table>
@@ -152,7 +157,7 @@ const lessonCardHtmlWithProfessor = (
   `;
 };
 
-export const monthlyPlanHtml = (data: MonthlyPlanPdfData) => {
+export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?: boolean }) => {
   const pagesHtml = data.lessons
     .map(
       (lesson, index) => `
@@ -163,7 +168,8 @@ export const monthlyPlanHtml = (data: MonthlyPlanPdfData) => {
             data.className,
             data.ageGroup,
             data.genderLabel,
-            data.lessons.length > 1 ? `Aula ${index + 1} de ${data.lessons.length}` : ""
+            data.lessons.length > 1 ? `Aula ${index + 1} de ${data.lessons.length}` : "",
+            options
           )}
         </div>
       `
