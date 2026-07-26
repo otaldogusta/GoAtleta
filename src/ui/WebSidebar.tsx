@@ -10,6 +10,7 @@ import {
 } from "../auth/route-permissions";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import { getScopedProfilePath } from "../navigation/profile-routes";
+import { stripExpoRouterInternalParams } from "../navigation/web-route-state";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { brandPalette, radius } from "../theme/tokens";
 import { Pressable } from "./Pressable";
@@ -22,7 +23,7 @@ import {
 import { webShellTokens } from "./web-shell-tokens";
 import {
   orderWebSidebarItems,
-  shouldUseHardWebSidebarNavigation,
+  shouldNavigateAcrossWebShell,
 } from "./web-sidebar-navigation";
 
 type WebSidebarProps = {
@@ -251,9 +252,19 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         typeof window !== "undefined" ? window.location.pathname : pathname;
       if (
         typeof window !== "undefined" &&
-        shouldUseHardWebSidebarNavigation(currentPathname)
+        shouldNavigateAcrossWebShell(currentPathname)
       ) {
-        window.location.assign(href);
+        router.push(href as never, { withAnchor: true });
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+            const sanitizedHref = stripExpoRouterInternalParams(currentHref);
+            const currentState = window.history.state;
+
+            if (sanitizedHref === currentHref || currentState == null) return;
+            window.history.replaceState(currentState, "", sanitizedHref);
+          });
+        });
         return;
       }
       router.push(href as never);
