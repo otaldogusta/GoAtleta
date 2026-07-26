@@ -54,8 +54,14 @@ const buildPreviewHtml = (html: string, editable?: boolean) => {
       editable
         ? `
     <script>
+      function getEl(target) {
+        if (!target) return null;
+        return target.nodeType === 1 ? target : target.parentElement;
+      }
+
       document.addEventListener('focusin', function(e) {
-        var cell = e.target ? e.target.closest('[data-block-key], [data-section]') : null;
+        var el = getEl(e.target);
+        var cell = el ? el.closest('[data-block-key], [data-section]') : null;
         if (cell) {
           var blockKey = cell.getAttribute('data-block-key');
           var section = cell.getAttribute('data-section');
@@ -68,13 +74,14 @@ const buildPreviewHtml = (html: string, editable?: boolean) => {
       }, true);
 
       document.addEventListener('click', function(e) {
-        var card = e.target ? e.target.closest('.lesson-card') : null;
+        var el = getEl(e.target);
+        var card = el ? el.closest('.lesson-card') : null;
         if (!card) {
           window.parent.postMessage({ type: 'GOATLETA_PDF_BACKGROUND_CLICK' }, '*');
           return;
         }
 
-        var cell = e.target ? e.target.closest('[data-block-key], [data-section]') : null;
+        var cell = el ? el.closest('[data-block-key], [data-section]') : null;
         if (cell) {
           var blockKey = cell.getAttribute('data-block-key');
           var section = cell.getAttribute('data-section');
@@ -87,7 +94,7 @@ const buildPreviewHtml = (html: string, editable?: boolean) => {
       }, true);
 
       document.addEventListener('blur', function(e) {
-        var el = e.target;
+        var el = getEl(e.target);
         if (el && el.hasAttribute && el.hasAttribute('data-field')) {
           var field = el.getAttribute('data-field');
           var text = el.innerText ? el.innerText.trim() : '';
