@@ -1,41 +1,45 @@
-# Design QA — suavização do gráfico de periodização
+# Design QA — menu de perfil do sidebar compacto
 
 ## Fonte de verdade
 
-- Tela autenticada: `http://localhost:8081/class/c_1775903848643/periodization?classId=c_1775903848643&unit=Rede%20Esportes%20Pinhais&backTo=%2Fclass%2Fc_1775903848643`
-- Referência: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-99b46603-570c-4f47-88cd-ecdfc5f3e1ac.png` (1487 × 1058)
-- Implementação desktop: `C:\Users\gusta\.codex\visualizations\2026\07\21\019f8582-ce1c-7b71-b5ce-bd68f9af073f\periodization-smooth-final.png`
-- Comparação normalizada: `C:\Users\gusta\.codex\visualizations\2026\07\21\019f8582-ce1c-7b71-b5ce-bd68f9af073f\periodization-smooth-reference-comparison.png`
-- Implementação tablet: `C:\Users\gusta\.codex\visualizations\2026\07\21\019f8582-ce1c-7b71-b5ce-bd68f9af073f\periodization-smooth-tablet.png`
-- Implementação celular: `C:\Users\gusta\.codex\visualizations\2026\07\21\019f8582-ce1c-7b71-b5ce-bd68f9af073f\periodization-smooth-mobile.png`
-- Seleção após correção do scroll: `C:\Users\gusta\.codex\visualizations\2026\07\21\019f8582-ce1c-7b71-b5ce-bd68f9af073f\periodization-smooth-scroll-after.png`
+- Rota autenticada: `http://localhost:8081/prof/home`
+- Referência visual: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\profile-menu-reference-chatgpt.png`
+- Screenshot da implementação: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\profile-menu-compact-desktop.png`
+- Comparação lado a lado: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\profile-menu-reference-comparison.png`
+- Estado comparado: sidebar compacto, tema escuro, menu de perfil aberto.
+
+## Viewport, pixels e densidade
+
+- Referência: bitmap de 1194 × 892 px; densidade não informada pela origem.
+- Implementação principal: viewport CSS e bitmap de 1209 × 812 px, DPR 1,8.
+- Comparação: canvas de 2418 × 856 px. A referência foi redimensionada proporcionalmente e centralizada em um painel de 1209 × 812 px; a implementação permaneceu em escala 1:1.
+- Breakpoints adicionais verificados:
+  - celular: 390 × 844 CSS px, DPR 0,9, sem overflow horizontal global; o sidebar web não é exibido nesse breakpoint;
+  - tablet: 834 × 1194 CSS px, DPR 0,9; menu com 304 × 205 px totalmente contido no viewport;
+  - desktop amplo: 1440 × 1024 CSS px, DPR 0,9; menu com 304 × 205 px totalmente contido no viewport.
 
 ## Comparação visual
 
-- A comparação focou o card do macrociclo e normalizou os dois recortes para 1200 px de largura. A referência usa outra turma e valores variáveis; a implementação usa a turma autenticada `Turma 07-09`, cuja carga atual é constante.
-- A linha deixou de usar segmentos rígidos e passou a usar uma curva cúbica contínua com junções e extremidades arredondadas.
-- O traço principal ficou mais fino e levemente translúcido; os pontos comuns ficaram menores e preenchidos, como na referência.
-- O ponto selecionado preserva o halo verde e o tooltip. As guias Alta, Média e Baixa ficaram mais discretas sem perder alinhamento.
-- Tipografia, espaçamento, cores e bordas permanecem no sistema visual existente. Não há ativos rasterizados novos; o gráfico continua vetorial.
+- O padrão visual solicitado foi preservado: superfície flutuante escura, identidade da conta no topo, divisores e ações agrupadas.
+- A largura de 304 px e a densidade operacional do GoAtleta foram mantidas em vez de copiar literalmente as dimensões do ChatGPT.
+- Avatar, nome, função, chevron, ação de configurações e saída permanecem alinhados ao sistema visual existente.
+- O menu conserva contraste e legibilidade tanto sobre o tema escuro quanto sobre o tema claro.
+- Não foram criados ativos aproximados: os ícones existentes do GoAtleta foram reutilizados.
 
-## Responsividade e interação
+## Interação e acessibilidade
 
-- Desktop: 1360 × 914 CSS px, sem overflow horizontal global.
-- Tablet solicitado: 834 × 1194; ambiente renderizou 1042 × 1492 CSS px, sem overflow horizontal global e com o inspetor empilhado.
-- Celular solicitado: 390 × 844; ambiente renderizou 487 × 1055 CSS px, sem overflow horizontal global e com scroll interno no macrociclo.
-- Um ponto diferente foi selecionado e o intervalo do inspetor mudou; `Hoje` restaurou `18 Jul`.
-- O ponto `01/08/2026 - 07/08/2026` deslocou o macrociclo progressivamente de `418.125` para `526.25` px, com posições intermediárias em `481.25` e `525` px; não houve salto instantâneo.
-- A seleção dispara uma única vez no clique. O manipulador duplicado de `onPressIn` foi removido.
-- O scroll animado também foi confirmado no tablet (`397.5 → 495 → 559.375`) e no celular (`675 → 779.375 → 836.875`).
-- Console verificado após recarga: nenhum erro.
+- O avatar compacto abre o menu por clique e por `Enter`.
+- `Esc`, clique externo e o próprio avatar fecham o menu.
+- `Perfil e configurações` navega para `/prof/profile`.
+- O menu expõe os nomes acessíveis `Menu de perfil`, `Abrir menu de perfil` e `Fechar menu de perfil`.
+- Console: nenhum erro. Permanecem dois warnings globais já conhecidos do React Native Web (`pointerEvents` e `shadow*` depreciados), fora do escopo desta regressão.
 
 ## Histórico de refinamento
 
-1. P2 — linha angular e visualmente pesada em relação à referência: substituída por caminho cúbico suavizado e traço mais leve.
-2. P2 — marcadores vazados e grandes: reduzidos e preenchidos; o selecionado continua destacado.
-3. P2 — guias competiam com a série: opacidade reduzida mantendo a correspondência exata com Alta, Média e Baixa.
-4. P2 — a seleção reposicionava o macrociclo com `animated: false`, causando um salto lateral: o primeiro posicionamento continua imediato e as seleções do usuário agora usam scroll animado.
-5. Estado real com carga constante produz uma linha reta; não foram inventadas oscilações para simular a referência.
+1. P1 — o estado do menu era atualizado, mas a renderização estava condicionada a `expanded`, tornando o clique do avatar compacto invisível; a condição foi removida.
+2. P1 — foi adicionado teste de regressão que renderiza o sidebar compacto, aciona o avatar e confirma identidade e ações do menu.
+3. P2 — o ambiente de teste não disponibilizava `localStorage`; foi incluído um mock local ao teste, sem alterar o comportamento de produção.
+4. P3 — o carregamento assíncrono dos ícones gerava ruído de `act(...)`; o registro de ícones foi substituído apenas no teste.
 
 ## Resultado final
 

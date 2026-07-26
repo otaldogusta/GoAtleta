@@ -236,7 +236,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
   const selectedPreview = rolePreview[role];
   const profilePath = getScopedProfilePath(pathname || "/");
-  const isProfileMenuOpen = expanded && profileMenuOpen;
+  const isProfileMenuOpen = profileMenuOpen;
   const isProfileSwitcherOpen = isProfileMenuOpen && profileSwitcherOpen;
   const closeProfileMenu = useCallback(() => {
     setProfileSwitcherOpen(false);
