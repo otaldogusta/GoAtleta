@@ -54,14 +54,20 @@ describe("web sidebar navigation", () => {
     expect(orderWebSidebarItems("coord", items)).toEqual(items);
   });
 
-  it("uses a hard web transition only when leaving a class periodization route", () => {
+  it("uses a hard web transition when leaving a class workspace route", () => {
+    expect(shouldUseHardWebSidebarNavigation("/class/c_123")).toBe(true);
+    expect(shouldUseHardWebSidebarNavigation("/class/c_123/")).toBe(true);
+    expect(shouldUseHardWebSidebarNavigation("/class/c_123/attendance")).toBe(
+      true
+    );
     expect(
       shouldUseHardWebSidebarNavigation("/class/c_123/periodization")
     ).toBe(true);
     expect(
       shouldUseHardWebSidebarNavigation("/class/c_123/periodization/")
     ).toBe(true);
-    expect(shouldUseHardWebSidebarNavigation("/class/c_123")).toBe(false);
+    expect(shouldUseHardWebSidebarNavigation("/class")).toBe(false);
+    expect(shouldUseHardWebSidebarNavigation("/classes")).toBe(false);
     expect(shouldUseHardWebSidebarNavigation("/prof/periodization")).toBe(false);
     expect(shouldUseHardWebSidebarNavigation("/prof/home")).toBe(false);
   });

@@ -6,7 +6,7 @@ type SidebarItemWithKey = {
 
 export function shouldUseHardWebSidebarNavigation(pathname: string): boolean {
   const normalizedPathname = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  return /^\/class\/[^/]+\/periodization$/.test(normalizedPathname);
+  return /^\/class\/[^/]+(?:\/.*)?$/.test(normalizedPathname);
 }
 
 const PROFESSOR_NAVIGATION_ORDER = [
