@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import type { ClassGroup, Student } from "../../src/core/models";
 import { getClasses, getStudents } from "../../src/db/seed";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { shadow } from "../../src/theme/tokens";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -203,11 +204,7 @@ export default function BirthdaysScreen() {
                 backgroundColor: colors.successBg,
                 borderWidth: 1,
                 borderColor: colors.border,
-                shadowColor: "#000",
-                shadowOpacity: 0.1,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 8 },
-                elevation: 6,
+                ...shadow.elevated,
                 gap: 12,
               }}
             >
@@ -306,11 +303,7 @@ export default function BirthdaysScreen() {
                       backgroundColor: colors.card,
                       borderWidth: 1,
                       borderColor: colors.border,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.06,
-                      shadowRadius: 10,
-                      shadowOffset: { width: 0, height: 4 },
-                      elevation: 3,
+                      ...shadow.card,
                       gap: 10,
                     }}
                   >
@@ -462,11 +455,7 @@ export default function BirthdaysScreen() {
                       backgroundColor: colors.card,
                       borderWidth: 1,
                       borderColor: colors.border,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.04,
-                      shadowRadius: 10,
-                      shadowOffset: { width: 0, height: 4 },
-                      elevation: 2,
+                      ...shadow.card,
                       gap: 12,
                     }}
                   >

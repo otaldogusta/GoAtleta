@@ -21,6 +21,7 @@ import type {
 } from "../../src/core/models";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { shadow } from "../../src/theme/tokens";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import {
     buildAttendanceSummaryByClass,
@@ -119,11 +120,7 @@ export default function ReportsScreen() {
     borderWidth: 1,
     borderColor: colors.border,
     overflow: "visible" as const,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    ...shadow.card,
     gap: 12,
   };
   const insetCardStyle = {
@@ -764,11 +761,7 @@ export default function ReportsScreen() {
                       backgroundColor: colors.card,
                       borderWidth: 1,
                       borderColor: colors.border,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.12,
-                      shadowRadius: 12,
-                      shadowOffset: { width: 0, height: 6 },
-                      elevation: 10,
+                      ...shadow.elevated,
                     }}
                   >
                     {units.map((unit) => (
@@ -836,11 +829,7 @@ export default function ReportsScreen() {
                       backgroundColor: colors.card,
                       borderWidth: 1,
                       borderColor: colors.border,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.12,
-                      shadowRadius: 12,
-                      shadowOffset: { width: 0, height: 6 },
-                      elevation: 10,
+                      ...shadow.elevated,
                     }}
                   >
                     {classesForUnit.map((cls) => (
@@ -1013,11 +1002,7 @@ export default function ReportsScreen() {
                                 justifyContent: "center",
                                 borderWidth: 2,
                                 borderColor: ringColor,
-                                shadowColor: ringColor,
-                                shadowOpacity: 0.22,
-                                shadowRadius: 10,
-                                shadowOffset: { width: 0, height: 4 },
-                                elevation: 5,
+                                ...shadow.card,
                               }}
                             >
                               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>

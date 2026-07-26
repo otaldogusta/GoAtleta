@@ -509,11 +509,7 @@ export default function AttendanceScreen() {
           backgroundColor: colors.surface,
           borderWidth: 1,
           borderColor: colors.borderSubtle,
-          shadowColor: shadow.card.shadowColor,
-          shadowOpacity: shadow.card.shadowOpacity,
-          shadowRadius: shadow.card.shadowRadius,
-          shadowOffset: shadow.card.shadowOffset,
-          elevation: shadow.card.elevation,
+          ...shadow.card,
           marginBottom: 12,
         }}
       >
@@ -561,11 +557,7 @@ export default function AttendanceScreen() {
               backgroundColor: colors.surface,
               borderWidth: 1,
               borderColor: colors.borderSubtle,
-              shadowColor: shadow.card.shadowColor,
-              shadowOpacity: shadow.card.shadowOpacity,
-              shadowRadius: shadow.card.shadowRadius,
-              shadowOffset: shadow.card.shadowOffset,
-              elevation: shadow.card.elevation,
+              ...shadow.card,
             }}
           >
             <View

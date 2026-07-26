@@ -29,10 +29,7 @@ export const WeekDaySelector = memo(function WeekDaySelector({
         borderWidth: 1,
         borderColor: colors.borderSubtle,
         padding: compact ? 14 : 16,
-        shadowColor: shadow.card.shadowColor,
-        shadowOpacity: shadow.card.shadowOpacity,
-        shadowRadius: shadow.card.shadowRadius,
-        shadowOffset: shadow.card.shadowOffset,
+        ...shadow.card,
         gap: compact ? 12 : 14,
       }}
     >

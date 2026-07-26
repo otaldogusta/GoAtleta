@@ -20,6 +20,7 @@ import { markRender } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
 
 import { updatePasswordWithAccessToken } from "../src/api/auth-password";
+import { shadow } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 
@@ -204,11 +205,7 @@ export default function ResetPasswordScreen() {
                 borderWidth: 1,
                 borderColor: colors.border,
                 gap: 12,
-                shadowColor: "#000",
-                shadowOpacity: 0.08,
-                shadowRadius: 12,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 4,
+                ...shadow.elevated,
               }}
             >
               <View

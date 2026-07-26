@@ -59,6 +59,7 @@ import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { shadow } from "../../src/theme/tokens";
 import {
     StudentClassDropdownPanel,
     type ClassModalityFilterValue,
@@ -2186,11 +2187,7 @@ export default function StudentsScreen() {
                       : "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%)",
                 }
               : {}),
-            shadowColor: "#000",
-            shadowOpacity: 0.1,
-            shadowRadius: 18,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 10,
+            ...shadow.elevated,
           }}
         >
           <Button
@@ -2218,11 +2215,7 @@ export default function StudentsScreen() {
               borderWidth: 1,
               borderColor: colors.border,
               zIndex: 3200,
-              shadowColor: "#000",
-              shadowOpacity: 0.2,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 8 },
-              elevation: 12,
+              ...shadow.elevated,
             }}
           >
             <Animated.View
@@ -2390,11 +2383,7 @@ export default function StudentsScreen() {
             backgroundColor: colors.successBg,
             borderWidth: 1,
             borderColor: colors.successBg,
-            shadowColor: "#000",
-            shadowOpacity: 0.12,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 6 },
-            elevation: 4,
+            ...shadow.elevated,
             alignItems: "center",
             opacity: saveNoticeAnim,
             transform: [

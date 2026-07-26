@@ -46,10 +46,7 @@ export const TodayScheduleRail = memo(function TodayScheduleRail({
         borderRadius: radius.container,
         borderWidth: 1,
         borderColor: colors.borderSubtle,
-        shadowColor: shadow.card.shadowColor,
-        shadowOpacity: shadow.card.shadowOpacity,
-        shadowRadius: shadow.card.shadowRadius,
-        shadowOffset: shadow.card.shadowOffset,
+        ...shadow.card,
         overflow: "hidden",
       }}
     >

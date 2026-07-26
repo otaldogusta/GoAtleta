@@ -24,6 +24,7 @@ import {
   clearPendingTrainerInvite,
   savePendingTrainerInvite,
 } from "../src/auth/pending-invite";
+import { shadow } from "../src/theme/tokens";
 import { useAppTheme } from "../src/ui/app-theme";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
@@ -283,11 +284,7 @@ export default function SignupScreen() {
                 borderWidth: 1,
                 borderColor: colors.border,
                 gap: 14,
-                shadowColor: "#000",
-                shadowOpacity: 0.1,
-                shadowRadius: 16,
-                shadowOffset: { width: 0, height: 8 },
-                elevation: 5,
+                ...shadow.elevated,
               }}
             >
               <Animated.View

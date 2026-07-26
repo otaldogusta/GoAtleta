@@ -82,6 +82,7 @@ import {
 } from "../../src/screens/periodization/month-segments";
 import { buildRecentSessionSummary } from "../../src/screens/session/application/build-recent-session-summary";
 import { isRedeEsperancaEightToElevenClass } from "../../src/core/pedagogy/rede-esperanca-july-2026-alignment";
+import { shadow } from "../../src/theme/tokens";
 
 const DEFAULT_ANNUAL_CYCLE_LENGTH =
   annualCycleOptions[annualCycleOptions.length - 1];
@@ -4748,11 +4749,7 @@ export default function PeriodizationScreen() {
               borderWidth: 1,
               borderColor: colors.primaryBg,
               zIndex: 6200,
-              shadowColor: "#000",
-              shadowOpacity: 0.2,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 8,
+              ...shadow.elevated,
               opacity: !selectedClass && !showPlanFabMenu ? 0.7 : 1,
             },
           ]}
