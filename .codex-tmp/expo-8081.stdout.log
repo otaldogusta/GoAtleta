@@ -1,0 +1,68 @@
+env: load .env.local .env
+env: export EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_NAV_V2 EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_WHATSAPP_DEFAULT_TEXT SUPABASE_ANON_KEY SUPABASE_URL
+Starting project at C:\Users\gusta\Downloads\GoAtleta
+React Compiler enabled
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+| [33m› [1m[@sentry/react-native/expo][22m Missing config for [1morganization, project[22m. Environment variables will be used as a fallback during the build. https://docs.sentry.io/platforms/react-native/manual-setup/[0m
+ WARN  Attempted to import the module "C:\Users\gusta\Downloads\GoAtleta\node_modules\expo-font\build\ExpoFontLoader" which is not listed in the "exports" of "C:\Users\gusta\Downloads\GoAtleta\node_modules\expo-font" under the requested subpath "./build/ExpoFontLoader". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+ WARN  Attempted to import the module "C:\Users\gusta\Downloads\GoAtleta\node_modules\expo-font\build\ExpoFontLoader" which is not listed in the "exports" of "C:\Users\gusta\Downloads\GoAtleta\node_modules\expo-font" under the requested subpath "./build/ExpoFontLoader". Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+λ Bundled 134065ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (3218 modules)
+λ Bundled 98800ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (1 module)
+[render] OrganizationProvider — mount (#1)
+[render] CopilotProvider — mount (#1)
+[render] OrganizationProvider — mount (#1)
+[render] CopilotProvider — mount (#1)
+Web Bundled 150804ms node_modules\expo-router\entry.js (2950 modules)
+Web Bundled 115571ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 80426ms node_modules\expo-router\entry.js (2955 modules)
+Web  INFO  %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+Web  LOG  Running application "main" with appParams:
+ {"hydrate": undefined, "rootTag": "#root"} 
+Development-level warnings: ON.
+Performance optimizations: OFF.
+Web  LOG  [render] OrganizationProvider — mount (#1)
+Web  LOG  [render] CopilotProvider — mount (#1)
+Web  WARN  props.pointerEvents is deprecated. Use style.pointerEvents
+Web  LOG  [boot] phase=bootstrap blocking=true
+Web  LOG  [bootstrap] loadSession: 0ms
+Web  LOG  [bootstrap] initDb: 0ms
+Web  LOG  [bootstrap] Pedagogical config loaded: v2026.04.07.1
+Web  LOG  [bootstrap] loadPedagogicalConfig: 1ms
+Web  LOG  [bootstrap] total: 3ms
+Web  LOG  %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+Web  LOG  %c[Vercel Web Analytics]%c Event transformed by `beforeSend` color: rgb(120, 120, 120) color: inherit {"after": {"payload": undefined, "type": "pageview", "url": "http://localhost:8081/class/_id/periodization"}, "before": {"payload": undefined, "type": "pageview", "url": "http://localhost:8081/class/c_1784666702066/periodization?classId=c_1784666702066&unit=Cap%C3%A3o%20da%20Imbuia&backTo=%2Fclass%2Fc_1784666702066"}}
+Web  LOG  %c[Vercel Web Analytics]%c [view] http://localhost:8081/class/_id/periodization color: rgb(120, 120, 120) color: inherit {"f": undefined, "o": "http://localhost:8081/class/_id/periodization", "r": "", "sdkn": "@vercel/analytics/react", "sdkv": "2.0.1", "sv": "0.1.3", "ts": 1785151391660} /_vercel/insights/view
+Web  LOG  [render] OrganizationProvider — #2 — changed: isLoading
+Web  LOG  [render] CopilotProvider — #2 — (no tracked prop changed)
+Web  WARN  "shadow*" style props are deprecated. Use "boxShadow".
+Web  WARN  Animated: `useNativeDriver` is not supported because the native animated module is missing. Falling back to JS-based animation. To resolve this, add `RCTAnimation` module to this app, or remove `useNativeDriver`. Make sure to run `bundle exec pod install` first. Read more about autolinking: https://github.com/react-native-community/cli/blob/master/docs/autolinking.md
+Web  LOG  [boot] phase=ready blocking=false
+Web  LOG  [render] CopilotProvider — #3 — changed: state.actions.length
+Web  LOG  [render] CopilotProvider — #4 — (no tracked prop changed)
+Web  LOG  [render] OrganizationProvider — #3 — changed: sessionUserId
+Web  LOG  [render] CopilotProvider — #5 — (no tracked prop changed)
+Web  LOG  [render] CopilotFab — mount (#1)
+Web  LOG  [render] OrganizationProvider — #4 — changed: isLoading
+Web  LOG  [render] CopilotProvider — #6 — (no tracked prop changed)
+Web  LOG  [render] CopilotFab — #2 — (no tracked prop changed)
+Web  LOG  [boot] phase=role blocking=false
+Web  LOG  [render] OrganizationProvider — #5 — changed: activeOrganizationId, isLoading, organizations.length
+Web  LOG  [render] CopilotProvider — #7 — changed: activeOrganizationId
+Web  LOG  [render] OrganizationProvider — #6 — changed: permissionsLoading
+Web  LOG  [render] CopilotProvider — #8 — (no tracked prop changed)
+Web  LOG  [boot] phase=permissions blocking=false
+Web  LOG  [render] CopilotProvider — #9 — (no tracked prop changed)
+Web  LOG  [render] CopilotProvider — #10 — (no tracked prop changed)
+Web  LOG  [render] CopilotFab — #3 — (no tracked prop changed)
+Web  LOG  [render] CopilotProvider — #11 — (no tracked prop changed)
+Web  LOG  [render] CopilotFab — #4 — (no tracked prop changed)
+Web  LOG  [render] OrganizationProvider — #7 — changed: permissionsLoading
+Web  LOG  [render] CopilotProvider — #12 — (no tracked prop changed)
+Web  LOG  [boot] phase=ready blocking=false
+Web  LOG  [render] CopilotProvider — #13 — (no tracked prop changed)
+Web  LOG  [render] CopilotProvider — #14 — (no tracked prop changed)

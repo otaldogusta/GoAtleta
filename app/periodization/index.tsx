@@ -106,6 +106,7 @@ import {
   deleteClassCalendarException,
   deleteClassCompetitiveProfile,
   deleteClassPlansByClass,
+  duplicateClass,
   getClassCalendarExceptions,
   getClassCompetitiveProfile,
   getClasses,
@@ -196,6 +197,7 @@ import { WeekEditorModal } from "../../src/screens/periodization/modals/WeekEdit
 import { OverviewTab } from "../../src/screens/periodization/OverviewTab";
 import {
   PeriodizationManagerSheet,
+  type PeriodizationManagerDraft,
   type PeriodizationManagerSection,
 } from "../../src/screens/periodization/PeriodizationManagerSheet";
 import { PeriodizationOverviewWorkspace } from "../../src/screens/periodization/PeriodizationOverviewWorkspace";
@@ -517,9 +519,6 @@ export default function PeriodizationScreen() {
   const [activeTab, setActiveTab] = useState<PeriodizationTab>("geral");
   const [showPeriodizationManager, setShowPeriodizationManager] =
     useState(false);
-  const [periodizationManagerSection, setPeriodizationManagerSection] =
-    useState<PeriodizationManagerSection>("cycle");
-
   useCopilotContext(
     useMemo(
       () => ({
@@ -3162,29 +3161,52 @@ export default function PeriodizationScreen() {
     [confirmDialog, handleGenerateMode],
   );
 
-  const handleSavePeriodizationSetup = useCallback(async () => {
-    if (!selectedClass) return;
+  const handleSavePeriodizationSetup = useCallback(
+    async (managerDraft?: PeriodizationManagerDraft) => {
+    if (!selectedClass) return false;
 
-    const goal = periodizationGoal.trim();
+    const goal = (managerDraft?.goal ?? periodizationGoal).trim();
+    const mvLevel = managerDraft?.mvLevel ?? periodizationMvLevel;
+    const cycleStartDate =
+      managerDraft?.cycleStartDate ?? periodizationCycleStartDate;
+    const cycleLengthWeeks =
+      managerDraft?.cycleLengthWeeks ?? cycleLength;
+    const daysOfWeek =
+      managerDraft?.daysOfWeek ?? selectedClass.daysOfWeek;
+    const startTime = managerDraft?.startTime ?? selectedClass.startTime;
+    const durationMinutes =
+      managerDraft?.durationMinutes ?? selectedClass.durationMinutes;
     if (!goal) {
       setPeriodizationSetupError("Informe o objetivo da turma.");
-      return;
+      return false;
     }
-    if (!["MV1", "MV2", "MV3"].includes(periodizationMvLevel)) {
+    if (!["MV1", "MV2", "MV3"].includes(mvLevel)) {
       setPeriodizationSetupError("Selecione o nível da turma.");
-      return;
+      return false;
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(periodizationCycleStartDate)) {
+    if (!daysOfWeek.length) {
+      setPeriodizationSetupError("Selecione ao menos um dia de aula.");
+      return false;
+    }
+    if (!/^\d{2}:\d{2}$/.test(startTime)) {
+      setPeriodizationSetupError("Informe um horário válido no formato HH:MM.");
+      return false;
+    }
+    if (durationMinutes < 15 || durationMinutes > 300) {
+      setPeriodizationSetupError("A duração deve ficar entre 15 e 300 minutos.");
+      return false;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cycleStartDate)) {
       setPeriodizationSetupError("Informe a data de início do ciclo.");
-      return;
+      return false;
     }
     if (
       !annualCycleOptions.includes(
-        cycleLength as (typeof annualCycleOptions)[number],
+        cycleLengthWeeks as (typeof annualCycleOptions)[number],
       )
     ) {
       setPeriodizationSetupError("Selecione uma duração anual válida.");
-      return;
+      return false;
     }
 
     setPeriodizationSetupError("");
@@ -3198,23 +3220,33 @@ export default function PeriodizationScreen() {
         modality: selectedClass.modality,
         ageBand: selectedClass.ageBand,
         gender: selectedClass.gender,
-        daysOfWeek: selectedClass.daysOfWeek,
+        daysOfWeek,
         goal,
-        startTime: selectedClass.startTime,
-        durationMinutes: selectedClass.durationMinutes,
-        mvLevel: periodizationMvLevel,
-        cycleStartDate: periodizationCycleStartDate,
-        cycleLengthWeeks: cycleLength,
+        startTime,
+        durationMinutes,
+        mvLevel,
+        cycleStartDate,
+        cycleLengthWeeks,
       });
+      setPeriodizationGoal(goal);
+      setPeriodizationMvLevel(mvLevel);
+      setPeriodizationCycleStartDate(cycleStartDate);
+      setCycleLength(
+        cycleLengthWeeks as (typeof cycleOptions)[number],
+      );
       setClasses((current) =>
         current.map((item) =>
           item.id === selectedClass.id
             ? {
                 ...item,
+                daysOfWeek,
+                daysPerWeek: daysOfWeek.length,
                 goal,
-                mvLevel: periodizationMvLevel,
-                cycleStartDate: periodizationCycleStartDate,
-                cycleLengthWeeks: cycleLength,
+                startTime,
+                durationMinutes,
+                mvLevel,
+                cycleStartDate,
+                cycleLengthWeeks,
               }
             : item,
         ),
@@ -3223,12 +3255,14 @@ export default function PeriodizationScreen() {
         classId: selectedClass.id,
         organizationId: selectedClass.organizationId,
       });
+      return true;
     } catch (error) {
       setPeriodizationSetupError(
         error instanceof Error
           ? error.message
           : "Não foi possível salvar a configuração.",
       );
+      return false;
     } finally {
       setIsSavingPeriodizationSetup(false);
     }
@@ -3240,42 +3274,62 @@ export default function PeriodizationScreen() {
     selectedClass,
   ]);
 
-  const handleGenerateCycle = useCallback(async () => {
+  const handleGenerateCycle = useCallback(() => {
     if (!isPeriodizationConfigured) {
       setPeriodizationSetupError(
         "Salve objetivo, nível, duração e início do ciclo antes de gerar a periodização.",
       );
       return;
     }
-    if (selectedClass) {
-      const year = new Date().getFullYear();
-      const classStartDate = selectedClass.cycleStartDate || null;
-      try {
-        await ensureActiveCycleForYear(
-          selectedClass.id,
-          selectedClass.organizationId,
-          year,
-          classStartDate,
-        );
-        const cycles = await getPlanningCycles(
-          selectedClass.id,
-          selectedClass.organizationId,
-        );
-        setPlanningCycles(cycles);
-      } catch {
-        // Non-blocking — cycle creation is best-effort
-      }
-    }
-    handleGenerateAction("all");
-  }, [handleGenerateAction, isPeriodizationConfigured, selectedClass]);
+    if (!selectedClass) return;
+
+    confirmDialog({
+      title: hasWeekPlans
+        ? "Regerar semanas automáticas?"
+        : "Gerar periodização automática?",
+      message: hasWeekPlans
+        ? "A base automática será recalculada. Semanas personalizadas e aulas concluídas serão preservadas."
+        : "O ciclo automático será criado com os parâmetros salvos da turma.",
+      confirmLabel: hasWeekPlans ? "Regerar automáticos" : "Gerar ciclo",
+      cancelLabel: "Cancelar",
+      onConfirm: async () => {
+        const year =
+          Number(selectedClass.cycleStartDate.slice(0, 4)) ||
+          new Date().getFullYear();
+        try {
+          await ensureActiveCycleForYear(
+            selectedClass.id,
+            selectedClass.organizationId,
+            year,
+            selectedClass.cycleStartDate || null,
+          );
+          const cycles = await getPlanningCycles(
+            selectedClass.id,
+            selectedClass.organizationId,
+          );
+          setPlanningCycles(cycles);
+        } catch {
+          // Non-blocking — cycle creation is best-effort.
+        }
+        await handleGenerateMode("auto");
+      },
+    });
+  }, [
+    confirmDialog,
+    handleGenerateMode,
+    hasWeekPlans,
+    isPeriodizationConfigured,
+    selectedClass,
+  ]);
 
   const handleRemoveCycle = useCallback(() => {
     if (!selectedClass || isSavingPlans) return;
 
     confirmDialog({
-      title: "Remover ciclo?",
-      message: "Isso vai apagar todo o planejamento da turma atual.",
-      confirmLabel: "Remover ciclo",
+      title: "Redefinir semanas automáticas?",
+      message:
+        "A estrutura automática do ciclo será removida. Planos personalizados e aulas concluídas serão preservados.",
+      confirmLabel: "Redefinir automáticos",
       cancelLabel: "Cancelar",
       tone: "danger",
       onConfirm: async () => {
@@ -3287,13 +3341,14 @@ export default function PeriodizationScreen() {
               cycleYear:
                 activeCycle?.year ??
                 (Number(activeCycleStartDate.slice(0, 4)) || null),
+              source: "AUTO",
             }),
           );
           await refreshPlans();
           setActiveTab("geral");
           Alert.alert(
-            "Ciclo removido",
-            "O planejamento da turma foi removido com sucesso.",
+            "Estrutura redefinida",
+            "As semanas automáticas foram removidas. Os planos personalizados continuam salvos.",
           );
         } finally {
           setIsSavingPlans(false);
@@ -3309,6 +3364,34 @@ export default function PeriodizationScreen() {
     refreshPlans,
     selectedClass,
   ]);
+
+  const handleDuplicateCycleAsClass = useCallback(() => {
+    if (!selectedClass) return;
+
+    confirmDialog({
+      title: "Duplicar em uma nova turma?",
+      message:
+        "Será criada uma nova turma com os mesmos parâmetros de agenda e periodização. Planos personalizados e histórico de aulas não serão copiados.",
+      confirmLabel: "Criar nova turma",
+      cancelLabel: "Cancelar",
+      onConfirm: async () => {
+        try {
+          const duplicatedClassId = await duplicateClass(selectedClass);
+          const refreshedClasses = await getClasses();
+          setClasses(refreshedClasses);
+          Alert.alert(
+            "Turma duplicada",
+            `A cópia foi criada com sucesso (${duplicatedClassId}).`,
+          );
+        } catch (error) {
+          Alert.alert(
+            "Não foi possível duplicar",
+            error instanceof Error ? error.message : "Tente novamente.",
+          );
+        }
+      },
+    });
+  }, [confirmDialog, selectedClass]);
 
   const getWeekSchedule = useCallback((week: WeekPlan | undefined, sessions: number) => {
     if (!week) return [];
@@ -3826,33 +3909,11 @@ export default function PeriodizationScreen() {
   ) : null;
 
   const openPeriodizationManager = useCallback(
-    (section: PeriodizationManagerSection = "cycle") => {
+    (_section: PeriodizationManagerSection = "cycle") => {
       closeAllPickers();
-      setPeriodizationManagerSection(section);
-      setActiveTab(
-        section === "agenda"
-          ? "semana"
-          : section === "cycle"
-            ? "ciclo"
-            : "geral",
-      );
       setShowPeriodizationManager(true);
     },
     [closeAllPickers],
-  );
-
-  const handleManagerSectionChange = useCallback(
-    (section: PeriodizationManagerSection) => {
-      setPeriodizationManagerSection(section);
-      setActiveTab(
-        section === "agenda"
-          ? "semana"
-          : section === "cycle"
-            ? "ciclo"
-            : "geral",
-      );
-    },
-    [],
   );
 
   const openSelectedClassPlanning = useCallback(() => {
@@ -3862,246 +3923,6 @@ export default function PeriodizationScreen() {
       params: { targetClassId: selectedClass.id, tab: "formulario" },
     });
   }, [router, selectedClass]);
-
-  const managerCycleContent = (
-    <View style={{ gap: 16 }}>
-      <View
-        style={[
-          getSectionCardStyle(colors, "neutral", {
-            padding: 14,
-            radius: 16,
-            shadow: false,
-          }),
-          {
-            flexDirection: "row",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 12,
-          },
-        ]}
-      >
-        <View
-          style={{
-            flex: 1,
-            minWidth: responsiveLayout.isMobile ? 0 : 220,
-            flexBasis: responsiveLayout.isMobile ? "100%" : undefined,
-            gap: 3,
-          }}
-        >
-          <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-            {hasWeekPlans ? "Ciclo ativo" : "Ciclo não gerado"}
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {hasWeekPlans
-              ? `${effectiveCycleLength} intervalos · selecione um deles para editar os detalhes.`
-              : "Configure a turma e gere a estrutura anual."}
-          </Text>
-        </View>
-        <View
-          style={{
-            flexDirection: responsiveLayout.isMobile ? "column" : "row",
-            alignItems: responsiveLayout.isMobile ? "stretch" : "center",
-            gap: 8,
-            flexWrap: "wrap",
-            width: responsiveLayout.isMobile ? "100%" : undefined,
-          }}
-        >
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => handleManagerSectionChange("class")}
-            style={{
-              minHeight: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: 14,
-              flexDirection: "row",
-              gap: 6,
-            }}
-          >
-            <GoAtletaIcon name="options" size={15} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-              Reconfigurar parâmetros
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void handleGenerateCycle()}
-            disabled={
-              !selectedClass || isSavingPlans || !isPeriodizationConfigured
-            }
-            style={{
-              minHeight: 40,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 10,
-              backgroundColor: colors.primaryBg,
-              paddingHorizontal: 16,
-              flexDirection: "row",
-              gap: 6,
-              opacity:
-                !selectedClass || isSavingPlans || !isPeriodizationConfigured
-                  ? 0.55
-                  : 1,
-            }}
-          >
-            <GoAtletaIcon name="refresh" size={15} color={colors.primaryText} />
-            <Text
-              style={{
-                color: colors.primaryText,
-                fontSize: 12,
-                fontWeight: "700",
-              }}
-            >
-              {isSavingPlans
-                ? "Gerando..."
-                : hasWeekPlans
-                  ? "Regerar ciclo"
-                  : "Gerar ciclo"}
-            </Text>
-          </Pressable>
-
-          {hasWeekPlans ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void handleRemoveCycle()}
-              style={{
-                minHeight: 40,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: colors.dangerBorder ?? colors.border,
-                paddingHorizontal: 14,
-                flexDirection: "row",
-                gap: 6,
-              }}
-            >
-              <GoAtletaIcon name="trash" size={15} color={colors.dangerText ?? colors.text} />
-              <Text
-                style={{ color: colors.dangerText ?? colors.text, fontSize: 12, fontWeight: "700" }}
-              >
-                Remover periodização
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-
-      <CycleTab
-        colors={colors}
-        cyclePanelCellWidth={cyclePanelCellWidth}
-        cyclePanelCellGap={cyclePanelCellGap}
-        cyclePanelLabelWidth={cyclePanelLabelWidth}
-        cyclePanelRowHeight={cyclePanelRowHeight}
-        cyclePanelRowGap={cyclePanelRowGap}
-        cyclePanelScrollRef={cyclePanelScrollRef}
-        isEditingCycleTitle={isEditingCycleTitle}
-        cycleTitleDraft={cycleTitleDraft}
-        setCycleTitleDraft={setCycleTitleDraft}
-        saveCycleTitleEditor={saveCycleTitleEditor}
-        cancelCycleTitleEditor={cancelCycleTitleEditor}
-        openCycleTitleEditor={openCycleTitleEditor}
-        cyclePanelTitle={displayedCyclePanelTitle}
-        hasWeekPlans={hasWeekPlans}
-        weekPlans={weekPlans}
-        currentWeek={currentWeek}
-        selectedWeekNumber={focusedWeekNumber}
-        monthWeekNumbers={monthWeekNumbers}
-        monthSegments={monthSegments}
-        macroSegments={macroSegments}
-        mesoSegments={mesoSegments}
-        dominantBlockSegments={dominantBlockSegments}
-        weeklySessions={weeklySessions}
-        periodizationModel={periodizationModel}
-        sportProfile={sportProfile}
-        onSelectedWeekChange={setAgendaWeekNumber}
-        openWeekEditor={openWeekEditor}
-        sectionOpen={sectionOpen}
-        toggleSection={toggleSection}
-        showLoadContent={showLoadContent}
-        loadAnimStyle={loadAnimStyle}
-        progressBars={progressBars}
-        acwrLimits={acwrLimits}
-        setAcwrLimits={setAcwrLimits}
-        acwrLimitError={acwrLimitError}
-        acwrMessage={acwrMessage}
-        volumeToPSE={volumeToPSE}
-        sessionsPerWeek={sessionsPerWeek}
-        showGuideContent={showGuideContent}
-        guideAnimStyle={guideAnimStyle}
-        summary={summary}
-        showCycleContent={showCycleContent}
-        cycleAnimStyle={cycleAnimStyle}
-        cycleFilter={cycleFilter}
-        setCycleFilter={setCycleFilter}
-        selectedClass={selectedClass}
-        filteredWeekPlans={filteredWeekPlans}
-      />
-    </View>
-  );
-
-  const managerAgendaContent = (
-    <WeekTab
-      colors={colors}
-      weekSchedule={weekSchedule}
-      activeWeek={activeWeek}
-      weeklyTeacherIntent={weeklyTeacherIntent}
-      weeklyObservabilitySummary={weeklyObservabilitySummary}
-      qaModeEnabled={__DEV__ && qaModeEnabled}
-      showQaModeToggle={__DEV__}
-      onToggleQaMode={() => setQaModeEnabled((current) => !current)}
-      showQaDebugPanel={showQaDebugPanel}
-      onToggleQaDebugPanel={() => setShowQaDebugPanel((current) => !current)}
-      classObservabilityTrend={
-        __DEV__ && qaModeEnabled ? classObservabilityTrend : null
-      }
-      classObservabilityDriftFrequency={
-        __DEV__ && qaModeEnabled ? classObservabilityDriftFrequency : []
-      }
-      classRecentUnstableWeeks={
-        __DEV__ && qaModeEnabled ? classRecentUnstableWeeks : []
-      }
-      classObservabilityInsights={
-        __DEV__ && qaModeEnabled ? classObservabilityInsights : []
-      }
-      onGoToWeek={goToWeek}
-      weekPlans={weekPlans}
-      weekSwitchOpacity={weekSwitchOpacity}
-      weekSwitchTranslateX={weekSwitchTranslateX}
-      goToPreviousAgendaWeek={goToPreviousAgendaWeek}
-      goToNextAgendaWeek={goToNextAgendaWeek}
-      handleSelectDay={handleSelectDay}
-      formatWeekSessionLabel={formatWeekSessionLabel}
-      hasWeekPlans={hasWeekPlans}
-      competitiveAgendaCard={null}
-    />
-  );
-
-  const managerClassContent = selectedClass ? (
-    <PeriodizationSetupCard
-      colors={colors}
-      goal={periodizationGoal}
-      mvLevel={periodizationMvLevel}
-      cycleStartDate={periodizationCycleStartDate}
-      cycleLength={cycleLength}
-      showCyclePicker={showMesoPicker}
-      cycleTriggerRef={mesoTriggerRef}
-      configured={isPeriodizationConfigured}
-      dirty={isPeriodizationSetupDirty}
-      saving={isSavingPeriodizationSetup}
-      error={periodizationSetupError}
-      onGoalChange={setPeriodizationGoal}
-      onMvLevelChange={setPeriodizationMvLevel}
-      onCycleStartDateChange={setPeriodizationCycleStartDate}
-      onToggleCyclePicker={() => togglePicker("meso")}
-      onOpenCalendar={() => setShowPeriodizationStartCalendar(true)}
-      onSave={handleSavePeriodizationSetup}
-    />
-  ) : null;
 
   const renderLegacyPeriodizationTabs: boolean = false;
 
@@ -4616,20 +4437,47 @@ export default function PeriodizationScreen() {
           ) : null}
         </ScrollView>
 
+        {showPeriodizationManager ? (
         <PeriodizationManagerSheet
           visible={showPeriodizationManager}
           colors={colors}
           className={classNameLabel}
-          activeSection={periodizationManagerSection}
-          onActiveSectionChange={handleManagerSectionChange}
+          classSubtitle={`${normalizeText(selectedClass?.ageBand || "idade não definida")} · ${normalizeText(classGenderLabel)}`}
+          initialDraft={{
+            goal: periodizationGoal || selectedClass?.goal || "",
+            mvLevel: periodizationMvLevel || selectedClass?.mvLevel || "",
+            daysOfWeek: selectedClass?.daysOfWeek ?? [],
+            startTime: selectedClass?.startTime ?? "",
+            durationMinutes: selectedClass?.durationMinutes ?? 60,
+            cycleStartDate:
+              periodizationCycleStartDate ||
+              selectedClass?.cycleStartDate ||
+              "",
+            cycleLengthWeeks:
+              cycleLength || selectedClass?.cycleLengthWeeks || 52,
+          }}
+          weekPlans={weekPlans}
+          autoPlanCount={
+            visibleClassPlans.filter((plan) => plan.source === "AUTO").length
+          }
+          manualPlanCount={
+            visibleClassPlans.filter((plan) => plan.source === "MANUAL").length
+          }
+          completedLessonCount={recentSessionSummaries.length}
+          currentWeek={currentWeek}
+          configured={isPeriodizationConfigured}
+          saving={isSavingPeriodizationSetup}
+          regenerating={isSavingPlans}
+          error={periodizationSetupError}
           onClose={() => {
             closeAllPickers();
             setShowPeriodizationManager(false);
           }}
-          cycleContent={managerCycleContent}
-          agendaContent={managerAgendaContent}
-          classContent={managerClassContent}
-          exceptionsContent={
+          onSave={handleSavePeriodizationSetup}
+          onRegenerateAutomatic={handleGenerateCycle}
+          onDuplicate={handleDuplicateCycleAsClass}
+          onResetAutomatic={handleRemoveCycle}
+          advancedContent={
             competitiveAgendaCard ?? (
               <View style={getSectionCardStyle(colors, "neutral")}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -4639,6 +4487,7 @@ export default function PeriodizationScreen() {
             )
           }
         />
+        ) : null}
 
         {showPlanFabMenu ? (
           <Pressable

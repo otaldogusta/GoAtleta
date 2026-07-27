@@ -405,7 +405,12 @@ export async function saveClassPlans(plans: ClassPlan[], options?: { organizatio
 
 export async function deleteClassPlansByClass(
   classId: string,
-  options?: { organizationId?: string | null; cycleId?: string | null; cycleYear?: number | null }
+  options?: {
+    organizationId?: string | null;
+    cycleId?: string | null;
+    cycleYear?: number | null;
+    source?: ClassPlan["source"] | null;
+  }
 ) {
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   const cycleFilter = (options?.cycleId ?? "").trim();
@@ -417,11 +422,15 @@ export async function deleteClassPlansByClass(
   const cyclePath = !yearPath && cycleFilter
     ? "&cycle_id=eq." + encodeURIComponent(cycleFilter)
     : "";
+  const sourcePath = options?.source
+    ? "&source=eq." + encodeURIComponent(options.source)
+    : "";
   const basePath =
     "/class_plans?classid=eq." +
     encodeURIComponent(classId) +
     cyclePath +
     yearPath +
+    sourcePath +
     (organizationId ? "&organization_id=eq." + encodeURIComponent(organizationId) : "");
   try {
     await supabaseDelete(basePath);
@@ -432,6 +441,7 @@ export async function deleteClassPlansByClass(
       "/class_plans?classid=eq." +
         encodeURIComponent(classId) +
         yearPath +
+        sourcePath +
         (organizationId ? "&organization_id=eq." + encodeURIComponent(organizationId) : "")
     );
   }
