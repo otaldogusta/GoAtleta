@@ -823,33 +823,20 @@ export function ClassPlanPreviewModal({
             <Text style={[styles.backToOutlineLabel, { color: colors.text }]}>Voltar ao Roteiro</Text>
           </Pressable>
         ) : null}
-        <Text style={[styles.editorTitle, { color: colors.text }]}>{editorSectionLabel}</Text>
-        <View style={styles.editorHeaderActions}>
+        <View style={styles.editorTitleRow}>
+          <Text style={[styles.editorTitle, { color: colors.text }]}>{editorSectionLabel}</Text>
           {!isPdfContentExpanded ? (
-            <View style={styles.headerDurationField}>
-              <Text style={[styles.fieldLabel, { color: colors.muted }]}>Duração</Text>
-              <View style={[styles.headerDurationShell, { borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}>
-                <TextInput
-                  value={selectedBlock.duration.replace(/\s*min\s*$/i, "")}
-                  onChangeText={(duration) => updateSelectedBlock((draft) => ({ ...draft, duration }))}
-                  keyboardType="number-pad"
-                  style={[styles.headerDurationInput, { color: colors.text }]}
-                  accessibilityLabel="Duração do bloco"
-                />
-                <Text style={[styles.inputSuffix, { color: colors.muted }]}>min</Text>
-              </View>
+            <View style={[styles.headerDurationShell, { borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}>
+              <Text style={[styles.durationLabelPrefix, { color: colors.muted }]}>Duração</Text>
+              <TextInput
+                value={selectedBlock.duration.replace(/\s*min\s*$/i, "")}
+                onChangeText={(duration) => updateSelectedBlock((draft) => ({ ...draft, duration }))}
+                keyboardType="number-pad"
+                style={[styles.headerDurationInput, { color: colors.text }]}
+                accessibilityLabel="Duração do bloco"
+              />
+              <Text style={[styles.inputSuffix, { color: colors.muted }]}>min</Text>
             </View>
-          ) : null}
-          {!splitLayout ? (
-            <Pressable
-              onPress={() => setIsEditorExpanded((current) => !current)}
-              accessibilityRole="button"
-              accessibilityLabel={`${isEditorExpanded ? "Recolher" : "Expandir"} edição de ${editorSectionLabel}`}
-              accessibilityState={{ expanded: isEditorExpanded }}
-              style={({ pressed }) => [styles.editorCollapseAction, { opacity: pressed ? 0.6 : 1 }]}
-            >
-              <GoAtletaIcon name={isEditorExpanded ? "chevronUp" : "chevronDown"} size={18} color={colors.muted} />
-            </Pressable>
           ) : null}
         </View>
       </View>
@@ -918,15 +905,15 @@ export function ClassPlanPreviewModal({
 
         {!isPdfContentExpanded ? (
         <>
-        <Text style={[styles.fieldLabel, { color: colors.muted }]}>Atividades</Text>
+        <Text style={[styles.fieldLabel, { color: colors.muted }]}>ATIVIDADES</Text>
         {selectedBlock.activities.map((activity, index) => (
           <View
             key={`${selectedBlockKey}-${index}`}
-            style={[styles.activityEditor, { borderColor: colors.border }]}
+            style={[styles.activityEditor, { borderColor: colors.border, backgroundColor: colors.card }]}
           >
             <View style={styles.activityHeaderRow}>
-              <View style={[styles.activityNumber, { borderColor: colors.border, backgroundColor: colors.backgroundSubtle }]}>
-                <Text style={[styles.activityNumberLabel, { color: colors.text }]}>{index + 1}</Text>
+              <View style={[styles.activityNumber, { backgroundColor: colors.primaryBg }]}>
+                <Text style={[styles.activityNumberLabel, { color: colors.primaryText }]}>{index + 1}</Text>
               </View>
               <TextInput
                 value={activity.name}
@@ -952,7 +939,7 @@ export function ClassPlanPreviewModal({
                 accessibilityLabel={`Remover atividade ${index + 1}`}
                 style={({ pressed }) => [styles.activityDelete, { opacity: pressed ? 0.6 : 1 }]}
               >
-                <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
+                <GoAtletaIcon name="trash" size={16} color={colors.dangerText} />
               </Pressable>
             </View>
             <TextInput
@@ -965,16 +952,11 @@ export function ClassPlanPreviewModal({
                   ),
                 }))
               }
-              placeholder="Organização, execução e condução"
+              placeholder="Organização, execução e condução da atividade"
               placeholderTextColor={colors.muted}
               multiline
-              onFocus={() => setFocusedActivityDescriptionIndex(index)}
-              onBlur={() => setFocusedActivityDescriptionIndex((current) => current === index ? null : current)}
               style={[
                 styles.activityDescriptionInput,
-                focusedActivityDescriptionIndex === index
-                  ? styles.activityDescriptionInputFocused
-                  : styles.activityDescriptionInputCompact,
                 { color: colors.text, borderColor: colors.border, backgroundColor: colors.backgroundSubtle },
               ]}
               accessibilityLabel={`Descrição da atividade ${index + 1}`}
@@ -1271,7 +1253,7 @@ const styles = StyleSheet.create({
   previewStateText: { maxWidth: 320, fontSize: 12, lineHeight: 18, textAlign: "center" },
   retryAction: { minHeight: 40, borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
   retryActionLabel: { fontSize: 13, fontWeight: "700" },
-  outlinePane: { width: 380, minHeight: 0, borderLeftWidth: 1, padding: 14, gap: 12 },
+  outlinePane: { width: 420, minHeight: 0, borderLeftWidth: 1, padding: 14, gap: 12 },
   outlineTitle: { fontSize: 16, fontWeight: "800" },
   outlineScroll: { flex: 1 },
   outlineContent: { gap: 8, paddingBottom: 8 },
@@ -1286,36 +1268,38 @@ const styles = StyleSheet.create({
   compactOutlineScroll: { flex: 1 },
   compactOutlineContent: { paddingBottom: 18 },
   editorPane: { flex: 1, minHeight: 0 },
-  editorPaneDesktop: { width: 380, height: "100%", borderLeftWidth: 1, borderTopWidth: 0 },
+  editorPaneDesktop: { width: 420, height: "100%", borderLeftWidth: 1, borderTopWidth: 0 },
   editorPaneCompact: { height: 380, minHeight: 280, borderTopWidth: 1 },
   editorPaneCollapsed: { height: 62, minHeight: 62 },
   editorHeader: { minHeight: 62, paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  editorHeaderDesktop: { minHeight: 88, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "column", alignItems: "stretch", gap: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  editorHeaderDesktop: { minHeight: 88, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "column", alignItems: "stretch", gap: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   backToOutlineButton: { minHeight: 32, alignSelf: "flex-start", borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 6 },
   backToOutlineLabel: { fontSize: 12, fontWeight: "700" },
-  editorTitle: { minWidth: 0, fontSize: 16, fontWeight: "800" },
+  editorTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%" },
+  editorTitle: { minWidth: 0, fontSize: 17, fontWeight: "800" },
   editorHeaderActions: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   headerDurationField: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headerDurationShell: { width: 92, minHeight: 38, borderWidth: 1, borderRadius: 9, flexDirection: "row", alignItems: "center", paddingHorizontal: 9 },
-  headerDurationInput: { flex: 1, minWidth: 0, paddingVertical: 7, fontSize: 13, fontWeight: "700", outlineStyle: "none" } as any,
+  durationLabelPrefix: { fontSize: 11, fontWeight: "700" },
+  headerDurationShell: { width: 110, minHeight: 36, borderWidth: 1, borderRadius: 8, flexDirection: "row", alignItems: "center", paddingHorizontal: 9 },
+  headerDurationInput: { flex: 1, minWidth: 0, paddingVertical: 6, fontSize: 13, fontWeight: "700", textAlign: "center", outlineStyle: "none" } as any,
   editorCollapseAction: { width: 36, height: 36, marginLeft: "auto", alignItems: "center", justifyContent: "center" },
   editorScroll: { flex: 1 },
-  editorContent: { paddingHorizontal: 18, paddingBottom: 18, gap: 10 },
+  editorContent: { paddingHorizontal: 16, paddingBottom: 18, gap: 12 },
   editorFieldsCompact: { flexDirection: "column" },
   pdfContentHint: { fontSize: 10, lineHeight: 14 },
   pdfContentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   pdfContentField: { width: "49%", minWidth: 280, flexGrow: 1, gap: 5 },
-  fieldLabel: { fontSize: 11, fontWeight: "700" },
+  fieldLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   inputSuffix: { fontSize: 12 },
   textInput: { minHeight: 52, maxHeight: 110, borderWidth: 1, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9, fontSize: 12, lineHeight: 18, outlineStyle: "none" } as any,
-  activityEditor: { borderWidth: 1, borderRadius: 10, padding: 10, flexDirection: "column", gap: 8, width: "100%" },
+  activityEditor: { borderWidth: 1, borderRadius: 12, padding: 12, flexDirection: "column", gap: 10, width: "100%" },
   activityEditorCompact: { flexWrap: "nowrap" },
   activityHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%" },
-  activityNumber: { width: 32, height: 36, borderWidth: 1, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  activityNumber: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   activityNumberLabel: { fontSize: 12, fontWeight: "800" },
-  activityNameInput: { flex: 1, minWidth: 0, minHeight: 38, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, fontWeight: "600", outlineStyle: "none" } as any,
-  activityDescriptionInput: { width: "100%", borderWidth: 1, borderRadius: 8, paddingHorizontal: 11, fontSize: 12, lineHeight: 18, textAlignVertical: "top", outlineStyle: "none" } as any,
-  activityDescriptionInputCompact: { minHeight: 64, maxHeight: 120, paddingVertical: 8 },
+  activityNameInput: { flex: 1, minWidth: 0, minHeight: 38, borderWidth: 1, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7, fontSize: 13, fontWeight: "700", outlineStyle: "none" } as any,
+  activityDescriptionInput: { width: "100%", minHeight: 84, borderWidth: 1, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 9, fontSize: 12, lineHeight: 18, textAlignVertical: "top", outlineStyle: "none" } as any,
+  activityDescriptionInputCompact: { minHeight: 72, maxHeight: 120, paddingVertical: 8 },
   activityDescriptionInputFocused: { minHeight: 110, maxHeight: 160, paddingVertical: 9 },
   activityDelete: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
   addActivity: { minHeight: 40, alignSelf: "flex-start", borderWidth: 1, borderRadius: 9, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 },
