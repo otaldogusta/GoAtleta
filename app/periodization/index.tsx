@@ -3897,61 +3897,98 @@ export default function PeriodizationScreen() {
               : "Configure a turma e gere a estrutura anual."}
           </Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void handleGenerateCycle()}
-          disabled={
-            !selectedClass || isSavingPlans || !isPeriodizationConfigured
-          }
+        <View
           style={{
+            flexDirection: responsiveLayout.isMobile ? "column" : "row",
+            alignItems: responsiveLayout.isMobile ? "stretch" : "center",
+            gap: 8,
+            flexWrap: "wrap",
             width: responsiveLayout.isMobile ? "100%" : undefined,
-            minHeight: 42,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 12,
-            backgroundColor: colors.primaryBg,
-            paddingHorizontal: 16,
-            opacity:
-              !selectedClass || isSavingPlans || !isPeriodizationConfigured
-                ? 0.55
-                : 1,
           }}
         >
-          <Text
-            style={{
-              color: colors.primaryText,
-              fontSize: 12,
-              fontWeight: "700",
-            }}
-          >
-            {isSavingPlans
-              ? "Gerando..."
-              : hasWeekPlans
-                ? "Atualizar ciclo"
-                : "Gerar ciclo"}
-          </Text>
-        </Pressable>
-        {hasWeekPlans ? (
           <Pressable
             accessibilityRole="button"
-            onPress={() => void handleRemoveCycle()}
+            onPress={() => handleManagerSectionChange("class")}
             style={{
-              minHeight: 42,
+              minHeight: 40,
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: 12,
+              borderRadius: 10,
               borderWidth: 1,
               borderColor: colors.border,
-              paddingHorizontal: 16,
+              paddingHorizontal: 14,
+              flexDirection: "row",
+              gap: 6,
             }}
           >
-            <Text
-              style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}
-            >
-              Remover ciclo
+            <GoAtletaIcon name="options" size={15} color={colors.text} />
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+              Reconfigurar parâmetros
             </Text>
           </Pressable>
-        ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void handleGenerateCycle()}
+            disabled={
+              !selectedClass || isSavingPlans || !isPeriodizationConfigured
+            }
+            style={{
+              minHeight: 40,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 10,
+              backgroundColor: colors.primaryBg,
+              paddingHorizontal: 16,
+              flexDirection: "row",
+              gap: 6,
+              opacity:
+                !selectedClass || isSavingPlans || !isPeriodizationConfigured
+                  ? 0.55
+                  : 1,
+            }}
+          >
+            <GoAtletaIcon name="refresh" size={15} color={colors.primaryText} />
+            <Text
+              style={{
+                color: colors.primaryText,
+                fontSize: 12,
+                fontWeight: "700",
+              }}
+            >
+              {isSavingPlans
+                ? "Gerando..."
+                : hasWeekPlans
+                  ? "Regerar ciclo"
+                  : "Gerar ciclo"}
+            </Text>
+          </Pressable>
+
+          {hasWeekPlans ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void handleRemoveCycle()}
+              style={{
+                minHeight: 40,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.dangerBorder ?? colors.border,
+                paddingHorizontal: 14,
+                flexDirection: "row",
+                gap: 6,
+              }}
+            >
+              <GoAtletaIcon name="trash" size={15} color={colors.dangerText ?? colors.text} />
+              <Text
+                style={{ color: colors.dangerText ?? colors.text, fontSize: 12, fontWeight: "700" }}
+              >
+                Remover periodização
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <CycleTab
