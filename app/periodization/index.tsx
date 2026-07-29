@@ -4455,6 +4455,10 @@ export default function PeriodizationScreen() {
               "",
             cycleLengthWeeks:
               cycleLength || selectedClass?.cycleLengthWeeks || 52,
+            loadModel: "ondulatorio",
+            recoveryWeeks: 4,
+            intensityMin: 3,
+            intensityMax: 6,
           }}
           weekPlans={weekPlans}
           autoPlanCount={

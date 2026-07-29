@@ -246,7 +246,15 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
 
   const navigateTo = useCallback(
     (href: string) => {
-      if (href === pathname) return;
+      if (href === pathname) {
+        if (
+          typeof window !== "undefined" &&
+          (href === "/prof/students" || href === "/coord/students")
+        ) {
+          window.dispatchEvent(new Event("goatleta:open-students-list"));
+        }
+        return;
+      }
       closeProfileMenu();
       const currentPathname =
         typeof window !== "undefined" ? window.location.pathname : pathname;

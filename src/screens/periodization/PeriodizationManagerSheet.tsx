@@ -1,18 +1,46 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ScrollView,
+  type StyleProp,
   Text,
   TextInput,
   useWindowDimensions,
   View,
+  type View as ViewType,
+  type ViewStyle,
 } from "react-native";
-import Svg, { Line, Path } from "react-native-svg";
+import Svg, {
+  Defs,
+  LinearGradient,
+  Line,
+  Path,
+  Stop,
+} from "react-native-svg";
 
 import type { VolumeLevel } from "../../core/periodization-basics";
 import type { ThemeColors } from "../../ui/app-theme";
+import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
+
+function ManagerSelect<T extends string | number>({ value, options, colors, onChange, label }: { value: T; options: readonly { value: T; label: string }[]; colors: ThemeColors; onChange: (value: T) => void; label: string }) {
+  const triggerRef = useRef<ViewType | null>(null);
+  const [open, setOpen] = useState(false);
+  const [layout, setLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const activeLabel = options.find((option) => option.value === value)?.label ?? String(value);
+  const toggle = () => {
+    if (open) return setOpen(false);
+    triggerRef.current?.measureInWindow((x, y, width, height) => { setLayout({ x, y, width, height }); setOpen(true); });
+  };
+  return <>
+    <View ref={triggerRef}><Pressable accessibilityRole="button" accessibilityLabel={label} onPress={toggle} style={{ minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{activeLabel}</Text><GoAtletaIcon name={open ? "chevronUp" : "chevronDown"} size={15} color={colors.muted} /></Pressable></View>
+    <AnchoredDropdown visible={open} layout={layout} container={null} animationStyle={{}} zIndex={9200} maxHeight={180} nestedScrollEnabled portalToBodyOnWeb onRequestClose={() => setOpen(false)} interactiveRefs={[triggerRef]} density="compact">
+      {options.map((option) => <AnchoredDropdownOption key={String(option.value)} active={option.value === value} density="compact" onPress={() => { onChange(option.value); setOpen(false); }}><Text style={{ color: option.value === value ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "700" }}>{option.label}</Text></AnchoredDropdownOption>)}
+    </AnchoredDropdown>
+  </>;
+}
 
 export type PeriodizationManagerDraft = {
   goal: string;
@@ -22,6 +50,10 @@ export type PeriodizationManagerDraft = {
   durationMinutes: number;
   cycleStartDate: string;
   cycleLengthWeeks: number;
+  loadModel: "ondulatorio" | "linear" | "blocos";
+  recoveryWeeks: number;
+  intensityMin: number;
+  intensityMax: number;
 };
 
 export type PeriodizationManagerSection =
@@ -59,6 +91,75 @@ type Props = {
   onResetAutomatic: () => void;
 };
 
+function ManagerBody({
+  split,
+  children,
+}: {
+  split: boolean;
+  children: ReactNode;
+}) {
+  if (split) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          flexDirection: "row",
+          alignItems: "stretch",
+        }}
+      >
+        {children}
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
+      contentContainerStyle={{
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        flexDirection: "column",
+        alignItems: "stretch",
+      }}
+      style={{ flex: 1, minHeight: 0 }}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+function ManagerPane({
+  scrollable,
+  containerStyle,
+  contentStyle,
+  children,
+}: {
+  scrollable: boolean;
+  containerStyle: StyleProp<ViewStyle>;
+  contentStyle: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) {
+  if (scrollable) {
+    return (
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+        showsVerticalScrollIndicator
+        style={[{ minHeight: 0, minWidth: 0 }, containerStyle]}
+        contentContainerStyle={contentStyle}
+      >
+        {children}
+      </ScrollView>
+    );
+  }
+
+  return <View style={[containerStyle, contentStyle]}>{children}</View>;
+}
+
 const DAY_OPTIONS = [
   { value: 1, label: "Seg" },
   { value: 2, label: "Ter" },
@@ -74,7 +175,30 @@ const LEVEL_OPTIONS = [
   { value: "MV3", label: "Rendimento" },
 ] as const;
 
-const CYCLE_OPTIONS = [40, 44, 48, 52] as const;
+const CYCLE_OPTIONS = [
+  { value: 13, label: "Trimestral", detail: "3 meses" },
+  { value: 26, label: "Semestral", detail: "6 meses" },
+  { value: 39, label: "Nove meses", detail: "9 meses" },
+  { value: 52, label: "Anual", detail: "12 meses" },
+] as const;
+const LOAD_MODEL_OPTIONS = [
+  { value: "ondulatorio", label: "Ondulatório" },
+  { value: "linear", label: "Linear" },
+  { value: "blocos", label: "Blocos" },
+] as const;
+const RECOVERY_OPTIONS = [3, 4, 5] as const;
+
+function formatBrazilianDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : value;
+}
+
+function parseBrazilianDate(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  const formatted = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join("-");
+  if (digits.length !== 8) return { display: formatted, iso: "" };
+  return { display: formatted, iso: `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}` };
+}
 
 function draftsEqual(
   first: PeriodizationManagerDraft,
@@ -88,6 +212,10 @@ function draftsEqual(
     first.durationMinutes === second.durationMinutes &&
     first.cycleStartDate === second.cycleStartDate &&
     first.cycleLengthWeeks === second.cycleLengthWeeks &&
+    first.loadModel === second.loadModel &&
+    first.recoveryWeeks === second.recoveryWeeks &&
+    first.intensityMin === second.intensityMin &&
+    first.intensityMax === second.intensityMax &&
     [...(first.daysOfWeek ?? [])].sort().join(",") ===
       [...(second.daysOfWeek ?? [])].sort().join(",")
   );
@@ -97,6 +225,25 @@ function loadRatio(volume: VolumeLevel) {
   if (volume === "alto") return 0.82;
   if (volume === "baixo") return 0.32;
   return 0.58;
+}
+
+function cycleEnvelope(
+  progress: number,
+  peakAt: number,
+  start: number,
+  peak: number,
+  end: number,
+) {
+  const clamped = Math.min(1, Math.max(0, progress));
+  if (clamped <= peakAt) {
+    const ratio = clamped / Math.max(peakAt, 0.01);
+    const eased = (1 - Math.cos(Math.PI * ratio)) / 2;
+    return start + (peak - start) * eased;
+  }
+
+  const ratio = (clamped - peakAt) / Math.max(1 - peakAt, 0.01);
+  const eased = (1 - Math.cos(Math.PI * ratio)) / 2;
+  return peak + (end - peak) * eased;
 }
 
 function smoothPath(points: { x: number; y: number }[]) {
@@ -215,11 +362,26 @@ function LoadPreview({
   colors,
   weekPlans,
   currentWeek,
+  draft,
 }: {
   colors: ThemeColors;
   weekPlans: GraphWeek[];
   currentWeek: number;
+  draft?: PeriodizationManagerDraft;
 }) {
+  const previewDraft = draft ?? {
+    goal: "",
+    mvLevel: "",
+    daysOfWeek: [],
+    startTime: "",
+    durationMinutes: 60,
+    cycleStartDate: "",
+    cycleLengthWeeks: 52,
+    loadModel: "ondulatorio" as const,
+    recoveryWeeks: 4,
+    intensityMin: 3,
+    intensityMax: 6,
+  };
   const [width, setWidth] = useState(520);
   const height = 205;
   const plotLeft = 24;
@@ -239,7 +401,7 @@ function LoadPreview({
       plannedSessionLoad: 300 + Math.sin(index / 5) * 110 + index * 5,
     }));
   }, [weekPlans]);
-  const maxWeek = Math.max(1, source.at(-1)?.week ?? 52);
+  const maxWeek = Math.max(1, previewDraft.cycleLengthWeeks || source.at(-1)?.week || 52);
   const maxLoad = Math.max(
     1,
     ...source.map((item) => item.plannedSessionLoad || 1),
@@ -247,17 +409,36 @@ function LoadPreview({
   const xForWeek = (week: number) =>
     plotLeft + ((week - 1) / Math.max(1, maxWeek - 1)) * (plotRight - plotLeft);
   const points = source.map((item, index) => {
-    const base = loadRatio(item.volume);
-    const intensity = Math.min(
-      0.94,
-      Math.max(0.16, (item.plannedSessionLoad || maxLoad * base) / maxLoad),
-    );
+    const progress = index / Math.max(1, source.length - 1);
+    const load = (item.plannedSessionLoad || maxLoad * loadRatio(item.volume)) / maxLoad;
+    const modelFactor = previewDraft.loadModel === "linear" ? 0.06 : previewDraft.loadModel === "blocos" ? 0.1 : 0;
+    const recoveryDip = index % Math.max(1, previewDraft.recoveryWeeks) === previewDraft.recoveryWeeks - 1 ? -0.08 : 0;
+    const intensityFactor = ((previewDraft.intensityMax - previewDraft.intensityMin) / 10) * 0.08;
+    const loadAdjustment = (load - 0.5) * 0.06 + modelFactor + recoveryDip + intensityFactor;
     const technique = Math.min(
-      0.9,
-      0.38 + index / Math.max(1, source.length - 1) * 0.4 + base * 0.12,
+      0.94,
+      Math.max(
+        0.08,
+        cycleEnvelope(progress, 0.68, 0.12, 0.9, 0.38) +
+          loadAdjustment * 0.45,
+      ),
     );
-    const recovery =
-      item.volume === "baixo" ? 0.84 : Math.max(0.2, 0.74 - intensity * 0.52);
+    const intensity = Math.min(
+      0.88,
+      Math.max(
+        0.06,
+        cycleEnvelope(progress, 0.66, 0.08, 0.73, 0.24) +
+          loadAdjustment,
+      ),
+    );
+    const recovery = Math.min(
+      0.72,
+      Math.max(
+        0.04,
+        cycleEnvelope(progress, 0.65, 0.05, 0.58, 0.16) +
+          (item.volume === "baixo" ? 0.035 : 0),
+      ),
+    );
     return {
       x: xForWeek(item.week),
       techniqueY: plotBottom - technique * (plotBottom - plotTop),
@@ -274,6 +455,13 @@ function LoadPreview({
   const recoveryPath = smoothPath(
     points.map((point) => ({ x: point.x, y: point.recoveryY })),
   );
+  const toAreaPath = (path: string) =>
+    points.length
+      ? `${path} L ${points.at(-1)?.x ?? plotRight} ${plotBottom} L ${points[0].x} ${plotBottom} Z`
+      : "";
+  const techniqueAreaPath = toAreaPath(techniquePath);
+  const intensityAreaPath = toAreaPath(intensityPath);
+  const recoveryAreaPath = toAreaPath(recoveryPath);
   const todayX = xForWeek(Math.min(maxWeek, Math.max(1, currentWeek)));
 
   return (
@@ -305,7 +493,45 @@ function LoadPreview({
           </View>
         ))}
       </View>
+      <View
+        style={{
+          flexDirection: "row",
+          paddingLeft: plotLeft,
+          paddingRight: 12,
+        }}
+      >
+        {["Exploração", "Fundamentos", "Jogos reduzidos", "Consolidação"].map(
+          (label) => (
+            <Text
+              key={label}
+              numberOfLines={1}
+              style={{
+                flex: 1,
+                color: colors.muted,
+                fontSize: 9,
+                textAlign: "center",
+              }}
+            >
+              {label}
+            </Text>
+          ),
+        )}
+      </View>
       <Svg width={width} height={height}>
+        <Defs>
+          <LinearGradient id="techniqueArea" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#43D889" stopOpacity={0.28} />
+            <Stop offset="1" stopColor="#43D889" stopOpacity={0.02} />
+          </LinearGradient>
+          <LinearGradient id="intensityArea" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#F3B84B" stopOpacity={0.24} />
+            <Stop offset="1" stopColor="#F3B84B" stopOpacity={0.02} />
+          </LinearGradient>
+          <LinearGradient id="recoveryArea" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#62A9FF" stopOpacity={0.26} />
+            <Stop offset="1" stopColor="#62A9FF" stopOpacity={0.02} />
+          </LinearGradient>
+        </Defs>
         {[0, 0.5, 1].map((ratio) => {
           const y = plotTop + ratio * (plotBottom - plotTop);
           return (
@@ -328,6 +554,9 @@ function LoadPreview({
           stroke={colors.successText}
           strokeWidth={1.5}
         />
+        <Path d={techniqueAreaPath} fill="url(#techniqueArea)" stroke="none" />
+        <Path d={intensityAreaPath} fill="url(#intensityArea)" stroke="none" />
+        <Path d={recoveryAreaPath} fill="url(#recoveryArea)" stroke="none" />
         <Path
           d={techniquePath}
           fill="none"
@@ -393,10 +622,12 @@ export function PeriodizationManagerSheet({
   const { width, height } = useWindowDimensions();
   const wide = width >= 1200;
   const compact = width < 760;
+  const narrow = width < 980;
   const [draft, setDraft] = useState(initialDraft);
   const [savedDraft, setSavedDraft] = useState(initialDraft);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [cycleDateInput, setCycleDateInput] = useState(() => formatBrazilianDate(initialDraft.cycleStartDate));
   const dirty = !draftsEqual(draft, savedDraft);
   const dayLabel = DAY_OPTIONS.filter((option) =>
     draft.daysOfWeek.includes(option.value),
@@ -410,6 +641,7 @@ export function PeriodizationManagerSheet({
   const timeEnd = Number.isFinite(timeEndMinutes)
     ? `${String(Math.floor((timeEndMinutes % 1440) / 60)).padStart(2, "0")}:${String(timeEndMinutes % 60).padStart(2, "0")}`
     : "";
+  const recommendedRecoveryWeeks = draft.intensityMax >= 8 ? 3 : draft.intensityMax >= 6 ? 4 : 5;
 
   const handleSave = async () => {
     const saved = await onSave(draft);
@@ -548,6 +780,8 @@ export function PeriodizationManagerSheet({
                 }}
               >
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Redefinir semanas automáticas"
                   onPress={() => {
                     setMenuOpen(false);
                     onResetAutomatic();
@@ -602,22 +836,19 @@ export function PeriodizationManagerSheet({
           </Pressable>
         </View>
 
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-          contentContainerStyle={{
-            flexDirection: wide ? "row" : "column",
-            alignItems: "stretch",
-          }}
-          style={{ flex: 1, minHeight: 0 }}
-        >
-          <View
-            style={{
+        <ManagerBody split={wide}>
+          <ManagerPane
+            scrollable={wide}
+            containerStyle={{
               width: wide ? "51%" : "100%",
-              padding: compact ? 16 : 26,
-              gap: 22,
+              maxWidth: "100%",
+              minWidth: 0,
               borderRightWidth: wide ? 1 : 0,
               borderRightColor: colors.border,
+            }}
+            contentStyle={{
+              padding: compact ? 16 : 26,
+              gap: 22,
             }}
           >
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
@@ -628,7 +859,7 @@ export function PeriodizationManagerSheet({
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
                 1. Turma
               </Text>
-              <View style={{ flexDirection: compact ? "column" : "row", gap: 10 }}>
+              <View style={{ flexDirection: narrow ? "column" : "row", gap: 10 }}>
                 <View style={{ flex: 1.5, minWidth: 0, gap: 6 }}>
                   <InputLabel colors={colors}>Objetivo pedagógico</InputLabel>
                   <TextInput
@@ -653,45 +884,7 @@ export function PeriodizationManagerSheet({
                 </View>
                 <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
                   <InputLabel colors={colors}>Nível de desenvolvimento</InputLabel>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                    {LEVEL_OPTIONS.map((option) => {
-                      const active = draft.mvLevel === option.value;
-                      return (
-                        <Pressable
-                          key={option.value}
-                          onPress={() =>
-                            setDraft((current) => ({
-                              ...current,
-                              mvLevel: option.value,
-                            }))
-                          }
-                          style={{
-                            minHeight: 34,
-                            justifyContent: "center",
-                            borderRadius: 9,
-                            borderWidth: 1,
-                            borderColor: active
-                              ? colors.successBorder
-                              : colors.border,
-                            backgroundColor: active
-                              ? colors.successBg
-                              : colors.inputBg,
-                            paddingHorizontal: 10,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: active ? colors.successText : colors.text,
-                              fontSize: 10,
-                              fontWeight: "700",
-                            }}
-                          >
-                            {option.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  <ManagerSelect label="Nível de desenvolvimento" value={draft.mvLevel} options={LEVEL_OPTIONS} colors={colors} onChange={(mvLevel) => setDraft((current) => ({ ...current, mvLevel }))} />
                 </View>
               </View>
               <Text style={{ color: colors.muted, fontSize: 10 }}>
@@ -752,7 +945,7 @@ export function PeriodizationManagerSheet({
                   })}
                 </View>
               </View>
-              <View style={{ flexDirection: compact ? "column" : "row", gap: 10 }}>
+              <View style={{ flexDirection: narrow ? "column" : "row", gap: 10 }}>
                 <View style={{ flex: 1, gap: 6 }}>
                   <InputLabel colors={colors}>Horário de início</InputLabel>
                   <TextInput
@@ -809,19 +1002,18 @@ export function PeriodizationManagerSheet({
                   </FieldShell>
                 </View>
               </View>
-              <View style={{ flexDirection: compact ? "column" : "row", gap: 10 }}>
+              <View style={{ flexDirection: narrow ? "column" : "row", gap: 10 }}>
                 <View style={{ flex: 1, gap: 6 }}>
                   <InputLabel colors={colors}>Data de início</InputLabel>
                   <TextInput
                     accessibilityLabel="Data de início do ciclo"
-                    value={draft.cycleStartDate}
-                    onChangeText={(cycleStartDate) =>
-                      setDraft((current) => ({
-                        ...current,
-                        cycleStartDate,
-                      }))
-                    }
-                    placeholder="AAAA-MM-DD"
+                    value={cycleDateInput}
+                    onChangeText={(value) => {
+                      const parsed = parseBrazilianDate(value);
+                      setCycleDateInput(parsed.display);
+                      if (parsed.iso) setDraft((current) => ({ ...current, cycleStartDate: parsed.iso }));
+                    }}
+                    placeholder="DD-MM-AAAA"
                     placeholderTextColor={colors.placeholder}
                     style={{
                       minHeight: 44,
@@ -837,45 +1029,7 @@ export function PeriodizationManagerSheet({
                 </View>
                 <View style={{ flex: 1, gap: 6 }}>
                   <InputLabel colors={colors}>Duração do ciclo</InputLabel>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                    {CYCLE_OPTIONS.map((weeks) => {
-                      const active = draft.cycleLengthWeeks === weeks;
-                      return (
-                        <Pressable
-                          key={weeks}
-                          onPress={() =>
-                            setDraft((current) => ({
-                              ...current,
-                              cycleLengthWeeks: weeks,
-                            }))
-                          }
-                          style={{
-                            minHeight: 36,
-                            justifyContent: "center",
-                            borderRadius: 9,
-                            borderWidth: 1,
-                            borderColor: active
-                              ? colors.successBorder
-                              : colors.border,
-                            backgroundColor: active
-                              ? colors.successBg
-                              : colors.inputBg,
-                            paddingHorizontal: 10,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: active ? colors.successText : colors.text,
-                              fontSize: 10,
-                              fontWeight: "700",
-                            }}
-                          >
-                            {weeks} semanas
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  <ManagerSelect label="Duração do ciclo" value={draft.cycleLengthWeeks} options={CYCLE_OPTIONS.map((option) => ({ value: option.value, label: `${option.label} · ${option.detail}` }))} colors={colors} onChange={(cycleLengthWeeks) => setDraft((current) => ({ ...current, cycleLengthWeeks }))} />
                 </View>
               </View>
             </View>
@@ -891,27 +1045,26 @@ export function PeriodizationManagerSheet({
                   Parâmetros calculados a partir do nível, da agenda e das semanas.
                 </Text>
               </View>
-              <View style={{ flexDirection: compact ? "column" : "row", gap: 10 }}>
-                {[
-                  ["Modelo aplicado", "Ondulatório"],
-                  ["Recuperação planejada", "A cada 4 semanas"],
-                  ["Faixa de intensidade", "PSE 3–6"],
-                ].map(([label, value]) => (
-                  <View key={label} style={{ flex: 1, gap: 6 }}>
-                    <InputLabel colors={colors}>{label}</InputLabel>
-                    <FieldShell colors={colors}>
-                      <Text
-                        style={{
-                          color: colors.text,
-                          fontSize: 11,
-                          fontWeight: "700",
-                        }}
-                      >
-                        {value}
-                      </Text>
-                    </FieldShell>
+              <View style={{ gap: 12 }}>
+                <View style={{ gap: 6 }}>
+                  <InputLabel colors={colors}>Modelo de carga</InputLabel>
+                  <ManagerSelect label="Modelo de carga" value={draft.loadModel} options={LOAD_MODEL_OPTIONS} colors={colors} onChange={(loadModel) => setDraft((current) => ({ ...current, loadModel }))} />
+                </View>
+                <View style={{ gap: 6 }}>
+                  <InputLabel colors={colors}>Recuperação planejada</InputLabel>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                    {RECOVERY_OPTIONS.map((weeks) => { const active = draft.recoveryWeeks === weeks; return <Pressable key={weeks} accessibilityRole="button" accessibilityLabel={`Recuperação a cada ${weeks} semanas`} onPress={() => setDraft((current) => ({ ...current, recoveryWeeks: weeks }))} style={{ minHeight: 36, justifyContent: "center", borderRadius: 9, borderWidth: 1, borderColor: active ? colors.successBorder : colors.border, backgroundColor: active ? colors.successBg : colors.inputBg, paddingHorizontal: 10 }}><Text style={{ color: active ? colors.successText : colors.text, fontSize: 11, fontWeight: "700" }}>A cada {weeks} semanas</Text></Pressable>; })}
                   </View>
-                ))}
+                  <View style={{ borderWidth: 1, borderColor: colors.successBorder, backgroundColor: colors.successBg, borderRadius: 10, padding: 10, gap: 3 }}><Text style={{ color: colors.successText, fontSize: 10, fontWeight: "800" }}>Recuperação sugerida: a cada {recommendedRecoveryWeeks} semanas</Text><Text style={{ color: colors.muted, fontSize: 10 }}>Com PSE máximo {draft.intensityMax}, a prévia recomenda este intervalo. Se a carga registrada subir, antecipe a semana de recuperação.</Text></View>
+                </View>
+                <View style={{ flexDirection: narrow ? "column" : "row", gap: 10 }}>
+                  {(["intensityMin", "intensityMax"] as const).map((field) => (
+                    <View key={field} style={{ flex: 1, gap: 6 }}>
+                      <InputLabel colors={colors}>{field === "intensityMin" ? "PSE mínimo" : "PSE máximo"}</InputLabel>
+                      <TextInput accessibilityLabel={field === "intensityMin" ? "PSE mínimo" : "PSE máximo"} keyboardType="numeric" value={String(draft[field])} onChangeText={(value) => setDraft((current) => { const next = Math.max(0, Math.min(10, Number(value.replace(/[^0-9]/g, "")) || 0)); return { ...current, [field]: next, ...(field === "intensityMax" ? { recoveryWeeks: next >= 8 ? 3 : next >= 6 ? 4 : 5 } : {}) }; })} style={{ minHeight: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, color: colors.text, paddingHorizontal: 12, fontSize: 12, fontWeight: "700" }} />
+                    </View>
+                  ))}
+                </View>
               </View>
             </View>
 
@@ -950,15 +1103,20 @@ export function PeriodizationManagerSheet({
               </Pressable>
               {advancedOpen ? advancedContent : null}
             </View>
-          </View>
+          </ManagerPane>
 
-          <View
-            style={{
+          <ManagerPane
+            scrollable={wide}
+            containerStyle={{
               width: wide ? "49%" : "100%",
-              padding: compact ? 16 : 26,
-              gap: 22,
+              maxWidth: "100%",
+              minWidth: 0,
               borderTopWidth: wide ? 0 : 1,
               borderTopColor: colors.border,
+            }}
+            contentStyle={{
+              padding: compact ? 16 : 26,
+              gap: 22,
             }}
           >
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
@@ -972,6 +1130,7 @@ export function PeriodizationManagerSheet({
                 colors={colors}
                 weekPlans={weekPlans}
                 currentWeek={currentWeek}
+                draft={draft}
               />
             </View>
 
@@ -1022,7 +1181,7 @@ export function PeriodizationManagerSheet({
 
             <View
               style={{
-                flexDirection: compact ? "column" : "row",
+                flexDirection: narrow ? "column" : "row",
                 gap: 10,
               }}
             >
@@ -1097,14 +1256,14 @@ export function PeriodizationManagerSheet({
                 somente nas semanas automáticas; edições manuais são preservadas.
               </Text>
             </View>
-          </View>
-        </ScrollView>
+          </ManagerPane>
+        </ManagerBody>
 
         <View
           style={{
             minHeight: compact ? 74 : 82,
-            flexDirection: compact ? "column" : "row",
-            alignItems: compact ? "stretch" : "center",
+            flexDirection: narrow ? "column" : "row",
+            alignItems: narrow ? "stretch" : "center",
             gap: 12,
             paddingHorizontal: compact ? 16 : 26,
             paddingVertical: 12,
@@ -1149,7 +1308,7 @@ export function PeriodizationManagerSheet({
           </View>
           <Pressable
             disabled={!dirty || saving}
-            onPress={() => setDraft(savedDraft)}
+            onPress={() => { setDraft(savedDraft); setCycleDateInput(formatBrazilianDate(savedDraft.cycleStartDate)); }}
             style={{
               minHeight: 42,
               alignItems: "center",

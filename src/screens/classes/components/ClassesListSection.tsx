@@ -1,6 +1,7 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import {
+  Animated,
   FlatList,
   Platform,
   RefreshControl,
@@ -71,6 +72,9 @@ export const ClassesListSection = memo(function ClassesListSection({
   const [selectedUnitKey, setSelectedUnitKey] = useState(ALL_UNITS_KEY);
   const [unitSearch, setUnitSearch] = useState("");
   const [ascending, setAscending] = useState(true);
+  const [tableAscending, setTableAscending] = useState(true);
+  const [sortKey, setSortKey] = useState<"name" | "time" | "age" | "students" | "teacher" | null>(null);
+  const sortIndicator = useRef(new Animated.Value(0)).current;
   const [mobileUnitsOpen, setMobileUnitsOpen] = useState(false);
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
@@ -100,7 +104,38 @@ export const ClassesListSection = memo(function ClassesListSection({
   }, [selectedUnitKey, units]);
 
   const selectedUnit = units.find((unit) => unit.key === selectedUnitKey) ?? null;
-  const selectedClasses = selectedUnit?.items ?? allClasses;
+  const selectedClasses = useMemo(() => {
+    const items = selectedUnit?.items ?? allClasses;
+    if (!sortKey) return items;
+    return [...items].sort((a, b) => {
+      let left = "", right = "";
+      if (sortKey === "name") { left = a.name; right = b.name; }
+      if (sortKey === "time") { left = a.startTime; right = b.startTime; }
+      if (sortKey === "age") { left = a.ageBand; right = b.ageBand; }
+      if (sortKey === "teacher") { left = classCardViewModelsById[a.id]?.teacher.name ?? ""; right = classCardViewModelsById[b.id]?.teacher.name ?? ""; }
+      if (sortKey === "students") { const result = (classCardViewModelsById[a.id]?.studentCount ?? 0) - (classCardViewModelsById[b.id]?.studentCount ?? 0); return tableAscending ? result : -result; }
+      const result = left.localeCompare(right, "pt-BR", { numeric: true, sensitivity: "base" });
+      return tableAscending ? result : -result;
+    });
+  }, [allClasses, classCardViewModelsById, selectedUnit?.items, sortKey, tableAscending]);
+  const selectSort = useCallback((key: Exclude<typeof sortKey, null>) => {
+    if (sortKey === key) {
+      setSortKey(null);
+      setTableAscending(true);
+    }
+    else {
+      sortIndicator.setValue(0);
+      setSortKey(key);
+      setTableAscending(true);
+      Animated.spring(sortIndicator, {
+        toValue: 1,
+        friction: 6,
+        tension: 180,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [sortIndicator, sortKey]);
+
   const selectedTitle = selectedUnit?.label ?? "Todas as unidades";
   const closeActionMenu = useCallback(() => setOpenActionMenuId(null), []);
   const toggleActionMenu = useCallback((classId: string) => {
@@ -306,11 +341,12 @@ export const ClassesListSection = memo(function ClassesListSection({
 
       {showTable ? (
         <View style={[styles.tableHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
-          <Text style={[styles.tableHeading, styles.tableIdentityHeading, { color: colors.textMuted ?? colors.muted }]}>TURMA</Text>
-          <Text style={[styles.tableHeading, styles.tableScheduleHeading, { color: colors.textMuted ?? colors.muted }]}>HORÁRIO</Text>
-          <Text style={[styles.tableHeading, styles.tableFocusHeading, { color: colors.textMuted ?? colors.muted }]}>IDADE / NÍVEL</Text>
-          <Text style={[styles.tableHeading, styles.tableStudentsHeading, { color: colors.textMuted ?? colors.muted }]}>ALUNOS</Text>
-          <Text style={[styles.tableHeading, styles.tableTeacherHeading, { color: colors.textMuted ?? colors.muted }]}>PROFESSOR</Text>
+          {([['TURMA', 'name', styles.tableIdentityHeading], ['HORÁRIO', 'time', styles.tableScheduleHeading], ['IDADE / NÍVEL', 'age', styles.tableFocusHeading], ['ALUNOS', 'students', styles.tableStudentsHeading], ['PROFESSOR', 'teacher', styles.tableTeacherHeading]] as const).map(([label, key, style]) => (
+            <Pressable key={key} accessibilityRole="button" accessibilityLabel={`Ordenar por ${label}`} suppressWebHoverFeedback disableWebPressScale onPress={() => selectSort(key)} style={[styles.tableHeadingButton, style]}>
+              <Text style={[styles.tableHeading, { color: sortKey === key ? colors.text : (colors.textMuted ?? colors.muted) }]}>{label}</Text>
+              {sortKey === key ? <Animated.View style={{ opacity: sortIndicator, transform: [{ scale: sortIndicator.interpolate({ inputRange: [0, 1], outputRange: [0.78, 1] }) }, { translateY: sortIndicator.interpolate({ inputRange: [0, 1], outputRange: [-3, 0] }) }] }}><GoAtletaIcon name="swapVertical" size={13} color={colors.text} /></Animated.View> : <GoAtletaIcon name="swapVertical" size={13} color={colors.textMuted ?? colors.muted} />}
+            </Pressable>
+          ))}
           <View style={styles.tableActionHeading} />
         </View>
       ) : null}
@@ -552,6 +588,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "800",
   },
+  tableHeadingButton: { justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 4, minHeight: 36 },
   tableIdentityHeading: { flex: 2.2, minWidth: 210 },
   tableScheduleHeading: { flex: 1.12, minWidth: 112 },
   tableFocusHeading: { flex: 1.24, minWidth: 120 },

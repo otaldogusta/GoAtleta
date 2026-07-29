@@ -199,7 +199,13 @@ export function ModalSheet({
           isCenter
             ? { flex: 1, alignItems: "center", justifyContent: "center", padding: containerPadding }
             : isRight
-              ? { flex: 1, alignItems: "flex-end", justifyContent: "flex-start", padding: containerPadding }
+              ? {
+                  flex: 1,
+                  width: "100%",
+                  alignItems: "flex-end",
+                  justifyContent: "flex-start",
+                  padding: containerPadding,
+                }
             : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
         }
         pointerEvents="box-none"

@@ -1,12 +1,7 @@
 import { Image } from "expo-image";
 import type { RefObject } from "react";
 import { useEffect, useMemo, useRef } from "react";
-import {
-    Animated,
-    Text,
-    TextInput,
-    View,
-} from "react-native";
+import { Animated, Text, TextInput, View } from "react-native";
 import type { Student } from "../../core/models";
 import type { ExistingStudentMatch } from "../../core/students/find-possible-existing-students";
 import { deriveStudentHealthAssessment } from "../../core/student-health";
@@ -15,9 +10,9 @@ import type { ThemeColors } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
 import { DateInput } from "../../ui/DateInput";
 import {
-    FormFieldValidationFeedback,
-    type FormValidationIssue,
-    getValidationFieldStyle,
+  FormFieldValidationFeedback,
+  type FormValidationIssue,
+  getValidationFieldStyle,
 } from "../../ui/form-validation-feedback";
 import { Pressable } from "../../ui/Pressable";
 import { StudentAcademicFields } from "./components/StudentAcademicFields";
@@ -28,717 +23,1579 @@ import { GoAtletaIcon } from "../../ui/icon-registry";
 const safeText = (value: unknown) => String(value ?? "");
 
 type CollapsibleAnim = {
-    isVisible: boolean;
-    animatedStyle: any;
+  isVisible: boolean;
+  animatedStyle: any;
 };
 
 type ConfirmDialogOptions = {
-    title: string;
-    message: string;
-    tone: "default" | "danger";
-    confirmLabel: string;
-    cancelLabel: string;
-    onConfirm: () => void;
+  title: string;
+  message: string;
+  tone: "default" | "danger";
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
 };
 
 type DocumentsError = {
-    ra?: string;
-    cpf?: string;
-    rg?: string;
+  ra?: string;
+  cpf?: string;
+  rg?: string;
 };
 type StudentValidationField = "unitClass" | "name" | "birthDate" | "ra";
 
 type SelectFieldStyle = {
-    paddingVertical: number;
-    paddingHorizontal: number;
-    borderRadius: number;
-    backgroundColor: string;
-    borderWidth: number;
-    borderColor: string;
-    flexDirection: "row";
-    alignItems: "center";
-    justifyContent: "space-between";
-    gap: number;
+  paddingVertical: number;
+  paddingHorizontal: number;
+  borderRadius: number;
+  backgroundColor: string;
+  borderWidth: number;
+  borderColor: string;
+  flexDirection: "row";
+  alignItems: "center";
+  justifyContent: "space-between";
+  gap: number;
 };
 
 export type StudentRegistrationTabProps = {
-    colors: ThemeColors;
-    selectFieldStyle: SelectFieldStyle;
+  colors: ThemeColors;
+  selectFieldStyle: SelectFieldStyle;
 
-    // Photo
-    photoUrl: string | null;
-    setShowPhotoSheet: (v: boolean) => void;
+  // Photo
+  photoUrl: string | null;
+  setShowPhotoSheet: (v: boolean) => void;
 
-    // Type picker
-    isExperimental: boolean;
-    showTypePicker: boolean;
-    typeTriggerRef: RefObject<View | null>;
-    toggleFormPicker: (target: "unit" | "class" | "guardianRelation" | "type") => void;
+  // Type picker
+  isExperimental: boolean;
+  showTypePicker: boolean;
+  typeTriggerRef: RefObject<View | null>;
+  toggleFormPicker: (
+    target: "unit" | "class" | "guardianRelation" | "type",
+  ) => void;
 
-    // Section accordion state & animations
-    openCreateSection: StudentFormSection;
-    toggleCreateSection: (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian") => void;
-    createStudentDataAnim: CollapsibleAnim;
-    createAcademicAnim: CollapsibleAnim;
-    createDocumentsAnim: CollapsibleAnim;
-    createSportAnim: CollapsibleAnim;
-    createHealthAnim: CollapsibleAnim;
-    createGuardianAnim: CollapsibleAnim;
+  // Section accordion state & animations
+  openCreateSection: StudentFormSection;
+  toggleCreateSection: (
+    section:
+      | "studentData"
+      | "academic"
+      | "documents"
+      | "sportProfile"
+      | "health"
+      | "guardian",
+  ) => void;
+  createStudentDataAnim: CollapsibleAnim;
+  createAcademicAnim: CollapsibleAnim;
+  createDocumentsAnim: CollapsibleAnim;
+  createSportAnim: CollapsibleAnim;
+  createHealthAnim: CollapsibleAnim;
+  createGuardianAnim: CollapsibleAnim;
 
-    // Student data fields
-    name: string;
-    setName: (v: string) => void;
-    formatName: (v: string) => string;
-    collegeCourse: string;
-    setCollegeCourse: (v: string) => void;
+  // Student data fields
+  name: string;
+  setName: (v: string) => void;
+  formatName: (v: string) => string;
+  collegeCourse: string;
+  setCollegeCourse: (v: string) => void;
 
-    unit: string;
-    showUnitPicker: boolean;
-    unitTriggerRef: RefObject<View | null>;
+  unit: string;
+  showUnitPicker: boolean;
+  unitTriggerRef: RefObject<View | null>;
 
-    selectedClassName: string;
-    showClassPicker: boolean;
-    classTriggerRef: RefObject<View | null>;
+  selectedClassName: string;
+  showClassPicker: boolean;
+  classTriggerRef: RefObject<View | null>;
 
-    studentFormError: string;
-    validationIssue?: FormValidationIssue<StudentValidationField> | null;
-    onClearValidation?: (field?: StudentValidationField) => void;
-    existingStudentMatches?: ExistingStudentMatch[];
-    onReviewExistingStudents?: () => void;
-    onDismissExistingStudentWarning?: () => void;
+  studentFormError: string;
+  validationIssue?: FormValidationIssue<StudentValidationField> | null;
+  onClearValidation?: (field?: StudentValidationField) => void;
+  existingStudentMatches?: ExistingStudentMatch[];
+  onReviewExistingStudents?: () => void;
+  onDismissExistingStudentWarning?: () => void;
 
-    birthDate: string;
-    setBirthDate: (v: string) => void;
-    setShowCalendar: (v: boolean) => void;
-    ageNumber: number | null;
+  birthDate: string;
+  setBirthDate: (v: string) => void;
+  setShowCalendar: (v: boolean) => void;
+  ageNumber: number | null;
 
-    phone: string;
-    setPhone: (v: string) => void;
-    formatPhone: (v: string) => string;
+  phone: string;
+  setPhone: (v: string) => void;
+  formatPhone: (v: string) => string;
 
-    // Academic fields
-    ra: string;
-    setRa: (v: string) => void;
+  // Academic fields
+  ra: string;
+  setRa: (v: string) => void;
 
-    cpfDisplay: string;
-    setCpfDisplay: (v: string) => void;
-    setIsCpfVisible: (v: boolean) => void;
-    setCpfRevealedValue: (v: string | null) => void;
-    setCpfRevealUnavailable: (v: boolean) => void;
+  cpfDisplay: string;
+  setCpfDisplay: (v: string) => void;
+  setIsCpfVisible: (v: boolean) => void;
+  setCpfRevealedValue: (v: string | null) => void;
+  setCpfRevealUnavailable: (v: boolean) => void;
 
-    rgDocument: string;
-    setRgDocument: (v: string) => void;
+  rgDocument: string;
+  setRgDocument: (v: string) => void;
 
-    editingId: string | null;
-    canRevealCpf: boolean;
-    isCpfVisible: boolean;
-    revealCpfBusy: boolean;
-    handleRevealEditingCpf: () => void;
-    studentDocumentsError: DocumentsError;
+  editingId: string | null;
+  canRevealCpf: boolean;
+  isCpfVisible: boolean;
+  revealCpfBusy: boolean;
+  handleRevealEditingCpf: () => void;
+  studentDocumentsError: DocumentsError;
 
-    // Documents fields
-    setStudentDocumentsError: (patch: DocumentsError | ((prev: DocumentsError) => DocumentsError)) => void;
+  // Documents fields
+  setStudentDocumentsError: (
+    patch: DocumentsError | ((prev: DocumentsError) => DocumentsError),
+  ) => void;
 
-    loginEmail: string;
-    setLoginEmail: (v: string) => void;
-    formatEmail: (v: string) => string;
+  loginEmail: string;
+  setLoginEmail: (v: string) => void;
+  formatEmail: (v: string) => string;
 
-    // Sport profile fields
-    positionPrimary: Student["positionPrimary"];
-    setPositionPrimary: (v: Student["positionPrimary"]) => void;
-    positionSecondary: Student["positionSecondary"];
-    setPositionSecondary: (v: Student["positionSecondary"]) => void;
-    athleteObjective: Student["athleteObjective"];
-    setAthleteObjective: (v: Student["athleteObjective"]) => void;
-    learningStyle: Student["learningStyle"];
-    setLearningStyle: (v: Student["learningStyle"]) => void;
+  // Sport profile fields
+  positionPrimary: Student["positionPrimary"];
+  setPositionPrimary: (v: Student["positionPrimary"]) => void;
+  positionSecondary: Student["positionSecondary"];
+  setPositionSecondary: (v: Student["positionSecondary"]) => void;
+  athleteObjective: Student["athleteObjective"];
+  setAthleteObjective: (v: Student["athleteObjective"]) => void;
+  learningStyle: Student["learningStyle"];
+  setLearningStyle: (v: Student["learningStyle"]) => void;
 
-    // Health fields
-    healthIssue: boolean;
-    setHealthIssue: (v: boolean) => void;
-    healthIssueNotes: string;
-    setHealthIssueNotes: (v: string) => void;
-    medicationUse: boolean;
-    setMedicationUse: (v: boolean) => void;
-    medicationNotes: string;
-    setMedicationNotes: (v: string) => void;
-    healthObservations: string;
-    setHealthObservations: (v: string) => void;
+  // Health fields
+  healthIssue: boolean;
+  setHealthIssue: (v: boolean) => void;
+  healthIssueNotes: string;
+  setHealthIssueNotes: (v: string) => void;
+  medicationUse: boolean;
+  setMedicationUse: (v: boolean) => void;
+  medicationNotes: string;
+  setMedicationNotes: (v: string) => void;
+  healthObservations: string;
+  setHealthObservations: (v: string) => void;
 
-    // Guardian fields
-    guardianName: string;
-    setGuardianName: (v: string) => void;
-    guardianPhone: string;
-    setGuardianPhone: (v: string) => void;
-    guardianRelation: string;
-    showGuardianRelationPicker: boolean;
-    guardianRelationTriggerRef: RefObject<View | null>;
+  // Guardian fields
+  guardianName: string;
+  setGuardianName: (v: string) => void;
+  guardianPhone: string;
+  setGuardianPhone: (v: string) => void;
+  guardianRelation: string;
+  showGuardianRelationPicker: boolean;
+  guardianRelationTriggerRef: RefObject<View | null>;
 
-    // Actions
-    canSaveStudent: boolean;
-    onSave: () => void;
-    showInlineSaveButton?: boolean;
-    isFormDirty: any;
-    doResetForm: () => void;
-    confirmDialog: (options: ConfirmDialogOptions) => void;
+  // Actions
+  canSaveStudent: boolean;
+  onSave: () => void;
+  showInlineSaveButton?: boolean;
+  continuousMode?: boolean;
+  isFormDirty: any;
+  doResetForm: () => void;
+  confirmDialog: (options: ConfirmDialogOptions) => void;
 };
 
 export function StudentRegistrationTab({
-    colors,
-    selectFieldStyle,
-    photoUrl,
-    setShowPhotoSheet,
-    isExperimental,
-    showTypePicker,
-    typeTriggerRef,
-    toggleFormPicker,
-    openCreateSection,
-    toggleCreateSection,
-    createStudentDataAnim,
-    createAcademicAnim,
-    createDocumentsAnim,
-    createSportAnim,
-    createHealthAnim,
-    createGuardianAnim,
-    name,
-    setName,
-    formatName,
-    collegeCourse,
-    setCollegeCourse,
-    unit,
-    showUnitPicker,
-    unitTriggerRef,
-    selectedClassName,
-    showClassPicker,
-    classTriggerRef,
-    studentFormError,
-    validationIssue,
-    onClearValidation,
-    existingStudentMatches = [],
-    onReviewExistingStudents,
-    onDismissExistingStudentWarning,
-    birthDate,
-    setBirthDate,
-    setShowCalendar,
-    ageNumber,
-    phone,
-    setPhone,
-    formatPhone,
-    ra,
-    setRa,
-    cpfDisplay,
-    setCpfDisplay,
-    setIsCpfVisible,
-    setCpfRevealedValue,
-    setCpfRevealUnavailable,
-    rgDocument,
-    setRgDocument,
-    editingId,
-    canRevealCpf,
-    isCpfVisible,
-    revealCpfBusy,
-    handleRevealEditingCpf,
-    studentDocumentsError,
-    setStudentDocumentsError,
-    loginEmail,
-    setLoginEmail,
-    formatEmail,
-    positionPrimary,
-    setPositionPrimary,
-    positionSecondary,
-    setPositionSecondary,
-    athleteObjective,
-    setAthleteObjective,
-    learningStyle,
-    setLearningStyle,
-    healthIssue,
-    setHealthIssue,
-    healthIssueNotes,
-    setHealthIssueNotes,
-    medicationUse,
-    setMedicationUse,
-    medicationNotes,
-    setMedicationNotes,
-    healthObservations,
-    setHealthObservations,
-    guardianName,
-    setGuardianName,
-    guardianPhone,
-    setGuardianPhone,
-    guardianRelation,
-    showGuardianRelationPicker,
-    guardianRelationTriggerRef,
-    canSaveStudent,
-    onSave,
-    showInlineSaveButton = true,
-    isFormDirty,
-    doResetForm,
-    confirmDialog,
+  colors,
+  selectFieldStyle,
+  photoUrl,
+  setShowPhotoSheet,
+  isExperimental,
+  showTypePicker,
+  typeTriggerRef,
+  toggleFormPicker,
+  openCreateSection,
+  toggleCreateSection,
+  createStudentDataAnim,
+  createAcademicAnim,
+  createDocumentsAnim,
+  createSportAnim,
+  createHealthAnim,
+  createGuardianAnim,
+  name,
+  setName,
+  formatName,
+  collegeCourse,
+  setCollegeCourse,
+  unit,
+  showUnitPicker,
+  unitTriggerRef,
+  selectedClassName,
+  showClassPicker,
+  classTriggerRef,
+  studentFormError,
+  validationIssue,
+  onClearValidation,
+  existingStudentMatches = [],
+  onReviewExistingStudents,
+  onDismissExistingStudentWarning,
+  birthDate,
+  setBirthDate,
+  setShowCalendar,
+  ageNumber,
+  phone,
+  setPhone,
+  formatPhone,
+  ra,
+  setRa,
+  cpfDisplay,
+  setCpfDisplay,
+  setIsCpfVisible,
+  setCpfRevealedValue,
+  setCpfRevealUnavailable,
+  rgDocument,
+  setRgDocument,
+  editingId,
+  canRevealCpf,
+  isCpfVisible,
+  revealCpfBusy,
+  handleRevealEditingCpf,
+  studentDocumentsError,
+  setStudentDocumentsError,
+  loginEmail,
+  setLoginEmail,
+  formatEmail,
+  positionPrimary,
+  setPositionPrimary,
+  positionSecondary,
+  setPositionSecondary,
+  athleteObjective,
+  setAthleteObjective,
+  learningStyle,
+  setLearningStyle,
+  healthIssue,
+  setHealthIssue,
+  healthIssueNotes,
+  setHealthIssueNotes,
+  medicationUse,
+  setMedicationUse,
+  medicationNotes,
+  setMedicationNotes,
+  healthObservations,
+  setHealthObservations,
+  guardianName,
+  setGuardianName,
+  guardianPhone,
+  setGuardianPhone,
+  guardianRelation,
+  showGuardianRelationPicker,
+  guardianRelationTriggerRef,
+  canSaveStudent,
+  onSave,
+  showInlineSaveButton = true,
+  continuousMode = false,
+  isFormDirty,
+  doResetForm,
+  confirmDialog,
 }: StudentRegistrationTabProps) {
-    const nameInputRef = useRef<TextInput | null>(null);
-    const birthDateInputRef = useRef<TextInput | null>(null);
-    const raInputRef = useRef<TextInput | null>(null);
+  const nameInputRef = useRef<TextInput | null>(null);
+  const birthDateInputRef = useRef<TextInput | null>(null);
+  const raInputRef = useRef<TextInput | null>(null);
 
-    useEffect(() => {
-        if (!validationIssue) return undefined;
-        const target =
-            validationIssue.field === "name"
-                ? nameInputRef
-                : validationIssue.field === "birthDate"
-                    ? birthDateInputRef
-                    : validationIssue.field === "ra"
-                        ? raInputRef
-                        : null;
-        if (!target) return undefined;
-        const timer = setTimeout(() => target.current?.focus(), 180);
-        return () => clearTimeout(timer);
-    }, [validationIssue]);
+  useEffect(() => {
+    if (!validationIssue) return undefined;
+    const target =
+      validationIssue.field === "name"
+        ? nameInputRef
+        : validationIssue.field === "birthDate"
+          ? birthDateInputRef
+          : validationIssue.field === "ra"
+            ? raInputRef
+            : null;
+    if (!target) return undefined;
+    const timer = setTimeout(() => target.current?.focus(), 180);
+    return () => clearTimeout(timer);
+  }, [validationIssue]);
 
-    const createHealthAssessment = useMemo(
-        () =>
-            deriveStudentHealthAssessment({
-                healthIssue,
-                healthIssueNotes,
-                medicationUse,
-                medicationNotes,
-                healthObservations,
-            }),
-        [healthIssue, healthIssueNotes, healthObservations, medicationNotes, medicationUse]
-    );
-    const topExistingMatch = existingStudentMatches[0] ?? null;
-    const existingStudentTitle = topExistingMatch
-        ? topExistingMatch.matchType === "exact_name_birthdate"
-            ? "Aluno já cadastrado"
-            : topExistingMatch.matchType === "exact_name"
-                ? "Aluno com mesmo nome"
-                : "Possível cadastro existente"
-        : "";
-    const existingStudentDescription = topExistingMatch
-        ? topExistingMatch.matchType === "exact_name_birthdate"
-            ? `${topExistingMatch.studentName} já aparece na turma ${topExistingMatch.className}. Confira antes de criar um novo cadastro.`
-            : topExistingMatch.matchType === "exact_name"
-                ? `Este nome já aparece na turma ${topExistingMatch.className}. Confira antes de criar um novo cadastro.`
-                : `Há um aluno com nome parecido na turma ${topExistingMatch.className}. Confira para evitar duplicidade.`
-        : "";
+  const createHealthAssessment = useMemo(
+    () =>
+      deriveStudentHealthAssessment({
+        healthIssue,
+        healthIssueNotes,
+        medicationUse,
+        medicationNotes,
+        healthObservations,
+      }),
+    [
+      healthIssue,
+      healthIssueNotes,
+      healthObservations,
+      medicationNotes,
+      medicationUse,
+    ],
+  );
+  const topExistingMatch = existingStudentMatches[0] ?? null;
+  const existingStudentTitle = topExistingMatch
+    ? topExistingMatch.matchType === "exact_name_birthdate"
+      ? "Aluno já cadastrado"
+      : topExistingMatch.matchType === "exact_name"
+        ? "Aluno com mesmo nome"
+        : "Possível cadastro existente"
+    : "";
+  const existingStudentDescription = topExistingMatch
+    ? topExistingMatch.matchType === "exact_name_birthdate"
+      ? `${topExistingMatch.studentName} já aparece na turma ${topExistingMatch.className}. Confira antes de criar um novo cadastro.`
+      : topExistingMatch.matchType === "exact_name"
+        ? `Este nome já aparece na turma ${topExistingMatch.className}. Confira antes de criar um novo cadastro.`
+        : `Há um aluno com nome parecido na turma ${topExistingMatch.className}. Confira para evitar duplicidade.`
+    : "";
 
-    return (
-        <View style={{ gap: 10 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <Pressable
-                  onPress={() => setShowPhotoSheet(true)}
-                  style={{ width: 48, height: 48, borderRadius: radius.full, backgroundColor: colors.backgroundSubtle, borderWidth: 1, borderColor: colors.borderSubtle, alignItems: "center", justifyContent: "center", overflow: "hidden" }}
-                >
-                  {photoUrl ? <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" /> : <GoAtletaIcon name="personSolid" size={22} color={colors.textPrimary} />}
-                </Pressable>
-                <Pressable onPress={() => setShowPhotoSheet(true)} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.internal, backgroundColor: colors.backgroundSubtle, borderWidth: 1, borderColor: colors.borderSubtle }}>
-                  <Text style={{ fontSize: 12, fontWeight: "800", color: colors.textPrimary }}>Adicionar foto</Text>
-                </Pressable>
-              </View>
-              <View style={{ width: 190, maxWidth: "100%" }}>
-                <View ref={typeTriggerRef}>
-                  <Pressable onPress={() => toggleFormPicker("type")} style={selectFieldStyle}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{isExperimental ? "Experimental" : "Aluno regular"}</Text>
-                    <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showTypePicker ? "180deg" : "0deg" }] }} />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.borderSubtle, borderRadius: radius.card, backgroundColor: colors.surface, overflow: "hidden" }}>
-              <Pressable onPress={() => toggleCreateSection("studentData")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "900" }}>Dados do aluno</Text>
-                  <Text style={{ color: colors.textMuted, fontSize: 11 }}>{name.trim() || "Nome, unidade, turma..."}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "studentData" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "studentData" ? <View style={{ height: 1, backgroundColor: colors.borderSubtle, marginHorizontal: 12 }} /> : null}
-              {createStudentDataAnim.isVisible ? (
-                <Animated.View style={[createStudentDataAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <FormFieldValidationFeedback
-                      message={validationIssue?.field === "name" ? validationIssue.message : ""}
-                      attempt={validationIssue?.field === "name" ? validationIssue.attempt : 0}
-                    >
-                      <TextInput
-                        ref={nameInputRef}
-                        placeholder="Nome do aluno"
-                        value={name}
-                        onChangeText={(value) => {
-                          onClearValidation?.("name");
-                          setName(value);
-                        }}
-                        onBlur={() => setName(formatName(name))}
-                        placeholderTextColor={colors.placeholder}
-                        accessibilityLabel="Nome do aluno"
-                        style={[
-                          { borderWidth: 1, borderColor: colors.borderSubtle, padding: 12, borderRadius: radius.internal, backgroundColor: colors.inputBg, color: colors.textPrimary },
-                          getValidationFieldStyle(validationIssue?.field === "name", colors.dangerSolidBg),
-                        ]}
-                      />
-                    </FormFieldValidationFeedback>
-                    <FormFieldValidationFeedback
-                      message={validationIssue?.field === "unitClass" ? validationIssue.message : ""}
-                      attempt={validationIssue?.field === "unitClass" ? validationIssue.attempt : 0}
-                    >
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Unidade</Text>
-                        <View ref={unitTriggerRef}>
-                          <Pressable onPress={() => { onClearValidation?.("unitClass"); toggleFormPicker("unit"); }} style={[selectFieldStyle, getValidationFieldStyle(validationIssue?.field === "unitClass", colors.dangerSolidBg)]}>
-                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{unit || "Selecione a unidade"}</Text>
-                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showUnitPicker ? "180deg" : "0deg" }] }} />
-                          </Pressable>
-                        </View>
-                      </View>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Turma</Text>
-                        <View ref={classTriggerRef}>
-                          <Pressable onPress={() => { onClearValidation?.("unitClass"); toggleFormPicker("class"); }} style={[selectFieldStyle, getValidationFieldStyle(validationIssue?.field === "unitClass", colors.dangerSolidBg)]}>
-                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{selectedClassName || "Selecione a turma"}</Text>
-                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showClassPicker ? "180deg" : "0deg" }] }} />
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                    </FormFieldValidationFeedback>
-                    {studentFormError ? <Text style={{ color: colors.dangerText, fontSize: 12 }}>{studentFormError}</Text> : null}
-                    {topExistingMatch ? (
-                      <View
-                        style={{
-                          borderWidth: 1,
-                          borderColor:
-                            topExistingMatch.confidence === "high"
-                              ? colors.warningBg
-                              : colors.border,
-                          borderRadius: 12,
-                          backgroundColor:
-                            topExistingMatch.confidence === "high"
-                              ? colors.warningBg
-                              : colors.secondaryBg,
-                          padding: 10,
-                          gap: 6,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color:
-                              topExistingMatch.confidence === "high"
-                                ? colors.warningText
-                                : colors.text,
-                            fontSize: 12,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {existingStudentTitle}
-                        </Text>
-                        <Text
-                          style={{
-                            color:
-                              topExistingMatch.confidence === "high"
-                                ? colors.warningText
-                                : colors.muted,
-                            fontSize: 12,
-                          }}
-                        >
-                          {existingStudentDescription}
-                        </Text>
-                        {existingStudentMatches.length > 1 ? (
-                          <Text
-                            style={{
-                              color:
-                                topExistingMatch.confidence === "high"
-                                  ? colors.warningText
-                                  : colors.muted,
-                              fontSize: 11,
-                            }}
-                          >
-                            Encontrados {existingStudentMatches.length} cadastros parecidos em outras turmas.
-                          </Text>
-                        ) : null}
-                        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                          {onReviewExistingStudents ? (
-                            <Button
-                              label="Ver alunos"
-                              variant="secondary"
-                              onPress={onReviewExistingStudents}
-                            />
-                          ) : null}
-                          {onDismissExistingStudentWarning ? (
-                            <Button
-                              label="Cadastrar mesmo assim"
-                              variant="ghost"
-                              onPress={onDismissExistingStudentWarning}
-                            />
-                          ) : null}
-                        </View>
-                      </View>
-                    ) : null}
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <FormFieldValidationFeedback
-                          message={validationIssue?.field === "birthDate" ? validationIssue.message : ""}
-                          attempt={validationIssue?.field === "birthDate" ? validationIssue.attempt : 0}
-                        >
-                          <DateInput
-                            inputRef={birthDateInputRef}
-                            value={birthDate}
-                            onChange={(value) => {
-                              onClearValidation?.("birthDate");
-                              setBirthDate(value);
-                            }}
-                            placeholder="Data de nascimento"
-                            onOpenCalendar={() => setShowCalendar(true)}
-                            invalid={validationIssue?.field === "birthDate"}
-                          />
-                        </FormFieldValidationFeedback>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>{ageNumber !== null ? `Idade: ${ageNumber} anos` : "Idade calculada automaticamente"}</Text>
-                      </View>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <TextInput placeholder="Telefone" value={phone} onChangeText={(v) => setPhone(formatPhone(v))} keyboardType="phone-pad" placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
-                      </View>
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable onPress={() => toggleCreateSection("academic")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil Acadêmico</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{[safeText(ra).trim() ? `RA: ${safeText(ra)}` : "", safeText(collegeCourse).trim() ? safeText(collegeCourse) : ""].filter(Boolean).join(" • ") || "RA e curso..."}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "academic" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "academic" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createAcademicAnim.isVisible ? (
-                <Animated.View style={[createAcademicAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <StudentAcademicFields
-                      ra={ra}
-                      collegeCourse={collegeCourse}
-                      onChangeRa={(value) => {
-                        onClearValidation?.("ra");
-                        setRa(value);
-                        setStudentDocumentsError((prev) => ({ ...prev, ra: undefined }));
-                      }}
-                      onChangeCollegeCourse={setCollegeCourse}
-                      errors={{
-                        ...studentDocumentsError,
-                        ra: validationIssue?.field === "ra" ? validationIssue.message : studentDocumentsError.ra,
-                      }}
-                      raInputRef={raInputRef}
-                      validationAttempt={validationIssue?.field === "ra" ? validationIssue.attempt : 0}
-                    />
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable onPress={() => toggleCreateSection("documents")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Documentos</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{[cpfDisplay.trim() ? "CPF" : "", rgDocument.trim() ? "RG" : "", loginEmail.trim() ? "e-mail" : ""].filter(Boolean).join(", ") || "CPF, RG, e-mail..."}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "documents" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "documents" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createDocumentsAnim.isVisible ? (
-                <Animated.View style={[createDocumentsAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <StudentDocumentsFields
-                      cpfDisplay={cpfDisplay}
-                      rg={rgDocument}
-                      onChangeCpf={(value) => { setCpfDisplay(value); setIsCpfVisible(false); setCpfRevealedValue(null); setCpfRevealUnavailable(false); setStudentDocumentsError((prev) => ({ ...prev, cpf: undefined })); }}
-                      onChangeRg={setRgDocument}
-                      showRevealCpfButton={Boolean(editingId && canRevealCpf)}
-                      isCpfVisible={isCpfVisible}
-                      revealCpfBusy={revealCpfBusy}
-                      onRevealCpf={handleRevealEditingCpf}
-                      errors={studentDocumentsError}
-                    />
-                    <View style={{ gap: 4 }}>
-                      <Text style={{ color: colors.muted, fontSize: 11 }}>Email do aluno (login)</Text>
-                      <TextInput placeholder="email@exemplo.com" value={loginEmail} onChangeText={setLoginEmail} onBlur={() => setLoginEmail(formatEmail(loginEmail))} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable onPress={() => toggleCreateSection("sportProfile")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Perfil esportivo</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{[positionPrimary, positionSecondary].filter((v) => v && v !== "indefinido").join(", ") || "Posições, objetivo..."}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "sportProfile" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "sportProfile" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createSportAnim.isVisible ? (
-                <Animated.View style={[createSportAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Posição principal</Text>
-                        <TextInput placeholder="indefinido | levantador | oposto..." value={positionPrimary} onChangeText={(v) => setPositionPrimary((v.trim().toLowerCase() as Student["positionPrimary"]) || "indefinido")} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
-                      </View>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Posição secundária</Text>
-                        <TextInput placeholder="indefinido | ponteiro | libero..." value={positionSecondary} onChangeText={(v) => setPositionSecondary((v.trim().toLowerCase() as Student["positionSecondary"]) || "indefinido")} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
-                      </View>
-                    </View>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Objetivo esportivo</Text>
-                        <TextInput placeholder="ludico | base | rendimento" value={athleteObjective} onChangeText={(v) => setAthleteObjective((v.trim().toLowerCase() as Student["athleteObjective"]) || "base")} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
-                      </View>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Estilo de aprendizagem</Text>
-                        <TextInput placeholder="misto | visual | auditivo | cinestesico" value={learningStyle} onChangeText={(v) => setLearningStyle((v.trim().toLowerCase() as Student["learningStyle"]) || "misto")} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
-                      </View>
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable onPress={() => toggleCreateSection("health")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Saúde</Text>
-                    {createHealthAssessment.level !== "apto" ? (
-                      <View
-                        style={{
-                          borderRadius: 999,
-                          borderWidth: 1,
-                          borderColor:
-                            createHealthAssessment.level === "revisar"
-                              ? colors.dangerBorder
-                              : colors.warningBg,
-                          backgroundColor:
-                            createHealthAssessment.level === "revisar"
-                              ? colors.dangerBg
-                              : colors.warningBg,
-                          paddingHorizontal: 8,
-                          paddingVertical: 2,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            color:
-                              createHealthAssessment.level === "revisar"
-                                ? colors.dangerText
-                                : colors.warningText,
-                            fontSize: 10,
-                            fontWeight: "700",
-                          }}
-                        >
-                          {createHealthAssessment.label}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{createHealthAssessment.summary}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "health" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "health" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createHealthAnim.isVisible ? (
-                <Animated.View style={[createHealthAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                      <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>Problema de saúde?</Text>
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                          <Pressable onPress={() => { setHealthIssue(false); setHealthIssueNotes(""); }} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: !healthIssue ? colors.primaryBg : colors.secondaryBg }}>
-                            <Text style={{ color: !healthIssue ? colors.primaryText : colors.text, fontWeight: "700" }}>Não</Text>
-                          </Pressable>
-                          <Pressable onPress={() => setHealthIssue(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: healthIssue ? colors.primaryBg : colors.secondaryBg }}>
-                            <Text style={{ color: healthIssue ? colors.primaryText : colors.text, fontWeight: "700" }}>Sim</Text>
-                          </Pressable>
-                        </View>
-                        {healthIssue ? <TextInput placeholder="Descreva a questão de saúde" value={healthIssueNotes} onChangeText={setHealthIssueNotes} placeholderTextColor={colors.placeholder} multiline style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText, minHeight: 72, textAlignVertical: "top" }} /> : null}
-                      </View>
-                      <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>Uso contínuo de medicação?</Text>
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                          <Pressable onPress={() => { setMedicationUse(false); setMedicationNotes(""); }} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: !medicationUse ? colors.primaryBg : colors.secondaryBg }}>
-                            <Text style={{ color: !medicationUse ? colors.primaryText : colors.text, fontWeight: "700" }}>Não</Text>
-                          </Pressable>
-                          <Pressable onPress={() => setMedicationUse(true)} style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: medicationUse ? colors.primaryBg : colors.secondaryBg }}>
-                            <Text style={{ color: medicationUse ? colors.primaryText : colors.text, fontWeight: "700" }}>Sim</Text>
-                          </Pressable>
-                        </View>
-                        {medicationUse ? <TextInput placeholder="Qual medicação?" value={medicationNotes} onChangeText={setMedicationNotes} placeholderTextColor={colors.placeholder} multiline style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText, minHeight: 72, textAlignVertical: "top" }} /> : null}
-                      </View>
-                    </View>
-                    <TextInput placeholder="Outras observações" value={healthObservations} onChangeText={setHealthObservations} placeholderTextColor={colors.placeholder} multiline style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText, minHeight: 80, textAlignVertical: "top" }} />
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
-              <Pressable onPress={() => toggleCreateSection("guardian")} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Responsável</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{guardianName.trim() || "Nome e contato do responsável..."}</Text>
-                </View>
-                <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: openCreateSection === "guardian" ? "180deg" : "0deg" }] }} />
-              </Pressable>
-              {openCreateSection === "guardian" ? <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 12 }} /> : null}
-              {createGuardianAnim.isVisible ? (
-                <Animated.View style={[createGuardianAnim.animatedStyle, { overflow: "hidden" }]}>
-                  <View style={{ gap: 10, padding: 12 }}>
-                    <TextInput placeholder="Nome do responsável" value={guardianName} onChangeText={setGuardianName} onBlur={() => setGuardianName(formatName(guardianName))} placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Telefone do responsável</Text>
-                        <TextInput placeholder="Telefone do responsável" value={guardianPhone} onChangeText={(v) => setGuardianPhone(formatPhone(v))} keyboardType="phone-pad" placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.border, padding: 12, borderRadius: 12, backgroundColor: colors.background, color: colors.inputText }} />
-                      </View>
-                      <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
-                        <Text style={{ color: colors.muted, fontSize: 11 }}>Parentesco</Text>
-                        <View ref={guardianRelationTriggerRef}>
-                          <Pressable onPress={() => toggleFormPicker("guardianRelation")} style={selectFieldStyle}>
-                            <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>{guardianRelation || "Selecione"}</Text>
-                            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} style={{ transform: [{ rotate: showGuardianRelationPicker ? "180deg" : "0deg" }] }} />
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-                </Animated.View>
-              ) : null}
-            </View>
-
-            {showInlineSaveButton ? (
-              <Button label={editingId ? "Salvar alterações" : "Adicionar aluno"} onPress={onSave} disabled={!canSaveStudent} />
-            ) : null}
-            {editingId ? (
-              <Button
-                label="Cancelar edição"
-                variant="secondary"
-                onPress={() => {
-                  if (isFormDirty) {
-                    confirmDialog({
-                      title: "Sair sem salvar?",
-                      message: "Você tem alterações não salvas.",
-                      tone: "default",
-                      confirmLabel: "Descartar",
-                      cancelLabel: "Continuar",
-                      onConfirm: () => { doResetForm(); },
-                    });
-                    return;
-                  }
-                  doResetForm();
+  return (
+    <View style={{ gap: 10 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Pressable
+            onPress={() => setShowPhotoSheet(true)}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: radius.full,
+              backgroundColor: colors.backgroundSubtle,
+              borderWidth: 1,
+              borderColor: colors.borderSubtle,
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
+            {photoUrl ? (
+              <Image
+                source={{ uri: photoUrl }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+              />
+            ) : (
+              <GoAtletaIcon
+                name="personSolid"
+                size={22}
+                color={colors.textPrimary}
+              />
+            )}
+          </Pressable>
+          <Pressable
+            onPress={() => setShowPhotoSheet(true)}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: radius.internal,
+              backgroundColor: colors.backgroundSubtle,
+              borderWidth: 1,
+              borderColor: colors.borderSubtle,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontWeight: "800",
+                color: colors.textPrimary,
+              }}
+            >
+              Adicionar foto
+            </Text>
+          </Pressable>
+        </View>
+        <View style={{ width: 190, maxWidth: "100%" }}>
+          <View ref={typeTriggerRef}>
+            <Pressable
+              onPress={() => toggleFormPicker("type")}
+              style={selectFieldStyle}
+            >
+              <Text
+                style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}
+              >
+                {isExperimental ? "Experimental" : "Aluno regular"}
+              </Text>
+              <GoAtletaIcon
+                name="chevronDown"
+                size={16}
+                color={colors.muted}
+                style={{
+                  transform: [{ rotate: showTypePicker ? "180deg" : "0deg" }],
                 }}
               />
-            ) : null}
+            </Pressable>
+          </View>
         </View>
-    );
+      </View>
+
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: colors.borderSubtle,
+          borderRadius: radius.card,
+          backgroundColor: colors.surface,
+          overflow: "hidden",
+        }}
+      >
+        <Pressable
+          disabled={continuousMode}
+          onPress={() => toggleCreateSection("studentData")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              style={{
+                color: colors.textPrimary,
+                fontSize: 14,
+                fontWeight: "900",
+              }}
+            >
+              Dados do aluno
+            </Text>
+            <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+              {name.trim() || "Nome, unidade, turma..."}
+            </Text>
+          </View>
+          {!continuousMode ? (
+            <GoAtletaIcon
+              name="chevronDown"
+              size={16}
+              color={colors.muted}
+              style={{
+                transform: [
+                  {
+                    rotate:
+                      openCreateSection === "studentData" ? "180deg" : "0deg",
+                  },
+                ],
+              }}
+            />
+          ) : null}
+        </Pressable>
+        {continuousMode || openCreateSection === "studentData" ? (
+          <View
+            style={{
+              height: 1,
+              backgroundColor: colors.borderSubtle,
+              marginHorizontal: 12,
+            }}
+          />
+        ) : null}
+        {continuousMode || createStudentDataAnim.isVisible ? (
+          <Animated.View
+            style={[
+              continuousMode ? undefined : createStudentDataAnim.animatedStyle,
+              { overflow: "hidden" },
+            ]}
+          >
+            <View style={{ gap: 10, padding: 12 }}>
+              <FormFieldValidationFeedback
+                message={
+                  validationIssue?.field === "name"
+                    ? validationIssue.message
+                    : ""
+                }
+                attempt={
+                  validationIssue?.field === "name"
+                    ? validationIssue.attempt
+                    : 0
+                }
+              >
+                <TextInput
+                  ref={nameInputRef}
+                  placeholder="Nome do aluno"
+                  value={name}
+                  onChangeText={(value) => {
+                    onClearValidation?.("name");
+                    setName(value);
+                  }}
+                  onBlur={() => setName(formatName(name))}
+                  placeholderTextColor={colors.placeholder}
+                  accessibilityLabel="Nome do aluno"
+                  style={[
+                    {
+                      borderWidth: 1,
+                      borderColor: colors.borderSubtle,
+                      padding: 12,
+                      borderRadius: radius.internal,
+                      backgroundColor: colors.inputBg,
+                      color: colors.textPrimary,
+                    },
+                    getValidationFieldStyle(
+                      validationIssue?.field === "name",
+                      colors.dangerSolidBg,
+                    ),
+                  ]}
+                />
+              </FormFieldValidationFeedback>
+              <FormFieldValidationFeedback
+                message={
+                  validationIssue?.field === "unitClass"
+                    ? validationIssue.message
+                    : ""
+                }
+                attempt={
+                  validationIssue?.field === "unitClass"
+                    ? validationIssue.attempt
+                    : 0
+                }
+              >
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
+                >
+                  <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      Unidade
+                    </Text>
+                    <View ref={unitTriggerRef}>
+                      <Pressable
+                        onPress={() => {
+                          onClearValidation?.("unitClass");
+                          toggleFormPicker("unit");
+                        }}
+                        style={[
+                          selectFieldStyle,
+                          getValidationFieldStyle(
+                            validationIssue?.field === "unitClass",
+                            colors.dangerSolidBg,
+                          ),
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontWeight: "700",
+                            fontSize: 13,
+                          }}
+                        >
+                          {unit || "Selecione a unidade"}
+                        </Text>
+                        <GoAtletaIcon
+                          name="chevronDown"
+                          size={16}
+                          color={colors.muted}
+                          style={{
+                            transform: [
+                              { rotate: showUnitPicker ? "180deg" : "0deg" },
+                            ],
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      Turma
+                    </Text>
+                    <View ref={classTriggerRef}>
+                      <Pressable
+                        onPress={() => {
+                          onClearValidation?.("unitClass");
+                          toggleFormPicker("class");
+                        }}
+                        style={[
+                          selectFieldStyle,
+                          getValidationFieldStyle(
+                            validationIssue?.field === "unitClass",
+                            colors.dangerSolidBg,
+                          ),
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontWeight: "700",
+                            fontSize: 13,
+                          }}
+                        >
+                          {selectedClassName || "Selecione a turma"}
+                        </Text>
+                        <GoAtletaIcon
+                          name="chevronDown"
+                          size={16}
+                          color={colors.muted}
+                          style={{
+                            transform: [
+                              { rotate: showClassPicker ? "180deg" : "0deg" },
+                            ],
+                          }}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              </FormFieldValidationFeedback>
+              {studentFormError ? (
+                <Text style={{ color: colors.dangerText, fontSize: 12 }}>
+                  {studentFormError}
+                </Text>
+              ) : null}
+              {topExistingMatch ? (
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor:
+                      topExistingMatch.confidence === "high"
+                        ? colors.warningBg
+                        : colors.border,
+                    borderRadius: 12,
+                    backgroundColor:
+                      topExistingMatch.confidence === "high"
+                        ? colors.warningBg
+                        : colors.secondaryBg,
+                    padding: 10,
+                    gap: 6,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color:
+                        topExistingMatch.confidence === "high"
+                          ? colors.warningText
+                          : colors.text,
+                      fontSize: 12,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {existingStudentTitle}
+                  </Text>
+                  <Text
+                    style={{
+                      color:
+                        topExistingMatch.confidence === "high"
+                          ? colors.warningText
+                          : colors.muted,
+                      fontSize: 12,
+                    }}
+                  >
+                    {existingStudentDescription}
+                  </Text>
+                  {existingStudentMatches.length > 1 ? (
+                    <Text
+                      style={{
+                        color:
+                          topExistingMatch.confidence === "high"
+                            ? colors.warningText
+                            : colors.muted,
+                        fontSize: 11,
+                      }}
+                    >
+                      Encontrados {existingStudentMatches.length} cadastros
+                      parecidos em outras turmas.
+                    </Text>
+                  ) : null}
+                  <View
+                    style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}
+                  >
+                    {onReviewExistingStudents ? (
+                      <Button
+                        label="Ver alunos"
+                        variant="secondary"
+                        onPress={onReviewExistingStudents}
+                      />
+                    ) : null}
+                    {onDismissExistingStudentWarning ? (
+                      <Button
+                        label="Cadastrar mesmo assim"
+                        variant="ghost"
+                        onPress={onDismissExistingStudentWarning}
+                      />
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <FormFieldValidationFeedback
+                    message={
+                      validationIssue?.field === "birthDate"
+                        ? validationIssue.message
+                        : ""
+                    }
+                    attempt={
+                      validationIssue?.field === "birthDate"
+                        ? validationIssue.attempt
+                        : 0
+                    }
+                  >
+                    <DateInput
+                      inputRef={birthDateInputRef}
+                      value={birthDate}
+                      onChange={(value) => {
+                        onClearValidation?.("birthDate");
+                        setBirthDate(value);
+                      }}
+                      placeholder="Data de nascimento"
+                      onOpenCalendar={() => setShowCalendar(true)}
+                      invalid={validationIssue?.field === "birthDate"}
+                    />
+                  </FormFieldValidationFeedback>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {ageNumber !== null
+                      ? `Idade: ${ageNumber} anos`
+                      : "Idade calculada automaticamente"}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <TextInput
+                    placeholder="Telefone"
+                    value={phone}
+                    onChangeText={(v) => setPhone(formatPhone(v))}
+                    keyboardType="phone-pad"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+        ) : null}
+      </View>
+
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 14,
+          backgroundColor: colors.card,
+          overflow: "hidden",
+        }}
+      >
+        <Pressable
+          disabled={continuousMode}
+          onPress={() => toggleCreateSection("academic")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}
+            >
+              Perfil Acadêmico
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {[
+                safeText(ra).trim() ? `RA: ${safeText(ra)}` : "",
+                safeText(collegeCourse).trim() ? safeText(collegeCourse) : "",
+              ]
+                .filter(Boolean)
+                .join(" • ") || "RA e curso..."}
+            </Text>
+          </View>
+          {!continuousMode ? (
+            <GoAtletaIcon
+              name="chevronDown"
+              size={16}
+              color={colors.muted}
+              style={{
+                transform: [
+                  {
+                    rotate:
+                      openCreateSection === "academic" ? "180deg" : "0deg",
+                  },
+                ],
+              }}
+            />
+          ) : null}
+        </Pressable>
+        {continuousMode || openCreateSection === "academic" ? (
+          <View
+            style={{
+              height: 1,
+              backgroundColor: colors.border,
+              marginHorizontal: 12,
+            }}
+          />
+        ) : null}
+        {continuousMode || createAcademicAnim.isVisible ? (
+          <Animated.View
+            style={[
+              continuousMode ? undefined : createAcademicAnim.animatedStyle,
+              { overflow: "hidden" },
+            ]}
+          >
+            <View style={{ gap: 10, padding: 12 }}>
+              <StudentAcademicFields
+                ra={ra}
+                collegeCourse={collegeCourse}
+                onChangeRa={(value) => {
+                  onClearValidation?.("ra");
+                  setRa(value);
+                  setStudentDocumentsError((prev) => ({
+                    ...prev,
+                    ra: undefined,
+                  }));
+                }}
+                onChangeCollegeCourse={setCollegeCourse}
+                errors={{
+                  ...studentDocumentsError,
+                  ra:
+                    validationIssue?.field === "ra"
+                      ? validationIssue.message
+                      : studentDocumentsError.ra,
+                }}
+                raInputRef={raInputRef}
+                validationAttempt={
+                  validationIssue?.field === "ra" ? validationIssue.attempt : 0
+                }
+              />
+            </View>
+          </Animated.View>
+        ) : null}
+      </View>
+
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 14,
+          backgroundColor: colors.card,
+          overflow: "hidden",
+        }}
+      >
+        <Pressable
+          disabled={continuousMode}
+          onPress={() => toggleCreateSection("documents")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}
+            >
+              Documentos
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {[
+                cpfDisplay.trim() ? "CPF" : "",
+                rgDocument.trim() ? "RG" : "",
+                loginEmail.trim() ? "e-mail" : "",
+              ]
+                .filter(Boolean)
+                .join(", ") || "CPF, RG, e-mail..."}
+            </Text>
+          </View>
+          {!continuousMode ? (
+            <GoAtletaIcon
+              name="chevronDown"
+              size={16}
+              color={colors.muted}
+              style={{
+                transform: [
+                  {
+                    rotate:
+                      openCreateSection === "documents" ? "180deg" : "0deg",
+                  },
+                ],
+              }}
+            />
+          ) : null}
+        </Pressable>
+        {continuousMode || openCreateSection === "documents" ? (
+          <View
+            style={{
+              height: 1,
+              backgroundColor: colors.border,
+              marginHorizontal: 12,
+            }}
+          />
+        ) : null}
+        {continuousMode || createDocumentsAnim.isVisible ? (
+          <Animated.View
+            style={[
+              continuousMode ? undefined : createDocumentsAnim.animatedStyle,
+              { overflow: "hidden" },
+            ]}
+          >
+            <View style={{ gap: 10, padding: 12 }}>
+              <StudentDocumentsFields
+                cpfDisplay={cpfDisplay}
+                rg={rgDocument}
+                onChangeCpf={(value) => {
+                  setCpfDisplay(value);
+                  setIsCpfVisible(false);
+                  setCpfRevealedValue(null);
+                  setCpfRevealUnavailable(false);
+                  setStudentDocumentsError((prev) => ({
+                    ...prev,
+                    cpf: undefined,
+                  }));
+                }}
+                onChangeRg={setRgDocument}
+                showRevealCpfButton={Boolean(editingId && canRevealCpf)}
+                isCpfVisible={isCpfVisible}
+                revealCpfBusy={revealCpfBusy}
+                onRevealCpf={handleRevealEditingCpf}
+                errors={studentDocumentsError}
+              />
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  Email do aluno (login)
+                </Text>
+                <TextInput
+                  placeholder="email@exemplo.com"
+                  value={loginEmail}
+                  onChangeText={setLoginEmail}
+                  onBlur={() => setLoginEmail(formatEmail(loginEmail))}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholderTextColor={colors.placeholder}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: colors.background,
+                    color: colors.inputText,
+                  }}
+                />
+              </View>
+            </View>
+          </Animated.View>
+        ) : null}
+      </View>
+
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 14,
+          backgroundColor: colors.card,
+          overflow: "hidden",
+        }}
+      >
+        <Pressable
+          disabled={continuousMode}
+          onPress={() => toggleCreateSection("sportProfile")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}
+            >
+              Perfil esportivo
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {[positionPrimary, positionSecondary]
+                .filter((v) => v && v !== "indefinido")
+                .join(", ") || "Posições, objetivo..."}
+            </Text>
+          </View>
+          {!continuousMode ? (
+            <GoAtletaIcon
+              name="chevronDown"
+              size={16}
+              color={colors.muted}
+              style={{
+                transform: [
+                  {
+                    rotate:
+                      openCreateSection === "sportProfile" ? "180deg" : "0deg",
+                  },
+                ],
+              }}
+            />
+          ) : null}
+        </Pressable>
+        {continuousMode || openCreateSection === "sportProfile" ? (
+          <View
+            style={{
+              height: 1,
+              backgroundColor: colors.border,
+              marginHorizontal: 12,
+            }}
+          />
+        ) : null}
+        {continuousMode || createSportAnim.isVisible ? (
+          <Animated.View
+            style={[
+              continuousMode ? undefined : createSportAnim.animatedStyle,
+              { overflow: "hidden" },
+            ]}
+          >
+            <View style={{ gap: 10, padding: 12 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Posição principal
+                  </Text>
+                  <TextInput
+                    placeholder="indefinido | levantador | oposto..."
+                    value={positionPrimary}
+                    onChangeText={(v) =>
+                      setPositionPrimary(
+                        (v
+                          .trim()
+                          .toLowerCase() as Student["positionPrimary"]) ||
+                          "indefinido",
+                      )
+                    }
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Posição secundária
+                  </Text>
+                  <TextInput
+                    placeholder="indefinido | ponteiro | libero..."
+                    value={positionSecondary}
+                    onChangeText={(v) =>
+                      setPositionSecondary(
+                        (v
+                          .trim()
+                          .toLowerCase() as Student["positionSecondary"]) ||
+                          "indefinido",
+                      )
+                    }
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Objetivo esportivo
+                  </Text>
+                  <TextInput
+                    placeholder="ludico | base | rendimento"
+                    value={athleteObjective}
+                    onChangeText={(v) =>
+                      setAthleteObjective(
+                        (v
+                          .trim()
+                          .toLowerCase() as Student["athleteObjective"]) ||
+                          "base",
+                      )
+                    }
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Estilo de aprendizagem
+                  </Text>
+                  <TextInput
+                    placeholder="misto | visual | auditivo | cinestesico"
+                    value={learningStyle}
+                    onChangeText={(v) =>
+                      setLearningStyle(
+                        (v.trim().toLowerCase() as Student["learningStyle"]) ||
+                          "misto",
+                      )
+                    }
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+        ) : null}
+      </View>
+
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 14,
+          backgroundColor: colors.card,
+          overflow: "hidden",
+        }}
+      >
+        <Pressable
+          disabled={continuousMode}
+          onPress={() => toggleCreateSection("health")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <Text
+                style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}
+              >
+                Saúde
+              </Text>
+              {createHealthAssessment.level !== "apto" ? (
+                <View
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor:
+                      createHealthAssessment.level === "revisar"
+                        ? colors.dangerBorder
+                        : colors.warningBg,
+                    backgroundColor:
+                      createHealthAssessment.level === "revisar"
+                        ? colors.dangerBg
+                        : colors.warningBg,
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color:
+                        createHealthAssessment.level === "revisar"
+                          ? colors.dangerText
+                          : colors.warningText,
+                      fontSize: 10,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {createHealthAssessment.label}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {createHealthAssessment.summary}
+            </Text>
+          </View>
+          {!continuousMode ? (
+            <GoAtletaIcon
+              name="chevronDown"
+              size={16}
+              color={colors.muted}
+              style={{
+                transform: [
+                  {
+                    rotate: openCreateSection === "health" ? "180deg" : "0deg",
+                  },
+                ],
+              }}
+            />
+          ) : null}
+        </Pressable>
+        {continuousMode || openCreateSection === "health" ? (
+          <View
+            style={{
+              height: 1,
+              backgroundColor: colors.border,
+              marginHorizontal: 12,
+            }}
+          />
+        ) : null}
+        {continuousMode || createHealthAnim.isVisible ? (
+          <Animated.View
+            style={[
+              continuousMode ? undefined : createHealthAnim.animatedStyle,
+              { overflow: "hidden" },
+            ]}
+          >
+            <View style={{ gap: 10, padding: 12 }}>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Problema de saúde?
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <Pressable
+                      onPress={() => {
+                        setHealthIssue(false);
+                        setHealthIssueNotes("");
+                      }}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: !healthIssue
+                          ? colors.primaryBg
+                          : colors.secondaryBg,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: !healthIssue
+                            ? colors.primaryText
+                            : colors.text,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Não
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setHealthIssue(true)}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: healthIssue
+                          ? colors.primaryBg
+                          : colors.secondaryBg,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: healthIssue ? colors.primaryText : colors.text,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Sim
+                      </Text>
+                    </Pressable>
+                  </View>
+                  {healthIssue ? (
+                    <TextInput
+                      placeholder="Descreva a questão de saúde"
+                      value={healthIssueNotes}
+                      onChangeText={setHealthIssueNotes}
+                      placeholderTextColor={colors.placeholder}
+                      multiline
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        padding: 12,
+                        borderRadius: 12,
+                        backgroundColor: colors.background,
+                        color: colors.inputText,
+                        minHeight: 72,
+                        textAlignVertical: "top",
+                      }}
+                    />
+                  ) : null}
+                </View>
+                <View style={{ flex: 1, minWidth: 140, gap: 8 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    Uso contínuo de medicação?
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <Pressable
+                      onPress={() => {
+                        setMedicationUse(false);
+                        setMedicationNotes("");
+                      }}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: !medicationUse
+                          ? colors.primaryBg
+                          : colors.secondaryBg,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: !medicationUse
+                            ? colors.primaryText
+                            : colors.text,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Não
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setMedicationUse(true)}
+                      style={{
+                        paddingVertical: 6,
+                        paddingHorizontal: 14,
+                        borderRadius: 999,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: medicationUse
+                          ? colors.primaryBg
+                          : colors.secondaryBg,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: medicationUse
+                            ? colors.primaryText
+                            : colors.text,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Sim
+                      </Text>
+                    </Pressable>
+                  </View>
+                  {medicationUse ? (
+                    <TextInput
+                      placeholder="Qual medicação?"
+                      value={medicationNotes}
+                      onChangeText={setMedicationNotes}
+                      placeholderTextColor={colors.placeholder}
+                      multiline
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        padding: 12,
+                        borderRadius: 12,
+                        backgroundColor: colors.background,
+                        color: colors.inputText,
+                        minHeight: 72,
+                        textAlignVertical: "top",
+                      }}
+                    />
+                  ) : null}
+                </View>
+              </View>
+              <TextInput
+                placeholder="Outras observações"
+                value={healthObservations}
+                onChangeText={setHealthObservations}
+                placeholderTextColor={colors.placeholder}
+                multiline
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.background,
+                  color: colors.inputText,
+                  minHeight: 80,
+                  textAlignVertical: "top",
+                }}
+              />
+            </View>
+          </Animated.View>
+        ) : null}
+      </View>
+
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 14,
+          backgroundColor: colors.card,
+          overflow: "hidden",
+        }}
+      >
+        <Pressable
+          disabled={continuousMode}
+          onPress={() => toggleCreateSection("guardian")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}
+            >
+              Responsável
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 11 }}>
+              {guardianName.trim() || "Nome e contato do responsável..."}
+            </Text>
+          </View>
+          {!continuousMode ? (
+            <GoAtletaIcon
+              name="chevronDown"
+              size={16}
+              color={colors.muted}
+              style={{
+                transform: [
+                  {
+                    rotate:
+                      openCreateSection === "guardian" ? "180deg" : "0deg",
+                  },
+                ],
+              }}
+            />
+          ) : null}
+        </Pressable>
+        {continuousMode || openCreateSection === "guardian" ? (
+          <View
+            style={{
+              height: 1,
+              backgroundColor: colors.border,
+              marginHorizontal: 12,
+            }}
+          />
+        ) : null}
+        {continuousMode || createGuardianAnim.isVisible ? (
+          <Animated.View
+            style={[
+              continuousMode ? undefined : createGuardianAnim.animatedStyle,
+              { overflow: "hidden" },
+            ]}
+          >
+            <View style={{ gap: 10, padding: 12 }}>
+              <TextInput
+                placeholder="Nome do responsável"
+                value={guardianName}
+                onChangeText={setGuardianName}
+                onBlur={() => setGuardianName(formatName(guardianName))}
+                placeholderTextColor={colors.placeholder}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 12,
+                  borderRadius: 12,
+                  backgroundColor: colors.background,
+                  color: colors.inputText,
+                }}
+              />
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Telefone do responsável
+                  </Text>
+                  <TextInput
+                    placeholder="Telefone do responsável"
+                    value={guardianPhone}
+                    onChangeText={(v) => setGuardianPhone(formatPhone(v))}
+                    keyboardType="phone-pad"
+                    placeholderTextColor={colors.placeholder}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      padding: 12,
+                      borderRadius: 12,
+                      backgroundColor: colors.background,
+                      color: colors.inputText,
+                    }}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 140, gap: 4 }}>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Parentesco
+                  </Text>
+                  <View ref={guardianRelationTriggerRef}>
+                    <Pressable
+                      onPress={() => toggleFormPicker("guardianRelation")}
+                      style={selectFieldStyle}
+                    >
+                      <Text
+                        style={{
+                          color: colors.text,
+                          fontWeight: "700",
+                          fontSize: 13,
+                        }}
+                      >
+                        {guardianRelation || "Selecione"}
+                      </Text>
+                      <GoAtletaIcon
+                        name="chevronDown"
+                        size={16}
+                        color={colors.muted}
+                        style={{
+                          transform: [
+                            {
+                              rotate: showGuardianRelationPicker
+                                ? "180deg"
+                                : "0deg",
+                            },
+                          ],
+                        }}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+        ) : null}
+      </View>
+
+      {showInlineSaveButton ? (
+        <Button
+          label={editingId ? "Salvar alterações" : "Adicionar aluno"}
+          onPress={onSave}
+          disabled={!canSaveStudent}
+        />
+      ) : null}
+      {editingId ? (
+        <Button
+          label="Cancelar edição"
+          variant="secondary"
+          onPress={() => {
+            if (isFormDirty) {
+              confirmDialog({
+                title: "Sair sem salvar?",
+                message: "Você tem alterações não salvas.",
+                tone: "default",
+                confirmLabel: "Descartar",
+                cancelLabel: "Continuar",
+                onConfirm: () => {
+                  doResetForm();
+                },
+              });
+              return;
+            }
+            doResetForm();
+          }}
+        />
+      ) : null}
+    </View>
+  );
 }

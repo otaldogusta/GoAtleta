@@ -1,45 +1,88 @@
-# Design QA — menu de perfil do sidebar compacto
+# Design QA — rolagens independentes na periodização
 
 ## Fonte de verdade
 
-- Rota autenticada: `http://localhost:8081/prof/home`
-- Referência visual: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\profile-menu-reference-chatgpt.png`
-- Screenshot da implementação: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\profile-menu-compact-desktop.png`
-- Comparação lado a lado: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\profile-menu-reference-comparison.png`
-- Estado comparado: sidebar compacto, tema escuro, menu de perfil aberto.
+- Solicitação visual: comentário do navegador sobre a separação de `Parâmetros do ciclo` e `Prévia do impacto`.
+- Estado anterior capturado: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\periodization-independent-scroll-before.jpg`.
+- Implementação no topo: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\periodization-independent-scroll-top.jpg`.
+- Implementação com as duas regiões deslocadas: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\periodization-independent-scroll-after.jpg`.
+- Comparação lado a lado: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\periodization-independent-scroll-comparison.png`.
 
-## Viewport, pixels e densidade
+## Viewport e estado
 
-- Referência: bitmap de 1194 × 892 px; densidade não informada pela origem.
-- Implementação principal: viewport CSS e bitmap de 1209 × 812 px, DPR 1,8.
-- Comparação: canvas de 2418 × 856 px. A referência foi redimensionada proporcionalmente e centralizada em um painel de 1209 × 812 px; a implementação permaneceu em escala 1:1.
-- Breakpoints adicionais verificados:
-  - celular: 390 × 844 CSS px, DPR 0,9, sem overflow horizontal global; o sidebar web não é exibido nesse breakpoint;
-  - tablet: 834 × 1194 CSS px, DPR 0,9; menu com 304 × 205 px totalmente contido no viewport;
-  - desktop amplo: 1440 × 1024 CSS px, DPR 0,9; menu com 304 × 205 px totalmente contido no viewport.
+- Rota autenticada: `http://localhost:8081/class/c_1769011692095/periodization`.
+- Desktop comparado em 1209 × 812 CSS px, DPR normalizado em captura de 1209 × 812 px.
+- Tema escuro, modal aberto, turma `Turma 10-12`.
+- Tablet validado em 833 × 1194 CSS px e celular em 390 × 844 CSS px.
+- Comparação completa suficiente para composição; a captura deslocada foi usada como evidência focada da interação.
 
-## Comparação visual
+## Findings
 
-- O padrão visual solicitado foi preservado: superfície flutuante escura, identidade da conta no topo, divisores e ações agrupadas.
-- A largura de 304 px e a densidade operacional do GoAtleta foram mantidas em vez de copiar literalmente as dimensões do ChatGPT.
-- Avatar, nome, função, chevron, ação de configurações e saída permanecem alinhados ao sistema visual existente.
-- O menu conserva contraste e legibilidade tanto sobre o tema escuro quanto sobre o tema claro.
-- Não foram criados ativos aproximados: os ícones existentes do GoAtleta foram reutilizados.
+- Nenhum P0, P1 ou P2 restante.
+- Desktop: os dois painéis ocupam a mesma região vertical e possuem barras de rolagem próprias.
+- Tablet e celular: o conteúdo continua empilhado em uma única rolagem, evitando duas áreas estreitas competindo pelo gesto.
+- Cabeçalho e rodapé permanecem fixos em todos os tamanhos.
+- Não há overflow horizontal global: 822/833 px no tablet e 379/390 px no celular.
 
-## Interação e acessibilidade
+## Interação verificada
 
-- O avatar compacto abre o menu por clique e por `Enter`.
-- `Esc`, clique externo e o próprio avatar fecham o menu.
-- `Perfil e configurações` navega para `/prof/profile`.
-- O menu expõe os nomes acessíveis `Menu de perfil`, `Abrir menu de perfil` e `Fechar menu de perfil`.
-- Console: nenhum erro. Permanecem dois warnings globais já conhecidos do React Native Web (`pointerEvents` e `shadow*` depreciados), fora do escopo desta regressão.
+- Rolagem somente em `Parâmetros do ciclo`: esquerda 210 px, direita 0 px.
+- Rolagem posterior em `Prévia do impacto`: esquerda preservada em 210 px, direita 180 px.
+- Limites úteis medidos: 332 px no painel esquerdo e 322 px no painel direito.
+- Console sem erros. Permanecem apenas warnings globais conhecidos do React Native Web e o aviso de desconexão causado pelo reinício controlado do Metro.
 
-## Histórico de refinamento
+## Fidelidade
 
-1. P1 — o estado do menu era atualizado, mas a renderização estava condicionada a `expanded`, tornando o clique do avatar compacto invisível; a condição foi removida.
-2. P1 — foi adicionado teste de regressão que renderiza o sidebar compacto, aciona o avatar e confirma identidade e ações do menu.
-3. P2 — o ambiente de teste não disponibilizava `localStorage`; foi incluído um mock local ao teste, sem alterar o comportamento de produção.
-4. P3 — o carregamento assíncrono dos ícones gerava ruído de `act(...)`; o registro de ícones foi substituído apenas no teste.
+- Tipografia, cores, ícones, bordas, espaçamento e conteúdo foram preservados.
+- A única mudança visual é estrutural: duas barras verticais no desktop, uma por painel.
+- Nenhuma imagem ou ativo foi alterado.
+
+## Histórico de comparação
+
+1. P2 inicial — uma única rolagem movia os dois blocos e dificultava consultar parâmetros enquanto se lia o impacto.
+2. Correção — o corpo desktop foi dividido em duas regiões roláveis, mantendo o shell do modal fixo.
+3. Pós-correção — comparação e teste de deslocamento confirmaram independência sem regressão responsiva.
+
+## Resultado final
+
+final result: passed
+
+---
+
+# Design QA — Alunos e aniversários
+
+## Fonte de verdade
+
+- Mockup aprovado pelo usuário para a lista de alunos e o cadastro em painel lateral.
+- Mockup fornecido para a tela de aniversários.
+- Implementação validada em `http://localhost:8081/prof/students`.
+
+## Verificação
+
+- A estrutura principal é exibida imediatamente; o carregamento dos dados acontece dentro da área de conteúdo, sem bloquear toda a aplicação.
+- A tela de alunos usa o mesmo padrão visual da listagem de turmas: unidades à esquerda e tabela plana à direita.
+- Foram removidos o resumo redundante, os agrupamentos expansíveis antigos e o botão flutuante de cadastro.
+- A tabela apresenta aluno, idade, turma, status e contato do responsável, com foto ou avatar de fallback.
+- O cadastro abre em painel lateral pela direita, com animação, formulário contínuo sem etapas e rodapé fixo.
+- A tela de aniversários segue o mesmo shell, com unidades, indicadores de hoje e próximos sete dias, busca, filtro de mês e tabela.
+- Cabeçalho, ações e subtítulo mudam de acordo com a visão de alunos ou aniversários.
+- A lista renderiza oito alunos por página e expõe paginação com total e navegação.
+- No desktop, somente as linhas da tabela possuem rolagem própria; título, busca, filtros e cabeçalho das colunas permanecem fixos.
+- O painel de unidades e a paginação permanecem fixos durante a rolagem da lista.
+- O teste local confirmou rolagem interna real na lista (`408 px` visíveis para `504 px` de conteúdo), sem deslocar as regiões fixas.
+- Status, gênero, turma e contato são filtros funcionais; a busca e a unidade continuam combináveis.
+- O filtro de mês abre como dropdown ancorado e rolável, e as linhas não repetem a distância em dias.
+- O aniversariante do dia recebe um pequeno chapéu festivo no canto superior direito do avatar, com leve inclinação, tanto na lista de alunos quanto na visão de aniversários, sem substituir a foto.
+- As contagens por unidade permanecem globais ao trocar unidade, página ou filtro.
+- Clicar novamente em `Alunos` na barra lateral enquanto Aniversários está aberto retorna para a lista.
+- Nenhum P0, P1 ou P2 visual restante na comparação local.
+
+## Validações técnicas
+
+- TypeScript do aplicativo: aprovado.
+- Isolamento por organização: aprovado.
+- Higiene de performance: aprovado.
+- `git diff --check`: aprovado nos arquivos alterados.
 
 ## Resultado final
 

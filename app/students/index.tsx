@@ -1,81 +1,84 @@
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
-    Suspense,
-    lazy,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    Alert,
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    Text,
-    View,
-    useWindowDimensions
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+  useWindowDimensions,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-    StudentInvitePendingItem,
-    listStudentPendingInvites,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import {
+  StudentInvitePendingItem,
+  listStudentPendingInvites,
 } from "../../src/api/student-invite";
 import {
-    removeStudentPhotoObject,
-    uploadStudentPhoto,
+  removeStudentPhotoObject,
+  uploadStudentPhoto,
 } from "../../src/api/student-photo-storage";
 import { useAuth } from "../../src/auth/auth";
-import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
-import {
-    sortClassesBySchedule,
-} from "../../src/core/class-schedule-sort";
+import { sortClassesBySchedule } from "../../src/core/class-schedule-sort";
 import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
 import type { ClassGroup, Student } from "../../src/core/models";
 import { deriveStudentHealthAssessment } from "../../src/core/student-health";
 import {
-    findPossibleExistingStudents,
-    normalizeStudentLookupName,
+  findPossibleExistingStudents,
+  normalizeStudentLookupName,
 } from "../../src/core/students/find-possible-existing-students";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
-    deleteStudent,
-    getClasses,
-    getStudents,
-    revealStudentCpf,
-    saveStudent,
-    updateStudent
+  deleteStudent,
+  getClasses,
+  getStudents,
+  revealStudentCpf,
+  saveStudent,
+  updateStudent,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useIsOnline } from "../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
-import { markRender, measure, measureAsync } from "../../src/observability/perf";
+import {
+  markRender,
+  measure,
+  measureAsync,
+} from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { shadow } from "../../src/theme/tokens";
 import {
-    StudentClassDropdownPanel,
-    type ClassModalityFilterValue,
+  StudentClassDropdownPanel,
+  type ClassModalityFilterValue,
 } from "../../src/screens/students/components/StudentClassDropdownPanel";
 import { StudentSelectOption } from "../../src/screens/students/components/StudentDropdownOptions";
 import { StudentListRow } from "../../src/screens/students/components/StudentListRow";
 import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
-import { StudentsOverviewCard } from "../../src/screens/students/components/StudentsOverviewCard";
 import {
-    filterStudentsForList,
-    hasActiveStudentSearch,
-    normalizeStudentSearchText,
+  filterStudentsForList,
+  hasActiveStudentSearch,
+  normalizeStudentSearchText,
 } from "../../src/screens/students/application/student-search";
 import {
-    buildStudentListGroups,
-    groupStudentsByClassId,
+  buildStudentListGroups,
+  groupStudentsByClassId,
 } from "../../src/screens/students/application/student-list-selectors";
 import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
 import { useBuildStudentMessage } from "../../src/screens/students/hooks/useBuildStudentMessage";
@@ -90,7 +93,6 @@ import { StudentsImportModal } from "../../src/screens/students/modals/StudentsI
 import { WhatsAppModal } from "../../src/screens/students/modals/WhatsAppModal";
 import { StudentsListTab } from "../../src/screens/students/StudentsListTab";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
-import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { getClassPalette } from "../../src/ui/class-colors";
@@ -101,9 +103,7 @@ import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { Pressable } from "../../src/ui/Pressable";
 import { useSaveToast } from "../../src/ui/save-toast";
-import {
-    useFormValidationFeedback,
-} from "../../src/ui/form-validation-feedback";
+import { useFormValidationFeedback } from "../../src/ui/form-validation-feedback";
 import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
@@ -111,14 +111,15 @@ import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
-import { normalizeRaDigits, validateStudentRa } from "../../src/utils/student-ra";
 import {
-    getContactPhone
-} from "../../src/utils/whatsapp";
+  normalizeRaDigits,
+  validateStudentRa,
+} from "../../src/utils/student-ra";
+import { getContactPhone } from "../../src/utils/whatsapp";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import {
-    WHATSAPP_TEMPLATES,
-    type WhatsAppTemplateId
+  WHATSAPP_TEMPLATES,
+  type WhatsAppTemplateId,
 } from "../../src/utils/whatsapp-templates";
 
 const createStudentId = () => `s_${Date.now()}`;
@@ -150,10 +151,7 @@ const calculateAge = (iso: string) => {
   const today = new Date();
   let age = today.getFullYear() - date.getFullYear();
   const monthDiff = today.getMonth() - date.getMonth();
-  if (
-    monthDiff < 0 ||
-    (monthDiff === 0 && today.getDate() < date.getDate())
-  ) {
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < date.getDate())) {
     age -= 1;
   }
   return age;
@@ -168,15 +166,17 @@ const hasBirthDateWarning = (birthDate: string) => {
 };
 
 const StudentRegistrationTab = lazy(() =>
-  import("../../src/screens/students/StudentRegistrationTab").then((module) => ({
-    default: module.StudentRegistrationTab,
-  }))
+  import("../../src/screens/students/StudentRegistrationTab").then(
+    (module) => ({
+      default: module.StudentRegistrationTab,
+    }),
+  ),
 );
 
 const BirthdaysTab = lazy(() =>
   import("../../src/screens/students/BirthdaysTab").then((module) => ({
     default: module.BirthdaysTab,
-  }))
+  })),
 );
 
 const monthNames = [
@@ -205,7 +205,12 @@ const athletePositionOptions = [
   "libero",
 ] as const;
 const athleteObjectiveOptions = ["ludico", "base", "rendimento"] as const;
-const athleteLearningStyleOptions = ["misto", "visual", "auditivo", "cinestesico"] as const;
+const athleteLearningStyleOptions = [
+  "misto",
+  "visual",
+  "auditivo",
+  "cinestesico",
+] as const;
 type StudentValidationField = "unitClass" | "name" | "birthDate" | "ra";
 
 const formatStartTimeLabel = (value: string) => {
@@ -262,13 +267,24 @@ export default function StudentsScreen() {
     justifyContent: "space-between" as const,
     gap: 8,
   };
-  const editModalCardStyle = useModalCardStyle({ maxHeight: Platform.OS === "web" ? "92%" : "96%", maxWidth: isCompactForm ? 700 : 960, padding: 16, radius: 16 });
+  const editModalCardStyle = useModalCardStyle({
+    maxHeight: Platform.OS === "web" ? "92%" : "96%",
+    maxWidth: isCompactForm ? 700 : 960,
+    padding: 16,
+    radius: 16,
+  });
   const whatsappModalCardStyle = useModalCardStyle({
     maxHeight: "70%",
     maxWidth: 440,
   });
-  const photoPreviewCardStyle = useModalCardStyle({ maxHeight: "70%", maxWidth: 360 });
-  const photoSheetCardStyle = useModalCardStyle({ maxHeight: "55%", maxWidth: 320 });
+  const photoPreviewCardStyle = useModalCardStyle({
+    maxHeight: "70%",
+    maxWidth: 360,
+  });
+  const photoSheetCardStyle = useModalCardStyle({
+    maxHeight: "55%",
+    maxWidth: 320,
+  });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -276,61 +292,136 @@ export default function StudentsScreen() {
   const isMountedRef = useRef(true);
   const [showForm, setShowForm] = usePersistedState<boolean>(
     "students_show_form_v1",
-    false
+    false,
   );
-  const [studentsTab, setStudentsTab] = usePersistedState<StudentsTab>("students_tab_v1", "alunos");
+  const [studentsTab, setStudentsTab] = useState<StudentsTab>("alunos");
   const isCadastroTab = studentsTab === "cadastro";
   const [showStudentsFabMenu, setShowStudentsFabMenu] = useState(false);
-  const [showStudentsFormsSyncModal, setShowStudentsFormsSyncModal] = useState(false);
+  const [showStudentsFormsSyncModal, setShowStudentsFormsSyncModal] =
+    useState(false);
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
   const [studentsExportBusy, setStudentsExportBusy] = useState(false);
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
-  const [pendingStudentsTab, setPendingStudentsTab] = useState<StudentsTab | null>(null);
+  const [pendingStudentsTab, setPendingStudentsTab] =
+    useState<StudentsTab | null>(null);
   const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
   const [birthdaySearch, setBirthdaySearch] = useState("");
-  const [birthdayMonthFilter, setBirthdayMonthFilter] = useState<"Todas" | number>(
-    "Todas"
-  );
+  const [birthdayMonthFilter, setBirthdayMonthFilter] = useState<
+    "Todas" | number
+  >("Todas");
   const [showAllBirthdays, setShowAllBirthdays] = useState(true);
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
   const [studentsSearch, setStudentsSearch] = useState("");
-  const [dismissedExistingStudentProbe, setDismissedExistingStudentProbe] = useState("");
+  const [dismissedExistingStudentProbe, setDismissedExistingStudentProbe] =
+    useState("");
   const debouncedBirthdaySearch = useDebouncedValue(birthdaySearch, 250);
   const debouncedStudentsSearch = useDebouncedValue(studentsSearch, 250);
+
+  useFocusEffect(
+    useCallback(() => {
+      setStudentsTab("alunos");
+    }, []),
+  );
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return undefined;
+    }
+    const openStudentsList = () => setStudentsTab("alunos");
+    window.addEventListener("goatleta:open-students-list", openStudentsList);
+    return () =>
+      window.removeEventListener(
+        "goatleta:open-students-list",
+        openStudentsList,
+      );
+  }, []);
   // --- Formulário de aluno (42 campos → useReducer) ---
   const {
     form,
-    setUnit, setAgeBand, setCustomAgeBand, setClassId,
-    setName, setPhotoUrl, setPhotoMimeType,
-    setBirthDate, setAgeNumber, setPhone,
-    setCpfDisplay, setCpfMaskedOriginal, setCpfRevealedValue,
-    setIsCpfVisible, setCpfRevealUnavailable, setRevealCpfBusy,
-    setRgDocument, setRa, setLoginEmail,
-    setGuardianName, setGuardianPhone, setGuardianRelation,
-    setPositionPrimary, setPositionSecondary, setAthleteObjective, setLearningStyle,
-    setHealthIssue, setHealthIssueNotes, setMedicationUse,
-    setMedicationNotes, setHealthObservations, setIsExperimental,
+    setUnit,
+    setAgeBand,
+    setCustomAgeBand,
+    setClassId,
+    setName,
+    setPhotoUrl,
+    setPhotoMimeType,
+    setBirthDate,
+    setAgeNumber,
+    setPhone,
+    setCpfDisplay,
+    setCpfMaskedOriginal,
+    setCpfRevealedValue,
+    setIsCpfVisible,
+    setCpfRevealUnavailable,
+    setRevealCpfBusy,
+    setRgDocument,
+    setRa,
+    setLoginEmail,
+    setGuardianName,
+    setGuardianPhone,
+    setGuardianRelation,
+    setPositionPrimary,
+    setPositionSecondary,
+    setAthleteObjective,
+    setLearningStyle,
+    setHealthIssue,
+    setHealthIssueNotes,
+    setMedicationUse,
+    setMedicationNotes,
+    setHealthObservations,
+    setIsExperimental,
     setCollegeCourse,
-    setEditingId, setEditingCreatedAt,
-    setOpenCreateSection, setOpenEditSection,
-    setStudentFormError, setStudentDocumentsError, setEditSnapshot,
+    setEditingId,
+    setEditingCreatedAt,
+    setOpenCreateSection,
+    setOpenEditSection,
+    setStudentFormError,
+    setStudentDocumentsError,
+    setEditSnapshot,
     resetForm,
   } = useStudentForm();
 
   const {
-    unit, ageBand, customAgeBand, classId,
-    name, collegeCourse, photoUrl, photoMimeType,
-    birthDate, ageNumber, phone,
-    cpfDisplay, cpfMaskedOriginal, cpfRevealedValue,
-    isCpfVisible, cpfRevealUnavailable, revealCpfBusy,
-    rgDocument, ra, loginEmail,
-    guardianName, guardianPhone, guardianRelation,
-    positionPrimary, positionSecondary, athleteObjective, learningStyle,
-    healthIssue, healthIssueNotes, medicationUse,
-    medicationNotes, healthObservations, isExperimental,
-    editingId, editingCreatedAt,
-    openCreateSection, openEditSection,
-    formError: studentFormError, documentsError: studentDocumentsError, editSnapshot,
+    unit,
+    ageBand,
+    customAgeBand,
+    classId,
+    name,
+    collegeCourse,
+    photoUrl,
+    photoMimeType,
+    birthDate,
+    ageNumber,
+    phone,
+    cpfDisplay,
+    cpfMaskedOriginal,
+    cpfRevealedValue,
+    isCpfVisible,
+    cpfRevealUnavailable,
+    revealCpfBusy,
+    rgDocument,
+    ra,
+    loginEmail,
+    guardianName,
+    guardianPhone,
+    guardianRelation,
+    positionPrimary,
+    positionSecondary,
+    athleteObjective,
+    learningStyle,
+    healthIssue,
+    healthIssueNotes,
+    medicationUse,
+    medicationNotes,
+    healthObservations,
+    isExperimental,
+    editingId,
+    editingCreatedAt,
+    openCreateSection,
+    openEditSection,
+    formError: studentFormError,
+    documentsError: studentDocumentsError,
+    editSnapshot,
   } = form;
   const {
     issue: studentValidationIssue,
@@ -340,67 +431,92 @@ export default function StudentsScreen() {
   const debouncedExistingStudentName = useDebouncedValue(name, 400);
 
   // --- Pr?-cadastro (useReducer) ---
-  const {
-    resetPreRegistrationForm,
-  } = usePreRegistrationForm();
+  const { resetPreRegistrationForm } = usePreRegistrationForm();
 
   // --- Modal WhatsApp (useReducer) ---
   const {
     waModal,
-    setShowWhatsAppModal, setWhatsappNotice, setShowRevokeConfirm,
-    setSelectedStudentId, setSelectedContactType,
-    setSelectedTemplateId, setSelectedTemplateLabel,
-    setCustomFields, setCustomStudentMessage,
-    setShowTemplateList, setWhatsappContainerWindow, setTemplateTriggerLayout,
+    setShowWhatsAppModal,
+    setWhatsappNotice,
+    setShowRevokeConfirm,
+    setSelectedStudentId,
+    setSelectedContactType,
+    setSelectedTemplateId,
+    setSelectedTemplateLabel,
+    setCustomFields,
+    setCustomStudentMessage,
+    setShowTemplateList,
+    setWhatsappContainerWindow,
+    setTemplateTriggerLayout,
   } = useWhatsAppModal();
 
   const {
-    showWhatsAppModal, whatsappNotice, showRevokeConfirm,
-    selectedStudentId, selectedContactType,
-    selectedTemplateId, selectedTemplateLabel,
-    customFields, customStudentMessage,
-    showTemplateList, whatsappContainerWindow, templateTriggerLayout,
+    showWhatsAppModal,
+    whatsappNotice,
+    showRevokeConfirm,
+    selectedStudentId,
+    selectedContactType,
+    selectedTemplateId,
+    selectedTemplateLabel,
+    customFields,
+    customStudentMessage,
+    showTemplateList,
+    whatsappContainerWindow,
+    templateTriggerLayout,
   } = waModal;
 
   // --- Estados de UI que permanecem locais (não pertencem ao Formulário) ---
   const [showCalendar, setShowCalendar] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showClassPicker, setShowClassPicker] = useState(false);
-  const [classModalityFilter, setClassModalityFilter] = useState<ClassModalityFilterValue>("all");
-  const [showGuardianRelationPicker, setShowGuardianRelationPicker] = useState(false);
+  const [classModalityFilter, setClassModalityFilter] =
+    useState<ClassModalityFilterValue>("all");
+  const [showGuardianRelationPicker, setShowGuardianRelationPicker] =
+    useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
   const [showEditUnitPicker, setShowEditUnitPicker] = useState(false);
   const [showEditClassPicker, setShowEditClassPicker] = useState(false);
-  const [showEditGuardianRelationPicker, setShowEditGuardianRelationPicker] = useState(false);
+  const [showEditGuardianRelationPicker, setShowEditGuardianRelationPicker] =
+    useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editUnitFilters, setEditUnitFilters] = useState<string[]>([]);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState<{ uri: string | null; name: string } | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<{
+    uri: string | null;
+    name: string;
+  } | null>(null);
   markRender("screen.students.render.root");
   const [saveNotice, setSaveNotice] = useState("");
   const [studentInviteBusy, setStudentInviteBusy] = useState(false);
-  const [pendingStudentInvites, setPendingStudentInvites] = useState<StudentInvitePendingItem[]>([]);
-  const [pendingStudentInviteBusyId, setPendingStudentInviteBusyId] = useState<string | null>(null);
+  const [pendingStudentInvites, setPendingStudentInvites] = useState<
+    StudentInvitePendingItem[]
+  >([]);
+  const [pendingStudentInviteBusyId, setPendingStudentInviteBusyId] = useState<
+    string | null
+  >(null);
   const saveNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const whatsappNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const whatsappNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const saveNoticeAnim = useRef(new Animated.Value(0)).current;
   const studentsFabAnim = useRef(new Animated.Value(0)).current;
   const [lastBirthdayNotice, setLastBirthdayNotice] = usePersistedState<string>(
     "students_birthday_notice_v1",
-    ""
+    "",
   );
-  const [expandedUnits, setExpandedUnits] = usePersistedState<Record<string, boolean>>(
-    "students_units_expanded_v1",
-    {}
-  );
-  const [expandedClasses, setExpandedClasses] = usePersistedState<Record<string, boolean>>(
-    "students_classes_expanded_v1",
-    {}
-  );
-  const [containerWindow, setContainerWindow] = useState<{ x: number; y: number } | null>(null);
+  const [expandedUnits, setExpandedUnits] = usePersistedState<
+    Record<string, boolean>
+  >("students_units_expanded_v1", {});
+  const [expandedClasses, setExpandedClasses] = usePersistedState<
+    Record<string, boolean>
+  >("students_classes_expanded_v1", {});
+  const [containerWindow, setContainerWindow] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [unitTriggerLayout, setUnitTriggerLayout] = useState<{
     x: number;
     y: number;
@@ -413,34 +529,44 @@ export default function StudentsScreen() {
     width: number;
     height: number;
   } | null>(null);
-  const [guardianRelationTriggerLayout, setGuardianRelationTriggerLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
+  const [guardianRelationTriggerLayout, setGuardianRelationTriggerLayout] =
+    useState<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    } | null>(null);
   const [typeTriggerLayout, setTypeTriggerLayout] = useState<{
     x: number;
     y: number;
     width: number;
     height: number;
   } | null>(null);
-  const [editContainerWindow, _setEditContainerWindow] = useState<{ x: number; y: number } | null>(null);
-  const setEditContainerWindow = useCallback((value: { x: number; y: number } | null) => {
-    _setEditContainerWindow((current) => {
-      if (
-        current &&
-        value &&
-        current.x === value.x &&
-        current.y === value.y
-      ) {
-        return current;
-      }
-      if (!current && !value) return current;
-      return value;
-    });
-  }, []);
-  const [editGuardianRelationTriggerLayout, setEditGuardianRelationTriggerLayout] = useState<{
+  const [editContainerWindow, _setEditContainerWindow] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const setEditContainerWindow = useCallback(
+    (value: { x: number; y: number } | null) => {
+      _setEditContainerWindow((current) => {
+        if (
+          current &&
+          value &&
+          current.x === value.x &&
+          current.y === value.y
+        ) {
+          return current;
+        }
+        if (!current && !value) return current;
+        return value;
+      });
+    },
+    [],
+  );
+  const [
+    editGuardianRelationTriggerLayout,
+    setEditGuardianRelationTriggerLayout,
+  ] = useState<{
     x: number;
     y: number;
     width: number;
@@ -457,66 +583,127 @@ export default function StudentsScreen() {
   const editGuardianRelationTriggerRef = useRef<View>(null);
   const whatsappContainerRef = useRef<View>(null);
   const templateTriggerRef = useRef<View>(null);
-  const { animatedStyle: unitPickerAnimStyle, isVisible: showUnitPickerContent } =
-    useCollapsibleAnimation(showUnitPicker);
-  const { animatedStyle: classPickerAnimStyle, isVisible: showClassPickerContent } =
-    useCollapsibleAnimation(showClassPicker);
+  const {
+    animatedStyle: unitPickerAnimStyle,
+    isVisible: showUnitPickerContent,
+  } = useCollapsibleAnimation(showUnitPicker);
+  const {
+    animatedStyle: classPickerAnimStyle,
+    isVisible: showClassPickerContent,
+  } = useCollapsibleAnimation(showClassPicker);
   const {
     animatedStyle: guardianRelationPickerAnimStyle,
     isVisible: showGuardianRelationPickerContent,
   } = useCollapsibleAnimation(showGuardianRelationPicker);
-  const { animatedStyle: typePickerAnimStyle, isVisible: showTypePickerContent } =
-    useCollapsibleAnimation(showTypePicker);
-  const { animatedStyle: editUnitPickerAnimStyle, isVisible: showEditUnitPickerContent } =
-    useCollapsibleAnimation(showEditUnitPicker);
-  const { animatedStyle: editClassPickerAnimStyle, isVisible: showEditClassPickerContent } =
-    useCollapsibleAnimation(showEditClassPicker);
+  const {
+    animatedStyle: typePickerAnimStyle,
+    isVisible: showTypePickerContent,
+  } = useCollapsibleAnimation(showTypePicker);
+  const {
+    animatedStyle: editUnitPickerAnimStyle,
+    isVisible: showEditUnitPickerContent,
+  } = useCollapsibleAnimation(showEditUnitPicker);
+  const {
+    animatedStyle: editClassPickerAnimStyle,
+    isVisible: showEditClassPickerContent,
+  } = useCollapsibleAnimation(showEditClassPicker);
   const {
     animatedStyle: editGuardianRelationPickerAnimStyle,
     isVisible: showEditGuardianRelationPickerContent,
   } = useCollapsibleAnimation(showEditGuardianRelationPicker);
-  const { animatedStyle: templateListAnimStyle, isVisible: showTemplateListContent } =
-    useCollapsibleAnimation(showTemplateList, { translateY: -6 });
-  const { animatedStyle: allBirthdaysAnimStyle, isVisible: showAllBirthdaysContent } =
-    useCollapsibleAnimation(showAllBirthdays, { translateY: -6 });
+  const {
+    animatedStyle: templateListAnimStyle,
+    isVisible: showTemplateListContent,
+  } = useCollapsibleAnimation(showTemplateList, { translateY: -6 });
+  const {
+    animatedStyle: allBirthdaysAnimStyle,
+    isVisible: showAllBirthdaysContent,
+  } = useCollapsibleAnimation(showAllBirthdays, { translateY: -6 });
   const accordionAnimOptions = useMemo(
     () => ({ durationIn: 160, durationOut: 120, translateY: -3 }),
-    []
+    [],
   );
-  const createSectionTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const editSectionTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const createStudentDataAnim = useCollapsibleAnimation(openCreateSection === "studentData", accordionAnimOptions);
-  const createAcademicAnim = useCollapsibleAnimation(openCreateSection === "academic", accordionAnimOptions);
-  const createDocumentsAnim = useCollapsibleAnimation(openCreateSection === "documents", accordionAnimOptions);
-  const createSportAnim = useCollapsibleAnimation(openCreateSection === "sportProfile", accordionAnimOptions);
-  const createHealthAnim = useCollapsibleAnimation(openCreateSection === "health", accordionAnimOptions);
-  const createGuardianAnim = useCollapsibleAnimation(openCreateSection === "guardian", accordionAnimOptions);
-  const editStudentDataAnim = useCollapsibleAnimation(openEditSection === "studentData", accordionAnimOptions);
-  const editAcademicAnim = useCollapsibleAnimation(openEditSection === "academic", accordionAnimOptions);
-  const editDocumentsAnim = useCollapsibleAnimation(openEditSection === "documents", accordionAnimOptions);
-  const editSportAnim = useCollapsibleAnimation(openEditSection === "sportProfile", accordionAnimOptions);
-  const editHealthAnim = useCollapsibleAnimation(openEditSection === "health", accordionAnimOptions);
-  const editGuardianAnim = useCollapsibleAnimation(openEditSection === "guardian", accordionAnimOptions);
-  const editLinksAnim = useCollapsibleAnimation(openEditSection === "links", accordionAnimOptions);
-  useEffect(() => () => {
-    if (createSectionTransitionRef.current) clearTimeout(createSectionTransitionRef.current);
-    if (editSectionTransitionRef.current) clearTimeout(editSectionTransitionRef.current);
-  }, []);
+  const createSectionTransitionRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const editSectionTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const createStudentDataAnim = useCollapsibleAnimation(
+    openCreateSection === "studentData",
+    accordionAnimOptions,
+  );
+  const createAcademicAnim = useCollapsibleAnimation(
+    openCreateSection === "academic",
+    accordionAnimOptions,
+  );
+  const createDocumentsAnim = useCollapsibleAnimation(
+    openCreateSection === "documents",
+    accordionAnimOptions,
+  );
+  const createSportAnim = useCollapsibleAnimation(
+    openCreateSection === "sportProfile",
+    accordionAnimOptions,
+  );
+  const createHealthAnim = useCollapsibleAnimation(
+    openCreateSection === "health",
+    accordionAnimOptions,
+  );
+  const createGuardianAnim = useCollapsibleAnimation(
+    openCreateSection === "guardian",
+    accordionAnimOptions,
+  );
+  const editStudentDataAnim = useCollapsibleAnimation(
+    openEditSection === "studentData",
+    accordionAnimOptions,
+  );
+  const editAcademicAnim = useCollapsibleAnimation(
+    openEditSection === "academic",
+    accordionAnimOptions,
+  );
+  const editDocumentsAnim = useCollapsibleAnimation(
+    openEditSection === "documents",
+    accordionAnimOptions,
+  );
+  const editSportAnim = useCollapsibleAnimation(
+    openEditSection === "sportProfile",
+    accordionAnimOptions,
+  );
+  const editHealthAnim = useCollapsibleAnimation(
+    openEditSection === "health",
+    accordionAnimOptions,
+  );
+  const editGuardianAnim = useCollapsibleAnimation(
+    openEditSection === "guardian",
+    accordionAnimOptions,
+  );
+  const editLinksAnim = useCollapsibleAnimation(
+    openEditSection === "links",
+    accordionAnimOptions,
+  );
+  useEffect(
+    () => () => {
+      if (createSectionTransitionRef.current)
+        clearTimeout(createSectionTransitionRef.current);
+      if (editSectionTransitionRef.current)
+        clearTimeout(editSectionTransitionRef.current);
+    },
+    [],
+  );
   const loadSupplementaryStudentsData = useCallback(
     async (aliveRef: { current: boolean }) => {
-      const invitesPromise =
-        session?.access_token
-          ? listStudentPendingInvites().catch((error) => {
-              console.warn("StudentsScreen invite load failed", error);
-              return { invites: [] };
-            })
-          : Promise.resolve({ invites: [] });
+      const invitesPromise = session?.access_token
+        ? listStudentPendingInvites().catch((error) => {
+            console.warn("StudentsScreen invite load failed", error);
+            return { invites: [] };
+          })
+        : Promise.resolve({ invites: [] });
 
       const pendingInvitesResult = await invitesPromise;
       if (!aliveRef.current) return;
       setPendingStudentInvites(pendingInvitesResult.invites ?? []);
     },
-    [session?.access_token]
+    [session?.access_token],
   );
 
   useEffect(() => {
@@ -530,7 +717,7 @@ export default function StudentsScreen() {
               getClasses({ organizationId: activeOrganization?.id }),
               getStudents({ organizationId: activeOrganization?.id }),
             ]),
-          { hasOrganization: activeOrganization?.id ? 1 : 0 }
+          { hasOrganization: activeOrganization?.id ? 1 : 0 },
         );
         if (!alive.current) return;
         setClasses(classList);
@@ -538,7 +725,7 @@ export default function StudentsScreen() {
         void measureAsync(
           "screen.students.load.supplementary",
           () => loadSupplementaryStudentsData(alive),
-          { hasOrganization: activeOrganization?.id ? 1 : 0 }
+          { hasOrganization: activeOrganization?.id ? 1 : 0 },
         );
       } catch (error) {
         if (!alive.current) return;
@@ -593,11 +780,13 @@ export default function StudentsScreen() {
       });
       Alert.alert(
         "Exportação concluída",
-        `Arquivo ${result.fileName} com ${result.totalStudents} aluno(s).`
+        `Arquivo ${result.fileName} com ${result.totalStudents} aluno(s).`,
       );
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Falha ao exportar XLSX de alunos.";
+        error instanceof Error
+          ? error.message
+          : "Falha ao exportar XLSX de alunos.";
       Alert.alert("Alunos", message);
     } finally {
       setStudentsExportBusy(false);
@@ -611,7 +800,7 @@ export default function StudentsScreen() {
         inputRange: [0, 1],
         outputRange: ["0deg", "45deg"],
       }),
-    [studentsFabAnim]
+    [studentsFabAnim],
   );
   const studentsFabScale = useMemo(
     () =>
@@ -619,7 +808,7 @@ export default function StudentsScreen() {
         inputRange: [0, 1],
         outputRange: [1, 1.06],
       }),
-    [studentsFabAnim]
+    [studentsFabAnim],
   );
 
   useEffect(() => {
@@ -640,7 +829,7 @@ export default function StudentsScreen() {
 
   const unitLabel = useCallback(
     (value: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
-    []
+    [],
   );
 
   const closeAllPickers = useCallback(() => {
@@ -660,23 +849,36 @@ export default function StudentsScreen() {
     (target: "unit" | "class" | "guardianRelation" | "type") => {
       setShowUnitPicker((prev) => (target === "unit" ? !prev : false));
       setShowClassPicker((prev) => (target === "class" ? !prev : false));
-      setShowGuardianRelationPicker((prev) => (target === "guardianRelation" ? !prev : false));
+      setShowGuardianRelationPicker((prev) =>
+        target === "guardianRelation" ? !prev : false,
+      );
       setShowTypePicker((prev) => (target === "type" ? !prev : false));
     },
-    []
+    [],
   );
   const toggleEditPicker = useCallback(
     (target: "unit" | "class" | "guardianRelation") => {
       setShowEditUnitPicker((prev) => (target === "unit" ? !prev : false));
       setShowEditClassPicker((prev) => (target === "class" ? !prev : false));
-      setShowEditGuardianRelationPicker((prev) => (target === "guardianRelation" ? !prev : false));
+      setShowEditGuardianRelationPicker((prev) =>
+        target === "guardianRelation" ? !prev : false,
+      );
     },
-    []
+    [],
   );
 
   const toggleCreateSection = useCallback(
-    (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian") => {
-      if (createSectionTransitionRef.current) clearTimeout(createSectionTransitionRef.current);
+    (
+      section:
+        | "studentData"
+        | "academic"
+        | "documents"
+        | "sportProfile"
+        | "health"
+        | "guardian",
+    ) => {
+      if (createSectionTransitionRef.current)
+        clearTimeout(createSectionTransitionRef.current);
       if (openCreateSection && openCreateSection !== section) {
         setOpenCreateSection(null);
         createSectionTransitionRef.current = setTimeout(() => {
@@ -687,11 +889,21 @@ export default function StudentsScreen() {
       }
       setOpenCreateSection(openCreateSection === section ? null : section);
     },
-    [openCreateSection, setOpenCreateSection]
+    [openCreateSection, setOpenCreateSection],
   );
   const toggleEditSection = useCallback(
-    (section: "studentData" | "academic" | "documents" | "sportProfile" | "health" | "guardian" | "links") => {
-      if (editSectionTransitionRef.current) clearTimeout(editSectionTransitionRef.current);
+    (
+      section:
+        | "studentData"
+        | "academic"
+        | "documents"
+        | "sportProfile"
+        | "health"
+        | "guardian"
+        | "links",
+    ) => {
+      if (editSectionTransitionRef.current)
+        clearTimeout(editSectionTransitionRef.current);
       if (openEditSection && openEditSection !== section) {
         setOpenEditSection(null);
         editSectionTransitionRef.current = setTimeout(() => {
@@ -702,31 +914,43 @@ export default function StudentsScreen() {
       }
       setOpenEditSection(openEditSection === section ? null : section);
     },
-    [openEditSection, setOpenEditSection]
+    [openEditSection, setOpenEditSection],
   );
 
-  const handleSelectUnit = useCallback((value: string) => {
-    setUnit(value);
-    setShowUnitPicker(false);
-  }, [setUnit]);
+  const handleSelectUnit = useCallback(
+    (value: string) => {
+      setUnit(value);
+      setShowUnitPicker(false);
+    },
+    [setUnit],
+  );
 
-  const handleSelectClass = useCallback((value: ClassGroup) => {
-    setClassId(value.id);
-    setUnit(unitLabel(value.unit));
-    setAgeBand(value.ageBand);
-    setCustomAgeBand("");
-    setShowClassPicker(false);
-  }, [setAgeBand, setClassId, setCustomAgeBand, setUnit, unitLabel]);
+  const handleSelectClass = useCallback(
+    (value: ClassGroup) => {
+      setClassId(value.id);
+      setUnit(unitLabel(value.unit));
+      setAgeBand(value.ageBand);
+      setCustomAgeBand("");
+      setShowClassPicker(false);
+    },
+    [setAgeBand, setClassId, setCustomAgeBand, setUnit, unitLabel],
+  );
 
-  const handleSelectGuardianRelation = useCallback((value: string) => {
-    setGuardianRelation(value);
-    setShowGuardianRelationPicker(false);
-  }, [setGuardianRelation]);
+  const handleSelectGuardianRelation = useCallback(
+    (value: string) => {
+      setGuardianRelation(value);
+      setShowGuardianRelationPicker(false);
+    },
+    [setGuardianRelation],
+  );
 
-  const handleSelectType = useCallback((value: string) => {
-    setIsExperimental(value === "experimental");
-    setShowTypePicker(false);
-  }, [setIsExperimental]);
+  const handleSelectType = useCallback(
+    (value: string) => {
+      setIsExperimental(value === "experimental");
+      setShowTypePicker(false);
+    },
+    [setIsExperimental],
+  );
 
   const handleToggleEditUnitFilter = useCallback((value: string) => {
     setEditUnitFilters((current) => {
@@ -737,23 +961,35 @@ export default function StudentsScreen() {
     });
   }, []);
 
-  const handleSelectEditClass = useCallback((value: ClassGroup) => {
-    const nextUnit = unitLabel(value.unit);
-    setClassId(value.id);
-    setUnit(nextUnit);
-    setEditUnitFilters((current) => current.includes(nextUnit) ? current : [...current, nextUnit]);
-    setAgeBand(value.ageBand);
-    setCustomAgeBand("");
-    setShowEditClassPicker(false);
-  }, [setAgeBand, setClassId, setCustomAgeBand, setUnit, unitLabel]);
+  const handleSelectEditClass = useCallback(
+    (value: ClassGroup) => {
+      const nextUnit = unitLabel(value.unit);
+      setClassId(value.id);
+      setUnit(nextUnit);
+      setEditUnitFilters((current) =>
+        current.includes(nextUnit) ? current : [...current, nextUnit],
+      );
+      setAgeBand(value.ageBand);
+      setCustomAgeBand("");
+      setShowEditClassPicker(false);
+    },
+    [setAgeBand, setClassId, setCustomAgeBand, setUnit, unitLabel],
+  );
 
-  const handleSelectEditGuardianRelation = useCallback((value: string) => {
-    setGuardianRelation(value);
-    setShowEditGuardianRelationPicker(false);
-  }, [setGuardianRelation]);
+  const handleSelectEditGuardianRelation = useCallback(
+    (value: string) => {
+      setGuardianRelation(value);
+      setShowEditGuardianRelationPicker(false);
+    },
+    [setGuardianRelation],
+  );
 
   const syncPickerLayouts = useCallback(() => {
-    const hasPickerOpen = showUnitPicker || showClassPicker || showGuardianRelationPicker || showTypePicker;
+    const hasPickerOpen =
+      showUnitPicker ||
+      showClassPicker ||
+      showGuardianRelationPicker ||
+      showTypePicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showUnitPicker) {
@@ -767,9 +1003,11 @@ export default function StudentsScreen() {
         });
       }
       if (showGuardianRelationPicker) {
-        guardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
-          setGuardianRelationTriggerLayout({ x, y, width, height });
-        });
+        guardianRelationTriggerRef.current?.measureInWindow(
+          (x, y, width, height) => {
+            setGuardianRelationTriggerLayout({ x, y, width, height });
+          },
+        );
       }
       if (showTypePicker) {
         typeTriggerRef.current?.measureInWindow((x, y, width, height) => {
@@ -780,16 +1018,23 @@ export default function StudentsScreen() {
         setContainerWindow({ x, y });
       });
     });
-  }, [showClassPicker, showGuardianRelationPicker, showUnitPicker, showTypePicker]);
+  }, [
+    showClassPicker,
+    showGuardianRelationPicker,
+    showUnitPicker,
+    showTypePicker,
+  ]);
 
   const syncEditPickerLayouts = useCallback(() => {
     const hasPickerOpen = showEditGuardianRelationPicker;
     if (!hasPickerOpen) return;
     requestAnimationFrame(() => {
       if (showEditGuardianRelationPicker) {
-        editGuardianRelationTriggerRef.current?.measureInWindow((x, y, width, height) => {
-          setEditGuardianRelationTriggerLayout({ x, y, width, height });
-        });
+        editGuardianRelationTriggerRef.current?.measureInWindow(
+          (x, y, width, height) => {
+            setEditGuardianRelationTriggerLayout({ x, y, width, height });
+          },
+        );
       }
       editModalRef.current?.measureInWindow((x, y) => {
         setEditContainerWindow({ x, y });
@@ -810,8 +1055,7 @@ export default function StudentsScreen() {
 
   const unitOptions = useMemo(() => {
     const map = new Map<string, string>();
-    const upperScore = (value: string) =>
-      (value.match(/[A-Z]/g) ?? []).length;
+    const upperScore = (value: string) => (value.match(/[A-Z]/g) ?? []).length;
     const preferLabel = (current: string, next: string) => {
       const currentScore = upperScore(current);
       const nextScore = upperScore(next);
@@ -858,7 +1102,7 @@ export default function StudentsScreen() {
   }, [classes]);
   const guardianRelationOptions = useMemo(
     () => ["Pai", "Mãe", "Tia", "Avó", "Irmão", "Irmã", "Outro"],
-    []
+    [],
   );
   const classById = useMemo(() => {
     return new Map(classes.map((item) => [item.id, item] as const));
@@ -866,15 +1110,16 @@ export default function StudentsScreen() {
 
   useEffect(() => {
     syncPickerLayouts();
-  }, [showUnitPicker, showClassPicker, showGuardianRelationPicker, syncPickerLayouts]);
+  }, [
+    showUnitPicker,
+    showClassPicker,
+    showGuardianRelationPicker,
+    syncPickerLayouts,
+  ]);
 
   useEffect(() => {
     if (showEditModal) syncEditPickerLayouts();
-  }, [
-    showEditModal,
-    showEditGuardianRelationPicker,
-    syncEditPickerLayouts,
-  ]);
+  }, [showEditModal, showEditGuardianRelationPicker, syncEditPickerLayouts]);
 
   useEffect(() => {
     if (showWhatsAppModal && showTemplateList) {
@@ -883,14 +1128,16 @@ export default function StudentsScreen() {
   }, [showTemplateList, showWhatsAppModal, syncTemplateLayout]);
 
   useEffect(() => {
-    if (!showForm) Promise.resolve().then(() => {
-      closeAllPickers();
-    });
+    if (!showForm)
+      Promise.resolve().then(() => {
+        closeAllPickers();
+      });
   }, [closeAllPickers, showForm]);
   useEffect(() => {
-    if (!showEditModal) Promise.resolve().then(() => {
-      closeAllEditPickers();
-    });
+    if (!showEditModal)
+      Promise.resolve().then(() => {
+        closeAllEditPickers();
+      });
   }, [closeAllEditPickers, showEditModal]);
 
   useEffect(() => {
@@ -925,7 +1172,10 @@ export default function StudentsScreen() {
       if (source === "camera") {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") {
-          Alert.alert("Permissão necessária", "Ative a Câmera para tirar a foto.");
+          Alert.alert(
+            "Permissão necessária",
+            "Ative a Câmera para tirar a foto.",
+          );
           return;
         }
         const result = await ImagePicker.launchCameraAsync({
@@ -942,9 +1192,13 @@ export default function StudentsScreen() {
         }
         return;
       }
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
-        Alert.alert("Permissão necessária", "Ative a galeria para escolher uma foto.");
+        Alert.alert(
+          "Permissão necessária",
+          "Ative a galeria para escolher uma foto.",
+        );
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -972,15 +1226,20 @@ export default function StudentsScreen() {
     setShowPhotoPreview(true);
   };
 
-
   const reportStudentValidation = (
     field: StudentValidationField,
-    message: string
+    message: string,
   ) => {
     setStudentFormError("");
     showStudentValidationError(field, message);
     if (editingId) {
-      setOpenEditSection(field === "ra" ? "academic" : field === "unitClass" ? "links" : "studentData");
+      setOpenEditSection(
+        field === "ra"
+          ? "academic"
+          : field === "unitClass"
+            ? "links"
+            : "studentData",
+      );
     } else {
       setOpenCreateSection(field === "ra" ? "academic" : "studentData");
     }
@@ -1017,9 +1276,7 @@ export default function StudentsScreen() {
     const nowIso = new Date().toISOString();
     const studentId = editingId || createStudentId();
     const resolvedOrganizationId =
-      classById.get(classId)?.organizationId ??
-      activeOrganization?.id ??
-      "";
+      classById.get(classId)?.organizationId ?? activeOrganization?.id ?? "";
 
     try {
       const raValidation = validateStudentRa(ra);
@@ -1101,7 +1358,8 @@ export default function StudentsScreen() {
       }
       return true;
     } catch (error) {
-      const detail = error instanceof Error ? error.message : "Erro ao salvar aluno.";
+      const detail =
+        error instanceof Error ? error.message : "Erro ao salvar aluno.";
       if (detail.toLowerCase().includes("cpf")) {
         setStudentDocumentsError({ cpf: detail });
       }
@@ -1137,8 +1395,7 @@ export default function StudentsScreen() {
     healthObservations.trim() ||
     editingId;
 
-  const canSaveStudent =
-    true;
+  const canSaveStudent = true;
 
   const isEditDirty = useMemo(() => {
     if (!editingId || !editSnapshot) return false;
@@ -1210,21 +1467,21 @@ export default function StudentsScreen() {
   }, [clearStudentValidationError, closeAllPickers, resetForm, setShowForm]);
 
   const requestSwitchStudentsTab = (nextTab: StudentsTab) => {
-      if (nextTab === studentsTab) return;
-      if (studentsTab === "cadastro" && isFormDirty) {
-        setPendingStudentsTab(nextTab);
-        setShowStudentsTabConfirm(true);
-        return;
-      }
-      if (studentsTab === "cadastro" && !isFormDirty) {
-        doResetForm();
-        resetPreRegistrationForm();
-      }
-      if (nextTab === "cadastro") {
-        setShowForm(true);
-      }
-      setStudentsTab(nextTab);
-    };
+    if (nextTab === studentsTab) return;
+    if (studentsTab === "cadastro" && isFormDirty) {
+      setPendingStudentsTab(nextTab);
+      setShowStudentsTabConfirm(true);
+      return;
+    }
+    if (studentsTab === "cadastro" && !isFormDirty) {
+      doResetForm();
+      resetPreRegistrationForm();
+    }
+    if (nextTab === "cadastro") {
+      setShowForm(true);
+    }
+    setStudentsTab(nextTab);
+  };
 
   const showSaveNotice = (message: string) => {
     setSaveNotice(message);
@@ -1249,16 +1506,19 @@ export default function StudentsScreen() {
     }, 2200);
   };
 
-  const showWhatsAppNotice = useCallback((message: string) => {
-    setWhatsappNotice(message);
-    if (whatsappNoticeTimer.current) {
-      clearTimeout(whatsappNoticeTimer.current);
-    }
-    whatsappNoticeTimer.current = setTimeout(() => {
-      setWhatsappNotice("");
-      whatsappNoticeTimer.current = null;
-    }, 2200);
-  }, [setWhatsappNotice]);
+  const showWhatsAppNotice = useCallback(
+    (message: string) => {
+      setWhatsappNotice(message);
+      if (whatsappNoticeTimer.current) {
+        clearTimeout(whatsappNoticeTimer.current);
+      }
+      whatsappNoticeTimer.current = setTimeout(() => {
+        setWhatsappNotice("");
+        whatsappNoticeTimer.current = null;
+      }, 2200);
+    },
+    [setWhatsappNotice],
+  );
 
   const closeEditModal = () => {
     setShowEditModal(false);
@@ -1311,7 +1571,9 @@ export default function StudentsScreen() {
     },
     onError: (error) => {
       const detail =
-        error instanceof Error ? error.message : "Não foi possível excluir o aluno.";
+        error instanceof Error
+          ? error.message
+          : "Não foi possível excluir o aluno.";
       Alert.alert("Excluir aluno", detail);
     },
   });
@@ -1346,7 +1608,9 @@ export default function StudentsScreen() {
       setIsCpfVisible(true);
     } catch (error) {
       const detail =
-        error instanceof Error ? error.message : "não foi possível revelar o CPF.";
+        error instanceof Error
+          ? error.message
+          : "não foi possível revelar o CPF.";
       if (detail.toLowerCase().includes("indisponivel")) {
         setCpfRevealUnavailable(true);
       }
@@ -1355,18 +1619,31 @@ export default function StudentsScreen() {
     } finally {
       setRevealCpfBusy(false);
     }
-  }, [canRevealCpf, cpfMaskedOriginal, cpfRevealUnavailable, cpfRevealedValue, editingId, isCpfVisible, setCpfDisplay, setCpfRevealUnavailable, setCpfRevealedValue, setIsCpfVisible, setRevealCpfBusy, setStudentDocumentsError]);
+  }, [
+    canRevealCpf,
+    cpfMaskedOriginal,
+    cpfRevealUnavailable,
+    cpfRevealedValue,
+    editingId,
+    isCpfVisible,
+    setCpfDisplay,
+    setCpfRevealUnavailable,
+    setCpfRevealedValue,
+    setIsCpfVisible,
+    setRevealCpfBusy,
+    setStudentDocumentsError,
+  ]);
 
   const selectedClassName = useMemo(
     () => classById.get(classId)?.name ?? "",
-    [classById, classId]
+    [classById, classId],
   );
   const existingStudentProbeKey = useMemo(
     () =>
       `${normalizeStudentLookupName(debouncedExistingStudentName)}::${String(
-        birthDate ?? ""
+        birthDate ?? "",
       ).trim()}`,
-    [birthDate, debouncedExistingStudentName]
+    [birthDate, debouncedExistingStudentName],
   );
   const existingStudentMatches = useMemo(() => {
     if (editingId) return [];
@@ -1407,8 +1684,8 @@ export default function StudentsScreen() {
       cls.gender === "masculino"
         ? "Masculino"
         : cls.gender === "feminino"
-        ? "Feminino"
-        : "Misto";
+          ? "Feminino"
+          : "Misto";
     return `${cls.name} (${genderLabel})`;
   }, [classById, classId]);
   const editDocumentsSummary = useMemo(() => {
@@ -1420,7 +1697,9 @@ export default function StudentsScreen() {
   }, [cpfDisplay, rgDocument]);
   const editAcademicSummary = useMemo(() => {
     const raLabel = ra.trim() ? `RA ${ra}` : "RA não informado";
-    const courseLabel = collegeCourse.trim() ? collegeCourse : "Curso não informado";
+    const courseLabel = collegeCourse.trim()
+      ? collegeCourse
+      : "Curso não informado";
     return `${raLabel} • ${courseLabel}`;
   }, [collegeCourse, ra]);
   const editSportSummary = useMemo(() => {
@@ -1436,7 +1715,13 @@ export default function StudentsScreen() {
       medicationNotes,
       healthObservations,
     }).summary;
-  }, [healthIssue, healthIssueNotes, healthObservations, medicationNotes, medicationUse]);
+  }, [
+    healthIssue,
+    healthIssueNotes,
+    healthObservations,
+    medicationNotes,
+    medicationUse,
+  ]);
   const editGuardianSummary = useMemo(() => {
     const nameLabel = guardianName.trim() || "Responsável não informado";
     const phoneLabel = guardianPhone.trim() || "Sem telefone";
@@ -1523,7 +1808,7 @@ export default function StudentsScreen() {
     const nextBirthday = new Date(
       thisYear,
       birthDate.getMonth(),
-      birthDate.getDate()
+      birthDate.getDate(),
     );
     if (nextBirthday < today) {
       nextBirthday.setFullYear(thisYear + 1);
@@ -1565,7 +1850,7 @@ export default function StudentsScreen() {
       if (contact.status === "missing") {
         Alert.alert(
           "Sem telefone",
-          "Adicione o telefone do aluno ou Responsável para usar o WhatsApp."
+          "Adicione o telefone do aluno ou Responsável para usar o WhatsApp.",
         );
         return;
       }
@@ -1583,12 +1868,26 @@ export default function StudentsScreen() {
       setSelectedTemplateId(suggested);
       setSelectedTemplateLabel(WHATSAPP_TEMPLATES[suggested].title);
       setCustomFields(fields);
-      setSelectedContactType(contact.source === "student" ? "student" : "guardian");
-      setCustomStudentMessage(buildStudentMessage(student, cls, suggested, fields));
+      setSelectedContactType(
+        contact.source === "student" ? "student" : "guardian",
+      );
+      setCustomStudentMessage(
+        buildStudentMessage(student, cls, suggested, fields),
+      );
       setSelectedStudentId(student.id);
       setShowWhatsAppModal(true);
     },
-    [buildStudentMessage, classById, setCustomFields, setCustomStudentMessage, setSelectedContactType, setSelectedStudentId, setSelectedTemplateId, setSelectedTemplateLabel, setShowWhatsAppModal]
+    [
+      buildStudentMessage,
+      classById,
+      setCustomFields,
+      setCustomStudentMessage,
+      setSelectedContactType,
+      setSelectedStudentId,
+      setSelectedTemplateId,
+      setSelectedTemplateLabel,
+      setShowWhatsAppModal,
+    ],
   );
 
   const closeWhatsAppModal = useCallback(() => {
@@ -1607,32 +1906,37 @@ export default function StudentsScreen() {
       clearTimeout(whatsappNoticeTimer.current);
       whatsappNoticeTimer.current = null;
     }
-  }, [setCustomFields, setCustomStudentMessage, setSelectedContactType, setSelectedStudentId, setSelectedTemplateId, setSelectedTemplateLabel, setShowRevokeConfirm, setShowTemplateList, setShowWhatsAppModal, setWhatsappNotice]);
-
-  const { applyStudentInviteTemplate, onGenerateInviteFromList } = useStudentInvites({
-    classes,
-    studentInviteBusy,
-    pendingStudentInviteBusyId,
-    buildStudentMessage,
-    showWhatsAppNotice,
-    reload,
-    setStudentInviteBusy,
-    setSelectedTemplateId,
-    setSelectedTemplateLabel,
+  }, [
     setCustomFields,
     setCustomStudentMessage,
-    setPendingStudentInviteBusyId,
-  });
+    setSelectedContactType,
+    setSelectedStudentId,
+    setSelectedTemplateId,
+    setSelectedTemplateLabel,
+    setShowRevokeConfirm,
+    setShowTemplateList,
+    setShowWhatsAppModal,
+    setWhatsappNotice,
+  ]);
+
+  const { applyStudentInviteTemplate, onGenerateInviteFromList } =
+    useStudentInvites({
+      classes,
+      studentInviteBusy,
+      pendingStudentInviteBusyId,
+      buildStudentMessage,
+      showWhatsAppNotice,
+      reload,
+      setStudentInviteBusy,
+      setSelectedTemplateId,
+      setSelectedTemplateLabel,
+      setCustomFields,
+      setCustomStudentMessage,
+      setPendingStudentInviteBusyId,
+    });
 
   const formatName = (value: string) => {
-    const particles = new Set([
-      "da",
-      "de",
-      "do",
-      "das",
-      "dos",
-      "e",
-    ]);
+    const particles = new Set(["da", "de", "do", "das", "dos", "e"]);
     const hasTrailingSpace = /\s$/.test(value);
     const words = value.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
     const formatted = words
@@ -1649,7 +1953,7 @@ export default function StudentsScreen() {
     if (!classes.length) return [];
     if (unit) {
       return sortClassesBySchedule(
-        classes.filter((item) => unitLabel(item.unit) === unit)
+        classes.filter((item) => unitLabel(item.unit) === unit),
       );
     }
     return sortClassesBySchedule(classes);
@@ -1659,23 +1963,23 @@ export default function StudentsScreen() {
     if (!editUnitFilters.length) return sortClassesBySchedule(classes);
     const selectedUnits = new Set(editUnitFilters);
     return sortClassesBySchedule(
-      classes.filter((item) => selectedUnits.has(unitLabel(item.unit)))
+      classes.filter((item) => selectedUnits.has(unitLabel(item.unit))),
     );
   }, [classes, editUnitFilters, unitLabel]);
   const selectedClassModality = useMemo(
     () => classById.get(classId)?.modality ?? null,
-    [classById, classId]
+    [classById, classId],
   );
   const classModalities = useMemo(
     () => Array.from(new Set(classOptions.map((item) => item.modality))),
-    [classOptions]
+    [classOptions],
   );
   const filteredClassOptions = useMemo(
     () =>
       classModalityFilter === "all"
         ? classOptions
         : classOptions.filter((item) => item.modality === classModalityFilter),
-    [classModalityFilter, classOptions]
+    [classModalityFilter, classOptions],
   );
 
   useEffect(() => {
@@ -1693,24 +1997,23 @@ export default function StudentsScreen() {
         setClassModalityFilter(selectedClassModality ?? "all");
       });
     }
-  }, [classModalities, classModalityFilter, selectedClassModality, showClassPicker]);
+  }, [
+    classModalities,
+    classModalityFilter,
+    selectedClassModality,
+    showClassPicker,
+  ]);
 
   const today = useMemo(() => new Date(), []);
   const birthdayUnitOptions = useMemo(
     () => ["Todas", ...unitOptions],
-    [unitOptions]
+    [unitOptions],
   );
   const studentsUnitOptions = useMemo(
     () => ["Todas", ...unitOptions],
-    [unitOptions]
+    [unitOptions],
   );
-  const birthdayFilteredStudents = useMemo(() => {
-    if (birthdayUnitFilter === "Todas") return students;
-    return students.filter((student) => {
-      const cls = classById.get(student.classId) ?? null;
-      return unitLabel(cls?.unit ?? "") === birthdayUnitFilter;
-    });
-  }, [birthdayUnitFilter, classById, students, unitLabel]);
+  const birthdayFilteredStudents = students;
   const birthdayVisibleStudents = useMemo(() => {
     const query = normalizeSearch(debouncedBirthdaySearch);
     const hasQuery = query.length > 0;
@@ -1718,7 +2021,10 @@ export default function StudentsScreen() {
       if (!student.birthDate) return false;
       const date = parseIsoDate(student.birthDate);
       if (!date) return false;
-      if (birthdayMonthFilter !== "Todas" && date.getMonth() !== birthdayMonthFilter) {
+      if (
+        birthdayMonthFilter !== "Todas" &&
+        date.getMonth() !== birthdayMonthFilter
+      ) {
         return false;
       }
       if (!hasQuery) return true;
@@ -1730,7 +2036,7 @@ export default function StudentsScreen() {
       const yearLabel = String(date.getFullYear());
       const shortDate = formatShortDate(student.birthDate);
       const haystack = normalizeSearch(
-        `${student.name} ${monthLabel} ${dayLabel} ${yearLabel} ${shortDate} ${unitName} ${className}`
+        `${student.name} ${monthLabel} ${dayLabel} ${yearLabel} ${shortDate} ${unitName} ${className}`,
       );
       return haystack.includes(query);
     });
@@ -1750,8 +2056,16 @@ export default function StudentsScreen() {
       unitLabel,
       query: debouncedStudentsSearch,
     });
-  }, [studentsUnitFilter, classById, students, unitLabel, debouncedStudentsSearch]);
-  const hasActiveStudentsSearch = hasActiveStudentSearch(debouncedStudentsSearch);
+  }, [
+    studentsUnitFilter,
+    classById,
+    students,
+    unitLabel,
+    debouncedStudentsSearch,
+  ]);
+  const hasActiveStudentsSearch = hasActiveStudentSearch(
+    debouncedStudentsSearch,
+  );
   const studentsByClassId = useMemo(() => {
     return groupStudentsByClassId(studentsFiltered);
   }, [studentsFiltered]);
@@ -1762,7 +2076,7 @@ export default function StudentsScreen() {
         [unitName]: !prev[unitName],
       }));
     },
-    [setExpandedUnits]
+    [setExpandedUnits],
   );
   const toggleClassExpanded = useCallback(
     (classIdValue: string) => {
@@ -1771,7 +2085,7 @@ export default function StudentsScreen() {
         [classIdValue]: !prev[classIdValue],
       }));
     },
-    [setExpandedClasses]
+    [setExpandedClasses],
   );
   const studentsGrouped = useMemo(() => {
     return buildStudentListGroups({
@@ -1785,7 +2099,8 @@ export default function StudentsScreen() {
         bg: colors.primaryBg,
         text: colors.primaryText,
       },
-      resolveClassPalette: (cls, unitName) => getClassPalette(cls.colorKey, colors, unitName),
+      resolveClassPalette: (cls, unitName) =>
+        getClassPalette(cls.colorKey, colors, unitName),
       resolveUnitPalette: (unitName) => getUnitPalette(unitName, colors),
       formatClassScheduleLabel,
     });
@@ -1809,15 +2124,10 @@ export default function StudentsScreen() {
       );
     });
   }, [students, today]);
-  const studentsTabMeta = useMemo(
-    () => [
-      { id: "alunos" as const, label: "Alunos", count: students.length },
-      { id: "cadastro" as const, label: "Cadastro", count: null },
-      { id: "aniversarios" as const, label: "Aniversários", count: birthdayTodayAll.length },
-    ],
-    [students.length, birthdayTodayAll.length]
+  const birthdayStudentIds = useMemo(
+    () => new Set(birthdayTodayAll.map((student) => student.id)),
+    [birthdayTodayAll],
   );
-
   useEffect(() => {
     if ((studentsTab as string) === "experimentais") {
       setStudentsTab("cadastro");
@@ -1841,7 +2151,10 @@ export default function StudentsScreen() {
         if (!student.birthDate) return false;
         const date = parseIsoDate(student.birthDate);
         if (!date) return false;
-        return !hasBirthdayPassed(date, today) && getDaysUntilBirthday(date, today) > 0;
+        return (
+          !hasBirthdayPassed(date, today) &&
+          getDaysUntilBirthday(date, today) > 0
+        );
       })
       .map((student) => {
         const date = parseIsoDate(student.birthDate)!;
@@ -1872,8 +2185,10 @@ export default function StudentsScreen() {
         ([month, unitMap]) =>
           [
             month,
-            Array.from(unitMap.entries()).sort((a, b) => a[0].localeCompare(b[0])),
-          ] as BirthdayMonthGroup
+            Array.from(unitMap.entries()).sort((a, b) =>
+              a[0].localeCompare(b[0]),
+            ),
+          ] as BirthdayMonthGroup,
       );
   }, [birthdayVisibleStudents, classById, unitLabel]);
 
@@ -1895,47 +2210,43 @@ export default function StudentsScreen() {
   }, []);
 
   const renderStudentItem = ({
-      item,
-      paletteOverride,
-      unitNameOverride,
-    }: {
-      item: Student;
-      paletteOverride: { bg: string; text: string };
-      classNameOverride: string;
-      unitNameOverride: string;
-    }) => {
-      const cls = classById.get(item.classId) ?? null;
-      const unitName = unitNameOverride || unitLabel(cls?.unit ?? "");
-      const classPalette =
-        paletteOverride ??
-        (cls
-          ? getClassPalette(cls.colorKey, colors, unitName)
-          : getUnitPalette(unitName, colors) ?? {
-              bg: colors.primaryBg,
-              text: colors.primaryText,
-            });
-      const healthAssessment = deriveStudentHealthAssessment(item);
-        return (
-          <StudentListRow
-            student={item}
-            onPress={onEdit}
-            onWhatsApp={openStudentWhatsApp}
-            onInvite={onGenerateInviteFromList}
-            onPhotoPress={openPhotoPreview}
-            classPalette={classPalette}
-            healthAssessment={healthAssessment}
-            hasBirthDateWarning={hasBirthDateWarning(item.birthDate)}
-          />
-        );
-    };
+    item,
+    paletteOverride,
+    unitNameOverride,
+  }: {
+    item: Student;
+    paletteOverride: { bg: string; text: string };
+    classNameOverride: string;
+    unitNameOverride: string;
+  }) => {
+    const cls = classById.get(item.classId) ?? null;
+    const unitName = unitNameOverride || unitLabel(cls?.unit ?? "");
+    const classPalette =
+      paletteOverride ??
+      (cls
+        ? getClassPalette(cls.colorKey, colors, unitName)
+        : (getUnitPalette(unitName, colors) ?? {
+            bg: colors.primaryBg,
+            text: colors.primaryText,
+          }));
+    const healthAssessment = deriveStudentHealthAssessment(item);
+    return (
+      <StudentListRow
+        student={item}
+        onPress={onEdit}
+        onWhatsApp={openStudentWhatsApp}
+        onInvite={onGenerateInviteFromList}
+        onPhotoPress={openPhotoPreview}
+        classPalette={classPalette}
+        healthAssessment={healthAssessment}
+        hasBirthDateWarning={hasBirthDateWarning(item.birthDate)}
+      />
+    );
+  };
 
   const goBackFromStudents = useCallback(() => {
     navigateBackOrReplace({ router, fallback: "/prof/home" });
   }, [router]);
-
-  if (loading) {
-    return <ScreenLoadingState />;
-  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1943,750 +2254,982 @@ export default function StudentsScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <View ref={containerRef} style={{ flex: 1, position: "relative", overflow: "visible" }}>
-        <ScreenPageHeader title="Alunos" onBack={goBackFromStudents}>
-          <AnimatedSegmentedTabs
-            tabs={studentsTabMeta}
-            activeTab={studentsTab}
-            onChange={requestSwitchStudentsTab}
-          />
-        </ScreenPageHeader>
-
-        <ConfirmCloseOverlay
-          visible={showStudentsTabConfirm}
-          onCancel={() => {
-            setShowStudentsTabConfirm(false);
-            setPendingStudentsTab(null);
-          }}
-          onConfirm={() => {
-            setShowStudentsTabConfirm(false);
-            doResetForm();
-            resetPreRegistrationForm();
-            setStudentsTab(pendingStudentsTab ?? "alunos");
-            setPendingStudentsTab(null);
-          }}
-        />
-
-      <ScrollView
-        contentContainerStyle={{
-          paddingBottom: isCadastroTab ? Math.max(insets.bottom + 104, 120) : 24,
-          gap: 16,
-          paddingHorizontal: 16,
-          paddingTop: 12,
-        }}
-        keyboardShouldPersistTaps="handled"
-        onScrollBeginDrag={closeAllPickers}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              try {
-                await reload();
-              } finally {
-                setRefreshing(false);
-              }
-            }}
-            tintColor={colors.text}
-            colors={[colors.text]}
-          />
-        }
-      >
-
-        {studentsTab === "alunos" ? (
-          <StudentsOverviewCard
-            organizationName={activeOrganization?.name ?? "Sem organização"}
-            activeStudentsCount={students.length}
-            pendingInvitesCount={pendingStudentInvites.length}
-            todayBirthdaysCount={birthdayTodayAll.length}
-          />
-        ) : null}
-
-        <Suspense
-          fallback={
-            <View style={{ gap: 12, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}>
-              <ShimmerBlock style={{ height: 28, width: 160, borderRadius: 12 }} />
-              <ShimmerBlock style={{ height: 140, borderRadius: 18 }} />
-              <ShimmerBlock style={{ height: 260, borderRadius: 18 }} />
-            </View>
-          }
-        >
-          {studentsTab === "cadastro" && (
-            <StudentRegistrationTab
-              colors={colors}
-              selectFieldStyle={selectFieldStyle}
-              photoUrl={photoUrl}
-              setShowPhotoSheet={setShowPhotoSheet}
-              isExperimental={isExperimental}
-              showTypePicker={showTypePicker}
-              typeTriggerRef={typeTriggerRef}
-              toggleFormPicker={toggleFormPicker}
-              openCreateSection={openCreateSection}
-              toggleCreateSection={toggleCreateSection}
-              createStudentDataAnim={createStudentDataAnim}
-              createAcademicAnim={createAcademicAnim}
-              createDocumentsAnim={createDocumentsAnim}
-              createSportAnim={createSportAnim}
-              createHealthAnim={createHealthAnim}
-              createGuardianAnim={createGuardianAnim}
-              name={name}
-              setName={setName}
-              formatName={formatName}
-              unit={unit}
-              showUnitPicker={showUnitPicker}
-              unitTriggerRef={unitTriggerRef}
-              selectedClassName={selectedClassName}
-              showClassPicker={showClassPicker}
-              classTriggerRef={classTriggerRef}
-              studentFormError={studentFormError}
-              validationIssue={studentValidationIssue}
-              onClearValidation={clearStudentValidationError}
-              existingStudentMatches={existingStudentMatches}
-              onReviewExistingStudents={reviewExistingStudents}
-              onDismissExistingStudentWarning={() => setDismissedExistingStudentProbe(existingStudentProbeKey)}
-              birthDate={birthDate}
-              setBirthDate={setBirthDate}
-              setShowCalendar={setShowCalendar}
-              ageNumber={ageNumber}
-              phone={phone}
-              setPhone={setPhone}
-              formatPhone={formatPhone}
-              ra={ra}
-              setRa={setRa}
-              collegeCourse={collegeCourse}
-              setCollegeCourse={setCollegeCourse}
-              setStudentDocumentsError={setStudentDocumentsError}
-              cpfDisplay={cpfDisplay}
-              setCpfDisplay={setCpfDisplay}
-              setIsCpfVisible={setIsCpfVisible}
-              setCpfRevealedValue={setCpfRevealedValue}
-              setCpfRevealUnavailable={setCpfRevealUnavailable}
-              rgDocument={rgDocument}
-              setRgDocument={setRgDocument}
-              editingId={editingId}
-              canRevealCpf={canRevealCpf}
-              isCpfVisible={isCpfVisible}
-              revealCpfBusy={revealCpfBusy}
-              handleRevealEditingCpf={handleRevealEditingCpf}
-              studentDocumentsError={studentDocumentsError}
-              loginEmail={loginEmail}
-              setLoginEmail={setLoginEmail}
-              formatEmail={formatEmail}
-              positionPrimary={positionPrimary}
-              setPositionPrimary={setPositionPrimary}
-              positionSecondary={positionSecondary}
-              setPositionSecondary={setPositionSecondary}
-              athleteObjective={athleteObjective}
-              setAthleteObjective={setAthleteObjective}
-              learningStyle={learningStyle}
-              setLearningStyle={setLearningStyle}
-              healthIssue={healthIssue}
-              setHealthIssue={setHealthIssue}
-              healthIssueNotes={healthIssueNotes}
-              setHealthIssueNotes={setHealthIssueNotes}
-              medicationUse={medicationUse}
-              setMedicationUse={setMedicationUse}
-              medicationNotes={medicationNotes}
-              setMedicationNotes={setMedicationNotes}
-              healthObservations={healthObservations}
-              setHealthObservations={setHealthObservations}
-              guardianName={guardianName}
-              setGuardianName={setGuardianName}
-              guardianPhone={guardianPhone}
-              setGuardianPhone={setGuardianPhone}
-              guardianRelation={guardianRelation}
-              showGuardianRelationPicker={showGuardianRelationPicker}
-              guardianRelationTriggerRef={guardianRelationTriggerRef}
-              canSaveStudent={canSaveStudent}
-              onSave={onSave}
-              showInlineSaveButton={false}
-              isFormDirty={isFormDirty}
-              doResetForm={doResetForm}
-              confirmDialog={confirmDialog}
-            />
-          )}
-
-          {studentsTab === "aniversarios" && (
-            <BirthdaysTab
-              colors={colors}
-              birthdayMonthFilter={birthdayMonthFilter}
-              setBirthdayMonthFilter={setBirthdayMonthFilter}
-              birthdaySearch={birthdaySearch}
-              setBirthdaySearch={setBirthdaySearch}
-              birthdayToday={birthdayToday}
-              upcomingBirthdays={upcomingBirthdays}
-              showAllBirthdays={showAllBirthdays}
-              setShowAllBirthdays={setShowAllBirthdays}
-              showAllBirthdaysContent={showAllBirthdaysContent}
-              allBirthdaysAnimStyle={allBirthdaysAnimStyle}
-              birthdayUnitOptions={birthdayUnitOptions}
-              birthdayUnitFilter={birthdayUnitFilter}
-              setBirthdayUnitFilter={setBirthdayUnitFilter}
-              birthdayMonthGroups={birthdayMonthGroups}
-              classById={classById}
-              unitLabel={unitLabel}
-              calculateAge={calculateAge}
-              formatShortDate={formatShortDate}
-            />
-          )}
-
-          {studentsTab === "alunos" && (
-            <StudentsListTab
-              studentsUnitOptions={studentsUnitOptions}
-              studentsUnitFilter={studentsUnitFilter}
-              setStudentsUnitFilter={setStudentsUnitFilter}
-              studentsSearch={studentsSearch}
-              setStudentsSearch={setStudentsSearch}
-              studentsFiltered={studentsFiltered}
-              studentsGrouped={studentsGrouped}
-              expandedUnits={expandedUnits}
-              expandedClasses={expandedClasses}
-              toggleUnitExpanded={toggleUnitExpanded}
-              toggleClassExpanded={toggleClassExpanded}
-              renderStudentItem={renderStudentItem}
-            />
-          )}
-        </Suspense>
-
-      </ScrollView>
-
-      {isCadastroTab ? (
         <View
-          style={{
-            ...(Platform.OS === "web"
-              ? ({
-                  position: "fixed",
-                  left: 12,
-                  right: 12,
-                  bottom: Math.max(insets.bottom + 10, 14),
-                } as any)
-              : {
-                  position: "absolute" as const,
-                  left: 12,
-                  right: 12,
-                  bottom: Math.max(insets.bottom + 10, 14),
-                }),
-            zIndex: 3150,
-            borderRadius: 20,
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor:
-              Platform.OS === "web"
-                ? mode === "dark"
-                  ? "rgba(17, 27, 48, 0.94)"
-                  : "rgba(255,255,255,0.94)"
-                : colors.card,
-            padding: 12,
-            ...(Platform.OS === "web"
-              ? {
-                  backdropFilter: "blur(18px) saturate(165%)",
-                  WebkitBackdropFilter: "blur(18px) saturate(165%)",
-                  backgroundImage:
-                    mode === "dark"
-                      ? "linear-gradient(180deg, rgba(24,34,55,0.98) 0%, rgba(13,21,37,0.94) 100%)"
-                      : "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%)",
-                }
-              : {}),
-            ...shadow.elevated,
-          }}
+          ref={containerRef}
+          style={{ flex: 1, position: "relative", overflow: "visible" }}
         >
-          <Button
-            label={editingId ? "Salvar alterações" : "Adicionar aluno"}
-            onPress={onSave}
-            disabled={!canSaveStudent}
+          <ScreenPageHeader
+            title={studentsTab === "aniversarios" ? "Aniversários" : "Alunos"}
+            onBack={goBackFromStudents}
+            subtitle={
+              studentsTab === "aniversarios"
+                ? `${birthdayTodayAll.length} hoje · ${upcomingBirthdays.length} nos próximos dias`
+                : `${students.length} ativos · ${pendingStudentInvites.length} convites · ${birthdayTodayAll.length} aniversário${birthdayTodayAll.length === 1 ? "" : "s"} hoje`
+            }
+            right={
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable
+                  onPress={() =>
+                    requestSwitchStudentsTab(
+                      studentsTab === "aniversarios"
+                        ? "alunos"
+                        : "aniversarios",
+                    )
+                  }
+                  style={{
+                    minHeight: 40,
+                    paddingHorizontal: 14,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondaryBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 7,
+                  }}
+                >
+                  <GoAtletaIcon name="birthday" size={16} color={colors.text} />
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 12,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {studentsTab === "aniversarios"
+                      ? "Voltar para alunos"
+                      : "Aniversários"}
+                  </Text>
+                </Pressable>
+                {studentsTab !== "aniversarios" ? (
+                  <Pressable
+                    onPress={() => setStudentsTab("cadastro")}
+                    style={{
+                      minHeight: 40,
+                      paddingHorizontal: 15,
+                      borderRadius: 12,
+                      backgroundColor: colors.primaryBg,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 7,
+                    }}
+                  >
+                    <GoAtletaIcon
+                      name="add"
+                      size={17}
+                      color={colors.primaryText}
+                    />
+                    <Text
+                      style={{
+                        color: colors.primaryText,
+                        fontSize: 12,
+                        fontWeight: "900",
+                      }}
+                    >
+                      Adicionar aluno
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            }
           />
-        </View>
-      ) : null}
 
-      {!isCadastroTab ? (
-        <>
-          <Pressable
-            onPress={() => setShowStudentsFabMenu((current) => !current)}
-            style={{
-              ...(Platform.OS === "web"
-                ? ({ position: "fixed", right: studentsFabRight, bottom: studentsFabBottom } as any)
-                : { position: "absolute" as const, right: studentsFabRight, bottom: studentsFabBottom }),
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.primaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              zIndex: 3200,
-              ...shadow.elevated,
+          <ConfirmCloseOverlay
+            visible={showStudentsTabConfirm}
+            onCancel={() => {
+              setShowStudentsTabConfirm(false);
+              setPendingStudentsTab(null);
             }}
+            onConfirm={() => {
+              setShowStudentsTabConfirm(false);
+              doResetForm();
+              resetPreRegistrationForm();
+              setStudentsTab(pendingStudentsTab ?? "alunos");
+              setPendingStudentsTab(null);
+            }}
+          />
+
+          <ScrollView
+            style={{ flex: 1, minHeight: 0 }}
+            scrollEnabled={
+              studentsTab === "aniversarios" || windowWidth < 900
+            }
+            contentContainerStyle={{
+              ...(studentsTab !== "aniversarios" && windowWidth >= 900
+                ? {
+                    height: "100%",
+                    maxHeight: "100%",
+                    minHeight: 0,
+                    overflow: "hidden" as const,
+                  }
+                : { flexGrow: 0 }),
+              paddingBottom: isCadastroTab
+                ? Math.max(insets.bottom + 104, 120)
+                : studentsTab !== "aniversarios" && windowWidth >= 900
+                  ? 0
+                  : 24,
+              gap: 16,
+              paddingHorizontal: 16,
+              paddingTop: 12,
+            }}
+            keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={closeAllPickers}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={async () => {
+                  setRefreshing(true);
+                  try {
+                    await reload();
+                  } finally {
+                    setRefreshing(false);
+                  }
+                }}
+                tintColor={colors.text}
+                colors={[colors.text]}
+              />
+            }
           >
-            <Animated.View
+            <Suspense
+              fallback={
+                <View
+                  style={{
+                    gap: 12,
+                    paddingHorizontal: 16,
+                    paddingTop: 16,
+                    paddingBottom: 24,
+                  }}
+                >
+                  <ShimmerBlock
+                    style={{ height: 28, width: 160, borderRadius: 12 }}
+                  />
+                  <ShimmerBlock style={{ height: 140, borderRadius: 18 }} />
+                  <ShimmerBlock style={{ height: 260, borderRadius: 18 }} />
+                </View>
+              }
+            >
+              {isCadastroTab && (
+                <ModalSheet
+                  visible={isCadastroTab}
+                  onClose={() => requestSwitchStudentsTab("alunos")}
+                  position="right"
+                  slideOffset={560}
+                  containerPadding={0}
+                  backdropOpacity={0.7}
+                  cardStyle={{
+                    width: windowWidth < 720 ? "100%" : "42%",
+                    minWidth: windowWidth < 720 ? 0 : 480,
+                    maxWidth: 560,
+                    height: "100%",
+                    maxHeight: "100%",
+                    alignSelf: "flex-end",
+                    marginBottom: 0,
+                    borderRadius: 0,
+                    padding: 0,
+                  }}
+                >
+                  <View
+                    style={{
+                      paddingHorizontal: 20,
+                      paddingVertical: 16,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.border,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 20,
+                        fontWeight: "900",
+                      }}
+                    >
+                      {editingId ? "Editar aluno" : "Adicionar aluno"}
+                    </Text>
+                    <Pressable
+                      onPress={() => requestSwitchStudentsTab("alunos")}
+                      style={{
+                        width: 38,
+                        height: 38,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderRadius: 19,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <GoAtletaIcon
+                        name="close"
+                        size={19}
+                        color={colors.text}
+                      />
+                    </Pressable>
+                  </View>
+                  <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ padding: 20, paddingBottom: 28 }}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <StudentRegistrationTab
+                      colors={colors}
+                      selectFieldStyle={selectFieldStyle}
+                      photoUrl={photoUrl}
+                      setShowPhotoSheet={setShowPhotoSheet}
+                      isExperimental={isExperimental}
+                      showTypePicker={showTypePicker}
+                      typeTriggerRef={typeTriggerRef}
+                      toggleFormPicker={toggleFormPicker}
+                      openCreateSection={openCreateSection}
+                      toggleCreateSection={toggleCreateSection}
+                      createStudentDataAnim={createStudentDataAnim}
+                      createAcademicAnim={createAcademicAnim}
+                      createDocumentsAnim={createDocumentsAnim}
+                      createSportAnim={createSportAnim}
+                      createHealthAnim={createHealthAnim}
+                      createGuardianAnim={createGuardianAnim}
+                      name={name}
+                      setName={setName}
+                      formatName={formatName}
+                      unit={unit}
+                      showUnitPicker={showUnitPicker}
+                      unitTriggerRef={unitTriggerRef}
+                      selectedClassName={selectedClassName}
+                      showClassPicker={showClassPicker}
+                      classTriggerRef={classTriggerRef}
+                      studentFormError={studentFormError}
+                      validationIssue={studentValidationIssue}
+                      onClearValidation={clearStudentValidationError}
+                      existingStudentMatches={existingStudentMatches}
+                      onReviewExistingStudents={reviewExistingStudents}
+                      onDismissExistingStudentWarning={() =>
+                        setDismissedExistingStudentProbe(
+                          existingStudentProbeKey,
+                        )
+                      }
+                      birthDate={birthDate}
+                      setBirthDate={setBirthDate}
+                      setShowCalendar={setShowCalendar}
+                      ageNumber={ageNumber}
+                      phone={phone}
+                      setPhone={setPhone}
+                      formatPhone={formatPhone}
+                      ra={ra}
+                      setRa={setRa}
+                      collegeCourse={collegeCourse}
+                      setCollegeCourse={setCollegeCourse}
+                      setStudentDocumentsError={setStudentDocumentsError}
+                      cpfDisplay={cpfDisplay}
+                      setCpfDisplay={setCpfDisplay}
+                      setIsCpfVisible={setIsCpfVisible}
+                      setCpfRevealedValue={setCpfRevealedValue}
+                      setCpfRevealUnavailable={setCpfRevealUnavailable}
+                      rgDocument={rgDocument}
+                      setRgDocument={setRgDocument}
+                      editingId={editingId}
+                      canRevealCpf={canRevealCpf}
+                      isCpfVisible={isCpfVisible}
+                      revealCpfBusy={revealCpfBusy}
+                      handleRevealEditingCpf={handleRevealEditingCpf}
+                      studentDocumentsError={studentDocumentsError}
+                      loginEmail={loginEmail}
+                      setLoginEmail={setLoginEmail}
+                      formatEmail={formatEmail}
+                      positionPrimary={positionPrimary}
+                      setPositionPrimary={setPositionPrimary}
+                      positionSecondary={positionSecondary}
+                      setPositionSecondary={setPositionSecondary}
+                      athleteObjective={athleteObjective}
+                      setAthleteObjective={setAthleteObjective}
+                      learningStyle={learningStyle}
+                      setLearningStyle={setLearningStyle}
+                      healthIssue={healthIssue}
+                      setHealthIssue={setHealthIssue}
+                      healthIssueNotes={healthIssueNotes}
+                      setHealthIssueNotes={setHealthIssueNotes}
+                      medicationUse={medicationUse}
+                      setMedicationUse={setMedicationUse}
+                      medicationNotes={medicationNotes}
+                      setMedicationNotes={setMedicationNotes}
+                      healthObservations={healthObservations}
+                      setHealthObservations={setHealthObservations}
+                      guardianName={guardianName}
+                      setGuardianName={setGuardianName}
+                      guardianPhone={guardianPhone}
+                      setGuardianPhone={setGuardianPhone}
+                      guardianRelation={guardianRelation}
+                      showGuardianRelationPicker={showGuardianRelationPicker}
+                      guardianRelationTriggerRef={guardianRelationTriggerRef}
+                      canSaveStudent={canSaveStudent}
+                      onSave={onSave}
+                      showInlineSaveButton={false}
+                      continuousMode
+                      isFormDirty={isFormDirty}
+                      doResetForm={doResetForm}
+                      confirmDialog={confirmDialog}
+                    />
+                  </ScrollView>
+                  <View
+                    style={{
+                      padding: 16,
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                    }}
+                  >
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {isFormDirty
+                        ? "Alterações não salvas"
+                        : "Preencha os dados do aluno"}
+                    </Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <Pressable
+                        onPress={() => requestSwitchStudentsTab("alunos")}
+                        style={{
+                          minHeight: 42,
+                          paddingHorizontal: 18,
+                          borderRadius: 11,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "800" }}>
+                          Cancelar
+                        </Text>
+                      </Pressable>
+                      <Button
+                        label={editingId ? "Salvar alterações" : "Salvar aluno"}
+                        onPress={onSave}
+                        disabled={!canSaveStudent}
+                      />
+                    </View>
+                  </View>
+                </ModalSheet>
+              )}
+
+              {studentsTab === "aniversarios" && (
+                <BirthdaysTab
+                  colors={colors}
+                  birthdayMonthFilter={birthdayMonthFilter}
+                  setBirthdayMonthFilter={setBirthdayMonthFilter}
+                  birthdaySearch={birthdaySearch}
+                  setBirthdaySearch={setBirthdaySearch}
+                  birthdayToday={birthdayToday}
+                  upcomingBirthdays={upcomingBirthdays}
+                  showAllBirthdays={showAllBirthdays}
+                  setShowAllBirthdays={setShowAllBirthdays}
+                  showAllBirthdaysContent={showAllBirthdaysContent}
+                  allBirthdaysAnimStyle={allBirthdaysAnimStyle}
+                  birthdayUnitOptions={birthdayUnitOptions}
+                  birthdayUnitFilter={birthdayUnitFilter}
+                  setBirthdayUnitFilter={setBirthdayUnitFilter}
+                  birthdayMonthGroups={birthdayMonthGroups}
+                  students={students}
+                  classById={classById}
+                  unitLabel={unitLabel}
+                  calculateAge={calculateAge}
+                  formatShortDate={formatShortDate}
+                />
+              )}
+
+              {studentsTab !== "aniversarios" && (
+                <StudentsListTab
+                  studentsUnitOptions={studentsUnitOptions}
+                  studentsUnitFilter={studentsUnitFilter}
+                  setStudentsUnitFilter={setStudentsUnitFilter}
+                  studentsSearch={studentsSearch}
+                  setStudentsSearch={setStudentsSearch}
+                  students={students}
+                  studentsFiltered={studentsFiltered}
+                  studentsGrouped={studentsGrouped}
+                  classById={classById}
+                  unitLabel={unitLabel}
+                  expandedUnits={expandedUnits}
+                  expandedClasses={expandedClasses}
+                  toggleUnitExpanded={toggleUnitExpanded}
+                  toggleClassExpanded={toggleClassExpanded}
+                  renderStudentItem={renderStudentItem}
+                  onStudentPress={onEdit}
+                  onStudentWhatsApp={openStudentWhatsApp}
+                  birthdayStudentIds={birthdayStudentIds}
+                  loading={loading}
+                />
+              )}
+            </Suspense>
+          </ScrollView>
+
+          {false ? (
+            <View
               style={{
-                transform: [{ rotate: studentsFabRotate }, { scale: studentsFabScale }],
+                ...(Platform.OS === "web"
+                  ? ({
+                      position: "fixed",
+                      left: 12,
+                      right: 12,
+                      bottom: Math.max(insets.bottom + 10, 14),
+                    } as any)
+                  : {
+                      position: "absolute" as const,
+                      left: 12,
+                      right: 12,
+                      bottom: Math.max(insets.bottom + 10, 14),
+                    }),
+                zIndex: 3150,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor:
+                  Platform.OS === "web"
+                    ? mode === "dark"
+                      ? "rgba(17, 27, 48, 0.94)"
+                      : "rgba(255,255,255,0.94)"
+                    : colors.card,
+                padding: 12,
+                ...(Platform.OS === "web"
+                  ? {
+                      backdropFilter: "blur(18px) saturate(165%)",
+                      WebkitBackdropFilter: "blur(18px) saturate(165%)",
+                      backgroundImage:
+                        mode === "dark"
+                          ? "linear-gradient(180deg, rgba(24,34,55,0.98) 0%, rgba(13,21,37,0.94) 100%)"
+                          : "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%)",
+                    }
+                  : {}),
+                ...shadow.elevated,
               }}
             >
-              <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
-            </Animated.View>
-          </Pressable>
+              <Button
+                label={editingId ? "Salvar alterações" : "Adicionar aluno"}
+                onPress={onSave}
+                disabled={!canSaveStudent}
+              />
+            </View>
+          ) : null}
 
-          <StudentsFabMenu
-            visible={showStudentsFabMenu}
-            exportBusy={studentsExportBusy}
-            anchorRight={studentsFabRight}
-            anchorBottom={studentsFabBottom}
-            onClose={() => setShowStudentsFabMenu(false)}
-            onSyncFormsPress={() => {
-              setShowStudentsFabMenu(false);
-              setShowStudentsFormsSyncModal(true);
-            }}
-            onImportPress={() => {
-              setShowStudentsFabMenu(false);
-              setShowStudentsImportModal(true);
-            }}
-            onExportPress={() => {
-              void handleExportStudents().finally(() => {
-                setShowStudentsFabMenu(false);
-              });
+          {false && !isCadastroTab ? (
+            <>
+              <Pressable
+                onPress={() => setShowStudentsFabMenu((current) => !current)}
+                style={{
+                  ...(Platform.OS === "web"
+                    ? ({
+                        position: "fixed",
+                        right: studentsFabRight,
+                        bottom: studentsFabBottom,
+                      } as any)
+                    : {
+                        position: "absolute" as const,
+                        right: studentsFabRight,
+                        bottom: studentsFabBottom,
+                      }),
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.primaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  zIndex: 3200,
+                  ...shadow.elevated,
+                }}
+              >
+                <Animated.View
+                  style={{
+                    transform: [
+                      { rotate: studentsFabRotate },
+                      { scale: studentsFabScale },
+                    ],
+                  }}
+                >
+                  <GoAtletaIcon
+                    name="add"
+                    size={24}
+                    color={colors.primaryText}
+                  />
+                </Animated.View>
+              </Pressable>
+
+              <StudentsFabMenu
+                visible={showStudentsFabMenu}
+                exportBusy={studentsExportBusy}
+                anchorRight={studentsFabRight}
+                anchorBottom={studentsFabBottom}
+                onClose={() => setShowStudentsFabMenu(false)}
+                onSyncFormsPress={() => {
+                  setShowStudentsFabMenu(false);
+                  setShowStudentsFormsSyncModal(true);
+                }}
+                onImportPress={() => {
+                  setShowStudentsFabMenu(false);
+                  setShowStudentsImportModal(true);
+                }}
+                onExportPress={() => {
+                  void handleExportStudents().finally(() => {
+                    setShowStudentsFabMenu(false);
+                  });
+                }}
+              />
+            </>
+          ) : null}
+
+          <StudentsFormsSyncModal
+            visible={showStudentsFormsSyncModal}
+            organizationId={activeOrganization?.id ?? null}
+            classes={classes}
+            onClose={() => setShowStudentsFormsSyncModal(false)}
+            onImportApplied={() => {
+              void reload();
             }}
           />
-        </>
-      ) : null}
 
-      <StudentsFormsSyncModal
-        visible={showStudentsFormsSyncModal}
-        organizationId={activeOrganization?.id ?? null}
-        classes={classes}
-        onClose={() => setShowStudentsFormsSyncModal(false)}
-        onImportApplied={() => {
-          void reload();
-        }}
-      />
+          <StudentsImportModal
+            visible={showStudentsImportModal}
+            organizationId={activeOrganization?.id ?? null}
+            classes={classes}
+            onClose={() => setShowStudentsImportModal(false)}
+            onImportApplied={() => {
+              void reload();
+            }}
+          />
 
-      <StudentsImportModal
-        visible={showStudentsImportModal}
-        organizationId={activeOrganization?.id ?? null}
-        classes={classes}
-        onClose={() => setShowStudentsImportModal(false)}
-        onImportApplied={() => {
-          void reload();
-        }}
-      />
+          <StudentsAnchoredDropdown
+            visible={showUnitPickerContent}
+            layout={unitTriggerLayout}
+            container={containerWindow}
+            animationStyle={unitPickerAnimStyle}
+            zIndex={320}
+            maxHeight={220}
+            nestedScrollEnabled
+            onRequestClose={closeAllPickers}
+            interactiveRefs={[unitTriggerRef]}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
+          >
+            {unitOptions.length ? (
+              unitOptions.map((item, index) => (
+                <StudentSelectOption
+                  key={item}
+                  label={item}
+                  value={item}
+                  active={item === unit}
+                  onSelect={handleSelectUnit}
+                  isFirst={index === 0}
+                />
+              ))
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+                Nenhuma unidade cadastrada.
+              </Text>
+            )}
+          </StudentsAnchoredDropdown>
 
-        <StudentsAnchoredDropdown
-          visible={showUnitPickerContent}
-          layout={unitTriggerLayout}
-          container={containerWindow}
-          animationStyle={unitPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          interactiveRefs={[unitTriggerRef]}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          { unitOptions.length ? (
-            unitOptions.map((item, index) => (
+          <StudentsAnchoredDropdown
+            visible={showClassPickerContent}
+            layout={classTriggerLayout}
+            container={containerWindow}
+            animationStyle={classPickerAnimStyle}
+            zIndex={320}
+            maxHeight={240}
+            nestedScrollEnabled
+            onRequestClose={closeAllPickers}
+            interactiveRefs={[classTriggerRef]}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
+          >
+            <StudentClassDropdownPanel
+              colors={colors}
+              classOptions={classOptions}
+              filteredClassOptions={filteredClassOptions}
+              classModalities={classModalities}
+              selectedClassId={classId}
+              modalityFilter={classModalityFilter}
+              onModalityFilterChange={setClassModalityFilter}
+              onSelectClass={handleSelectClass}
+            />
+          </StudentsAnchoredDropdown>
+          <StudentsAnchoredDropdown
+            visible={showGuardianRelationPickerContent}
+            layout={guardianRelationTriggerLayout}
+            container={containerWindow}
+            animationStyle={guardianRelationPickerAnimStyle}
+            zIndex={320}
+            maxHeight={220}
+            nestedScrollEnabled
+            onRequestClose={closeAllPickers}
+            interactiveRefs={[guardianRelationTriggerRef]}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
+          >
+            {guardianRelationOptions.map((item, index) => (
               <StudentSelectOption
                 key={item}
                 label={item}
                 value={item}
-                active={item === unit}
-                onSelect={handleSelectUnit}
+                active={item === guardianRelation}
+                onSelect={handleSelectGuardianRelation}
                 isFirst={index === 0}
               />
-            ))
-          ) : (
-            <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
-              Nenhuma unidade cadastrada.
-            </Text>
-          )}
-        </StudentsAnchoredDropdown>
-
-        <StudentsAnchoredDropdown
-          visible={showClassPickerContent}
-          layout={classTriggerLayout}
-          container={containerWindow}
-          animationStyle={classPickerAnimStyle}
-          zIndex={320}
-          maxHeight={240}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          interactiveRefs={[classTriggerRef]}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          <StudentClassDropdownPanel
-            colors={colors}
-            classOptions={classOptions}
-            filteredClassOptions={filteredClassOptions}
-            classModalities={classModalities}
-            selectedClassId={classId}
-            modalityFilter={classModalityFilter}
-            onModalityFilterChange={setClassModalityFilter}
-            onSelectClass={handleSelectClass}
-          />
-        </StudentsAnchoredDropdown>
-        <StudentsAnchoredDropdown
-          visible={showGuardianRelationPickerContent}
-          layout={guardianRelationTriggerLayout}
-          container={containerWindow}
-          animationStyle={guardianRelationPickerAnimStyle}
-          zIndex={320}
-          maxHeight={220}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          interactiveRefs={[guardianRelationTriggerRef]}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          {guardianRelationOptions.map((item, index) => (
-            <StudentSelectOption
-              key={item}
-              label={item}
-              value={item}
-              active={item === guardianRelation}
-              onSelect={handleSelectGuardianRelation}
-              isFirst={index === 0}
-            />
-          ))}
-        </StudentsAnchoredDropdown>
-        <StudentsAnchoredDropdown
-          visible={showTypePickerContent}
-          layout={typeTriggerLayout}
-          container={containerWindow}
-          animationStyle={typePickerAnimStyle}
-          zIndex={320}
-          maxHeight={120}
-          nestedScrollEnabled
-          onRequestClose={closeAllPickers}
-          interactiveRefs={[typeTriggerRef]}
-          scrollContentStyle={{ padding: 8, gap: 6 }}
-        >
-          {([{ label: "Aluno regular", value: "regular" }, { label: "Experimental", value: "experimental" }] as const).map((item, index) => (
-            <StudentSelectOption
-              key={item.value}
-              label={item.label}
-              value={item.value}
-              active={(item.value === "experimental") === isExperimental}
-              onSelect={handleSelectType}
-              isFirst={index === 0}
-            />
-          ))}
-        </StudentsAnchoredDropdown>
-      </View>
-      { saveNotice ? (
-        <Animated.View
-          style={{
-            position: "absolute",
-            left: 16,
-            right: 16,
-            bottom: 24,
-            paddingVertical: 12,
-            paddingHorizontal: 14,
-            borderRadius: 14,
-            backgroundColor: colors.successBg,
-            borderWidth: 1,
-            borderColor: colors.successBg,
-            ...shadow.elevated,
-            alignItems: "center",
-            opacity: saveNoticeAnim,
-            transform: [
-              {
-                translateY: saveNoticeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [8, 0],
-                }),
-              },
-            ],
-          }}
-        >
-          <Text style={{ color: colors.successText, fontWeight: "700" }}>
-            {saveNotice}
-          </Text>
-        </Animated.View>
-      ) : null}
-      <StudentEditModal
-        showEditModal={showEditModal}
-        requestCloseEditModal={requestCloseEditModal}
-        editModalCardStyle={editModalCardStyle}
-        showEditCloseConfirm={showEditCloseConfirm}
-        setShowEditCloseConfirm={setShowEditCloseConfirm}
-        closeEditModal={closeEditModal}
-        editModalRef={editModalRef}
-        setEditContainerWindow={setEditContainerWindow}
-        photoUrl={photoUrl}
-        setShowPhotoSheet={setShowPhotoSheet}
-        pickStudentPhoto={pickStudentPhoto}
-        openEditSection={openEditSection}
-        toggleEditSection={toggleEditSection}
-        editStudentDataAnim={editStudentDataAnim}
-        editAcademicAnim={editAcademicAnim}
-        editDocumentsAnim={editDocumentsAnim}
-        editSportAnim={editSportAnim}
-        editHealthAnim={editHealthAnim}
-        editGuardianAnim={editGuardianAnim}
-        editLinksAnim={editLinksAnim}
-        name={name}
-        setName={setName}
-        collegeCourse={collegeCourse}
-        setCollegeCourse={setCollegeCourse}
-        loginEmail={loginEmail}
-        setLoginEmail={setLoginEmail}
-        birthDate={birthDate}
-        setBirthDate={setBirthDate}
-        ageNumber={ageNumber}
-        phone={phone}
-        setPhone={setPhone}
-        studentFormError={studentFormError}
-        validationIssue={studentValidationIssue}
-        onClearValidation={clearStudentValidationError}
-        setShowCalendar={setShowCalendar}
-        formatName={formatName}
-        formatEmail={formatEmail}
-        formatPhone={formatPhone}
-        ra={ra}
-        setRa={setRa}
-        cpfDisplay={cpfDisplay}
-        setCpfDisplay={setCpfDisplay}
-        rgDocument={rgDocument}
-        setRgDocument={setRgDocument}
-        editingId={editingId}
-        canRevealCpf={canRevealCpf}
-        isCpfVisible={isCpfVisible}
-        revealCpfBusy={revealCpfBusy}
-        handleRevealEditingCpf={handleRevealEditingCpf}
-        studentDocumentsError={studentDocumentsError}
-        setIsCpfVisible={setIsCpfVisible}
-        setCpfRevealedValue={setCpfRevealedValue}
-        setCpfRevealUnavailable={setCpfRevealUnavailable}
-        setStudentDocumentsError={setStudentDocumentsError}
-        editAcademicSummary={editAcademicSummary}
-        editDocumentsSummary={editDocumentsSummary}
-        positionPrimary={positionPrimary}
-        setPositionPrimary={setPositionPrimary}
-        positionSecondary={positionSecondary}
-        setPositionSecondary={setPositionSecondary}
-        athleteObjective={athleteObjective}
-        setAthleteObjective={setAthleteObjective}
-        learningStyle={learningStyle}
-        setLearningStyle={setLearningStyle}
-        editSportSummary={editSportSummary}
-        healthIssue={healthIssue}
-        setHealthIssue={setHealthIssue}
-        healthIssueNotes={healthIssueNotes}
-        setHealthIssueNotes={setHealthIssueNotes}
-        medicationUse={medicationUse}
-        setMedicationUse={setMedicationUse}
-        medicationNotes={medicationNotes}
-        setMedicationNotes={setMedicationNotes}
-        healthObservations={healthObservations}
-        setHealthObservations={setHealthObservations}
-        editHealthSummary={editHealthSummary}
-        guardianName={guardianName}
-        setGuardianName={setGuardianName}
-        guardianPhone={guardianPhone}
-        setGuardianPhone={setGuardianPhone}
-        guardianRelation={guardianRelation}
-        editGuardianRelationTriggerRef={editGuardianRelationTriggerRef}
-        toggleEditPicker={toggleEditPicker}
-        showEditGuardianRelationPicker={showEditGuardianRelationPicker}
-        editGuardianSummary={editGuardianSummary}
-        guardianRelationOptions={guardianRelationOptions}
-        showEditGuardianRelationPickerContent={showEditGuardianRelationPickerContent}
-        editGuardianRelationTriggerLayout={editGuardianRelationTriggerLayout}
-        editGuardianRelationPickerAnimStyle={editGuardianRelationPickerAnimStyle}
-        handleSelectEditGuardianRelation={handleSelectEditGuardianRelation}
-        editUnitTriggerRef={editUnitTriggerRef}
-        showEditUnitPicker={showEditUnitPicker}
-        selectedClassName={selectedClassLabel}
-        editClassTriggerRef={editClassTriggerRef}
-        showEditClassPicker={showEditClassPicker}
-        editLinksSummary={editLinksSummary}
-        unitOptions={unitOptions}
-        showEditUnitPickerContent={showEditUnitPickerContent}
-        editContainerWindow={editContainerWindow}
-        editUnitPickerAnimStyle={editUnitPickerAnimStyle}
-        selectedUnitFilters={editUnitFilters}
-        handleToggleEditUnitFilter={handleToggleEditUnitFilter}
-        classOptions={editClassOptions}
-        classId={classId}
-        showEditClassPickerContent={showEditClassPickerContent}
-        editClassPickerAnimStyle={editClassPickerAnimStyle}
-        handleSelectEditClass={handleSelectEditClass}
-        closeAllEditPickers={closeAllEditPickers}
-        deleteEditingStudent={deleteEditingStudent}
-        editSaving={editSaving}
-        setEditSaving={setEditSaving}
-        onSave={onSave}
-        isEditDirty={isEditDirty}
-        selectFieldStyle={selectFieldStyle}
-        colors={colors}
-        SelectOption={StudentSelectOption}
-      />
-      <WhatsAppModal
-        visible={showWhatsAppModal}
-        onClose={closeWhatsAppModal}
-        cardStyle={whatsappModalCardStyle}
-        selectedStudentId={selectedStudentId}
-        students={students}
-        classById={classById}
-        selectedContactType={selectedContactType}
-        setSelectedContactType={setSelectedContactType}
-        selectedTemplateId={selectedTemplateId}
-        selectedTemplateLabel={selectedTemplateLabel}
-        setSelectedTemplateId={setSelectedTemplateId}
-        setSelectedTemplateLabel={setSelectedTemplateLabel}
-        customFields={customFields}
-        setCustomFields={setCustomFields}
-        customStudentMessage={customStudentMessage}
-        setCustomStudentMessage={setCustomStudentMessage}
-        studentInviteBusy={studentInviteBusy}
-        showRevokeConfirm={showRevokeConfirm}
-        setShowRevokeConfirm={setShowRevokeConfirm}
-        applyStudentInviteTemplate={applyStudentInviteTemplate}
-        whatsappNotice={whatsappNotice}
-        showTemplateList={showTemplateList}
-        setShowTemplateList={setShowTemplateList}
-        showTemplateListContent={showTemplateListContent}
-        templateTriggerLayout={templateTriggerLayout}
-        whatsappContainerWindow={whatsappContainerWindow}
-        templateListAnimStyle={templateListAnimStyle}
-        syncTemplateLayout={syncTemplateLayout}
-        closeAllPickers={closeAllPickers}
-        whatsappContainerRef={whatsappContainerRef}
-        templateTriggerRef={templateTriggerRef}
-        groupInviteLinks={groupInviteLinks}
-        colors={colors}
-        buildStudentMessage={buildStudentMessage}
-      />
-      <ModalSheet
-        visible={showPhotoSheet}
-        onClose={() => setShowPhotoSheet(false)}
-        cardStyle={photoSheetCardStyle}
-        position="center"
-        backdropOpacity={0.7}
-      >
-        <View style={{ gap: 10 }}>
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-            Foto do aluno
-          </Text>
-          <Pressable
-            onPress={() => pickStudentPhoto("camera")}
+            ))}
+          </StudentsAnchoredDropdown>
+          <StudentsAnchoredDropdown
+            visible={showTypePickerContent}
+            layout={typeTriggerLayout}
+            container={containerWindow}
+            animationStyle={typePickerAnimStyle}
+            zIndex={320}
+            maxHeight={120}
+            nestedScrollEnabled
+            onRequestClose={closeAllPickers}
+            interactiveRefs={[typeTriggerRef]}
+            scrollContentStyle={{ padding: 8, gap: 6 }}
+          >
+            {(
+              [
+                { label: "Aluno regular", value: "regular" },
+                { label: "Experimental", value: "experimental" },
+              ] as const
+            ).map((item, index) => (
+              <StudentSelectOption
+                key={item.value}
+                label={item.label}
+                value={item.value}
+                active={(item.value === "experimental") === isExperimental}
+                onSelect={handleSelectType}
+                isFirst={index === 0}
+              />
+            ))}
+          </StudentsAnchoredDropdown>
+        </View>
+        {saveNotice ? (
+          <Animated.View
             style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
+              position: "absolute",
+              left: 16,
+              right: 16,
+              bottom: 24,
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              borderRadius: 14,
+              backgroundColor: colors.successBg,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: colors.successBg,
+              ...shadow.elevated,
               alignItems: "center",
+              opacity: saveNoticeAnim,
+              transform: [
+                {
+                  translateY: saveNoticeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [8, 0],
+                  }),
+                },
+              ],
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Usar camera
+            <Text style={{ color: colors.successText, fontWeight: "700" }}>
+              {saveNotice}
             </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => pickStudentPhoto("library")}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Escolher da galeria
+          </Animated.View>
+        ) : null}
+        <StudentEditModal
+          showEditModal={showEditModal}
+          requestCloseEditModal={requestCloseEditModal}
+          editModalCardStyle={editModalCardStyle}
+          showEditCloseConfirm={showEditCloseConfirm}
+          setShowEditCloseConfirm={setShowEditCloseConfirm}
+          closeEditModal={closeEditModal}
+          editModalRef={editModalRef}
+          setEditContainerWindow={setEditContainerWindow}
+          photoUrl={photoUrl}
+          setShowPhotoSheet={setShowPhotoSheet}
+          pickStudentPhoto={pickStudentPhoto}
+          openEditSection={openEditSection}
+          toggleEditSection={toggleEditSection}
+          editStudentDataAnim={editStudentDataAnim}
+          editAcademicAnim={editAcademicAnim}
+          editDocumentsAnim={editDocumentsAnim}
+          editSportAnim={editSportAnim}
+          editHealthAnim={editHealthAnim}
+          editGuardianAnim={editGuardianAnim}
+          editLinksAnim={editLinksAnim}
+          name={name}
+          setName={setName}
+          collegeCourse={collegeCourse}
+          setCollegeCourse={setCollegeCourse}
+          loginEmail={loginEmail}
+          setLoginEmail={setLoginEmail}
+          birthDate={birthDate}
+          setBirthDate={setBirthDate}
+          ageNumber={ageNumber}
+          phone={phone}
+          setPhone={setPhone}
+          studentFormError={studentFormError}
+          validationIssue={studentValidationIssue}
+          onClearValidation={clearStudentValidationError}
+          setShowCalendar={setShowCalendar}
+          formatName={formatName}
+          formatEmail={formatEmail}
+          formatPhone={formatPhone}
+          ra={ra}
+          setRa={setRa}
+          cpfDisplay={cpfDisplay}
+          setCpfDisplay={setCpfDisplay}
+          rgDocument={rgDocument}
+          setRgDocument={setRgDocument}
+          editingId={editingId}
+          canRevealCpf={canRevealCpf}
+          isCpfVisible={isCpfVisible}
+          revealCpfBusy={revealCpfBusy}
+          handleRevealEditingCpf={handleRevealEditingCpf}
+          studentDocumentsError={studentDocumentsError}
+          setIsCpfVisible={setIsCpfVisible}
+          setCpfRevealedValue={setCpfRevealedValue}
+          setCpfRevealUnavailable={setCpfRevealUnavailable}
+          setStudentDocumentsError={setStudentDocumentsError}
+          editAcademicSummary={editAcademicSummary}
+          editDocumentsSummary={editDocumentsSummary}
+          positionPrimary={positionPrimary}
+          setPositionPrimary={setPositionPrimary}
+          positionSecondary={positionSecondary}
+          setPositionSecondary={setPositionSecondary}
+          athleteObjective={athleteObjective}
+          setAthleteObjective={setAthleteObjective}
+          learningStyle={learningStyle}
+          setLearningStyle={setLearningStyle}
+          editSportSummary={editSportSummary}
+          healthIssue={healthIssue}
+          setHealthIssue={setHealthIssue}
+          healthIssueNotes={healthIssueNotes}
+          setHealthIssueNotes={setHealthIssueNotes}
+          medicationUse={medicationUse}
+          setMedicationUse={setMedicationUse}
+          medicationNotes={medicationNotes}
+          setMedicationNotes={setMedicationNotes}
+          healthObservations={healthObservations}
+          setHealthObservations={setHealthObservations}
+          editHealthSummary={editHealthSummary}
+          guardianName={guardianName}
+          setGuardianName={setGuardianName}
+          guardianPhone={guardianPhone}
+          setGuardianPhone={setGuardianPhone}
+          guardianRelation={guardianRelation}
+          editGuardianRelationTriggerRef={editGuardianRelationTriggerRef}
+          toggleEditPicker={toggleEditPicker}
+          showEditGuardianRelationPicker={showEditGuardianRelationPicker}
+          editGuardianSummary={editGuardianSummary}
+          guardianRelationOptions={guardianRelationOptions}
+          showEditGuardianRelationPickerContent={
+            showEditGuardianRelationPickerContent
+          }
+          editGuardianRelationTriggerLayout={editGuardianRelationTriggerLayout}
+          editGuardianRelationPickerAnimStyle={
+            editGuardianRelationPickerAnimStyle
+          }
+          handleSelectEditGuardianRelation={handleSelectEditGuardianRelation}
+          editUnitTriggerRef={editUnitTriggerRef}
+          showEditUnitPicker={showEditUnitPicker}
+          selectedClassName={selectedClassLabel}
+          editClassTriggerRef={editClassTriggerRef}
+          showEditClassPicker={showEditClassPicker}
+          editLinksSummary={editLinksSummary}
+          unitOptions={unitOptions}
+          showEditUnitPickerContent={showEditUnitPickerContent}
+          editContainerWindow={editContainerWindow}
+          editUnitPickerAnimStyle={editUnitPickerAnimStyle}
+          selectedUnitFilters={editUnitFilters}
+          handleToggleEditUnitFilter={handleToggleEditUnitFilter}
+          classOptions={editClassOptions}
+          classId={classId}
+          showEditClassPickerContent={showEditClassPickerContent}
+          editClassPickerAnimStyle={editClassPickerAnimStyle}
+          handleSelectEditClass={handleSelectEditClass}
+          closeAllEditPickers={closeAllEditPickers}
+          deleteEditingStudent={deleteEditingStudent}
+          editSaving={editSaving}
+          setEditSaving={setEditSaving}
+          onSave={onSave}
+          isEditDirty={isEditDirty}
+          selectFieldStyle={selectFieldStyle}
+          colors={colors}
+          SelectOption={StudentSelectOption}
+        />
+        <WhatsAppModal
+          visible={showWhatsAppModal}
+          onClose={closeWhatsAppModal}
+          cardStyle={whatsappModalCardStyle}
+          selectedStudentId={selectedStudentId}
+          students={students}
+          classById={classById}
+          selectedContactType={selectedContactType}
+          setSelectedContactType={setSelectedContactType}
+          selectedTemplateId={selectedTemplateId}
+          selectedTemplateLabel={selectedTemplateLabel}
+          setSelectedTemplateId={setSelectedTemplateId}
+          setSelectedTemplateLabel={setSelectedTemplateLabel}
+          customFields={customFields}
+          setCustomFields={setCustomFields}
+          customStudentMessage={customStudentMessage}
+          setCustomStudentMessage={setCustomStudentMessage}
+          studentInviteBusy={studentInviteBusy}
+          showRevokeConfirm={showRevokeConfirm}
+          setShowRevokeConfirm={setShowRevokeConfirm}
+          applyStudentInviteTemplate={applyStudentInviteTemplate}
+          whatsappNotice={whatsappNotice}
+          showTemplateList={showTemplateList}
+          setShowTemplateList={setShowTemplateList}
+          showTemplateListContent={showTemplateListContent}
+          templateTriggerLayout={templateTriggerLayout}
+          whatsappContainerWindow={whatsappContainerWindow}
+          templateListAnimStyle={templateListAnimStyle}
+          syncTemplateLayout={syncTemplateLayout}
+          closeAllPickers={closeAllPickers}
+          whatsappContainerRef={whatsappContainerRef}
+          templateTriggerRef={templateTriggerRef}
+          groupInviteLinks={groupInviteLinks}
+          colors={colors}
+          buildStudentMessage={buildStudentMessage}
+        />
+        <ModalSheet
+          visible={showPhotoSheet}
+          onClose={() => setShowPhotoSheet(false)}
+          cardStyle={photoSheetCardStyle}
+          position="center"
+          backdropOpacity={0.7}
+        >
+          <View style={{ gap: 10 }}>
+            <Text
+              style={{ fontSize: 14, fontWeight: "700", color: colors.text }}
+            >
+              Foto do aluno
             </Text>
-          </Pressable>
-          {photoUrl ? (
             <Pressable
-              onPress={() => pickStudentPhoto("remove")}
+              onPress={() => pickStudentPhoto("camera")}
               style={{
                 paddingVertical: 10,
                 borderRadius: 12,
-                backgroundColor: colors.dangerSolidBg,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
                 alignItems: "center",
               }}
             >
-              <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>
-                Remover foto
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                Usar camera
               </Text>
             </Pressable>
-          ) : null}
-          <Pressable
-            onPress={() => setShowPhotoSheet(false)}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: colors.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Cancelar
-            </Text>
-          </Pressable>
-        </View>
-      </ModalSheet>
-      <ModalSheet
-        visible={showPhotoPreview}
-        onClose={() => setShowPhotoPreview(false)}
-        cardStyle={photoPreviewCardStyle}
-        position="center"
-        backdropOpacity={0.7}
-      >
-        <View style={{ gap: 12, alignItems: "center" }}>
-          <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-            {photoPreview?.name ?? "Foto do aluno"}
-          </Text>
-          <View
-            style={{
-              width: 220,
-              height: 220,
-              borderRadius: 18,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
-            }}
-          >
-            {photoPreview?.uri ? (
-              <Image
-                source={{ uri: photoPreview.uri }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-              />
-            ) : (
-              <Text style={{ color: colors.muted, fontWeight: "600" }}>
-                Sem foto
+            <Pressable
+              onPress={() => pickStudentPhoto("library")}
+              style={{
+                paddingVertical: 10,
+                borderRadius: 12,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                Escolher da galeria
               </Text>
-            )}
+            </Pressable>
+            {photoUrl ? (
+              <Pressable
+                onPress={() => pickStudentPhoto("remove")}
+                style={{
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: colors.dangerSolidBg,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{ color: colors.dangerSolidText, fontWeight: "700" }}
+                >
+                  Remover foto
+                </Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => setShowPhotoSheet(false)}
+              style={{
+                paddingVertical: 10,
+                borderRadius: 12,
+                backgroundColor: colors.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                Cancelar
+              </Text>
+            </Pressable>
           </View>
-          <Pressable
-            onPress={() => setShowPhotoPreview(false)}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 16,
-              borderRadius: 12,
-              backgroundColor: colors.secondaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              Fechar
+        </ModalSheet>
+        <ModalSheet
+          visible={showPhotoPreview}
+          onClose={() => setShowPhotoPreview(false)}
+          cardStyle={photoPreviewCardStyle}
+          position="center"
+          backdropOpacity={0.7}
+        >
+          <View style={{ gap: 12, alignItems: "center" }}>
+            <Text
+              style={{ fontSize: 14, fontWeight: "700", color: colors.text }}
+            >
+              {photoPreview?.name ?? "Foto do aluno"}
             </Text>
-          </Pressable>
-        </View>
-      </ModalSheet>
-      <DatePickerModal
-        visible={showCalendar}
-        value={birthDate}
-        onChange={setBirthDate}
-        onClose={() => setShowCalendar(false)}
-      />
+            <View
+              style={{
+                width: 220,
+                height: 220,
+                borderRadius: 18,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+              }}
+            >
+              {photoPreview?.uri ? (
+                <Image
+                  source={{ uri: photoPreview.uri }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                  Sem foto
+                </Text>
+              )}
+            </View>
+            <Pressable
+              onPress={() => setShowPhotoPreview(false)}
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>
+                Fechar
+              </Text>
+            </Pressable>
+          </View>
+        </ModalSheet>
+        <DatePickerModal
+          visible={showCalendar}
+          value={birthDate}
+          onChange={setBirthDate}
+          onClose={() => setShowCalendar(false)}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

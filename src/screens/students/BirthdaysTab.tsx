@@ -1,13 +1,21 @@
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { memo, type Dispatch, type SetStateAction } from "react";
-import { Animated, Text, TextInput, View } from "react-native";
+import {
+  memo,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { Text, TextInput, View } from "react-native";
+
 import type { ClassGroup, Student } from "../../core/models";
+import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import type { ThemeColors } from "../../ui/app-theme";
-import { FadeHorizontalScroll } from "../../ui/FadeHorizontalScroll";
-import { Pressable } from "../../ui/Pressable";
-import { getUnitPalette } from "../../ui/unit-colors";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+import { Pressable } from "../../ui/Pressable";
+import { useCollapsibleAnimation } from "../../ui/use-collapsible";
+import { BirthdayAvatar } from "./components/BirthdayAvatar";
 
 const monthNames = [
   "Janeiro",
@@ -27,7 +35,6 @@ const monthNames = [
 type BirthdayEntry = { student: Student; date: Date; unitName: string };
 type BirthdayUnitGroup = [string, BirthdayEntry[]];
 type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
-
 type UpcomingBirthday = { student: Student; date: Date; daysLeft: number };
 
 type BirthdaysTabProps = {
@@ -46,6 +53,7 @@ type BirthdaysTabProps = {
   birthdayUnitFilter: string;
   setBirthdayUnitFilter: (value: string) => void;
   birthdayMonthGroups: BirthdayMonthGroup[];
+  students: Student[];
   classById: Map<string, ClassGroup>;
   unitLabel: (value: string) => string;
   calculateAge: (iso: string) => number | null;
@@ -60,573 +68,476 @@ export const BirthdaysTab = memo(function BirthdaysTab({
   setBirthdaySearch,
   birthdayToday,
   upcomingBirthdays,
-  showAllBirthdays,
-  setShowAllBirthdays,
-  showAllBirthdaysContent,
-  allBirthdaysAnimStyle,
   birthdayUnitOptions,
   birthdayUnitFilter,
   setBirthdayUnitFilter,
   birthdayMonthGroups,
+  students,
   classById,
   unitLabel,
   calculateAge,
   formatShortDate,
 }: BirthdaysTabProps) {
+  const [unitSearch, setUnitSearch] = useState("");
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [monthTriggerLayout, setMonthTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const monthTriggerRef = useRef<View>(null);
+  const { animatedStyle: monthPickerAnimStyle, isVisible: monthPickerVisible } =
+    useCollapsibleAnimation(showMonthPicker, { translateY: -4 });
+  const allEntries = birthdayMonthGroups
+    .flatMap(([month, unitGroups]) =>
+      unitGroups.flatMap(([, items]) =>
+        items.map((item) => ({ ...item, month })),
+      ),
+    )
+    .sort((a, b) => a.month - b.month || a.date.getDate() - b.date.getDate());
+  const todayEntries = birthdayToday
+    .map((student) => {
+      const match = allEntries.find((entry) => entry.student.id === student.id);
+      return match ?? null;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const upcomingEntries = upcomingBirthdays
+    .map(({ student }) => {
+      const match = allEntries.find((entry) => entry.student.id === student.id);
+      return match ?? null;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  const entries = [...todayEntries, ...upcomingEntries].filter(
+    (entry) =>
+      birthdayUnitFilter === "Todas" ||
+      entry.unitName === birthdayUnitFilter,
+  );
+  const unitCounts = Object.fromEntries(
+    birthdayUnitOptions.map((unit) => [
+      unit,
+      unit === "Todas"
+        ? students.length
+        : students.filter((student) => {
+            const cls = classById.get(student.classId);
+            return unitLabel(cls?.unit ?? "") === unit;
+          }).length,
+    ]),
+  );
+  const filteredTodayCount = todayEntries.filter(
+    (entry) =>
+      birthdayUnitFilter === "Todas" ||
+      entry.unitName === birthdayUnitFilter,
+  ).length;
+  const nextSevenDays = upcomingBirthdays.filter((entry) => {
+    if (entry.daysLeft > 7) return false;
+    if (birthdayUnitFilter === "Todas") return true;
+    const cls = classById.get(entry.student.classId);
+    return unitLabel(cls?.unit ?? "") === birthdayUnitFilter;
+  }).length;
+  const visibleUnitOptions = useMemo(() => {
+    const query = unitSearch.trim().toLocaleLowerCase("pt-BR");
+    return birthdayUnitOptions.filter((unit) =>
+      (unit === "Todas" ? "Todas as unidades" : unit)
+        .toLocaleLowerCase("pt-BR")
+        .includes(query),
+    );
+  }, [birthdayUnitOptions, unitSearch]);
+
   return (
-    <View style={{ gap: 16 }}>
-      <View style={{ gap: 8 }}>
-        <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted }}>
-          Mês
+    <View
+      style={{
+        minHeight: 620,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        flexDirection: "row",
+      }}
+    >
+      <View
+        style={{
+          width: 280,
+          padding: 16,
+          gap: 12,
+          borderRightWidth: 1,
+          borderRightColor: colors.border,
+        }}
+      >
+        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
+          Unidades
         </Text>
-        <FadeHorizontalScroll
-          fadeColor={colors.background}
-          contentContainerStyle={{ flexDirection: "row", gap: 8 }}
+        <View
+          style={{
+            minHeight: 42,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 11,
+            backgroundColor: colors.inputBg,
+            paddingHorizontal: 11,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+          }}
         >
-          {["Todas", ...monthNames].map((label, index) => {
-            const value = label === "Todas" ? "Todas" : index - 1;
-            const active = birthdayMonthFilter === value;
+          <GoAtletaIcon name="search" size={15} color={colors.muted} />
+          <TextInput
+            value={unitSearch}
+            onChangeText={setUnitSearch}
+            placeholder="Filtrar por unidade"
+            placeholderTextColor={colors.placeholder}
+            style={{ flex: 1, color: colors.text, fontSize: 12 }}
+          />
+        </View>
+        <View>
+          {visibleUnitOptions.map((unit) => {
+            const active = birthdayUnitFilter === unit;
             return (
               <Pressable
-                key={`${label}-${index}`}
-                onPress={() => setBirthdayMonthFilter(value)}
-                onContextMenu={(event: any) => event.preventDefault()}
+                key={unit}
+                onPress={() => setBirthdayUnitFilter(unit)}
                 style={{
-                  paddingVertical: 6,
-                  paddingHorizontal: 12,
-                  borderRadius: 999,
-                  backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: active ? "transparent" : colors.border,
+                  minHeight: 48,
+                  paddingHorizontal: 10,
+                  borderLeftWidth: 3,
+                  borderLeftColor: active ? colors.primaryBg : "transparent",
+                  backgroundColor: active
+                    ? colors.backgroundSubtle
+                    : "transparent",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 9,
                 }}
               >
+                <GoAtletaIcon
+                  name={unit === "Todas" ? "classes" : "organization"}
+                  size={15}
+                  color={active ? colors.text : colors.muted}
+                />
                 <Text
+                  numberOfLines={1}
                   style={{
-                    color: active ? colors.primaryText : colors.text,
-                    fontWeight: active ? "700" : "500",
+                    flex: 1,
+                    color: active ? colors.text : colors.muted,
                     fontSize: 12,
+                    fontWeight: active ? "800" : "700",
                   }}
                 >
-                  {label}
+                  {unit === "Todas" ? "Todas as unidades" : unit}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  {unitCounts[unit] ?? 0}
                 </Text>
               </Pressable>
             );
           })}
-        </FadeHorizontalScroll>
+        </View>
       </View>
 
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          paddingVertical: 10,
-          paddingHorizontal: 12,
-          borderRadius: 14,
-          backgroundColor: colors.card,
-          borderWidth: 1,
-          borderColor: colors.border,
-        }}
-      >
-                <GoAtletaIcon name="search" size={16} color={colors.muted} />
-        <TextInput
-          placeholder="Buscar nomes, datas e meses"
-          placeholderTextColor={colors.placeholder}
-          value={birthdaySearch}
-          onChangeText={setBirthdaySearch}
-          style={{ flex: 1, color: colors.inputText, fontSize: 13 }}
-        />
-        <Pressable
-          onPress={() => setBirthdaySearch("")}
-          onContextMenu={(event: any) => event.preventDefault()}
-          disabled={!birthdaySearch}
+      <View style={{ flex: 1, minWidth: 0, padding: 16, gap: 14 }}>
+        <View style={{ flexDirection: "row", gap: 12 }}>
+          {[
+            {
+              label: "Hoje",
+              value: filteredTodayCount,
+              caption:
+                filteredTodayCount === 1 ? "aniversário" : "aniversários",
+            },
+            {
+              label: "Próximos 7 dias",
+              value: nextSevenDays,
+              caption: nextSevenDays === 1 ? "aniversário" : "aniversários",
+            },
+          ].map((metric) => (
+            <View
+              key={metric.label}
+              style={{
+                flex: 1,
+                minHeight: 96,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 14,
+                justifyContent: "center",
+              }}
+            >
+              <Text
+                style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}
+              >
+                {metric.label}
+              </Text>
+              <Text
+                style={{
+                  color: colors.primaryBg,
+                  fontSize: 22,
+                  fontWeight: "900",
+                  marginTop: 4,
+                }}
+              >
+                {metric.value}
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>
+                {metric.caption}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
+          Próximos aniversários
+        </Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <View
+            style={{
+              flex: 1,
+              minHeight: 42,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: 11,
+              backgroundColor: colors.inputBg,
+              paddingHorizontal: 11,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <GoAtletaIcon name="search" size={15} color={colors.muted} />
+            <TextInput
+              value={birthdaySearch}
+              onChangeText={setBirthdaySearch}
+              placeholder="Buscar aluno"
+              placeholderTextColor={colors.placeholder}
+              style={{ flex: 1, color: colors.text, fontSize: 12 }}
+            />
+          </View>
+          <View ref={monthTriggerRef}>
+            <Pressable
+              onPress={() => {
+                monthTriggerRef.current?.measureInWindow(
+                  (x, y, width, height) => {
+                    setMonthTriggerLayout({ x, y, width, height });
+                    setShowMonthPicker((current) => !current);
+                  },
+                );
+              }}
+              style={{
+                minWidth: 150,
+                minHeight: 42,
+                borderWidth: 1,
+                borderColor: showMonthPicker
+                  ? colors.primaryBg
+                  : colors.border,
+                borderRadius: 11,
+                paddingHorizontal: 12,
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexDirection: "row",
+              }}
+            >
+              <Text
+                style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}
+              >
+                {birthdayMonthFilter === "Todas"
+                  ? "Mês: Todos"
+                  : `Mês: ${monthNames[birthdayMonthFilter]}`}
+              </Text>
+              <GoAtletaIcon
+                name={showMonthPicker ? "chevronUp" : "chevronDown"}
+                size={14}
+                color={colors.muted}
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        <View
           style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: colors.secondaryBg,
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: birthdaySearch ? 1 : 0,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: 12,
+            overflow: "hidden",
           }}
         >
-          <GoAtletaIcon name="close" size={14} color={colors.muted} />
-        </Pressable>
-      </View>
-
-      <View
-        style={{
-          borderRadius: 24,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          overflow: "hidden",
-        }}
-      >
-        <LinearGradient
-          colors={[colors.secondaryBg, colors.card]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-          }}
-        />
-        <View style={{ padding: 16, gap: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <GoAtletaIcon name="gift" size={18} color={colors.text} />
-            <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>
-              Aniversário de hoje 🎉
-            </Text>
+          <View
+            style={{
+              minHeight: 38,
+              paddingHorizontal: 12,
+              backgroundColor: colors.backgroundSubtle,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            {[
+              ["Aluno", 2],
+              ["Aniversário", 1],
+              ["Idade", 0.7],
+              ["Turma", 1],
+              ["Contato", 1.2],
+            ].map(([label, flex]) => (
+              <Text
+                key={String(label)}
+                style={{
+                  flex: Number(flex),
+                  color: colors.muted,
+                  fontSize: 10,
+                  fontWeight: "800",
+                  textTransform: "uppercase",
+                }}
+              >
+                {label}
+              </Text>
+            ))}
+            <View style={{ width: 30 }} />
           </View>
-          {birthdayToday.length ? (
-            birthdayToday.map((student) => {
-              const cls = classById.get(student.classId) ?? null;
-              const unitName = unitLabel(cls?.unit ?? "");
+          {entries.length ? (
+            entries.slice(0, 40).map(({ student, date }, index) => {
+              const cls = classById.get(student.classId);
               const age = calculateAge(student.birthDate);
+              const isToday = birthdayToday.some(
+                (item) => item.id === student.id,
+              );
               return (
                 <View
                   key={student.id}
                   style={{
+                    minHeight: 56,
+                    paddingHorizontal: 12,
+                    borderBottomWidth: index === entries.length - 1 ? 0 : 1,
+                    borderBottomColor: colors.border,
+                    backgroundColor: isToday
+                      ? colors.backgroundSubtle
+                      : "transparent",
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 12,
-                    padding: 10,
-                    borderRadius: 14,
-                    backgroundColor: colors.background,
-                    borderWidth: 1,
-                    borderColor: colors.border,
+                    gap: 10,
                   }}
                 >
-                  {student.photoUrl ? (
-                    <Image
-                      source={{ uri: student.photoUrl }}
-                      style={{ width: 40, height: 40, borderRadius: 20 }}
+                  <View
+                    style={{
+                      flex: 2,
+                      minWidth: 0,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 9,
+                    }}
+                  >
+                    <BirthdayAvatar
+                      colors={colors}
+                      photoUrl={student.photoUrl}
+                      isBirthdayToday={isToday}
+                      size={32}
                     />
-                  ) : (
-                    <View
+                    <Text
+                      numberOfLines={1}
                       style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: colors.secondaryBg,
-                        alignItems: "center",
-                        justifyContent: "center",
+                        flex: 1,
+                        color: colors.text,
+                        fontSize: 12,
+                        fontWeight: "800",
                       }}
                     >
-                      <GoAtletaIcon name="personSolid" size={20} color={colors.muted} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 14 }}>
                       {student.name}
                     </Text>
-                      <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
-                      {age ? `${age} anos` : "Idade não informada"} - {unitName}
-                    </Text>
                   </View>
-                  <GoAtletaIcon name="birthday" size={18} color={colors.primaryText} />
+                  <View style={{ flex: 1, flexDirection: "row", gap: 6 }}>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>
+                      {formatShortDate(student.birthDate)}
+                    </Text>
+                    {isToday ? (
+                      <Text
+                        style={{
+                          color: colors.successText,
+                          fontSize: 10,
+                          fontWeight: "800",
+                        }}
+                      >
+                        Hoje
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text
+                    style={{ flex: 0.7, color: colors.muted, fontSize: 11 }}
+                  >
+                    {age ?? "—"} anos
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={{ flex: 1, color: colors.muted, fontSize: 11 }}
+                  >
+                    {cls?.name ?? "Turma"}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={{ flex: 1.2, color: colors.muted, fontSize: 11 }}
+                  >
+                    {student.guardianPhone || student.phone || "Sem contato"}
+                  </Text>
+                  <View
+                    style={{
+                      width: 30,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <GoAtletaIcon
+                      name="whatsapp"
+                      size={16}
+                      color={colors.primaryBg}
+                    />
+                  </View>
                 </View>
               );
             })
           ) : (
-            <Text style={{ color: colors.muted, fontSize: 13 }}>
-              Sem aniversariantes hoje.
-            </Text>
+            <View style={{ padding: 24, alignItems: "center" }}>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Nenhum aniversário encontrado.
+              </Text>
+            </View>
           )}
         </View>
       </View>
-
-      {upcomingBirthdays.length ? (
-        <View style={{ gap: 10 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-              Próximos aniversários
-            </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {upcomingBirthdays.length} próximos
-            </Text>
-          </View>
-          <FadeHorizontalScroll
-            fadeColor={colors.background}
-            contentContainerStyle={{ flexDirection: "row", gap: 12 }}
-          >
-            {upcomingBirthdays.map(({ student, date, daysLeft }) => {
-              const age = calculateAge(student.birthDate);
-              return (
-                <View
-                  key={`upcoming-${student.id}`}
-                  style={{
-                    width: 170,
-                    padding: 14,
-                    borderRadius: 20,
-                    backgroundColor: colors.card,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    minHeight: 220,
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <View style={{ gap: 10, alignItems: "center" }}>
-                    {student.photoUrl ? (
-                      <Image
-                        source={{ uri: student.photoUrl }}
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 28,
-                        }}
-                      />
-                    ) : (
-                      <View
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 28,
-                          backgroundColor: colors.secondaryBg,
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <GoAtletaIcon name="personSolid" size={26} color={colors.muted} />
-                      </View>
-                    )}
-                    <View
-                      style={{
-                        gap: 4,
-                        minHeight: 64,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text
-                        numberOfLines={2}
-                        style={{
-                          color: colors.text,
-                          fontWeight: "700",
-                          fontSize: 13,
-                          textAlign: "center",
-                        }}
-                      >
-                        {student.name}
-                      </Text>
-                      <Text
-                        style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}
-                      >
-                        {monthNames[date.getMonth()]} {date.getDate()}
-                      </Text>
-                      {age ? (
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <GoAtletaIcon
-                            name="giftOutline"
-                            size={12}
-                            color={colors.primaryText}
-                          />
-                          <Text
-                            style={{
-                              color: colors.primaryText,
-                              fontSize: 12,
-                              fontWeight: "600",
-                            }}
-                          >
-                            {age} anos
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                  <View
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 10,
-                      borderRadius: 12,
-                      backgroundColor: colors.primaryBg,
-                      minHeight: 32,
-                      justifyContent: "center",
-                    }}
-                  >
-                      <Text
-                        style={{
-                          color: colors.primaryText,
-                          fontSize: 12,
-                          fontWeight: "700",
-                          textAlign: "center",
-                        }}
-                      >
-                      {daysLeft === 1 ? "Amanhã" : `${daysLeft} dias`}
-                      </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </FadeHorizontalScroll>
-        </View>
-      ) : (
-        <View
-          style={{
-            padding: 14,
-            borderRadius: 16,
-            backgroundColor: colors.secondaryBg,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            Sem próximos aniversários
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 4, fontSize: 12 }}>
-            Ajuste o mês ou a busca para ver mais resultados.
-          </Text>
-        </View>
-      )}
-
-      <View style={{ gap: 10 }}>
-        <Pressable
-          onPress={() => setShowAllBirthdays((prev) => !prev)}
-          onContextMenu={(event: any) => event.preventDefault()}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingVertical: 10,
-            paddingHorizontal: 12,
-            borderRadius: 16,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Todos os aniversários
-          </Text>
-          <GoAtletaIcon
-            name={showAllBirthdays ? "chevronUp" : "chevronDown"}
-            size={16}
-            color={colors.muted}
-          />
-        </Pressable>
-        { showAllBirthdaysContent ? (
-          <Animated.View style={[allBirthdaysAnimStyle, { gap: 12 }] }>
-            <View
-              style={{
-                padding: 12,
-                borderRadius: 16,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: 8,
+      <AnchoredDropdown
+        visible={monthPickerVisible}
+        layout={monthTriggerLayout}
+        container={null}
+        animationStyle={monthPickerAnimStyle}
+        zIndex={6500}
+        maxHeight={260}
+        nestedScrollEnabled
+        density="compact"
+        onRequestClose={() => setShowMonthPicker(false)}
+        interactiveRefs={[monthTriggerRef]}
+      >
+        {[
+          { value: "Todas" as const, label: "Todos os meses" },
+          ...monthNames.map((label, value) => ({ value, label })),
+        ].map((option) => {
+          const active = birthdayMonthFilter === option.value;
+          return (
+            <AnchoredDropdownOption
+              key={String(option.value)}
+              active={active}
+              density="compact"
+              onPress={() => {
+                setBirthdayMonthFilter(option.value);
+                setShowMonthPicker(false);
               }}
             >
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
-                Unidade
-              </Text>
-              <FadeHorizontalScroll
-                fadeColor={colors.card}
-                contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-              >
-                {birthdayUnitOptions.map((unit) => {
-                  const active = birthdayUnitFilter === unit;
-                  const palette = unit === "Todas" ? null : getUnitPalette(unit, colors);
-                  const chipBg = active
-                    ? palette?.bg ?? colors.primaryBg
-                    : colors.secondaryBg;
-                  const chipText = active
-                    ? palette?.text ?? colors.primaryText
-                    : colors.text;
-                  return (
-                    <Pressable
-                      key={unit}
-                      onPress={() => setBirthdayUnitFilter(unit)}
-                      onContextMenu={(event: any) => event.preventDefault()}
-                      style={{
-                        paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: chipBg,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: chipText,
-                          fontWeight: active ? "700" : "500",
-                        }}
-                      >
-                        {unit}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </FadeHorizontalScroll>
-            </View>
-
-            {birthdayMonthGroups.length ? (
-              birthdayMonthGroups.map(([month, unitGroups]) => {
-                const monthKey = `m-${month}`;
-                const totalCount = unitGroups.reduce(
-                  (sum, [, entries]) => sum + entries.length,
-                  0
-                );
-                return (
-                  <View
-                    key={monthKey}
-                    style={{
-                      padding: 14,
-                      borderRadius: 18,
-                      backgroundColor: colors.card,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      gap: 10,
-                    }}
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
-                        {monthNames[month]}
-                      </Text>
-                      <View
-                        style={{
-                          paddingVertical: 4,
-                          paddingHorizontal: 8,
-                          borderRadius: 8,
-                          backgroundColor: colors.secondaryBg,
-                        }}
-                      >
-                        <Text
-                          style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}
-                        >
-                          {totalCount}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {unitGroups.map(([unitName, entries]) => {
-                      const unitKey = `m-${month}-u-${unitName}`;
-                      const palette =
-                        getUnitPalette(unitName, colors) ?? {
-                          bg: colors.primaryBg,
-                          text: colors.primaryText,
-                        };
-                      return (
-                        <View key={unitKey} style={{ gap: 6 }}>
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <View
-                              style={{
-                                paddingVertical: 4,
-                                paddingHorizontal: 10,
-                                borderRadius: 999,
-                                backgroundColor: palette.bg,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: palette.text,
-                                  fontWeight: "700",
-                                  fontSize: 12,
-                                }}
-                              >
-                                {unitName}
-                              </Text>
-                            </View>
-                            <Text style={{ color: colors.muted, fontSize: 12 }}>
-                              {entries.length === 1
-                                ? "1 aluno"
-                                : `${entries.length} alunos`}
-                            </Text>
-                          </View>
-                          <View style={{ gap: 8 }}>
-                            {entries
-                              .sort((a, b) => a.date.getDate() - b.date.getDate())
-                              .map(({ student, date }) => {
-                                const cls = classById.get(student.classId) ?? null;
-                                const className = cls?.name ?? "Turma";
-                                return (
-                                  <View
-                                    key={student.id}
-                                    style={{
-                                      padding: 12,
-                                      borderRadius: 14,
-                                      backgroundColor: colors.background,
-                                      borderWidth: 1,
-                                      borderColor: colors.border,
-                                    }}
-                                  >
-                                    <Text
-                                      style={{
-                                        color: colors.text,
-                                        fontWeight: "700",
-                                        fontSize: 13,
-                                      }}
-                                    >
-                                      {String(date.getDate()).padStart(2, "0")} - {student.name}
-                                    </Text>
-                                    <Text
-                                      style={{
-                                        color: colors.muted,
-                                        marginTop: 4,
-                                        fontSize: 12,
-                                      }}
-                                    >
-                                      {formatShortDate(student.birthDate)} | {className}
-                                    </Text>
-                                  </View>
-                                );
-                              })}
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              })
-            ) : (
-              <View
+              <Text
                 style={{
-                  padding: 12,
-                  borderRadius: 16,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
+                  color: active ? colors.primaryText : colors.text,
+                  fontSize: 11,
+                  fontWeight: "700",
                 }}
               >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  Sem aniversários
-                </Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>
-                  Nenhum aluno com data de nascimento.
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-        ) : null}
-      </View>
+                {option.label}
+              </Text>
+            </AnchoredDropdownOption>
+          );
+        })}
+      </AnchoredDropdown>
     </View>
   );
 });
-
