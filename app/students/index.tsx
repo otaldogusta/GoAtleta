@@ -17,6 +17,7 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   View,
   useWindowDimensions,
@@ -2272,74 +2273,98 @@ export default function StudentsScreen() {
             subtitle={
               studentsTab === "aniversarios"
                 ? `${birthdayTodayAll.length} hoje · ${upcomingBirthdays.length} nos próximos dias`
-                : `${students.length} ativos · ${pendingStudentInvites.length} convites · ${birthdayTodayAll.length} aniversário${birthdayTodayAll.length === 1 ? "" : "s"} hoje`
+                : undefined
             }
             right={
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <Pressable
-                  onPress={() =>
-                    requestSwitchStudentsTab(
-                      studentsTab === "aniversarios"
-                        ? "alunos"
-                        : "aniversarios",
-                    )
-                  }
-                  style={{
-                    minHeight: 40,
-                    paddingHorizontal: 14,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 7,
-                  }}
-                >
-                  <GoAtletaIcon name="birthday" size={16} color={colors.text} />
-                  <Text
-                    style={{
-                      color: colors.text,
-                      fontSize: 12,
-                      fontWeight: "800",
-                    }}
-                  >
-                    {studentsTab === "aniversarios"
-                      ? "Voltar para alunos"
-                      : "Aniversários"}
-                  </Text>
-                </Pressable>
-                {studentsTab !== "aniversarios" ? (
+              windowWidth < 720 ? undefined : (
+                <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
-                    onPress={() => setStudentsTab("cadastro")}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      studentsTab === "aniversarios"
+                        ? "Voltar para alunos"
+                        : "Abrir aniversários"
+                    }
+                    onPress={() =>
+                      requestSwitchStudentsTab(
+                        studentsTab === "aniversarios"
+                          ? "alunos"
+                          : "aniversarios",
+                      )
+                    }
                     style={{
-                      minHeight: 40,
-                      paddingHorizontal: 15,
-                      borderRadius: 12,
-                      backgroundColor: colors.primaryBg,
+                      height: 40,
+                      width: windowWidth < 720 ? 40 : undefined,
+                      paddingHorizontal: windowWidth < 720 ? 0 : 14,
+                      borderRadius: 999,
+                      borderWidth: StyleSheet.hairlineWidth,
+                      borderColor: colors.borderSubtle ?? colors.border,
+                      backgroundColor:
+                        colors.backgroundSubtle ?? colors.secondaryBg,
                       flexDirection: "row",
                       alignItems: "center",
+                      justifyContent: "center",
                       gap: 7,
                     }}
                   >
                     <GoAtletaIcon
-                      name="add"
-                      size={17}
-                      color={colors.primaryText}
+                      name="birthday"
+                      size={16}
+                      color={colors.text}
                     />
-                    <Text
+                    {windowWidth >= 720 ? (
+                      <Text
+                        style={{
+                          color: colors.text,
+                          fontSize: 12,
+                          fontWeight: "800",
+                        }}
+                      >
+                        {studentsTab === "aniversarios"
+                          ? "Voltar para alunos"
+                          : "Aniversários"}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                  {studentsTab !== "aniversarios" ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Adicionar aluno"
+                      onPress={() => setStudentsTab("cadastro")}
                       style={{
-                        color: colors.primaryText,
-                        fontSize: 12,
-                        fontWeight: "900",
+                        height: 40,
+                        width: windowWidth < 720 ? 40 : undefined,
+                        paddingHorizontal: windowWidth < 720 ? 0 : 15,
+                        borderRadius: 999,
+                        backgroundColor: colors.primaryBg,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 7,
                       }}
                     >
-                      Adicionar aluno
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
+                      <GoAtletaIcon
+                        name="add"
+                        size={17}
+                        color={colors.primaryText}
+                      />
+                      {windowWidth >= 720 ? (
+                        <Text
+                          style={{
+                            color: colors.primaryText,
+                            fontSize: 12,
+                            fontWeight: "900",
+                          }}
+                        >
+                          Adicionar aluno
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  ) : null}
+                </View>
+              )
             }
+            contentStyle={{ paddingBottom: 8 }}
           />
 
           <ConfirmCloseOverlay
@@ -2359,11 +2384,9 @@ export default function StudentsScreen() {
 
           <ScrollView
             style={{ flex: 1, minHeight: 0 }}
-            scrollEnabled={
-              studentsTab === "aniversarios" || windowWidth < 900
-            }
+            scrollEnabled={studentsTab === "aniversarios" || windowWidth < 1040}
             contentContainerStyle={{
-              ...(studentsTab !== "aniversarios" && windowWidth >= 900
+              ...(studentsTab !== "aniversarios" && windowWidth >= 1040
                 ? {
                     height: "100%",
                     maxHeight: "100%",
@@ -2373,7 +2396,7 @@ export default function StudentsScreen() {
                 : { flexGrow: 0 }),
               paddingBottom: isCadastroTab
                 ? Math.max(insets.bottom + 104, 120)
-                : studentsTab !== "aniversarios" && windowWidth >= 900
+                : studentsTab !== "aniversarios" && windowWidth >= 1040
                   ? 0
                   : 24,
               gap: 16,

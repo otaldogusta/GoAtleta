@@ -6,9 +6,10 @@ import {
   useState,
   type ReactElement,
 } from "react";
-import { ScrollView, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { ClassGroup, Student } from "../../core/models";
+import { radius } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
@@ -78,10 +79,10 @@ function FilterSelect<T extends string>({
           style={{
             minWidth,
             minHeight: 38,
-            borderWidth: 1,
+            borderWidth: StyleSheet.hairlineWidth,
             borderColor: open ? colors.primaryBg : colors.border,
-            borderRadius: 10,
-            backgroundColor: colors.inputBg,
+            borderRadius: radius.internal,
+            backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
             paddingHorizontal: 11,
             flexDirection: "row",
             alignItems: "center",
@@ -188,14 +189,11 @@ export const StudentsListTab = memo(function StudentsListTab({
   const { colors } = useAppTheme();
   const { containerRef, onLayout, width } =
     useContainerResponsiveLayout("dashboard");
-  const desktop = width >= 900;
-  const compactDesktop = desktop && width < 1200;
+  const desktop = width >= 1040;
   const [unitSearch, setUnitSearch] = useState("");
   const [unitAscending, setUnitAscending] = useState(true);
-  const [statusFilter, setStatusFilter] =
-    useState<StudentStatusFilter>("all");
-  const [genderFilter, setGenderFilter] =
-    useState<StudentGenderFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StudentStatusFilter>("all");
+  const [genderFilter, setGenderFilter] = useState<StudentGenderFilter>("all");
   const [classFilter, setClassFilter] = useState<StudentClassFilter>("all");
   const [contactFilter, setContactFilter] =
     useState<StudentContactFilter>("all");
@@ -249,16 +247,10 @@ export const StudentsListTab = memo(function StudentsListTab({
     () =>
       studentsFiltered.filter((student) => {
         const cls = classById.get(student.classId);
-        if (
-          statusFilter === "regular" &&
-          Boolean(student.isExperimental)
-        ) {
+        if (statusFilter === "regular" && Boolean(student.isExperimental)) {
           return false;
         }
-        if (
-          statusFilter === "experimental" &&
-          !student.isExperimental
-        ) {
+        if (statusFilter === "experimental" && !student.isExperimental) {
           return false;
         }
         if (genderFilter !== "all" && cls?.gender !== genderFilter) {
@@ -337,36 +329,53 @@ export const StudentsListTab = memo(function StudentsListTab({
         flexDirection: desktop ? "row" : "column",
         minHeight: desktop ? 0 : 540,
         overflow: desktop ? "hidden" : "visible",
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
+        backgroundColor: colors.background,
       }}
     >
       <View
         style={{
-          width: desktop ? (compactDesktop ? 260 : 280) : "100%",
-          borderRightWidth: desktop ? 1 : 0,
-          borderRightColor: colors.border,
-          padding: compactDesktop ? 12 : 16,
-          gap: 12,
+          width: desktop ? 256 : "100%",
+          minWidth: desktop ? 256 : undefined,
+          borderRightWidth: desktop ? StyleSheet.hairlineWidth : 0,
+          borderRightColor: colors.borderSubtle ?? colors.border,
+          paddingTop: 14,
           minHeight: 0,
+          backgroundColor: colors.background,
         }}
       >
-        <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
+        <Text
+          style={{
+            color: colors.textPrimary ?? colors.text,
+            fontSize: 15,
+            fontWeight: "900",
+            paddingHorizontal: 16,
+            marginBottom: 10,
+          }}
+        >
           Unidades
         </Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            paddingHorizontal: 12,
+            marginBottom: 8,
+          }}
+        >
           <View
             style={{
               flex: 1,
-              minHeight: 42,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 11,
-              backgroundColor: colors.inputBg,
-              paddingHorizontal: 11,
+              minWidth: 0,
+              height: 38,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.borderSubtle ?? colors.border,
+              borderRadius: radius.internal,
+              backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+              paddingHorizontal: 10,
               flexDirection: "row",
               alignItems: "center",
-              gap: 8,
+              gap: 7,
             }}
           >
             <GoAtletaIcon name="search" size={15} color={colors.muted} />
@@ -375,18 +384,24 @@ export const StudentsListTab = memo(function StudentsListTab({
               onChangeText={setUnitSearch}
               placeholder="Buscar unidade"
               placeholderTextColor={colors.placeholder}
-              style={{ flex: 1, color: colors.text, fontSize: 12 }}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                color: colors.textPrimary ?? colors.text,
+                fontSize: 12,
+              }}
             />
           </View>
           <Pressable
             onPress={() => setUnitAscending((current) => !current)}
             style={{
-              minWidth: 70,
-              minHeight: 42,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 11,
-              backgroundColor: colors.inputBg,
+              minWidth: 62,
+              height: 38,
+              paddingHorizontal: 9,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.borderSubtle ?? colors.border,
+              borderRadius: radius.internal,
+              backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
               alignItems: "center",
               justifyContent: "center",
               flexDirection: "row",
@@ -394,52 +409,64 @@ export const StudentsListTab = memo(function StudentsListTab({
             }}
           >
             <Text
-              style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}
+              style={{
+                color: colors.textMuted ?? colors.muted,
+                fontSize: 11,
+                fontWeight: "800",
+              }}
             >
               {unitAscending ? "A–Z" : "Z–A"}
             </Text>
             <GoAtletaIcon name="swapVertical" size={13} color={colors.muted} />
           </Pressable>
         </View>
-        <View>
+        <View style={{ flex: desktop ? 1 : undefined, minHeight: 0 }}>
           {visibleUnits.map((unit) => {
             const active = studentsUnitFilter === unit;
             return (
               <Pressable
                 key={unit}
                 onPress={() => setStudentsUnitFilter(unit)}
-                style={{
-                  minHeight: 48,
-                  paddingHorizontal: 10,
+                style={(state) => ({
+                  minHeight: 42,
+                  paddingLeft: 13,
+                  paddingRight: 14,
                   borderLeftWidth: 3,
                   borderLeftColor: active ? colors.primaryBg : "transparent",
-                  backgroundColor: active
-                    ? colors.backgroundSubtle
-                    : "transparent",
+                  backgroundColor:
+                    active || state.hovered
+                      ? (colors.backgroundSubtle ?? colors.secondaryBg)
+                      : "transparent",
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 9,
-                }}
+                })}
               >
                 <GoAtletaIcon
                   name={unit === "Todas" ? "classes" : "organization"}
                   size={15}
-                  color={active ? colors.text : colors.muted}
+                  color={
+                    active
+                      ? (colors.textPrimary ?? colors.text)
+                      : (colors.textMuted ?? colors.muted)
+                  }
                 />
                 <Text
                   numberOfLines={1}
                   style={{
                     flex: 1,
-                    color: active ? colors.text : colors.muted,
+                    color: active
+                      ? (colors.textPrimary ?? colors.text)
+                      : (colors.textMuted ?? colors.muted),
                     fontSize: 12,
-                    fontWeight: active ? "800" : "700",
+                    fontWeight: "700",
                   }}
                 >
                   {unit === "Todas" ? "Todas as unidades" : unit}
                 </Text>
                 <Text
                   style={{
-                    color: colors.muted,
+                    color: colors.textMuted ?? colors.muted,
                     fontSize: 11,
                     fontWeight: "700",
                   }}
@@ -450,6 +477,23 @@ export const StudentsListTab = memo(function StudentsListTab({
             );
           })}
         </View>
+        {desktop ? (
+          <Text
+            style={{
+              color: colors.textMuted ?? colors.muted,
+              fontSize: 11,
+              fontWeight: "700",
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+            }}
+          >
+            {studentsUnitOptions.filter((unit) => unit !== "Todas").length}{" "}
+            unidade
+            {studentsUnitOptions.filter((unit) => unit !== "Todas").length === 1
+              ? ""
+              : "s"}
+          </Text>
+        ) : null}
       </View>
 
       <View
@@ -457,116 +501,186 @@ export const StudentsListTab = memo(function StudentsListTab({
           flex: 1,
           minWidth: 0,
           minHeight: 0,
-          padding: compactDesktop ? 12 : 16,
-          gap: compactDesktop ? 10 : 12,
           overflow: desktop ? "hidden" : "visible",
+          backgroundColor: colors.background,
         }}
       >
-        <View>
-          <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
-            {studentsUnitFilter === "Todas"
-              ? "Todas as unidades"
-              : studentsUnitFilter}
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 11 }}>
-            {filteredRows.length} alunos
-          </Text>
-        </View>
         <View
           style={{
-            minHeight: 44,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 11,
-            backgroundColor: colors.inputBg,
-            paddingHorizontal: 12,
+            minHeight: 86,
             flexDirection: "row",
             alignItems: "center",
-            gap: 9,
+            gap: 12,
+            paddingHorizontal: 18,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: colors.borderSubtle ?? colors.border,
           }}
         >
-          <GoAtletaIcon name="search" size={16} color={colors.muted} />
-          <TextInput
-            value={studentsSearch}
-            onChangeText={setStudentsSearch}
-            placeholder="Buscar aluno, responsável, turma ou unidade"
-            placeholderTextColor={colors.placeholder}
-            style={{ flex: 1, color: colors.text, fontSize: 12 }}
-          />
+          <View
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 999,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+            }}
+          >
+            <GoAtletaIcon
+              name="organization"
+              size={20}
+              color={colors.textMuted ?? colors.muted}
+            />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                color: colors.textPrimary ?? colors.text,
+                fontSize: 17,
+                fontWeight: "900",
+              }}
+            >
+              {studentsUnitFilter === "Todas"
+                ? "Todas as unidades"
+                : studentsUnitFilter}
+            </Text>
+            <Text
+              style={{
+                color: colors.textMuted ?? colors.muted,
+                marginTop: 3,
+                fontSize: 12,
+                fontWeight: "600",
+              }}
+            >
+              {filteredRows.length} aluno
+              {filteredRows.length === 1 ? "" : "s"}
+            </Text>
+          </View>
         </View>
 
         <View
           style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            alignItems: "center",
             gap: 8,
+            paddingHorizontal: 18,
+            paddingVertical: 10,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: colors.borderSubtle ?? colors.border,
           }}
         >
-          <FilterSelect
-            label="Status"
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { value: "all", label: "Todos" },
-              { value: "regular", label: "Regulares" },
-              { value: "experimental", label: "Experimentais" },
-            ]}
-          />
-          <FilterSelect
-            label="Gênero"
-            value={genderFilter}
-            onChange={setGenderFilter}
-            options={[
-              { value: "all", label: "Todos" },
-              { value: "feminino", label: "Feminino" },
-              { value: "masculino", label: "Masculino" },
-              { value: "misto", label: "Misto" },
-            ]}
-          />
-          <FilterSelect
-            label="Turma"
-            value={classFilter}
-            onChange={setClassFilter}
-            options={classOptions}
-            minWidth={150}
-          />
-          <Pressable
-            onPress={() => setShowMoreFilters((current) => !current)}
+          <View
             style={{
-              minHeight: 38,
-              paddingHorizontal: 12,
-              borderWidth: 1,
-              borderColor: showMoreFilters
-                ? colors.primaryBg
-                : colors.border,
-              borderRadius: 10,
-              backgroundColor: colors.inputBg,
+              height: 38,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.borderSubtle ?? colors.border,
+              borderRadius: radius.internal,
+              backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+              paddingHorizontal: 10,
               flexDirection: "row",
               alignItems: "center",
               gap: 7,
             }}
           >
-            <GoAtletaIcon name="options" size={14} color={colors.muted} />
-            <Text
-              style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}
-            >
-              Mais filtros
-            </Text>
-          </Pressable>
-          {showMoreFilters ? (
+            <GoAtletaIcon
+              name="search"
+              size={15}
+              color={colors.textMuted ?? colors.muted}
+            />
+            <TextInput
+              value={studentsSearch}
+              onChangeText={setStudentsSearch}
+              placeholder="Buscar aluno, responsável, turma ou unidade"
+              placeholderTextColor={colors.placeholder}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                color: colors.textPrimary ?? colors.text,
+                fontSize: 12,
+              }}
+            />
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
             <FilterSelect
-              label="Contato"
-              value={contactFilter}
-              onChange={setContactFilter}
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
               options={[
                 { value: "all", label: "Todos" },
-                { value: "with", label: "Com contato" },
-                { value: "without", label: "Sem contato" },
+                { value: "regular", label: "Regulares" },
+                { value: "experimental", label: "Experimentais" },
               ]}
+            />
+            <FilterSelect
+              label="Gênero"
+              value={genderFilter}
+              onChange={setGenderFilter}
+              options={[
+                { value: "all", label: "Todos" },
+                { value: "feminino", label: "Feminino" },
+                { value: "masculino", label: "Masculino" },
+                { value: "misto", label: "Misto" },
+              ]}
+            />
+            <FilterSelect
+              label="Turma"
+              value={classFilter}
+              onChange={setClassFilter}
+              options={classOptions}
               minWidth={150}
             />
-          ) : null}
+            <Pressable
+              onPress={() => setShowMoreFilters((current) => !current)}
+              style={{
+                minHeight: 38,
+                paddingHorizontal: 12,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: showMoreFilters
+                  ? colors.primaryBg
+                  : (colors.borderSubtle ?? colors.border),
+                borderRadius: radius.internal,
+                backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 7,
+              }}
+            >
+              <GoAtletaIcon
+                name="options"
+                size={14}
+                color={colors.textMuted ?? colors.muted}
+              />
+              <Text
+                style={{
+                  color: colors.textPrimary ?? colors.text,
+                  fontSize: 11,
+                  fontWeight: "700",
+                }}
+              >
+                Mais filtros
+              </Text>
+            </Pressable>
+            {showMoreFilters ? (
+              <FilterSelect
+                label="Contato"
+                value={contactFilter}
+                onChange={setContactFilter}
+                options={[
+                  { value: "all", label: "Todos" },
+                  { value: "with", label: "Com contato" },
+                  { value: "without", label: "Sem contato" },
+                ]}
+                minWidth={150}
+              />
+            ) : null}
+          </View>
         </View>
 
         {loading && students.length === 0 ? (
@@ -586,196 +700,253 @@ export const StudentsListTab = memo(function StudentsListTab({
               style={{
                 flex: desktop ? 1 : undefined,
                 minHeight: desktop ? 0 : undefined,
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
                 overflow: "hidden",
+                backgroundColor: colors.background,
               }}
             >
               {desktop ? (
                 <View
                   style={{
-                    minHeight: 38,
-                    paddingHorizontal: 12,
-                    backgroundColor: colors.backgroundSubtle,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
+                    height: 42,
+                    backgroundColor: colors.background,
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.borderSubtle ?? colors.border,
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 10,
                   }}
                 >
-                  {[
-                    ["Aluno", 2.2],
-                    ["Idade", 0.7],
-                    ["Turma", 1],
-                    ["Status", 0.8],
-                    ["Responsável / contato", 1.5],
-                  ].map(([label, flex]) => (
-                    <Text
-                      key={String(label)}
-                      style={{
-                        flex: Number(flex),
-                        color: colors.muted,
-                        fontSize: 10,
-                        fontWeight: "800",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {label}
-                    </Text>
-                  ))}
-                  <View style={{ width: 32 }} />
+                  <Text
+                    style={{
+                      flex: 2.2,
+                      minWidth: 210,
+                      paddingHorizontal: 10,
+                      color: colors.textMuted ?? colors.muted,
+                      fontSize: 10,
+                      fontWeight: "800",
+                    }}
+                  >
+                    ALUNO
+                  </Text>
+                  <Text
+                    style={{
+                      flex: 0.7,
+                      minWidth: 76,
+                      paddingHorizontal: 10,
+                      color: colors.textMuted ?? colors.muted,
+                      fontSize: 10,
+                      fontWeight: "800",
+                    }}
+                  >
+                    IDADE
+                  </Text>
+                  <Text
+                    style={{
+                      flex: 1,
+                      minWidth: 100,
+                      paddingHorizontal: 10,
+                      color: colors.textMuted ?? colors.muted,
+                      fontSize: 10,
+                      fontWeight: "800",
+                    }}
+                  >
+                    TURMA
+                  </Text>
+                  <Text
+                    style={{
+                      flex: 0.8,
+                      minWidth: 86,
+                      paddingHorizontal: 10,
+                      color: colors.textMuted ?? colors.muted,
+                      fontSize: 10,
+                      fontWeight: "800",
+                    }}
+                  >
+                    STATUS
+                  </Text>
+                  <Text
+                    style={{
+                      flex: 1.5,
+                      minWidth: 170,
+                      paddingHorizontal: 10,
+                      color: colors.textMuted ?? colors.muted,
+                      fontSize: 10,
+                      fontWeight: "800",
+                    }}
+                  >
+                    RESPONSÁVEL / CONTATO
+                  </Text>
+                  <View style={{ width: 42 }} />
                 </View>
               ) : null}
               <ScrollView
                 style={desktop ? { flex: 1, minHeight: 0 } : undefined}
                 contentContainerStyle={
-                  desktop
-                    ? { flexGrow: 1, paddingBottom: 40 }
-                    : { flexGrow: 0 }
+                  desktop ? { flexGrow: 1 } : { flexGrow: 0 }
                 }
                 scrollEnabled={desktop}
                 nestedScrollEnabled
                 showsVerticalScrollIndicator={desktop}
                 keyboardShouldPersistTaps="handled"
               >
-                {pageRows.map((student, index) => {
+                {pageRows.map((student) => {
                   const cls = classById.get(student.classId);
                   return (
                     <Pressable
                       key={student.id}
                       onPress={() => onStudentPress?.(student)}
-                      style={{
-                        minHeight: 58,
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        borderBottomWidth:
-                          index === pageRows.length - 1 ? 0 : 1,
-                        borderBottomColor: colors.border,
+                      style={(state) => ({
+                        minHeight: desktop ? 88 : 64,
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.borderSubtle ?? colors.border,
+                        backgroundColor: state.hovered
+                          ? (colors.backgroundSubtle ?? colors.secondaryBg)
+                          : "transparent",
                         flexDirection: "row",
                         alignItems: "center",
-                        gap: 10,
-                      }}
+                      })}
                     >
-                    <View
-                      style={{
-                        flex: desktop ? 2.2 : 1,
-                        minWidth: 0,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
-                      }}
-                    >
-                      <BirthdayAvatar
-                        colors={colors}
-                        photoUrl={student.photoUrl}
-                        isBirthdayToday={birthdayStudentIds?.has(student.id)}
-                      />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          numberOfLines={1}
-                          style={{
-                            color: colors.text,
-                            fontSize: 12,
-                            fontWeight: "800",
-                          }}
-                        >
-                          {student.name}
-                        </Text>
-                        {!desktop ? (
+                      <View
+                        style={{
+                          flex: desktop ? 2.2 : 1,
+                          minWidth: desktop ? 210 : 0,
+                          paddingHorizontal: 10,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                        }}
+                      >
+                        <BirthdayAvatar
+                          colors={colors}
+                          photoUrl={student.photoUrl}
+                          isBirthdayToday={birthdayStudentIds?.has(student.id)}
+                          size={38}
+                        />
+                        <View style={{ flex: 1, minWidth: 0 }}>
                           <Text
                             numberOfLines={1}
-                            style={{ color: colors.muted, fontSize: 10 }}
+                            style={{
+                              color: colors.text,
+                              fontSize: 13,
+                              fontWeight: "900",
+                            }}
                           >
-                            {cls?.name ?? "Turma"} · {student.age || "—"} anos
+                            {student.name}
                           </Text>
-                        ) : null}
+                          {!desktop ? (
+                            <Text
+                              numberOfLines={1}
+                              style={{ color: colors.muted, fontSize: 10 }}
+                            >
+                              {cls?.name ?? "Turma"} · {student.age || "—"} anos
+                            </Text>
+                          ) : null}
+                        </View>
                       </View>
-                    </View>
-                    {desktop ? (
-                      <>
-                        <Text
-                          style={{
-                            flex: 0.7,
-                            color: colors.muted,
-                            fontSize: 11,
-                          }}
-                        >
-                          {student.age || "—"} anos
-                        </Text>
-                        <Text
-                          numberOfLines={1}
-                          style={{
-                            flex: 1,
-                            color: colors.muted,
-                            fontSize: 11,
-                          }}
-                        >
-                          {cls?.name ?? "Turma"}
-                        </Text>
-                        <View style={{ flex: 0.8 }}>
+                      {desktop ? (
+                        <>
+                          <Text
+                            style={{
+                              flex: 0.7,
+                              minWidth: 76,
+                              paddingHorizontal: 10,
+                              color: colors.textMuted ?? colors.muted,
+                              fontSize: 11,
+                            }}
+                          >
+                            {student.age || "—"} anos
+                          </Text>
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              flex: 1,
+                              minWidth: 100,
+                              paddingHorizontal: 10,
+                              color: colors.textMuted ?? colors.muted,
+                              fontSize: 11,
+                            }}
+                          >
+                            {cls?.name ?? "Turma"}
+                          </Text>
                           <View
                             style={{
-                              alignSelf: "flex-start",
-                              borderRadius: 999,
-                              borderWidth: 1,
-                              borderColor: student.isExperimental
-                                ? colors.warningBg
-                                : colors.successBg,
-                              paddingHorizontal: 8,
-                              paddingVertical: 3,
+                              flex: 0.8,
+                              minWidth: 86,
+                              paddingHorizontal: 10,
+                            }}
+                          >
+                            <View
+                              style={{
+                                alignSelf: "flex-start",
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: student.isExperimental
+                                  ? colors.warningBg
+                                  : colors.successBg,
+                                paddingHorizontal: 8,
+                                paddingVertical: 3,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: student.isExperimental
+                                    ? colors.warningText
+                                    : colors.successText,
+                                  fontSize: 10,
+                                  fontWeight: "800",
+                                }}
+                              >
+                                {student.isExperimental
+                                  ? "Experimental"
+                                  : "Ativo"}
+                              </Text>
+                            </View>
+                          </View>
+                          <View
+                            style={{
+                              flex: 1.5,
+                              minWidth: 170,
+                              paddingHorizontal: 10,
                             }}
                           >
                             <Text
+                              numberOfLines={1}
                               style={{
-                                color: student.isExperimental
-                                  ? colors.warningText
-                                  : colors.successText,
-                                fontSize: 10,
-                                fontWeight: "800",
+                                color: colors.textPrimary ?? colors.text,
+                                fontSize: 11,
                               }}
                             >
-                              {student.isExperimental
-                                ? "Experimental"
-                                : "Ativo"}
+                              {student.guardianName ||
+                                "Responsável não informado"}
+                            </Text>
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                color: colors.textMuted ?? colors.muted,
+                                fontSize: 10,
+                              }}
+                            >
+                              {student.guardianPhone ||
+                                student.phone ||
+                                "Sem contato"}
                             </Text>
                           </View>
-                        </View>
-                        <View style={{ flex: 1.5, minWidth: 0 }}>
-                          <Text
-                            numberOfLines={1}
-                            style={{ color: colors.text, fontSize: 11 }}
-                          >
-                            {student.guardianName ||
-                              "Responsável não informado"}
-                          </Text>
-                          <Text
-                            numberOfLines={1}
-                            style={{ color: colors.muted, fontSize: 10 }}
-                          >
-                            {student.guardianPhone ||
-                              student.phone ||
-                              "Sem contato"}
-                          </Text>
-                        </View>
-                      </>
-                    ) : null}
-                    <Pressable
-                      onPress={() => onStudentWhatsApp?.(student)}
-                      style={{
-                        width: 32,
-                        height: 32,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name="whatsapp"
-                        size={16}
-                        color={colors.primaryBg}
-                      />
-                    </Pressable>
+                        </>
+                      ) : null}
+                      <Pressable
+                        onPress={() => onStudentWhatsApp?.(student)}
+                        style={{
+                          width: 42,
+                          height: 42,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <GoAtletaIcon
+                          name="whatsapp"
+                          size={16}
+                          color={colors.primaryBg}
+                        />
+                      </Pressable>
                     </Pressable>
                   );
                 })}
@@ -803,9 +974,7 @@ export const StudentsListTab = memo(function StudentsListTab({
               >
                 <Pressable
                   disabled={currentPage === 1}
-                  onPress={() =>
-                    setPage((current) => Math.max(1, current - 1))
-                  }
+                  onPress={() => setPage((current) => Math.max(1, current - 1))}
                   style={{
                     width: 32,
                     height: 32,

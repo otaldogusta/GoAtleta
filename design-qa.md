@@ -49,6 +49,43 @@ final result: passed
 
 ---
 
+# Design QA — Fidelidade entre Alunos e Turmas
+
+## Fonte de verdade
+
+- Captura de referência fornecida pelo usuário para a tela de Turmas.
+- Tela autenticada de Turmas no mesmo ambiente local.
+- Implementação em `http://localhost:8081/prof/students`.
+
+## Comparação visual
+
+- Referência e implementação foram capturadas no mesmo viewport desktop de 1600 × 1138 CSS px.
+- O shell de Alunos agora compartilha com Turmas o fundo, a largura de 256 px do painel de unidades, as superfícies, a escala tipográfica, os divisores e o ritmo vertical.
+- Cabeçalho, título da coleção, busca de unidades, controle A–Z, linhas da unidade e tabela seguem as mesmas medidas de Turmas.
+- Busca e filtros específicos de Alunos foram preservados porque fazem parte da operação dessa tela.
+- Nenhum P0, P1 ou P2 visual restante na comparação lado a lado.
+
+## Responsividade e interação
+
+- Desktop: 1600 × 1138 CSS px, sem overflow horizontal.
+- Tablet: 926 × 1326 CSS px, sem overflow horizontal.
+- Celular: 433 × 938 CSS px, sem overflow horizontal e com cabeçalho compacto equivalente ao de Turmas.
+- O filtro de status abre e fecha normalmente após o realinhamento.
+- A lista mantém rolagem interna, cabeçalho fixo e paginação fixa.
+
+## Validações técnicas
+
+- `npm run typecheck:app`: aprovado.
+- `npm run check:org-scope`: aprovado.
+- `git diff --check`: aprovado.
+- `npm run build`: aprovado; permanecem apenas avisos conhecidos de resolução do `expo-font` e configuração de build do Sentry.
+
+## Resultado final
+
+final result: passed
+
+---
+
 # Design QA — Alunos e aniversários
 
 ## Fonte de verdade
