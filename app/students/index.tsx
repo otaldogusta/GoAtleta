@@ -255,6 +255,14 @@ export default function StudentsScreen() {
   const { coachName, groupInviteLinks } = useWhatsAppSettings();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
+  const emptyDropdownTextStyle = useMemo(
+    () => ({
+      color: colors.muted,
+      fontSize: 12,
+      padding: 10,
+    }),
+    [colors.muted],
+  );
   const selectFieldStyle = {
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -2822,7 +2830,7 @@ export default function StudentsScreen() {
                 />
               ))
             ) : (
-              <Text style={{ color: colors.muted, fontSize: 12, padding: 10 }}>
+              <Text style={emptyDropdownTextStyle}>
                 Nenhuma unidade cadastrada.
               </Text>
             )}
