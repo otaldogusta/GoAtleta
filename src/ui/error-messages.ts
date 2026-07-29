@@ -70,7 +70,8 @@ export const isNetworkConnectionError = (error: unknown) => {
 
 export const isNotFoundError = (error: unknown) => {
   const lower = getComparableErrorText(error);
-  return lower.includes("not found") || lower.includes("404") || lower.includes("pgrst202");
+  if (lower.includes("pgrst202") || lower.includes("pgrst204")) return false;
+  return lower.includes("not found") || lower.includes("404");
 };
 
 export const isExpectedSessionConnectivityError = (error: unknown) =>
@@ -86,6 +87,7 @@ export const getFriendlyErrorMessage = (
   const parsed = parseJsonMessage(raw);
   const message = parsed?.message || raw;
   const lower = message.toLowerCase();
+  const comparable = getComparableErrorText(error);
 
   if (isAuthSessionError(error)) {
     return "Sessão expirada. Entre novamente.";
@@ -112,12 +114,20 @@ export const getFriendlyErrorMessage = (
     return "Já existe um registro com esse dado.";
   }
 
-  if (isNotFoundError(error)) {
-    return "Não encontrado.";
+  if (comparable.includes("pgrst202")) {
+    return "Serviço de atualização indisponível. Recarregue a página e tente novamente.";
   }
 
-  if (lower.includes("pgrst204")) {
+  if (comparable.includes("pgrst204")) {
     return "Atualize o app para continuar.";
+  }
+
+  if (lower.includes("member not found")) {
+    return "Esta pessoa não está mais disponível nesta organização. Atualize a lista e tente novamente.";
+  }
+
+  if (isNotFoundError(error)) {
+    return "Não encontrado.";
   }
 
   return message || fallback;

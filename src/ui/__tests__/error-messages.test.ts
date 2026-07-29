@@ -30,6 +30,26 @@ describe("error-messages", () => {
     expect(isExpectedSessionConnectivityError(error)).toBe(true);
   });
 
+  it("explains when an RPC is not yet available instead of reporting a missing record", () => {
+    const error = new Error(
+      'Supabase POST error: 404 {"code":"PGRST202","message":"Could not find the function public.admin_apply_member_access_change in the schema cache"}'
+    );
+
+    expect(isNotFoundError(error)).toBe(false);
+    expect(isExpectedSessionConnectivityError(error)).toBe(false);
+    expect(getFriendlyErrorMessage(error)).toBe(
+      "Serviço de atualização indisponível. Recarregue a página e tente novamente."
+    );
+  });
+
+  it("explains when the selected organization member no longer exists", () => {
+    const error = new Error('{"code":"P0001","message":"member not found"}');
+
+    expect(getFriendlyErrorMessage(error)).toBe(
+      "Esta pessoa não está mais disponível nesta organização. Atualize a lista e tente novamente."
+    );
+  });
+
   it("keeps permission errors out of expected session/connectivity errors", () => {
     const error = new Error('{"code":"42501","message":"row-level security policy"}');
 
