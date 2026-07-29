@@ -49,6 +49,47 @@ final result: passed
 
 ---
 
+# Design QA — Exportar e sincronizar em Turmas
+
+## Fonte de verdade
+
+- Mockup escolhido pelo usuário: `artifacts/design-qa/classes-google-actions-selected-reference.png`.
+- Implementação autenticada: `http://localhost:8081/prof/classes`.
+- Comparação lado a lado: `artifacts/design-qa/classes-google-actions-comparison.png`.
+
+## Verificação visual
+
+- `Criar turma` permanece como única ação primária em verde.
+- `Exportar e sincronizar` usa botão secundário contornado, chevron animado e menu ancorado à direita.
+- O menu fica acima da tabela e contém, na ordem aprovada, exportação `.xlsx`, exportação `.ics`, sincronização assistida com Google Agenda e estado da conta Google.
+- Tipografia, cores, bordas, espaçamento, altura dos controles e alinhamento seguem a tela de Turmas existente.
+- Desktop mantém rótulos completos; tablet e celular usam ações compactas para evitar overflow no cabeçalho.
+- Nenhum P0, P1 ou P2 visual restante na comparação.
+
+## Interação e responsividade
+
+- Desktop: menu abre e fecha no mesmo ponto do mockup, sem deslocar a tabela.
+- Tablet: ações compactas permanecem integralmente dentro do viewport.
+- Celular: menu abre acima do conteúdo, com todas as opções acessíveis e sem overflow horizontal.
+- Exportação `.xlsx`: executada no localhost com retorno de sucesso.
+- Exportação `.ics`: executada no localhost com retorno de sucesso.
+- Sincronização com Google é transparente: gera o arquivo `.ics` e abre a importação do Google Agenda; o estado `Google conectado` só aparece quando a conta autenticada possui identidade Google.
+
+## Validações técnicas
+
+- Testes focados de exportação: 2 aprovados.
+- `npm run typecheck:app`: aprovado.
+- `npm run check:org-scope`: aprovado.
+- `npm run check:perf-hygiene:strict`: aprovado.
+- `git diff --check`: aprovado.
+- `npm run build`: aprovado; permanecem apenas avisos conhecidos do `expo-font` e da configuração do Sentry.
+
+## Resultado final
+
+final result: passed
+
+---
+
 # Design QA — Fidelidade entre Alunos e Turmas
 
 ## Fonte de verdade

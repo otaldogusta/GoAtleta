@@ -51,6 +51,7 @@ import {
 } from "../../src/screens/classes/application/class-schedule-conflicts";
 import { ClassesListSection } from "../../src/screens/classes/components/ClassesListSection";
 import { ClassUnitAutocomplete } from "../../src/screens/classes/components/ClassUnitAutocomplete";
+import { ClassesExportSyncMenu } from "../../src/screens/classes/components/ClassesExportSyncMenu";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { animateLayout } from "../../src/ui/animate-layout";
@@ -908,6 +909,25 @@ export default function ClassesScreen() {
     });
     return sortedEntries.sort((a, b) => a[0].localeCompare(b[0]));
   }, [displayClasses, unitKey, unitLabel]);
+  const googleAccountConnected = useMemo(() => {
+    const identityProviders = (session?.user?.identities ?? [])
+      .map((identity) => String(identity.provider ?? "").toLowerCase().trim())
+      .filter(Boolean);
+    const metadataProviders = [
+      ...(session?.user?.app_metadata?.providers ?? []),
+      session?.user?.app_metadata?.provider ?? "",
+    ]
+      .map((provider) => String(provider).toLowerCase().trim())
+      .filter(Boolean);
+    return (
+      identityProviders.includes("google") ||
+      (identityProviders.length === 0 && metadataProviders.includes("google"))
+    );
+  }, [
+    session?.user?.app_metadata?.provider,
+    session?.user?.app_metadata?.providers,
+    session?.user?.identities,
+  ]);
   const existingUnitOptions = useMemo(
     () => grouped.map(([label]) => label),
     [grouped]
@@ -1822,28 +1842,44 @@ export default function ClassesScreen() {
           title="Turmas"
           onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
           right={
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Criar turma"
-              onPress={() => requestSwitchMainTab("criar")}
-              disabled={mainTab === "criar"}
-              style={{
-                height: 40,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                paddingHorizontal: 13,
-                borderRadius: 999,
-                backgroundColor: colors.primaryBg,
-                opacity: mainTab === "criar" ? 0.7 : 1,
-              }}
-            >
-              <GoAtletaIcon name="add" size={16} color={colors.primaryText} />
-              <Text style={{ color: colors.primaryText, fontWeight: "900", fontSize: 12 }}>
-                Criar turma
-              </Text>
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <ClassesExportSyncMenu
+                classes={displayClasses}
+                classCardViewModelsById={classCardViewModelsById}
+                colors={colors}
+                googleAccountConnected={googleAccountConnected}
+                compact={
+                  responsiveLayout.isMobile || responsiveLayout.tier === "tablet"
+                }
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Criar turma"
+                onPress={() => requestSwitchMainTab("criar")}
+                disabled={mainTab === "criar"}
+                style={{
+                  height: 40,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingHorizontal:
+                    responsiveLayout.isMobile || responsiveLayout.tier === "tablet"
+                      ? 11
+                      : 13,
+                  borderRadius: 12,
+                  backgroundColor: colors.primaryBg,
+                  opacity: mainTab === "criar" ? 0.7 : 1,
+                }}
+              >
+                <GoAtletaIcon name="add" size={16} color={colors.primaryText} />
+                {!responsiveLayout.isMobile && responsiveLayout.tier !== "tablet" ? (
+                  <Text style={{ color: colors.primaryText, fontWeight: "900", fontSize: 12 }}>
+                    Criar turma
+                  </Text>
+                ) : null}
+              </Pressable>
+            </View>
           }
           contentStyle={{ paddingBottom: 8 }}
         />

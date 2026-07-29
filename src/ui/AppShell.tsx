@@ -3,8 +3,8 @@ import { Platform, View } from "react-native";
 
 import type { AppRole } from "../components/navigation/tab-config";
 import { AdaptiveSidebar } from "./AdaptiveSidebar";
+import { useAppTheme } from "./app-theme";
 import { useResponsiveLayout } from "./use-responsive-layout";
-import { webShellTokens } from "./web-shell-tokens";
 
 type AppShellProps = {
   role: AppRole;
@@ -13,6 +13,7 @@ type AppShellProps = {
 
 export function AppShell({ role, children }: AppShellProps) {
   const layout = useResponsiveLayout("dashboard");
+  const { colors } = useAppTheme();
 
   if (!layout.usesWorkspaceShell) {
     return <>{children}</>;
@@ -24,7 +25,7 @@ export function AppShell({ role, children }: AppShellProps) {
         {
           flex: 1,
           flexDirection: "row",
-          backgroundColor: webShellTokens.background,
+          backgroundColor: colors.background,
           minHeight: 0,
         },
         Platform.OS === "web"

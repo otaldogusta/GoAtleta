@@ -32,3 +32,28 @@ export const areMemberAccessFormSnapshotsEqual = (
   left.classIds.every((value, index) => value === right.classIds[index]) &&
   left.permissionKeys.length === right.permissionKeys.length &&
   left.permissionKeys.every((value, index) => value === right.permissionKeys[index]);
+
+export const createMemberAccessIdempotencyKey = () =>
+  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (token) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = token === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+
+export const formatMemberAccessSuccessMessage = ({
+  displayName,
+  classCount,
+  permissionCount,
+  notificationCreated,
+}: {
+  displayName: string;
+  classCount: number;
+  permissionCount: number;
+  notificationCreated: boolean;
+}) => {
+  const firstName = displayName.trim().split(/\s+/)[0] || "Pessoa";
+  const notificationMessage = notificationCreated
+    ? " A notificação já está na caixa de entrada."
+    : "";
+  return `Acesso de ${firstName} atualizado: ${classCount} turma(s) e ${permissionCount} permissão(ões).${notificationMessage}`;
+};

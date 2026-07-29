@@ -58,11 +58,13 @@ export function FormFieldValidationFeedback({
   attempt = 0,
   children,
   style,
+  presentation = "inline",
 }: {
   message?: string | null;
   attempt?: number;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
+  presentation?: "inline" | "floating";
 }) {
   const { colors } = useAppTheme();
   const [translateX] = useState(() => new Animated.Value(0));
@@ -95,36 +97,75 @@ export function FormFieldValidationFeedback({
     };
   }, [attempt, message, translateX]);
 
-  return (
-    <Animated.View style={[style, { transform: [{ translateX }] }]}>
-      {message ? (
-        <View
-          accessibilityRole="alert"
+  const feedback = message ? (
+    <View
+      pointerEvents="none"
+      style={
+        presentation === "floating"
+          ? {
+              position: "absolute",
+              left: 8,
+              bottom: "100%",
+              marginBottom: 8,
+              zIndex: 20,
+            }
+          : undefined
+      }
+    >
+      <View
+        accessibilityRole="alert"
+        style={{
+          alignSelf: "flex-start",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          marginBottom: presentation === "inline" ? 6 : 0,
+          borderRadius: radius.internal,
+          backgroundColor: colors.dangerSolidBg,
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+        }}
+      >
+        <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
+        <Text
           style={{
-            alignSelf: "flex-start",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 6,
-            borderRadius: radius.internal,
-            backgroundColor: colors.dangerSolidBg,
-            paddingHorizontal: 10,
-            paddingVertical: 6,
+            color: colors.dangerSolidText,
+            fontSize: 12,
+            fontWeight: "700",
           }}
         >
-          <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
-          <Text
-            style={{
-              color: colors.dangerSolidText,
-              fontSize: 12,
-              fontWeight: "700",
-            }}
-          >
-            {message}
-          </Text>
-        </View>
+          {message}
+        </Text>
+      </View>
+      {presentation === "floating" ? (
+        <View
+          style={{
+            position: "absolute",
+            left: 18,
+            bottom: -4,
+            width: 8,
+            height: 8,
+            backgroundColor: colors.dangerSolidBg,
+            transform: [{ rotate: "45deg" }],
+          }}
+        />
       ) : null}
+    </View>
+  ) : null;
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        presentation === "floating"
+          ? { position: "relative", zIndex: message ? 20 : 0 }
+          : null,
+        { transform: [{ translateX }] },
+      ]}
+    >
+      {presentation === "inline" ? feedback : null}
       {children}
+      {presentation === "floating" ? feedback : null}
     </Animated.View>
   );
 }

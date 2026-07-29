@@ -56,6 +56,20 @@ superfícies automaticamente.
 - Erros de rede ou servidor permanecem na região da ação; erros de preenchimento
   pertencem ao campo que precisa ser corrigido.
 
+## Feedback transacional obrigatório
+
+- Toda ação que cria, salva, altera, duplica, remove ou exclui deve terminar com
+  feedback visível de sucesso ou erro; nenhuma mutação pode falhar em silêncio.
+- A interface só fecha o modal, limpa o estado sujo ou atualiza a lista depois
+  que o servidor confirmar a operação. Erros preservam os dados editados para
+  nova tentativa.
+- Operações compostas devem ser atômicas e idempotentes no servidor. O recibo
+  retornado pelo servidor é a fonte da mensagem de confirmação.
+- Mudanças que afetam outra pessoa devem gerar uma notificação para a pessoa
+  impactada somente depois da confirmação da transação.
+- Ao tentar fechar um modal alterado, oferecer `Salvar e sair`, `Descartar
+  alterações` e `Continuar editando`; `X`, `Esc` e backdrop usam esse mesmo fluxo.
+
 ## Formulários em modal
 
 - A ação de salvar fica desabilitada enquanto não existir uma alteração real e

@@ -68,6 +68,7 @@ import { useSaveToast } from "../../../src/ui/save-toast";
 import { useUndoableListDelete } from "../../../src/ui/useUndoableListDelete";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
+import { useConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { markRender, measureAsync } from "../../../src/observability/perf";
 import { maskCpf } from "../../../src/utils/cpf";
 import { formatRgBr } from "../../../src/utils/document-normalization";
@@ -94,6 +95,11 @@ import {
   loadReviewedDuplicateSignatures,
   saveReviewedDuplicateSignature,
 } from "../../../src/screens/students/application/student-duplicate-reviews";
+import {
+  buildIncompleteStudentConfirmationMessage,
+  formatImportantStudentFields,
+  getMissingImportantStudentFields,
+} from "../../../src/screens/students/application/student-profile-completeness";
 
 const guardianRelationOptions = ["Mãe", "Pai", "Avó", "Avô", "Irmão", "Irmã", "Tio", "Tia", "Outro"] as const;
 const positionOptions = ["indefinido", "levantador", "oposto", "ponteiro", "central", "libero"] as const;
@@ -225,6 +231,7 @@ export default function ClassStudentsScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
@@ -232,6 +239,7 @@ export default function ClassStudentsScreen() {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const isCompactForm = Platform.OS !== "web" && windowWidth <= 760;
+  const stackCreateContactFields = windowWidth <= 760;
   const editModalCardStyle = useModalCardStyle({
     maxHeight: Platform.OS === "web" ? "92%" : "96%",
     maxWidth: isCompactForm ? 700 : 960,
@@ -1255,19 +1263,19 @@ export default function ClassStudentsScreen() {
       setCreateError("Já existe aluno com esse nome. Manter mesmo assim?");
       return;
     }
-    const birthIso = brToIso(createBirthText.trim());
-    if (!birthIso) {
+    const birthTextValue = createBirthText.trim();
+    const parsedBirthIso = birthTextValue ? brToIso(birthTextValue) : null;
+    if (birthTextValue && !parsedBirthIso) {
       reportCreateValidation(
         "birthDate",
-        createBirthText.trim()
-          ? "Confira a data de nascimento."
-          : "Informe a data de nascimento."
+        "Confira a data de nascimento."
       );
       return;
     }
+    const birthIso = parsedBirthIso ?? "";
     clearCreateValidationError("birthDate");
-    const ageResolved = calculateAgeFromIso(birthIso);
-    if (ageResolved === null) {
+    const ageResolved = birthIso ? calculateAgeFromIso(birthIso) : 0;
+    if (birthIso && ageResolved === null) {
       reportCreateValidation("birthDate", "Confira a data de nascimento.");
       return;
     }
@@ -1277,6 +1285,22 @@ export default function ClassStudentsScreen() {
       return;
     }
     clearCreateValidationError();
+
+    const missingImportantFields = getMissingImportantStudentFields({
+      birthDate: birthIso,
+      phone: createPhone,
+    });
+    if (missingImportantFields.length) {
+      const confirmed = await confirmDialog({
+        title: "Salvar cadastro incompleto?",
+        message: buildIncompleteStudentConfirmationMessage(missingImportantFields),
+        confirmLabel: "Salvar mesmo assim",
+        cancelLabel: "Revisar cadastro",
+        tone: "default",
+        onConfirm: () => undefined,
+      });
+      if (!confirmed) return;
+    }
 
     setCreatingStudent(true);
     setCreateError("");
@@ -1320,7 +1344,7 @@ export default function ClassStudentsScreen() {
         name: cleanName,
         organizationId: cls?.organizationId ?? "",
         classId: id,
-        age: ageResolved,
+        age: ageResolved ?? 0,
         phone: createPhone.trim(),
         loginEmail: createEmail.trim(),
         guardianName: createGuardianName.trim(),
@@ -1354,8 +1378,10 @@ export default function ClassStudentsScreen() {
       resetCreateForm();
       await load();
       showSaveToast({
-        message: `${cleanName} foi adicionado à turma com sucesso.`,
-        variant: "success",
+        message: missingImportantFields.length
+          ? `${cleanName} foi cadastrado com informações pendentes.`
+          : `${cleanName} foi adicionado à turma com sucesso.`,
+        variant: missingImportantFields.length ? "warning" : "success",
         actionLabel: "Ver alunos",
         onAction: () => setScreenTab("alunos"),
       });
@@ -1389,6 +1415,7 @@ export default function ClassStudentsScreen() {
     createPhotoUrl,
     duplicateNameConfirmed,
     clearCreateValidationError,
+    confirmDialog,
     id,
     isOnline,
     load,
@@ -2279,6 +2306,7 @@ export default function ClassStudentsScreen() {
                   const hasPhone = c.status === "ok" && Boolean(c.phoneDigits);
                   const selected = selectedStudentIds.includes(s.id);
                   const duplicateGroup = duplicateGroupByStudentId.get(s.id) ?? null;
+                  const missingImportantFields = getMissingImportantStudentFields(s);
                   return (
                     <Pressable
                       key={s.id}
@@ -2346,6 +2374,20 @@ export default function ClassStudentsScreen() {
                           />
                         ) : null}
                         <Text style={{ color: colors.text, fontWeight: "700", fontSize: 16 }}>{s.name}</Text>
+                        {missingImportantFields.length ? (
+                          <View
+                            accessibilityLabel={`Cadastro incompleto: ${formatImportantStudentFields(missingImportantFields)}`}
+                            style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
+                          >
+                            <GoAtletaIcon name="warningCircle" size={13} color={colors.warningText} />
+                            <Text
+                              numberOfLines={1}
+                              style={{ color: colors.warningText, fontSize: 11, fontWeight: "700" }}
+                            >
+                              Cadastro incompleto · {formatImportantStudentFields(missingImportantFields)}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                       <View style={{ gap: 8 }}>
                         <Pressable
@@ -2481,11 +2523,17 @@ export default function ClassStudentsScreen() {
                       </View>
                     ) : (
                       <>
-                        <View style={{ flexDirection: "row", gap: 10 }}>
+                        <View
+                          style={{
+                            flexDirection: stackCreateContactFields ? "column" : "row",
+                            gap: 10,
+                          }}
+                        >
                           <View style={{ flex: 1 }}>
                             <FormFieldValidationFeedback
                               message={createValidationIssue?.field === "birthDate" ? createValidationIssue.message : ""}
                               attempt={createValidationIssue?.field === "birthDate" ? createValidationIssue.attempt : 0}
+                              presentation="floating"
                             >
                               <TextInput
                                 ref={createBirthDateInputRef}

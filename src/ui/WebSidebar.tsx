@@ -20,6 +20,7 @@ import {
   resolveVisibleProfileSwitchIds,
   type ProfileSwitchId,
 } from "./profile-switch-options";
+import { useAppTheme } from "./app-theme";
 import { webShellTokens } from "./web-shell-tokens";
 import {
   orderWebSidebarItems,
@@ -208,6 +209,7 @@ function SidebarToggleButton({
 export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { mode, colors } = useAppTheme();
   const { session, signOut } = useAuth();
   const { availableRoles, refresh: refreshRole, setActiveRole } = useRole();
   const organizationContext = useOptionalOrganization();
@@ -227,6 +229,8 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const profileMenuRootRef = useRef<View | null>(null);
 
   const expanded = canExpand && sidebarExpanded;
+  const sidebarBackgroundColor =
+    mode === "dark" ? colors.background : webShellTokens.sidebar;
   const professorName = getDisplayName(session);
   const professorInitials = getInitials(professorName);
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
@@ -933,7 +937,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         style={{
           width: SIDEBAR_COMPACT_WIDTH,
           alignSelf: "stretch",
-          backgroundColor: webShellTokens.sidebar,
+          backgroundColor: sidebarBackgroundColor,
           borderRightWidth: 1,
           borderRightColor: "rgba(255,255,255,0.06)",
           paddingVertical: 18,
@@ -1143,7 +1147,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       <View
         style={{
           width: SIDEBAR_EXPANDED_WIDTH,
-          backgroundColor: webShellTokens.sidebar,
+          backgroundColor: sidebarBackgroundColor,
           borderRightWidth: 1,
           borderRightColor: "rgba(255,255,255,0.06)",
           paddingVertical: 18,

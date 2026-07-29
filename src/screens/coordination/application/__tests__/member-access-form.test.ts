@@ -1,6 +1,8 @@
 import {
   areMemberAccessFormSnapshotsEqual,
   createMemberAccessFormSnapshot,
+  createMemberAccessIdempotencyKey,
+  formatMemberAccessSuccessMessage,
 } from "../member-access-form";
 
 describe("member access form snapshots", () => {
@@ -56,5 +58,24 @@ describe("member access form snapshots", () => {
         })
       )
     ).toBe(false);
+  });
+
+  it("creates UUID-shaped idempotency keys", () => {
+    expect(createMemberAccessIdempotencyKey()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    );
+  });
+
+  it("formats an explicit success receipt including the inbox notification", () => {
+    expect(
+      formatMemberAccessSuccessMessage({
+        displayName: "Angela Moraes",
+        classCount: 6,
+        permissionCount: 7,
+        notificationCreated: true,
+      })
+    ).toBe(
+      "Acesso de Angela atualizado: 6 turma(s) e 7 permissão(ões). A notificação já está na caixa de entrada."
+    );
   });
 });

@@ -12,9 +12,11 @@ type ConfirmCloseOverlayProps = {
   message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  discardLabel?: string;
   overlayZIndex?: number;
   onConfirm: () => void;
   onCancel: () => void;
+  onDiscard?: () => void;
 };
 
 export function ConfirmCloseOverlay({
@@ -23,9 +25,11 @@ export function ConfirmCloseOverlay({
   message = "Você tem alterações não salvas.",
   confirmLabel = "Descartar",
   cancelLabel = "Continuar",
+  discardLabel,
   overlayZIndex = 20000,
   onConfirm,
   onCancel,
+  onDiscard,
 }: ConfirmCloseOverlayProps) {
   const { colors } = useAppTheme();
 
@@ -54,7 +58,30 @@ export function ConfirmCloseOverlay({
           </Text>
           <Text style={{ color: colors.muted }}>{message}</Text>
         </View>
-        <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 10,
+            justifyContent: "flex-end",
+          }}
+        >
+          {discardLabel && onDiscard ? (
+            <Pressable
+              onPress={onDiscard}
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.dangerText, fontWeight: "700" }}>
+                {discardLabel}
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={onCancel}
             style={{

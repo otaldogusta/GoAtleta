@@ -98,7 +98,7 @@ const baseLightColors: ThemeColors = {
 
 const baseDarkColors: ThemeColors = {
   ...semanticColors.dark,
-  background: isWeb ? "rgba(14, 23, 41, 0.98)" : semanticColors.dark.background,
+  background: semanticColors.dark.background,
   card: semanticColors.dark.surface,
   border: semanticColors.dark.borderSubtle,
   text: semanticColors.dark.textPrimary,

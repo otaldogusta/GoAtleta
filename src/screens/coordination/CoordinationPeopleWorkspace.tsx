@@ -15,11 +15,11 @@ import {
 } from "react-native";
 
 import {
+  adminApplyMemberAccessChange,
   adminListMemberPermissions,
+  adminListOrgMemberClassAssignments,
+  adminListOrgMemberClassHeads,
   adminRemoveOrgMember,
-  adminSetMemberClassHeads,
-  adminSetMemberPermission,
-  adminUpdateMemberRole,
   MEMBER_PERMISSION_OPTIONS,
   type MemberClassHead,
   type MemberPermissionKey,
@@ -42,10 +42,14 @@ import { useConfirmUndo } from "../../ui/confirm-undo";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
+import { useSaveToast } from "../../ui/save-toast";
 import { useUndoableListDelete } from "../../ui/useUndoableListDelete";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 import { resolveAccessModalLayout } from "./application/access-modal-layout";
-import { formatClassAssignmentMeta } from "./application/class-assignment-meta";
+import {
+  getClassAssignmentScheduleLabels,
+  groupClassAssignments,
+} from "./application/class-assignment-meta";
 import {
   areInviteFormSnapshotsEqual,
   createInviteFormSnapshot,
@@ -54,7 +58,9 @@ import {
 } from "./application/invite-form";
 import {
   areMemberAccessFormSnapshotsEqual,
+  createMemberAccessIdempotencyKey,
   createMemberAccessFormSnapshot,
+  formatMemberAccessSuccessMessage,
   type MemberAccessFormSnapshot,
 } from "./application/member-access-form";
 import {
@@ -127,12 +133,14 @@ function DropdownButton<T extends string | number>({
   onChange,
   compact,
   density = "default",
+  disabled = false,
 }: {
   value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
   compact?: boolean;
   density?: "default" | "compact";
+  disabled?: boolean;
 }) {
   const { colors } = useAppTheme();
   const triggerRef = useRef<ViewType | null>(null);
@@ -145,6 +153,7 @@ function DropdownButton<T extends string | number>({
     : 220;
 
   const toggle = () => {
+    if (disabled) return;
     if (open) {
       setOpen(false);
       return;
@@ -159,6 +168,7 @@ function DropdownButton<T extends string | number>({
     <>
       <View ref={triggerRef}>
         <Pressable
+          disabled={disabled}
           onPress={toggle}
           style={{
             minWidth: compact ? 0 : 160,
@@ -175,6 +185,7 @@ function DropdownButton<T extends string | number>({
             alignItems: "center",
             justifyContent: "space-between",
             gap: isDense ? 8 : 10,
+            opacity: disabled ? 0.62 : 1,
           }}
         >
           <Text
@@ -196,7 +207,7 @@ function DropdownButton<T extends string | number>({
         </Pressable>
       </View>
       <AnchoredDropdown
-        visible={open}
+        visible={open && !disabled}
         layout={layout}
         container={null}
         animationStyle={{}}
@@ -483,11 +494,16 @@ export function CoordinationPeopleWorkspace({
   const { colors } = useAppTheme();
   const router = useRouter();
   const { confirm: confirmUndo } = useConfirmUndo();
+  const { showSaveToast } = useSaveToast();
   const { height, width } = useWindowDimensions();
   const responsiveLayout = useResponsiveLayout("dashboard");
   const supportsSplitLayout = responsiveLayout.supportsSplitView;
   const compact = responsiveLayout.isMobile;
   const splitAccessModal = resolveAccessModalLayout(width) === "split";
+  const groupedOrganizationClasses = useMemo(
+    () => groupClassAssignments(organizationClasses),
+    [organizationClasses]
+  );
   const stackedAccessModalHeight = Math.max(320, Math.min(760, height - 96));
   const storageKey = `coordination_workspace_order_v1:${organizationId}`;
 
@@ -533,12 +549,15 @@ export function CoordinationPeopleWorkspace({
     message: string;
     blocking: boolean;
   } | null>(null);
-  const [permissionLoading, setPermissionLoading] = useState(false);
+  const [editAccessLoading, setEditAccessLoading] = useState(false);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<MemberPermissionKey[]>([]);
   const [selectedPermissionsLoading, setSelectedPermissionsLoading] = useState(false);
   const [visiblePendingInvites, setVisiblePendingInvites] = useState(pendingInvites);
   const selectedPermissionRequestRef = useRef(0);
   const editPermissionRequestRef = useRef(0);
+  const editSubmissionRef = useRef<{ signature: string; idempotencyKey: string } | null>(
+    null
+  );
   const getPendingInviteId = useCallback((invite: TrainerInviteItem) => invite.id, []);
 
   const undoableInviteCancel = useUndoableListDelete({
@@ -661,7 +680,7 @@ export function CoordinationPeopleWorkspace({
     editInitialSnapshot &&
       !areMemberAccessFormSnapshotsEqual(editInitialSnapshot, currentEditSnapshot)
   );
-  const editSaveDisabled = editBusy || permissionLoading || !isEditDirty;
+  const editSaveDisabled = editBusy || editAccessLoading || !isEditDirty;
 
   useEffect(() => {
     const requestId = selectedPermissionRequestRef.current + 1;
@@ -798,23 +817,29 @@ export function CoordinationPeopleWorkspace({
     const requestId = editPermissionRequestRef.current + 1;
     editPermissionRequestRef.current = requestId;
     const initialRole = member.roleLevel >= 50 ? 50 : member.roleLevel >= 10 ? 10 : 5;
-    const initialClassIds = (classesByUser.get(member.userId) ?? []).map(
-      (item) => item.classId
-    );
     setModalMember(member);
     setEditRole(initialRole);
-    setEditClassIds(initialClassIds);
+    setEditClassIds([]);
     setEditPermissionKeys([]);
     setEditInitialSnapshot(null);
     setShowEditCloseConfirm(false);
-    setPermissionLoading(true);
+    setEditAccessLoading(true);
     setModalMode("edit");
     try {
-      const permissions = await adminListMemberPermissions(organizationId, member.userId);
+      const [permissions, classHeads] = await Promise.all([
+        adminListMemberPermissions(organizationId, member.userId),
+        adminListOrgMemberClassAssignments(organizationId).catch(() =>
+          adminListOrgMemberClassHeads(organizationId)
+        ),
+      ]);
       if (editPermissionRequestRef.current !== requestId) return;
+      const initialClassIds = classHeads
+        .filter((head) => head.userId === member.userId)
+        .map((head) => head.classId);
       const initialPermissionKeys = permissions
         .filter((permission) => permission.isAllowed)
         .map((permission) => permission.permissionKey);
+      setEditClassIds(initialClassIds);
       setEditPermissionKeys(initialPermissionKeys);
       setEditInitialSnapshot(
         createMemberAccessFormSnapshot({
@@ -823,18 +848,22 @@ export function CoordinationPeopleWorkspace({
           permissionKeys: initialPermissionKeys,
         })
       );
-    } catch {
+    } catch (error) {
       if (editPermissionRequestRef.current !== requestId) return;
-      Alert.alert("Permissões", "Não foi possível carregar as permissões desta pessoa.");
+      showSaveToast({
+        variant: "error",
+        error,
+      });
     } finally {
       if (editPermissionRequestRef.current === requestId) {
-        setPermissionLoading(false);
+        setEditAccessLoading(false);
       }
     }
   };
 
   const closeEditModal = useCallback(() => {
     editPermissionRequestRef.current += 1;
+    editSubmissionRef.current = null;
     setShowEditCloseConfirm(false);
     setEditInitialSnapshot(null);
     setModalMember(null);
@@ -989,30 +1018,48 @@ export function CoordinationPeopleWorkspace({
 
   const submitEdit = async () => {
     if (!modalMember || editSaveDisabled) return;
+    const member = modalMember;
+    const snapshot = currentEditSnapshot;
+    const signature = JSON.stringify(snapshot);
+    if (editSubmissionRef.current?.signature !== signature) {
+      editSubmissionRef.current = {
+        signature,
+        idempotencyKey: createMemberAccessIdempotencyKey(),
+      };
+    }
+    const idempotencyKey = editSubmissionRef.current.idempotencyKey;
     setEditBusy(true);
     try {
-      if (modalMember.roleLevel < 50 || editRole === 50) {
-        await adminUpdateMemberRole(organizationId, modalMember.userId, editRole);
-      }
-      await adminSetMemberClassHeads(organizationId, modalMember.userId, editClassIds);
-      await Promise.all(
-        MEMBER_PERMISSION_OPTIONS.map((option) =>
-          adminSetMemberPermission(
-            organizationId,
-            modalMember.userId,
-            option.key,
-            editPermissionKeys.includes(option.key)
-          )
-        )
-      );
+      const receipt = await adminApplyMemberAccessChange({
+        organizationId,
+        userId: member.userId,
+        roleLevel: editRole,
+        classIds: snapshot.classIds,
+        permissionKeys: snapshot.permissionKeys as MemberPermissionKey[],
+        idempotencyKey,
+      });
+      setEditInitialSnapshot(snapshot);
       closeEditModal();
-      onRefresh();
-      Alert.alert("Alterações salvas", "Função, turmas e permissões foram atualizadas.");
+      showSaveToast({
+        variant: "success",
+        message: formatMemberAccessSuccessMessage({
+          displayName: member.displayName,
+          classCount: receipt.classCount,
+          permissionCount: receipt.permissionCount,
+          notificationCreated: Boolean(receipt.notificationId),
+        }),
+      });
+      try {
+        await onRefresh();
+      } catch {
+        showSaveToast({
+          variant: "warning",
+          message:
+            "As alterações foram salvas, mas a lista não pôde ser atualizada agora. Recarregue a tela.",
+        });
+      }
     } catch (error) {
-      Alert.alert(
-        "Não foi possível salvar",
-        error instanceof Error ? error.message : "Tente novamente."
-      );
+      showSaveToast({ variant: "error", error });
     } finally {
       setEditBusy(false);
     }
@@ -2252,6 +2299,7 @@ export function CoordinationPeopleWorkspace({
               value={editRole}
               onChange={setEditRole}
               compact
+              disabled={editAccessLoading || (modalMember?.roleLevel ?? 0) >= 50}
               options={[
                 { value: 5, label: "Estagiário" },
                 { value: 10, label: "Professor" },
@@ -2272,9 +2320,33 @@ export function CoordinationPeopleWorkspace({
             }}
           >
             <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
-              <Text style={{ color: colors.text, fontWeight: "800" }}>
-                Turmas atribuídas ({editClassIds.length})
-              </Text>
+              <View
+                style={{
+                  minHeight: 22,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <Text style={{ color: colors.text, fontWeight: "800" }}>
+                  Turmas atribuídas
+                </Text>
+                <View
+                  style={{
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: border,
+                    backgroundColor: inner,
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                  }}
+                >
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
+                    {editClassIds.length} de {organizationClasses.length}
+                  </Text>
+                </View>
+              </View>
               <ScrollView
                 style={{
                   height: splitAccessModal ? 330 : 220,
@@ -2285,39 +2357,137 @@ export function CoordinationPeopleWorkspace({
                 showsVerticalScrollIndicator
                 nestedScrollEnabled
               >
-                {organizationClasses.map((item) => {
-                  const checked = editClassIds.includes(item.id);
-                  return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() =>
-                        setEditClassIds((current) =>
-                          checked ? current.filter((id) => id !== item.id) : [...current, item.id]
-                        )
-                      }
-                      style={{
-                        padding: 11,
-                        borderBottomWidth: 1,
-                        borderBottomColor: border,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name={checked ? "checkbox" : "square"}
-                        size={19}
-                        color={checked ? colors.successText : colors.muted}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: colors.text, fontWeight: "700" }}>{item.name}</Text>
-                        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
-                          {formatClassAssignmentMeta(item)}
+                {editAccessLoading ? (
+                  <View style={{ padding: 14 }}>
+                    <Text style={{ color: colors.muted }}>Carregando turmas atribuídas...</Text>
+                  </View>
+                ) : (
+                  groupedOrganizationClasses.map((group) => (
+                    <View key={group.unit}>
+                      <View
+                        style={{
+                          minHeight: 36,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderBottomWidth: 1,
+                          borderBottomColor: border,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          backgroundColor: inner,
+                        }}
+                      >
+                        <GoAtletaIcon
+                          name="organization"
+                          size={15}
+                          color={colors.muted}
+                        />
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: colors.text,
+                            flex: 1,
+                            fontSize: 12,
+                            fontWeight: "800",
+                          }}
+                        >
+                          {group.unit}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {group.classes.length}{" "}
+                          {group.classes.length === 1 ? "turma" : "turmas"}
                         </Text>
                       </View>
-                    </Pressable>
-                  );
-                })}
+                      {group.classes.map((item) => {
+                        const checked = editClassIds.includes(item.id);
+                        const { daysLabel, timeLabel } =
+                          getClassAssignmentScheduleLabels(item);
+                        return (
+                          <Pressable
+                            key={item.id}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked }}
+                            accessibilityLabel={`${item.name}, ${group.unit}, ${daysLabel}, ${timeLabel}`}
+                            onPress={() =>
+                              setEditClassIds((current) =>
+                                checked
+                                  ? current.filter((id) => id !== item.id)
+                                  : [...current, item.id]
+                              )
+                            }
+                            style={{
+                              minHeight: 58,
+                              paddingHorizontal: 12,
+                              paddingVertical: 9,
+                              borderBottomWidth: 1,
+                              borderBottomColor: border,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 10,
+                            }}
+                          >
+                            <GoAtletaIcon
+                              name={checked ? "checkbox" : "square"}
+                              size={19}
+                              color={checked ? colors.successText : colors.muted}
+                            />
+                            <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+                              <Text
+                                numberOfLines={1}
+                                style={{ color: colors.text, fontWeight: "700" }}
+                              >
+                                {item.name}
+                              </Text>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  flexWrap: "wrap",
+                                  columnGap: 14,
+                                  rowGap: 4,
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 5,
+                                  }}
+                                >
+                                  <GoAtletaIcon
+                                    name="calendar"
+                                    size={13}
+                                    color={colors.muted}
+                                  />
+                                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                    {daysLabel}
+                                  </Text>
+                                </View>
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 5,
+                                  }}
+                                >
+                                  <GoAtletaIcon
+                                    name="time"
+                                    size={13}
+                                    color={colors.muted}
+                                  />
+                                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                    {timeLabel}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ))
+                )}
               </ScrollView>
             </View>
             <View style={{ flex: 1, minWidth: 0, gap: 8 }}>
@@ -2333,7 +2503,7 @@ export function CoordinationPeopleWorkspace({
                   overflow: "hidden",
                 }}
               >
-                {permissionLoading ? (
+                {editAccessLoading ? (
                   <View style={{ padding: 14 }}>
                     <Text style={{ color: colors.muted }}>Carregando permissões...</Text>
                   </View>
@@ -2409,11 +2579,16 @@ export function CoordinationPeopleWorkspace({
 
       <ConfirmCloseOverlay
         visible={showEditCloseConfirm}
-        title="Sair sem salvar?"
-        message="Você tem alterações não salvas."
-        confirmLabel="Sair sem salvar"
+        title="Salvar antes de sair?"
+        message="As mudanças só serão aplicadas depois da confirmação do servidor."
+        confirmLabel="Salvar e sair"
         cancelLabel="Continuar editando"
-        onConfirm={closeEditModal}
+        discardLabel="Descartar alterações"
+        onConfirm={() => {
+          setShowEditCloseConfirm(false);
+          void submitEdit();
+        }}
+        onDiscard={closeEditModal}
         onCancel={() => setShowEditCloseConfirm(false)}
       />
 

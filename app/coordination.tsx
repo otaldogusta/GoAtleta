@@ -17,6 +17,7 @@ import {
 } from "../src/api/ai";
 import { listClassHeadsByClassIds, type ClassResponsible } from "../src/api/class-responsibles";
 import {
+    adminListOrgMemberClassAssignments,
     adminListOrgMemberClassHeads,
     adminListOrgMembers,
     adminListOrgClasses,
@@ -692,7 +693,9 @@ export default function CoordinationScreen() {
               getPendingWritesDiagnostics(10),
               listPendingWriteFailures(12),
               adminListOrgMembers(organizationId).catch(() => [] as OrgMember[]),
-              adminListOrgMemberClassHeads(organizationId).catch(() => [] as MemberClassHead[]),
+              adminListOrgMemberClassAssignments(organizationId)
+                .catch(() => adminListOrgMemberClassHeads(organizationId))
+                .catch(() => [] as MemberClassHead[]),
               adminListOrgClasses(organizationId).catch(() => [] as OrgClass[]),
               listTrainerInvites(organizationId)
                 .then((result) => result.invites.filter((invite) => !invite.revoked))

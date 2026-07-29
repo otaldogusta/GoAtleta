@@ -30,11 +30,12 @@ type AnchoredDropdownProps = {
   showVerticalScrollIndicator?: boolean;
   portalToBodyOnWeb?: boolean;
   interactiveRefs?: Array<React.RefObject<View | null>>;
-  density?: "default" | "compact";
+  density?: "default" | "compact" | "menu";
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;
 const COMPACT_DROPDOWN_MAX_HEIGHT = 180;
+const MENU_DROPDOWN_MAX_HEIGHT = 280;
 
 export function AnchoredDropdown({
   visible,
@@ -227,10 +228,15 @@ export function AnchoredDropdown({
   const measuredWidth = layout.width > 0 ? layout.width : 240;
   const resolvedWidth = Math.min(measuredWidth, availableWidth);
   const isCompact = density === "compact";
+  const isMenu = density === "menu";
   const resolvedMaxHeight = Math.min(
     maxHeight,
-    isCompact ? COMPACT_DROPDOWN_MAX_HEIGHT : DEFAULT_DROPDOWN_MAX_HEIGHT,
-    Math.floor(windowHeight * (isCompact ? 0.35 : 0.23))
+    isMenu
+      ? MENU_DROPDOWN_MAX_HEIGHT
+      : isCompact
+        ? COMPACT_DROPDOWN_MAX_HEIGHT
+        : DEFAULT_DROPDOWN_MAX_HEIGHT,
+    Math.floor(windowHeight * (isMenu ? 0.45 : isCompact ? 0.35 : 0.23))
   );
   const leftBase = useViewportCoordinates || !container ? layout.x : layout.x - container.x;
   const left = Math.max(16, Math.min(leftBase, windowWidth - 16 - resolvedWidth));
@@ -284,7 +290,7 @@ export function AnchoredDropdown({
           {
             height: resolvedMaxHeight,
             maxHeight: resolvedMaxHeight,
-            borderRadius: isCompact ? 14 : 18,
+            borderRadius: isCompact || isMenu ? 14 : 18,
             overflow: "hidden",
             borderWidth: 1,
             borderColor: colors.border,
@@ -304,7 +310,7 @@ export function AnchoredDropdown({
             { height: resolvedMaxHeight, maxHeight: resolvedMaxHeight },
           ]}
           contentContainerStyle={[
-            isCompact
+            isCompact || isMenu
               ? { padding: 6, gap: 4 }
               : { padding: 8, gap: 6, paddingBottom: 10 },
             scrollContentStyle,

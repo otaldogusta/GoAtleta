@@ -26,6 +26,10 @@ export type MemberClassHead = {
   unit: string;
 };
 
+export type MemberClassAssignment = MemberClassHead & {
+  staffRole: "head" | "assistant" | "intern";
+};
+
 type OrgMemberRow = {
   organization_id: string;
   user_id: string;
@@ -47,6 +51,10 @@ type MemberClassHeadRow = {
   class_id: string;
   class_name: string;
   unit?: string | null;
+};
+
+type MemberClassAssignmentRow = MemberClassHeadRow & {
+  staff_role: MemberClassAssignment["staffRole"];
 };
 
 const mapMember = (row: OrgMemberRow): OrgMember => ({
@@ -72,6 +80,13 @@ const mapMemberClassHead = (row: MemberClassHeadRow): MemberClassHead => ({
   unit: row.unit ?? "Sem unidade",
 });
 
+const mapMemberClassAssignment = (
+  row: MemberClassAssignmentRow
+): MemberClassAssignment => ({
+  ...mapMemberClassHead(row),
+  staffRole: row.staff_role,
+});
+
 export type MemberPermissionKey =
   | "reports"
   | "events"
@@ -90,9 +105,29 @@ export type MemberPermission = {
   isAllowed: boolean;
 };
 
+export type MemberAccessChangeReceipt = {
+  receiptId: string;
+  changed: boolean;
+  roleLevel: 5 | 10 | 50;
+  classCount: number;
+  permissionCount: number;
+  notificationId: string | null;
+  appliedAt: string;
+};
+
 type MemberPermissionRow = {
   permission_key: MemberPermissionKey;
   is_allowed: boolean;
+};
+
+type MemberAccessChangeReceiptRow = {
+  receipt_id: string;
+  changed: boolean;
+  role_level: 5 | 10 | 50;
+  class_count: number;
+  permission_count: number;
+  notification_id: string | null;
+  applied_at: string;
 };
 
 export const MEMBER_PERMISSION_OPTIONS: {
@@ -207,6 +242,17 @@ export const adminListOrgMemberClassHeads = async (
   return (rows ?? []).map(mapMemberClassHead);
 };
 
+export const adminListOrgMemberClassAssignments = async (
+  orgId: string
+): Promise<MemberClassAssignment[]> => {
+  const rows = await supabaseRestPost<MemberClassAssignmentRow[]>(
+    "/rpc/admin_list_org_member_class_assignments",
+    { p_org_id: orgId },
+    "return=representation"
+  );
+  return (rows ?? []).map(mapMemberClassAssignment);
+};
+
 export const adminSetMemberClassHeads = async (
   orgId: string,
   userId: string,
@@ -281,6 +327,48 @@ export const adminSetMemberPermission = async (
     },
     "return=minimal"
   );
+};
+
+export const adminApplyMemberAccessChange = async ({
+  organizationId,
+  userId,
+  roleLevel,
+  classIds,
+  permissionKeys,
+  idempotencyKey,
+}: {
+  organizationId: string;
+  userId: string;
+  roleLevel: 5 | 10 | 50;
+  classIds: string[];
+  permissionKeys: MemberPermissionKey[];
+  idempotencyKey: string;
+}): Promise<MemberAccessChangeReceipt> => {
+  const rows = await supabaseRestPost<MemberAccessChangeReceiptRow[]>(
+    "/rpc/admin_apply_member_access_change",
+    {
+      p_org_id: organizationId,
+      p_user_id: userId,
+      p_new_role_level: roleLevel,
+      p_class_ids: classIds,
+      p_permission_keys: permissionKeys,
+      p_idempotency_key: idempotencyKey,
+    },
+    "return=representation"
+  );
+  const receipt = rows?.[0];
+  if (!receipt) {
+    throw new Error("O servidor não confirmou a atualização de acesso.");
+  }
+  return {
+    receiptId: receipt.receipt_id,
+    changed: Boolean(receipt.changed),
+    roleLevel: receipt.role_level,
+    classCount: Number(receipt.class_count ?? 0),
+    permissionCount: Number(receipt.permission_count ?? 0),
+    notificationId: receipt.notification_id ?? null,
+    appliedAt: receipt.applied_at,
+  };
 };
 
 export const getMyMemberPermissions = async (
