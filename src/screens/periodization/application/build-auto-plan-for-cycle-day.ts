@@ -11,6 +11,7 @@ import { resolveOrderedTrainingDays } from "../../../core/cycle-day-planning/res
 import { resolveSessionStrategyDecisionFromCycleContext } from "../../../core/cycle-day-planning/resolve-session-strategy-from-cycle-context";
 import type {
     AdaptiveLessonEnvelope,
+    ClassCalendarException,
     ClassGroup,
     ClassPlan,
     ClassReadinessState,
@@ -26,6 +27,11 @@ import type {
     WeeklyIntegratedTrainingContext,
     WeeklyOperationalDecision,
 } from "../../../core/models";
+import {
+    applyMonthlyVolleyballGameSessionToStrategy,
+    resolveMonthlyVolleyballGameSession,
+    type MonthlyVolleyballGameSessionPolicy,
+} from "../../../core/monthly-volleyball-game-session";
 import {
     dayLabels,
     dayNumbersByLabelIndex,
@@ -73,6 +79,7 @@ export type BuildPeriodizationAutoPlanForCycleDayParams = {
   teamTrainingContext?: TeamTrainingContext;
   /** R6: pre-built weekly integrated context (avoids re-derivation) */
   weeklyIntegratedContext?: WeeklyIntegratedTrainingContext;
+  calendarExceptions?: ClassCalendarException[];
 };
 
 export type PeriodizationAutoPlanForCycleDayResult = {
@@ -99,6 +106,7 @@ export type PeriodizationAutoPlanForCycleDayResult = {
   sessionEnvironment?: SessionEnvironment;
   /** R3: structured session components (court + gym blocks) */
   sessionComponents?: SessionComponent[];
+  monthlyGameSessionPolicy: MonthlyVolleyballGameSessionPolicy;
 };
 
 export type PeriodizationDebugSignals = {
@@ -335,26 +343,52 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     strategy: guardResult.strategy,
     readinessState,
   });
+  const monthlyGameSessionPolicy = resolveMonthlyVolleyballGameSession({
+    classGroup: params.classGroup,
+    sessionDate: params.sessionDate,
+    calendarExceptions: params.calendarExceptions,
+  });
+  const policyAdjustedStrategy = applyMonthlyVolleyballGameSessionToStrategy(
+    finalGuardedStrategy,
+    monthlyGameSessionPolicy
+  );
   const finalFingerprints = buildPlanFingerprintSet({
     context: context.cycleContext,
-    strategy: finalGuardedStrategy,
+    strategy: policyAdjustedStrategy,
   });
   const finalStrategy = {
-    ...finalGuardedStrategy,
+    ...policyAdjustedStrategy,
     pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({
       context: context.cycleContext,
-      strategy: finalGuardedStrategy,
+      strategy: policyAdjustedStrategy,
     }),
   };
   const adaptiveEnvelope = buildAdaptiveLessonEnvelope({
     readinessState,
     strategy: finalStrategy,
   });
-  const coachGuidance = buildSessionCoachGuidance({
+  const regularCoachGuidance = buildSessionCoachGuidance({
     readinessState,
     adaptiveEnvelope,
     classGroup: params.classGroup,
   });
+  const coachGuidance = monthlyGameSessionPolicy.applies
+    ? {
+        ...regularCoachGuidance,
+        title: "Jogo consolidado do mês",
+        subtitle: `${monthlyGameSessionPolicy.warmupMinutes} min de aquecimento + ${monthlyGameSessionPolicy.gameMinutes} min de jogo`,
+        doNow: [
+          "Organize equipes equilibradas e rodízio para todos participarem.",
+          "Mantenha o jogo contínuo e intervenha apenas na organização e segurança.",
+        ],
+        avoidToday: [
+          "Não transforme a aula em treino isolado de fundamentos.",
+          ...regularCoachGuidance.avoidToday,
+        ],
+        setupHint: "Deixe quadra, placar e rodízio preparados antes do aquecimento.",
+        closingCue: "Feche com hidratação e uma conversa curta sobre o jogo.",
+      }
+    : regularCoachGuidance;
   const explanation = formatGenerationExplanation({
     cycleContext: context.cycleContext,
     baseStrategy: strategyDecision.baseStrategy,
@@ -386,21 +420,42 @@ export const buildPeriodizationAutoPlanForCycleDay = (
     structuralFingerprint: finalFingerprints.structuralFingerprint,
     repetitionAdjustment: guardResult.repetitionAdjustment,
     strategy: finalStrategy,
-    sessionLabel: `${primarySkillLabel} · ${progressionLabel}`,
+    sessionLabel: monthlyGameSessionPolicy.applies
+      ? "Jogo consolidado do mês"
+      : `${primarySkillLabel} · ${progressionLabel}`,
     primarySkillLabel,
     progressionLabel,
     pedagogicalIntentLabel,
-    coachSummary: explanation.coachSummary,
+    coachSummary: monthlyGameSessionPolicy.applies
+      ? "Aquecimento e jogo consolidado, sem treino técnico específico."
+      : explanation.coachSummary,
     coachGuidance,
-    explanationSummary: explanation.summary,
+    explanationSummary: monthlyGameSessionPolicy.applies
+      ? "Última aula real do mês reservada para o jogo consolidado."
+      : explanation.summary,
     drillFamiliesLabel: finalStrategy.drillFamilies.join(", "),
     readinessState,
     adaptiveEnvelope,
+    monthlyGameSessionPolicy,
     debugSignals: buildPeriodizationDebugSignals(params, {
       cycleContext: context.cycleContext,
       strategy: finalStrategy,
     }),
-    ...resolveResistanceOutputForSession(params, context.sessionIndexInWeek),
+    ...(monthlyGameSessionPolicy.applies
+      ? {
+          sessionEnvironment: "quadra" as const,
+          sessionComponents: [
+            {
+              type: "quadra_tecnico_tatico" as const,
+              description: "Aquecimento e jogo consolidado do mês.",
+              durationMin:
+                monthlyGameSessionPolicy.warmupMinutes +
+                monthlyGameSessionPolicy.gameMinutes +
+                monthlyGameSessionPolicy.cooldownMinutes,
+            },
+          ],
+        }
+      : resolveResistanceOutputForSession(params, context.sessionIndexInWeek)),
   };
 };
 
@@ -502,6 +557,7 @@ export const buildPeriodizationWeekSchedule = (params: {
   teamTrainingContext?: TeamTrainingContext;
   /** R6: optional — pre-built weekly integrated context */
   weeklyIntegratedContext?: WeeklyIntegratedTrainingContext;
+  calendarExceptions?: ClassCalendarException[];
 }): PeriodizationWeekScheduleItem[] => {
   if (!params.classGroup || !params.weekPlan) {
     return weekAgendaDayOrder.map((dayNumber) => {
@@ -567,6 +623,7 @@ export const buildPeriodizationWeekSchedule = (params: {
       weeklyOperationalDecision,
       teamTrainingContext: teamCtxForWeek,
       weeklyIntegratedContext: weeklyCtxForWeek,
+      calendarExceptions: params.calendarExceptions,
     });
 
     syntheticRecentSessions.unshift(

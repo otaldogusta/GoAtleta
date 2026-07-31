@@ -5,6 +5,8 @@ const toTimestamp = (value: string | null | undefined) => {
   return Number.isNaN(timestamp) ? null : timestamp;
 };
 
+const WEEK_WINDOW_MS = 6 * 24 * 60 * 60 * 1000;
+
 export const resolveClassPlanForSessionDate = (
   plans: ClassPlan[],
   sessionDate: string
@@ -15,7 +17,11 @@ export const resolveClassPlanForSessionDate = (
   return [...plans]
     .filter((plan) => {
       const startTimestamp = toTimestamp(plan.startDate);
-      return startTimestamp !== null && startTimestamp <= targetTimestamp;
+      return (
+        startTimestamp !== null &&
+        startTimestamp <= targetTimestamp &&
+        targetTimestamp <= startTimestamp + WEEK_WINDOW_MS
+      );
     })
     .sort((left, right) => {
       const leftTimestamp = toTimestamp(left.startDate) ?? 0;

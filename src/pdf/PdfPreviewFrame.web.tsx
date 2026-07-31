@@ -7,7 +7,7 @@ type PdfPreviewFrameProps = {
   editable?: boolean;
 };
 
-const buildPreviewHtml = (html: string, editable?: boolean) => {
+export const buildPreviewHtml = (html: string, editable?: boolean) => {
   const stylesAndScript = `
       ${
         editable
@@ -75,21 +75,23 @@ const buildPreviewHtml = (html: string, editable?: boolean) => {
 
       document.addEventListener('click', function(e) {
         var el = getEl(e.target);
-        var card = el ? el.closest('.lesson-card') : null;
-        if (!card) {
-          window.parent.postMessage({ type: 'GOATLETA_PDF_BACKGROUND_CLICK' }, '*');
-          return;
-        }
-
         var cell = el ? el.closest('[data-block-key], [data-section]') : null;
         if (cell) {
           var blockKey = cell.getAttribute('data-block-key');
           var section = cell.getAttribute('data-section');
-          if (blockKey) {
-            window.parent.postMessage({ type: 'GOATLETA_PDF_BLOCK_CLICK', blockKey: blockKey }, '*');
-          } else if (section === 'pedagogy') {
-            window.parent.postMessage({ type: 'GOATLETA_PDF_SECTION_CLICK', section: 'pedagogy' }, '*');
+          if (document.activeElement !== cell) {
+            if (blockKey) {
+              window.parent.postMessage({ type: 'GOATLETA_PDF_BLOCK_CLICK', blockKey: blockKey }, '*');
+            } else if (section === 'pedagogy') {
+              window.parent.postMessage({ type: 'GOATLETA_PDF_SECTION_CLICK', section: 'pedagogy' }, '*');
+            }
           }
+          return;
+        }
+
+        var card = el ? el.closest('.lesson-card') : null;
+        if (!card) {
+          window.parent.postMessage({ type: 'GOATLETA_PDF_BACKGROUND_CLICK' }, '*');
         }
       }, true);
 

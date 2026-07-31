@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ClassGroup, ClassPlan, DailyLessonPlan, LessonBlock } from "../../../core/models";
+import type {
+  ClassCalendarException,
+  ClassGroup,
+  ClassPlan,
+  DailyLessonPlan,
+  LessonBlock,
+} from "../../../core/models";
 import {
     getDailyLessonPlanByWeekAndDate,
     listRecentDailyLessonPlansByClass,
@@ -20,6 +26,7 @@ type UseDailyLessonPlanOptions = {
   cycleStartDate?: string;
   cycleEndDate?: string;
   classGroup?: ClassGroup | null;
+  calendarExceptions?: ClassCalendarException[];
 };
 
 export function useDailyLessonPlan(
@@ -51,6 +58,7 @@ export function useDailyLessonPlan(
             cycleEndDate: options?.cycleEndDate,
             classGroup: options?.classGroup,
             recentPlans,
+            calendarExceptions: options?.calendarExceptions,
           })
         );
         return;
@@ -73,6 +81,7 @@ export function useDailyLessonPlan(
             cycleEndDate: options?.cycleEndDate,
             classGroup: options?.classGroup,
             recentPlans,
+            calendarExceptions: options?.calendarExceptions,
           },
         });
         await upsertDailyLessonPlan(regenerated);
@@ -88,6 +97,7 @@ export function useDailyLessonPlan(
     options?.ageBand,
     options?.className,
     options?.classGroup,
+    options?.calendarExceptions,
     options?.cycleEndDate,
     options?.cycleStartDate,
     options?.durationMinutes,
@@ -121,6 +131,7 @@ export function useDailyLessonPlan(
           cycleEndDate: options?.cycleEndDate,
           classGroup: options?.classGroup,
           recentPlans,
+          calendarExceptions: options?.calendarExceptions,
         });
 
       const legacySections = deriveLegacyDailySections(payload.blocks);
@@ -159,6 +170,7 @@ export function useDailyLessonPlan(
       options?.ageBand,
       options?.className,
       options?.classGroup,
+      options?.calendarExceptions,
       options?.cycleEndDate,
       options?.cycleStartDate,
       options?.durationMinutes,
@@ -184,6 +196,7 @@ export function useDailyLessonPlan(
         cycleEndDate: options?.cycleEndDate,
         classGroup: options?.classGroup,
         recentPlans,
+        calendarExceptions: options?.calendarExceptions,
       },
     });
 
@@ -194,6 +207,7 @@ export function useDailyLessonPlan(
     options?.ageBand,
     options?.className,
     options?.classGroup,
+    options?.calendarExceptions,
     options?.cycleEndDate,
     options?.cycleStartDate,
     options?.durationMinutes,

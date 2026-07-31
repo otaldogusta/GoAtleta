@@ -3,12 +3,24 @@ import type {
   ClassCalendarException,
   ClassGroup,
   ClassPlan,
+  PlanningCycle,
+  RecentSessionSummary,
   SessionLog,
   Student,
 } from "../../../core/models";
 import { resolveLearningObjectives } from "../../../core/pedagogy/objective-language";
+import {
+  normalizeAgeBandKey,
+  resolveNextPedagogicalStepFromPeriodization,
+} from "../../../core/pedagogy/resolve-next-pedagogical-step-from-periodization";
 import { resolveSportProfile } from "../../../core/periodization-basics";
-import { resolvePlanBand, toClassPlans } from "../../../core/periodization-generator";
+import {
+  normalizePeriodizationPolicy,
+  resolvePeriodizationWeekPolicy,
+  type PeriodizationPolicy,
+} from "../../../core/periodization-policy";
+import { buildPlanningIntelligenceLineage } from "../../../core/planning-intelligence-context";
+import { getVolumeFromTargets, resolvePlanBand, toClassPlans } from "../../../core/periodization-generator";
 import {
     parseWeeklyPeriodizationSnapshot,
     serializeWeeklyPeriodizationSnapshot,
@@ -19,9 +31,20 @@ import {
     updateClassPlan,
     upsertDailyLessonPlan
 } from "../../../db/seed";
-import { generateMonthlyBlueprint } from "./generate-monthly-blueprint";
+import {
+  getMonthlyPlanningBlueprint,
+  upsertMonthlyPlanningBlueprint,
+} from "../../../db/monthly-planning-blueprints";
+import {
+  generateMonthlyBlueprint,
+  regenerateMonthlyBlueprintPreservingEdits,
+} from "./generate-monthly-blueprint";
 import { buildPlanSessionCalendar, filterClassPlansBySessionMonth } from "./monthly-plan-calendar";
 import { regenerateDailyLessonPlanFromWeek } from "./regenerate-daily-lesson-plan";
+import {
+  resolveWeekStrategyFromCycleContext,
+  toWeeklyOperationalStrategySnapshot,
+} from "../../periodization/application/resolve-week-strategy-from-cycle-context";
 
 export interface MonthRegenerationProgress {
   stage: "blueprint" | "weeklies" | "dailies" | "complete";
@@ -41,10 +64,12 @@ export interface RegenerateMonthPlansParams {
   activeCycleId?: string;
   activeCycleStartDate?: string;
   activeCycleEndDate?: string;
+  activeCycle?: PlanningCycle | null;
   calendarExceptions?: ClassCalendarException[];
   students?: Student[];
   recentAttendance?: AttendanceRecord[];
   recentSessionLogs?: SessionLog[];
+  recentSessionSummaries?: RecentSessionSummary[];
   onProgress?: (progress: MonthRegenerationProgress) => void;
 }
 
@@ -122,15 +147,31 @@ export const regenerateMonthPlans = async (
 
   // === Stage 1: Generate monthly blueprint ===
   onProgress?.({ stage: "blueprint", message: "Gerando blueprint mensal..." });
-  const blueprint = generateMonthlyBlueprint({
+  const [yearText, monthText] = monthKey.split("-");
+  const existingBlueprint = await getMonthlyPlanningBlueprint({
+    classId: classGroup.id,
+    year: Number(yearText),
+    month: Number(monthText),
+    cycleId: params.activeCycle?.id ?? params.activeCycleId,
+  });
+  const generatedBlueprint = generateMonthlyBlueprint({
     classGroup,
     monthKey,
+    existing: existingBlueprint,
     calendarExceptions: params.calendarExceptions,
     students: params.students,
     recentAttendance: params.recentAttendance,
     recentSessionLogs: params.recentSessionLogs,
+    recentSessionSummaries: params.recentSessionSummaries,
+    activeCycle: params.activeCycle,
   });
-  // Note: Blueprint storage deferred to backend sync phase; for now, keep in context
+  const blueprint = existingBlueprint
+    ? regenerateMonthlyBlueprintPreservingEdits({
+        existing: existingBlueprint,
+        newBlueprint: generatedBlueprint,
+      })
+    : generatedBlueprint;
+  await upsertMonthlyPlanningBlueprint(blueprint);
 
   // === Stage 2: Regenerate weeklies ===
   onProgress?.({ stage: "weeklies", message: "Regenerando planos semanais...", total: monthlyPlans.length });
@@ -146,9 +187,18 @@ export const regenerateMonthPlans = async (
     });
 
     // Auto-regenerate weekly: bump version, mark in_sync
+    const weeklySessions = buildPlanSessionCalendar({
+      plan: weekPlan,
+      classGroup,
+      exceptions: params.calendarExceptions,
+      monthKey,
+    }).sessions.length;
     const regeneratedWeekly = regenerateWeeklyPlanFromBlueprint({
       existing: weekPlan,
       blueprint,
+      cycleLength: classGroup.cycleLengthWeeks,
+      classGroup,
+      weeklySessions,
     });
 
     await updateClassPlan(regeneratedWeekly);
@@ -201,6 +251,7 @@ export const regenerateMonthPlans = async (
           cycleEndDate: activeCycleEndDate,
           classGroup,
           recentPlans: existingDailies,
+          calendarExceptions: params.calendarExceptions,
         },
       });
 
@@ -218,9 +269,12 @@ export const regenerateMonthPlans = async (
  * - Uses blueprint context for theme/pedagogicalRule if not manually edited
  * - Preserves other field overrides via existing manualOverrideMaskJson
  */
-function regenerateWeeklyPlanFromBlueprint(params: {
+export function regenerateWeeklyPlanFromBlueprint(params: {
   existing: ClassPlan;
   blueprint: ReturnType<typeof generateMonthlyBlueprint>;
+  cycleLength: number;
+  classGroup: ClassGroup;
+  weeklySessions: number;
 }): ClassPlan {
   const { existing, blueprint } = params;
   const nowIso = new Date().toISOString();
@@ -267,6 +321,40 @@ function regenerateWeeklyPlanFromBlueprint(params: {
       return null;
     }
   })();
+  const periodizationPolicy = normalizePeriodizationPolicy(
+    blueprintSnapshot?.periodizationPolicy as Partial<PeriodizationPolicy> | undefined,
+  );
+  const weekPolicy = resolvePeriodizationWeekPolicy({
+    policy: periodizationPolicy,
+    weekNumber: existing.weekNumber,
+    cycleLength: Math.max(1, params.cycleLength),
+  });
+  const executedHistory = blueprintSnapshot?.executedHistory as
+    | { consideredSessions?: number; feedbackSignals?: string[] }
+    | undefined;
+  const feedbackSignals = Array.isArray(executedHistory?.feedbackSignals)
+    ? executedHistory.feedbackSignals.filter((signal): signal is string => typeof signal === "string")
+    : [];
+  const consideredSessions = Math.max(0, Number(executedHistory?.consideredSessions ?? 0));
+  const historicalConfidence = consideredSessions >= 4 ? 0.9 : consideredSessions >= 2 ? 0.7 : 0.5;
+  const ageBand = normalizeAgeBandKey(params.classGroup.ageBand ?? "");
+  const nextPedagogicalStep = ageBand
+    ? resolveNextPedagogicalStepFromPeriodization({
+        ageBand,
+        monthIndex: blueprint.month,
+        teacherOverrides: feedbackSignals,
+        historicalConfidence,
+      })
+    : null;
+  const weeklyOperationalStrategy = resolveWeekStrategyFromCycleContext({
+    ageBand,
+    monthIndex: blueprint.month,
+    weeklySessions: Math.max(1, params.weeklySessions),
+    weeklyVolume: getVolumeFromTargets(existing.phase, weekPolicy.rpeTarget),
+    historicalConfidence,
+    recentTeacherOverrides: feedbackSignals,
+    nextPedagogicalStep,
+  });
   const decisionReasons = [
     ...existingSnapshot.decisionReasons,
     ...((blueprintSnapshot?.decisionReasons ?? []) as typeof existingSnapshot.decisionReasons),
@@ -288,11 +376,24 @@ function regenerateWeeklyPlanFromBlueprint(params: {
     specificObjective: isSpecificObjectiveManuallyOverridden
       ? existing.specificObjective
       : resolvedObjectives.specificObjective,
+    rpeTarget: existing.manualOverrideMaskJson?.includes("rpeTarget")
+      ? existing.rpeTarget
+      : weekPolicy.rpeTarget,
     generationVersion: newVersion,
     derivedFromBlueprintVersion: blueprint.generationVersion,
     generationContextSnapshotJson: serializeWeeklyPeriodizationSnapshot({
       ...existingSnapshot,
       monthlyBlueprint: blueprintSnapshot,
+      lineage: buildPlanningIntelligenceLineage({
+        classId: existing.classId,
+        cycleId: blueprint.cycleId,
+        policyVersion: Number(blueprintSnapshot?.lineage?.policyVersion ?? 1),
+        blueprint,
+        weeklyPlan: existing,
+      }),
+      periodizationPolicy,
+      periodizationWeekPolicy: weekPolicy,
+      weeklyOperationalStrategy: toWeeklyOperationalStrategySnapshot(weeklyOperationalStrategy),
       decisionReasons,
     }),
     syncStatus: "in_sync",

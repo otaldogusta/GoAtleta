@@ -6,6 +6,7 @@ import type {
     ClassPlan,
     DailyLessonPlan,
     DecisionReason,
+    RecentSessionSummary,
     SessionPrimaryComponent,
     TeamTrainingContext,
 } from "../../core/models";
@@ -28,6 +29,12 @@ import type {
 import { getDemandIndexForModel } from "../../core/periodization-basics";
 import { buildClassPlan, getVolumeFromTargets } from "../../core/periodization-generator";
 import { getPlannedLoads } from "../../core/periodization-load";
+import {
+  normalizePeriodizationPolicy,
+  resolvePeriodizationWeekPolicy,
+  type PeriodizationPolicy,
+} from "../../core/periodization-policy";
+import { buildPlanningIntelligenceLineage } from "../../core/planning-intelligence-context";
 import {
     parseWeeklyPeriodizationSnapshot,
     serializeWeeklyPeriodizationSnapshot,
@@ -54,6 +61,10 @@ type BuildAutoWeekPlanParams = {
   weeklySessions: number;
   sportProfile: SportProfile;
   recentDailyLessonPlans?: DailyLessonPlan[];
+  recentSessionSummaries?: RecentSessionSummary[];
+  periodizationPolicy?: PeriodizationPolicy;
+  activeCycleId?: string | null;
+  policyVersion?: number | null;
   /** Optional: pass when caller already has a resolved TeamTrainingContext */
   teamTrainingContext?: TeamTrainingContext;
 };
@@ -315,6 +326,17 @@ export const buildAutoWeekPlan = (
   if (!plan) return null;
 
   if (!params.isCompetitiveMode) {
+    const periodizationPolicy = normalizePeriodizationPolicy(
+      params.periodizationPolicy,
+    );
+    const periodizationWeekPolicy = resolvePeriodizationWeekPolicy({
+      policy: periodizationPolicy,
+      weekNumber: params.weekNumber,
+      cycleLength: params.cycleLength,
+    });
+    if (!existing?.manualOverrideMaskJson?.includes("rpeTarget")) {
+      plan.rpeTarget = periodizationWeekPolicy.rpeTarget;
+    }
     const weekPlan = buildWeekPlanMeta({
       plan,
       weekNumber: params.weekNumber,
@@ -359,7 +381,9 @@ export const buildAutoWeekPlan = (
       periodizationModel: params.periodizationModel,
       sportProfile: params.sportProfile,
       weeklySessions: params.weeklySessions,
+      recentSessions: params.recentSessionSummaries,
       weeklyOperationalDecisions: weeklyOperationalStrategy.decisions,
+      calendarExceptions: params.calendarExceptions,
     });
     const autoPlans = periodizationWeek
       .map((item) => item.autoPlan)
@@ -398,6 +422,16 @@ export const buildAutoWeekPlan = (
         message: "Sessoes da semana alinhadas aos dias reais da turma.",
         evidence: `${params.weeklySessions} sessoes previstas`,
       },
+      {
+        kind: "load",
+        source: "periodization",
+        confidence: "high",
+        message: periodizationWeekPolicy.recoveryWeek
+          ? "Semana de recuperacao aplicada pela politica do ciclo."
+          : "Carga semanal calculada pela politica do ciclo.",
+        evidence:
+          `${periodizationWeekPolicy.loadModel} · PSE ${periodizationWeekPolicy.rpeTarget}`,
+      },
     ];
     const existingSnapshot = parseWeeklyPeriodizationSnapshot(plan.generationContextSnapshotJson);
     const pedagogicalDecisionSupport = autoPlans[0]?.strategy.pedagogicalDecisionSupport
@@ -413,6 +447,19 @@ export const buildAutoWeekPlan = (
       ...existingSnapshot,
       decisionReasons: [...existingSnapshot.decisionReasons, ...weeklyDecisionReasons],
       pedagogicalDecisionSupport,
+      lineage: buildPlanningIntelligenceLineage({
+        classId: selectedClass.id,
+        cycleId: params.activeCycleId,
+        policyVersion: params.policyVersion,
+        weeklyPlan: plan,
+        recentSessions: params.recentSessionSummaries,
+      }),
+      periodizationPolicy,
+      periodizationWeekPolicy,
+      executedHistory: {
+        consideredSessions: params.recentSessionSummaries?.length ?? 0,
+        latestSessionDate: params.recentSessionSummaries?.[0]?.sessionDate ?? null,
+      },
       weeklyOperationalStrategy: toWeeklyOperationalStrategySnapshot({
         ...weeklyOperationalStrategy,
         decisions: decisionsWithEnvironment,

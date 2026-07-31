@@ -1,4 +1,12 @@
-import type { ClassPlan, DailyLessonPlan, LessonBlock } from "../../../core/models";
+import type {
+  ClassCalendarException,
+  ClassGroup,
+  ClassPlan,
+  DailyLessonPlan,
+  LessonBlock,
+  WeekSessionRole,
+} from "../../../core/models";
+import { resolveMonthlyVolleyballGameSession } from "../../../core/monthly-volleyball-game-session";
 import type { WeekSessionPreview } from "../../periodization/application/build-week-session-preview";
 import { resolveLessonBlocksFromDailyPlan } from "./daily-lesson-blocks";
 
@@ -30,6 +38,10 @@ export type ProfessorAgendaEvent = {
   objective: string;
   status: ProfessorAgendaEventStatus;
   statusLabel: string;
+  roleLabel: string;
+  loadLabel: string;
+  focusLabel: string;
+  isMonthlyGameSession: boolean;
   googleCalendarReady: true;
   plan: ClassPlan;
   session: WeekSessionPreview;
@@ -163,6 +175,70 @@ const statusLabelFor = (status: ProfessorAgendaEventStatus) => {
   }
 };
 
+const SESSION_ROLE_LABELS: Record<WeekSessionRole, string> = {
+  introducao_exploracao: "Exploração",
+  retomada_consolidacao: "Retomada",
+  consolidacao_orientada: "Consolidação",
+  pressao_decisao: "Pressão e decisão",
+  transferencia_jogo: "Transferência",
+  sintese_fechamento: "Síntese",
+};
+
+const isWeekSessionRole = (value: unknown): value is WeekSessionRole =>
+  typeof value === "string" && Object.prototype.hasOwnProperty.call(SESSION_ROLE_LABELS, value);
+
+const parsePlanningPresentation = (params: {
+  plan: ClassPlan;
+  dailyPlan: DailyLessonPlan | null;
+  sessionIndex: number;
+}) => {
+  let sessionRole: WeekSessionRole | null = null;
+  let isMonthlyGameSession = false;
+
+  try {
+    const dailySnapshot = JSON.parse(params.dailyPlan?.generationContextSnapshotJson ?? "{}") as {
+      dailyDecision?: {
+        sessionRole?: unknown;
+        monthlyGameSession?: { applies?: boolean };
+      };
+    };
+    if (isWeekSessionRole(dailySnapshot.dailyDecision?.sessionRole)) {
+      sessionRole = dailySnapshot.dailyDecision.sessionRole;
+    }
+    isMonthlyGameSession = Boolean(dailySnapshot.dailyDecision?.monthlyGameSession);
+  } catch {
+    // Legacy or malformed daily snapshots fall back to the weekly decision below.
+  }
+
+  if (!sessionRole) {
+    try {
+      const weeklySnapshot = JSON.parse(params.plan.generationContextSnapshotJson ?? "{}") as {
+        weeklyOperationalStrategy?: {
+          decisions?: Array<{ sessionIndexInWeek?: number; sessionRole?: unknown }>;
+        };
+      };
+      const decision = weeklySnapshot.weeklyOperationalStrategy?.decisions?.find(
+        (item) => item.sessionIndexInWeek === params.sessionIndex
+      );
+      if (isWeekSessionRole(decision?.sessionRole)) sessionRole = decision.sessionRole;
+    } catch {
+      // Keep the safe presentation fallback.
+    }
+  }
+
+  const normalizedRpe = safeText(params.plan.rpeTarget).replace(/^PSE\s*/i, "");
+  return {
+    roleLabel: isMonthlyGameSession
+      ? "Jogo do mês"
+      : sessionRole
+        ? SESSION_ROLE_LABELS[sessionRole]
+        : "Aula planejada",
+    loadLabel: normalizedRpe ? `PSE ${normalizedRpe}` : "",
+    focusLabel: compactText(params.plan.theme || params.plan.technicalFocus || "", "Foco da semana", 42),
+    isMonthlyGameSession,
+  };
+};
+
 const parseMonthKey = (monthKey: string) => {
   const match = /^(\d{4})-(\d{2})$/.exec(monthKey);
   if (!match) return null;
@@ -182,7 +258,9 @@ const toIsoDate = (date: Date) => {
 const buildEvent = (
   item: WeeklyAgendaItem,
   session: WeekSessionPreview,
-  dailyPlansByKey: DailyLessonPlanLookup
+  dailyPlansByKey: DailyLessonPlanLookup,
+  classGroup?: Pick<ClassGroup, "daysOfWeek" | "durationMinutes" | "daysPerWeek" | "modality">,
+  calendarExceptions?: ClassCalendarException[]
 ): ProfessorAgendaEvent => {
   const dailyPlan = dailyPlansByKey[`${item.plan.id}::${session.date}`] ?? null;
   const blocks = dailyPlan
@@ -198,6 +276,25 @@ const buildEvent = (
     : [];
   const guidance = buildGuidance({ plan: item.plan, dailyPlan, blocks });
   const status = resolveStatus(dailyPlan);
+  const snapshotPresentation = parsePlanningPresentation({
+    plan: item.plan,
+    dailyPlan,
+    sessionIndex: session.sessionIndex,
+  });
+  const monthlyGamePolicy = classGroup
+    ? resolveMonthlyVolleyballGameSession({
+        classGroup,
+        sessionDate: session.date,
+        calendarExceptions,
+      })
+    : null;
+  const presentation = monthlyGamePolicy?.applies
+    ? {
+        ...snapshotPresentation,
+        roleLabel: "Jogo do mês",
+        isMonthlyGameSession: true,
+      }
+    : snapshotPresentation;
   const date = new Date(`${session.date}T00:00:00`);
   const dayOfMonth = Number(session.date.slice(8, 10));
 
@@ -216,6 +313,7 @@ const buildEvent = (
     objective: compactText(guidance.subtitle || item.plan.generalObjective || item.plan.theme || "", "Objetivo da aula"),
     status,
     statusLabel: statusLabelFor(status),
+    ...presentation,
     googleCalendarReady: true,
     plan: item.plan,
     session,
@@ -228,9 +326,21 @@ const buildEvent = (
 export const buildProfessorAgendaEvents = (params: {
   weeklyItems: WeeklyAgendaItem[];
   dailyPlansByKey: DailyLessonPlanLookup;
+  classGroup?: Pick<ClassGroup, "daysOfWeek" | "durationMinutes" | "daysPerWeek" | "modality">;
+  calendarExceptions?: ClassCalendarException[];
 }): ProfessorAgendaEvent[] =>
   params.weeklyItems
-    .flatMap((item) => item.sessions.map((session) => buildEvent(item, session, params.dailyPlansByKey)))
+    .flatMap((item) =>
+      item.sessions.map((session) =>
+        buildEvent(
+          item,
+          session,
+          params.dailyPlansByKey,
+          params.classGroup,
+          params.calendarExceptions
+        )
+      )
+    )
     .sort((a, b) => a.date.localeCompare(b.date));
 
 export const buildProfessorMonthCalendar = (params: {

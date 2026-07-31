@@ -80,6 +80,42 @@ const buildRecentSession = (
 });
 
 describe("buildPeriodizationAutoPlanForCycleDay", () => {
+  it("shows the monthly consolidated game in the periodization preview", () => {
+    const classGroup = buildClassGroup({
+      durationMinutes: 60,
+      startTime: "18:00",
+      endTime: "19:00",
+      daysOfWeek: [3, 5],
+      daysPerWeek: 2,
+    });
+    const result = buildPeriodizationAutoPlanForCycleDay({
+      classGroup,
+      classPlan: buildClassPlan({
+        startDate: "2026-07-27",
+        weekNumber: 22,
+      }),
+      weekPlan: buildWeekPlan(),
+      cycleStartDate: classGroup.cycleStartDate,
+      sessionDate: "2026-07-31",
+      periodizationModel: "formacao",
+      sportProfile: "voleibol",
+      weeklySessions: 2,
+      dominantBlock: "Base tecnica",
+    });
+
+    expect(result.monthlyGameSessionPolicy.applies).toBe(true);
+    expect(result.sessionLabel).toBe("Jogo consolidado do mês");
+    expect(result.coachSummary).toContain("sem treino técnico específico");
+    expect(result.sessionEnvironment).toBe("quadra");
+    expect(result.sessionComponents).toEqual([
+      {
+        type: "quadra_tecnico_tatico",
+        description: "Aquecimento e jogo consolidado do mês.",
+        durationMin: 60,
+      },
+    ]);
+  });
+
   it("marks new-class generation as bootstrap when there is no recent history", () => {
     const classGroup = buildClassGroup();
     const result = buildPeriodizationAutoPlanForCycleDay({
@@ -87,7 +123,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan(),
       weekPlan: buildWeekPlan(),
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-24",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -120,7 +156,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan(),
       weekPlan: buildWeekPlan(),
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-24",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -140,7 +176,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan(),
       weekPlan,
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-04-07",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -153,7 +189,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan(),
       weekPlan,
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-04-04",
+      sessionDate: "2026-04-11",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -174,7 +210,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan(),
       weekPlan,
       cycleStartDate: "2026-03-02",
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-24",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -188,7 +224,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan({ classId: "class_2", technicalFocus: "Bloqueio" }),
       weekPlan,
       cycleStartDate: "2026-03-02",
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-24",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -205,7 +241,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan(),
       weekPlan: buildWeekPlan(),
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-24",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -268,7 +304,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan({ rpeTarget: "PSE 4" }),
       weekPlan: buildWeekPlan({ volume: "baixo", PSETarget: "PSE 4", plannedSessionLoad: 320, plannedWeeklyLoad: 320 }),
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-24",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 1,
@@ -279,7 +315,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan({ rpeTarget: "PSE 7" }),
       weekPlan: buildWeekPlan({ volume: "alto", PSETarget: "PSE 7", plannedSessionLoad: 630, plannedWeeklyLoad: 1890 }),
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-24",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -299,7 +335,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan(),
       weekPlan,
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-28",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,
@@ -311,7 +347,7 @@ describe("buildPeriodizationAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan(),
       weekPlan,
       cycleStartDate: classGroup.cycleStartDate,
-      sessionDate: "2026-03-31",
+      sessionDate: "2026-03-28",
       periodizationModel: "formacao",
       sportProfile: "voleibol",
       weeklySessions: 3,

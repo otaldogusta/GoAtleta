@@ -195,6 +195,7 @@ const buildGeneratedDailyPlan = (params: {
   session: ReturnType<typeof buildPlanSessionCalendar>["sessions"][number];
   classGroup: ClassGroup;
   recentPlans: DailyLessonPlan[];
+  calendarExceptions?: ClassCalendarException[];
 }) =>
   regenerateDailyLessonPlanFromWeek({
     existing: null,
@@ -213,6 +214,7 @@ const buildGeneratedDailyPlan = (params: {
       durationMinutes: params.classGroup.durationMinutes,
       classGroup: params.classGroup,
       recentPlans: params.recentPlans,
+      calendarExceptions: params.calendarExceptions,
     },
   });
 
@@ -274,6 +276,7 @@ export const buildMonthlyPlanExportData = (params: {
           session,
           classGroup,
           recentPlans,
+          calendarExceptions: exceptions,
         });
 
       return toLessonItem({ classGroup, weeklyPlan, dailyPlan });
@@ -325,6 +328,7 @@ export const buildWeeklyPlanExportData = (params: {
         session,
         classGroup,
         recentPlans,
+        calendarExceptions: exceptions,
       });
     return toLessonItem({ classGroup, weeklyPlan: plan, dailyPlan });
   });

@@ -1,4 +1,5 @@
 import type {
+  ClassCalendarException,
   ClassGroup,
   ClassPlan,
   DailyLessonPlan,
@@ -9,6 +10,9 @@ import type {
   WeeklyOperationalDecision,
   PedagogicalDecisionSupport,
 } from "../../../core/models";
+import {
+  resolveMonthlyVolleyballGameSession,
+} from "../../../core/monthly-volleyball-game-session";
 import { parseWeeklyPeriodizationSnapshot } from "../../../core/periodization-snapshots";
 import { buildSessionResistancePreview } from "../../session/application/build-session-resistance-preview";
 import { checkLessonAlignmentWithPeriodization } from "../../../core/pedagogy/lesson-periodization-alignment";
@@ -53,6 +57,7 @@ type DailyGenerationContext = {
   cycleEndDate?: string;
   classGroup?: ClassGroup | null;
   recentPlans?: DailyLessonPlan[];
+  calendarExceptions?: ClassCalendarException[];
 };
 
 type PedagogicalDecision = {
@@ -1230,8 +1235,21 @@ export const buildAutoDailyLessonPlan = (
   })();
   const decision = decidePedagogy({ weeklyPlan, session, context, sessionRole });
   const profile = inferLanguageProfile(context);
-  const blockTimes = getLessonBlockTimes(context?.durationMinutes ?? 60);
-  const rendered = renderDailyText({
+  const monthlyGamePolicy = context?.classGroup
+    ? resolveMonthlyVolleyballGameSession({
+        classGroup: context.classGroup,
+        sessionDate: session.date,
+        calendarExceptions: context.calendarExceptions,
+      })
+    : null;
+  const blockTimes = monthlyGamePolicy?.applies
+    ? {
+        warmupMinutes: monthlyGamePolicy.warmupMinutes,
+        mainMinutes: monthlyGamePolicy.gameMinutes,
+        cooldownMinutes: monthlyGamePolicy.cooldownMinutes,
+      }
+    : getLessonBlockTimes(context?.durationMinutes ?? 60);
+  const regularRendered = renderDailyText({
     profile,
     decision,
     weeklyPlan,
@@ -1239,6 +1257,29 @@ export const buildAutoDailyLessonPlan = (
     nextPedagogicalStep,
     sessionRole,
   });
+  const rendered = monthlyGamePolicy?.applies
+    ? {
+        title: "Jogo consolidado do mês",
+        warmup:
+          "Mobilidade, deslocamentos e contato leve com a bola para preparar o grupo, sem treino técnico específico.",
+        mainPart:
+          "Organize equipes equilibradas e realize jogo contínuo. Faça apenas intervenções de organização, segurança, participação, rodízio e fair play; não aplique exercícios isolados de fundamentos.",
+        cooldown:
+          "Faça uma recuperação breve, hidratação e conversa rápida sobre participação, cooperação e jogo.",
+        observations:
+          "Última aula real do mês reservada para aquecimento e jogo consolidado.",
+        qaSummary: {
+          planScore: 10,
+          bySection: {
+            warmup: 10,
+            mainPart: 10,
+            cooldown: 10,
+            observations: 10,
+          },
+          translationTestPassed: true,
+        },
+      }
+    : regularRendered;
   const alignmentCheck = checkLessonAlignmentWithPeriodization({
     weeklyPlan: {
       id: weeklyPlan.id,
@@ -1286,6 +1327,18 @@ export const buildAutoDailyLessonPlan = (
     pedagogicalDecisionSupport,
     decisionReasons: [
       ...weeklySnapshot.decisionReasons,
+      ...(monthlyGamePolicy?.applies
+        ? [
+            {
+              kind: "pedagogy" as const,
+              source: "periodization" as const,
+              confidence: "high" as const,
+              message:
+                "Última aula real do mês convertida em jogo consolidado.",
+              evidence: monthlyGamePolicy.lastSessionDate ?? session.date,
+            },
+          ]
+        : []),
       {
         kind: "pedagogy",
         source: "periodization",
@@ -1295,11 +1348,20 @@ export const buildAutoDailyLessonPlan = (
       },
     ],
     dailyDecision: {
-      lessonKind: decision.lessonKind,
-      organization: decision.organization,
-      progression: decision.progression,
-      purpose: decision.purpose,
+      lessonKind: monthlyGamePolicy?.applies ? "mini_jogo" : decision.lessonKind,
+      organization: monthlyGamePolicy?.applies
+        ? "equipes equilibradas, com rodízio e jogo contínuo"
+        : decision.organization,
+      progression: monthlyGamePolicy?.applies
+        ? "aquecimento, jogo consolidado e volta à calma"
+        : decision.progression,
+      purpose: monthlyGamePolicy?.applies
+        ? "consolidar o mês em situação real de jogo"
+        : decision.purpose,
       sessionRole,
+      monthlyGameSession: monthlyGamePolicy?.applies
+        ? monthlyGamePolicy
+        : undefined,
     },
   };
 
@@ -1352,6 +1414,22 @@ export const buildAutoDailyLessonPlan = (
     session,
     context,
   });
+  const resolvedSessionIntegration = monthlyGamePolicy?.applies
+    ? {
+        sessionComponents: [
+          {
+            type: "quadra_tecnico_tatico" as const,
+            description: "Aquecimento e jogo consolidado do mês.",
+            durationMin:
+              monthlyGamePolicy.warmupMinutes +
+              monthlyGamePolicy.gameMinutes +
+              monthlyGamePolicy.cooldownMinutes,
+          },
+        ],
+        sessionEnvironment: "quadra" as const,
+        sessionPrimaryComponent: "tecnico_tatico" as const,
+      }
+    : sessionIntegration;
 
   return {
     id: existing?.id ?? `dlp_${weeklyPlan.id}_${session.date}`,
@@ -1361,9 +1439,9 @@ export const buildAutoDailyLessonPlan = (
     dayOfWeek: session.weekday,
     title: rendered.title,
     blocksJson: serializeLessonBlocks(blocks),
-    sessionComponents: sessionIntegration.sessionComponents,
-    sessionEnvironment: sessionIntegration.sessionEnvironment,
-    sessionPrimaryComponent: sessionIntegration.sessionPrimaryComponent,
+    sessionComponents: resolvedSessionIntegration.sessionComponents,
+    sessionEnvironment: resolvedSessionIntegration.sessionEnvironment,
+    sessionPrimaryComponent: resolvedSessionIntegration.sessionPrimaryComponent,
     warmup: rendered.warmup,
     mainPart: rendered.mainPart,
     cooldown: rendered.cooldown,

@@ -21,6 +21,7 @@ import {
 } from "../../../core/volleyball/activity-catalog";
 import { resolveVolleyballLessonAgeProfile } from "../../../core/volleyball/humanized-lesson-activities";
 import type {
+    ClassCalendarException,
     ClassGroup,
     AdaptiveLessonEnvelope,
     ClassReadinessState,
@@ -39,6 +40,12 @@ import type {
     TrainingSessionAttendance,
     VolleyballSkill,
 } from "../../../core/models";
+import {
+    applyMonthlyVolleyballGameSessionToPackage,
+    applyMonthlyVolleyballGameSessionToStrategy,
+    resolveMonthlyVolleyballGameSession,
+    type MonthlyVolleyballGameSessionPolicy,
+} from "../../../core/monthly-volleyball-game-session";
 import type { PedagogicalPlanPackage } from "../../../core/pedagogical-planning";
 import {
     applySessionPedagogyEnvelope,
@@ -80,6 +87,7 @@ export type BuildAutoPlanForCycleDayParams = {
   documentSupport?: SessionPlanningContext["documentSupport"];
   /** Compatibilidade temporária para chamadas anteriores à camada unificada. */
   academicSupport?: SessionPlanningContext["academicSupport"];
+  calendarExceptions?: ClassCalendarException[];
 };
 
 export type AutoPlanForCycleDayResult = {
@@ -103,6 +111,7 @@ export type AutoPlanForCycleDayResult = {
   package: PedagogicalPlanPackage;
   ageSanitizer: AgeSanitizerDiagnostics;
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
+  monthlyGameSessionPolicy: MonthlyVolleyballGameSessionPolicy;
 };
 
 const uniqueStrings = (values: Array<string | null | undefined>) =>
@@ -243,15 +252,24 @@ export const buildAutoPlanForCycleDay = (
     strategy: guardResult.strategy,
     readinessState,
   });
+  const monthlyGameSessionPolicy = resolveMonthlyVolleyballGameSession({
+    classGroup: params.classGroup,
+    sessionDate: params.sessionDate,
+    calendarExceptions: params.calendarExceptions,
+  });
+  const policyAdjustedStrategy = applyMonthlyVolleyballGameSessionToStrategy(
+    finalGuardedStrategy,
+    monthlyGameSessionPolicy
+  );
   const finalFingerprints = buildPlanFingerprintSet({
     context: cycleContext,
-    strategy: finalGuardedStrategy,
+    strategy: policyAdjustedStrategy,
   });
   const strategy = {
-    ...finalGuardedStrategy,
+    ...policyAdjustedStrategy,
     pedagogicalDecisionSupport: resolvePedagogicalDecisionSupport({
       context: cycleContext,
-      strategy: finalGuardedStrategy,
+      strategy: policyAdjustedStrategy,
     }),
   };
   const adaptiveEnvelope = buildAdaptiveLessonEnvelope({
@@ -395,8 +413,12 @@ export const buildAutoPlanForCycleDay = (
     readinessState,
     adaptiveEnvelope,
     coachGuidance,
-    package: sanitizedPlan.package,
+    package: applyMonthlyVolleyballGameSessionToPackage(
+      sanitizedPlan.package,
+      monthlyGameSessionPolicy
+    ),
     ageSanitizer: sanitizedPlan.diagnostics,
     pedagogyEnvelope,
+    monthlyGameSessionPolicy,
   };
 };

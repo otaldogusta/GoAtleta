@@ -30,6 +30,67 @@ const buildClassGroup = (overrides: Partial<ClassGroup> = {}): ClassGroup => ({
 });
 
 describe("buildAutoDailyLessonPlan integration fields", () => {
+  it("generates warmup, consolidated game and cooldown on the last actual class of the month", () => {
+    const classGroup = buildClassGroup({
+      daysOfWeek: [3, 5],
+      daysPerWeek: 2,
+      durationMinutes: 60,
+    });
+    const weeklyPlan = {
+      id: "wp-monthly-game",
+      classId: classGroup.id,
+      weekNumber: 9,
+      phase: "Desenvolvimento",
+      generalObjective: "Desenvolver fundamentos",
+      specificObjective: "Aplicar passe em situação de jogo",
+      theme: "Passe",
+      technicalFocus: "Passe",
+      physicalFocus: "Coordenação",
+      pedagogicalRule: "Participação de todos",
+      rpeTarget: "PSE 5",
+      jumpTarget: "baixo",
+      warmupProfile: "ativo",
+      constraints: "",
+      generationVersion: 1,
+      generationContextSnapshotJson: "{}",
+      createdAt: "2026-07-27T00:00:00.000Z",
+      updatedAt: "2026-07-27T00:00:00.000Z",
+    } as any;
+    const session = {
+      sessionIndex: 2,
+      weekday: 5,
+      weekdayLabel: "Sex",
+      date: "2026-07-31",
+      dateLabel: "31/07/2026",
+      shortLabel: "Sex 31/07",
+    };
+
+    const plan = buildAutoDailyLessonPlan(
+      weeklyPlan,
+      session,
+      "2026-07-31T12:00:00.000Z",
+      null,
+      {
+        classGroup,
+        ageBand: classGroup.ageBand,
+        durationMinutes: classGroup.durationMinutes,
+      }
+    );
+    const blocks = JSON.parse(plan.blocksJson ?? "[]");
+    const snapshot = JSON.parse(plan.generationContextSnapshotJson ?? "{}");
+
+    expect(plan.title).toBe("Jogo consolidado do mês");
+    expect(blocks.map((block: { durationMinutes: number }) => block.durationMinutes)).toEqual([
+      10,
+      45,
+      5,
+    ]);
+    expect(plan.mainPart).toContain("jogo contínuo");
+    expect(plan.mainPart).toContain("não aplique exercícios isolados");
+    expect(plan.sessionEnvironment).toBe("quadra");
+    expect(snapshot.dailyDecision.monthlyGameSession.applies).toBe(true);
+  });
+
   it("persists resistance session fields when class context supports gym integration", () => {
     const weeklyPlan = {
       id: "wp-1",

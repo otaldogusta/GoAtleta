@@ -18,6 +18,10 @@ import Svg, {
 } from "react-native-svg";
 
 import type { VolumeLevel } from "../../core/periodization-basics";
+import {
+  normalizePeriodizationPolicy,
+  resolvePeriodizationWeekPolicy,
+} from "../../core/periodization-policy";
 import type { ThemeColors } from "../../ui/app-theme";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
@@ -406,15 +410,19 @@ function LoadPreview({
     1,
     ...source.map((item) => item.plannedSessionLoad || 1),
   );
+  const policy = normalizePeriodizationPolicy(previewDraft);
   const xForWeek = (week: number) =>
     plotLeft + ((week - 1) / Math.max(1, maxWeek - 1)) * (plotRight - plotLeft);
   const points = source.map((item, index) => {
     const progress = index / Math.max(1, source.length - 1);
     const load = (item.plannedSessionLoad || maxLoad * loadRatio(item.volume)) / maxLoad;
-    const modelFactor = previewDraft.loadModel === "linear" ? 0.06 : previewDraft.loadModel === "blocos" ? 0.1 : 0;
-    const recoveryDip = index % Math.max(1, previewDraft.recoveryWeeks) === previewDraft.recoveryWeeks - 1 ? -0.08 : 0;
-    const intensityFactor = ((previewDraft.intensityMax - previewDraft.intensityMin) / 10) * 0.08;
-    const loadAdjustment = (load - 0.5) * 0.06 + modelFactor + recoveryDip + intensityFactor;
+    const weekPolicy = resolvePeriodizationWeekPolicy({
+      policy,
+      weekNumber: item.week,
+      cycleLength: maxWeek,
+    });
+    const policyIntensity = weekPolicy.intensity / 10;
+    const loadAdjustment = (load - 0.5) * 0.06;
     const technique = Math.min(
       0.94,
       Math.max(
@@ -427,7 +435,8 @@ function LoadPreview({
       0.88,
       Math.max(
         0.06,
-        cycleEnvelope(progress, 0.66, 0.08, 0.73, 0.24) +
+        policyIntensity * 0.82 +
+          cycleEnvelope(progress, 0.12, 0.02, 0.15, 0.04) +
           loadAdjustment,
       ),
     );
@@ -436,6 +445,7 @@ function LoadPreview({
       Math.max(
         0.04,
         cycleEnvelope(progress, 0.65, 0.05, 0.58, 0.16) +
+          (weekPolicy.recoveryWeek ? 0.16 : 0) +
           (item.volume === "baixo" ? 0.035 : 0),
       ),
     );
@@ -1126,6 +1136,11 @@ export function PeriodizationManagerSheet({
               <Text style={{ color: colors.muted, fontSize: 11 }}>
                 Curva anual ({draft.cycleLengthWeeks} semanas)
               </Text>
+              <Text style={{ color: colors.muted, fontSize: 10 }}>
+                {LOAD_MODEL_OPTIONS.find((option) => option.value === draft.loadModel)?.label}
+                {" · "}PSE {draft.intensityMin}–{draft.intensityMax}
+                {" · "}recuperação a cada {draft.recoveryWeeks} semanas
+              </Text>
               <LoadPreview
                 colors={colors}
                 weekPlans={weekPlans}
@@ -1156,7 +1171,7 @@ export function PeriodizationManagerSheet({
                   colors={colors}
                   icon="trend"
                   label="Carga"
-                  value="Curva recalculada na prévia"
+                  value={`${LOAD_MODEL_OPTIONS.find((option) => option.value === draft.loadModel)?.label} · PSE ${draft.intensityMin}–${draft.intensityMax}`}
                 />
                 <ImpactRow
                   colors={colors}
@@ -1174,7 +1189,7 @@ export function PeriodizationManagerSheet({
                   colors={colors}
                   icon="checkmarkCircle"
                   label="Aulas concluídas"
-                  value={`${completedLessonCount} não alteradas`}
+                  value={`${completedLessonCount} preservadas e consideradas`}
                 />
               </View>
             </View>

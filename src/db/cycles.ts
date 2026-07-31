@@ -12,6 +12,8 @@ function mapRow(row: Record<string, unknown>): PlanningCycle {
     startDate: String(row.startDate ?? ""),
     endDate: String(row.endDate ?? ""),
     status: row.status === "archived" ? "archived" : "active",
+    periodizationPolicyJson: String(row.periodizationPolicyJson ?? ""),
+    policyVersion: Number(row.policyVersion ?? 1),
     createdAt: String(row.createdAt ?? ""),
     updatedAt: String(row.updatedAt ?? ""),
   };
@@ -50,8 +52,9 @@ export async function getActivePlanningCycle(
 export async function upsertPlanningCycle(cycle: PlanningCycle): Promise<void> {
   await db.runAsync(
     `INSERT OR REPLACE INTO planning_cycles
-       (id, organizationId, classId, year, title, startDate, endDate, status, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, organizationId, classId, year, title, startDate, endDate, status,
+        periodizationPolicyJson, policyVersion, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       cycle.id,
       cycle.organizationId,
@@ -61,6 +64,8 @@ export async function upsertPlanningCycle(cycle: PlanningCycle): Promise<void> {
       cycle.startDate,
       cycle.endDate,
       cycle.status,
+      cycle.periodizationPolicyJson ?? "",
+      cycle.policyVersion ?? 1,
       cycle.createdAt,
       cycle.updatedAt,
     ]

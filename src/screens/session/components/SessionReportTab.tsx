@@ -72,6 +72,7 @@ type SessionReportTabProps = {
   photoLimit: number;
   isPickingPhoto: boolean;
   reportHasChanges: boolean;
+  reportDraftStatus: "loading" | "idle" | "saving" | "saved" | "restored";
   showPsePicker: boolean;
   showTechniquePicker: boolean;
   showPsePickerContent: boolean;
@@ -129,6 +130,7 @@ export function SessionReportTab({
   photoLimit,
   isPickingPhoto,
   reportHasChanges,
+  reportDraftStatus,
   showPsePicker,
   showTechniquePicker,
   showPsePickerContent,
@@ -184,6 +186,36 @@ export function SessionReportTab({
         {ptBR.session.report.title}
       </Text>
       <Text style={{ color: colors.muted }}>{sessionDateLabel}</Text>
+      {reportDraftStatus === "restored" ||
+      reportDraftStatus === "saving" ||
+      reportDraftStatus === "saved" ? (
+        <View
+          style={{
+            alignSelf: "flex-start",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            paddingVertical: 5,
+            paddingHorizontal: 9,
+            borderRadius: 10,
+            backgroundColor: colors.successBg,
+            marginTop: 4,
+          }}
+        >
+          <GoAtletaIcon
+            name={reportDraftStatus === "saving" ? "ellipsisHorizontal" : "cloudDone"}
+            size={14}
+            color={colors.successText}
+          />
+          <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
+            {reportDraftStatus === "restored"
+              ? ptBR.session.report.draftRestored
+              : reportDraftStatus === "saving"
+                ? ptBR.session.report.draftSaving
+                : ptBR.session.report.draftSaved}
+          </Text>
+        </View>
+      ) : null}
       {!hasExistingReport ? (
         <Text style={{ color: colors.muted }}>{ptBR.session.report.noReportYet}</Text>
       ) : null}

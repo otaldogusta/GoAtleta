@@ -2579,16 +2579,11 @@ export function CoordinationPeopleWorkspace({
 
       <ConfirmCloseOverlay
         visible={showEditCloseConfirm}
-        title="Salvar antes de sair?"
-        message="As mudanças só serão aplicadas depois da confirmação do servidor."
-        confirmLabel="Salvar e sair"
+        title="Sair sem salvar?"
+        message="As alterações feitas serão perdidas."
+        confirmLabel="Sair sem salvar"
         cancelLabel="Continuar editando"
-        discardLabel="Descartar alterações"
-        onConfirm={() => {
-          setShowEditCloseConfirm(false);
-          void submitEdit();
-        }}
-        onDiscard={closeEditModal}
+        onConfirm={closeEditModal}
         onCancel={() => setShowEditCloseConfirm(false)}
       />
 

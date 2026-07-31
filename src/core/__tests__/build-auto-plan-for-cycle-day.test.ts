@@ -201,6 +201,31 @@ const buildAcademicReference = (
 });
 
 describe("buildAutoPlanForCycleDay", () => {
+  it("turns the last actual volleyball class of the month into a consolidated game", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        durationMinutes: 60,
+        daysOfWeek: [3, 5],
+        daysPerWeek: 2,
+      }),
+      classPlan: buildClassPlan({
+        startDate: "2026-07-27",
+        weekNumber: 22,
+      }),
+      students: [buildStudent()],
+      sessionDate: "2026-07-31",
+    });
+
+    expect(result.monthlyGameSessionPolicy.applies).toBe(true);
+    expect(result.strategy.progressionDimension).toBe("transferencia_jogo");
+    expect(result.package.final.main.duration).toBe(45);
+    expect(result.package.final.main.summary).toBe("Jogo consolidado do mês");
+    expect(result.package.final.main.activities).toHaveLength(1);
+    expect(result.package.final.main.activities[0].stage).toBe("game");
+    expect(result.package.final.main.activities[0].description).toContain(
+      "não há treino isolado"
+    );
+  });
   it("still builds a valid pedagogical package for classes with no history", () => {
     const result = buildAutoPlanForCycleDay({
       classGroup: buildClassGroup({ daysPerWeek: 2, daysOfWeek: [2, 5] }),

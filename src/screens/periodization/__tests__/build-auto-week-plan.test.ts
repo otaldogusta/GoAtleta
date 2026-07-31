@@ -1,4 +1,9 @@
-import type { ClassCalendarException, ClassGroup, DailyLessonPlan } from "../../../core/models";
+import type {
+  ClassCalendarException,
+  ClassGroup,
+  DailyLessonPlan,
+  RecentSessionSummary,
+} from "../../../core/models";
 import { buildAutoWeekPlan } from "../build-auto-week-plan";
 
 const buildClassGroup = (overrides: Partial<ClassGroup> = {}): ClassGroup => ({
@@ -151,5 +156,50 @@ describe("buildAutoWeekPlan", () => {
     expect(integratedContext.courtGymRelationship).toBe("quadra_dominante");
     expect(integratedContext.gymSessionsCount).toBe(0);
     expect(integratedContext.notes).toContain("apoio motor/preventivo");
+  });
+
+  it("applies the saved load policy and carries executed history into the week", () => {
+    const recentSessionSummaries: RecentSessionSummary[] = [
+      {
+        sessionDate: "2026-04-09",
+        wasPlanned: true,
+        wasApplied: true,
+        wasEditedByTeacher: false,
+        wasConfirmedExecuted: true,
+        executionState: "confirmed_executed",
+        pedagogicalFeedbackSignals: ["low_participation"],
+        teacherOverrideWeight: "none",
+      },
+    ];
+
+    const plan = buildAutoWeekPlan({
+      selectedClass: buildClassGroup(),
+      weekNumber: 4,
+      cycleLength: 12,
+      activeCycleStartDate: "2026-03-23",
+      isCompetitiveMode: false,
+      calendarExceptions: [] as ClassCalendarException[],
+      competitiveProfile: null,
+      ageBand: "09-11",
+      periodizationModel: "formacao",
+      weeklySessions: 2,
+      sportProfile: "voleibol",
+      recentSessionSummaries,
+      periodizationPolicy: {
+        schemaVersion: 1,
+        loadModel: "linear",
+        recoveryWeeks: 4,
+        intensityMin: 2,
+        intensityMax: 8,
+      },
+    });
+
+    expect(plan?.rpeTarget).toBe("2-3");
+    const snapshot = JSON.parse(plan?.generationContextSnapshotJson ?? "{}");
+    expect(snapshot?.periodizationWeekPolicy?.recoveryWeek).toBe(true);
+    expect(snapshot?.executedHistory).toEqual({
+      consideredSessions: 1,
+      latestSessionDate: "2026-04-09",
+    });
   });
 });

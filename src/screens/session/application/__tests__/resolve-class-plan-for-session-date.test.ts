@@ -34,4 +34,8 @@ describe("resolveClassPlanForSessionDate", () => {
   it("does not leak a future periodization week into an earlier lesson", () => {
     expect(resolveClassPlanForSessionDate(plans, "2026-07-01")).toBeNull();
   });
+
+  it("does not reuse a stale week after its seven-day window", () => {
+    expect(resolveClassPlanForSessionDate(plans, "2026-08-02")).toBeNull();
+  });
 });

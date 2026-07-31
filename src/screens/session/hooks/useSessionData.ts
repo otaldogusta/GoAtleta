@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type {
+  ClassCalendarException,
   ClassGroup,
   ClassPlan,
   DailyLessonPlan,
@@ -20,6 +21,7 @@ import { listEvents } from "../../../api/events";
 import {
   getAttendanceByDate,
   getClassById,
+  getClassCalendarExceptions,
   getClassPlansByClass,
   getDailyLessonPlanByWeekAndDate,
   getKnowledgeRuleCitations,
@@ -110,6 +112,9 @@ export function useSessionData({
   const [isResolvingCurrentClassPlan, setIsResolvingCurrentClassPlan] = useState(false);
   const [methodologyEvidence, setMethodologyEvidence] =
     useState<SessionMethodologyEvidence | null>(null);
+  const [calendarExceptions, setCalendarExceptions] = useState<
+    ClassCalendarException[]
+  >([]);
 
   const reload = useCallback(() => {
     setReloadToken((value) => value + 1);
@@ -133,7 +138,13 @@ export function useSessionData({
         if (alive) setCls(data);
         if (data) {
           const eventWindow = buildEventWindow(sessionDate);
-          const [classStudents, currentPlan, classTrainingPlans, upcomingEvents] = await Promise.all([
+          const [
+            classStudents,
+            currentPlan,
+            classTrainingPlans,
+            upcomingEvents,
+            loadedCalendarExceptions,
+          ] = await Promise.all([
             getStudentsByClass(data.id),
             getLatestFinalPlanForSession(
               data.organizationId ?? null,
@@ -155,6 +166,9 @@ export function useSessionData({
                   toIso: eventWindow.toIso,
                 }).catch(() => [])
               : Promise.resolve([]),
+            getClassCalendarExceptions(data.id, {
+              organizationId: data.organizationId ?? null,
+            }).catch(() => [] as ClassCalendarException[]),
           ]);
           const scopedEvents = upcomingEvents
             .filter((event) => {
@@ -174,6 +188,7 @@ export function useSessionData({
             setSavedClassPlans(compactTrainingPlans(classTrainingPlans));
             setPlan(currentPlan);
             setUpcomingSessionEvents(scopedEvents);
+            setCalendarExceptions(loadedCalendarExceptions);
             setSessionDataStatus("ready");
             setSessionDataError(null);
           }
@@ -183,6 +198,7 @@ export function useSessionData({
           setSessionStudents([]);
           setPlan(null);
           setUpcomingSessionEvents([]);
+          setCalendarExceptions([]);
           setSessionLog(null);
           setScoutingLog(null);
           setScoutingSignal(null);
@@ -215,6 +231,7 @@ export function useSessionData({
           setSessionStudents([]);
           setPlan(null);
           setUpcomingSessionEvents([]);
+          setCalendarExceptions([]);
           setSessionLog(null);
           setScoutingLog(null);
           setScoutingSignal(null);
@@ -406,6 +423,7 @@ export function useSessionData({
     upcomingSessionEvents,
     isResolvingCurrentClassPlan,
     methodologyEvidence,
+    calendarExceptions,
     reload,
   };
 }

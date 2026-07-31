@@ -41,6 +41,7 @@ import {
     deleteTrainingPlansByClassAndDate,
     getAttendanceByClass,
     getClassById,
+    getClassCalendarExceptions,
     getClassPlansByClass,
     getClasses,
     getDailyLessonPlanByWeekAndDate,
@@ -1636,7 +1637,7 @@ export default function ClassDetails() {
     if (!cls || !selectedLessonDateKey || isGeneratingPlan) return;
     setIsGeneratingPlan(true);
     try {
-      const [students, recentPlans, classPlans] = await Promise.all([
+      const [students, recentPlans, classPlans, calendarExceptions] = await Promise.all([
         getStudentsByClass(cls.id),
         getTrainingPlans({
           classId: cls.id,
@@ -1645,6 +1646,9 @@ export default function ClassDetails() {
           limit: 12,
         }),
         getClassPlansByClass(cls.id, {
+          organizationId: cls.organizationId ?? null,
+        }),
+        getClassCalendarExceptions(cls.id, {
           organizationId: cls.organizationId ?? null,
         }),
       ]);
@@ -1672,6 +1676,7 @@ export default function ClassDetails() {
         sessionDate: selectedLessonDateKey,
         recentPlans,
         documentSupport,
+        calendarExceptions,
       });
       const latestVersion = recentPlans.reduce(
         (max, plan) => Math.max(max, plan.version ?? 0),

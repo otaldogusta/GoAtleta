@@ -1,8 +1,15 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
-import type { ClassGroup, ClassPlan, PlanningCycle } from "../../../../core/models";
-import { ensureActiveCycleForYear, getActivePlanningCycle } from "../../../../db/cycles";
+import type {
+  ClassGroup,
+  ClassPlan,
+  PlanningCycle,
+} from "../../../../core/models";
+import {
+  ensureActiveCycleForYear,
+  getActivePlanningCycle,
+} from "../../../../db/cycles";
 import {
   getAttendanceByClass,
   getClassById,
@@ -37,7 +44,9 @@ const flushPromises = async () => {
   });
 };
 
-function renderUseMonthlyPlans(onSnapshot: (snapshot: ReturnType<typeof useMonthlyPlans>) => void) {
+function renderUseMonthlyPlans(
+  onSnapshot: (snapshot: ReturnType<typeof useMonthlyPlans>) => void,
+) {
   function Harness() {
     const snapshot = useMonthlyPlans("class-1", "2026-06");
     onSnapshot(snapshot);
@@ -60,6 +69,10 @@ describe("useMonthlyPlans", () => {
       daysOfWeek: [6],
       daysPerWeek: 1,
       durationMinutes: 60,
+      goal: "Fundamentos",
+      mvLevel: "MV1",
+      cycleStartDate: "2026-01-05",
+      cycleLengthWeeks: 52,
     } as ClassGroup;
     const cycle = {
       id: "cycle-1",
@@ -108,7 +121,9 @@ describe("useMonthlyPlans", () => {
   });
 
   it("keeps the month screen ready when daily plan lookup hangs", async () => {
-    (listDailyLessonPlansByWeekIds as jest.Mock).mockImplementation(() => new Promise(() => undefined));
+    (listDailyLessonPlansByWeekIds as jest.Mock).mockImplementation(
+      () => new Promise(() => undefined),
+    );
     let latest: ReturnType<typeof useMonthlyPlans> | null = null;
 
     await act(async () => {
@@ -132,6 +147,32 @@ describe("useMonthlyPlans", () => {
     expect(latest?.dailyPlansByKey).toEqual({});
   });
 
+  it("does not create or load a cycle before periodization is configured", async () => {
+    (getClassById as jest.Mock).mockResolvedValue({
+      id: "class-1",
+      name: "Turma sem periodização",
+      organizationId: "org-1",
+      goal: "",
+      mvLevel: "",
+      cycleStartDate: "",
+      cycleLengthWeeks: 0,
+    } as ClassGroup);
+    let latest: ReturnType<typeof useMonthlyPlans> | null = null;
+
+    await act(async () => {
+      renderUseMonthlyPlans((snapshot) => {
+        latest = snapshot;
+      });
+    });
+    await flushPromises();
+
+    expect(latest?.isLoading).toBe(false);
+    expect(latest?.isPeriodizationConfigured).toBe(false);
+    expect(ensureActiveCycleForYear).not.toHaveBeenCalled();
+    expect(getActivePlanningCycle).not.toHaveBeenCalled();
+    expect(getClassPlansByClass).not.toHaveBeenCalled();
+  });
+
   it("starts the June weekly item on the first real class day when the plan is anchored later", async () => {
     (getClassById as jest.Mock).mockResolvedValue({
       id: "class-1",
@@ -140,6 +181,10 @@ describe("useMonthlyPlans", () => {
       daysOfWeek: [2, 4],
       daysPerWeek: 2,
       durationMinutes: 60,
+      goal: "Fundamentos",
+      mvLevel: "MV1",
+      cycleStartDate: "2026-01-05",
+      cycleLengthWeeks: 52,
     } as ClassGroup);
     (getClassPlansByClass as jest.Mock).mockResolvedValue([
       {
@@ -194,14 +239,24 @@ describe("useMonthlyPlans", () => {
     await flushPromises();
 
     expect(latest?.isLoading).toBe(false);
-    expect(latest?.weeklyItems.map((item) => item.plan.id)).toEqual(["week-june-start", "week-next"]);
-    expect(latest?.weeklyItems[0]?.sessions.map((session) => session.date)).toEqual(["2026-06-02", "2026-06-04"]);
+    expect(latest?.weeklyItems.map((item) => item.plan.id)).toEqual([
+      "week-june-start",
+      "week-next",
+    ]);
+    expect(
+      latest?.weeklyItems[0]?.sessions.map((session) => session.date),
+    ).toEqual(["2026-06-02", "2026-06-04"]);
     expect(latest?.weeklyItems[0]?.weekStartLabel).toBe("02/06/2026");
-    expect(listDailyLessonPlansByWeekIds).toHaveBeenLastCalledWith(["week-june-start", "week-next"]);
+    expect(listDailyLessonPlansByWeekIds).toHaveBeenLastCalledWith([
+      "week-june-start",
+      "week-next",
+    ]);
   });
 
   it("stops loading and shows an error when required month data hangs", async () => {
-    (getClassPlansByClass as jest.Mock).mockImplementation(() => new Promise(() => undefined));
+    (getClassPlansByClass as jest.Mock).mockImplementation(
+      () => new Promise(() => undefined),
+    );
     let latest: ReturnType<typeof useMonthlyPlans> | null = null;
 
     await act(async () => {
@@ -220,7 +275,9 @@ describe("useMonthlyPlans", () => {
     });
 
     expect(latest?.isLoading).toBe(false);
-    expect(latest?.error).toContain("Tempo excedido ao carregar semanas do ciclo.");
+    expect(latest?.error).toContain(
+      "Tempo excedido ao carregar semanas do ciclo.",
+    );
     expect(latest?.weeklyItems).toHaveLength(0);
   });
 });

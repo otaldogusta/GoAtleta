@@ -49,6 +49,46 @@ final result: passed
 
 ---
 
+# Design QA — Planejamento unificado da turma
+
+## Fonte de verdade
+
+- Mockup aprovado pelo usuário: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-a576b124-f0b6-4253-a9f9-26c71b46ffa0.png`.
+- Implementação autenticada: `http://localhost:8081/class/c_1784666702066/periodization?classId=c_1784666702066&month=2026-07&backTo=%2Fclass%2Fc_1784666702066`.
+- A composição foi comparada no navegador local após o carregamento dos dados reais da turma.
+
+## Verificação visual
+
+- Desktop usa uma área operacional plana em três colunas: trilho anual, planejamento mensal e inspetor da aula.
+- O trilho anual apresenta mês, fase pedagógica, intervalo de semanas e curva de carga sem cartões altos ou informação duplicada.
+- O mês reúne resumo, semanas e aulas em uma tabela compacta; a aula selecionada controla o inspetor à direita.
+- O inspetor apresenta origem, distribuição de tempo, resumo, relação com o ciclo e ação para abrir a aula.
+- A última aula válida de julho aparece como `Jogo consolidado do mês`, com origem na regra mensal do voleibol e distribuição de 10/45/5 minutos.
+- O rodapé informa a preservação de planos personalizados e aulas concluídas antes da ação de aplicar ajustes.
+- As fases exibidas são as fases reais salvas para a turma; o mockup define a composição, não dados demonstrativos.
+
+## Responsividade e interação
+
+- Desktop mantém as três regiões simultaneamente visíveis, com rolagens internas nas colunas extensas.
+- Tablet transforma o trilho anual em faixa horizontal e mantém planejamento e inspetor lado a lado.
+- Celular empilha mês e aulas, mantém o trilho horizontal e insere o detalhe imediatamente abaixo da aula selecionada.
+- A seleção de aula atualiza o inspetor sem navegação e sem perder o contexto do mês.
+- O navegador local não registrou erros nem avisos durante a verificação final.
+
+## Validações técnicas
+
+- Testes focados de agenda e regra mensal do voleibol: 8 aprovados.
+- `npm run typecheck:app`: aprovado.
+- `npm run check:org-scope`: aprovado.
+- `git diff --check`: aprovado; apenas aviso de normalização futura de CRLF em arquivo já modificado no worktree.
+- `npm run build`: aprovado; permanecem somente os avisos conhecidos do `expo-font` e da configuração do Sentry.
+
+## Resultado final
+
+final result: passed
+
+---
+
 # Design QA — Exportar e sincronizar em Turmas
 
 ## Fonte de verdade

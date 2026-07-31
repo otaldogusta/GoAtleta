@@ -1,9 +1,12 @@
-import { memo, type ReactNode, useEffect, useMemo, useRef } from "react";
-import { ActivityIndicator, Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Easing, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { TrainingPlan } from "../../../core/models";
+import { radius, spacing } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
+import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { CLASS_PLAN_BLOCK_PRESENTATION } from "./class-plan-block-presentation";
 
@@ -100,46 +103,15 @@ export const ClassContextStrip = memo(function ClassContextStrip({
   );
 });
 
-const WorkspaceActionRow = memo(function WorkspaceActionRow({
-  action,
-  colors,
-  last,
-}: {
-  action: WorkspaceAction;
-  colors: ThemeColors;
-  last?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={action.onPress}
-      style={({ pressed }) => [
-        styles.actionRow,
-        { borderBottomColor: colors.border, opacity: pressed ? 0.72 : 1 },
-        last ? styles.actionRowLast : null,
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={action.label}
-    >
-      <GoAtletaIcon name={action.icon} size={21} color={colors.muted} />
-      <View style={styles.actionCopy}>
-        <Text style={[styles.actionLabel, { color: colors.text }]}>{action.label}</Text>
-        <Text numberOfLines={1} style={[styles.actionDescription, { color: colors.muted }]}>
-          {action.description}
-        </Text>
-      </View>
-      <GoAtletaIcon name="chevronRight" size={17} color={colors.muted} />
-    </Pressable>
-  );
-});
-
-function RailAction({ action, colors, selected = false }: {
+function RailAction({ action, colors, selected = false, onSelect }: {
   action: WorkspaceAction;
   colors: ThemeColors;
   selected?: boolean;
+  onSelect?: (action: WorkspaceAction) => void;
 }) {
   return (
     <Pressable
-      onPress={action.onPress}
+      onPress={onSelect ? () => onSelect(action) : action.onPress}
       style={({ pressed }) => [
         styles.railAction,
         selected ? { backgroundColor: colors.successBg } : null,
@@ -164,42 +136,100 @@ function RailAction({ action, colors, selected = false }: {
   );
 }
 
-function RailSection({ title, actions, colors }: {
+function RailSection({ title, actions, colors, onSelect }: {
   title: string;
   actions: WorkspaceAction[];
   colors: ThemeColors;
+  onSelect?: (action: WorkspaceAction) => void;
 }) {
   return (
     <View style={styles.railSection}>
       <Text style={[styles.railSectionTitle, { color: colors.muted }]}>{title}</Text>
       <View style={[styles.railDivider, { backgroundColor: colors.border }]} />
       {actions.map((action) => (
-        <RailAction key={action.key} action={action} colors={colors} />
+        <RailAction key={action.key} action={action} colors={colors} onSelect={onSelect} />
       ))}
     </View>
   );
 }
 
-function OverviewStat({ icon, value, label, colors, compact = false, stacked = false }: {
-  icon: GoAtletaIconName;
-  value: string;
-  label: string;
+function CompactClassNavigation({
+  visible,
+  onClose,
+  actions,
+  colors,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  actions: Record<string, WorkspaceAction>;
   colors: ThemeColors;
-  compact?: boolean;
-  stacked?: boolean;
+  onSelect: (action: WorkspaceAction) => void;
 }) {
   return (
-    <View style={[
-      styles.overviewStat,
-      compact ? styles.overviewStatCompact : null,
-      stacked ? styles.overviewStatStacked : null,
-    ]}>
-      <GoAtletaIcon name={icon} size={compact || stacked ? 22 : 27} color={colors.primaryBg} />
-      <View style={[styles.overviewCopy, compact ? styles.overviewCopyCompact : null]}>
-        <Text numberOfLines={compact ? 2 : 1} style={[styles.overviewValue, { color: colors.text }]}>{value}</Text>
-        <Text numberOfLines={compact ? 2 : 1} style={[styles.overviewLabel, { color: colors.muted }]}>{label}</Text>
+    <ModalSheet
+      visible={visible}
+      onClose={onClose}
+      cardStyle={[
+        styles.compactNavigationSheet,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+      position="bottom"
+      containerPadding={0}
+    >
+      <View style={[styles.compactNavigationHeader, { borderBottomColor: colors.border }]}>
+        <View style={styles.compactNavigationHeading}>
+          <Text style={[styles.compactNavigationTitle, { color: colors.text }]}>Menu da turma</Text>
+          <Text style={[styles.compactNavigationSubtitle, { color: colors.muted }]}>
+            Acesse todas as áreas desta turma
+          </Text>
+        </View>
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Fechar menu da turma"
+          style={({ pressed }) => [
+            styles.compactNavigationClose,
+            {
+              backgroundColor: colors.secondaryBg,
+              borderColor: colors.border,
+              opacity: pressed ? 0.72 : 1,
+            },
+          ]}
+        >
+          <GoAtletaIcon name="close" size={20} color={colors.text} />
+        </Pressable>
       </View>
-    </View>
+
+      <ScrollView
+        style={styles.compactNavigationScroll}
+        contentContainerStyle={styles.compactNavigationContent}
+        showsVerticalScrollIndicator
+      >
+        <Text style={[styles.railHeading, { color: colors.muted }]}>Hoje</Text>
+        <RailAction action={actions.overview} colors={colors} selected onSelect={onSelect} />
+        <RailAction action={actions.attendance} colors={colors} onSelect={onSelect} />
+        <RailAction action={actions.report} colors={colors} onSelect={onSelect} />
+        <RailSection
+          title="Planejamento"
+          actions={[actions.planning, actions.visual]}
+          colors={colors}
+          onSelect={onSelect}
+        />
+        <RailSection
+          title="Desempenho"
+          actions={[actions.periodization, actions.scouting]}
+          colors={colors}
+          onSelect={onSelect}
+        />
+        <RailSection
+          title="Gestão"
+          actions={[actions.students, actions.export, actions.whatsapp]}
+          colors={colors}
+          onSelect={onSelect}
+        />
+      </ScrollView>
+    </ModalSheet>
   );
 }
 
@@ -290,11 +320,6 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   onGeneratePlan,
   isGeneratingPlan,
   contextualInsight,
-  studentCount,
-  contactStatusValue,
-  contactStatusLabel,
-  reportStatusValue,
-  reportStatusLabel,
   onOpenSession,
   onOpenAttendance,
   onOpenReport,
@@ -306,7 +331,10 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   onExportRoster,
   onOpenWhatsApp,
 }: ClassOperationsWorkspaceProps) {
+  const insets = useSafeAreaInsets();
   const lessonContentAnim = useRef(new Animated.Value(1)).current;
+  const [isCompactNavigationOpen, setIsCompactNavigationOpen] = useState(false);
+  const compactNavigationBottom = Math.max(insets.bottom + 162, 178);
 
   useEffect(() => {
     if (isLoadingLessonPlan) {
@@ -322,6 +350,12 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       useNativeDriver: true,
     }).start();
   }, [isLoadingLessonPlan, lessonContentAnim, lessonDateLabel]);
+
+  useEffect(() => {
+    if (!compact) {
+      setIsCompactNavigationOpen(false);
+    }
+  }, [compact]);
 
   const actions = useMemo<Record<string, WorkspaceAction>>(() => ({
     overview: {
@@ -389,7 +423,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
     },
     export: {
       key: "export",
-      label: "Exportar lista da turma",
+      label: "Exportar chamada",
       description: "Lista de chamada mensal",
       icon: "download",
       onPress: onExportRoster,
@@ -414,42 +448,20 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
     onOpenWhatsApp,
   ]);
 
-  const renderOverviewSection = (stacked = false) => (
-    <View style={[styles.overviewSection, stacked ? styles.overviewSectionSide : null]}>
-      <View
-        style={[
-          styles.overviewPanel,
-          compact ? styles.overviewPanelCompact : null,
-          stacked ? styles.overviewPanelStacked : null,
-          { backgroundColor: colors.card, borderColor: colors.border },
-        ]}
-      >
-        <OverviewStat
-          icon="students"
-          value={studentCount === null ? "—" : String(studentCount)}
-          label={studentCount === 1 ? "aluno" : "alunos"}
-          colors={colors}
-          compact={compact}
-          stacked={stacked}
-        />
-        <OverviewStat
-          icon="whatsapp"
-          value={contactStatusValue}
-          label={contactStatusLabel}
-          colors={colors}
-          compact={compact}
-          stacked={stacked}
-        />
-        <OverviewStat
-          icon="document"
-          value={reportStatusValue}
-          label={reportStatusLabel}
-          colors={colors}
-          compact={compact}
-          stacked={stacked}
-        />
-      </View>
-      {contextualInsight ? (
+  const closeCompactNavigation = useCallback(() => {
+    setIsCompactNavigationOpen(false);
+  }, []);
+
+  const handleCompactNavigationAction = useCallback((action: WorkspaceAction) => {
+    setIsCompactNavigationOpen(false);
+    action.onPress();
+  }, []);
+
+  const renderOverviewSection = (stacked = false) => {
+    if (!contextualInsight) return null;
+
+    return (
+      <View style={[styles.overviewSection, stacked ? styles.overviewSectionSide : null]}>
         <View
           style={[
             styles.contextualInsight,
@@ -459,9 +471,9 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         >
           {contextualInsight}
         </View>
-      ) : null}
-    </View>
-  );
+      </View>
+    );
+  };
 
   const planSection = (
     <View style={styles.planSection}>
@@ -541,6 +553,24 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
               >
                 <Text style={[styles.planPrimaryButtonLabel, { color: colors.primaryText }]}>Ver plano</Text>
               </Pressable>
+              <Pressable
+                onPress={onOpenPlanning}
+                accessibilityRole="button"
+                accessibilityLabel="Ver planejamento"
+                style={({ pressed }) => [
+                  styles.planSecondaryButton,
+                  styles.planAppliedAction,
+                  {
+                    backgroundColor: colors.secondaryBg,
+                    borderColor: colors.border,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <Text style={[styles.planSecondaryButtonLabel, { color: colors.text }]}>
+                  Ver planejamento
+                </Text>
+              </Pressable>
             </View>
           </>
         ) : isGeneratingPlan ? (
@@ -577,52 +607,81 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         )}
           </Animated.View>
         )}
-        <View style={[styles.planActionList, { borderTopColor: colors.border }]}>
-          <WorkspaceActionRow action={actions.attendance} colors={colors} />
-          <WorkspaceActionRow action={actions.report} colors={colors} last />
-        </View>
       </View>
     </View>
   );
 
   return (
-    <View style={[styles.workspace, compact ? styles.workspaceCompact : null]}>
-      {!compact ? (
-        <View style={[styles.rail, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.railHeading, { color: colors.muted }]}>Hoje</Text>
-          <RailAction action={actions.overview} colors={colors} selected />
-          <RailAction action={actions.attendance} colors={colors} />
-          <RailAction action={actions.report} colors={colors} />
-          <RailSection
-            title="Planejamento"
-            actions={[actions.planning, actions.visual]}
-            colors={colors}
-          />
-          <RailSection title="Desempenho" actions={[actions.periodization, actions.scouting]} colors={colors} />
-          <RailSection
-            title="Gestão"
-            actions={[actions.students, actions.export, actions.whatsapp]}
-            colors={colors}
-          />
-        </View>
-      ) : null}
-
-      <View style={styles.mainColumn}>
-        {compact ? (
-          <>
-            {planSection}
-            {renderOverviewSection()}
-          </>
-        ) : (
-          <View style={styles.desktopWorkspace}>
-            <View style={styles.desktopContentColumn}>
-              {planSection}
-            </View>
-            {renderOverviewSection(true)}
+    <>
+      <View style={[styles.workspace, compact ? styles.workspaceCompact : null]}>
+        {!compact ? (
+          <View style={[styles.rail, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.railHeading, { color: colors.muted }]}>Hoje</Text>
+            <RailAction action={actions.overview} colors={colors} selected />
+            <RailAction action={actions.attendance} colors={colors} />
+            <RailAction action={actions.report} colors={colors} />
+            <RailSection
+              title="Planejamento"
+              actions={[actions.planning, actions.visual]}
+              colors={colors}
+            />
+            <RailSection title="Desempenho" actions={[actions.periodization, actions.scouting]} colors={colors} />
+            <RailSection
+              title="Gestão"
+              actions={[actions.students, actions.export, actions.whatsapp]}
+              colors={colors}
+            />
           </View>
-        )}
+        ) : null}
+
+        <View style={styles.mainColumn}>
+          {compact && !isCompactNavigationOpen ? (
+            <Pressable
+              onPress={() => setIsCompactNavigationOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir menu da turma"
+              style={({ pressed }) => [
+                styles.compactNavigationFab,
+                Platform.OS === "web"
+                  ? ({ position: "fixed", right: 0, bottom: compactNavigationBottom } as any)
+                  : { position: "absolute", right: 0, bottom: compactNavigationBottom },
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.76 : 1,
+                },
+              ]}
+            >
+              <GoAtletaIcon name="list" size={24} color={colors.primaryBg} />
+            </Pressable>
+          ) : null}
+
+          {compact ? (
+            <>
+              {planSection}
+              {renderOverviewSection()}
+            </>
+          ) : (
+            <View style={styles.desktopWorkspace}>
+              <View style={styles.desktopContentColumn}>
+                {planSection}
+              </View>
+              {renderOverviewSection(true)}
+            </View>
+          )}
+        </View>
       </View>
-    </View>
+
+      {compact ? (
+        <CompactClassNavigation
+          visible={isCompactNavigationOpen}
+          onClose={closeCompactNavigation}
+          actions={actions}
+          colors={colors}
+          onSelect={handleCompactNavigationAction}
+        />
+      ) : null}
+    </>
   );
 });
 
@@ -671,6 +730,62 @@ const styles = StyleSheet.create({
   },
   workspaceCompact: {
     flexDirection: "column",
+  },
+  compactNavigationFab: {
+    width: 58,
+    height: 58,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5100,
+  },
+  compactNavigationSheet: {
+    width: "100%",
+    maxHeight: "86%",
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    overflow: "hidden",
+  },
+  compactNavigationHeader: {
+    minHeight: 72,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  compactNavigationHeading: {
+    flex: 1,
+    minWidth: 0,
+  },
+  compactNavigationTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  compactNavigationSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+  },
+  compactNavigationClose: {
+    width: 40,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  compactNavigationScroll: {
+    flexGrow: 0,
+  },
+  compactNavigationContent: {
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+    gap: 4,
   },
   rail: {
     width: 268,
@@ -916,9 +1031,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center",
   },
-  planActionList: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
   contextualInsight: {
     borderWidth: 1,
     borderRadius: 12,
@@ -993,41 +1105,5 @@ const styles = StyleSheet.create({
   overviewLabel: {
     marginTop: 2,
     fontSize: 12,
-  },
-  recommendedSection: {
-    gap: 12,
-  },
-  actionList: {
-    borderWidth: 1,
-    borderRadius: 18,
-    overflow: "hidden",
-  },
-  actionRow: {
-    minHeight: 70,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 13,
-  },
-  actionRowLast: {
-    borderBottomWidth: 0,
-  },
-  actionCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  actionLabel: {
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  actionDescription: {
-    marginTop: 3,
-    fontSize: 12,
-  },
-  scheduleHint: {
-    fontSize: 12,
-    paddingHorizontal: 2,
   },
 });

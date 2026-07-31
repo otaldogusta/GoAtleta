@@ -1302,6 +1302,8 @@ export type PlanningCycle = {
   startDate: string;
   endDate: string;
   status: "active" | "archived";
+  periodizationPolicyJson?: string;
+  policyVersion?: number;
   createdAt: string;
   updatedAt: string;
 };

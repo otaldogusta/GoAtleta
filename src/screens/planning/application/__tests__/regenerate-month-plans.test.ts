@@ -1,5 +1,9 @@
 import type { ClassGroup } from "../../../../core/models";
-import { buildInitialMonthPlans } from "../regenerate-month-plans";
+import { generateMonthlyBlueprint } from "../generate-monthly-blueprint";
+import {
+  buildInitialMonthPlans,
+  regenerateWeeklyPlanFromBlueprint,
+} from "../regenerate-month-plans";
 
 const classGroup: ClassGroup = {
   id: "class-1",
@@ -55,5 +59,35 @@ describe("buildInitialMonthPlans", () => {
 
     expect(plans).toHaveLength(initial.length - 1);
     expect(plans.some((plan) => plan.id === initial[0].id)).toBe(false);
+  });
+
+  it("persists one operational role per real session when regenerating the month", () => {
+    const existing = buildInitialMonthPlans({
+      classGroup,
+      monthKey: "2026-08",
+      classPlans: [],
+    })[0];
+    expect(existing).toBeTruthy();
+
+    const blueprint = generateMonthlyBlueprint({
+      classGroup,
+      monthKey: "2026-08",
+    });
+    const regenerated = regenerateWeeklyPlanFromBlueprint({
+      existing,
+      blueprint,
+      cycleLength: classGroup.cycleLengthWeeks,
+      classGroup,
+      weeklySessions: 2,
+    });
+    const snapshot = JSON.parse(regenerated.generationContextSnapshotJson ?? "{}") as {
+      weeklyOperationalStrategy?: {
+        decisions?: Array<{ sessionIndexInWeek: number; sessionRole: string }>;
+      };
+    };
+
+    expect(snapshot.weeklyOperationalStrategy?.decisions).toHaveLength(2);
+    expect(snapshot.weeklyOperationalStrategy?.decisions?.map((item) => item.sessionIndexInWeek)).toEqual([1, 2]);
+    expect(new Set(snapshot.weeklyOperationalStrategy?.decisions?.map((item) => item.sessionRole)).size).toBe(2);
   });
 });

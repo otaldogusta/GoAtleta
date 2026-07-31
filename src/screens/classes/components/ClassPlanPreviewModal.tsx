@@ -1,4 +1,4 @@
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -299,18 +299,28 @@ export function ClassPlanPreviewModal({
     }
   }, [fileName, isDownloading, pdfBlob, pdfData, showSaveToast]);
 
-  const updateSelectedBlock = useCallback(
-    (update: (draft: ClassPlanBlockDraft) => ClassPlanBlockDraft) => {
+  const updateBlock = useCallback(
+    (
+      blockKey: TrainingPlanBlockKey,
+      update: (draft: ClassPlanBlockDraft) => ClassPlanBlockDraft
+    ) => {
       setWorkingPlan((current) => {
-        const draft = buildClassPlanBlockDraft(current, selectedBlockKey);
-        const nextPlan = updateClassTrainingPlanBlock(current, selectedBlockKey, update(draft));
+        const draft = buildClassPlanBlockDraft(current, blockKey);
+        const nextPlan = updateClassTrainingPlanBlock(current, blockKey, update(draft));
         workingPlanRef.current = nextPlan;
         return nextPlan;
       });
       setIsDirty(true);
       setPdfStatusLabel("Alterações não salvas");
     },
-    [selectedBlockKey]
+    []
+  );
+
+  const updateSelectedBlock = useCallback(
+    (update: (draft: ClassPlanBlockDraft) => ClassPlanBlockDraft) => {
+      updateBlock(selectedBlockKey, update);
+    },
+    [selectedBlockKey, updateBlock]
   );
 
   const updatePdfContentField = useCallback(<Key extends keyof ClassPlanPdfContentDraft,>(
@@ -345,13 +355,17 @@ export function ClassPlanPreviewModal({
         if (blockKey === "warmup" || blockKey === "main" || blockKey === "cooldown") {
           setSelectedBlockKey(blockKey);
           setIsPdfContentExpanded(false);
-          setIsEditing(true);
-          setIsEditorExpanded(true);
+          if (splitLayout) {
+            setIsEditing(true);
+            setIsEditorExpanded(true);
+          }
         }
       } else if (event.data?.type === "GOATLETA_PDF_SECTION_CLICK" && event.data?.section === "pedagogy") {
         setIsPdfContentExpanded(true);
-        setIsEditing(true);
-        setIsEditorExpanded(true);
+        if (splitLayout) {
+          setIsEditing(true);
+          setIsEditorExpanded(true);
+        }
       } else if (event.data?.type === "GOATLETA_PDF_BACKGROUND_CLICK") {
         setIsEditing(false);
       } else if (event.data?.type === "GOATLETA_PDF_EDIT") {
@@ -371,7 +385,7 @@ export function ClassPlanPreviewModal({
           const blockKey: TrainingPlanBlockKey =
             period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
           setSelectedBlockKey(blockKey);
-          updateSelectedBlock((draft) => {
+          updateBlock(blockKey, (draft) => {
             const activities = draft.activities.length > 0
               ? draft.activities.map((act, i) => (i === 0 ? { ...act, description: text } : act))
               : [{ name: "Atividade 1", description: text }];
@@ -382,7 +396,7 @@ export function ClassPlanPreviewModal({
           const blockKey: TrainingPlanBlockKey =
             period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
           setSelectedBlockKey(blockKey);
-          updateSelectedBlock((draft) => {
+          updateBlock(blockKey, (draft) => {
             const activities = draft.activities.length > 0
               ? draft.activities.map((act, i) => (i === 0 ? { ...act, name: text } : act))
               : [{ name: text, description: "" }];
@@ -393,13 +407,13 @@ export function ClassPlanPreviewModal({
           const blockKey: TrainingPlanBlockKey =
             period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
           setSelectedBlockKey(blockKey);
-          updateSelectedBlock((draft) => ({ ...draft, duration: text }));
+          updateBlock(blockKey, (draft) => ({ ...draft, duration: text }));
         }
       }
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [updatePdfContentField, updateSelectedBlock]);
+  }, [splitLayout, updateBlock, updatePdfContentField]);
 
   const handleSave = useCallback(async () => {
     if (isSaving || !isDirty) return;
@@ -590,6 +604,16 @@ export function ClassPlanPreviewModal({
 
   const selectBlock = useCallback(
     (blockKey: TrainingPlanBlockKey) => {
+      if (
+        !splitLayout &&
+        isEditing &&
+        !isPdfContentExpanded &&
+        selectedBlockKey === blockKey
+      ) {
+        setIsEditing(false);
+        setIsEditorExpanded(false);
+        return;
+      }
       setSelectedBlockKey(blockKey);
       setIsPdfContentExpanded(false);
       setFocusedActivityDescriptionIndex(null);
@@ -597,24 +621,24 @@ export function ClassPlanPreviewModal({
       setIsEditorExpanded(true);
       if (!splitLayout) setMobileView("outline");
     },
-    [isEditing, splitLayout]
+    [isEditing, isPdfContentExpanded, selectedBlockKey, splitLayout]
   );
 
   const selectPdfContent = useCallback(() => {
+    if (!splitLayout && isEditing && isPdfContentExpanded) {
+      setIsEditing(false);
+      setIsEditorExpanded(false);
+      return;
+    }
     setIsPdfContentExpanded(true);
     setFocusedActivityDescriptionIndex(null);
     if (!isEditing) setIsEditing(true);
     setIsEditorExpanded(true);
     if (!splitLayout) setMobileView("outline");
-  }, [isEditing, splitLayout]);
+  }, [isEditing, isPdfContentExpanded, splitLayout]);
 
   const preview = (
-    <Pressable
-      onPress={() => {
-        if (isEditing) setIsEditing(false);
-      }}
-      style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}
-    >
+    <View style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}>
       {previewStatus === "ready" && pdfUrl ? (
         <PdfPreviewFrame url={pdfUrl} html={previewHtml} title={`PDF do plano ${pdfPlan.title}`} editable={true} />
       ) : previewStatus === "error" ? (
@@ -645,11 +669,17 @@ export function ClassPlanPreviewModal({
           <Text style={[styles.previewStateText, { color: colors.muted }]}>Organizando o plano completo desta aula.</Text>
         </View>
       )}
-    </Pressable>
+    </View>
   );
 
-  const outline = (
-    <View style={[styles.outlinePane, { backgroundColor: colors.card, borderColor: colors.border }]}>
+  const renderOutline = (inlineEditor: ReactNode = null) => (
+    <View
+      style={[
+        styles.outlinePane,
+        !splitLayout ? styles.outlinePaneCompact : null,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
       <Text style={[styles.outlineTitle, { color: colors.text }]}>Roteiro da aula</Text>
       <ScrollView
         style={styles.outlineScroll}
@@ -659,7 +689,8 @@ export function ClassPlanPreviewModal({
         <Pressable
           onPress={selectPdfContent}
           accessibilityRole="button"
-          accessibilityLabel="Editar conteúdo pedagógico"
+          accessibilityLabel={`${isPdfContentExpanded && isEditing ? "Recolher" : "Editar"} conteúdo pedagógico`}
+          accessibilityState={{ expanded: isPdfContentExpanded && isEditing }}
           style={({ pressed }) => [
             styles.outlineBlock,
             {
@@ -674,55 +705,67 @@ export function ClassPlanPreviewModal({
             <Text style={[styles.outlineBlockLabel, { color: colors.text }]}>Conteúdo Pedagógico</Text>
             <Text numberOfLines={1} style={[styles.outlineActivity, { color: colors.muted }]}>Objetivos, situação-problema e observações</Text>
           </View>
-          <GoAtletaIcon name="pencil" size={15} color={colors.text} />
+          <GoAtletaIcon
+            name={isPdfContentExpanded && isEditing ? "chevronUp" : "pencil"}
+            size={15}
+            color={colors.text}
+          />
         </Pressable>
         <AppliedPlanReferencesSection
           references={workingPlan.pedagogy?.appliedReferences}
         />
+        {!splitLayout && isEditing && isPdfContentExpanded ? inlineEditor : null}
         {BLOCKS.map((item) => {
           const block = resolveTrainingPlanBlock(workingPlan, item.key);
           const activitySummary = summarizeClassPlanActivities(block.activities);
           const selected = !isPdfContentExpanded && selectedBlockKey === item.key;
           return (
-            <Pressable
-              key={item.key}
-              onPress={() => selectBlock(item.key)}
-              accessibilityRole="button"
-              accessibilityLabel={`Editar ${item.label}`}
-              style={({ pressed }) => [
-                styles.outlineBlock,
-                {
-                  borderColor: selected ? colors.primaryBg : colors.border,
-                  backgroundColor: selected ? colors.backgroundSubtle : colors.card,
-                  opacity: pressed ? 0.78 : 1,
-                },
-              ]}
-            >
-              <GoAtletaIcon name={item.icon} size={18} color={selected ? colors.primaryBg : colors.muted} />
-              <View style={styles.outlineBlockCopy}>
-                <View style={styles.outlineBlockHeader}>
-                  <Text style={[styles.outlineBlockLabel, { color: colors.text }]}>{item.label}</Text>
-                  <Text style={[styles.outlineDuration, { color: colors.muted }]}>
-                    {formatDuration(getDuration(workingPlan, item.key))}
-                  </Text>
+            <View key={item.key} style={styles.outlineAccordionItem}>
+              <Pressable
+                onPress={() => selectBlock(item.key)}
+                accessibilityRole="button"
+                accessibilityLabel={`${selected && isEditing ? "Recolher" : "Editar"} ${item.label}`}
+                accessibilityState={{ expanded: selected && isEditing }}
+                style={({ pressed }) => [
+                  styles.outlineBlock,
+                  {
+                    borderColor: selected ? colors.primaryBg : colors.border,
+                    backgroundColor: selected ? colors.backgroundSubtle : colors.card,
+                    opacity: pressed ? 0.78 : 1,
+                  },
+                ]}
+              >
+                <GoAtletaIcon name={item.icon} size={18} color={selected ? colors.primaryBg : colors.muted} />
+                <View style={styles.outlineBlockCopy}>
+                  <View style={styles.outlineBlockHeader}>
+                    <Text style={[styles.outlineBlockLabel, { color: colors.text }]}>{item.label}</Text>
+                    <Text style={[styles.outlineDuration, { color: colors.muted }]}>
+                      {formatDuration(getDuration(workingPlan, item.key))}
+                    </Text>
+                  </View>
+                  {activitySummary.visibleActivities.map((activity, index) => (
+                    <Text
+                      key={`${item.key}-${index}`}
+                      numberOfLines={1}
+                      style={[styles.outlineActivity, { color: colors.muted }]}
+                    >
+                      {block.activities.length > 1 ? "• " : ""}{activity.name}
+                    </Text>
+                  ))}
+                  {activitySummary.remainingCount > 0 ? (
+                    <Text numberOfLines={1} style={[styles.outlineActivityMore, { color: colors.muted }]}>
+                      {`+ ${activitySummary.remainingCount} ${activitySummary.remainingCount === 1 ? "atividade" : "atividades"}`}
+                    </Text>
+                  ) : null}
                 </View>
-                {activitySummary.visibleActivities.map((activity, index) => (
-                  <Text
-                    key={`${item.key}-${index}`}
-                    numberOfLines={1}
-                    style={[styles.outlineActivity, { color: colors.muted }]}
-                  >
-                    {block.activities.length > 1 ? "• " : ""}{activity.name}
-                  </Text>
-                ))}
-                {activitySummary.remainingCount > 0 ? (
-                  <Text numberOfLines={1} style={[styles.outlineActivityMore, { color: colors.muted }]}>
-                    {`+ ${activitySummary.remainingCount} ${activitySummary.remainingCount === 1 ? "atividade" : "atividades"}`}
-                  </Text>
-                ) : null}
-              </View>
-              <GoAtletaIcon name="pencil" size={15} color={colors.text} />
-            </Pressable>
+                <GoAtletaIcon
+                  name={selected && isEditing ? "chevronUp" : "pencil"}
+                  size={15}
+                  color={colors.text}
+                />
+              </Pressable>
+              {!splitLayout && isEditing && selected ? inlineEditor : null}
+            </View>
           );
         })}
       </ScrollView>
@@ -851,7 +894,7 @@ export function ClassPlanPreviewModal({
         <>
         <Text style={[styles.pdfContentHint, { color: colors.muted }]}>Preenchido pelo planejamento inteligente</Text>
         <View style={[styles.pdfContentGrid, !splitLayout ? styles.editorFieldsCompact : null]}>
-          <View style={styles.pdfContentField}>
+          <View style={splitLayout ? styles.pdfContentField : styles.pdfContentFieldCompact}>
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>Objetivo geral</Text>
             <TextInput
               value={pdfContentDraft.generalObjective}
@@ -863,7 +906,7 @@ export function ClassPlanPreviewModal({
               accessibilityLabel="Objetivo geral da aula"
             />
           </View>
-          <View style={styles.pdfContentField}>
+          <View style={splitLayout ? styles.pdfContentField : styles.pdfContentFieldCompact}>
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>Objetivo específico</Text>
             <TextInput
               value={pdfContentDraft.specificObjective}
@@ -875,7 +918,7 @@ export function ClassPlanPreviewModal({
               accessibilityLabel="Objetivo específico da aula"
             />
           </View>
-          <View style={styles.pdfContentField}>
+          <View style={splitLayout ? styles.pdfContentField : styles.pdfContentFieldCompact}>
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>Situação-problema</Text>
             <TextInput
               value={pdfContentDraft.situationProblem}
@@ -887,7 +930,7 @@ export function ClassPlanPreviewModal({
               accessibilityLabel="Situação-problema da aula"
             />
           </View>
-          <View style={styles.pdfContentField}>
+          <View style={splitLayout ? styles.pdfContentField : styles.pdfContentFieldCompact}>
             <Text style={[styles.fieldLabel, { color: colors.muted }]}>Observações</Text>
             <TextInput
               value={pdfContentDraft.observations}
@@ -1098,7 +1141,7 @@ export function ClassPlanPreviewModal({
           {splitLayout ? (
             <>
               {preview}
-              {isEditing ? editor : outline}
+              {isEditing ? editor : renderOutline()}
             </>
           ) : mobileView === "pdf" ? (
             preview
@@ -1108,12 +1151,10 @@ export function ClassPlanPreviewModal({
               contentContainerStyle={styles.compactOutlineContent}
               keyboardShouldPersistTaps="handled"
             >
-              {outline}
-              {editor}
+              {renderOutline(editor)}
             </ScrollView>
           )}
         </View>
-        {!splitLayout && isEditing ? editor : null}
       </View>
 
       {isEditing && !splitLayout ? renderEditFooter(true) : !splitLayout ? (
@@ -1138,23 +1179,21 @@ export function ClassPlanPreviewModal({
             </Pressable>
           ) : null}
           <Pressable
-            onPress={() => {
-              setIsEditing(true);
-              setIsEditorExpanded(true);
-              setIsPdfContentExpanded(false);
-              setSelectedBlockKey("main");
-              setMobileView("outline");
-            }}
+            onPress={handleSave}
+            disabled={!isDirty || isSaving}
             accessibilityRole="button"
-            accessibilityLabel="Editar plano"
+            accessibilityLabel="Salvar e atualizar PDF"
             style={({ pressed }) => [
               styles.saveButton,
               styles.saveButtonCompact,
-              { backgroundColor: colors.primaryBg, opacity: pressed ? 0.8 : 1 },
+              {
+                backgroundColor: colors.primaryBg,
+                opacity: !isDirty || isSaving ? 0.48 : pressed ? 0.8 : 1,
+              },
             ]}
           >
-            <GoAtletaIcon name="pencil" size={16} color={colors.primaryText} />
-            <Text style={[styles.saveButtonLabel, { color: colors.primaryText }]}>Editar plano</Text>
+            {isSaving ? <ActivityIndicator size="small" color={colors.primaryText} /> : null}
+            <Text style={[styles.saveButtonLabel, { color: colors.primaryText }]}>Salvar e atualizar PDF</Text>
           </Pressable>
         </View>
       ) : null}
@@ -1254,9 +1293,11 @@ const styles = StyleSheet.create({
   retryAction: { minHeight: 40, borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },
   retryActionLabel: { fontSize: 13, fontWeight: "700" },
   outlinePane: { width: 420, minHeight: 0, borderLeftWidth: 1, padding: 14, gap: 12 },
+  outlinePaneCompact: { width: "100%", flex: 1, alignSelf: "stretch", borderLeftWidth: 0 },
   outlineTitle: { fontSize: 16, fontWeight: "800" },
   outlineScroll: { flex: 1 },
   outlineContent: { gap: 8, paddingBottom: 8 },
+  outlineAccordionItem: { width: "100%", gap: 8 },
   outlineBlock: { minHeight: 82, borderWidth: 1, borderRadius: 11, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 },
   outlineBlockCopy: { flex: 1, minWidth: 0, gap: 3 },
   outlineBlockHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
@@ -1285,10 +1326,24 @@ const styles = StyleSheet.create({
   editorCollapseAction: { width: 36, height: 36, marginLeft: "auto", alignItems: "center", justifyContent: "center" },
   editorScroll: { flex: 1 },
   editorContent: { paddingHorizontal: 16, paddingBottom: 18, gap: 12 },
-  editorFieldsCompact: { flexDirection: "column" },
+  editorFieldsCompact: {
+    width: "100%",
+    flexDirection: "column",
+    flexWrap: "nowrap",
+    alignItems: "stretch",
+  },
   pdfContentHint: { fontSize: 10, lineHeight: 14 },
   pdfContentGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   pdfContentField: { width: "49%", minWidth: 280, flexGrow: 1, gap: 5 },
+  pdfContentFieldCompact: {
+    width: "100%",
+    minWidth: 0,
+    maxWidth: "100%",
+    flexGrow: 0,
+    flexShrink: 1,
+    alignSelf: "stretch",
+    gap: 5,
+  },
   fieldLabel: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   inputSuffix: { fontSize: 12 },
   textInput: { minHeight: 52, maxHeight: 110, borderWidth: 1, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 9, fontSize: 12, lineHeight: 18, outlineStyle: "none" } as any,

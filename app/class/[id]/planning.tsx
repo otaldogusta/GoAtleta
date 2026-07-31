@@ -12,8 +12,13 @@ export default function ClassPlanningHubRoute() {
   return (
     <Redirect
       href={{
-        pathname: "/class/[id]/planning/[month]",
-        params: { id: classId, month: getCurrentMonthKey() },
+        pathname: "/class/[id]/periodization",
+        params: {
+          id: classId,
+          classId,
+          month: getCurrentMonthKey(),
+          backTo: `/class/${classId}`,
+        },
       }}
     />
   );

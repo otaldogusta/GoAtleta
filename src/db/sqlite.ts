@@ -272,6 +272,8 @@ export function initDb() {
       startDate TEXT NOT NULL DEFAULT '',
       endDate TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'active',
+      periodizationPolicyJson TEXT NOT NULL DEFAULT '',
+      policyVersion INTEGER NOT NULL DEFAULT 1,
       createdAt TEXT NOT NULL DEFAULT '',
       updatedAt TEXT NOT NULL DEFAULT ''
     );
@@ -1116,6 +1118,16 @@ export function initDb() {
   try {
     db.execSync(
       "ALTER TABLE daily_lesson_plans ADD COLUMN sessionPrimaryComponent TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE planning_cycles ADD COLUMN periodizationPolicyJson TEXT NOT NULL DEFAULT ''"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "ALTER TABLE planning_cycles ADD COLUMN policyVersion INTEGER NOT NULL DEFAULT 1"
     );
   } catch {}
   try {

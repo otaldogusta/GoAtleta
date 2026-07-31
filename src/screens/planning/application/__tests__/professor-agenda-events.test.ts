@@ -127,4 +127,52 @@ describe("professor agenda events", () => {
     expect(publicText).not.toMatch(/confidence|riskFlags|readinessState|baixa evidência|risco de salto|Histórico parcial/i);
     expect(event.guidance.doNow.join(" ")).toContain("1x1 com quique");
   });
+
+  it("exposes the session role, load and monthly game outcome for compact calendar cards", () => {
+    const plan = makePlan({ rpeTarget: "PSE 5-6", theme: "Continuidade do passe" });
+    const session = makeSession("2026-06-30", 2);
+    const dailyPlan = makeDailyPlan({
+      date: session.date,
+      generationContextSnapshotJson: JSON.stringify({
+        dailyDecision: {
+          sessionRole: "transferencia_jogo",
+          monthlyGameSession: { applies: true },
+        },
+      }),
+    });
+
+    const [event] = buildProfessorAgendaEvents({
+      weeklyItems: [{ plan, label: "Semana 23", sessions: [session] }],
+      dailyPlansByKey: { [`week-23::${session.date}`]: dailyPlan },
+    });
+
+    expect(event.roleLabel).toBe("Jogo do mês");
+    expect(event.loadLabel).toBe("PSE 5-6");
+    expect(event.focusLabel).toBe("Continuidade do passe");
+    expect(event.isMonthlyGameSession).toBe(true);
+  });
+
+  it("recognizes the last real volleyball session even for legacy plans without a monthly snapshot", () => {
+    const plan = makePlan({ rpeTarget: "PSE 5-6" });
+    const sessions = [
+      makeSession("2026-06-25", 1),
+      makeSession("2026-06-30", 2),
+    ];
+
+    const events = buildProfessorAgendaEvents({
+      weeklyItems: [{ plan, label: "Semana 23", sessions }],
+      dailyPlansByKey: {},
+      classGroup: {
+        daysOfWeek: [2, 4],
+        durationMinutes: 60,
+        daysPerWeek: 2,
+        modality: "Voleibol",
+      },
+      calendarExceptions: [],
+    });
+
+    expect(events[0]?.isMonthlyGameSession).toBe(false);
+    expect(events[1]?.isMonthlyGameSession).toBe(true);
+    expect(events[1]?.roleLabel).toBe("Jogo do mês");
+  });
 });

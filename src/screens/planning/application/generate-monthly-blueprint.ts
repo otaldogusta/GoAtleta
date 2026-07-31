@@ -5,9 +5,14 @@ import type {
   ClassGroup,
   DecisionReason,
   MonthlyPlanningBlueprint,
+  PlanningCycle,
+  RecentSessionSummary,
   SessionLog,
   Student,
 } from "../../../core/models";
+import { parsePeriodizationPolicy } from "../../../core/periodization-policy";
+import { buildPlanningIntelligenceLineage } from "../../../core/planning-intelligence-context";
+import { resolveMonthlyVolleyballGameSession } from "../../../core/monthly-volleyball-game-session";
 import { buildSessionCalendar } from "../../../core/session-calendar-engine";
 
 /**
@@ -35,6 +40,8 @@ export interface GenerateMonthlyBlueprintParams {
   students?: Student[];
   recentAttendance?: AttendanceRecord[];
   recentSessionLogs?: SessionLog[];
+  recentSessionSummaries?: RecentSessionSummary[];
+  activeCycle?: PlanningCycle | null;
 }
 
 const competitiveIntentByLevel: Record<string, string> = {
@@ -196,6 +203,14 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
     endDate: monthEndDate,
     exceptions: params.calendarExceptions,
   });
+  const lastSessionDate = sessionCalendar.sessions.at(-1)?.date ?? null;
+  const monthlyGameSessionPolicy = lastSessionDate
+    ? resolveMonthlyVolleyballGameSession({
+        classGroup,
+        sessionDate: lastSessionDate,
+        calendarExceptions: params.calendarExceptions,
+      })
+    : null;
   const classContextSnapshot = buildClassContextSnapshot({
     classGroup,
     sessions: sessionCalendar.sessions,
@@ -214,11 +229,29 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
     hasRecentSessionLogs: classContextSnapshot.evidenceQuality.hasRecentSessionLogs,
     hasIncompleteHealthData: classContextSnapshot.health.hasIncompleteHealthData,
   });
+  const periodizationPolicy = parsePeriodizationPolicy(
+    params.activeCycle?.periodizationPolicyJson,
+  );
+  const recentExecutedSessions = (params.recentSessionSummaries ?? [])
+    .filter((session) => session.wasConfirmedExecuted || session.wasApplied)
+    .slice(0, 6);
+  const executionFeedbackSignals = [
+    ...new Set(
+      recentExecutedSessions.flatMap(
+        (session) => session.pedagogicalFeedbackSignals ?? [],
+      ),
+    ),
+  ];
 
   // Build macro intent combining level + calendar phase
   const levelIntent = competitiveIntentByLevel[competitiveLevel] || competitiveIntentByLevel.beginner;
   const phaseIntent = monthIntentByCalendarPhase[calendarPhase] || monthIntentByCalendarPhase["in-season"];
-  const macroIntent = `${levelIntent} · Fase: ${calendarPhase}`;
+  const macroIntent =
+    `${levelIntent} · Fase: ${calendarPhase} · ` +
+    `Carga ${periodizationPolicy.loadModel} (PSE ${periodizationPolicy.intensityMin}-${periodizationPolicy.intensityMax})` +
+    (monthlyGameSessionPolicy?.applies
+      ? " · Fechamento mensal com jogo consolidado"
+      : "");
   const pedagogicalVocabulary = buildMonthlyPedagogicalVocabulary({
     competitiveLevel,
     calendarPhase,
@@ -242,15 +275,49 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
   return {
     id: existing?.id ?? `mpb_${classGroup.id}_${monthKey}`,
     classId: classGroup.id,
+    cycleId: params.activeCycle?.id ?? existing?.cycleId,
     year,
     month,
     title: `Planejamento ${monthKey}`,
     macroIntent,
     pedagogicalProgression: JSON.stringify(pedagogicalProgression),
     weeklyFocusDistributionJson: JSON.stringify(weeklyFocusDistribution),
-    constraintsJson: existing?.constraintsJson ?? "{}",
+    constraintsJson: JSON.stringify({
+      ...(() => {
+        try {
+          return JSON.parse(existing?.constraintsJson || "{}") as Record<string, unknown>;
+        } catch {
+          return {};
+        }
+      })(),
+      ...(monthlyGameSessionPolicy?.applies
+        ? {
+            monthlyGameSession: {
+              date: monthlyGameSessionPolicy.lastSessionDate,
+              warmupMinutes: monthlyGameSessionPolicy.warmupMinutes,
+              gameMinutes: monthlyGameSessionPolicy.gameMinutes,
+              cooldownMinutes: monthlyGameSessionPolicy.cooldownMinutes,
+              rule:
+                "Última aula real do mês: aquecimento e jogo consolidado, sem treino técnico específico.",
+            },
+          }
+        : {}),
+    }),
     contextSnapshotJson: JSON.stringify({
       schemaVersion: 1,
+      lineage: buildPlanningIntelligenceLineage({
+        classId: classGroup.id,
+        cycle: params.activeCycle,
+        recentSessions: params.recentSessionSummaries,
+        generatedAt: nowIso,
+      }),
+      periodizationPolicy,
+      monthlyGameSessionPolicy,
+      executedHistory: {
+        consideredSessions: recentExecutedSessions.length,
+        feedbackSignals: executionFeedbackSignals,
+        latestSessionDate: recentExecutedSessions[0]?.sessionDate ?? null,
+      },
       competitiveLevel,
       calendarPhase,
       phaseIntent,
@@ -264,7 +331,7 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
       classGroupName: classGroup.name,
       generatedAt: nowIso,
     }),
-    generationModelVersion: "planning-v1",
+    generationModelVersion: "planning-v2",
     generationVersion: newVersion,
     syncStatus: "in_sync",
     lastAutoGeneratedAt: nowIso,

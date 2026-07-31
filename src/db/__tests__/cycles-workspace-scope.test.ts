@@ -14,6 +14,7 @@ import {
   ensureActiveCycleForYear,
   getActivePlanningCycle,
   getPlanningCycles,
+  upsertPlanningCycle,
 } from "../cycles";
 
 describe("planning cycles workspace scope", () => {
@@ -50,6 +51,34 @@ describe("planning cycles workspace scope", () => {
     expect(mockRunAsync).toHaveBeenCalledWith(
       expect.stringContaining("organizationId"),
       expect.arrayContaining(["org_1", "class_1", 2026])
+    );
+  });
+
+  test("persists the versioned periodization policy with the cycle", async () => {
+    await upsertPlanningCycle({
+      id: "cycle_1",
+      organizationId: "org_1",
+      classId: "class_1",
+      year: 2026,
+      title: "Ciclo 2026",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      status: "active",
+      periodizationPolicyJson: JSON.stringify({
+        schemaVersion: 1,
+        loadModel: "blocos",
+        recoveryWeeks: 5,
+        intensityMin: 3,
+        intensityMax: 8,
+      }),
+      policyVersion: 4,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-07-30T00:00:00.000Z",
+    });
+
+    expect(mockRunAsync).toHaveBeenCalledWith(
+      expect.stringContaining("periodizationPolicyJson"),
+      expect.arrayContaining([expect.stringContaining('"loadModel":"blocos"'), 4]),
     );
   });
 });

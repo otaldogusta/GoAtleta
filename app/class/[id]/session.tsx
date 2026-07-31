@@ -66,6 +66,7 @@ import {
     rewriteReportText,
     type ReportRewriteField,
 } from "../../../src/api/ai";
+import { useAuth } from "../../../src/auth/auth";
 import { usePedagogicalConfig } from "../../../src/bootstrap/pedagogical-config-context";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import type { PedagogicalDimensionsConfig } from "../../../src/config/pedagogical-dimensions-config";
@@ -1695,6 +1696,7 @@ export function SessionScreen({
     source?: string;
   }>();
   const router = useRouter();
+  const { session } = useAuth();
   const { config: pedagogicalConfig } = usePedagogicalConfig();
   const insets = useSafeAreaInsets();
   const { width: viewportWidth } = useWindowDimensions();
@@ -1792,6 +1794,7 @@ export function SessionScreen({
     attendancePercent,
     currentClassPlan,
     currentDailyLessonPlan,
+    calendarExceptions,
     upcomingSessionEvents,
     isResolvingCurrentClassPlan,
     reload,
@@ -1836,8 +1839,11 @@ export function SessionScreen({
     photos,
     setPhotos,
     reportHasChanges,
+    reportDraftStatus,
     saveReport,
   } = useSessionReport({
+    userId: session?.user?.id,
+    organizationId: cls?.organizationId,
     classId: cls?.id ?? "",
     sessionDate,
     sessionLog,
@@ -2795,12 +2801,14 @@ export function SessionScreen({
         variationSeed,
         dimensionGuidelines,
         documentSupport,
+        calendarExceptions,
       });
     },
     [
       cls,
       currentClassPlan,
       currentDailyLessonPlan,
+      calendarExceptions,
       savedClassPlans,
       scoutingCounts,
       scoutingSignal,
@@ -3524,6 +3532,7 @@ export function SessionScreen({
       photoLimit={REPORT_PHOTO_LIMIT}
       isPickingPhoto={isPickingPhoto}
       reportHasChanges={reportHasChanges}
+      reportDraftStatus={reportDraftStatus}
       showPsePicker={showPsePicker}
       showTechniquePicker={showTechniquePicker}
       showPsePickerContent={showPsePickerContent}
