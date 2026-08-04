@@ -11,6 +11,7 @@ import {
 } from "react-native";
 
 import { useAppTheme } from "./app-theme";
+import { ShimmerBlock } from "./Shimmer";
 import {
   resolveWebPullDistance,
   shouldTriggerWebRefresh,
@@ -24,6 +25,7 @@ type AppRefreshControlProps = RefreshControlProps & {
 
 const INTERACTIVE_SELECTOR =
   "input, textarea, select, button, [contenteditable='true'], [role='textbox']";
+const MINIMUM_REFRESH_FEEDBACK_MS = 450;
 
 const findVerticalScroller = (target: Element, boundary: HTMLElement) => {
   let current: Element | null = target;
@@ -121,9 +123,17 @@ function WebRefreshControl({
   const runRefresh = useCallback(async () => {
     if (active || !enabled || !onRefresh) return;
     setRequesting(true);
+    const startedAt = Date.now();
     try {
       await onRefresh();
     } finally {
+      const remainingFeedbackMs =
+        MINIMUM_REFRESH_FEEDBACK_MS - (Date.now() - startedAt);
+      if (remainingFeedbackMs > 0) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, remainingFeedbackMs),
+        );
+      }
       setRequesting(false);
     }
   }, [active, enabled, onRefresh]);
@@ -225,10 +235,40 @@ function WebRefreshControl({
       style={[
         style,
         Platform.OS === "web"
-          ? ({ overscrollBehaviorY: "contain" } as ViewStyle)
+          ? ({
+              overscrollBehaviorY: "contain",
+              position: "relative",
+            } as ViewStyle)
           : null,
       ]}
     >
+      {active ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            zIndex: 13000,
+            gap: 12,
+            padding: 16,
+            backgroundColor: colors.background,
+          }}
+        >
+          <ShimmerBlock
+            style={{ height: 26, width: "34%", borderRadius: 10 }}
+          />
+          <ShimmerBlock style={{ height: 42, borderRadius: 12 }} />
+          {Array.from({ length: 5 }, (_, index) => (
+            <ShimmerBlock
+              key={`refresh-shimmer-${index}`}
+              style={{ height: 72, borderRadius: 14 }}
+            />
+          ))}
+        </View>
+      ) : null}
       <View
         accessibilityLabel={label}
         accessibilityLiveRegion="polite"

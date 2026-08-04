@@ -1447,8 +1447,6 @@ export function HomeProfessorScreen({
 
       setAgendaRefreshToken((value) => value + 1);
 
-      showToast("Atualizado.", "success");
-
     } catch (error) {
 
       showErrorToast(error);
