@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Platform,
   RefreshControl,
-  Text,
   View,
   type RefreshControlProps,
   type StyleProp,
@@ -231,6 +230,7 @@ function WebRefreshControl({
       ]}
     >
       <View
+        accessibilityLabel={label}
         accessibilityLiveRegion="polite"
         pointerEvents="none"
         style={
@@ -249,31 +249,11 @@ function WebRefreshControl({
           } as unknown as ViewStyle
         }
       >
-        <View
-          style={
-            {
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.surfaceElevated,
-              boxShadow: "0 8px 22px rgba(15, 23, 42, 0.18)",
-            } as ViewStyle
-          }
-        >
-          <ActivityIndicator
-            animating={active}
-            color={indicatorColor}
-            size="small"
-          />
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-            {label}
-          </Text>
-        </View>
+        <ActivityIndicator
+          animating={visible}
+          color={indicatorColor}
+          size="small"
+        />
       </View>
       {children}
     </View>
