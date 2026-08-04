@@ -4,13 +4,22 @@ import type { GoAtletaIconName } from "../../ui/icon-registry";
 
 export type AppRole = "prof" | "student" | "coord";
 
-export type TabItemConfig = {
+type BaseTabItemConfig = {
   key: string;
   routeName: string;
   label: string;
   icon: GoAtletaIconName;
-  isCenter?: boolean;
 };
+
+export type TabItemConfig =
+  | (BaseTabItemConfig & {
+      href: Href;
+      isCenter?: false;
+    })
+  | (BaseTabItemConfig & {
+      href?: never;
+      isCenter: true;
+    });
 
 export type RadialAction = {
   id: string;
@@ -29,25 +38,25 @@ const COMMON_CENTER_TAB: TabItemConfig = {
 
 export const ROLE_TABS: Record<AppRole, TabItemConfig[]> = {
   prof: [
-    { key: "home", routeName: "home", label: "Hoje", icon: "home" },
-    { key: "classes", routeName: "classes", label: "Turmas", icon: "classes" },
+    { key: "home", routeName: "home", label: "Hoje", icon: "home", href: "/prof/home" },
+    { key: "classes", routeName: "classes", label: "Turmas", icon: "classes", href: "/prof/classes" },
     COMMON_CENTER_TAB,
-    { key: "planning", routeName: "planning", label: "Planejamento", icon: "planning" },
-    { key: "reports", routeName: "reports", label: "Relatórios", icon: "reports" },
+    { key: "planning", routeName: "planning", label: "Planejamento", icon: "planning", href: "/prof/planning" },
+    { key: "reports", routeName: "reports", label: "Relatórios", icon: "reports", href: "/prof/reports" },
   ],
   student: [
-    { key: "home", routeName: "home", label: "Hoje", icon: "home" },
-    { key: "agenda", routeName: "agenda", label: "Agenda", icon: "agenda" },
+    { key: "home", routeName: "home", label: "Hoje", icon: "home", href: "/student/home" },
+    { key: "agenda", routeName: "agenda", label: "Agenda", icon: "agenda", href: "/student/agenda" },
     COMMON_CENTER_TAB,
-    { key: "achievements", routeName: "achievements", label: "Conquistas", icon: "achievements" },
-    { key: "profile", routeName: "profile", label: "Perfil", icon: "profile" },
+    { key: "achievements", routeName: "achievements", label: "Conquistas", icon: "achievements", href: "/student/achievements" },
+    { key: "profile", routeName: "profile", label: "Perfil", icon: "profile", href: "/student/profile" },
   ],
   coord: [
-    { key: "dashboard", routeName: "dashboard", label: "Painel", icon: "home" },
-    { key: "classes", routeName: "classes", label: "Turmas", icon: "classes" },
+    { key: "dashboard", routeName: "dashboard", label: "Painel", icon: "home", href: "/coord/dashboard" },
+    { key: "classes", routeName: "classes", label: "Turmas", icon: "classes", href: "/coord/classes" },
     COMMON_CENTER_TAB,
-    { key: "reports", routeName: "reports", label: "Relatórios", icon: "reports" },
-    { key: "management", routeName: "management", label: "Gestão", icon: "management" },
+    { key: "reports", routeName: "reports", label: "Relatórios", icon: "reports", href: "/coord/reports" },
+    { key: "management", routeName: "management", label: "Gestão", icon: "management", href: "/coord/management" },
   ],
 };
 

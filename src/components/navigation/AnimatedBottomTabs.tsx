@@ -20,6 +20,7 @@ import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 import { radius, shadow } from "../../theme/tokens";
+import { resolveBottomTabPress } from "./bottom-tab-navigation";
 import { FabRadialMenu } from "./FabRadialMenu";
 import { ROLE_RADIAL_ACTIONS, ROLE_TABS, type AppRole } from "./tab-config";
 
@@ -199,7 +200,21 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
               key={tab.key}
               onPress={() => {
                 setMenuOpen(false);
-                navigation.navigate(tab.routeName);
+                const action = resolveBottomTabPress({
+                  focused,
+                  href: tab.href,
+                  isWeb: Platform.OS === "web",
+                  routeName: tab.routeName,
+                });
+
+                if (action.type === "push") {
+                  router.push(action.href);
+                  return;
+                }
+
+                if (action.type === "navigate") {
+                  navigation.navigate(action.routeName);
+                }
               }}
               style={{
                 flex: 1,
