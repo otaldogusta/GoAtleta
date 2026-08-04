@@ -11,6 +11,7 @@ import {
   VOLLEYBALL_ACTIVITY_KNOWLEDGE_PATTERNS,
   type ActivityFocusVariant,
 } from "../volleyball/activity-knowledge-patterns";
+import { composeActivityPattern } from "../volleyball/activity-pattern-composer";
 
 const buildPlan = ({
   ageBand,
@@ -151,6 +152,34 @@ const buildSessionContext = (
 });
 
 describe("humanized volleyball lesson activities", () => {
+  it("keeps the formation warmup title and execution in the same reception context", () => {
+    const pattern = VOLLEYBALL_ACTIVITY_KNOWLEDGE_PATTERNS.find(
+      (item) => item.id === "knowledge-passe-warmup-3-contatos"
+    );
+
+    expect(pattern).toBeDefined();
+
+    const activity = composeActivityPattern(pattern!, {
+      primarySkill: "passe",
+      ageProfile: {
+        stage: "formation",
+        label: "formação",
+        gameForm: "mini_4x4",
+        organizationCue: "trios",
+        challengeCue: "recepção organizada",
+      },
+      materials: ["bolas", "cones"],
+      classSize: 18,
+      recentActivityFamilies: [],
+    });
+
+    expect(activity.name).toBe("Recepção com cobertura");
+    expect(activity.execution).toContain("primeiro contato");
+    expect(activity.execution).toContain("cobre a sobra");
+    expect(activity.execution).not.toContain("pegador");
+    expect(activity.execution).not.toContain("Quem for pego");
+  });
+
   it("keeps a reusable activity-pattern catalog for every volleyball skill", () => {
     const skills: VolleyballSkill[] = [
       "passe",

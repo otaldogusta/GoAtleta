@@ -47,7 +47,15 @@ import {
   CLASS_PLAN_BLOCK_PRESENTATION,
   summarizeClassPlanActivities,
 } from "./class-plan-block-presentation";
-import { AppliedPlanReferencesSection } from "./AppliedPlanReferencesSection";
+
+export type ClassPlanPeriodizationSource = {
+  weekLabel: string;
+  phaseLabel: string;
+  focusLabel: string;
+  loadLabel: string;
+  roleLabel: string;
+  monthlyGameSession?: boolean;
+};
 
 type ClassPlanPreviewModalProps = {
   visible: boolean;
@@ -57,6 +65,7 @@ type ClassPlanPreviewModalProps = {
   lessonDate: string;
   coachName?: string;
   initialMode?: "preview" | "edit";
+  periodizationSource?: ClassPlanPeriodizationSource;
   onSavePlan: (plan: TrainingPlan) => Promise<TrainingPlan>;
   onRemovePlan: () => Promise<void>;
 };
@@ -120,6 +129,7 @@ export function ClassPlanPreviewModal({
   lessonDate,
   coachName,
   initialMode = "preview",
+  periodizationSource,
   onSavePlan,
   onRemovePlan,
 }: ClassPlanPreviewModalProps) {
@@ -686,6 +696,54 @@ export function ClassPlanPreviewModal({
         contentContainerStyle={styles.outlineContent}
         showsVerticalScrollIndicator={false}
       >
+        {periodizationSource ? (
+          <View
+            style={[
+              styles.periodizationSource,
+              { backgroundColor: colors.backgroundSubtle, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.periodizationSourceHeader}>
+              <View
+                style={[
+                  styles.periodizationSourceIcon,
+                  { backgroundColor: colors.successBg },
+                ]}
+              >
+                <GoAtletaIcon name="periodization" size={17} color={colors.successText} />
+              </View>
+              <View style={styles.periodizationSourceCopy}>
+                <Text style={[styles.periodizationSourceEyebrow, { color: colors.muted }]}>Fonte: periodização</Text>
+                <Text style={[styles.periodizationSourceTitle, { color: colors.text }]}>
+                  {periodizationSource.weekLabel} · {periodizationSource.phaseLabel}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.periodizationSourceFacts}>
+              <View style={[styles.periodizationSourceFact, { borderColor: colors.border }]}>
+                <Text style={[styles.periodizationSourceFactLabel, { color: colors.muted }]}>Foco</Text>
+                <Text style={[styles.periodizationSourceFactValue, { color: colors.text }]}>{periodizationSource.focusLabel}</Text>
+              </View>
+              <View style={[styles.periodizationSourceFact, { borderColor: colors.border }]}>
+                <Text style={[styles.periodizationSourceFactLabel, { color: colors.muted }]}>Carga</Text>
+                <Text style={[styles.periodizationSourceFactValue, { color: colors.text }]}>{periodizationSource.loadLabel}</Text>
+              </View>
+              <View style={[styles.periodizationSourceFact, { borderColor: colors.border }]}>
+                <Text style={[styles.periodizationSourceFactLabel, { color: colors.muted }]}>Papel da aula</Text>
+                <Text style={[styles.periodizationSourceFactValue, { color: colors.text }]}>
+                  {periodizationSource.monthlyGameSession
+                    ? "Jogo consolidado do mês"
+                    : periodizationSource.roleLabel}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.periodizationSourceHint, { color: colors.muted }]}>
+              {periodizationSource.monthlyGameSession
+                ? "A regra mensal do voleibol orientou esta aula: aquecimento breve, jogo e fechamento."
+                : "Esta diretriz do ciclo foi usada para construir o aquecimento, a parte principal e a volta à calma."}
+            </Text>
+          </View>
+        ) : null}
         <Pressable
           onPress={selectPdfContent}
           accessibilityRole="button"
@@ -711,9 +769,6 @@ export function ClassPlanPreviewModal({
             color={colors.text}
           />
         </Pressable>
-        <AppliedPlanReferencesSection
-          references={workingPlan.pedagogy?.appliedReferences}
-        />
         {!splitLayout && isEditing && isPdfContentExpanded ? inlineEditor : null}
         {BLOCKS.map((item) => {
           const block = resolveTrainingPlanBlock(workingPlan, item.key);
@@ -1297,6 +1352,17 @@ const styles = StyleSheet.create({
   outlineTitle: { fontSize: 16, fontWeight: "800" },
   outlineScroll: { flex: 1 },
   outlineContent: { gap: 8, paddingBottom: 8 },
+  periodizationSource: { width: "100%", borderWidth: 1, borderRadius: 12, padding: 12, gap: 11 },
+  periodizationSourceHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  periodizationSourceIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  periodizationSourceCopy: { flex: 1, minWidth: 0, gap: 2 },
+  periodizationSourceEyebrow: { fontSize: 10, fontWeight: "700" },
+  periodizationSourceTitle: { fontSize: 14, lineHeight: 19, fontWeight: "900" },
+  periodizationSourceFacts: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  periodizationSourceFact: { flexGrow: 1, flexBasis: 112, minWidth: 0, borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 8, gap: 3 },
+  periodizationSourceFactLabel: { fontSize: 9, fontWeight: "700" },
+  periodizationSourceFactValue: { fontSize: 11, lineHeight: 15, fontWeight: "800" },
+  periodizationSourceHint: { fontSize: 10, lineHeight: 15 },
   outlineAccordionItem: { width: "100%", gap: 8 },
   outlineBlock: { minHeight: 82, borderWidth: 1, borderRadius: 11, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 },
   outlineBlockCopy: { flex: 1, minWidth: 0, gap: 3 },

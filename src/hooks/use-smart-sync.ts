@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AppState } from "react-native";
 
 import { smartSync, type SyncStatus } from "../core/smart-sync";
 
@@ -10,23 +11,18 @@ export function useSmartSync() {
 
   useEffect(() => {
     const unsubscribe = smartSync.subscribe(setStatus);
-    let subscription: { remove: () => void } | null = null;
-    let cancelled = false;
-
-    void (async () => {
-      const { AppState } = await import("react-native");
-      if (cancelled) return;
-      subscription = AppState.addEventListener("change", (nextAppState) => {
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextAppState) => {
         if (nextAppState === "active") {
           smartSync.syncOnAppForeground();
         }
-      });
-    })();
+      }
+    );
 
     return () => {
-      cancelled = true;
       unsubscribe();
-      subscription?.remove();
+      appStateSubscription.remove();
     };
   }, []);
 

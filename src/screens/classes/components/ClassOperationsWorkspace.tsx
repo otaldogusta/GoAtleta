@@ -27,6 +27,7 @@ type ClassOperationsWorkspaceProps = {
   isLoadingLessonPlan: boolean;
   onPreviousLesson: () => void;
   onNextLesson: () => void;
+  onOpenLessonCalendar: () => void;
   onViewPlan: () => void;
   onGeneratePlan: () => void;
   isGeneratingPlan: boolean;
@@ -39,7 +40,6 @@ type ClassOperationsWorkspaceProps = {
   onOpenSession: () => void;
   onOpenAttendance: () => void;
   onOpenReport: () => void;
-  onOpenPeriodization: () => void;
   onOpenPlanning: () => void;
   onOpenVisualTech: () => void;
   onOpenScouting: () => void;
@@ -218,7 +218,7 @@ function CompactClassNavigation({
         />
         <RailSection
           title="Desempenho"
-          actions={[actions.periodization, actions.scouting]}
+          actions={[actions.scouting]}
           colors={colors}
           onSelect={onSelect}
         />
@@ -271,12 +271,14 @@ function LessonDateNavigator({
   dateLabel,
   onPrevious,
   onNext,
+  onOpenCalendar,
   isLoading,
 }: {
   colors: ThemeColors;
   dateLabel: string;
   onPrevious: () => void;
   onNext: () => void;
+  onOpenCalendar: () => void;
   isLoading: boolean;
 }) {
   return (
@@ -290,10 +292,22 @@ function LessonDateNavigator({
       >
         <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
       </Pressable>
-      <View style={styles.lessonDateCopy}>
+      <Pressable
+        onPress={onOpenCalendar}
+        disabled={isLoading}
+        accessibilityRole="button"
+        accessibilityLabel="Selecionar data da aula"
+        accessibilityHint="Abre o calendário de aulas"
+        style={({ pressed }) => [
+          styles.lessonDateCopy,
+          styles.lessonDatePickerButton,
+          { opacity: isLoading ? 0.55 : pressed ? 0.72 : 1 },
+        ]}
+      >
+        <GoAtletaIcon name="calendar" size={16} color={colors.muted} />
         <Text style={[styles.lessonDateLabel, { color: colors.text }]}>{dateLabel}</Text>
         {isLoading ? <ActivityIndicator size="small" color={colors.primaryBg} style={styles.lessonDateLoader} /> : null}
-      </View>
+      </Pressable>
       <Pressable
         onPress={onNext}
         disabled={isLoading}
@@ -316,6 +330,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   isLoadingLessonPlan,
   onPreviousLesson,
   onNextLesson,
+  onOpenLessonCalendar,
   onViewPlan,
   onGeneratePlan,
   isGeneratingPlan,
@@ -323,7 +338,6 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   onOpenSession,
   onOpenAttendance,
   onOpenReport,
-  onOpenPeriodization,
   onOpenPlanning,
   onOpenVisualTech,
   onOpenScouting,
@@ -400,13 +414,6 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       icon: "map",
       onPress: onOpenVisualTech,
     },
-    periodization: {
-      key: "periodization",
-      label: "Periodização da turma",
-      description: "Ver ciclo, semana e metas",
-      icon: "periodization",
-      onPress: onOpenPeriodization,
-    },
     scouting: {
       key: "scouting",
       label: "Análise de scouting",
@@ -438,7 +445,6 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   }), [
     onExportRoster,
     onOpenAttendance,
-    onOpenPeriodization,
     onOpenPlanning,
     onOpenReport,
     onOpenScouting,
@@ -482,6 +488,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         dateLabel={lessonDateLabel}
         onPrevious={onPreviousLesson}
         onNext={onNextLesson}
+        onOpenCalendar={onOpenLessonCalendar}
         isLoading={isLoadingLessonPlan}
       />
       <View style={[styles.planPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -625,7 +632,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
               actions={[actions.planning, actions.visual]}
               colors={colors}
             />
-            <RailSection title="Desempenho" actions={[actions.periodization, actions.scouting]} colors={colors} />
+            <RailSection title="Desempenho" actions={[actions.scouting]} colors={colors} />
             <RailSection
               title="Gestão"
               actions={[actions.students, actions.export, actions.whatsapp]}
@@ -874,6 +881,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     alignItems: "center",
+  },
+  lessonDatePickerButton: {
+    minHeight: 36,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
   },
   lessonDateLoader: {
     marginTop: 4,

@@ -43,6 +43,7 @@ import {
   findPossibleExistingStudents,
   normalizeStudentLookupName,
 } from "../../src/core/students/find-possible-existing-students";
+import { isStudentBirthdayToday } from "../../src/core/students/student-birthday";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
   deleteStudent,
@@ -55,7 +56,6 @@ import {
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useIsOnline } from "../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
-import { notifyBirthdays } from "../../src/notifications";
 import { logAction } from "../../src/observability/breadcrumbs";
 import {
   markRender,
@@ -70,7 +70,7 @@ import {
 } from "../../src/screens/students/components/StudentClassDropdownPanel";
 import { StudentSelectOption } from "../../src/screens/students/components/StudentDropdownOptions";
 import { StudentListRow } from "../../src/screens/students/components/StudentListRow";
-import { StudentsFabMenu } from "../../src/screens/students/components/StudentsFabMenu";
+import { StudentsExportSyncMenu } from "../../src/screens/students/components/StudentsExportSyncMenu";
 import {
   filterStudentsForList,
   hasActiveStudentSearch,
@@ -111,6 +111,7 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
+import { WebCameraCaptureModal } from "../../src/ui/WebCameraCaptureModal";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
 import {
   normalizeRaDigits,
@@ -174,27 +175,6 @@ const StudentRegistrationTab = lazy(() =>
   ),
 );
 
-const BirthdaysTab = lazy(() =>
-  import("../../src/screens/students/BirthdaysTab").then((module) => ({
-    default: module.BirthdaysTab,
-  })),
-);
-
-const monthNames = [
-  "Janeiro",
-  "Fevereiro",
-  "Março",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
-
 const weekdayShortLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 const athletePositionOptions = [
@@ -236,10 +216,7 @@ const formatClassScheduleLabel = (cls: ClassGroup | null) => {
   if (daysLabel && timeLabel) return `${daysLabel} ${timeLabel}`;
   return daysLabel || timeLabel;
 };
-type BirthdayEntry = { student: Student; date: Date; unitName: string };
-type BirthdayUnitGroup = [string, BirthdayEntry[]];
-type BirthdayMonthGroup = [number, BirthdayUnitGroup[]];
-type StudentsTab = "cadastro" | "aniversarios" | "alunos";
+type StudentsTab = "cadastro" | "alunos";
 
 export default function StudentsScreen() {
   const { width: windowWidth } = useWindowDimensions();
@@ -305,7 +282,6 @@ export default function StudentsScreen() {
   );
   const [studentsTab, setStudentsTab] = useState<StudentsTab>("alunos");
   const isCadastroTab = studentsTab === "cadastro";
-  const [showStudentsFabMenu, setShowStudentsFabMenu] = useState(false);
   const [showStudentsFormsSyncModal, setShowStudentsFormsSyncModal] =
     useState(false);
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
@@ -313,17 +289,10 @@ export default function StudentsScreen() {
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] =
     useState<StudentsTab | null>(null);
-  const [birthdayUnitFilter, setBirthdayUnitFilter] = useState("Todas");
-  const [birthdaySearch, setBirthdaySearch] = useState("");
-  const [birthdayMonthFilter, setBirthdayMonthFilter] = useState<
-    "Todas" | number
-  >("Todas");
-  const [showAllBirthdays, setShowAllBirthdays] = useState(true);
   const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
   const [studentsSearch, setStudentsSearch] = useState("");
   const [dismissedExistingStudentProbe, setDismissedExistingStudentProbe] =
     useState("");
-  const debouncedBirthdaySearch = useDebouncedValue(birthdaySearch, 250);
   const debouncedStudentsSearch = useDebouncedValue(studentsSearch, 250);
 
   useFocusEffect(
@@ -492,6 +461,7 @@ export default function StudentsScreen() {
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const [showWebCamera, setShowWebCamera] = useState(false);
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<{
     uri: string | null;
@@ -511,11 +481,6 @@ export default function StudentsScreen() {
     null,
   );
   const saveNoticeAnim = useRef(new Animated.Value(0)).current;
-  const studentsFabAnim = useRef(new Animated.Value(0)).current;
-  const [lastBirthdayNotice, setLastBirthdayNotice] = usePersistedState<string>(
-    "students_birthday_notice_v1",
-    "",
-  );
   const [expandedUnits, setExpandedUnits] = usePersistedState<
     Record<string, boolean>
   >("students_units_expanded_v1", {});
@@ -624,10 +589,6 @@ export default function StudentsScreen() {
     animatedStyle: templateListAnimStyle,
     isVisible: showTemplateListContent,
   } = useCollapsibleAnimation(showTemplateList, { translateY: -6 });
-  const {
-    animatedStyle: allBirthdaysAnimStyle,
-    isVisible: showAllBirthdaysContent,
-  } = useCollapsibleAnimation(showAllBirthdays, { translateY: -6 });
   const accordionAnimOptions = useMemo(
     () => ({ durationIn: 160, durationOut: 120, translateY: -3 }),
     [],
@@ -801,41 +762,6 @@ export default function StudentsScreen() {
       setStudentsExportBusy(false);
     }
   };
-  const studentsFabBottom = Math.max(insets.bottom + 166, 182);
-  const studentsFabRight = 16;
-  const studentsFabRotate = useMemo(
-    () =>
-      studentsFabAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["0deg", "45deg"],
-      }),
-    [studentsFabAnim],
-  );
-  const studentsFabScale = useMemo(
-    () =>
-      studentsFabAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 1.06],
-      }),
-    [studentsFabAnim],
-  );
-
-  useEffect(() => {
-    Animated.timing(studentsFabAnim, {
-      toValue: showStudentsFabMenu ? 1 : 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [showStudentsFabMenu, studentsFabAnim]);
-
-  useEffect(() => {
-    if (studentsTab === "cadastro" && showStudentsFabMenu) {
-      Promise.resolve().then(() => {
-        setShowStudentsFabMenu(false);
-      });
-    }
-  }, [studentsTab, showStudentsFabMenu]);
-
   const unitLabel = useCallback(
     (value: string) => (value && value.trim() ? value.trim() : "Sem unidade"),
     [],
@@ -1174,11 +1100,11 @@ export default function StudentsScreen() {
         setPhotoMimeType(null);
         return;
       }
-      if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("Câmera indispoNível", "Use a Galeria no navegador.");
-        return;
-      }
       if (source === "camera") {
+        if (Platform.OS === "web") {
+          setShowWebCamera(true);
+          return;
+        }
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") {
           Alert.alert(
@@ -1193,6 +1119,7 @@ export default function StudentsScreen() {
           allowsEditing: true,
           aspect: [1, 1],
           base64: false,
+          cameraType: ImagePicker.CameraType.back,
         });
         const asset = result.assets?.[0];
         if (!result.canceled && asset?.uri) {
@@ -1201,14 +1128,16 @@ export default function StudentsScreen() {
         }
         return;
       }
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permission.status !== "granted") {
-        Alert.alert(
-          "Permissão necessária",
-          "Ative a galeria para escolher uma foto.",
-        );
-        return;
+      if (Platform.OS !== "web") {
+        const permission =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permission.status !== "granted") {
+          Alert.alert(
+            "Permissão necessária",
+            "Ative a galeria para escolher uma foto.",
+          );
+          return;
+        }
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -1742,14 +1671,6 @@ export default function StudentsScreen() {
     return `${classLabel} • ${unitLabel}`;
   }, [selectedClassLabel, unit]);
 
-  const formatShortDate = (value: string) => {
-    if (!value) return "";
-    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) return value;
-    const [, year, month, day] = match;
-    return `${day}/${month}/${year}`;
-  };
-
   useEffect(() => {
     if (!birthDate) {
       setAgeNumber(null);
@@ -1811,30 +1732,6 @@ export default function StudentsScreen() {
   });
 
   const normalizeSearch = normalizeStudentSearchText;
-
-  const getDaysUntilBirthday = (birthDate: Date, today: Date) => {
-    const thisYear = today.getFullYear();
-    const nextBirthday = new Date(
-      thisYear,
-      birthDate.getMonth(),
-      birthDate.getDate(),
-    );
-    if (nextBirthday < today) {
-      nextBirthday.setFullYear(thisYear + 1);
-    }
-    const diffTime = nextBirthday.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const hasBirthdayPassed = (birthDate: Date, today: Date) => {
-    const birthMonth = birthDate.getMonth();
-    const birthDay = birthDate.getDate();
-    const todayMonth = today.getMonth();
-    const todayDay = today.getDate();
-    if (birthMonth < todayMonth) return true;
-    if (birthMonth === todayMonth && birthDay < todayDay) return true;
-    return false;
-  };
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -2014,49 +1911,10 @@ export default function StudentsScreen() {
   ]);
 
   const today = useMemo(() => new Date(), []);
-  const birthdayUnitOptions = useMemo(
-    () => ["Todas", ...unitOptions],
-    [unitOptions],
-  );
   const studentsUnitOptions = useMemo(
     () => ["Todas", ...unitOptions],
     [unitOptions],
   );
-  const birthdayFilteredStudents = students;
-  const birthdayVisibleStudents = useMemo(() => {
-    const query = normalizeSearch(debouncedBirthdaySearch);
-    const hasQuery = query.length > 0;
-    return birthdayFilteredStudents.filter((student) => {
-      if (!student.birthDate) return false;
-      const date = parseIsoDate(student.birthDate);
-      if (!date) return false;
-      if (
-        birthdayMonthFilter !== "Todas" &&
-        date.getMonth() !== birthdayMonthFilter
-      ) {
-        return false;
-      }
-      if (!hasQuery) return true;
-      const cls = classById.get(student.classId) ?? null;
-      const unitName = unitLabel(cls?.unit ?? "");
-      const className = cls?.name ?? "";
-      const monthLabel = monthNames[date.getMonth()] ?? "";
-      const dayLabel = String(date.getDate()).padStart(2, "0");
-      const yearLabel = String(date.getFullYear());
-      const shortDate = formatShortDate(student.birthDate);
-      const haystack = normalizeSearch(
-        `${student.name} ${monthLabel} ${dayLabel} ${yearLabel} ${shortDate} ${unitName} ${className}`,
-      );
-      return haystack.includes(query);
-    });
-  }, [
-    birthdayFilteredStudents,
-    birthdayMonthFilter,
-    debouncedBirthdaySearch,
-    classById,
-    normalizeSearch,
-    unitLabel,
-  ]);
   const studentsFiltered = useMemo(() => {
     return filterStudentsForList({
       students,
@@ -2123,15 +1981,9 @@ export default function StudentsScreen() {
     unitLabel,
   ]);
   const birthdayTodayAll = useMemo(() => {
-    return students.filter((student) => {
-      if (!student.birthDate) return false;
-      const date = parseIsoDate(student.birthDate);
-      if (!date) return false;
-      return (
-        date.getMonth() === today.getMonth() &&
-        date.getDate() === today.getDate()
-      );
-    });
+    return students.filter((student) =>
+      isStudentBirthdayToday(student.birthDate, today),
+    );
   }, [students, today]);
   const birthdayStudentIds = useMemo(
     () => new Set(birthdayTodayAll.map((student) => student.id)),
@@ -2142,73 +1994,6 @@ export default function StudentsScreen() {
       setStudentsTab("cadastro");
     }
   }, [setStudentsTab, studentsTab]);
-
-  const birthdayToday = useMemo(() => {
-    return birthdayVisibleStudents.filter((student) => {
-      if (!student.birthDate) return false;
-      const date = parseIsoDate(student.birthDate);
-      if (!date) return false;
-      return (
-        date.getMonth() === today.getMonth() &&
-        date.getDate() === today.getDate()
-      );
-    });
-  }, [birthdayVisibleStudents, today]);
-  const upcomingBirthdays = useMemo(() => {
-    const withDates = birthdayVisibleStudents
-      .filter((student) => {
-        if (!student.birthDate) return false;
-        const date = parseIsoDate(student.birthDate);
-        if (!date) return false;
-        return (
-          !hasBirthdayPassed(date, today) &&
-          getDaysUntilBirthday(date, today) > 0
-        );
-      })
-      .map((student) => {
-        const date = parseIsoDate(student.birthDate)!;
-        const daysLeft = getDaysUntilBirthday(date, today);
-        return { student, date, daysLeft };
-      })
-      .sort((a, b) => a.daysLeft - b.daysLeft);
-    return withDates.slice(0, 8);
-  }, [birthdayVisibleStudents, today]);
-
-  const birthdayMonthGroups = useMemo<BirthdayMonthGroup[]>(() => {
-    const byMonth = new Map<number, Map<string, BirthdayEntry[]>>();
-    birthdayVisibleStudents.forEach((student) => {
-      if (!student.birthDate) return;
-      const date = parseIsoDate(student.birthDate);
-      if (!date) return;
-      const month = date.getMonth();
-      const cls = classById.get(student.classId);
-      const unitName = unitLabel(cls?.unit ?? "");
-      if (!byMonth.has(month)) byMonth.set(month, new Map());
-      const monthMap = byMonth.get(month)!;
-      if (!monthMap.has(unitName)) monthMap.set(unitName, []);
-      monthMap.get(unitName)!.push({ student, date, unitName });
-    });
-    return Array.from(byMonth.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(
-        ([month, unitMap]) =>
-          [
-            month,
-            Array.from(unitMap.entries()).sort((a, b) =>
-              a[0].localeCompare(b[0]),
-            ),
-          ] as BirthdayMonthGroup,
-      );
-  }, [birthdayVisibleStudents, classById, unitLabel]);
-
-  useEffect(() => {
-    if (!birthdayTodayAll.length) return;
-    const todayKey = formatIsoDate(today);
-    if (lastBirthdayNotice === todayKey) return;
-    const names = birthdayTodayAll.map((student) => student.name);
-    void notifyBirthdays(names);
-    setLastBirthdayNotice(todayKey);
-  }, [birthdayTodayAll, lastBirthdayNotice, setLastBirthdayNotice, today]);
 
   useEffect(() => {
     return () => {
@@ -2268,101 +2053,60 @@ export default function StudentsScreen() {
           style={{ flex: 1, position: "relative", overflow: "visible" }}
         >
           <ScreenPageHeader
-            title={studentsTab === "aniversarios" ? "Aniversários" : "Alunos"}
+            title="Alunos"
             onBack={goBackFromStudents}
-            subtitle={
-              studentsTab === "aniversarios"
-                ? `${birthdayTodayAll.length} hoje · ${upcomingBirthdays.length} nos próximos dias`
-                : undefined
-            }
             right={
-              windowWidth < 720 ? undefined : (
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      studentsTab === "aniversarios"
-                        ? "Voltar para alunos"
-                        : "Abrir aniversários"
-                    }
-                    onPress={() =>
-                      requestSwitchStudentsTab(
-                        studentsTab === "aniversarios"
-                          ? "alunos"
-                          : "aniversarios",
-                      )
-                    }
-                    style={{
-                      height: 40,
-                      width: windowWidth < 720 ? 40 : undefined,
-                      paddingHorizontal: windowWidth < 720 ? 0 : 14,
-                      borderRadius: 999,
-                      borderWidth: StyleSheet.hairlineWidth,
-                      borderColor: colors.borderSubtle ?? colors.border,
-                      backgroundColor:
-                        colors.backgroundSubtle ?? colors.secondaryBg,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 7,
-                    }}
-                  >
-                    <GoAtletaIcon
-                      name="birthday"
-                      size={16}
-                      color={colors.text}
-                    />
-                    {windowWidth >= 720 ? (
-                      <Text
-                        style={{
-                          color: colors.text,
-                          fontSize: 12,
-                          fontWeight: "800",
-                        }}
-                      >
-                        {studentsTab === "aniversarios"
-                          ? "Voltar para alunos"
-                          : "Aniversários"}
-                      </Text>
-                    ) : null}
-                  </Pressable>
-                  {studentsTab !== "aniversarios" ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Adicionar aluno"
-                      onPress={() => setStudentsTab("cadastro")}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <StudentsExportSyncMenu
+                  colors={colors}
+                  compact={windowWidth < 1040}
+                  disabled={!activeOrganization?.id}
+                  exportBusy={studentsExportBusy}
+                  onExportPress={() => {
+                    void handleExportStudents();
+                  }}
+                  onImportPress={() => setShowStudentsImportModal(true)}
+                  onSyncFormsPress={() => setShowStudentsFormsSyncModal(true)}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Adicionar aluno"
+                  onPress={() => setStudentsTab("cadastro")}
+                  style={{
+                    height: 40,
+                    paddingHorizontal: windowWidth < 1040 ? 11 : 15,
+                    borderRadius: 12,
+                    backgroundColor: colors.primaryBg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 7,
+                  }}
+                >
+                  <GoAtletaIcon
+                    name="add"
+                    size={17}
+                    color={colors.primaryText}
+                  />
+                  {windowWidth >= 1040 ? (
+                    <Text
                       style={{
-                        height: 40,
-                        width: windowWidth < 720 ? 40 : undefined,
-                        paddingHorizontal: windowWidth < 720 ? 0 : 15,
-                        borderRadius: 999,
-                        backgroundColor: colors.primaryBg,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 7,
+                        color: colors.primaryText,
+                        fontSize: 12,
+                        fontWeight: "900",
                       }}
                     >
-                      <GoAtletaIcon
-                        name="add"
-                        size={17}
-                        color={colors.primaryText}
-                      />
-                      {windowWidth >= 720 ? (
-                        <Text
-                          style={{
-                            color: colors.primaryText,
-                            fontSize: 12,
-                            fontWeight: "900",
-                          }}
-                        >
-                          Adicionar aluno
-                        </Text>
-                      ) : null}
-                    </Pressable>
+                      Adicionar aluno
+                    </Text>
                   ) : null}
-                </View>
-              )
+                </Pressable>
+              </View>
             }
             contentStyle={{ paddingBottom: 8 }}
           />
@@ -2384,9 +2128,9 @@ export default function StudentsScreen() {
 
           <ScrollView
             style={{ flex: 1, minHeight: 0 }}
-            scrollEnabled={studentsTab === "aniversarios" || windowWidth < 1040}
+            scrollEnabled={windowWidth < 1040}
             contentContainerStyle={{
-              ...(studentsTab !== "aniversarios" && windowWidth >= 1040
+              ...(windowWidth >= 1040
                 ? {
                     height: "100%",
                     maxHeight: "100%",
@@ -2396,7 +2140,7 @@ export default function StudentsScreen() {
                 : { flexGrow: 0 }),
               paddingBottom: isCadastroTab
                 ? Math.max(insets.bottom + 104, 120)
-                : studentsTab !== "aniversarios" && windowWidth >= 1040
+                : windowWidth >= 1040
                   ? 0
                   : 24,
               gap: 16,
@@ -2643,54 +2387,27 @@ export default function StudentsScreen() {
                 </ModalSheet>
               )}
 
-              {studentsTab === "aniversarios" && (
-                <BirthdaysTab
-                  colors={colors}
-                  birthdayMonthFilter={birthdayMonthFilter}
-                  setBirthdayMonthFilter={setBirthdayMonthFilter}
-                  birthdaySearch={birthdaySearch}
-                  setBirthdaySearch={setBirthdaySearch}
-                  birthdayToday={birthdayToday}
-                  upcomingBirthdays={upcomingBirthdays}
-                  showAllBirthdays={showAllBirthdays}
-                  setShowAllBirthdays={setShowAllBirthdays}
-                  showAllBirthdaysContent={showAllBirthdaysContent}
-                  allBirthdaysAnimStyle={allBirthdaysAnimStyle}
-                  birthdayUnitOptions={birthdayUnitOptions}
-                  birthdayUnitFilter={birthdayUnitFilter}
-                  setBirthdayUnitFilter={setBirthdayUnitFilter}
-                  birthdayMonthGroups={birthdayMonthGroups}
-                  students={students}
-                  classById={classById}
-                  unitLabel={unitLabel}
-                  calculateAge={calculateAge}
-                  formatShortDate={formatShortDate}
-                />
-              )}
-
-              {studentsTab !== "aniversarios" && (
-                <StudentsListTab
-                  studentsUnitOptions={studentsUnitOptions}
-                  studentsUnitFilter={studentsUnitFilter}
-                  setStudentsUnitFilter={setStudentsUnitFilter}
-                  studentsSearch={studentsSearch}
-                  setStudentsSearch={setStudentsSearch}
-                  students={students}
-                  studentsFiltered={studentsFiltered}
-                  studentsGrouped={studentsGrouped}
-                  classById={classById}
-                  unitLabel={unitLabel}
-                  expandedUnits={expandedUnits}
-                  expandedClasses={expandedClasses}
-                  toggleUnitExpanded={toggleUnitExpanded}
-                  toggleClassExpanded={toggleClassExpanded}
-                  renderStudentItem={renderStudentItem}
-                  onStudentPress={onEdit}
-                  onStudentWhatsApp={openStudentWhatsApp}
-                  birthdayStudentIds={birthdayStudentIds}
-                  loading={loading}
-                />
-              )}
+              <StudentsListTab
+                studentsUnitOptions={studentsUnitOptions}
+                studentsUnitFilter={studentsUnitFilter}
+                setStudentsUnitFilter={setStudentsUnitFilter}
+                studentsSearch={studentsSearch}
+                setStudentsSearch={setStudentsSearch}
+                students={students}
+                studentsFiltered={studentsFiltered}
+                studentsGrouped={studentsGrouped}
+                classById={classById}
+                unitLabel={unitLabel}
+                expandedUnits={expandedUnits}
+                expandedClasses={expandedClasses}
+                toggleUnitExpanded={toggleUnitExpanded}
+                toggleClassExpanded={toggleClassExpanded}
+                renderStudentItem={renderStudentItem}
+                onStudentPress={onEdit}
+                onStudentWhatsApp={openStudentWhatsApp}
+                birthdayStudentIds={birthdayStudentIds}
+                loading={loading}
+              />
             </Suspense>
           </ScrollView>
 
@@ -2740,73 +2457,6 @@ export default function StudentsScreen() {
                 disabled={!canSaveStudent}
               />
             </View>
-          ) : null}
-
-          {false && !isCadastroTab ? (
-            <>
-              <Pressable
-                onPress={() => setShowStudentsFabMenu((current) => !current)}
-                style={{
-                  ...(Platform.OS === "web"
-                    ? ({
-                        position: "fixed",
-                        right: studentsFabRight,
-                        bottom: studentsFabBottom,
-                      } as any)
-                    : {
-                        position: "absolute" as const,
-                        right: studentsFabRight,
-                        bottom: studentsFabBottom,
-                      }),
-                  width: 56,
-                  height: 56,
-                  borderRadius: 28,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.primaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  zIndex: 3200,
-                  ...shadow.elevated,
-                }}
-              >
-                <Animated.View
-                  style={{
-                    transform: [
-                      { rotate: studentsFabRotate },
-                      { scale: studentsFabScale },
-                    ],
-                  }}
-                >
-                  <GoAtletaIcon
-                    name="add"
-                    size={24}
-                    color={colors.primaryText}
-                  />
-                </Animated.View>
-              </Pressable>
-
-              <StudentsFabMenu
-                visible={showStudentsFabMenu}
-                exportBusy={studentsExportBusy}
-                anchorRight={studentsFabRight}
-                anchorBottom={studentsFabBottom}
-                onClose={() => setShowStudentsFabMenu(false)}
-                onSyncFormsPress={() => {
-                  setShowStudentsFabMenu(false);
-                  setShowStudentsFormsSyncModal(true);
-                }}
-                onImportPress={() => {
-                  setShowStudentsFabMenu(false);
-                  setShowStudentsImportModal(true);
-                }}
-                onExportPress={() => {
-                  void handleExportStudents().finally(() => {
-                    setShowStudentsFabMenu(false);
-                  });
-                }}
-              />
-            </>
           ) : null}
 
           <StudentsFormsSyncModal
@@ -3200,6 +2850,14 @@ export default function StudentsScreen() {
             </Pressable>
           </View>
         </ModalSheet>
+        <WebCameraCaptureModal
+          visible={showWebCamera}
+          onClose={() => setShowWebCamera(false)}
+          onCapture={({ uri, mimeType }) => {
+            setPhotoUrl(uri);
+            setPhotoMimeType(mimeType);
+          }}
+        />
         <ModalSheet
           visible={showPhotoPreview}
           onClose={() => setShowPhotoPreview(false)}

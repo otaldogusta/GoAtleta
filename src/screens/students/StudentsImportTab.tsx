@@ -62,8 +62,14 @@ const HEADER_ALIASES: Record<string, string[]> = {
 };
 
 const POLICY_OPTIONS: { id: ImportPolicy; label: string; disabled?: boolean }[] = [
-  { id: "conservador", label: "Conservador" },
-  { id: "misto", label: "Misto" },
+  {
+    id: "conservador",
+    label: "Sincronização segura",
+  },
+  {
+    id: "misto",
+    label: "Sincronização inteligente",
+  },
   { id: "agressivo", label: "Agressivo (em breve)", disabled: true },
 ];
 

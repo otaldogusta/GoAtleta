@@ -7,6 +7,7 @@ describe("trainer route permissions", () => {
   it("matches exact routes and nested routes without prefix collisions", () => {
     expect(getTrainerPermissionKey("/prof/calendar")).toBe("calendar");
     expect(getTrainerPermissionKey("/prof/calendar/month")).toBe("calendar");
+    expect(getTrainerPermissionKey("/coord/students")).toBe("students");
     expect(getTrainerPermissionKey("/prof/calendarized")).toBeNull();
   });
 

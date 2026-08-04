@@ -18,12 +18,19 @@ export type ClassCardTeacherViewModel = {
   isFallback: boolean;
 };
 
+export type CoverageSummary = {
+  label: string;
+  dateLabel: string;
+  tone: "success" | "warning";
+};
+
 export type ClassCardViewModel = {
   developmentLevelLabel: ClassDevelopmentLevelLabel;
   studentCount: number;
   visibleStudents: ClassCardStudentAvatar[];
   extraStudentCount: number;
   teacher: ClassCardTeacherViewModel;
+  coverageSummary?: CoverageSummary;
 };
 
 type BuildClassCardViewModelParams = {
@@ -33,6 +40,7 @@ type BuildClassCardViewModelParams = {
     name?: string | null;
     photoUrl?: string | null;
   } | null;
+  coverageSummary?: CoverageSummary | null;
 };
 
 const AVATAR_COLORS = ["#3DDC84", "#93C5FD", "#F8D394", "#FCA5A5", "#C4B5FD"];
@@ -67,6 +75,7 @@ export function buildClassCardViewModel({
   classGroup,
   students = [],
   teacher,
+  coverageSummary,
 }: BuildClassCardViewModelParams): ClassCardViewModel {
   const orderedStudents = [...students].sort((a, b) => a.name.localeCompare(b.name));
   const baseHash = hashString(classGroup.name || classGroup.id || "turma");
@@ -89,5 +98,6 @@ export function buildClassCardViewModel({
       photoUrl: teacher?.photoUrl?.trim() || undefined,
       isFallback: !teacher?.name?.trim(),
     },
+    coverageSummary: coverageSummary ?? undefined,
   };
 }

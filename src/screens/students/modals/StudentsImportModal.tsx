@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
 import * as XLSX from "@e965/xlsx";
 import * as cptable from "@e965/xlsx/dist/cpexcel";
@@ -9,6 +9,7 @@ import type { ClassGroup } from "../../../core/models";
 import {
     applyStudentsSync,
     previewStudentsSync,
+    type ImportPolicy,
     type StudentImportFunctionResult,
     type StudentImportRow,
 } from "../../../services/students-sync-service";
@@ -42,14 +43,6 @@ const FLAG_DETAILS: Record<string, { title: string; hint: string }> = {
     title: "Data de nascimento diferente",
     hint: "Ja existe aluno com data diferente da planilha.",
   },
-  BIRTHDATE_SUSPECT: {
-    title: "Data de nascimento suspeita",
-    hint: "Data fora do padrao esperado.",
-  },
-  PHONE_CONFLICT: {
-    title: "Telefone diferente",
-    hint: "Telefone da planilha diverge do cadastro.",
-  },
   RG_CONFLICT: {
     title: "RG diferente",
     hint: "RG informado nao bate com o cadastro atual.",
@@ -70,6 +63,50 @@ const FLAG_DETAILS: Record<string, { title: string; hint: string }> = {
     title: "Erro de linha",
     hint: "A linha nao pode ser processada automaticamente.",
   },
+  AMBIGUOUS_MATCH: {
+    title: "Mais de um cadastro possível",
+    hint: "Confira qual aluno deve receber os dados da planilha.",
+  },
+  NAME_REQUIRED: {
+    title: "Nome inválido",
+    hint: "Nome vazio impede a atualização do aluno existente.",
+  },
+  EXTERNAL_ID_CONFLICT: {
+    title: "Id externo com conflito",
+    hint: "Registro existente tem id externo diferente do importado.",
+  },
+  RA_CONFLICT: {
+    title: "RA em conflito",
+    hint: "RA diverge do cadastro existente.",
+  },
+  GUARDIAN_CPF_CONFLICT: {
+    title: "CPF do responsável em conflito",
+    hint: "CPF do responsável diverge do cadastro atual.",
+  },
+  GUARDIAN_NAME_CONFLICT: {
+    title: "Nome do responsável em conflito",
+    hint: "Nome do responsável diverge do cadastro atual.",
+  },
+  PHONE_CONFLICT: {
+    title: "Telefone em conflito",
+    hint: "Telefone diverge do cadastro atual.",
+  },
+  LOGIN_EMAIL_CONFLICT: {
+    title: "Email em conflito",
+    hint: "Email diverge do cadastro atual.",
+  },
+  NAME_CONFLICT: {
+    title: "Nome em conflito",
+    hint: "Nome divergente impede atualização automática.",
+  },
+  CLASS_CONFLICT: {
+    title: "Turma em conflito",
+    hint: "Turma atual permanece para não sobrescrever registro existente.",
+  },
+  BIRTHDATE_SUSPECT: {
+    title: "Data em padrão improvável",
+    hint: "Data fora do intervalo esperado para esse perfil.",
+  },
 };
 
 const getFlagDetail = (flag: string) =>
@@ -77,6 +114,36 @@ const getFlagDetail = (flag: string) =>
     title: flag.replace(/_/g, " ").toLowerCase(),
     hint: "Revisao manual recomendada.",
   };
+
+type ConflictResolutionMode = "KEEP_EXISTING" | "OVERWRITE" | "SKIP";
+
+const RESOLUTION_OPTIONS: Array<{
+  id: ConflictResolutionMode;
+  label: string;
+  description: string;
+  tone: "neutral" | "warning" | "danger";
+}> = [
+  {
+    id: "KEEP_EXISTING",
+    label: "Manter atual",
+    description: "Não altera o aluno existente.",
+    tone: "neutral",
+  },
+  {
+    id: "OVERWRITE",
+    label: "Sobrescrever",
+    description: "Usa os dados da planilha nos campos divergentes.",
+    tone: "warning",
+  },
+  {
+    id: "SKIP",
+    label: "Pular",
+    description: "Ignora essa linha por enquanto.",
+    tone: "danger",
+  },
+];
+
+const INTERNAL_IMPORT_POLICY: ImportPolicy = "misto";
 
 const xlsxWithCodepage = XLSX as typeof XLSX & {
   set_cptable?: (value: unknown) => void;
@@ -185,6 +252,21 @@ const parseDelimitedRows = (value: string, delimiter: "," | ";"): string[][] => 
   return rows;
 };
 
+type ImportRowForPreview = {
+  rowNumber: number;
+  studentLabel: string;
+  className: string;
+};
+
+type ClassImpact = {
+  className: string;
+  create: number;
+  update: number;
+  conflict: number;
+  skip: number;
+  error: number;
+};
+
 const parseCsvRows = (value: string): string[][] =>
   parseDelimitedRows(value, detectCsvDelimiter(value));
 
@@ -201,6 +283,14 @@ const dataUriBase64ToArrayBuffer = (value: string): ArrayBuffer => {
     bytes[index] = binary.charCodeAt(index);
   }
   return bytes.buffer;
+};
+
+type ImportSourceReader = {
+  sourceFilename: string;
+  sourceMimeType?: string | null;
+  sourceSize?: number | null;
+  readArrayBuffer: () => Promise<ArrayBuffer>;
+  readText: () => Promise<string>;
 };
 
 const readWebAssetArrayBuffer = async (
@@ -239,6 +329,68 @@ const readWebAssetText = async (asset: DocumentPicker.DocumentPickerAsset): Prom
   }
   return response.text();
 };
+
+const readNativeArrayBuffer = async (uri: string) => {
+  const base64 = await readAsStringAsync(uri, { encoding: EncodingType.Base64 });
+  return dataUriBase64ToArrayBuffer(`data:application/octet-stream;base64,${base64}`);
+};
+
+const parseImportedFileSource = async (source: ImportSourceReader): Promise<LoadedImportFile> => {
+  assertImportAssetWithinLimits({ name: source.sourceFilename, size: source.sourceSize });
+
+  const sourceFilename = String(source.sourceFilename ?? "").trim() || "students-import.xlsx";
+  const lowerName = sourceFilename.toLowerCase();
+  const isSpreadsheet =
+    lowerName.endsWith(".xlsx") ||
+    lowerName.endsWith(".xls") ||
+    source.sourceMimeType?.includes("spreadsheet") ||
+    source.sourceMimeType?.includes("excel");
+
+  let rowsMatrix: string[][] = [];
+  if (isSpreadsheet) {
+    const workbook = XLSX.read(await source.readArrayBuffer(), { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) throw new Error("Planilha vazia.");
+    const worksheet = workbook.Sheets[firstSheetName];
+    if (!worksheet) throw new Error("Nao foi possivel ler a primeira aba da planilha.");
+    const rows = XLSX.utils.sheet_to_json(worksheet, {
+      header: 1,
+      raw: false,
+      defval: "",
+    }) as unknown[][];
+    rowsMatrix = parseSpreadsheetRows(normalizeSpreadsheetMatrixForImport(rows));
+  } else {
+    rowsMatrix = parseCsvRows(await source.readText());
+  }
+
+  const rows = mapRawRowsToImport(rowsMatrix);
+  if (!rows.length) throw new Error("Nenhuma linha valida encontrada no arquivo.");
+
+  return { sourceFilename, rows };
+};
+
+const createImportedSourceReaderFromPickerAsset = (
+  asset: DocumentPicker.DocumentPickerAsset
+): ImportSourceReader => {
+  const sourceFilename = String(asset.name ?? "").trim() || "students-import.xlsx";
+  return {
+    sourceFilename,
+    sourceMimeType: asset.mimeType,
+    sourceSize: asset.size,
+    readArrayBuffer: () =>
+      Platform.OS === "web" ? readWebAssetArrayBuffer(asset) : readNativeArrayBuffer(asset.uri),
+    readText: () =>
+      Platform.OS === "web" ? readWebAssetText(asset) : readAsStringAsync(asset.uri, { encoding: EncodingType.UTF8 }),
+  };
+};
+
+const createImportedSourceReaderFromBrowserFile = (file: File): ImportSourceReader => ({
+  sourceFilename: file.name || "students-import.xlsx",
+  sourceMimeType: file.type,
+  sourceSize: file.size,
+  readArrayBuffer: () => file.arrayBuffer(),
+  readText: () => file.text(),
+});
 
 const resolveCanonicalKey = (value: string): keyof StudentImportRow | "" => {
   const header = normalizeHeader(value);
@@ -316,52 +468,12 @@ const pickImportFileRows = async (): Promise<LoadedImportFile | null> => {
   if (result.canceled) return null;
   const asset = result.assets?.[0];
   if (!asset?.uri) throw new Error("Arquivo invalido.");
-  assertImportAssetWithinLimits(asset);
-
-  const sourceFilename = String(asset.name ?? "").trim() || "students-import.xlsx";
-  const lowerName = sourceFilename.toLowerCase();
-  const isSpreadsheet =
-    lowerName.endsWith(".xlsx") ||
-    lowerName.endsWith(".xls") ||
-    asset.mimeType?.includes("spreadsheet") ||
-    asset.mimeType?.includes("excel");
-
-  let rowsMatrix: string[][] = [];
-  if (isSpreadsheet) {
-    const workbook =
-      Platform.OS === "web"
-        ? XLSX.read(await readWebAssetArrayBuffer(asset), { type: "array" })
-        : XLSX.read(await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 }), {
-            type: "base64",
-          });
-    const firstSheetName = workbook.SheetNames[0];
-    if (!firstSheetName) throw new Error("Planilha vazia.");
-    const worksheet = workbook.Sheets[firstSheetName];
-    if (!worksheet) throw new Error("Nao foi possivel ler a primeira aba da planilha.");
-    const rows = XLSX.utils.sheet_to_json(worksheet, {
-      header: 1,
-      raw: false,
-      defval: "",
-    }) as unknown[][];
-    rowsMatrix = parseSpreadsheetRows(normalizeSpreadsheetMatrixForImport(rows));
-  } else {
-    const text =
-      Platform.OS === "web"
-        ? await readWebAssetText(asset)
-        : await readAsStringAsync(asset.uri, { encoding: EncodingType.UTF8 });
-    rowsMatrix = parseCsvRows(text);
-  }
-
-  const rows = mapRawRowsToImport(rowsMatrix);
-  if (!rows.length) throw new Error("Nenhuma linha valida encontrada no arquivo.");
-
-  return { sourceFilename, rows };
+  return parseImportedFileSource(createImportedSourceReaderFromPickerAsset(asset));
 };
 
 export function StudentsImportModal({
   visible,
   organizationId,
-  classes,
   onClose,
   onImportApplied,
 }: StudentsImportModalProps) {
@@ -379,7 +491,10 @@ export function StudentsImportModal({
   const [previewResult, setPreviewResult] = useState<StudentImportFunctionResult | null>(null);
   const [applyLoading, setApplyLoading] = useState(false);
   const [flowError, setFlowError] = useState<string | null>(null);
-  const hasAutoTriedRef = useRef(false);
+  const [conflictResolutions, setConflictResolutions] = useState<Record<number, ConflictResolutionMode>>({});
+  const [isDragActive, setIsDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragZoneRef = useRef<HTMLDivElement | null>(null);
 
   const resetState = useCallback(() => {
     setLoadingMessage(null);
@@ -387,6 +502,7 @@ export function StudentsImportModal({
     setPreviewResult(null);
     setApplyLoading(false);
     setFlowError(null);
+    setConflictResolutions({});
   }, []);
 
   const handleImportError = useCallback(
@@ -410,103 +526,250 @@ export function StudentsImportModal({
     []
   );
 
+  const generatePreview = useCallback(
+    async (selected: LoadedImportFile) => {
+      if (!organizationId) return;
+      try {
+        setLoadingMessage("Lendo os alunos da planilha...");
+        const preview = await previewStudentsSync({
+          organizationId,
+          policy: INTERNAL_IMPORT_POLICY,
+          sourceFilename: selected.sourceFilename,
+          rows: selected.rows,
+        });
+        setPreviewResult(preview);
+        const defaults: Record<number, ConflictResolutionMode> = {};
+        for (const row of preview.rows) {
+          if (row.action === "conflict") {
+            defaults[row.rowNumber] = "KEEP_EXISTING";
+          }
+        }
+        setConflictResolutions(defaults);
+        setLoadingMessage(null);
+      } catch (error) {
+        await handleImportError(error);
+        setLoadingMessage(null);
+      }
+    },
+    [handleImportError, organizationId]
+  );
+
+  const loadParsedImport = useCallback(
+    async (parsed: LoadedImportFile | null) => {
+      if (!organizationId) return;
+      if (!parsed) {
+        setLoadingMessage(null);
+        setFlowError("Nenhum arquivo selecionado.");
+        return;
+      }
+      setFileInfo(parsed);
+      setPreviewResult(null);
+      setLoadingMessage(null);
+    },
+    [organizationId]
+  );
+
   const startFlow = useCallback(async () => {
     if (!organizationId) {
       Alert.alert("Importacao", "Selecione uma organizacao ativa.");
       return;
     }
 
+    setFlowError(null);
+    setLoadingMessage("Selecionando planilha...");
     try {
-      setFlowError(null);
-      setLoadingMessage("Selecionando planilha...");
       const selected = await pickImportFileRows();
-      if (!selected) {
-        setLoadingMessage(null);
-        setFlowError("Nenhum arquivo selecionado.");
-        return;
-      }
-
-      setFileInfo(selected);
-      setLoadingMessage("Gerando previa da planilha...");
-      const preview = await previewStudentsSync({
-        organizationId,
-        policy: "misto",
-        sourceFilename: selected.sourceFilename,
-        rows: selected.rows,
-      });
-
-      setPreviewResult(preview);
-      setLoadingMessage(null);
+      await loadParsedImport(selected);
     } catch (error) {
       await handleImportError(error);
       setLoadingMessage(null);
     }
-  }, [handleImportError, organizationId]);
+  }, [handleImportError, loadParsedImport, organizationId]);
+
+  const openFileInput = useCallback(() => {
+    if (Platform.OS !== "web" || !fileInputRef.current) {
+      void startFlow();
+      return;
+    }
+    fileInputRef.current.click();
+  }, [startFlow]);
+
+  const handleImportDropFile = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+      if (!organizationId) {
+        Alert.alert("Importacao", "Selecione uma organizacao ativa.");
+        return;
+      }
+      try {
+        setFlowError(null);
+        setLoadingMessage("Selecionando planilha...");
+        const parsed = await parseImportedFileSource(createImportedSourceReaderFromBrowserFile(file));
+        await loadParsedImport(parsed);
+      } catch (error) {
+        await handleImportError(error);
+        setLoadingMessage(null);
+      }
+    },
+    [handleImportError, loadParsedImport, organizationId]
+  );
+
+  const handleImportFileInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const target = event.currentTarget;
+      const selected = target.files?.[0] ?? null;
+      target.value = "";
+      if (selected) {
+        void handleImportDropFile(selected);
+      }
+    },
+    [handleImportDropFile]
+  );
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible) return;
+
+    const dropZone = dragZoneRef.current;
+    if (!dropZone) return;
+
+    const onDragOver = (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragActive(true);
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    };
+
+    const onDragLeave = (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const related = event.relatedTarget as Node | null;
+      if (!related || !dropZone.contains(related)) {
+        setIsDragActive(false);
+      }
+    };
+
+    const onDrop = (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragActive(false);
+      const dropped = event.dataTransfer?.files?.[0] ?? null;
+      if (!dropped) return;
+      void handleImportDropFile(dropped);
+    };
+
+    dropZone.addEventListener("dragover", onDragOver);
+    dropZone.addEventListener("dragleave", onDragLeave);
+    dropZone.addEventListener("drop", onDrop);
+
+    return () => {
+      dropZone.removeEventListener("dragover", onDragOver);
+      dropZone.removeEventListener("dragleave", onDragLeave);
+      dropZone.removeEventListener("drop", onDrop);
+    };
+  }, [handleImportDropFile, visible]);
+
+  useEffect(() => {
+    if (!visible || !fileInfo || !organizationId) return;
+    void generatePreview(fileInfo);
+  }, [generatePreview, fileInfo, organizationId, visible]);
 
   useEffect(() => {
     if (!visible) {
-      hasAutoTriedRef.current = false;
       Promise.resolve().then(() => {
         resetState();
       });
-      return;
     }
-    if (hasAutoTriedRef.current) return;
-    hasAutoTriedRef.current = true;
-    void startFlow();
-  }, [resetState, startFlow, visible]);
-
-  const confirmApply = useCallback(async () => {
-    if (!organizationId || !fileInfo || !previewResult) return;
-
-    const shouldApply = await confirmDialog({
-      title: "Adicionar planilha",
-      message: "Deseja realmente adicionar esta planilha no app?",
-      confirmLabel: "Adicionar",
-      cancelLabel: "Cancelar",
-      tone: "default",
-      onConfirm: async () => {},
-    });
-    if (!shouldApply) return;
-
-    setApplyLoading(true);
-    try {
-      const result = await applyStudentsSync({
-        organizationId,
-        policy: "misto",
-        sourceFilename: fileInfo.sourceFilename,
-        runId: previewResult.runId,
-      });
-
-      Alert.alert(
-        "Importacao concluida",
-        `Run ${result.runId} | C:${result.summary.create} U:${result.summary.update} X:${result.summary.conflict} S:${result.summary.skip} E:${result.summary.error}`
-      );
-      onImportApplied?.();
-      onClose();
-    } catch (error) {
-      await handleImportError(error);
-    } finally {
-      setApplyLoading(false);
-    }
-  }, [
-    confirmDialog,
-    fileInfo,
-    handleImportError,
-    onClose,
-    onImportApplied,
-    organizationId,
-    previewResult,
-  ]);
+  }, [resetState, visible]);
 
   const summary = previewResult?.summary ?? null;
-  const summaryCards = summary
-    ? [
-        { label: "Criar", value: summary.create },
-        { label: "Atualizar", value: summary.update },
-        { label: "Conflitos", value: summary.conflict },
+  const conflictRows = useMemo(
+    () => previewResult?.rows?.filter((row) => row.action === "conflict") ?? [],
+    [previewResult?.rows]
+  );
+  const sourceRowsByNumber = useMemo(() => {
+    const map = new Map<number, StudentImportRow>();
+    if (!fileInfo?.rows?.length) return map;
+    for (const item of fileInfo.rows) {
+      if (typeof item.sourceRowNumber === "number" && Number.isFinite(item.sourceRowNumber)) {
+        map.set(item.sourceRowNumber, item);
+      }
+    }
+    return map;
+  }, [fileInfo?.rows]);
+  const previewImpactSamples = useMemo(() => {
+    const byAction: Record<string, ImportRowForPreview[]> = {
+      create: [],
+      update: [],
+      conflict: [],
+      skip: [],
+      error: [],
+    };
+    if (!previewResult?.rows) return byAction;
+    for (const row of previewResult.rows) {
+      const sourceRow = sourceRowsByNumber.get(row.rowNumber);
+      byAction[row.action] = byAction[row.action] ?? [];
+      const className = String(row.className ?? sourceRow?.className ?? row.matchedBy ?? "Sem turma");
+      byAction[row.action].push({
+        rowNumber: row.rowNumber,
+        studentLabel: sourceRow?.name || `Linha ${row.rowNumber}`,
+        className,
+      });
+    }
+    return byAction;
+  }, [previewResult?.rows, sourceRowsByNumber]);
+  const classImpact = useMemo(() => {
+    const map = new Map<string, ClassImpact>();
+    if (!previewResult?.rows?.length) return [];
+    for (const row of previewResult.rows) {
+      const sourceRow = sourceRowsByNumber.get(row.rowNumber);
+      const className = String(row.className ?? sourceRow?.className ?? "Sem turma");
+      const snapshot = map.get(className) ?? {
+        className,
+        create: 0,
+        update: 0,
+        conflict: 0,
+        skip: 0,
+        error: 0,
+      };
+      if (row.action in snapshot) {
+        (snapshot[row.action as keyof Omit<ClassImpact, "className">] as number) += 1;
+      }
+      map.set(className, snapshot);
+    }
+    return Array.from(map.values())
+      .sort((a, b) => b.create + b.update + b.conflict - (a.create + a.update + a.conflict))
+      .slice(0, 4);
+  }, [previewResult?.rows, sourceRowsByNumber]);
+  const unresolvedConflictRows = useMemo(
+    () => conflictRows.filter((row) => !conflictResolutions[row.rowNumber]),
+    [conflictResolutions, conflictRows]
+  );
+  const estimatedApplyCount = useMemo(() => {
+    if (!summary) return 0;
+    const overwriteCount = conflictRows.filter(
+      (row) => conflictResolutions[row.rowNumber] === "OVERWRITE"
+    ).length;
+    return summary.create + summary.update + overwriteCount;
+  }, [conflictRows, conflictResolutions, summary]);
+
+  const actionSummaryRows = useMemo(
+    () =>
+      [
+        { label: "Novos alunos", value: summary?.create ?? 0 },
+        { label: "Cadastros a completar", value: summary?.update ?? 0 },
+        { label: "Precisam de revisão", value: summary?.conflict ?? 0 },
+        { label: "Sem alterações", value: summary?.skip ?? 0 },
+        { label: "Não reconhecidos", value: summary?.error ?? 0 },
       ]
-    : [];
+        .filter((item) => Number(item.value) > 0)
+        .map((item) => item),
+    [summary]
+  );
+
+  const hasUnresolvedConflicts = unresolvedConflictRows.length > 0;
+  const applyPreviewCards = actionSummaryRows;
   const computedFlagTotals = (() => {
     const totals: Record<string, number> = {};
     if (summary?.flags) {
@@ -528,7 +791,6 @@ export function StudentsImportModal({
     }
     return totals;
   })();
-
   const topConflictFlags = useMemo(() => {
     if (!summary) return [];
     return Object.entries(computedFlagTotals)
@@ -536,7 +798,74 @@ export function StudentsImportModal({
       .sort((a, b) => Number(b[1]) - Number(a[1]))
       .slice(0, 2);
   }, [computedFlagTotals, summary]);
-  const canApply = Boolean(summary && summary.create + summary.update > 0);
+  const canApply = Boolean(summary && estimatedApplyCount > 0 && !hasUnresolvedConflicts);
+  const confirmApply = useCallback(async () => {
+    if (!organizationId || !fileInfo || !previewResult) return;
+    if (hasUnresolvedConflicts) {
+      Alert.alert(
+        "Importacao",
+        "Resolva os conflitos pendentes antes de aplicar. Selecione 'Manter atual' ou 'Pular' ou 'Sobrescrever'."
+      );
+      return;
+    }
+
+    const shouldApply = await confirmDialog({
+      title: "Importar lista de alunos",
+      message: `A lista adicionará ${summary?.create ?? 0} alunos e completará ${summary?.update ?? 0} cadastros. Deseja aplicar essas alterações?`,
+      confirmLabel: "Importar lista",
+      cancelLabel: "Cancelar",
+      tone: "default",
+      onConfirm: async () => {},
+    });
+    if (!shouldApply) return;
+
+    setApplyLoading(true);
+    try {
+      const result = await applyStudentsSync({
+        organizationId,
+        policy: INTERNAL_IMPORT_POLICY,
+        sourceFilename: fileInfo.sourceFilename,
+        runId: previewResult.runId,
+        resolutions: conflictRows.reduce<Record<string, ConflictResolutionMode>>((acc, row) => {
+          acc[String(row.rowNumber)] = conflictResolutions[row.rowNumber] ?? "KEEP_EXISTING";
+          return acc;
+        }, {}),
+      });
+
+      Alert.alert(
+        "Lista importada",
+        `${result.summary.create} alunos adicionados e ${result.summary.update} cadastros atualizados.${
+          result.summary.skip > 0 ? ` ${result.summary.skip} registros permaneceram sem alterações.` : ""
+        }`
+      );
+      onImportApplied?.();
+      onClose();
+    } catch (error) {
+      await handleImportError(error);
+    } finally {
+      setApplyLoading(false);
+    }
+  }, [
+    confirmDialog,
+    fileInfo,
+    handleImportError,
+    onClose,
+    onImportApplied,
+    organizationId,
+    hasUnresolvedConflicts,
+    conflictRows,
+    conflictResolutions,
+    previewResult,
+    summary?.create,
+    summary?.update,
+  ]);
+
+  const setResolution = (rowNumber: number, resolution: ConflictResolutionMode) => {
+    setConflictResolutions((previous) => ({
+      ...previous,
+      [rowNumber]: resolution,
+    }));
+  };
 
   return (
     <ModalSheet visible={visible} onClose={onClose} cardStyle={cardStyle} position="center">
@@ -553,10 +882,7 @@ export function StudentsImportModal({
             Importar alunos
           </Text>
           <Text style={{ color: colors.muted, fontSize: 13 }}>
-            Selecione a planilha e confirme a adicao.
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Turmas na organizacao: {classes.length}
+            Carregue a lista para conferir os alunos antes de importar.
           </Text>
         </View>
         <Pressable
@@ -601,25 +927,87 @@ export function StudentsImportModal({
           ) : null}
 
           {!loadingMessage && !previewResult ? (
-            <View
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
-                backgroundColor: colors.background,
-                padding: 10,
-                gap: 8,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                Selecione o arquivo para gerar a previa.
-              </Text>
-              {fileInfo ? (
-                <Text style={{ color: colors.muted, fontSize: 11 }}>
-                  Ultimo arquivo: {fileInfo.sourceFilename}
-                </Text>
+            <View style={{ gap: 8 }}>
+              {Platform.OS === "web" ? (
+                <div
+                  ref={(node) => {
+                    dragZoneRef.current = node;
+                  }}
+                  onClick={() => void openFileInput()}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      void openFileInput();
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: isDragActive ? colors.primary : colors.border,
+                    borderRadius: 12,
+                    backgroundColor: isDragActive ? colors.secondaryBg : colors.background,
+                    padding: "22px 12px",
+                    gap: 4,
+                    cursor: "pointer",
+                    borderStyle: "dashed",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexDirection: "column",
+                    transition: "all 0.16s ease",
+                  }}
+                >
+                  <GoAtletaIcon name="upload" size={22} color={isDragActive ? colors.primary : colors.text} />
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                    Arraste a lista ou clique para selecionar
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Arquivos aceitos: .csv, .xlsx, .xls
+                  </Text>
+                  {isDragActive ? (
+                    <Text style={{ color: colors.primary, fontSize: 11 }}>
+                      Solte o arquivo para processar
+                    </Text>
+                  ) : null}
+                  <input
+                    aria-label="Arquivo de importacao"
+                    accept=".csv,.xlsx,.xls"
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImportFileInputChange}
+                    style={{ display: "none" }}
+                  />
+                </div>
+              ) : (
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    backgroundColor: colors.background,
+                    padding: 12,
+                    gap: 4,
+                    borderStyle: "dashed",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                    Clique em "Selecionar arquivo" para carregar a lista.
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    Arquivos aceitos: .csv, .xlsx, .xls
+                  </Text>
+                </View>
+              )}
+
+              {Platform.OS !== "web" ? (
+                <Button
+                  label="Selecionar arquivo"
+                  variant="outline"
+                  onPress={() => void openFileInput()}
+                />
               ) : null}
-              <Button label="Selecionar arquivo" variant="outline" onPress={() => void startFlow()} />
             </View>
           ) : null}
 
@@ -650,15 +1038,27 @@ export function StudentsImportModal({
                 gap: 8,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700" }} numberOfLines={2}>
-                {fileInfo.sourceFilename}
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>
-                {fileInfo.rows.length} linhas validas
-              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <View style={{ minWidth: 0, flex: 1, gap: 2 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700" }} numberOfLines={1}>
+                    {fileInfo.sourceFilename}
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                    {fileInfo.rows.length} alunos encontrados na planilha
+                  </Text>
+                </View>
+                <Button label="Trocar arquivo" variant="outline" onPress={() => void openFileInput()} />
+              </View>
 
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {summaryCards.map((item) => (
+                {applyPreviewCards.map((item) => (
                   <View
                     key={item.label}
                     style={{
@@ -678,9 +1078,67 @@ export function StudentsImportModal({
                 ))}
               </View>
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>
-                Ignorados: {summary.skip} • Erros: {summary.error}
-              </Text>
+              {classImpact.length ? (
+                <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 8, gap: 4 }}>
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                    Distribuição por turma
+                  </Text>
+                  {classImpact.map((item) => {
+                    return (
+                      <Text
+                        key={item.className}
+                        style={{ color: colors.muted, fontSize: 10 }}
+                      >
+                        {item.className} · {item.create} novos · {item.update} para completar
+                        {item.conflict > 0 ? ` · ${item.conflict} para revisar` : ""}
+                      </Text>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {previewImpactSamples.create.length || previewImpactSamples.update.length ? (
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 10,
+                    backgroundColor: colors.card,
+                    padding: 8,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                    Alunos encontrados
+                  </Text>
+                  {previewImpactSamples.create.slice(0, 2).map((item) => (
+                    <Text
+                      key={`sample-create-${item.rowNumber}`}
+                      style={{ color: colors.muted, fontSize: 10 }}
+                    >
+                      {item.studentLabel} · {item.className} · novo aluno
+                    </Text>
+                  ))}
+                  {previewImpactSamples.update.slice(0, 2).map((item) => (
+                    <Text
+                      key={`sample-update-${item.rowNumber}`}
+                      style={{ color: colors.muted, fontSize: 10 }}
+                    >
+                      {item.studentLabel} · {item.className} · completar cadastro
+                    </Text>
+                  ))}
+                  {Math.max(0, previewImpactSamples.create.length - 2) +
+                    Math.max(0, previewImpactSamples.update.length - 2) >
+                  0 ? (
+                    <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "700" }}>
+                      +
+                      {Math.max(0, previewImpactSamples.create.length - 2) +
+                        Math.max(0, previewImpactSamples.update.length - 2)}{" "}
+                      outros alunos na lista
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
 
               {summary.conflict > 0 ? (
                 <View
@@ -694,10 +1152,10 @@ export function StudentsImportModal({
                   }}
                 >
                   <Text style={{ color: colors.warningText, fontWeight: "800", fontSize: 12 }}>
-                    {summary.conflict} conflitos para revisao
+                    {summary.conflict} casos para conferir
                   </Text>
                   <Text style={{ color: colors.warningText, fontSize: 11 }}>
-                    Nao atualiza automaticamente e nao apaga dados existentes.
+                    Confira somente estes casos antes de importar. Nenhum cadastro existente será apagado.
                   </Text>
                   {topConflictFlags.map(([flag, total]) => {
                     const detail = getFlagDetail(flag);
@@ -707,12 +1165,101 @@ export function StudentsImportModal({
                       </Text>
                     );
                   })}
+                  {hasUnresolvedConflicts ? (
+                    <Text style={{ color: colors.warningText, fontSize: 11, fontWeight: "700" }}>
+                      Existem {unresolvedConflictRows.length} conflitos sem decisão.
+                    </Text>
+                  ) : null}
                 </View>
               ) : null}
 
-              <Text style={{ color: colors.muted, fontSize: 11 }}>
-                Ao adicionar, sincroniza com o banco da organizacao.
-              </Text>
+              {conflictRows.length ? (
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 10,
+                    backgroundColor: colors.card,
+                    padding: 8,
+                    gap: 6,
+                  }}
+                >
+                  <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                    Confira antes de importar
+                  </Text>
+                  {conflictRows.slice(0, 10).map((row) => {
+                    const decision = conflictResolutions[row.rowNumber] ?? "KEEP_EXISTING";
+                    return (
+                      <View
+                        key={`conflict_${row.rowNumber}`}
+                        style={{
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          borderRadius: 8,
+                          backgroundColor: colors.background,
+                          padding: 8,
+                          gap: 5,
+                        }}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
+                          {sourceRowsByNumber.get(row.rowNumber)?.name || `Aluno da linha ${row.rowNumber}`}
+                        </Text>
+                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                          {String(
+                            row.className ??
+                              sourceRowsByNumber.get(row.rowNumber)?.className ??
+                              "Sem turma"
+                          )}
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                          {RESOLUTION_OPTIONS.map((item) => {
+                            const selected = decision === item.id;
+                            return (
+                              <Pressable
+                                key={item.id}
+                                onPress={() => setResolution(row.rowNumber, item.id)}
+                                style={{
+                                  borderWidth: 1,
+                                  borderColor:
+                                    selected
+                                      ? item.tone === "warning"
+                                        ? colors.warningBg
+                                        : item.tone === "danger"
+                                          ? colors.dangerBg
+                                          : colors.border
+                                      : colors.border,
+                                  borderRadius: 999,
+                                  paddingHorizontal: 9,
+                                  paddingVertical: 5,
+                                  backgroundColor: selected ? colors.secondaryBg : colors.background,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: selected ? colors.text : colors.muted,
+                                    fontSize: 10,
+                                    fontWeight: "700",
+                                  }}
+                                >
+                                  {item.label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                        <Text style={{ color: colors.muted, fontSize: 10 }}>
+                          {RESOLUTION_OPTIONS.find((item) => item.id === decision)?.description}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                  {conflictRows.length > 10 ? (
+                    <Text style={{ color: colors.muted, fontSize: 10 }}>
+                      Mostrando 10 de {conflictRows.length} conflitos.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
 
               {!canApply ? (
                 <View
@@ -726,18 +1273,17 @@ export function StudentsImportModal({
                   }}
                 >
                   <Text style={{ color: colors.infoText, fontSize: 11, fontWeight: "700" }}>
-                    Nao ha linhas aplicaveis nesta previa.
+                    {hasUnresolvedConflicts
+                      ? "Resolva todos os conflitos para habilitar a aplicacao."
+                      : "Nao ha linhas aplicaveis nesta previa."}
                   </Text>
                 </View>
               ) : null}
 
               <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                <View style={{ minWidth: 120, flex: 1 }}>
-                  <Button label="Cancelar" variant="outline" onPress={onClose} />
-                </View>
                 <View style={{ minWidth: 150, flex: 1 }}>
                   <Button
-                    label="Adicionar planilha"
+                    label={`Importar ${estimatedApplyCount} alterações`}
                     variant="success"
                     onPress={() => void confirmApply()}
                     disabled={!canApply}

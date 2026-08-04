@@ -21,6 +21,7 @@ import {
 } from "react-native-safe-area-context";
 
 import { Pressable } from "../../src/ui/Pressable";
+import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 
 import {
@@ -209,6 +210,7 @@ import {
 } from "../../src/screens/periodization/PeriodizationManagerSheet";
 import { PeriodizationSetupCard } from "../../src/screens/periodization/PeriodizationSetupCard";
 import { UnifiedPlanningWorkspace } from "../../src/screens/periodization/UnifiedPlanningWorkspace";
+import { hasRenderableWeekPlans } from "../../src/screens/periodization/has-renderable-week-plans";
 import { resolvePeriodizationScreenContext } from "../../src/screens/periodization/resolve-periodization-screen-context";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
@@ -582,10 +584,13 @@ export default function PeriodizationScreen() {
     useState(false);
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [classesLoadState, setClassesLoadState] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
 
   const [selectedUnit, setSelectedUnit] = useState("");
 
-  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState(initialClassParam);
 
   const [competitiveProfile, setCompetitiveProfile] =
     useState<ClassCompetitiveProfile | null>(null);
@@ -927,15 +932,25 @@ export default function PeriodizationScreen() {
     let alive = true;
 
     (async () => {
-      const data = await measureAsync(
-        "screen.periodization.load.classes",
-        () => getClasses(),
-        { screen: "periodization" },
-      );
+      try {
+        const data = await measureAsync(
+          "screen.periodization.load.classes",
+          () => getClasses(),
+          { screen: "periodization" },
+        );
 
-      if (!alive) return;
+        if (!alive) return;
 
-      setClasses(data);
+        setClasses(data);
+        setClassesLoadState("ready");
+      } catch (error) {
+        if (!alive) return;
+
+        setClassesLoadState("error");
+        logAction("periodization_classes_load_failed", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     })();
 
     return () => {
@@ -1851,7 +1866,10 @@ export default function PeriodizationScreen() {
     [competitivePreviewPlans, effectiveCycleLength],
   );
 
-  const hasWeekPlans = visibleClassPlans.length > 0;
+  const hasWeekPlans = hasRenderableWeekPlans({
+    persistedPlanCount: visibleClassPlans.length,
+    computedWeekCount: weekPlans.length,
+  });
   const displayedCyclePanelTitle = hasWeekPlans
     ? cyclePanelTitle
     : normalizeText("Painel do ciclo");
@@ -2309,7 +2327,9 @@ export default function PeriodizationScreen() {
       )
     : 0;
 
-  const activeWeek = hasWeekPlans ? weekPlans[activeWeekIndex] : emptyWeek;
+  const activeWeek = hasWeekPlans
+    ? (weekPlans[activeWeekIndex] ?? emptyWeek)
+    : emptyWeek;
   const activeClassPlan = hasWeekPlans
     ? (visibleClassPlans.find((plan) => plan.weekNumber === activeWeek.week) ??
       null)
@@ -4066,6 +4086,10 @@ export default function PeriodizationScreen() {
 
   const renderLegacyPeriodizationTabs: boolean = false;
 
+  if (hasInitialClass && classesLoadState === "loading") {
+    return <ScreenLoadingState />;
+  }
+
   return (
     <SafeAreaView
       style={{
@@ -4141,18 +4165,16 @@ export default function PeriodizationScreen() {
                   justifyContent: "center",
                   gap: 8,
                   borderRadius: 12,
-                  backgroundColor: colors.primaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
                   paddingHorizontal: 18,
                 }}
               >
-                <GoAtletaIcon
-                  name="options"
-                  size={17}
-                  color={colors.primaryText}
-                />
+                <GoAtletaIcon name="options" size={17} color={colors.text} />
                 <Text
                   style={{
-                    color: colors.primaryText,
+                    color: colors.text,
                     fontSize: 13,
                     fontWeight: "700",
                   }}

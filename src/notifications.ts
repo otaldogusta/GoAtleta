@@ -77,8 +77,8 @@ export const notifyBirthdays = async (
   await addNotification("Aniversariantes do dia", body, {
     ...options,
     type: "birthday",
-    actionUrl: options.actionUrl ?? "/students/birthdays",
-    sourceType: options.sourceType ?? "birthdays",
+    actionUrl: options.actionUrl ?? "/students",
+    sourceType: options.sourceType ?? "students",
     metadata: {
       names: names.slice(0, 12),
       total: names.length,

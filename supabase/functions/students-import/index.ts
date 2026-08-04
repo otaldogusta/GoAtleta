@@ -126,8 +126,8 @@ const normalizeText = (value: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const asJson = (status: number, body: Record<string, unknown>) =>
-  new Response(JSON.stringify(body), { status, headers: makeJsonHeaders(req) });
+const asJson = (request: Request, status: number, body: Record<string, unknown>) =>
+  new Response(JSON.stringify(body), { status, headers: makeJsonHeaders(request) });
 
 const createServiceClient = () => {
   const url = Deno.env.get("SUPABASE_URL") ?? "";
@@ -429,30 +429,32 @@ const choosePrimaryRowsForDuplicateIdentity = (
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return corsPreflight(req);
+    return corsPreflight(request);
   }
 
+  const respondJson = (status: number, body: Record<string, unknown>) => asJson(request, status, body);
+
   if (request.method !== "POST") {
-    return asJson(405, { error: "Method not allowed" });
+    return respondJson(405, { error: "Method not allowed" });
   }
 
   const supabase = createServiceClient();
-  if (!supabase) return asJson(500, { error: "Missing service role configuration." });
+  if (!supabase) return respondJson(500, { error: "Missing service role configuration." });
   const auth = await requireUser(request, supabase);
   if (!auth.user) {
-    return asJson(401, { error: "Unauthorized", reason: auth.reason });
+    return respondJson(401, { error: "Unauthorized", reason: auth.reason });
   }
   const user = auth.user;
 
   const payload = await parsePayload(request);
-  if (!payload) return asJson(400, { error: "Invalid JSON body" });
+  if (!payload) return respondJson(400, { error: "Invalid JSON body" });
 
   const organizationValidation = validateStringField(payload.organizationId, {
     minLength: 1,
     maxLength: 128,
   });
   if (!organizationValidation.ok) {
-    return asJson(400, { error: `Invalid organizationId: ${organizationValidation.error}` });
+    return respondJson(400, { error: `Invalid organizationId: ${organizationValidation.error}` });
   }
 
   const organizationId = organizationValidation.data;
@@ -473,7 +475,7 @@ Deno.serve(async (request) => {
       maxLength: MAX_IMPORT_ROWS,
     });
     if (!rowsValidation.ok) {
-      return asJson(400, { error: `Invalid rows: ${rowsValidation.error}` });
+      return respondJson(400, { error: `Invalid rows: ${rowsValidation.error}` });
     }
     rowsInput = rowsValidation.data;
   }
@@ -493,10 +495,10 @@ Deno.serve(async (request) => {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (memberError) return asJson(500, { error: memberError.message });
+  if (memberError) return respondJson(500, { error: memberError.message });
   const memberRoleLevel = Number(memberRow?.role_level ?? 0);
   if (!memberRow || !Number.isFinite(memberRoleLevel) || memberRoleLevel < 50) {
-    return asJson(403, { error: "Forbidden" });
+    return respondJson(403, { error: "Forbidden" });
   }
 
   const maxRequestsPerMinute = Math.max(
@@ -509,7 +511,7 @@ Deno.serve(async (request) => {
     60_000
   );
   if (!limiter.allowed) {
-    return asJson(429, {
+    return respondJson(429, {
       error: "Rate limit exceeded",
       retryAfterSec: limiter.retryAfterSec,
       maxRequestsPerMinute,
@@ -526,11 +528,11 @@ Deno.serve(async (request) => {
       .eq("organization_id", organizationId)
       .maybeSingle();
 
-    if (runError) return asJson(500, { error: runError.message });
-    if (!runRow) return asJson(404, { error: "Import run not found." });
+    if (runError) return respondJson(500, { error: runError.message });
+    if (!runRow) return respondJson(404, { error: "Import run not found." });
 
     if (runRow.mode === "apply" && (runRow.status === "applied" || runRow.status === "partial")) {
-      return asJson(200, {
+      return respondJson(200, {
         status: runRow.status,
         mode: "apply",
         runId: runRow.id,
@@ -553,9 +555,9 @@ Deno.serve(async (request) => {
       .limit(1)
       .maybeSingle();
 
-    if (existingAppliedRunError) return asJson(500, { error: existingAppliedRunError.message });
+    if (existingAppliedRunError) return respondJson(500, { error: existingAppliedRunError.message });
     if (existingAppliedRun) {
-      return asJson(200, {
+      return respondJson(200, {
         status: existingAppliedRun.status,
         mode: "apply",
         runId: existingAppliedRun.id,
@@ -571,10 +573,10 @@ Deno.serve(async (request) => {
       .eq("run_id", runRow.id)
       .order("row_number", { ascending: true });
 
-    if (logsError) return asJson(500, { error: logsError.message });
+    if (logsError) return respondJson(500, { error: logsError.message });
     const plannedLogs = (logs ?? []) as ImportLogRow[];
     if (!plannedLogs.length) {
-      return asJson(400, { error: "Import run has no planned rows." });
+      return respondJson(400, { error: "Import run has no planned rows." });
     }
 
     const unresolvedConflicts = plannedLogs
@@ -582,7 +584,7 @@ Deno.serve(async (request) => {
       .filter((log) => !getResolutionForRow(resolutions, Number(log.row_number), String(log.id)));
 
     if (unresolvedConflicts.length > 0) {
-      return asJson(409, {
+      return respondJson(409, {
         error: "Unresolved conflicts.",
         runId: runRow.id,
         unresolved: unresolvedConflicts.slice(0, 50).map((log) => ({
@@ -720,9 +722,9 @@ Deno.serve(async (request) => {
       .eq("id", runRow.id)
       .eq("organization_id", organizationId);
 
-    if (runUpdateError) return asJson(500, { error: runUpdateError.message });
+    if (runUpdateError) return respondJson(500, { error: runUpdateError.message });
 
-    return asJson(200, {
+    return respondJson(200, {
       status: finalStatus,
       mode: "apply",
       runId: runRow.id,
@@ -735,7 +737,7 @@ Deno.serve(async (request) => {
 
   const secret = String(Deno.env.get("STUDENT_IMPORT_HMAC_SECRET") ?? "").trim();
   if (!secret) {
-    return asJson(500, {
+    return respondJson(500, {
       error: "Missing STUDENT_IMPORT_HMAC_SECRET configuration.",
     });
   }
@@ -756,9 +758,9 @@ Deno.serve(async (request) => {
       .limit(1)
       .maybeSingle();
 
-    if (existingRunError) return asJson(500, { error: existingRunError.message });
+    if (existingRunError) return respondJson(500, { error: existingRunError.message });
     if (existingRun) {
-      return asJson(200, {
+      return respondJson(200, {
         status: existingRun.status,
         mode,
         runId: existingRun.id,
@@ -785,7 +787,7 @@ Deno.serve(async (request) => {
     .single();
 
   if (runInsertError || !runRow?.id) {
-    return asJson(500, { error: runInsertError?.message ?? "Failed to create import run." });
+    return respondJson(500, { error: runInsertError?.message ?? "Failed to create import run." });
   }
 
   const runId = String(runRow.id);
@@ -801,7 +803,7 @@ Deno.serve(async (request) => {
       .from("student_import_runs")
       .update({ status: "failed", summary, applied_at: new Date().toISOString() })
       .eq("id", runId);
-    return asJson(500, { error: classesError.message });
+    return respondJson(500, { error: classesError.message });
   }
 
   const { data: studentsRows, error: studentsError } = await supabase
@@ -815,7 +817,7 @@ Deno.serve(async (request) => {
       .from("student_import_runs")
       .update({ status: "failed", summary, applied_at: new Date().toISOString() })
       .eq("id", runId);
-    return asJson(500, { error: studentsError.message });
+    return respondJson(500, { error: studentsError.message });
   }
 
   const classLookup = buildClassLookup((classesRows ?? []) as ExistingClassRow[]);
@@ -981,7 +983,7 @@ Deno.serve(async (request) => {
           applied_at: mode === "apply" ? new Date().toISOString() : null,
         })
         .eq("id", runId);
-      return asJson(500, { error: logError.message, runId });
+      return respondJson(500, { error: logError.message, runId });
     }
   }
 
@@ -1006,10 +1008,10 @@ Deno.serve(async (request) => {
     .eq("id", runId);
 
   if (runUpdateError) {
-    return asJson(500, { error: runUpdateError.message, runId });
+    return respondJson(500, { error: runUpdateError.message, runId });
   }
 
-  return asJson(200, {
+  return respondJson(200, {
     status: finalStatus,
     mode,
     runId,

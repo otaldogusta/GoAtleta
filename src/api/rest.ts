@@ -16,7 +16,7 @@ const REST_BASE = SUPABASE_URL.replace(/\/$/, "") + "/rest/v1";
 const parseResponse = async <T>(res: Response): Promise<T> => {
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(text || `REST request failed (${res.status})`);
+    throw new Error(text || `REST request failed with status ${res.status}`);
   }
   if (!text) return null as T;
   const parsed = safeJsonParse<unknown>(text, undefined);

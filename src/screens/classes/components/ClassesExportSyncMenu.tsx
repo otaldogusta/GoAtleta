@@ -28,6 +28,7 @@ type Props = {
   colors: ThemeColors;
   googleAccountConnected: boolean;
   compact?: boolean;
+  onImportStudents?: () => void;
 };
 
 type TriggerLayout = {
@@ -86,14 +87,13 @@ export function ClassesExportSyncMenu({
   colors,
   googleAccountConnected,
   compact = false,
+  onImportStudents,
 }: Props) {
   const { showSaveToast } = useSaveToast();
   const triggerRef = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [triggerLayout, setTriggerLayout] = useState<TriggerLayout | null>(null);
-  const [workingAction, setWorkingAction] = useState<"xlsx" | "ics" | "google" | null>(
-    null
-  );
+  const [workingAction, setWorkingAction] = useState<"xlsx" | "ics" | "google" | null>(null);
   const { animatedStyle, isVisible } = useCollapsibleAnimation(open, {
     durationIn: 170,
     durationOut: 130,
@@ -211,7 +211,13 @@ export function ClassesExportSyncMenu({
     [classes, runAction]
   );
 
-  const disabled = !classes.length || workingAction !== null;
+  const openImportStudents = useCallback(() => {
+    if (workingAction || !onImportStudents) return;
+    close();
+    onImportStudents();
+  }, [close, onImportStudents, workingAction]);
+
+  const disabled = (workingAction !== null) || (classes.length === 0 && !onImportStudents);
   const iconColor = colors.textMuted ?? colors.muted;
   const rowTextColor = colors.textPrimary ?? colors.text;
 
@@ -282,6 +288,15 @@ export function ClassesExportSyncMenu({
           colors={colors}
           onPress={exportXlsx}
         />
+        {onImportStudents ? (
+          <MenuRow
+            icon="upload"
+            label="Importar alunos"
+            helper="Planilha para atualizar lista da turma"
+            colors={colors}
+            onPress={openImportStudents}
+          />
+        ) : null}
         <MenuRow
           icon="calendar"
           label="Exportar agenda (.ics)"
@@ -337,7 +352,7 @@ function MenuRow({
   colors,
   onPress,
 }: {
-  icon: "download" | "calendar" | "sync";
+  icon: "download" | "calendar" | "sync" | "upload";
   label: string;
   helper?: string;
   colors: ThemeColors;

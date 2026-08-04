@@ -311,6 +311,7 @@ export default function ClassDetails() {
   const [missingContactCount, setMissingContactCount] = useState<number | null>(null);
   const [appliedPlan, setAppliedPlan] = useState<TrainingPlan | null>(null);
   const [lessonDate, setLessonDate] = useState<Date | null>(null);
+  const [showLessonDatePicker, setShowLessonDatePicker] = useState(false);
   const [isLoadingLessonPlan, setIsLoadingLessonPlan] = useState(false);
   const [showPlanPreviewModal, setShowPlanPreviewModal] = useState(false);
   const [planPreviewMode, setPlanPreviewMode] = useState<"preview" | "edit">("preview");
@@ -824,6 +825,12 @@ export default function ClassDetails() {
       setLessonDate(nextDate);
     }
   }, [classDays, lessonDate, nextClassDate]);
+  const handleLessonDateChange = (value: string) => {
+    const nextDate = parseIsoDate(value);
+    if (!nextDate) return;
+    setIsLoadingLessonPlan(true);
+    setLessonDate(nextDate);
+  };
   const classCoachName = clsId ? coachNameByClass[clsId] ?? "" : "";
   const resolvedCoachName = classCoachName || coachName;
 
@@ -2059,21 +2066,18 @@ export default function ClassDetails() {
     setShowReportModal(true);
   };
 
-  const handleOpenPeriodization = () => {
+  const handleOpenPlanning = () => {
     const targetClassId = cls?.id ?? id;
     router.push({
       pathname: "/class/[id]/periodization",
       params: {
         id: targetClassId,
         classId: targetClassId,
+        month: selectedLessonDateKey?.slice(0, 7),
         unit: cls?.unit ?? "",
         backTo: targetClassId ? `/class/${targetClassId}` : "",
       },
     });
-  };
-
-  const handleOpenPlanning = () => {
-    router.push({ pathname: "/class/[id]/planning", params: { id } });
   };
 
   const handleOpenVisualTech = () => {
@@ -2160,6 +2164,7 @@ export default function ClassDetails() {
           isLoadingLessonPlan={isLoadingLessonPlan}
           onPreviousLesson={() => handleShiftLessonDate(-1)}
           onNextLesson={() => handleShiftLessonDate(1)}
+          onOpenLessonCalendar={() => setShowLessonDatePicker(true)}
           onViewPlan={handleViewAppliedPlan}
           onGeneratePlan={handleGeneratePlan}
           isGeneratingPlan={isGeneratingPlan}
@@ -2180,7 +2185,6 @@ export default function ClassDetails() {
           onOpenSession={handleOpenSession}
           onOpenAttendance={handleOpenAttendance}
           onOpenReport={handleOpenReport}
-          onOpenPeriodization={handleOpenPeriodization}
           onOpenPlanning={handleOpenPlanning}
           onOpenVisualTech={handleOpenVisualTech}
           onOpenScouting={handleOpenScouting}
@@ -2591,6 +2595,15 @@ export default function ClassDetails() {
         </View>
 
       </ModalSheet>
+
+      <DatePickerModal
+        visible={showLessonDatePicker}
+        value={selectedLessonDateKey}
+        onChange={handleLessonDateChange}
+        onClose={() => setShowLessonDatePicker(false)}
+        closeOnSelect
+        initialViewMode="day"
+      />
 
       <DatePickerModal
         visible={showEditCycleCalendar}

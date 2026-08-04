@@ -43,6 +43,7 @@ import { resolveBootStatus } from "../src/bootstrap/boot-status";
 import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-context";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
+import { useBirthdayNotifications } from "../src/hooks/use-birthday-notifications";
 import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
@@ -234,6 +235,11 @@ function RootLayoutContent() {
     role,
   });
   const isBooting = bootStatus.blocking;
+  useBirthdayNotifications({
+    enabled: Boolean(session) && !isBooting,
+    organizationId: activeOrganization?.id,
+    effectiveProfile,
+  });
   const [bootElapsedMs, setBootElapsedMs] = useState(0);
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
   const publicRoutes = [

@@ -22,12 +22,20 @@ import type {
     ClassGroup,
     Student,
 } from "../../../src/core/models";
+import {
+  interpretAttendanceContext,
+  type StudentContextSuggestion,
+} from "../../../src/core/student-context-events";
 import { useAuth } from "../../../src/auth/auth";
 import {
     getAttendanceByDate,
+    getAttendanceByClass,
     getClassById,
     getStudentsByClass,
+    listActiveStudentContextsByClass,
     saveAttendanceRecords,
+    saveConfirmedStudentContexts,
+    type ActiveStudentContext,
 } from "../../../src/db/seed";
 import { isAuthError, isNetworkError } from "../../../src/db/client";
 import { logAction } from "../../../src/observability/breadcrumbs";
@@ -49,6 +57,7 @@ import {
   resolveAttendanceSaveIndicator,
   type AttendanceSavePhase,
 } from "../../../src/screens/attendance/attendance-save-feedback";
+import { resolveInitialAttendanceDate } from "../../../src/screens/attendance/resolve-initial-attendance-date";
 
 const formatDate = (value: Date) => {
   const y = value.getFullYear();
@@ -75,6 +84,100 @@ const getDayIndex = (value: string) => {
   return parsed.getDay();
 };
 
+type StudentContextDecision = "confirmed" | "ignored";
+
+function AttendanceContextSuggestion({
+  suggestion,
+  confirmed,
+  onConfirm,
+  onIgnore,
+}: {
+  suggestion: StudentContextSuggestion;
+  confirmed: boolean;
+  onConfirm: () => void;
+  onIgnore: () => void;
+}) {
+  const { colors } = useAppTheme();
+  const palette =
+    suggestion.severity === "urgent"
+      ? {
+          background: colors.dangerBg,
+          border: colors.dangerBorder,
+          accent: colors.dangerText,
+        }
+      : suggestion.severity === "attention"
+        ? {
+            background: colors.warningBg,
+            border: colors.warningBorder,
+            accent: colors.warningText,
+          }
+        : {
+            background: colors.infoBg,
+            border: colors.borderStrong,
+            accent: colors.infoText,
+          };
+
+  return (
+    <View
+      style={{
+        gap: 10,
+        padding: 12,
+        borderRadius: radius.internal,
+        borderWidth: 1,
+        borderColor: palette.border,
+        backgroundColor: palette.background,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 9 }}>
+        <GoAtletaIcon
+          name={suggestion.severity === "urgent" ? "warningCircle" : "sparkles"}
+          size={18}
+          color={palette.accent}
+        />
+        <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+          <Text style={{ color: palette.accent, fontSize: 12, fontWeight: "900" }}>
+            Contexto sugerido
+          </Text>
+          <Text style={{ color: colors.textPrimary, fontWeight: "900" }}>
+            {suggestion.title}
+          </Text>
+          <Text style={{ color: colors.textSecondary, lineHeight: 19 }}>
+            {suggestion.summary}
+          </Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+            {suggestion.evidence}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={{ color: colors.textMuted, fontSize: 12, lineHeight: 17 }}>
+        Só será compartilhado com a equipe depois de confirmar e salvar a chamada.
+      </Text>
+
+      {confirmed ? (
+        <View style={{ gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <GoAtletaIcon name="checkmarkCircle" size={16} color={colors.successText} />
+            <Text style={{ color: colors.successText, fontWeight: "800" }}>
+              Acompanhamento confirmado
+            </Text>
+          </View>
+          <Button
+            label="Remover confirmação"
+            variant="secondary"
+            onPress={onIgnore}
+          />
+        </View>
+      ) : (
+        <View style={{ gap: 8 }}>
+          <Button label="Confirmar acompanhamento" variant="success" onPress={onConfirm} />
+          <Button label="Ignorar sugestão" variant="ghost" onPress={onIgnore} />
+        </View>
+      )}
+    </View>
+  );
+}
+
 // perf-check: ignore-render
 // perf-check: ignore-measure
 export default function AttendanceScreen() {
@@ -87,10 +190,22 @@ export default function AttendanceScreen() {
   const router = useRouter();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [rosterClassId, setRosterClassId] = useState<string | null>(null);
+  const [initialAttendanceHistory, setInitialAttendanceHistory] = useState<
+    AttendanceRecord[]
+  >([]);
+  const [initialAttendanceHistoryClassId, setInitialAttendanceHistoryClassId] =
+    useState<string | null>(null);
   const [date, setDate] = useState(formatDate(new Date()));
   const [statusById, setStatusById] = useState<Record<string, "presente" | "faltou" | undefined>>({});
   const [noteById, setNoteById] = useState<Record<string, string>>({});
   const [painById, setPainById] = useState<Record<string, number | undefined>>({});
+  const [contextDecisionById, setContextDecisionById] = useState<
+    Record<string, StudentContextDecision | undefined>
+  >({});
+  const [activeContextsByStudentId, setActiveContextsByStudentId] = useState<
+    Record<string, ActiveStudentContext[]>
+  >({});
   const [loadMessage, setLoadMessage] = useState("");
   const [hasSaved, setHasSaved] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
@@ -105,7 +220,9 @@ export default function AttendanceScreen() {
   >(id ? `attendance_${id}_expanded_v1` : null, {});
   const [showCalendar, setShowCalendar] = useState(false);
   const loadMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initialLoadDone = useRef(false);
+  const initialLoadKey = useRef<string | null>(null);
+  const manuallySelectedDateClassId = useRef<string | null>(null);
+  const loadRequestId = useRef(0);
   const { showSaveToast } = useSaveToast();
   const isOnline = useIsOnline();
   const parseTime = (value: string) => {
@@ -123,20 +240,56 @@ export default function AttendanceScreen() {
     return start + " - " + end;
   };
 
+  const refreshActiveContexts = useCallback(async (classId: string) => {
+    try {
+      const contexts = await listActiveStudentContextsByClass(classId);
+      const grouped = contexts.reduce<Record<string, ActiveStudentContext[]>>(
+        (result, context) => {
+          const current = result[context.studentId] ?? [];
+          if (!current.some((item) => item.category === context.category)) {
+            result[context.studentId] = [...current, context];
+          }
+          return result;
+        },
+        {}
+      );
+      setActiveContextsByStudentId(grouped);
+    } catch {
+      // Attendance remains available if context history cannot be loaded.
+    }
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       const data = await getClassById(id);
       if (alive) setCls(data);
       if (data) {
+        const attendanceHistoryPromise = getAttendanceByClass(data.id).catch(
+          () => [] as AttendanceRecord[]
+        );
         const list = await getStudentsByClass(data.id);
-        if (alive) setStudents(list);
+        if (alive) {
+          setStudents(list);
+          setRosterClassId(data.id);
+        }
+        const attendanceHistory = await attendanceHistoryPromise;
+        if (alive) {
+          setInitialAttendanceHistory(attendanceHistory);
+          setInitialAttendanceHistoryClassId(data.id);
+        }
+        // Contextual alerts enrich attendance, but must never delay the roster.
+        void refreshActiveContexts(data.id);
+      } else if (alive) {
+        setInitialAttendanceHistory([]);
+        setRosterClassId(null);
+        setInitialAttendanceHistoryClassId(null);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, refreshActiveContexts]);
 
   useEffect(() => {
     const initialStatus: Record<string, "presente" | "faltou" | undefined> = {};
@@ -168,9 +321,19 @@ export default function AttendanceScreen() {
         status: statusById[student.id],
         note: noteById[student.id] ?? "",
         pain: painById[student.id] ?? 0,
+        activeContexts: activeContextsByStudentId[student.id] ?? [],
+        suggestion: interpretAttendanceContext({
+          note: noteById[student.id] ?? "",
+          attendanceStatus: statusById[student.id],
+          painScore: painById[student.id] ?? 0,
+        }),
       })),
-    [students, statusById, noteById, painById]
+    [activeContextsByStudentId, students, statusById, noteById, painById]
   );
+
+  const resetContextDecision = useCallback((studentId: string) => {
+    setContextDecisionById((prev) => ({ ...prev, [studentId]: undefined }));
+  }, []);
 
   const classDays = useMemo(() => cls?.daysOfWeek ?? [], [cls?.daysOfWeek]);
   const isClassDay = useMemo(() => {
@@ -195,8 +358,11 @@ export default function AttendanceScreen() {
   const loadDate = useCallback(
     async (value: string) => {
       if (!cls) return;
+      const requestId = loadRequestId.current + 1;
+      loadRequestId.current = requestId;
       setDate(value);
       setLoadMessage("");
+      setContextDecisionById({});
       if (loadMessageTimer.current) {
         clearTimeout(loadMessageTimer.current);
         loadMessageTimer.current = null;
@@ -224,6 +390,7 @@ export default function AttendanceScreen() {
       try {
         records = await getAttendanceByDate(cls.id, value);
       } catch (error) {
+        if (loadRequestId.current !== requestId) return;
         if (isAuthError(error)) {
           setLoadMessage("Sessão expirada. Faça login novamente.");
         } else if (isNetworkError(error)) {
@@ -237,6 +404,7 @@ export default function AttendanceScreen() {
         }, 2500);
         return;
       }
+      if (loadRequestId.current !== requestId) return;
       if (!records.length) {
         setStatusById(baseStatus);
         setNoteById(baseNotes);
@@ -277,22 +445,50 @@ export default function AttendanceScreen() {
 
   useEffect(() => {
     if (!cls) return;
-    if (typeof dateParam !== "string") return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) return;
-    const parsed = new Date(dateParam);
-    if (Number.isNaN(parsed.getTime())) return;
-    Promise.resolve().then(() => {
-      void loadDate(dateParam);
-    });
-  }, [cls, dateParam, loadDate]);
+    if (cls.id !== id) return;
+    if (rosterClassId !== cls.id) return;
+    const hasExplicitDate =
+      typeof dateParam === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(dateParam) &&
+      getDayIndex(dateParam) !== null;
+    const loadKey = `${cls.id}:${hasExplicitDate ? dateParam : "automatic"}`;
+    if (initialLoadKey.current === loadKey) return;
 
-  useEffect(() => {
-    if (!cls) return;
-    if (!students.length) return;
-    if (initialLoadDone.current) return;
-    initialLoadDone.current = true;
-    void loadDate(date);
-  }, [cls, date, loadDate, students.length]);
+    if (hasExplicitDate) {
+      initialLoadKey.current = loadKey;
+      Promise.resolve().then(() => {
+        void loadDate(dateParam);
+      });
+      return;
+    }
+    if (initialAttendanceHistoryClassId !== cls.id) return;
+    if (manuallySelectedDateClassId.current === cls.id) {
+      initialLoadKey.current = loadKey;
+      return;
+    }
+
+    initialLoadKey.current = loadKey;
+    const initialDate = resolveInitialAttendanceDate({
+      today: new Date(),
+      classDays,
+      classCreatedAt: cls.createdAt,
+      students,
+      records: initialAttendanceHistory,
+    });
+    Promise.resolve().then(() => {
+      void loadDate(initialDate);
+    });
+  }, [
+    classDays,
+    cls,
+    dateParam,
+    id,
+    initialAttendanceHistory,
+    initialAttendanceHistoryClassId,
+    loadDate,
+    rosterClassId,
+    students,
+  ]);
 
   const handleSave = async () => {
     if (!cls) return;
@@ -330,6 +526,38 @@ export default function AttendanceScreen() {
       const saveResult = await measure("saveAttendanceRecords", () =>
         saveAttendanceRecords(cls.id, date, records)
       );
+      const confirmedContexts = items.flatMap((item) => {
+        if (
+          !item.status ||
+          !item.suggestion ||
+          contextDecisionById[item.student.id] !== "confirmed"
+        ) {
+          return [];
+        }
+        return [
+          {
+            attendanceRecordId: `${cls.id}_${item.student.id}_${date}`,
+            classId: cls.id,
+            className: cls.name,
+            studentId: item.student.id,
+            studentName: item.student.name,
+            date,
+            rawNote: item.note,
+            suggestion: item.suggestion,
+          },
+        ];
+      });
+      let contextSaveWarning = false;
+      let confirmedContextCount = 0;
+      if (saveResult.status !== "queued" && confirmedContexts.length) {
+        try {
+          const contextResult = await saveConfirmedStudentContexts(confirmedContexts);
+          confirmedContextCount = contextResult.savedCount;
+          contextSaveWarning = contextResult.notificationFailures > 0;
+        } catch {
+          contextSaveWarning = true;
+        }
+      }
       setStatusById(nextStatus);
       setNoteById(nextNotes);
       setPainById(nextPain);
@@ -342,16 +570,29 @@ export default function AttendanceScreen() {
       if (saveResult.status === "queued") {
         setSavePhase("saved_local");
         showSaveToast({
-          message: "Chamada salva no dispositivo. Será enviada quando a internet voltar.",
+          message: confirmedContexts.length
+            ? "Chamada salva no dispositivo. O acompanhamento ainda precisa ser confirmado online."
+            : "Chamada salva no dispositivo. Será enviada quando a internet voltar.",
           variant: "warning",
           durationMs: 6500,
         });
       } else {
         setSavePhase("synced");
         showSaveToast({
-          message: "Chamada sincronizada.",
-          variant: "success",
+          message: contextSaveWarning
+            ? "Chamada sincronizada. O acompanhamento não pôde ser compartilhado agora."
+            : confirmedContextCount > 0
+              ? `Chamada sincronizada e ${confirmedContextCount} acompanhamento(s) confirmado(s).`
+              : "Chamada sincronizada.",
+          variant: contextSaveWarning ? "warning" : "success",
+          ...(contextSaveWarning ? { durationMs: 6500 } : {}),
         });
+        if (!contextSaveWarning) {
+          setContextDecisionById({});
+          if (confirmedContextCount > 0) {
+            await refreshActiveContexts(cls.id);
+          }
+        }
       }
       setHasSaved(records.length > 0);
     } catch (error) {
@@ -388,6 +629,7 @@ export default function AttendanceScreen() {
   const handleDateChange = (value: string) => {
     setSavePhase("idle");
     if (cls) {
+      manuallySelectedDateClassId.current = cls.id;
       setHasSaved(false);
       void loadDate(value);
     } else {
@@ -397,6 +639,9 @@ export default function AttendanceScreen() {
   };
 
   const hasChanges = useMemo(() => {
+    if (Object.values(contextDecisionById).includes("confirmed")) {
+      return true;
+    }
     const statusKeys = new Set([
       ...Object.keys(baseline.status),
       ...Object.keys(statusById),
@@ -425,7 +670,7 @@ export default function AttendanceScreen() {
       }
     }
     return false;
-  }, [baseline, noteById, painById, statusById]);
+  }, [baseline, contextDecisionById, noteById, painById, statusById]);
 
   useEffect(() => {
     if (hasChanges && !isSavingAttendance && savePhase !== "idle") {
@@ -599,17 +844,56 @@ export default function AttendanceScreen() {
                       </Text>
                     </View>
                   ) : null}
+                  {item.activeContexts.length ? (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 5,
+                        borderRadius: radius.full,
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        backgroundColor:
+                          item.activeContexts[0].severity === "urgent"
+                            ? colors.dangerBg
+                            : colors.warningBg,
+                      }}
+                    >
+                      <GoAtletaIcon
+                        name="warningCircle"
+                        size={13}
+                        color={
+                          item.activeContexts[0].severity === "urgent"
+                            ? colors.dangerText
+                            : colors.warningText
+                        }
+                      />
+                      <Text
+                        style={{
+                          color:
+                            item.activeContexts[0].severity === "urgent"
+                              ? colors.dangerText
+                              : colors.warningText,
+                          fontSize: 11,
+                          fontWeight: "800",
+                        }}
+                      >
+                        Acompanhamento ativo
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </FadeHorizontalScroll>
               <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                 <Pressable
-                  onPress={() =>
+                  onPress={() => {
+                    resetContextDecision(item.student.id);
                     setStatusById((prev) => ({
                       ...prev,
                       [item.student.id]:
                         prev[item.student.id] === "presente" ? undefined : "presente",
-                    }))
-                  }
+                    }));
+                  }}
                   style={{
                     paddingVertical: 6,
                     paddingHorizontal: 12,
@@ -630,13 +914,14 @@ export default function AttendanceScreen() {
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() =>
+                  onPress={() => {
+                    resetContextDecision(item.student.id);
                     setStatusById((prev) => ({
                       ...prev,
                       [item.student.id]:
                         prev[item.student.id] === "faltou" ? undefined : "faltou",
-                    }))
-                  }
+                    }));
+                  }}
                   style={{
                     paddingVertical: 6,
                     paddingHorizontal: 12,
@@ -686,15 +971,51 @@ export default function AttendanceScreen() {
                 <Text style={{ color: colors.textSecondary }}>
                   Idade: {item.student.age} | Tel: {item.student.phone}
                 </Text>
+                {item.activeContexts.map((context) => (
+                  <View
+                    key={context.id}
+                    style={{
+                      gap: 4,
+                      padding: 11,
+                      borderRadius: radius.internal,
+                      borderWidth: 1,
+                      borderColor:
+                        context.severity === "urgent"
+                          ? colors.dangerBorder
+                          : colors.warningBorder,
+                      backgroundColor:
+                        context.severity === "urgent" ? colors.dangerBg : colors.warningBg,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          context.severity === "urgent"
+                            ? colors.dangerText
+                            : colors.warningText,
+                        fontWeight: "900",
+                      }}
+                    >
+                      {context.title}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, lineHeight: 19 }}>
+                      {context.rawText || context.summary}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                      Confirmado em {context.eventDate.split("-").reverse().join("/")}
+                    </Text>
+                  </View>
+                ))}
                 <TextInput
                   placeholder="Observação (opcional)"
                   value={item.note}
-                  onChangeText={(text) =>
+                  onChangeText={(text) => {
+                    resetContextDecision(item.student.id);
                     setNoteById((prev) => ({
                       ...prev,
                       [item.student.id]: text,
-                    }))
-                  }
+                    }));
+                  }}
                   placeholderTextColor={colors.placeholder}
                   style={{
                     borderWidth: 1,
@@ -713,16 +1034,36 @@ export default function AttendanceScreen() {
                         key={value}
                         label={String(value)}
                         variant={item.pain === value ? "primary" : "secondary"}
-                        onPress={() =>
+                        onPress={() => {
+                          resetContextDecision(item.student.id);
                           setPainById((prev) => ({
                             ...prev,
                             [item.student.id]: value,
-                          }))
-                        }
+                          }));
+                        }}
                       />
                     ))}
                   </View>
                 </View>
+                {item.suggestion &&
+                contextDecisionById[item.student.id] !== "ignored" ? (
+                  <AttendanceContextSuggestion
+                    suggestion={item.suggestion}
+                    confirmed={contextDecisionById[item.student.id] === "confirmed"}
+                    onConfirm={() =>
+                      setContextDecisionById((prev) => ({
+                        ...prev,
+                        [item.student.id]: "confirmed",
+                      }))
+                    }
+                    onIgnore={() =>
+                      setContextDecisionById((prev) => ({
+                        ...prev,
+                        [item.student.id]: "ignored",
+                      }))
+                    }
+                  />
+                ) : null}
               </View>
             ) : null}
           </View>

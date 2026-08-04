@@ -17,6 +17,10 @@ import {
   getActivePlanningCycle,
 } from "../../../db/cycles";
 import {
+  listActiveStudentContextsByClass,
+  type ActiveStudentContext,
+} from "../../../db/student-context-events";
+import {
   getAttendanceByClass,
   getClassById,
   getClassCalendarExceptions,
@@ -254,6 +258,9 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     [],
   );
   const [recentSessionLogs, setRecentSessionLogs] = useState<SessionLog[]>([]);
+  const [studentContexts, setStudentContexts] = useState<
+    ActiveStudentContext[]
+  >([]);
   const [dailyPlansByKey, setDailyPlansByKey] = useState<DailyLessonPlanLookup>(
     {},
   );
@@ -269,6 +276,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setStudents(undefined);
       setRecentAttendance([]);
       setRecentSessionLogs([]);
+      setStudentContexts([]);
       setError(null);
       setIsLoading(false);
       return;
@@ -294,6 +302,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
         setStudents(undefined);
         setRecentAttendance([]);
         setRecentSessionLogs([]);
+        setStudentContexts([]);
         setDailyPlansByKey({});
         return;
       }
@@ -320,7 +329,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
           cycleYear,
         }),
       );
-      const [exceptions, classStudents, attendance, sessionLogs] =
+      const [exceptions, classStudents, attendance, sessionLogs, contexts] =
         await Promise.all([
           loadOptionalMonthlyData(
             "calendar exceptions",
@@ -349,6 +358,11 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
             }),
             [],
           ),
+          loadOptionalMonthlyData(
+            "student contexts",
+            listActiveStudentContextsByClass(classId),
+            [],
+          ),
         ]);
 
       const windowStart = toIsoDate(activeCycle?.startDate);
@@ -367,6 +381,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setStudents(classStudents);
       setRecentAttendance(attendance);
       setRecentSessionLogs(sessionLogs);
+      setStudentContexts(contexts);
 
       const monthPlans = filterClassPlansBySessionMonth(
         scopedPlans,
@@ -445,6 +460,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     students,
     recentAttendance,
     recentSessionLogs,
+    studentContexts,
     classPlans,
     weeklyItems,
     agendaEvents,

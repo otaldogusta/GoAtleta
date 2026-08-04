@@ -10,6 +10,8 @@ import type {
   SessionLog,
   Student,
 } from "../../../core/models";
+import type { StudentPlanningContextInput } from "./build-unified-planning-context";
+import { buildUnifiedPlanningContext } from "./build-unified-planning-context";
 import { parsePeriodizationPolicy } from "../../../core/periodization-policy";
 import { buildPlanningIntelligenceLineage } from "../../../core/planning-intelligence-context";
 import { resolveMonthlyVolleyballGameSession } from "../../../core/monthly-volleyball-game-session";
@@ -40,6 +42,7 @@ export interface GenerateMonthlyBlueprintParams {
   students?: Student[];
   recentAttendance?: AttendanceRecord[];
   recentSessionLogs?: SessionLog[];
+  studentContexts?: StudentPlanningContextInput[];
   recentSessionSummaries?: RecentSessionSummary[];
   activeCycle?: PlanningCycle | null;
 }
@@ -220,6 +223,13 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
     recentSessionLogs: params.recentSessionLogs,
     generatedAt: nowIso,
   });
+  const unifiedPlanningContext = buildUnifiedPlanningContext({
+    classGroup,
+    referenceDate: monthEndDate,
+    recentAttendance: params.recentAttendance,
+    recentSessionLogs: params.recentSessionLogs,
+    studentContexts: params.studentContexts,
+  });
   const blueprintDecisionReasons = buildBlueprintDecisionReasons({
     plannedSessions: sessionCalendar.sessions.length,
     skippedSessions: sessionCalendar.skippedSessions.length,
@@ -323,10 +333,13 @@ export const generateMonthlyBlueprint = (params: GenerateMonthlyBlueprintParams)
       phaseIntent,
       pedagogicalVocabulary,
       classContextSnapshot,
+      studentContext: unifiedPlanningContext.studentContext,
+      dimensionGuidelines: unifiedPlanningContext.dimensionGuidelines,
       decisionReasons: [
         ...sessionCalendar.reasons,
         ...classContextSnapshot.reasons,
         ...blueprintDecisionReasons,
+        ...unifiedPlanningContext.decisionReasons,
       ],
       classGroupName: classGroup.name,
       generatedAt: nowIso,

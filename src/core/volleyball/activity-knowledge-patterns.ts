@@ -118,9 +118,39 @@ export const VOLLEYBALL_ACTIVITY_KNOWLEDGE_PATTERNS: ActivityKnowledgePattern[] 
     space: "meia quadra",
     ageText: {
       base: { name: "Caça aos 3 contatos" },
-      transition: { name: "Chamada em trio" },
-      formation: { name: "Recepção com cobertura" },
-      specialization: { name: "Entrada de recepção sob pressão" },
+      transition: {
+        name: "Chamada em trio",
+        players: "trios",
+        setup: "Organizar trios em meia quadra, com uma zona de recepção e uma zona de apoio marcadas por cones.",
+        starter: "Um aluno lança a bola por baixo para o colega que recebe.",
+        action:
+          "Quem recebe chama a bola e direciona o primeiro contato para o colega na zona de apoio; o terceiro aluno acompanha a jogada e cobre a sobra.",
+        rotation: "A cada 5 bolas, o trio roda quem inicia, quem recebe e quem ocupa a cobertura.",
+        constraint: "A próxima bola entra rapidamente mesmo quando a recepção não chega à zona.",
+        progression: "Alternar bolas curtas e longas quando o trio sustentar a organização.",
+      },
+      formation: {
+        name: "Recepção com cobertura",
+        players: "trios",
+        setup: "Organizar trios em meia quadra, com uma zona de recepção e uma zona de apoio marcadas por cones.",
+        starter: "Um aluno inicia com lançamento controlado ou saque adaptado para o colega que recebe.",
+        action:
+          "Quem recebe chama a bola e direciona o primeiro contato para o colega na zona de apoio; o terceiro aluno acompanha a jogada e cobre a sobra.",
+        rotation: "A cada 5 bolas, o trio roda quem inicia, quem recebe e quem ocupa a cobertura.",
+        constraint: "A próxima bola entra rapidamente mesmo quando a recepção não chega à zona.",
+        progression: "Alternar bolas curtas e longas quando o trio sustentar a organização.",
+      },
+      specialization: {
+        name: "Entrada de recepção sob pressão",
+        players: "trios",
+        setup: "Organizar uma zona de recepção, uma referência de sideout e cobertura curta em meia quadra.",
+        starter: "Um aluno inicia com saque direcionado para variar a entrada da recepção.",
+        action:
+          "Quem recebe busca o primeiro contato jogável para a referência de sideout enquanto o terceiro aluno ajusta a cobertura da sobra.",
+        rotation: "A cada 5 bolas, o trio roda saque, recepção e apoio.",
+        constraint: "A sequência continua após o erro, com nova bola entrando sem espera.",
+        progression: "Variar direção e profundidade do saque quando o trio mantiver a organização.",
+      },
     },
   },
   {

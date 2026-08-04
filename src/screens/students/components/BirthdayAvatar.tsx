@@ -22,6 +22,10 @@ export function BirthdayAvatar({
 
   return (
     <View
+      accessible={isBirthdayToday}
+      accessibilityLabel={
+        isBirthdayToday ? "Aniversariante de hoje" : undefined
+      }
       style={{
         width: size,
         height: size,
@@ -30,10 +34,33 @@ export function BirthdayAvatar({
         overflow: "visible",
       }}
     >
+      {isBirthdayToday ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: -3,
+            right: -3,
+            bottom: -3,
+            left: -3,
+            borderRadius: radius + 3,
+            borderWidth: 2,
+            borderColor: colors.warningText,
+            backgroundColor: colors.warningBg,
+            zIndex: 0,
+          }}
+        />
+      ) : null}
+
       {photoUrl ? (
         <Image
           source={{ uri: photoUrl }}
-          style={{ width: size, height: size, borderRadius: radius }}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: radius,
+            zIndex: 1,
+          }}
           contentFit="cover"
         />
       ) : (
@@ -45,6 +72,7 @@ export function BirthdayAvatar({
             backgroundColor: colors.secondaryBg,
             alignItems: "center",
             justifyContent: "center",
+            zIndex: 1,
           }}
         >
           <GoAtletaIcon
@@ -65,7 +93,7 @@ export function BirthdayAvatar({
             left: Math.round(size * 0.42),
             width: hatSize,
             height: hatSize,
-            zIndex: 2,
+            zIndex: 3,
             transform: [{ rotate: "12deg" }],
           }}
         />

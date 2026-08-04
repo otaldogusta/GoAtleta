@@ -30,7 +30,10 @@ export function resolveBootStatus(params: {
     return { phase: "auth", label: "Carregando sessão...", blocking: true };
   }
   if (!params.navReady) {
-    return { phase: "navigation", label: "Preparando navegação...", blocking: true };
+    // The navigator only becomes ready after its route tree has rendered.
+    // Keep route guards waiting on navReady, but never hide that tree behind
+    // the global loader or a direct URL refresh can deadlock indefinitely.
+    return { phase: "navigation", label: "Preparando navegação...", blocking: false };
   }
   if (params.roleLoading) {
     return { phase: "role", label: "Carregando perfil...", blocking: false };

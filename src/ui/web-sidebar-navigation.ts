@@ -25,14 +25,32 @@ const PROFESSOR_NAVIGATION_ORDER = [
   "regulation-history",
 ] as const;
 
+const COORDINATION_NAVIGATION_ORDER = [
+  "dashboard",
+  "classes",
+  "students",
+  "reports",
+  "management",
+  "events",
+  "members",
+  "nfc",
+  "communications",
+  "periodization",
+  "regulation-history",
+  "assistant",
+] as const;
+
 export function orderWebSidebarItems<T extends SidebarItemWithKey>(
   role: AppRole,
   items: readonly T[]
 ): T[] {
-  if (role !== "prof") return [...items];
+  if (role === "student") return [...items];
+
+  const navigationOrder =
+    role === "prof" ? PROFESSOR_NAVIGATION_ORDER : COORDINATION_NAVIGATION_ORDER;
 
   const positionByKey = new Map<string, number>(
-    PROFESSOR_NAVIGATION_ORDER.map((key, index) => [key, index])
+    navigationOrder.map((key, index) => [key, index])
   );
 
   return items

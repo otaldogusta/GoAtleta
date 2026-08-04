@@ -55,21 +55,41 @@ const formatDays = (days: number[], dayNames: string[]) =>
 function MetaPill({
   label,
   colors,
+  tone = "neutral",
 }: {
   label: string;
   colors: Record<string, string>;
+  tone?: "neutral" | "success" | "warning";
 }) {
+  const pillBg =
+    tone === "success"
+      ? colors.successBg ?? colors.secondaryBg
+      : tone === "warning"
+        ? colors.warningBg ?? colors.secondaryBg
+        : colors.backgroundSubtle ?? colors.secondaryBg;
+  const pillBorder =
+    tone === "success"
+      ? colors.successBorder ?? colors.border
+      : tone === "warning"
+        ? colors.warningBorder ?? colors.border
+        : colors.borderSubtle ?? colors.border;
+  const pillText =
+    tone === "success"
+      ? colors.successText ?? colors.text
+      : tone === "warning"
+        ? colors.warningText ?? colors.text
+        : colors.textMuted ?? colors.muted;
   return (
     <View
       style={[
         styles.metaPill,
         {
-          backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-          borderColor: colors.borderSubtle ?? colors.border,
+          backgroundColor: pillBg,
+          borderColor: pillBorder,
         },
       ]}
     >
-      <Text numberOfLines={1} style={[styles.metaPillText, { color: colors.textMuted ?? colors.muted }]}>
+      <Text numberOfLines={1} style={[styles.metaPillText, { color: pillText }]}>
         {label}
       </Text>
     </View>
@@ -340,7 +360,13 @@ export const ClassCard = memo(function ClassCard({
             {item.ageBand || "Faixa não definida"}
           </Text>
           <Text numberOfLines={1} style={[styles.tableSecondaryText, { color: colors.textMuted ?? colors.muted }]}>
-            {[viewModel.developmentLevelLabel, canIntegrate ? "Integrado" : null].filter(Boolean).join(" · ")}
+            {[
+              viewModel.developmentLevelLabel,
+              viewModel.coverageSummary
+                ? `${viewModel.coverageSummary.label} · ${viewModel.coverageSummary.dateLabel}`
+                : null,
+              canIntegrate ? "Integrado" : null,
+            ].filter(Boolean).join(" · ")}
           </Text>
         </View>
 
@@ -582,6 +608,13 @@ export const ClassCard = memo(function ClassCard({
       <View style={styles.metaGrid}>
         <MetaPill label={item.ageBand || "Faixa não definida"} colors={colors} />
         <MetaPill label={viewModel.developmentLevelLabel} colors={colors} />
+        {viewModel.coverageSummary ? (
+          <MetaPill
+            label={`${viewModel.coverageSummary.label} · ${viewModel.coverageSummary.dateLabel}`}
+            colors={colors}
+            tone={viewModel.coverageSummary.tone}
+          />
+        ) : null}
         {canIntegrate ? (
           <View style={styles.integrationWrap}>
             <Pressable

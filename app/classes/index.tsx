@@ -18,6 +18,8 @@ import { ShimmerBlock } from "../../src/ui/Shimmer";
 
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useAuth } from "../../src/auth/auth";
+import type { ClassSessionCoverage } from "../../src/api/class-session-coverages";
+import { listUpcomingClassSessionCoverages } from "../../src/api/class-session-coverages";
 import {
   listClassHeadsByClassIds,
   type ClassResponsible,
@@ -49,6 +51,10 @@ import {
   getClassScheduleOverlapDays,
   trainingSpacesMayOverlap,
 } from "../../src/screens/classes/application/class-schedule-conflicts";
+import {
+  getCoverageSummary,
+  toLocalDateKey,
+} from "../../src/screens/classes/application/class-session-coverage";
 import { ClassesListSection } from "../../src/screens/classes/components/ClassesListSection";
 import { ClassUnitAutocomplete } from "../../src/screens/classes/components/ClassUnitAutocomplete";
 import { ClassesExportSyncMenu } from "../../src/screens/classes/components/ClassesExportSyncMenu";
@@ -64,11 +70,13 @@ import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
+import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
+import { StudentsImportModal } from "../../src/screens/students/modals/StudentsImportModal";
 
 const ClassEditModalBody = lazy(() =>
   import("../../src/screens/classes/components/ClassEditModalBody").then((module) => ({
@@ -280,6 +288,7 @@ export default function ClassesScreen() {
   const { colors } = useAppTheme();
   const responsiveLayout = useResponsiveLayout("content");
   const { session } = useAuth();
+  const { activeOrganization } = useOrganization();
   const bottomScrollPadding = insets.bottom + 112;
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
@@ -287,6 +296,9 @@ export default function ClassesScreen() {
   const [students, setStudents] = useState<Student[]>([]);
   const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
   const [classHeadsById, setClassHeadsById] = useState<Record<string, ClassResponsible>>({});
+  const [classCoverageSummariesByClassId, setClassCoverageSummariesByClassId] = useState<
+    Record<string, ReturnType<typeof getCoverageSummary> | null>
+  >({});
   const getClassId = useCallback((item: ClassGroup) => item.id, []);
   const undoableClassDelete = useUndoableListDelete({
     items: classes,
@@ -377,6 +389,7 @@ export default function ClassesScreen() {
   const [mainTab, setMainTab] = useState<"lista" | "criar">("lista");
   const [showCreateTabConfirm, setShowCreateTabConfirm] = useState(false);
   const [pendingMainTab, setPendingMainTab] = useState<"lista" | "criar" | null>(null);
+  const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
   const mainTabAnim = useRef<Record<"lista" | "criar", Animated.Value>>({
     lista: new Animated.Value(1),
     criar: new Animated.Value(0),
@@ -675,12 +688,13 @@ export default function ClassesScreen() {
           classGroup,
           students: studentsByClassId[classGroup.id] ?? [],
           teacher,
+          coverageSummary: classCoverageSummariesByClassId[classGroup.id] ?? null,
         });
         return acc;
       },
       {}
     );
-  }, [classHeadsById, currentTeacher, displayClasses, studentsByClassId]);
+  }, [classCoverageSummariesByClassId, classHeadsById, currentTeacher, displayClasses, studentsByClassId]);
 
   const goalSuggestions = useMemo(() => {
     const key = normalizeUnitKey(newUnit);
@@ -977,6 +991,7 @@ export default function ClassesScreen() {
         ),
       ]);
       let classHeads: ClassResponsible[] = [];
+      let classCoverageSummariesByClassId: Record<string, ReturnType<typeof getCoverageSummary> | null> = {};
       const organizationId = data.find((item) => item.organizationId)?.organizationId ?? "";
       if (organizationId && data.length > 0) {
         try {
@@ -987,6 +1002,27 @@ export default function ClassesScreen() {
         } catch (error) {
           console.warn("[ClassesScreen] Failed to load class responsibles", error);
         }
+        try {
+          const upcomingCoverages = await listUpcomingClassSessionCoverages(
+            organizationId,
+            toLocalDateKey(new Date())
+          );
+          const nextCoverageByClassId = new Map<string, ClassSessionCoverage>();
+          for (const coverage of upcomingCoverages) {
+            const current = nextCoverageByClassId.get(coverage.classId);
+            if (!current || coverage.sessionDate < current.sessionDate) {
+              nextCoverageByClassId.set(coverage.classId, coverage);
+            }
+          }
+          classCoverageSummariesByClassId = Object.fromEntries(
+            Array.from(nextCoverageByClassId.entries()).map(([classId, coverage]) => [
+              classId,
+              getCoverageSummary(coverage),
+            ])
+          );
+        } catch (error) {
+          console.warn("[ClassesScreen] Failed to load class coverage summaries", error);
+        }
       }
       if (isAlive()) setClasses(data);
       if (isAlive()) setIntegrationRules(rules);
@@ -995,6 +1031,7 @@ export default function ClassesScreen() {
         setClassHeadsById(
           Object.fromEntries(classHeads.map((responsible) => [responsible.classId, responsible]))
         );
+        setClassCoverageSummariesByClassId(classCoverageSummariesByClassId);
       }
     } finally {
       if (isAlive()) setLoading(false);
@@ -1175,6 +1212,19 @@ export default function ClassesScreen() {
       }
       setMainTab(nextTab);
     };
+
+  const openStudentsImportModal = useCallback(() => {
+    setShowStudentsImportModal(true);
+  }, []);
+
+  const closeStudentsImportModal = useCallback(() => {
+    setShowStudentsImportModal(false);
+  }, []);
+
+  const handleImportStudentsApplied = useCallback(async () => {
+    closeStudentsImportModal();
+    await loadClasses();
+  }, [closeStudentsImportModal, loadClasses]);
 
   useEffect(() => {
     (["lista", "criar"] as const).forEach((tabKey) => {
@@ -1851,6 +1901,7 @@ export default function ClassesScreen() {
                 compact={
                   responsiveLayout.isMobile || responsiveLayout.tier === "tablet"
                 }
+                onImportStudents={openStudentsImportModal}
               />
               <Pressable
                 accessibilityRole="button"
@@ -2436,6 +2487,14 @@ export default function ClassesScreen() {
         </AnchoredDropdown>
       </View>
       </KeyboardAvoidingView>
+
+      <StudentsImportModal
+        visible={showStudentsImportModal}
+        organizationId={activeOrganization?.id ?? null}
+        classes={classes}
+        onClose={closeStudentsImportModal}
+        onImportApplied={handleImportStudentsApplied}
+      />
 
       <ConfirmCloseOverlay
         visible={showEditCloseConfirm}

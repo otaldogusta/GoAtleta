@@ -41,6 +41,7 @@ const colors = {
 
 function renderWorkspace(compact: boolean, appliedPlan: any = null) {
   const onOpenPlanning = jest.fn();
+  const onOpenLessonCalendar = jest.fn();
   const screen = render(
     React.createElement(ClassOperationsWorkspace, {
       colors,
@@ -51,6 +52,7 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null) {
       isLoadingLessonPlan: false,
       onPreviousLesson: jest.fn(),
       onNextLesson: jest.fn(),
+      onOpenLessonCalendar,
       onViewPlan: jest.fn(),
       onGeneratePlan: jest.fn(),
       isGeneratingPlan: false,
@@ -62,7 +64,6 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null) {
       onOpenSession: jest.fn(),
       onOpenAttendance: jest.fn(),
       onOpenReport: jest.fn(),
-      onOpenPeriodization: jest.fn(),
       onOpenPlanning,
       onOpenVisualTech: jest.fn(),
       onOpenScouting: jest.fn(),
@@ -72,7 +73,7 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null) {
     })
   );
 
-  return { screen, onOpenPlanning };
+  return { screen, onOpenPlanning, onOpenLessonCalendar };
 }
 
 describe("ClassOperationsWorkspace responsive navigation", () => {
@@ -88,6 +89,7 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(screen.getByText("Planejamento")).toBeTruthy();
     expect(screen.getByText("Desempenho")).toBeTruthy();
     expect(screen.getByText("Gestão")).toBeTruthy();
+    expect(screen.queryByLabelText("Periodização da turma")).toBeNull();
 
     fireEvent.press(screen.getByLabelText("Planejamentos da turma"));
 
@@ -101,6 +103,15 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(screen.queryByLabelText("Abrir menu da turma")).toBeNull();
     expect(screen.getByLabelText("Chamada")).toBeTruthy();
     expect(screen.getByLabelText("Relatório")).toBeTruthy();
+    expect(screen.queryByLabelText("Periodização da turma")).toBeNull();
+  });
+
+  it("opens the lesson calendar from the centered date", () => {
+    const { screen, onOpenLessonCalendar } = renderWorkspace(false);
+
+    fireEvent.press(screen.getByLabelText("Selecionar data da aula"));
+
+    expect(onOpenLessonCalendar).toHaveBeenCalledTimes(1);
   });
 
   it("opens the class planning from the applied plan actions", () => {

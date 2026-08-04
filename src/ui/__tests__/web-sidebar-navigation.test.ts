@@ -48,10 +48,22 @@ describe("web sidebar navigation", () => {
     ]);
   });
 
-  it("preserves the existing order for other roles", () => {
-    const items = [{ key: "classes" }, { key: "dashboard" }, { key: "events" }];
+  it("places coordination students beside classes", () => {
+    const items = [
+      { key: "reports" },
+      { key: "events" },
+      { key: "students" },
+      { key: "classes" },
+      { key: "dashboard" },
+    ];
 
-    expect(orderWebSidebarItems("coord", items)).toEqual(items);
+    expect(orderWebSidebarItems("coord", items).map((item) => item.key)).toEqual([
+      "dashboard",
+      "classes",
+      "students",
+      "reports",
+      "events",
+    ]);
   });
 
   it("navigates across web shells when leaving a class workspace route", () => {

@@ -68,13 +68,14 @@ class SmartSyncService {
   }
 
   /**
-   * Cleanup listeners
+   * Cleanup listeners and timers
    */
   destroy() {
-   if (this.syncTimer) {
+    if (this.syncTimer) {
       clearTimeout(this.syncTimer);
       this.syncTimer = null;
     }
+    this.listeners = [];
     this.queuedSyncReason = null;
     this.isInitialized = false;
   }
@@ -136,7 +137,7 @@ class SmartSyncService {
    */
   syncOnAppForeground() {
     this.scheduleSyncSoon("app_foreground");
-  };
+  }
 
   /**
    * Schedule a sync attempt soon (with debounce)
@@ -262,10 +263,13 @@ class SmartSyncService {
         return { flushed: 0, remaining: await getPendingWritesCount() };
       } finally {
         this.inFlightSync = null;
-        const queuedReason = this.queuedSyncReason;
-        this.queuedSyncReason = null;
-        if (queuedReason && this.status.syncPausedReason !== "org_switch") {
-          this.scheduleSyncSoon(`queued:${queuedReason}`);
+        // Only reschedule if generation hasn't changed (org switch didn't occur)
+        if (generationAtStart === this.syncGeneration) {
+          const queuedReason = this.queuedSyncReason;
+          this.queuedSyncReason = null;
+          if (queuedReason && this.status.syncPausedReason !== "org_switch") {
+            this.scheduleSyncSoon(`queued:${queuedReason}`);
+          }
         }
       }
     })();
@@ -304,7 +308,11 @@ class SmartSyncService {
    * Update status and notify listeners
    */
   private updateStatus(updates: Partial<SyncStatus>) {
-    this.status = { ...this.status, ...updates };
+    const nextStatus = { ...this.status, ...updates };
+    if (shallowSyncStatusEqual(this.status, nextStatus)) {
+      return;
+    }
+    this.status = nextStatus;
     this.listeners.forEach((listener) => listener(this.status));
   }
 
@@ -317,6 +325,19 @@ class SmartSyncService {
     return count;
   }
 }
+
+const shallowSyncStatusEqual = (a: SyncStatus, b: SyncStatus): boolean => {
+  return (
+    a.syncing === b.syncing &&
+    a.pendingCount === b.pendingCount &&
+    a.lastSyncAt === b.lastSyncAt &&
+    a.lastError === b.lastError &&
+    a.syncPausedReason === b.syncPausedReason &&
+    a.lastFlushMs === b.lastFlushMs &&
+    a.lastFlushBatchSize === b.lastFlushBatchSize &&
+    a.lastFlushedCount === b.lastFlushedCount
+  );
+};
 
 // Singleton instance
 export const smartSync = new SmartSyncService();

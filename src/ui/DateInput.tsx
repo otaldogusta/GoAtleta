@@ -9,7 +9,7 @@ import { Pressable } from "./Pressable";
 import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";
 
-const formatShortDate = (value: string) => {
+export const formatShortDate = (value: string) => {
   if (!value) return "";
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return value;
@@ -17,7 +17,7 @@ const formatShortDate = (value: string) => {
   return `${day}/${month}/${year}`;
 };
 
-const formatDateInput = (value: string) => {
+export const formatDateInput = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) {
@@ -26,7 +26,7 @@ const formatDateInput = (value: string) => {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 };
 
-const parseDateInputToIso = (value: string) => {
+export const parseDateInputToIso = (value: string) => {
   const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!match) return null;
   const day = Number(match[1]);
@@ -55,18 +55,20 @@ export type DateInputProps = {
   onOpenCalendar?: () => void;
   invalid?: boolean;
   onFocus?: TextInputProps["onFocus"];
+  onBlur?: TextInputProps["onBlur"];
   accessibilityLabel?: string;
   accessibilityHint?: string;
   inputRef?: Ref<TextInput>;
 };
 
-export function DateInput({
+function DateInputField({
   value,
   onChange,
   placeholder = "Selecione a data",
   onOpenCalendar,
   invalid = false,
   onFocus,
+  onBlur,
   accessibilityLabel,
   accessibilityHint,
   inputRef,
@@ -74,6 +76,21 @@ export function DateInput({
   const { colors } = useAppTheme();
   const [inputValue, setInputValue] = useState(value ? formatShortDate(value) : "");
   const canOpenCalendar = Boolean(onOpenCalendar);
+
+  const commitInputValue = () => {
+    if (!inputValue) {
+      if (value) onChange("");
+      return;
+    }
+
+    const iso = parseDateInputToIso(inputValue);
+    if (!iso) {
+      setInputValue(formatShortDate(value));
+      return;
+    }
+
+    if (iso !== value) onChange(iso);
+  };
 
   return (
     <View
@@ -91,24 +108,21 @@ export function DateInput({
       }}
     >
       <TextInput
-        key={value || "empty-date-value"}
         ref={inputRef}
         placeholder={placeholder}
         value={inputValue}
         onChangeText={(text) => {
           const formatted = formatDateInput(text);
           setInputValue(formatted);
-          if (!formatted) {
-            onChange("");
-            return;
-          }
-          const iso = parseDateInputToIso(formatted);
-          if (iso) {
-            onChange(iso);
-          }
         }}
+        onBlur={(event) => {
+          commitInputValue();
+          onBlur?.(event);
+        }}
+        onSubmitEditing={commitInputValue}
         keyboardType="numeric"
         onFocus={onFocus}
+        selectTextOnFocus
         accessibilityLabel={accessibilityLabel ?? placeholder}
         accessibilityHint={accessibilityHint}
         placeholderTextColor={colors.placeholder}
@@ -142,4 +156,8 @@ export function DateInput({
       </Pressable>
     </View>
   );
+}
+
+export function DateInput(props: DateInputProps) {
+  return <DateInputField key={props.value || "empty-date-value"} {...props} />;
 }

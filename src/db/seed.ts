@@ -82,3 +82,8 @@ export {
     getAttendanceByStudent, getStudentById, getStudentPreRegistrations, getStudents,
     getStudentClassIds, getStudentsByClass, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, setStudentClassIds, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
 } from "./students";
+
+export {
+    listActiveStudentContextsByClass, saveConfirmedStudentContexts,
+    type ActiveStudentContext, type ConfirmedStudentContextInput
+} from "./student-context-events";

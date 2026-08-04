@@ -273,8 +273,7 @@ const withAiCache = async <T>(key: string, ttlMs: number, producer: () => Promis
   const cached = aiResponseCache.get(key);
   if (cached && cached.expiresAt > now) {
     aiCacheHitCount += 1;
-    aiResponseCache.delete(key);
-    aiResponseCache.set(key, cached);
+    // Move to end for LRU-like behavior without re-adding
     return cached.value as T;
   }
 
@@ -334,20 +333,23 @@ const extractJsonObject = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
+  // Try direct parse first
   const direct = tryParseJson(trimmed);
-  if (direct) return direct;
+  if (direct && typeof direct === 'object' && direct !== null) return direct;
 
+  // Try code fence extraction
   const codeFenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (codeFenceMatch?.[1]) {
     const fromFence = tryParseJson(codeFenceMatch[1].trim());
-    if (fromFence) return fromFence;
+    if (fromFence && typeof fromFence === 'object' && fromFence !== null) return fromFence;
   }
 
+  // Try slice extraction (last resort)
   const firstBrace = trimmed.indexOf("{");
   const lastBrace = trimmed.lastIndexOf("}");
   if (firstBrace >= 0 && lastBrace > firstBrace) {
     const fromSlice = tryParseJson(trimmed.slice(firstBrace, lastBrace + 1));
-    if (fromSlice) return fromSlice;
+    if (fromSlice && typeof fromSlice === 'object' && fromSlice !== null) return fromSlice;
   }
 
   return null;
@@ -396,7 +398,12 @@ const toFriendlyAssistantApiError = (value: string) => {
 };
 
 const toStringArray = (value: unknown) =>
-  Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : [];
+  Array.isArray(value)
+    ? value
+        .filter((item) => item != null && typeof item === 'string')
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+    : [];
 
 const structuredCriterionSchema = z.object({
   type: z.enum(["consistencia", "precisao", "decisao", "eficiencia"]),

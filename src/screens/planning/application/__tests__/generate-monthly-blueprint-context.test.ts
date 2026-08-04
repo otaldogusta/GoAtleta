@@ -78,4 +78,46 @@ describe("generateMonthlyBlueprint", () => {
       ])
     );
   });
+
+  it("carrega sinais agregados dos alunos no mesmo contexto mensal", () => {
+    const blueprint = generateMonthlyBlueprint({
+      classGroup,
+      monthKey: "2026-06",
+      studentContexts: [
+        {
+          classId: classGroup.id,
+          category: "health",
+          severity: "urgent",
+          eventDate: "2026-06-10",
+        },
+        {
+          classId: classGroup.id,
+          category: "absence",
+          severity: "attention",
+          eventDate: "2026-06-12",
+        },
+      ],
+    });
+
+    const snapshot = JSON.parse(blueprint.contextSnapshotJson);
+
+    expect(snapshot.studentContext).toEqual({
+      activeSignals: 2,
+      attentionSignals: 1,
+      urgentSignals: 1,
+      categories: { health: 1, absence: 1 },
+    });
+    expect(snapshot.dimensionGuidelines).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("prontidão"),
+        expect.stringContaining("reintegração"),
+      ]),
+    );
+    expect(snapshot.decisionReasons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "context", confidence: "high" }),
+        expect.objectContaining({ kind: "safety", confidence: "high" }),
+      ]),
+    );
+  });
 });

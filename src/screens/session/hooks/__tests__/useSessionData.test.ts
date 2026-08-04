@@ -17,6 +17,7 @@ import type { ScoutingPlanningSignal } from "../../../../core/scouting";
 jest.mock("../../../../db/seed", () => ({
   getAttendanceByDate: jest.fn(),
   getClassById: jest.fn(),
+  getClassCalendarExceptions: jest.fn(() => Promise.resolve([])),
   getClassPlansByClass: jest.fn(() => Promise.resolve([])),
   getDailyLessonPlanByWeekAndDate: jest.fn(() => Promise.resolve(null)),
   getKnowledgeRuleCitations: jest.fn(() => Promise.resolve([])),

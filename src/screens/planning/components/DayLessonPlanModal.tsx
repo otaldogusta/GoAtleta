@@ -38,28 +38,6 @@ const previewText = (value: string | undefined, fallback: string, limit = 90) =>
   return resolved.length > limit ? `${resolved.slice(0, Math.max(0, limit - 3)).trimEnd()}...` : resolved;
 };
 
-function GuidanceList({
-  title,
-  items,
-  colors,
-}: {
-  title: string;
-  items: string[];
-  colors: ReturnType<typeof useAppTheme>["colors"];
-}) {
-  if (!items.length) return null;
-  return (
-    <View style={{ gap: 5, flex: 1, minWidth: 190 }}>
-      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>{title}</Text>
-      {items.slice(0, 3).map((item) => (
-        <Text key={item} style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>
-          {previewText(item, "")}
-        </Text>
-      ))}
-    </View>
-  );
-}
-
 function LessonBlockPreview({
   block,
   colors,
@@ -209,13 +187,13 @@ export function DayLessonPlanModal({
         paddingTop: 10,
         paddingBottom: 4,
       }}
-      footer={
+      footer={onExportPdf || isEditing ? (
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <Pressable
+          {onExportPdf ? <Pressable
             onPress={() => {
               void handleExportPdf();
             }}
-            disabled={isExportingPdf || !onExportPdf}
+            disabled={isExportingPdf}
             style={{
               flex: 1,
               alignItems: "center",
@@ -224,13 +202,12 @@ export function DayLessonPlanModal({
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.secondaryBg,
-              opacity: onExportPdf ? 1 : 0.6,
             }}
           >
             <Text style={{ color: colors.text, fontWeight: "700" }}>
               {isExportingPdf ? "Gerando PDF..." : "Baixar PDF"}
             </Text>
-          </Pressable>
+          </Pressable> : null}
           {isEditing ? (
             <Pressable
               onPress={() => {
@@ -251,7 +228,7 @@ export function DayLessonPlanModal({
             </Pressable>
           ) : null}
         </View>
-      }
+      ) : undefined}
     >
       {!isEditing ? (
         <View style={{ gap: 12 }}>
@@ -294,13 +271,6 @@ export function DayLessonPlanModal({
                 {previewText(guidance.setupHint, "", 120)}
               </Text>
             ) : null}
-          </View>
-
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            <GuidanceList title="Faça" items={guidance.doNow ?? []} colors={colors} />
-            <GuidanceList title="Evite" items={guidance.avoidToday ?? []} colors={colors} />
-            <GuidanceList title="Avance se" items={guidance.advanceIf ?? []} colors={colors} />
-            <GuidanceList title="Simplifique se" items={guidance.simplifyIf ?? []} colors={colors} />
           </View>
 
           <View style={{ gap: 8 }}>

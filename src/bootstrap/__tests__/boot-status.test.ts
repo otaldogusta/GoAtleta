@@ -15,7 +15,13 @@ describe("resolveBootStatus", () => {
   it("prioritizes blocking bootstrap phases", () => {
     expect(resolveBootStatus({ ...base, bootstrapLoading: true }).phase).toBe("bootstrap");
     expect(resolveBootStatus({ ...base, authLoading: true }).phase).toBe("auth");
-    expect(resolveBootStatus({ ...base, navReady: false }).phase).toBe("navigation");
+  });
+
+  it("renders the route tree while navigation becomes ready", () => {
+    expect(resolveBootStatus({ ...base, navReady: false })).toMatchObject({
+      phase: "navigation",
+      blocking: false,
+    });
   });
 
   it("reports non-blocking role and organization phases", () => {

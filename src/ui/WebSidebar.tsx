@@ -721,6 +721,12 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     ],
     coord: [
       {
+        key: "students",
+        label: "Alunos",
+        href: "/coord/students",
+        icon: "students",
+      },
+      {
         key: "events",
         label: "Eventos",
         href: "/coord/events",

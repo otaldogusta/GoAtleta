@@ -8,6 +8,7 @@ import type {
   SessionLog,
   Student,
 } from "../../../core/models";
+import type { StudentPlanningContextInput } from "./build-unified-planning-context";
 import { resolveLearningObjectives } from "../../../core/pedagogy/objective-language";
 import {
   normalizeAgeBandKey,
@@ -69,6 +70,7 @@ export interface RegenerateMonthPlansParams {
   students?: Student[];
   recentAttendance?: AttendanceRecord[];
   recentSessionLogs?: SessionLog[];
+  studentContexts?: StudentPlanningContextInput[];
   recentSessionSummaries?: RecentSessionSummary[];
   onProgress?: (progress: MonthRegenerationProgress) => void;
 }
@@ -162,6 +164,7 @@ export const regenerateMonthPlans = async (
     students: params.students,
     recentAttendance: params.recentAttendance,
     recentSessionLogs: params.recentSessionLogs,
+    studentContexts: params.studentContexts,
     recentSessionSummaries: params.recentSessionSummaries,
     activeCycle: params.activeCycle,
   });

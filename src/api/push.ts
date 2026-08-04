@@ -16,27 +16,43 @@ export type SendPushResult = {
   invalidTokens: number;
 };
 
+const PUSH_REQUEST_TIMEOUT_MS = 10_000;
+
 export async function sendPushToUser(input: SendPushInput): Promise<SendPushResult> {
   const token = await getValidAccessToken();
   if (!token) {
     throw new Error("Sessão inválida. Faça login novamente.");
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      apikey: SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({
-      organizationId: input.organizationId,
-      targetUserId: input.targetUserId,
-      title: input.title,
-      body: input.body,
-      data: input.data ?? null,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), PUSH_REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        organizationId: input.organizationId,
+        targetUserId: input.targetUserId,
+        title: input.title,
+        body: input.body,
+        data: input.data ?? null,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Envio de notificação excedeu o tempo limite.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const raw = await response.text();
   const parsed = raw ? (JSON.parse(raw) as { error?: string } & Partial<SendPushResult>) : null;
@@ -50,4 +66,3 @@ export async function sendPushToUser(input: SendPushInput): Promise<SendPushResu
     invalidTokens: Number(parsed?.invalidTokens ?? 0),
   };
 }
-
