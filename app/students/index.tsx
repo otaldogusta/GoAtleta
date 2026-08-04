@@ -15,7 +15,6 @@ import {
   Animated,
   KeyboardAvoidingView,
   Platform,
-  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -95,6 +94,7 @@ import { WhatsAppModal } from "../../src/screens/students/modals/WhatsAppModal";
 import { StudentsListTab } from "../../src/screens/students/StudentsListTab";
 import { AnchoredDropdown as StudentsAnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { AppRefreshControl } from "../../src/ui/AppRefreshControl";
 import { Button } from "../../src/ui/Button";
 import { getClassPalette } from "../../src/ui/class-colors";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
@@ -2406,7 +2406,7 @@ export default function StudentsScreen() {
             keyboardShouldPersistTaps="handled"
             onScrollBeginDrag={closeAllPickers}
             refreshControl={
-              <RefreshControl
+              <AppRefreshControl
                 refreshing={refreshing}
                 onRefresh={async () => {
                   setRefreshing(true);

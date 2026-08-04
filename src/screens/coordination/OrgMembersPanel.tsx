@@ -6,7 +6,6 @@ import {
     FlatList,
     LayoutAnimation,
     Platform,
-    RefreshControl,
     ScrollView,
     Text,
     TextInput,
@@ -17,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
+import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import {
     generateTrainerMessage,
     type TrainerMessageResult,
@@ -1059,7 +1059,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
       ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl
+        <AppRefreshControl
           refreshing={refreshing}
           onRefresh={() => void loadMembers({ soft: true })}
           tintColor={colors.text}

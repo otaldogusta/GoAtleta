@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { useFocusEffect, useRouter } from "expo-router";
 import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, RefreshControl, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { type Signal } from "../src/ai/signal-engine";
@@ -69,6 +69,7 @@ import { type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel
 import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
 import { resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
 import { useAppTheme } from "../src/ui/app-theme";
+import { AppRefreshControl } from "../src/ui/AppRefreshControl";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
@@ -1513,7 +1514,7 @@ export default function CoordinationScreen() {
           }}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl
+            <AppRefreshControl
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true);

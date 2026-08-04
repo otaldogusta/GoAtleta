@@ -28,8 +28,6 @@ import {
 
     Platform,
 
-    RefreshControl,
-
     ScrollView,
     Text,
 
@@ -88,6 +86,7 @@ import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
 import { ShimmerBlock } from "../../ui/Shimmer";
 
 import { useAppTheme } from "../../ui/app-theme";
+import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 
@@ -1596,9 +1595,7 @@ export function HomeProfessorScreen({
         contentContainerStyle={homeContentContainerStyle}
 
         refreshControl={
-          Platform.OS === "web"
-            ? undefined
-            : <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
 
       >

@@ -13,7 +13,6 @@ import {
     KeyboardAvoidingView,
     Linking,
     Platform,
-    RefreshControl,
     ScrollView,
     Share,
     Text,
@@ -48,6 +47,7 @@ import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { ActivityCatalogTab } from "../../src/screens/library/ActivityCatalogTab";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { AppRefreshControl } from "../../src/ui/AppRefreshControl";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
@@ -663,7 +663,7 @@ export default function ExercisesScreen() {
         contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 150 }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);

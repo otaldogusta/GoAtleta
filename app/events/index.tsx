@@ -3,7 +3,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Pressable,
-    RefreshControl,
     ScrollView,
     Text,
     TextInput,
@@ -32,6 +31,7 @@ import { validateTournamentRules } from "../../src/regulation/tournament-rule-ch
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { AppRefreshControl } from "../../src/ui/AppRefreshControl";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import type { ConfirmDialogOptions } from "../../src/ui/confirm-dialog";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
@@ -604,7 +604,7 @@ export default function EventsScreen() {
         contentContainerStyle={{ padding: 16, gap: 14 }}
         stickyHeaderIndices={[0]}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);

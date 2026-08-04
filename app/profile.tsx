@@ -7,7 +7,6 @@ import {
   Alert,
   Modal,
   Platform,
-  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -52,6 +51,7 @@ import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntim
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
+import { AppRefreshControl } from "../src/ui/AppRefreshControl";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
@@ -1054,7 +1054,7 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14 }}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);

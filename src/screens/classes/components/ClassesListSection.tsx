@@ -4,7 +4,6 @@ import {
   Animated,
   FlatList,
   Platform,
-  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +14,7 @@ import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
 import { radius } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
+import { AppRefreshControl } from "../../../ui/AppRefreshControl";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
 import { useContainerResponsiveLayout } from "../../../ui/use-container-responsive-layout";
@@ -371,7 +371,7 @@ export const ClassesListSection = memo(function ClassesListSection({
         onMomentumScrollBegin={closeActionMenu}
         refreshControl={
           onRefresh ? (
-            <RefreshControl
+            <AppRefreshControl
               refreshing={Boolean(refreshing)}
               onRefresh={() => void onRefresh()}
               tintColor={colors.text}

@@ -3,7 +3,7 @@
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { NativeScrollEvent, NativeSyntheticEvent, Platform, RefreshControl, ScrollView, Text, View } from "react-native";
+import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
@@ -17,6 +17,7 @@ import {
     subscribeNotifications,
 } from "../src/notificationsInbox";
 import { useAppTheme } from "../src/ui/app-theme";
+import { AppRefreshControl } from "../src/ui/AppRefreshControl";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";
 import { Pressable } from "../src/ui/Pressable";
 import { getUnitPalette } from "../src/ui/unit-colors";
@@ -290,7 +291,7 @@ export default function StudentHome() {
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 14 }}
         refreshControl={
-          <RefreshControl
+          <AppRefreshControl
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);
