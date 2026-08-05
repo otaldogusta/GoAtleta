@@ -144,6 +144,7 @@ import { ModalSheet } from "../../../src/ui/ModalSheet";
 import { resolveResponsiveTier } from "../../../src/ui/responsive-layout";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
+import { WebCameraCaptureModal } from "../../../src/ui/WebCameraCaptureModal";
 import { formatClock, formatDuration } from "../../../src/utils/format-time";
 import { getLessonBlockTimes } from "../../../src/utils/lesson-block-times";
 import { normalizeDisplayText } from "../../../src/utils/text-normalization";
@@ -1716,6 +1717,9 @@ export function SessionScreen({
   const [isRewritingConclusion, setIsRewritingConclusion] = useState(false);
   const [isPickingPhoto, setIsPickingPhoto] = useState(false);
   const [photoActionIndex, setPhotoActionIndex] = useState<number | null>(null);
+  const [cameraCaptureRequest, setCameraCaptureRequest] = useState<{
+    replaceIndex?: number;
+  } | null>(null);
   const [showPsePicker, setShowPsePicker] = useState(false);
   const [showTechniquePicker, setShowTechniquePicker] = useState(false);
   const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
@@ -2036,25 +2040,17 @@ export function SessionScreen({
       return;
     }
 
+    if (source === "camera") {
+      setPhotoActionIndex(null);
+      setCameraCaptureRequest(
+        typeof replaceIndex === "number" ? { replaceIndex } : {},
+      );
+      return;
+    }
+
     setIsPickingPhoto(true);
     try {
-      if (source === "camera") {
-        if (Platform.OS === "web") {
-          showSaveToast({
-            message: "Câmera indisponível no navegador. Use a galeria.",
-            variant: "info",
-          });
-          return;
-        }
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (permission.status !== "granted") {
-          showSaveToast({
-            message: "Permissão de câmera não concedida.",
-            variant: "error",
-          });
-          return;
-        }
-      } else if (Platform.OS !== "web") {
+      if (Platform.OS !== "web") {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (permission.status !== "granted") {
           showSaveToast({
@@ -2065,22 +2061,13 @@ export function SessionScreen({
         }
       }
 
-      const result =
-        source === "camera"
-          ? await ImagePicker.launchCameraAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              quality: 0.8,
-              allowsEditing: true,
-              aspect: [4, 3],
-              base64: Platform.OS === "web",
-            })
-          : await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              quality: 0.8,
-              allowsEditing: true,
-              aspect: [4, 3],
-              base64: Platform.OS === "web",
-            });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsEditing: true,
+        aspect: [4, 3],
+        base64: Platform.OS === "web",
+      });
 
       const asset = result.assets?.[0];
       if (result.canceled || !asset?.uri) return;
@@ -3506,8 +3493,9 @@ export function SessionScreen({
   }
 
   const reportTabContent = (
-    <SessionReportTab
-      embedded={embeddedReport}
+    <>
+      <SessionReportTab
+        embedded={embeddedReport}
       compactFields={resolveResponsiveTier(viewportWidth) === "mobile"}
       colors={colors}
       containerRef={containerRef}
@@ -3575,8 +3563,19 @@ export function SessionScreen({
         setPhotoActionIndex(null);
       }}
       onSaveReport={handleSaveReport}
-      onSaveAndGenerateReport={handleSaveAndGenerateReport}
-    />
+        onSaveAndGenerateReport={handleSaveAndGenerateReport}
+      />
+      <WebCameraCaptureModal
+        visible={cameraCaptureRequest !== null}
+        initialFacing="back"
+        title="Foto do relatório"
+        subtitle="Enquadre a atividade que deseja registrar."
+        onClose={() => setCameraCaptureRequest(null)}
+        onCapture={({ uri }) => {
+          applyPickedPhoto(uri, cameraCaptureRequest?.replaceIndex);
+        }}
+      />
+    </>
   );
 
   if (embeddedReport) {

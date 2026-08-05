@@ -69,6 +69,7 @@ import { useUndoableListDelete } from "../../../src/ui/useUndoableListDelete";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
 import { useConfirmDialog } from "../../../src/ui/confirm-dialog";
+import { WebCameraCaptureModal } from "../../../src/ui/WebCameraCaptureModal";
 import { markRender, measureAsync } from "../../../src/observability/perf";
 import { maskCpf } from "../../../src/utils/cpf";
 import { formatRgBr } from "../../../src/utils/document-normalization";
@@ -353,6 +354,7 @@ export default function ClassStudentsScreen() {
   const [createRg, setCreateRg] = useState("");
   const [createPhotoUrl, setCreatePhotoUrl] = useState<string | null>(null);
   const [createPhotoMimeType, setCreatePhotoMimeType] = useState<string | null>(null);
+  const [cameraCaptureTarget, setCameraCaptureTarget] = useState<"create" | "edit" | null>(null);
   const [createError, setCreateError] = useState("");
   const {
     issue: createValidationIssue,
@@ -791,28 +793,7 @@ export default function ClassStudentsScreen() {
   const pickStudentPhoto = useCallback(async (source: "camera" | "library") => {
     try {
       if (source === "camera") {
-        if (Platform.OS === "web") {
-          Alert.alert("Câmera indisponível", "Use a galeria no navegador.");
-          return;
-        }
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (permission.status !== "granted") {
-          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
-          return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.65,
-          allowsEditing: true,
-          aspect: [1, 1],
-          base64: false,
-        });
-        const asset = result.assets?.[0];
-        if (!result.canceled && asset?.uri) {
-          setPhotoUrl(asset.uri);
-          setPhotoMimeType(asset.mimeType ?? null);
-          setPhotoChanged(true);
-        }
+        setCameraCaptureTarget("edit");
         return;
       }
 
@@ -843,27 +824,7 @@ export default function ClassStudentsScreen() {
   const pickCreatePhoto = useCallback(async (source: "camera" | "library") => {
     try {
       if (source === "camera") {
-        if (Platform.OS === "web") {
-          Alert.alert("Câmera indisponível", "Use a galeria no navegador.");
-          return;
-        }
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (permission.status !== "granted") {
-          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
-          return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.65,
-          allowsEditing: true,
-          aspect: [1, 1],
-          base64: false,
-        });
-        const asset = result.assets?.[0];
-        if (!result.canceled && asset?.uri) {
-          setCreatePhotoUrl(asset.uri);
-          setCreatePhotoMimeType(asset.mimeType ?? null);
-        }
+        setCameraCaptureTarget("create");
         return;
       }
 
@@ -3623,6 +3584,22 @@ export default function ClassStudentsScreen() {
           </View>
         </View>
       </ModalSheet>
+
+      <WebCameraCaptureModal
+        visible={cameraCaptureTarget !== null}
+        initialFacing="front"
+        onClose={() => setCameraCaptureTarget(null)}
+        onCapture={({ uri, mimeType }) => {
+          if (cameraCaptureTarget === "create") {
+            setCreatePhotoUrl(uri);
+            setCreatePhotoMimeType(mimeType);
+            return;
+          }
+          setPhotoUrl(uri);
+          setPhotoMimeType(mimeType);
+          setPhotoChanged(true);
+        }}
+      />
 
       <ConfirmCloseOverlay
         visible={showEditCloseConfirm}

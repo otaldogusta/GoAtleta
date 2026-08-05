@@ -32,6 +32,7 @@ type NotificationRow = {
   source_id: string | null;
   metadata: Record<string, unknown> | null;
   read_at: string | null;
+  archived_at?: string | null;
   created_at: string;
 };
 
@@ -48,9 +49,13 @@ export type AppNotification = {
   sourceId: string | null;
   metadata: Record<string, unknown>;
   readAt: string | null;
+  archivedAt: string | null;
   createdAt: string;
   read: boolean;
+  archived: boolean;
 };
+
+export type NotificationArchiveScope = "active" | "archived" | "all";
 
 export type CreateNotificationInput = {
   organizationId?: string | null;
@@ -68,6 +73,8 @@ export type CreateNotificationInput = {
 };
 
 const NOTIFICATION_SELECT =
+  "id,organization_id,recipient_user_id,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,archived_at,created_at";
+const NOTIFICATION_SELECT_LEGACY =
   "id,organization_id,recipient_user_id,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,created_at";
 
 const mapNotification = (row: NotificationRow): AppNotification => ({
@@ -83,8 +90,10 @@ const mapNotification = (row: NotificationRow): AppNotification => ({
   sourceId: row.source_id,
   metadata: row.metadata ?? {},
   readAt: row.read_at,
+  archivedAt: row.archived_at ?? null,
   createdAt: row.created_at,
   read: Boolean(row.read_at),
+  archived: Boolean(row.archived_at),
 });
 
 const isMissingNotificationsTable = (error: unknown) => {
@@ -95,6 +104,11 @@ const isMissingNotificationsTable = (error: unknown) => {
     (message.toLowerCase().includes("schema cache") &&
       message.toLowerCase().includes("notifications"))
   );
+};
+
+const isMissingArchivedAtColumn = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.toLowerCase().includes("archived_at");
 };
 
 const resolveOrganizationId = async (organizationId?: string | null) => {
@@ -110,7 +124,9 @@ const resolveRecipientUserId = async (recipientUserId?: string | null) => {
 const buildCreatePayload = async (input: CreateNotificationInput) => {
   const organizationId = await resolveOrganizationId(input.organizationId);
   const recipientUserId = await resolveRecipientUserId(input.recipientUserId);
-  const actorUserId = String(input.actorUserId ?? (await getSessionUserId()) ?? "").trim();
+  const actorUserId = String(
+    input.actorUserId ?? (await getSessionUserId()) ?? "",
+  ).trim();
   const title = input.title.trim();
   const body = input.body.trim();
 
@@ -131,84 +147,130 @@ const buildCreatePayload = async (input: CreateNotificationInput) => {
 };
 
 const findExistingNotification = async (
-  payload: NonNullable<Awaited<ReturnType<typeof buildCreatePayload>>>
+  payload: NonNullable<Awaited<ReturnType<typeof buildCreatePayload>>>,
 ) => {
   if (!payload.source_type || !payload.source_id) return null;
-  const rows = await supabaseRestGet<NotificationRow[]>(
-    `/notifications?select=${NOTIFICATION_SELECT}&organization_id=eq.${encodeURIComponent(
-      payload.organization_id
-    )}&recipient_user_id=eq.${encodeURIComponent(
-      payload.recipient_user_id
-    )}&type=eq.${encodeURIComponent(payload.type)}&source_type=eq.${encodeURIComponent(
-      payload.source_type
-    )}&source_id=eq.${encodeURIComponent(payload.source_id)}&limit=1`
-  );
+  const baseFilter = `organization_id=eq.${encodeURIComponent(
+    payload.organization_id,
+  )}&recipient_user_id=eq.${encodeURIComponent(
+    payload.recipient_user_id,
+  )}&type=eq.${encodeURIComponent(payload.type)}&source_type=eq.${encodeURIComponent(
+    payload.source_type,
+  )}&source_id=eq.${encodeURIComponent(payload.source_id)}`;
+  let rows: NotificationRow[];
+  try {
+    rows = await supabaseRestGet<NotificationRow[]>(
+      `/notifications?select=${NOTIFICATION_SELECT}&${baseFilter}&archived_at=is.null&limit=1`,
+    );
+  } catch (error) {
+    if (!isMissingArchivedAtColumn(error)) throw error;
+    rows = await supabaseRestGet<NotificationRow[]>(
+      `/notifications?select=${NOTIFICATION_SELECT_LEGACY}&${baseFilter}&limit=1`,
+    );
+  }
   const existing = rows?.[0];
   return existing ? mapNotification(existing) : null;
 };
 
-const callCreateNotificationFunction = async (input: CreateNotificationInput) => {
+const callCreateNotificationFunction = async (
+  input: CreateNotificationInput,
+) => {
   const token = await getValidAccessToken();
   if (!token) throw new Error("Sessão inválida. Faça login novamente.");
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/create-notification`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      apikey: SUPABASE_ANON_KEY,
+  const response = await fetch(
+    `${SUPABASE_URL}/functions/v1/create-notification`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(input),
     },
-    body: JSON.stringify(input),
-  });
+  );
 
   const raw = await response.text();
   const parsed = raw
-    ? (JSON.parse(raw) as { error?: string; notification?: NotificationRow; created?: boolean })
+    ? (JSON.parse(raw) as {
+        error?: string;
+        notification?: NotificationRow;
+        created?: boolean;
+      })
     : null;
   if (!response.ok) {
     throw new Error(parsed?.error || "Falha ao criar notificação.");
   }
   return {
-    notification: parsed?.notification ? mapNotification(parsed.notification) : null,
+    notification: parsed?.notification
+      ? mapNotification(parsed.notification)
+      : null,
     created: parsed?.created !== false,
   };
 };
 
-export async function listNotifications(options: {
-  organizationId?: string | null;
-  limit?: number;
-  unreadOnly?: boolean;
-} = {}): Promise<AppNotification[]> {
+export async function listNotifications(
+  options: {
+    organizationId?: string | null;
+    limit?: number;
+    offset?: number;
+    unreadOnly?: boolean;
+    archiveScope?: NotificationArchiveScope;
+  } = {},
+): Promise<AppNotification[]> {
   const organizationId = await resolveOrganizationId(options.organizationId);
   const recipientUserId = await getSessionUserId();
   if (!organizationId || !recipientUserId) return [];
 
   const limit = Math.max(1, Math.min(options.limit ?? 50, 100));
+  const offset = Math.max(0, Math.floor(options.offset ?? 0));
   const unreadFilter = options.unreadOnly ? "&read_at=is.null" : "";
+  const archiveFilter =
+    options.archiveScope === "all"
+      ? ""
+      : options.archiveScope === "archived"
+        ? "&archived_at=not.is.null"
+        : "&archived_at=is.null";
   try {
     const rows = await supabaseRestGet<NotificationRow[]>(
       `/notifications?select=${NOTIFICATION_SELECT}&organization_id=eq.${encodeURIComponent(
-        organizationId
+        organizationId,
       )}&recipient_user_id=eq.${encodeURIComponent(
-        recipientUserId
-      )}${unreadFilter}&order=created_at.desc&limit=${limit}`
+        recipientUserId,
+      )}${unreadFilter}${archiveFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
     );
     return (rows ?? []).map(mapNotification);
   } catch (error) {
+    if (isMissingArchivedAtColumn(error)) {
+      if (options.archiveScope === "archived") return [];
+      const rows = await supabaseRestGet<NotificationRow[]>(
+        `/notifications?select=${NOTIFICATION_SELECT_LEGACY}&organization_id=eq.${encodeURIComponent(
+          organizationId,
+        )}&recipient_user_id=eq.${encodeURIComponent(
+          recipientUserId,
+        )}${unreadFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
+      );
+      return (rows ?? []).map(mapNotification);
+    }
     if (isMissingNotificationsTable(error)) return [];
     throw error;
   }
 }
 
 export async function getUnreadNotificationCount(
-  organizationId?: string | null
+  organizationId?: string | null,
 ): Promise<number> {
-  const rows = await listNotifications({ organizationId, unreadOnly: true, limit: 100 });
+  const rows = await listNotifications({
+    organizationId,
+    unreadOnly: true,
+    limit: 100,
+  });
   return rows.length;
 }
 
 export async function createNotification(
-  input: CreateNotificationInput
+  input: CreateNotificationInput,
 ): Promise<AppNotification | null> {
   const payload = await buildCreatePayload(input);
   if (!payload) return null;
@@ -227,23 +289,23 @@ export async function createNotification(
 
     if (targetIsCurrentUser) {
       notification = mapNotification(
-          (
-            await supabaseRestPost<NotificationRow[]>("/notifications", [payload])
-          )[0]
-        );
+        (
+          await supabaseRestPost<NotificationRow[]>("/notifications", [payload])
+        )[0],
+      );
     } else {
       const remoteResult = await callCreateNotificationFunction({
-          ...input,
-          organizationId: payload.organization_id,
-          recipientUserId: payload.recipient_user_id,
-          actorUserId: payload.actor_user_id,
-          type: payload.type,
-          actionUrl: payload.action_url,
-          sourceType: payload.source_type,
-          sourceId: payload.source_id,
-          metadata: payload.metadata,
-          dedupe: input.dedupe,
-        });
+        ...input,
+        organizationId: payload.organization_id,
+        recipientUserId: payload.recipient_user_id,
+        actorUserId: payload.actor_user_id,
+        type: payload.type,
+        actionUrl: payload.action_url,
+        sourceType: payload.source_type,
+        sourceId: payload.source_id,
+        metadata: payload.metadata,
+        dedupe: input.dedupe,
+      });
       notification = remoteResult.notification;
       createdNew = remoteResult.created;
     }
@@ -289,7 +351,7 @@ export async function markNotificationRead(id: string): Promise<void> {
     await supabaseRestPatch(
       `/notifications?id=eq.${encodeURIComponent(notificationId)}`,
       { read_at: new Date().toISOString() },
-      "return=minimal"
+      "return=minimal",
     );
   } catch (error) {
     if (isMissingNotificationsTable(error)) return;
@@ -298,7 +360,7 @@ export async function markNotificationRead(id: string): Promise<void> {
 }
 
 export async function markAllNotificationsRead(
-  organizationId?: string | null
+  organizationId?: string | null,
 ): Promise<void> {
   const resolvedOrganizationId = await resolveOrganizationId(organizationId);
   const recipientUserId = await getSessionUserId();
@@ -306,27 +368,97 @@ export async function markAllNotificationsRead(
   try {
     await supabaseRestPatch(
       `/notifications?organization_id=eq.${encodeURIComponent(
-        resolvedOrganizationId
-      )}&recipient_user_id=eq.${encodeURIComponent(recipientUserId)}&read_at=is.null`,
+        resolvedOrganizationId,
+      )}&recipient_user_id=eq.${encodeURIComponent(
+        recipientUserId,
+      )}&read_at=is.null&archived_at=is.null`,
       { read_at: new Date().toISOString() },
-      "return=minimal"
+      "return=minimal",
     );
   } catch (error) {
+    if (isMissingArchivedAtColumn(error)) {
+      await supabaseRestPatch(
+        `/notifications?organization_id=eq.${encodeURIComponent(
+          resolvedOrganizationId,
+        )}&recipient_user_id=eq.${encodeURIComponent(recipientUserId)}&read_at=is.null`,
+        { read_at: new Date().toISOString() },
+        "return=minimal",
+      );
+      return;
+    }
     if (isMissingNotificationsTable(error)) return;
     throw error;
   }
 }
 
-export async function clearMyNotifications(organizationId?: string | null): Promise<void> {
+export async function archiveReadNotifications(
+  organizationId?: string | null,
+): Promise<void> {
+  const resolvedOrganizationId = await resolveOrganizationId(organizationId);
+  const recipientUserId = await getSessionUserId();
+  if (!resolvedOrganizationId || !recipientUserId) return;
+  try {
+    await supabaseRestPatch(
+      `/notifications?organization_id=eq.${encodeURIComponent(
+        resolvedOrganizationId,
+      )}&recipient_user_id=eq.${encodeURIComponent(
+        recipientUserId,
+      )}&read_at=not.is.null&archived_at=is.null`,
+      { archived_at: new Date().toISOString() },
+      "return=minimal",
+    );
+  } catch (error) {
+    if (isMissingArchivedAtColumn(error)) {
+      throw new Error(
+        "A área de avisos arquivados ainda precisa da migration do banco.",
+      );
+    }
+    if (isMissingNotificationsTable(error)) return;
+    throw error;
+  }
+}
+
+export async function restoreNotification(
+  id: string,
+  organizationId?: string | null,
+): Promise<void> {
+  const notificationId = String(id ?? "").trim();
+  const resolvedOrganizationId = await resolveOrganizationId(organizationId);
+  const recipientUserId = await getSessionUserId();
+  if (!notificationId || !resolvedOrganizationId || !recipientUserId) return;
+  try {
+    await supabaseRestPatch(
+      `/notifications?id=eq.${encodeURIComponent(
+        notificationId,
+      )}&organization_id=eq.${encodeURIComponent(
+        resolvedOrganizationId,
+      )}&recipient_user_id=eq.${encodeURIComponent(recipientUserId)}`,
+      { archived_at: null },
+      "return=minimal",
+    );
+  } catch (error) {
+    if (isMissingArchivedAtColumn(error)) {
+      throw new Error(
+        "A área de avisos arquivados ainda precisa da migration do banco.",
+      );
+    }
+    if (isMissingNotificationsTable(error)) return;
+    throw error;
+  }
+}
+
+export async function clearMyNotifications(
+  organizationId?: string | null,
+): Promise<void> {
   const resolvedOrganizationId = await resolveOrganizationId(organizationId);
   const recipientUserId = await getSessionUserId();
   if (!resolvedOrganizationId || !recipientUserId) return;
   try {
     await supabaseRestDelete(
       `/notifications?organization_id=eq.${encodeURIComponent(
-        resolvedOrganizationId
+        resolvedOrganizationId,
       )}&recipient_user_id=eq.${encodeURIComponent(recipientUserId)}`,
-      "return=minimal"
+      "return=minimal",
     );
   } catch (error) {
     if (isMissingNotificationsTable(error)) return;

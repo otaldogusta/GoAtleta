@@ -461,7 +461,7 @@ export default function StudentsScreen() {
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
-  const [showWebCamera, setShowWebCamera] = useState(false);
+  const [showCameraCapture, setShowCameraCapture] = useState(false);
   const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<{
     uri: string | null;
@@ -1101,31 +1101,8 @@ export default function StudentsScreen() {
         return;
       }
       if (source === "camera") {
-        if (Platform.OS === "web") {
-          setShowWebCamera(true);
-          return;
-        }
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (permission.status !== "granted") {
-          Alert.alert(
-            "Permissão necessária",
-            "Ative a Câmera para tirar a foto.",
-          );
-          return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.65,
-          allowsEditing: true,
-          aspect: [1, 1],
-          base64: false,
-          cameraType: ImagePicker.CameraType.back,
-        });
-        const asset = result.assets?.[0];
-        if (!result.canceled && asset?.uri) {
-          setPhotoUrl(asset.uri);
-          setPhotoMimeType(asset.mimeType ?? null);
-        }
+        setShowPhotoSheet(false);
+        setShowCameraCapture(true);
         return;
       }
       if (Platform.OS !== "web") {
@@ -2404,6 +2381,7 @@ export default function StudentsScreen() {
                 toggleClassExpanded={toggleClassExpanded}
                 renderStudentItem={renderStudentItem}
                 onStudentPress={onEdit}
+                onPhotoPress={openPhotoPreview}
                 onStudentWhatsApp={openStudentWhatsApp}
                 birthdayStudentIds={birthdayStudentIds}
                 loading={loading}
@@ -2851,8 +2829,9 @@ export default function StudentsScreen() {
           </View>
         </ModalSheet>
         <WebCameraCaptureModal
-          visible={showWebCamera}
-          onClose={() => setShowWebCamera(false)}
+          visible={showCameraCapture}
+          initialFacing="front"
+          onClose={() => setShowCameraCapture(false)}
           onCapture={({ uri, mimeType }) => {
             setPhotoUrl(uri);
             setPhotoMimeType(mimeType);

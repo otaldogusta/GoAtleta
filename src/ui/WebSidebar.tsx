@@ -11,6 +11,8 @@ import {
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import { getScopedProfilePath } from "../navigation/profile-routes";
 import { stripExpoRouterInternalParams } from "../navigation/web-route-state";
+import { formatUnreadNotificationBadge } from "../notifications/unread-notification-count";
+import { useUnreadNotificationCount } from "../notifications/useUnreadNotificationCount";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { brandPalette, radius } from "../theme/tokens";
 import { Pressable } from "./Pressable";
@@ -213,6 +215,10 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const { session, signOut } = useAuth();
   const { availableRoles, refresh: refreshRole, setActiveRole } = useRole();
   const organizationContext = useOptionalOrganization();
+  const { unreadCount: unreadNotificationCount } = useUnreadNotificationCount(
+    organizationContext?.activeOrganization?.id
+  );
+  const unreadNotificationBadge = formatUnreadNotificationBadge(unreadNotificationCount);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpandedState] = useState(() => {
@@ -687,6 +693,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         label: "Avisos de ausência",
         href: "/prof/absence-notices",
         icon: "absenceNotices",
+        badge: unreadNotificationBadge,
       },
       {
         key: "nfc",
@@ -746,9 +753,10 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       },
       {
         key: "communications",
-        label: "Comunicados",
+        label: "Avisos",
         href: "/coord/communications",
-        icon: "communications",
+        icon: "absenceNotices",
+        badge: unreadNotificationBadge,
       },
       {
         key: "periodization",
@@ -784,9 +792,10 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       },
       {
         key: "communications",
-        label: "Comunicados",
+        label: "Avisos",
         href: "/communications",
-        icon: "communications",
+        icon: "absenceNotices",
+        badge: unreadNotificationBadge,
       },
       {
         key: "scouting",
@@ -810,6 +819,9 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const renderCompactNavItem = (item: SidebarItem) => {
     const active = isActiveItem(item);
     const hovered = hoveredCompactItemKey === item.key;
+    const accessibilityLabel = item.badge
+      ? `${item.label}, ${item.badge} notificações não lidas`
+      : item.label;
     const showCompactTooltip = (event?: unknown) => {
       setHoveredCompactItemKey(item.key);
 
@@ -843,7 +855,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       <Pressable
         {...compactTooltipEvents}
         key={item.key}
-        accessibilityLabel={item.label}
+        accessibilityLabel={accessibilityLabel}
         suppressWebHoverFeedback
         onHoverIn={showCompactTooltip}
         onHoverOut={hideCompactTooltip}
@@ -1056,9 +1068,13 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
 
   const renderNavItem = (item: SidebarItem) => {
     const active = isActiveItem(item);
+    const accessibilityLabel = item.badge
+      ? `${item.label}, ${item.badge} notificações não lidas`
+      : item.label;
     return (
       <Pressable
         key={item.key}
+        accessibilityLabel={accessibilityLabel}
         onPress={() => {
           closeProfileMenu();
           navigateTo(item.href);

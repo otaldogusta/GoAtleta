@@ -159,6 +159,7 @@ export type StudentsListTabProps = {
   toggleClassExpanded: (classId: string) => void;
   renderStudentItem: (args: RenderStudentItemArgs) => ReactElement | null;
   onStudentPress?: (student: Student) => void;
+  onPhotoPress?: (student: Student) => void;
   onStudentWhatsApp?: (student: Student) => void;
   birthdayStudentIds?: ReadonlySet<string>;
   loading?: boolean;
@@ -182,6 +183,7 @@ export const StudentsListTab = memo(function StudentsListTab({
   classById,
   unitLabel,
   onStudentPress,
+  onPhotoPress,
   onStudentWhatsApp,
   birthdayStudentIds,
   loading = false,
@@ -815,12 +817,25 @@ export const StudentsListTab = memo(function StudentsListTab({
                           gap: 10,
                         }}
                       >
-                        <BirthdayAvatar
-                          colors={colors}
-                          photoUrl={student.photoUrl}
-                          isBirthdayToday={birthdayStudentIds?.has(student.id)}
-                          size={38}
-                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Ver foto de ${student.name}`}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            onPhotoPress?.(student);
+                          }}
+                          style={(state) => ({
+                            borderRadius: 19,
+                            opacity: state.pressed ? 0.72 : 1,
+                          })}
+                        >
+                          <BirthdayAvatar
+                            colors={colors}
+                            photoUrl={student.photoUrl}
+                            isBirthdayToday={birthdayStudentIds?.has(student.id)}
+                            size={38}
+                          />
+                        </Pressable>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text
                             numberOfLines={1}

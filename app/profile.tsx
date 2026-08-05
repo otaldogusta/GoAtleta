@@ -58,6 +58,7 @@ import { Pressable } from "../src/ui/Pressable";
 import { SettingsRow } from "../src/ui/SettingsRow";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
+import { WebCameraCaptureModal } from "../src/ui/WebCameraCaptureModal";
 import { radius, shadow } from "../src/theme/tokens";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { resolveAuthorizedProfileSwitchIds } from "../src/ui/profile-switch-options";
@@ -132,6 +133,7 @@ export default function ProfileScreen() {
   const [loadingPhoto, setLoadingPhoto] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const [showCameraCapture, setShowCameraCapture] = useState(false);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileMenuAnchor, setProfileMenuAnchor] = useState<{
@@ -955,51 +957,36 @@ export default function ProfileScreen() {
     }
   };
 
-  const pickPhoto = async (source: "camera" | "library") => {
-    try {
-      const currentUserId = session?.user?.id ?? "";
-      if (Platform.OS === "web" && source === "camera") {
-        Alert.alert("Câmera indisponível", "Use a Galeria no navegador.");
-        return;
-      }
-      if (source === "camera") {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (permission.status !== "granted") {
-          Alert.alert("Permissão necessária", "Ative a câmera para tirar a foto.");
-          return;
-        }
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: student?.id ? 0.7 : 0.6,
-          allowsEditing: true,
-          aspect: [1, 1],
-          base64: false,
-        });
-        const asset = result.assets?.[0];
-        if (!result.canceled && asset?.uri) {
-          const uri = student?.id
-            ? await uploadStudentPhoto({
-                organizationId: student.organizationId ?? "",
-                studentId: student.id,
-                uri: asset.uri,
-                contentType: asset.mimeType,
-              })
-            : currentUserId
-              ? await uploadMyProfilePhoto({
-                  userId: currentUserId,
-                  uri: asset.uri,
-                  contentType: asset.mimeType,
-                })
-              : null;
-          if (!uri && !student?.id) {
-            Alert.alert("Erro", "Sua sessão expirou. Entre novamente.");
-            return;
-          }
-          await savePhoto(uri);
-        }
-        return;
-      }
+  const persistPickedPhoto = async (uri: string, mimeType?: string | null) => {
+    const currentUserId = session?.user?.id ?? "";
+    const uploadedUri = student?.id
+      ? await uploadStudentPhoto({
+          organizationId: student.organizationId ?? "",
+          studentId: student.id,
+          uri,
+          contentType: mimeType,
+        })
+      : currentUserId
+        ? await uploadMyProfilePhoto({
+            userId: currentUserId,
+            uri,
+            contentType: mimeType,
+          })
+        : null;
+    if (!uploadedUri && !student?.id) {
+      throw new Error("Sua sessão expirou. Entre novamente.");
+    }
+    await savePhoto(uploadedUri);
+  };
 
+  const pickPhoto = async (source: "camera" | "library") => {
+    if (source === "camera") {
+      setShowPhotoSheet(false);
+      setShowCameraCapture(true);
+      return;
+    }
+
+    try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permission.status !== "granted") {
         Alert.alert(
@@ -1017,25 +1004,7 @@ export default function ProfileScreen() {
       });
       const asset = result.assets?.[0];
       if (!result.canceled && asset?.uri) {
-        const uri = student?.id
-          ? await uploadStudentPhoto({
-              organizationId: student.organizationId ?? "",
-              studentId: student.id,
-              uri: asset.uri,
-              contentType: asset.mimeType,
-            })
-          : currentUserId
-            ? await uploadMyProfilePhoto({
-                userId: currentUserId,
-                uri: asset.uri,
-                contentType: asset.mimeType,
-              })
-            : null;
-        if (!uri && !student?.id) {
-          Alert.alert("Erro", "Sua sessão expirou. Entre novamente.");
-          return;
-        }
-        await savePhoto(uri);
+        await persistPickedPhoto(asset.uri, asset.mimeType);
       }
     } catch (error) {
       console.error("Failed to pick profile photo", error);
@@ -2195,6 +2164,14 @@ export default function ProfileScreen() {
           ) : null}
         </View>
       </ModalSheet>
+      <WebCameraCaptureModal
+        visible={showCameraCapture}
+        initialFacing="front"
+        title="Foto do perfil"
+        subtitle="Posicione-se no centro da imagem."
+        onClose={() => setShowCameraCapture(false)}
+        onCapture={({ uri, mimeType }) => persistPickedPhoto(uri, mimeType)}
+      />
     </SafeAreaView>
   );
 }

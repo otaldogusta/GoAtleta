@@ -34,11 +34,13 @@ jest.mock("../config", () => ({
 }));
 
 import {
+  archiveReadNotifications,
   clearMyNotifications,
   createNotification,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  restoreNotification,
 } from "../notifications";
 
 describe("notifications api", () => {
@@ -81,7 +83,23 @@ describe("notifications api", () => {
       }),
     ]);
     expect(mockRestGet).toHaveBeenCalledWith(
-      expect.stringContaining("/notifications?select=")
+      expect.stringContaining("/notifications?select="),
+    );
+  });
+
+  test("paginates archived notifications through scoped filters", async () => {
+    mockRestGet.mockResolvedValue([]);
+
+    await listNotifications({
+      limit: 20,
+      offset: 20,
+      archiveScope: "archived",
+    });
+
+    expect(mockRestGet).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /recipient_user_id=eq\.user-1.*archived_at=not\.is\.null.*limit=20&offset=20/,
+      ),
     );
   });
 
@@ -121,7 +139,7 @@ describe("notifications api", () => {
           recipient_user_id: "user-1",
           type: "birthday",
         }),
-      ])
+      ]),
     );
     expect(mockFetch).not.toHaveBeenCalled();
   });
@@ -146,8 +164,8 @@ describe("notifications api", () => {
             created_at: "2026-07-06T12:00:00.000Z",
           },
         }),
-        { status: 200 }
-      )
+        { status: 200 },
+      ),
     );
 
     const created = await createNotification({
@@ -171,7 +189,7 @@ describe("notifications api", () => {
           Authorization: "Bearer access-token",
           apikey: "anon-key",
         }),
-      })
+      }),
     );
   });
 
@@ -206,7 +224,7 @@ describe("notifications api", () => {
 
     expect(created?.id).toBe("n-existing");
     expect(mockRestGet).toHaveBeenCalledWith(
-      expect.stringContaining("source_id=eq.notice-1")
+      expect.stringContaining("source_id=eq.notice-1"),
     );
     expect(mockRestPost).not.toHaveBeenCalled();
     expect(mockSendPushToUser).not.toHaveBeenCalled();
@@ -214,24 +232,27 @@ describe("notifications api", () => {
 
   test("keeps notification creation successful when push delivery fails", async () => {
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({
-        created: true,
-        notification: {
-        id: "n-push",
-        organization_id: "org-1",
-        recipient_user_id: "user-2",
-        actor_user_id: "user-1",
-        type: "absence_notice_created",
-        title: "Novo aviso de ausência",
-        body: "Aluno avisou ausência.",
-        action_url: "/prof/absence-notices",
-        source_type: "absence_notice",
-        source_id: "notice-1",
-        metadata: {},
-        read_at: null,
-        created_at: "2026-07-06T12:00:00.000Z",
-        },
-      }), { status: 200 })
+      new Response(
+        JSON.stringify({
+          created: true,
+          notification: {
+            id: "n-push",
+            organization_id: "org-1",
+            recipient_user_id: "user-2",
+            actor_user_id: "user-1",
+            type: "absence_notice_created",
+            title: "Novo aviso de ausência",
+            body: "Aluno avisou ausência.",
+            action_url: "/prof/absence-notices",
+            source_type: "absence_notice",
+            source_id: "notice-1",
+            metadata: {},
+            read_at: null,
+            created_at: "2026-07-06T12:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      ),
     );
     mockSendPushToUser.mockRejectedValue(new Error("no tokens"));
 
@@ -259,7 +280,7 @@ describe("notifications api", () => {
             sourceId: "notice-1",
           },
         },
-      })
+      }),
     );
   });
 
@@ -282,7 +303,11 @@ describe("notifications api", () => {
       },
     ]);
 
-    await createNotification({ title: "Aviso", body: "Mensagem interna.", sendPush: true });
+    await createNotification({
+      title: "Aviso",
+      body: "Mensagem interna.",
+      sendPush: true,
+    });
 
     expect(mockRestPost).toHaveBeenCalled();
     expect(mockSendPushToUser).not.toHaveBeenCalled();
@@ -290,24 +315,27 @@ describe("notifications api", () => {
 
   test("does not resend push when the Edge Function deduplicates a notification", async () => {
     mockFetch.mockResolvedValue(
-      new Response(JSON.stringify({
-        created: false,
-        notification: {
-          id: "n-existing",
-          organization_id: "org-1",
-          recipient_user_id: "user-2",
-          actor_user_id: "user-1",
-          type: "absence_notice_created",
-          title: "Novo aviso de ausência",
-          body: "Aluno avisou ausência.",
-          action_url: "/prof/absence-notices",
-          source_type: "absence_notice",
-          source_id: "notice-1",
-          metadata: {},
-          read_at: null,
-          created_at: "2026-07-06T12:00:00.000Z",
-        },
-      }), { status: 200 })
+      new Response(
+        JSON.stringify({
+          created: false,
+          notification: {
+            id: "n-existing",
+            organization_id: "org-1",
+            recipient_user_id: "user-2",
+            actor_user_id: "user-1",
+            type: "absence_notice_created",
+            title: "Novo aviso de ausência",
+            body: "Aluno avisou ausência.",
+            action_url: "/prof/absence-notices",
+            source_type: "absence_notice",
+            source_id: "notice-1",
+            metadata: {},
+            read_at: null,
+            created_at: "2026-07-06T12:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      ),
     );
 
     const notification = await createNotification({
@@ -334,23 +362,45 @@ describe("notifications api", () => {
       1,
       "/notifications?id=eq.n-1",
       expect.objectContaining({ read_at: expect.any(String) }),
-      "return=minimal"
+      "return=minimal",
     );
     expect(mockRestPatch).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining("recipient_user_id=eq.user-1"),
       expect.objectContaining({ read_at: expect.any(String) }),
-      "return=minimal"
+      "return=minimal",
     );
     expect(mockRestDelete).toHaveBeenCalledWith(
       expect.stringContaining("recipient_user_id=eq.user-1"),
-      "return=minimal"
+      "return=minimal",
+    );
+  });
+
+  test("archives read notifications and restores only the current user's item", async () => {
+    await archiveReadNotifications();
+    await restoreNotification("n-1");
+
+    expect(mockRestPatch).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining(
+        "recipient_user_id=eq.user-1&read_at=not.is.null&archived_at=is.null",
+      ),
+      expect.objectContaining({ archived_at: expect.any(String) }),
+      "return=minimal",
+    );
+    expect(mockRestPatch).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining(
+        "id=eq.n-1&organization_id=eq.org-1&recipient_user_id=eq.user-1",
+      ),
+      { archived_at: null },
+      "return=minimal",
     );
   });
 
   test("treats missing notifications table as empty/no-op until migration is applied", async () => {
     const missingTableError = new Error(
-      '{"code":"PGRST205","message":"Could not find the table \'public.notifications\' in the schema cache"}'
+      '{"code":"PGRST205","message":"Could not find the table \'public.notifications\' in the schema cache"}',
     );
     mockRestGet.mockRejectedValue(missingTableError);
     mockRestPatch.mockRejectedValue(missingTableError);
@@ -365,7 +415,7 @@ describe("notifications api", () => {
       createNotification({
         title: "Treino salvo",
         body: "Treino salvo com sucesso.",
-      })
+      }),
     ).resolves.toBeNull();
   });
 });

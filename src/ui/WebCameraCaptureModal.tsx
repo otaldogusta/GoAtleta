@@ -1,6 +1,10 @@
-import { CameraView, useCameraPermissions } from "expo-camera";
+import {
+  CameraView,
+  useCameraPermissions,
+  type CameraType,
+} from "expo-camera";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 
 import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";
@@ -8,6 +12,7 @@ import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
 import { useModalCardStyle } from "./use-modal-card-style";
 import {
+  getOppositeCameraFacing,
   normalizeWebCameraPicture,
   type WebCameraCaptureResult,
 } from "./web-camera-capture";
@@ -15,7 +20,10 @@ import {
 type WebCameraCaptureModalProps = {
   visible: boolean;
   onClose: () => void;
-  onCapture: (result: WebCameraCaptureResult) => void;
+  onCapture: (result: WebCameraCaptureResult) => void | Promise<void>;
+  initialFacing?: CameraType;
+  title?: string;
+  subtitle?: string;
 };
 
 type WebCameraCaptureContentProps = Omit<WebCameraCaptureModalProps, "visible">;
@@ -23,6 +31,9 @@ type WebCameraCaptureContentProps = Omit<WebCameraCaptureModalProps, "visible">;
 function WebCameraCaptureContent({
   onClose,
   onCapture,
+  initialFacing = "front",
+  title = "Tirar foto",
+  subtitle = "Posicione o aluno no centro da imagem.",
 }: WebCameraCaptureContentProps) {
   const { colors } = useAppTheme();
   const [permission, requestPermission] = useCameraPermissions();
@@ -31,6 +42,7 @@ function WebCameraCaptureContent({
   const [cameraReady, setCameraReady] = useState(false);
   const [captureBusy, setCaptureBusy] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  const [facing, setFacing] = useState<CameraType>(initialFacing);
   const cardStyle = useModalCardStyle({
     maxHeight: "92%",
     maxWidth: 560,
@@ -56,10 +68,10 @@ function WebCameraCaptureContent({
     setCameraError("");
     try {
       const picture = await cameraRef.current.takePictureAsync({
-        base64: true,
+        base64: Platform.OS === "web",
         quality: 0.7,
       });
-      onCapture(normalizeWebCameraPicture(picture));
+      await onCapture(normalizeWebCameraPicture(picture));
       onClose();
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
@@ -89,10 +101,10 @@ function WebCameraCaptureContent({
         >
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
-              Tirar foto
+              {title}
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Posicione o aluno no centro da imagem.
+              {subtitle}
             </Text>
           </View>
           <Pressable
@@ -130,22 +142,51 @@ function WebCameraCaptureContent({
             }}
           >
             <CameraView
+              key={facing}
               ref={cameraRef}
               style={{ flex: 1 }}
-              facing="front"
+              facing={facing}
+              mirror={facing === "front"}
               mode="picture"
               onCameraReady={() => setCameraReady(true)}
               onMountError={({ message }) => setCameraError(message)}
             />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                facing === "front"
+                  ? "Usar câmera traseira"
+                  : "Usar câmera frontal"
+              }
+              onPress={() => {
+                setCameraReady(false);
+                setFacing((current) => getOppositeCameraFacing(current));
+              }}
+              style={{
+                position: "absolute",
+                top: 12,
+                right: 12,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(5, 8, 13, 0.72)",
+                borderWidth: 1,
+                borderColor: "rgba(255, 255, 255, 0.24)",
+              }}
+            >
+              <GoAtletaIcon name="sync" size={21} color="#ffffff" />
+            </Pressable>
           </View>
         ) : (
           <View style={{ minHeight: 260, alignItems: "center", justifyContent: "center", gap: 12 }}>
             <GoAtletaIcon name="camera" size={32} color={colors.muted} />
             <Text style={{ color: colors.text, fontWeight: "700", textAlign: "center" }}>
-              Permita o acesso à webcam para tirar a foto.
+              Permita o acesso à câmera para tirar a foto.
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>
-              Se a permissão foi bloqueada, libere a câmera nas configurações do site no navegador.
+              Se a permissão foi bloqueada, libere a câmera nas configurações do navegador ou do dispositivo.
             </Text>
             {permission.canAskAgain ? (
               <Pressable
@@ -187,7 +228,7 @@ function WebCameraCaptureContent({
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Capturar foto da webcam"
+            accessibilityLabel="Capturar foto"
             disabled={!permission?.granted || !cameraReady || captureBusy}
             onPress={() => void capturePhoto()}
             style={{
@@ -220,8 +261,19 @@ export function WebCameraCaptureModal({
   visible,
   onClose,
   onCapture,
+  initialFacing,
+  title,
+  subtitle,
 }: WebCameraCaptureModalProps) {
   if (!visible) return null;
 
-  return <WebCameraCaptureContent onClose={onClose} onCapture={onCapture} />;
+  return (
+    <WebCameraCaptureContent
+      onClose={onClose}
+      onCapture={onCapture}
+      initialFacing={initialFacing}
+      title={title}
+      subtitle={subtitle}
+    />
+  );
 }

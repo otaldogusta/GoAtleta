@@ -70,14 +70,14 @@ export const ROLE_RADIAL_ACTIONS: Record<AppRole, RadialAction[]> = {
   student: [
     { id: "plan", label: "Plano", icon: "plan", href: "/student-plan" },
     { id: "feedback", label: "Feedback", icon: "feedback", href: "/absence-report" },
-    { id: "communications", label: "Comunicados", icon: "communications", href: "/communications" },
+    { id: "communications", label: "Avisos", icon: "absenceNotices", href: "/communications" },
     { id: "scouting", label: "Scouting", icon: "scouting", href: "/student-scouting" },
     { id: "assistant", label: "Assistente", icon: "assistant", href: "/assistant" },
   ],
   coord: [
     { id: "event", label: "Criar evento", icon: "events", href: "/coord/events" },
     { id: "members", label: "Membros", icon: "members", href: "/coord/org-members" },
-    { id: "communications", label: "Comunicado", icon: "communications", href: "/coord/communications" },
+    { id: "communications", label: "Avisos", icon: "absenceNotices", href: "/coord/communications" },
     { id: "cycle", label: "Turma/Ciclo", icon: "periodization", href: "/coord/periodization" },
     { id: "assistant", label: "Assistente", icon: "assistant", href: "/coord/assistant" },
   ],

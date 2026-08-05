@@ -103,6 +103,8 @@ export const GOATLETA_ICON_NAMES = {
   eyeOff: "eye-off-outline",
   eyeOffSolid: "eye-off",
   trash: "trash-outline",
+  archive: "archive-outline",
+  restore: "arrow-undo-outline",
   play: "play",
   playForward: "play-forward-outline",
   pause: "pause",
@@ -149,5 +151,11 @@ export function getGoAtletaIconName(name: GoAtletaIconName): IoniconName {
 }
 
 export function GoAtletaIcon({ name, ...props }: GoAtletaIconProps) {
-  return <Ionicons {...decorativeIconProps} {...props} name={getGoAtletaIconName(name)} />;
+  return (
+    <Ionicons
+      {...decorativeIconProps}
+      {...props}
+      name={getGoAtletaIconName(name)}
+    />
+  );
 }
