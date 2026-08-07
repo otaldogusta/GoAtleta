@@ -257,7 +257,13 @@ export default function SignupScreen() {
               }}
             >
             <Pressable
-              onPress={() => router.replace("/login")}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace("/welcome");
+                }
+              }}
               suppressWebHoverFeedback
               style={({ pressed, hovered }: any) => ({
                 alignSelf: "flex-start",

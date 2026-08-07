@@ -266,7 +266,7 @@ export default function WelcomeScreen() {
           <View style={{ gap: 14, marginBottom: 6 }}>
             <View style={{ gap: 10 }}>
               <Pressable
-                onPress={() => router.replace("/signup")}
+                onPress={() => router.push("/signup")}
                 suppressWebHoverFeedback
                 style={({ pressed, hovered }: any) => ({
                   height: 50,
@@ -290,7 +290,7 @@ export default function WelcomeScreen() {
               </Pressable>
 
               <Pressable
-                onPress={() => router.replace("/login")}
+                onPress={() => router.push("/login")}
                 suppressWebHoverFeedback
                 style={({ pressed, hovered }: any) => ({
                   height: 50,

@@ -276,7 +276,13 @@ export default function ResetPasswordScreen() {
         >
           <View style={{ flex: 1, justifyContent: "center", maxWidth: 440, width: "100%", alignSelf: "center", gap: 18 }}>
             <Pressable
-              onPress={() => router.replace("/login")}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace("/login");
+                }
+              }}
               style={({ pressed }: any) => ({
                 width: 38,
                 height: 38,

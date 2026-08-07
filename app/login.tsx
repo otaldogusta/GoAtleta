@@ -514,6 +514,8 @@ export default function LoginScreen() {
                 if (showReset) {
                   setShowReset(false);
                   setMessage("");
+                } else if (router.canGoBack()) {
+                  router.back();
                 } else {
                   router.replace("/welcome");
                 }
