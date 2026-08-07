@@ -4,6 +4,7 @@ import type { EffectiveProfile } from "../core/effective-profile";
 import { isStudentBirthdayToday } from "../core/students/student-birthday";
 import { getStudents } from "../db/seed";
 import { notifyBirthdays } from "../notifications";
+import { notificationScopeForEffectiveProfile } from "../notifications/inbox-scope";
 import { usePersistedState } from "../ui/use-persisted-state";
 
 type BirthdayNotificationParams = {
@@ -66,6 +67,7 @@ export function useBirthdayNotifications({
         await notifyBirthdays(
           birthdayStudents.map((student) => student.name),
           {
+            inboxScope: notificationScopeForEffectiveProfile(effectiveProfile),
             actionUrl:
               effectiveProfile === "admin"
                 ? "/coord/students"

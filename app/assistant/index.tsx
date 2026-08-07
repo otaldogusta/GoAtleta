@@ -63,6 +63,8 @@ import {
 } from "../../src/db/seed";
 import { getScopedPlanningPath } from "../../src/navigation/profile-routes";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
+import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
+import { resolveNotificationInboxScope } from "../../src/notifications/inbox-scope";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -473,6 +475,11 @@ export default function AssistantScreen() {
 
   const router = useRouter();
   const pathname = usePathname();
+  const effectiveProfile = useEffectiveProfile();
+  const notificationInboxScope = resolveNotificationInboxScope({
+    pathname,
+    effectiveProfile,
+  });
   const params = useLocalSearchParams<{ prompt?: string; source?: string }>();
   const { session } = useAuth();
   const optionalCopilot = useOptionalCopilot();
@@ -1145,7 +1152,7 @@ export default function AssistantScreen() {
       }
 
       if (nextDraft) {
-        void notifyTrainingCreated();
+        void notifyTrainingCreated({ inboxScope: notificationInboxScope });
       }
     } catch (error) {
       const detailRaw =
@@ -1176,7 +1183,7 @@ export default function AssistantScreen() {
         { role: "assistant", content: "Planejamento salvo com sucesso." },
       ]);
       setShowSavedLink(true);
-      void notifyTrainingSaved();
+      void notifyTrainingSaved({ inboxScope: notificationInboxScope });
     } catch (error) {
       const detail =
         error instanceof Error && error.message

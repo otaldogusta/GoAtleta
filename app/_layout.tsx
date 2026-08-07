@@ -455,20 +455,44 @@ function RootLayoutContent() {
   }, [appHomeHref, appStartedAtRef, bootstrapLoading, loading, navReady, normalizedPathname, rootState.routes, router]);
 
   useEffect(() => {
-    // If web OAuth code is present, let the code-exchange effect handle navigation first
+    // Check for web recovery link tokens or errors in URL hash/search
+    if (Platform.OS !== "web" && typeof window === "undefined") return;
+
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      const searchCode = new URLSearchParams(window.location.search).get("code");
-      if (searchCode) return;
+      const search = window.location.search.replace(/^\?/, "");
       const hash = window.location.hash.replace(/^#/, "");
-      if (hash) {
-        const params = new URLSearchParams(hash);
-        const accessToken = params.get("access_token");
-        const type = params.get("type");
-        if (accessToken && type !== "recovery") return;
+      const searchParams = new URLSearchParams(search);
+      const hashParams = new URLSearchParams(hash);
+
+      const code = searchParams.get("code");
+      if (code) return;
+
+      const type = hashParams.get("type") || searchParams.get("type");
+      const errorCode = hashParams.get("error_code") || searchParams.get("error_code");
+      const errorDesc = hashParams.get("error_description") || searchParams.get("error_description");
+      const accessToken = hashParams.get("access_token") || searchParams.get("access_token");
+
+      const isRecoveryFlow =
+        type === "recovery" ||
+        errorCode === "otp_expired" ||
+        (errorDesc && errorDesc.toLowerCase().includes("expired")) ||
+        (accessToken && type === "recovery");
+
+      if (isRecoveryFlow) {
+        if (normalizedPathname !== "/reset-password") {
+          const paramsString = window.location.search || window.location.hash || "";
+          router.replace(`/reset-password${paramsString}` as Parameters<typeof router.replace>[0]);
+          return;
+        }
+      } else if (accessToken && type !== "recovery") {
+        return;
       }
     }
 
     if (bootstrapLoading || !navReady || loading) return;
+
+    // Do not redirect users away from reset-password screen during password recovery
+    if (normalizedPathname === "/reset-password") return;
 
     let redirectTo: string | null = null;
     const trainerInviteCode = resolveAuthenticatedTrainerInviteEntry({
@@ -664,6 +688,10 @@ function RootLayoutContent() {
     if (Platform.OS !== "web") return;
     if (typeof document === "undefined") return;
     const styleId = "app-autofill-fix";
+    const autofillBg = mode === "dark" ? "#121c30" : colors.inputBg;
+    const autofillColor = colors.inputText;
+    const colorScheme = mode === "dark" ? "dark" : "light";
+
     const css = `
 input:focus,
 textarea:focus,
@@ -680,13 +708,14 @@ select:focus-visible {
 input,
 textarea {
   -webkit-tap-highlight-color: transparent;
+  border-radius: 0px !important;
 }
 html,
 body,
 input,
 textarea,
 select {
-  color-scheme: dark;
+  color-scheme: ${colorScheme};
 }
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
@@ -698,39 +727,38 @@ textarea:-webkit-autofill,
 textarea:-webkit-autofill:hover,
 textarea:-webkit-autofill:focus,
 textarea:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px ${colors.inputBg} inset !important;
-  box-shadow: 0 0 0 1000px ${colors.inputBg} inset !important;
-  background-color: ${colors.inputBg} !important;
-  -webkit-text-fill-color: ${colors.inputText} !important;
-  caret-color: ${colors.inputText} !important;
-  transition: background-color 9999s ease-out 0s;
-  background-clip: padding-box;
-  -webkit-background-clip: padding-box;
+  -webkit-box-shadow: 0 0 0 1000px ${autofillBg} inset !important;
+  box-shadow: 0 0 0 1000px ${autofillBg} inset !important;
+  background-color: ${autofillBg} !important;
+  -webkit-text-fill-color: ${autofillColor} !important;
+  caret-color: ${autofillColor} !important;
+  transition: background-color 99999s ease-in-out 0s;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
   filter: none !important;
   -webkit-appearance: none;
   appearance: none;
-  border-radius: 14px;
+  border-radius: 0px !important;
 }
 html, body {
   scrollbar-width: thin;
   scrollbar-color: ${colors.border} transparent;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 * {
   scrollbar-gutter: auto;
 }
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 *::-webkit-scrollbar-track {
-  background: transparent;
+  background: transparent !important;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: ${colors.border};
+  background-color: ${mode === "dark" ? "rgba(255, 255, 255, 0.16)" : "rgba(15, 23, 42, 0.16)"};
   border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  border: none;
 }
 *::-webkit-scrollbar-thumb:hover {
   background-color: ${colors.muted};
@@ -741,7 +769,7 @@ body.dropdown-scrollbars {
 }
 body.dropdown-scrollbars,
 html.dropdown-scrollbars {
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 body.dropdown-scrollbars *::-webkit-scrollbar {
   width: 8px;
@@ -767,7 +795,7 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
     if (style.textContent !== css) {
       style.textContent = css;
     }
-  }, [colors.inputBg, colors.inputText, colors.border, colors.muted]);
+  }, [colors.border, colors.inputBg, colors.inputText, colors.muted, mode]);
 
   if (bootstrapError) {
     return (

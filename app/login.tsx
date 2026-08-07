@@ -41,6 +41,12 @@ import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 
+const formatCountdown = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s < 10 ? "0" : ""}${s}`;
+};
+
 export default function LoginScreen() {
   markRender("screen.login.render.root");
 
@@ -48,7 +54,7 @@ export default function LoginScreen() {
   const useNativeDriver = Platform.OS !== "web";
 
   const solidInputBg = colors.inputBg;
-  const loginInputBg = mode === "dark" ? "rgba(18, 28, 48, 0.92)" : solidInputBg;
+  const loginInputBg = mode === "dark" ? "#121c30" : solidInputBg;
   const { session, signIn, resetPassword, signInWithOAuth } = useAuth();
   const { unlockForLogin, markCredentialLoginSuccess } = useBiometricLock();
   const router = useRouter();
@@ -59,6 +65,7 @@ export default function LoginScreen() {
     next,
     pendingHint,
     inviteCode,
+    reset: resetParam,
   } = useLocalSearchParams<{
     email?: string;
     password?: string;
@@ -66,6 +73,7 @@ export default function LoginScreen() {
     next?: string;
     pendingHint?: string;
     inviteCode?: string;
+    reset?: string;
   }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -77,6 +85,7 @@ export default function LoginScreen() {
   const [resetCountdown, setResetCountdown] = useState(0);
   const [resetSent, setResetSent] = useState(false);
   const enterAnim = useRef(new Animated.Value(0)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberTouched, setRememberTouched] = useState(false);
   const [showRememberToast, setShowRememberToast] = useState(false);
@@ -89,6 +98,17 @@ export default function LoginScreen() {
   const passwordInputRef = useRef<TextInput>(null);
   const rememberKey = "auth_remember_email";
   const loginRedirectTarget = useMemo(() => sanitizePostLoginRedirect(next), [next]);
+
+  const runShake = useCallback((anim: Animated.Value) => {
+    anim.setValue(0);
+    Animated.sequence([
+      Animated.timing(anim, { toValue: 8, duration: 50, useNativeDriver }),
+      Animated.timing(anim, { toValue: -8, duration: 50, useNativeDriver }),
+      Animated.timing(anim, { toValue: 6, duration: 50, useNativeDriver }),
+      Animated.timing(anim, { toValue: -6, duration: 50, useNativeDriver }),
+      Animated.timing(anim, { toValue: 0, duration: 50, useNativeDriver }),
+    ]).start();
+  }, [useNativeDriver]);
 
   useEffect(() => {
     if (resetCountdown <= 0) return;
@@ -122,6 +142,9 @@ export default function LoginScreen() {
   }, [rememberMe]);
 
   useEffect(() => {
+    if (resetParam === "1" || resetParam === "true") {
+      setShowReset(true);
+    }
     if (typeof inviteCode === "string" && inviteCode.trim()) {
       void savePendingTrainerInvite(inviteCode);
     }
@@ -146,7 +169,7 @@ export default function LoginScreen() {
         setMessage("Este email já está cadastrado. Entrar com os dados preenchidos.");
       });
     }
-  }, [fromSignup, inviteCode, pendingHint, prefillEmail, prefillPassword]);
+  }, [fromSignup, inviteCode, pendingHint, prefillEmail, prefillPassword, resetParam]);
 
   useEffect(() => {
     Animated.timing(enterAnim, {
@@ -321,14 +344,17 @@ export default function LoginScreen() {
     if (busy || loginInFlightRef.current) return;
     if (!email.trim()) {
       setMessage("Informe seu email.");
+      runShake(shakeAnim);
       return;
     }
     if (!password.trim()) {
       setMessage("Informe sua senha.");
+      runShake(shakeAnim);
       return;
     }
     if (!isSupabaseConfigured) {
       setMessage("Configuração local do Supabase ausente. Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY no .env.local e reinicie o servidor.");
+      runShake(shakeAnim);
       return;
     }
     setMessage("");
@@ -345,6 +371,7 @@ export default function LoginScreen() {
         nextMessage.startsWith("!Email ou senha incorretos.") ||
           nextMessage.startsWith("!Conta não encontrada")
       );
+      runShake(shakeAnim);
     } finally {
       loginInFlightRef.current = false;
       setBusy(false);
@@ -369,18 +396,19 @@ export default function LoginScreen() {
            ? `${webOrigin || "http://localhost:8081"}/reset-password`
           : Linking.createURL("reset-password");
       await resetPassword(email.trim(), redirectTo);
-      setMessage(
-        "Se o email estiver cadastrado, o link será enviado. Confira também spam e lixo eletrônico."
-      );
+      setMessage("");
       setResetCountdown(180);
       setResetSent(true);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao enviar link.";
-      setMessage(
-        detail.toLowerCase().includes("rate limit")
-           ? "Aguarde alguns minutos e tente novamente."
-          : "Não foi possível enviar o link. Verifique o email e tente novamente."
-      );
+      const normalized = detail.toLowerCase();
+      if (normalized.includes("rate limit")) {
+        setMessage("Limite de envios atingido no Supabase. Aguarde alguns minutos e tente novamente.");
+      } else if (normalized.includes("redirect")) {
+        setMessage("URL de redirecionamento não autorizada nas configurações do Supabase.");
+      } else {
+        setMessage(detail || "Não foi possível enviar o link. Verifique o email e tente novamente.");
+      }
     } finally {
       setBusy(false);
     }
@@ -438,7 +466,10 @@ export default function LoginScreen() {
               style={{
                 flex: 1,
                 justifyContent: "center",
-                gap: 24,
+                maxWidth: 440,
+                width: "100%",
+                alignSelf: "center",
+                gap: 18,
                 opacity: enterAnim,
                 transform: [
                   {
@@ -479,54 +510,70 @@ export default function LoginScreen() {
               </Animated.View>
             ) : null}
             <Pressable
-              onPress={() => router.replace("/welcome")}
-              style={{ alignSelf: "flex-start" }}
+              onPress={() => {
+                if (showReset) {
+                  setShowReset(false);
+                  setMessage("");
+                } else {
+                  router.replace("/welcome");
+                }
+              }}
+              suppressWebHoverFeedback
+              style={({ pressed, hovered }: any) => ({
+                alignSelf: "flex-start",
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: hovered ? colors.primaryBg : colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.8 : 1,
+                ...(Platform.OS === "web"
+                  ? { boxShadow: hovered ? "0px 0px 10px rgba(74, 222, 128, 0.2)" : "0px 4px 8px rgba(0, 0, 0, 0.12)" }
+                  : {
+                      shadowColor: "#000",
+                      shadowOpacity: 0.12,
+                      shadowRadius: 8,
+                      shadowOffset: { width: 0, height: 4 },
+                      elevation: 3,
+                    }),
+              })}
             >
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  overflow: "hidden",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  ...(Platform.OS === "web"
-                    ? { boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.12)" }
-                    : {
-                        shadowColor: "#000",
-                        shadowOpacity: 0.12,
-                        shadowRadius: 8,
-                        shadowOffset: { width: 0, height: 4 },
-                        elevation: 3,
-                      }),
-                }}
-              >
-                <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
-              </View>
+              {({ hovered }: any) => (
+                <GoAtletaIcon name="chevronBack" size={18} color={hovered ? colors.primaryBg : colors.text} />
+              )}
             </Pressable>
 
             <ScreenHeader
-              title="Bem-vindo de volta"
-              subtitle="Retome seus planos com foco e praticidade."
+              title={showReset ? "Recuperar senha" : "Bem-vindo de volta"}
+              subtitle={showReset ? "Digite seu e-mail para receber o link de acesso." : "Retome seus planos com foco e praticidade."}
             />
 
-            <View
+            <Animated.View
               style={{
                 padding: 18,
                 borderRadius: 22,
                 backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                overflow: "hidden",
+                borderWidth: 0,
+                overflow: "visible",
                 gap: 14,
+                opacity: enterAnim,
+                transform: [
+                  {
+                    translateY: enterAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [14, 0],
+                    }),
+                  },
+                  { translateX: shakeAnim },
+                ],
                 ...(Platform.OS === "web"
-                    ? { boxShadow: "0px 8px 16px rgba(0, 0, 0, 0.08)" }
+                    ? { boxShadow: "0px 8px 24px rgba(0, 0, 0, 0.16)" }
                     : {
                         shadowColor: "#000",
-                        shadowOpacity: 0.08,
+                        shadowOpacity: 0.16,
                         shadowRadius: 16,
                         shadowOffset: { width: 0, height: 8 },
                         elevation: 5,
@@ -536,20 +583,24 @@ export default function LoginScreen() {
               <View
                 style={{
                   borderWidth: 1,
-                  borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
-                  borderRadius: 14,
+                  borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
+                  borderRadius: 12,
                   backgroundColor: loginInputBg,
                   overflow: "hidden",
-                  paddingHorizontal: 12,
+                  paddingHorizontal: 14,
                   paddingVertical: 10,
-                  minHeight: 48,
+                  minHeight: 50,
+                  justifyContent: "center",
                 }}
               >
                 <TextInput
                   nativeID="login-email"
                   placeholder="Email"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(v) => {
+                    setEmail(v);
+                    if (message) setMessage("");
+                  }}
                   onSubmitEditing={() => {
                     if (showReset) {
                       void handleReset();
@@ -571,86 +622,136 @@ export default function LoginScreen() {
                     color: colors.inputText,
                     backgroundColor: "transparent",
                     borderWidth: 0,
+                    fontSize: 15,
+                    borderRadius: 0,
                   }}
                 />
               </View>
 
               { !showReset ? (
                 <>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      borderWidth: 1,
-                      borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : colors.border,
-                      paddingHorizontal: 12,
-                      paddingVertical: 10,
-                      borderRadius: 14,
-                      backgroundColor: loginInputBg,
-                      overflow: "hidden",
-                      height: 48,
-                    }}
-                  >
-                    <TextInput
-                      ref={passwordInputRef}
-                      nativeID="login-password"
-                      placeholder="Senha"
-                      value={password}
-                      onChangeText={setPassword}
-                      onSubmitEditing={() => {
-                        void handleLogin();
-                      }}
-                      placeholderTextColor={colors.placeholder}
-                      autoComplete="current-password"
-                      autoCorrect={false}
-                      secureTextEntry={!showPassword}
-                      returnKeyType="go"
-                      underlineColorAndroid="transparent"
-                      selectionColor={colors.primaryBg}
-                      style={{
-                        flex: 1,
-                        padding: 0,
-                        color: colors.inputText,
-                        backgroundColor: "transparent",
-                      }}
-                    />
-                    <Pressable
-                      onPress={() => setShowPassword((prev) => !prev)}
-                      disabled={password.length === 0}
-                      style={{
-                        width: 34,
-                        height: 34,
-                        marginLeft: 8,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: password.length > 0 ? 1 : 0,
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name={showPassword ? "eyeOffSolid" : "viewSolid"}
-                        size={18}
-                        color={colors.muted}
-                      />
-                    </Pressable>
-                  </View>
+                  <View style={{ position: "relative", zIndex: 10 }}>
+                    { message ? (
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: -38,
+                          left: 0,
+                          zIndex: 20,
+                          ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
+                        }}
+                      >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            backgroundColor: colors.dangerSolidBg,
+                            borderRadius: 8,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            alignSelf: "flex-start",
+                            ...(Platform.OS === "web"
+                              ? ({ boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.24)" } as any)
+                              : {
+                                  shadowColor: "#000",
+                                  shadowOpacity: 0.24,
+                                  shadowRadius: 6,
+                                  shadowOffset: { width: 0, height: 3 },
+                                  elevation: 6,
+                                }),
+                          }}
+                        >
+                          <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
+                          <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
+                            {message.startsWith("!") ? message.slice(1) : message}
+                          </Text>
+                        </View>
+                        <View
+                          style={{
+                            width: 0,
+                            height: 0,
+                            marginLeft: 14,
+                            borderLeftWidth: 6,
+                            borderRightWidth: 6,
+                            borderTopWidth: 6,
+                            borderLeftColor: "transparent",
+                            borderRightColor: "transparent",
+                            borderTopColor: colors.dangerSolidBg,
+                          }}
+                        />
+                      </View>
+                    ) : null}
 
-                  { message ? (
-                    <Text
+                    <View
                       style={{
-                        color: message.startsWith("!")
-                           ? colors.dangerSolidBg
-                          : colors.muted,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        borderWidth: 1,
+                        borderColor: message ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        backgroundColor: loginInputBg,
+                        overflow: "hidden",
+                        height: 50,
                       }}
                     >
-                      {message.startsWith("!") ? message.slice(1) : message}
-                    </Text>
-                  ) : null}
+                      <TextInput
+                        ref={passwordInputRef}
+                        nativeID="login-password"
+                        placeholder="Senha"
+                        value={password}
+                        onChangeText={(v) => {
+                          setPassword(v);
+                          if (message) setMessage("");
+                        }}
+                        onSubmitEditing={() => {
+                          void handleLogin();
+                        }}
+                        placeholderTextColor={colors.placeholder}
+                        autoComplete="current-password"
+                        autoCorrect={false}
+                        secureTextEntry={!showPassword}
+                        returnKeyType="go"
+                        underlineColorAndroid="transparent"
+                        selectionColor={colors.primaryBg}
+                        style={{
+                          flex: 1,
+                          padding: 0,
+                          color: colors.inputText,
+                          backgroundColor: "transparent",
+                          borderWidth: 0,
+                          fontSize: 15,
+                          borderRadius: 0,
+                        }}
+                      />
+                      <Pressable
+                        onPress={() => setShowPassword((prev) => !prev)}
+                        disabled={password.length === 0}
+                        style={{
+                          width: 34,
+                          height: 34,
+                          marginLeft: 8,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          opacity: password.length > 0 ? 1 : 0,
+                        }}
+                      >
+                        <GoAtletaIcon
+                          name={showPassword ? "eyeOffSolid" : "viewSolid"}
+                          size={18}
+                          color={colors.muted}
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
 
                 <Button
                   label="Entrar"
                   loadingLabel="Entrando..."
                   onPress={handleLogin}
-                  disabled={busy}
+                  disabled={busy || !email.trim() || !password.trim()}
                   loading={busy}
                 />
 
@@ -666,30 +767,45 @@ export default function LoginScreen() {
                         return next;
                       });
                     }}
-                    style={{
+                    suppressWebHoverFeedback
+                    style={({ pressed }: any) => ({
+                      alignSelf: "flex-start",
                       flexDirection: "row",
                       alignItems: "center",
                       gap: 8,
-                      paddingVertical: 4,
-                    }}
+                      paddingVertical: 6,
+                      paddingHorizontal: 4,
+                      backgroundColor: "transparent",
+                      opacity: pressed ? 0.75 : 1,
+                    })}
                   >
-                    <View
-                      style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: 6,
-                        borderWidth: 1,
-                        borderColor: rememberMe ? colors.primaryBg : colors.border,
-                        backgroundColor: rememberMe ? colors.primaryBg : "transparent",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      { rememberMe ? (
-                        <GoAtletaIcon name="checkmark" size={12} color={colors.primaryText} />
-                      ) : null}
-                    </View>
-                    <Text style={{ color: colors.muted }}>Lembre de mim</Text>
+                    {({ hovered }: any) => (
+                      <>
+                        <View
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: 6,
+                            borderWidth: 1,
+                            borderColor: rememberMe
+                              ? colors.primaryBg
+                              : hovered
+                              ? colors.primaryBg
+                              : colors.border,
+                            backgroundColor: rememberMe ? colors.primaryBg : "transparent",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          { rememberMe ? (
+                            <GoAtletaIcon name="checkmark" size={12} color={colors.primaryText} />
+                          ) : null}
+                        </View>
+                        <Text style={{ color: hovered ? colors.text : colors.muted }}>
+                          Lembre de mim
+                        </Text>
+                      </>
+                    )}
                   </Pressable>
 
                   { failedLoginAttempt && password.length > 0 ? (
@@ -698,9 +814,24 @@ export default function LoginScreen() {
                         setShowReset(true);
                         setMessage("");
                       }}
-                      style={{ alignSelf: "center", paddingVertical: 6 }}
+                      suppressWebHoverFeedback
+                      style={({ pressed }: any) => ({
+                        alignSelf: "center",
+                        paddingVertical: 6,
+                        backgroundColor: "transparent",
+                        opacity: pressed ? 0.75 : 1,
+                      })}
                     >
-                      <Text style={{ color: colors.muted }}>Esqueceu a senha?</Text>
+                      {({ hovered }: any) => (
+                        <Text
+                          style={{
+                            color: hovered ? colors.text : colors.muted,
+                            textDecorationLine: hovered ? "underline" : "none",
+                          }}
+                        >
+                          Esqueceu a senha?
+                        </Text>
+                      )}
                     </Pressable>
                   ) : null}
 
@@ -717,70 +848,75 @@ export default function LoginScreen() {
                   ) : null}
                 </>
               ) : (
-                <View style={{ gap: 10 }}>
-                  <Text style={{ color: colors.muted }}>
-                    Informe seu email para solicitar um link de criação de nova senha.
-                  </Text>
-
+                <View style={{ gap: 14, position: "relative", zIndex: 10 }}>
                   { message ? (
-                    <Text
+                    <View
                       style={{
-                        color: message.startsWith("!")
-                           ? colors.dangerSolidBg
-                          : colors.muted,
+                        position: "absolute",
+                        top: -38,
+                        left: 0,
+                        zIndex: 20,
+                        ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
                       }}
                     >
-                      {message.startsWith("!") ? message.slice(1) : message}
-                    </Text>
-                  ) : null}
-
-                  { resetCountdown > 0 ? (
-                    <Text style={{ color: colors.muted }}>
-                      Tempo restante: {formatCountdown(resetCountdown)}
-                    </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          backgroundColor: colors.dangerSolidBg,
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          alignSelf: "flex-start",
+                          ...(Platform.OS === "web"
+                            ? ({ boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.24)" } as any)
+                            : {
+                                shadowColor: "#000",
+                                shadowOpacity: 0.24,
+                                shadowRadius: 6,
+                                shadowOffset: { width: 0, height: 3 },
+                                elevation: 6,
+                              }),
+                        }}
+                      >
+                        <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
+                        <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
+                          {message.startsWith("!") ? message.slice(1) : message}
+                        </Text>
+                      </View>
+                      <View
+                        style={{
+                          width: 0,
+                          height: 0,
+                          marginLeft: 14,
+                          borderLeftWidth: 6,
+                          borderRightWidth: 6,
+                          borderTopWidth: 6,
+                          borderLeftColor: "transparent",
+                          borderRightColor: "transparent",
+                          borderTopColor: colors.dangerSolidBg,
+                        }}
+                      />
+                    </View>
                   ) : null}
 
                   <Button
-                    label="Enviar link"
+                    label={
+                      resetCountdown > 0
+                        ? `Reenviar em ${formatCountdown(resetCountdown)}`
+                        : resetSent
+                        ? "Reenviar link"
+                        : "Enviar link"
+                    }
+                    loadingLabel="Enviando link..."
                     onPress={handleReset}
-                    disabled={busy || resetCountdown > 0}
+                    disabled={busy || resetCountdown > 0 || !email.trim()}
                     loading={busy}
                   />
-
-                  { resetSent && resetCountdown === 0 ? (
-                    <Pressable
-                      onPress={handleReset}
-                      disabled={busy}
-                      style={{ alignSelf: "center", paddingVertical: 6 }}
-                    >
-                      <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                        Não recebeu o link Clique aqui
-                      </Text>
-                    </Pressable>
-                  ) : null}
-
-                  <Pressable
-                    onPress={() => {
-                      setShowReset(false);
-                      setMessage("");
-                    }}
-                    style={{
-                      alignSelf: "center",
-                      width: 34,
-                      height: 34,
-                      borderRadius: 17,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.secondaryBg,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
-                  </Pressable>
                 </View>
               )}
-            </View>
+            </Animated.View>
 
             {!showReset ? (
               <View style={{ marginTop: 12, gap: 10 }}>
@@ -819,11 +955,25 @@ export default function LoginScreen() {
               <Text style={{ color: colors.muted }}>Não tem conta?</Text>
               <Pressable
                 onPress={() => router.replace("/signup")}
-                style={{ paddingVertical: 4 }}
+                suppressWebHoverFeedback
+                style={({ pressed }: any) => ({
+                  paddingVertical: 4,
+                  paddingHorizontal: 6,
+                  backgroundColor: "transparent",
+                  opacity: pressed ? 0.75 : 1,
+                })}
               >
-                <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                  Criar conta
-                </Text>
+                {({ hovered }: any) => (
+                  <Text
+                    style={{
+                      color: hovered ? "#4ade80" : colors.primaryBg,
+                      fontWeight: "700",
+                      textDecorationLine: hovered ? "underline" : "none",
+                    }}
+                  >
+                    Criar conta
+                  </Text>
+                )}
               </Pressable>
             </View>
             </Animated.View>

@@ -108,6 +108,7 @@ Deno.serve(async (request) => {
       .select("id")
       .eq("organization_id", organizationId)
       .eq("recipient_user_id", coordinatorUser.id)
+      .eq("inbox_scope", "coord")
       .eq("source_type", "access_request")
       .eq("source_id", authData.user.id)
       .is("read_at", null)
@@ -121,6 +122,7 @@ Deno.serve(async (request) => {
     const { error: insertError } = await service.from("notifications").insert({
       organization_id: organizationId,
       recipient_user_id: coordinatorUser.id,
+      inbox_scope: "coord",
       actor_user_id: authData.user.id,
       type: "generic",
       title,

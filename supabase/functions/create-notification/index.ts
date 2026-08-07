@@ -18,10 +18,12 @@ const notificationTypes = new Set([
   "regulation_updated",
   "generic",
 ]);
+const inboxScopes = new Set(["prof", "coord", "student", "all"]);
 
 type CreateNotificationPayload = {
   organizationId?: string;
   recipientUserId?: string;
+  inboxScope?: string;
   actorUserId?: string | null;
   type?: string;
   title?: string;
@@ -103,6 +105,10 @@ Deno.serve(async (request) => {
     minLength: 1,
     maxLength: 128,
   });
+  const inboxScopeValidation = validateStringField(payload.inboxScope, {
+    minLength: 1,
+    maxLength: 16,
+  });
   const titleValidation = validateStringField(payload.title, {
     minLength: 1,
     maxLength: 120,
@@ -129,6 +135,7 @@ Deno.serve(async (request) => {
   const validations = [
     ["organizationId", organizationValidation],
     ["recipientUserId", recipientValidation],
+    ["inboxScope", inboxScopeValidation],
     ["title", titleValidation],
     ["body", bodyValidation],
     ["type", typeValidation],
@@ -146,6 +153,12 @@ Deno.serve(async (request) => {
   }
   if (!notificationTypes.has(typeValidation.data)) {
     return new Response(JSON.stringify({ error: "Invalid type" }), {
+      status: 400,
+      headers: makeJsonHeaders(request),
+    });
+  }
+  if (!inboxScopes.has(inboxScopeValidation.data)) {
+    return new Response(JSON.stringify({ error: "Invalid inboxScope" }), {
       status: 400,
       headers: makeJsonHeaders(request),
     });
@@ -204,10 +217,11 @@ Deno.serve(async (request) => {
     const { data: existing, error: existingError } = await supabase
       .from("notifications")
       .select(
-        "id,organization_id,recipient_user_id,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,created_at"
+        "id,organization_id,recipient_user_id,inbox_scope,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,archived_at,created_at"
       )
       .eq("organization_id", organizationId)
       .eq("recipient_user_id", recipientUserId)
+      .eq("inbox_scope", inboxScopeValidation.data)
       .eq("type", typeValidation.data)
       .eq("source_type", sourceTypeValidation.data)
       .eq("source_id", sourceIdValidation.data)
@@ -233,6 +247,7 @@ Deno.serve(async (request) => {
     .insert({
       organization_id: organizationId,
       recipient_user_id: recipientUserId,
+      inbox_scope: inboxScopeValidation.data,
       actor_user_id: user.id,
       type: typeValidation.data,
       title: titleValidation.data,
@@ -243,7 +258,7 @@ Deno.serve(async (request) => {
       metadata: metadataValidation.data ?? {},
     })
     .select(
-      "id,organization_id,recipient_user_id,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,created_at"
+      "id,organization_id,recipient_user_id,inbox_scope,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,archived_at,created_at"
     )
     .single();
 

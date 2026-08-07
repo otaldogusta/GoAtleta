@@ -6,10 +6,12 @@ import {
   type AppNotification,
 } from "../notificationsInbox";
 import { countUnreadNotifications } from "./unread-notification-count";
+import type { NotificationInboxScope } from "./inbox-scope";
 
 export function useUnreadNotificationCount(
   organizationId?: string | null,
-  enabled = true
+  enabled = true,
+  inboxScope: NotificationInboxScope = "all",
 ) {
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -18,9 +20,9 @@ export function useUnreadNotificationCount(
   }, []);
 
   const refresh = useCallback(async () => {
-    const notifications = await getNotifications();
+    const notifications = await getNotifications(inboxScope);
     applyNotifications(notifications);
-  }, [applyNotifications]);
+  }, [applyNotifications, inboxScope]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -30,7 +32,7 @@ export function useUnreadNotificationCount(
       if (active) applyNotifications(notifications);
     };
     const refreshIfActive = async () => {
-      const notifications = await getNotifications();
+      const notifications = await getNotifications(inboxScope);
       applyIfActive(notifications);
     };
     const unsubscribe = subscribeNotifications(applyIfActive);
@@ -64,7 +66,7 @@ export function useUnreadNotificationCount(
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };
-  }, [applyNotifications, enabled, organizationId]);
+  }, [applyNotifications, enabled, inboxScope, organizationId]);
 
   return { unreadCount: enabled ? unreadCount : 0, refresh };
 }

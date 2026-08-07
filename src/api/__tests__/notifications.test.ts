@@ -71,7 +71,7 @@ describe("notifications api", () => {
       },
     ]);
 
-    const items = await listNotifications();
+    const items = await listNotifications({ inboxScope: "prof" });
 
     expect(items).toEqual([
       expect.objectContaining({
@@ -83,7 +83,7 @@ describe("notifications api", () => {
       }),
     ]);
     expect(mockRestGet).toHaveBeenCalledWith(
-      expect.stringContaining("/notifications?select="),
+      expect.stringContaining("inbox_scope=in.(prof,all)"),
     );
   });
 
@@ -91,6 +91,7 @@ describe("notifications api", () => {
     mockRestGet.mockResolvedValue([]);
 
     await listNotifications({
+      inboxScope: "coord",
       limit: 20,
       offset: 20,
       archiveScope: "archived",
@@ -123,6 +124,7 @@ describe("notifications api", () => {
     ]);
 
     const created = await createNotification({
+      inboxScope: "prof",
       type: "birthday",
       title: "Aniversariantes do dia",
       body: "Aniversariantes de hoje: Ana.",
@@ -137,6 +139,7 @@ describe("notifications api", () => {
         expect.objectContaining({
           organization_id: "org-1",
           recipient_user_id: "user-1",
+          inbox_scope: "prof",
           type: "birthday",
         }),
       ]),
@@ -169,6 +172,7 @@ describe("notifications api", () => {
     );
 
     const created = await createNotification({
+      inboxScope: "student",
       organizationId: "org-1",
       recipientUserId: "user-2",
       type: "consultation_event",
@@ -213,6 +217,7 @@ describe("notifications api", () => {
     ]);
 
     const created = await createNotification({
+      inboxScope: "prof",
       type: "absence_notice_created",
       title: "Novo aviso de ausência",
       body: "Aluno avisou ausência.",
@@ -257,6 +262,7 @@ describe("notifications api", () => {
     mockSendPushToUser.mockRejectedValue(new Error("no tokens"));
 
     const created = await createNotification({
+      inboxScope: "prof",
       type: "absence_notice_created",
       recipientUserId: "user-2",
       title: "Novo aviso de ausência",
@@ -304,6 +310,7 @@ describe("notifications api", () => {
     ]);
 
     await createNotification({
+      inboxScope: "prof",
       title: "Aviso",
       body: "Mensagem interna.",
       sendPush: true,
@@ -339,6 +346,7 @@ describe("notifications api", () => {
     );
 
     const notification = await createNotification({
+      inboxScope: "prof",
       recipientUserId: "user-2",
       type: "absence_notice_created",
       title: "Novo aviso de ausência",
@@ -355,8 +363,8 @@ describe("notifications api", () => {
 
   test("marks and clears only current user's notifications through scoped filters", async () => {
     await markNotificationRead("n-1");
-    await markAllNotificationsRead();
-    await clearMyNotifications();
+    await markAllNotificationsRead("prof");
+    await clearMyNotifications("prof");
 
     expect(mockRestPatch).toHaveBeenNthCalledWith(
       1,
@@ -377,13 +385,13 @@ describe("notifications api", () => {
   });
 
   test("archives read notifications and restores only the current user's item", async () => {
-    await archiveReadNotifications();
+    await archiveReadNotifications("prof");
     await restoreNotification("n-1");
 
     expect(mockRestPatch).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining(
-        "recipient_user_id=eq.user-1&read_at=not.is.null&archived_at=is.null",
+        "recipient_user_id=eq.user-1&inbox_scope=in.(prof,all)&read_at=not.is.null&archived_at=is.null",
       ),
       expect.objectContaining({ archived_at: expect.any(String) }),
       "return=minimal",
@@ -407,12 +415,13 @@ describe("notifications api", () => {
     mockRestDelete.mockRejectedValue(missingTableError);
     mockRestPost.mockRejectedValue(missingTableError);
 
-    await expect(listNotifications()).resolves.toEqual([]);
+    await expect(listNotifications({ inboxScope: "prof" })).resolves.toEqual([]);
     await expect(markNotificationRead("n-1")).resolves.toBeUndefined();
-    await expect(markAllNotificationsRead()).resolves.toBeUndefined();
-    await expect(clearMyNotifications()).resolves.toBeUndefined();
+    await expect(markAllNotificationsRead("prof")).resolves.toBeUndefined();
+    await expect(clearMyNotifications("prof")).resolves.toBeUndefined();
     await expect(
       createNotification({
+        inboxScope: "prof",
         title: "Treino salvo",
         body: "Treino salvo com sucesso.",
       }),

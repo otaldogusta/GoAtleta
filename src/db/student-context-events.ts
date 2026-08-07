@@ -164,40 +164,54 @@ export async function saveConfirmedStudentContexts(
 
     const notificationTasks = inputs.flatMap((input) => {
       const eventId = buildEventId(input);
-      const recipientUserIds = Array.from(
-        new Set([
-          ...staff
-            .filter((assignment) => assignment.classId === input.classId)
-            .map((assignment) => assignment.userId),
-          ...coordinators.map((coordinator) => coordinator.userId),
-        ])
-      );
-      return recipientUserIds.map(async (recipientUserId) => {
-        try {
-          await createNotification({
-            organizationId,
-            recipientUserId,
-            actorUserId,
-            type: "generic",
-            title: input.suggestion.title,
-            body: notificationBody(input),
-            actionUrl: `/class/${input.classId}/attendance?date=${input.date}`,
-            sourceType: "student_context_event",
-            sourceId: eventId,
-            metadata: {
-              classId: input.classId,
-              studentId: input.studentId,
-              category: input.suggestion.category,
-              severity: input.suggestion.severity,
-              eventDate: input.date,
-            },
-            sendPush: input.suggestion.severity === "urgent",
-            dedupe: true,
-          });
-        } catch {
-          notificationFailures += 1;
-        }
+      const recipients = new Map<string, Set<"prof" | "coord">>();
+      staff
+        .filter((assignment) => assignment.classId === input.classId)
+        .forEach((assignment) => {
+          const scopes =
+            recipients.get(assignment.userId) ??
+            new Set<"prof" | "coord">();
+          scopes.add("prof");
+          recipients.set(assignment.userId, scopes);
       });
+      coordinators.forEach((coordinator) => {
+        const scopes =
+          recipients.get(coordinator.userId) ??
+          new Set<"prof" | "coord">();
+        scopes.add("coord");
+        recipients.set(coordinator.userId, scopes);
+      });
+
+      return Array.from(recipients.entries()).flatMap(
+        ([recipientUserId, inboxScopes]) =>
+          Array.from(inboxScopes).map(async (inboxScope) => {
+            try {
+              await createNotification({
+                organizationId,
+                recipientUserId,
+                inboxScope,
+                actorUserId,
+                type: "generic",
+                title: input.suggestion.title,
+                body: notificationBody(input),
+                actionUrl: `/class/${input.classId}/attendance?date=${input.date}`,
+                sourceType: "student_context_event",
+                sourceId: eventId,
+                metadata: {
+                  classId: input.classId,
+                  studentId: input.studentId,
+                  category: input.suggestion.category,
+                  severity: input.suggestion.severity,
+                  eventDate: input.date,
+                },
+                sendPush: input.suggestion.severity === "urgent",
+                dedupe: true,
+              });
+            } catch {
+              notificationFailures += 1;
+            }
+          }),
+      );
     });
     await Promise.all(notificationTasks);
   } catch {

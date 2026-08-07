@@ -40,7 +40,7 @@ const sendLocalNotification = async (title: string, body: string) => {
 };
 
 export const notifyTrainingCreated = async (
-  options: Omit<CreateNotificationInput, "title" | "body" | "type"> = {}
+  options: Omit<CreateNotificationInput, "title" | "body" | "type">
 ) => {
   await addNotification(
     "Treino criado",
@@ -55,7 +55,7 @@ export const notifyTrainingCreated = async (
 };
 
 export const notifyTrainingSaved = async (
-  options: Omit<CreateNotificationInput, "title" | "body" | "type"> = {}
+  options: Omit<CreateNotificationInput, "title" | "body" | "type">
 ) => {
   await addNotification("Treino salvo", "Treino salvo com sucesso.", {
     ...options,
@@ -67,7 +67,7 @@ export const notifyTrainingSaved = async (
 
 export const notifyBirthdays = async (
   names: string[],
-  options: Omit<CreateNotificationInput, "title" | "body" | "type"> = {}
+  options: Omit<CreateNotificationInput, "title" | "body" | "type">
 ) => {
   if (!names.length) return;
   const preview = names.slice(0, 3).join(", ");

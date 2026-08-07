@@ -133,6 +133,7 @@ export function useRegulationUpdates<S extends RegulationStatePatch>(
           : update.diffSummary;
         await addNotification("Regulamento atualizado", body, {
           type: "regulation_updated",
+          inboxScope: "all",
           organizationId,
           actionUrl: "/regulation-history",
           sourceType: "regulation_update",

@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/auth/auth";
 import { useRole } from "../../src/auth/role";
 import { resolveEffectiveProfile } from "../../src/core/effective-profile";
+import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
 import { type DevProfilePreview } from "../../src/dev/profile-preview";
 import {
   AppNotification,
@@ -15,6 +16,7 @@ import {
   markAllRead,
   markNotificationRead,
 } from "../../src/notificationsInbox";
+import { notificationScopeForEffectiveProfile } from "../../src/notifications/inbox-scope";
 import { getNotificationsModule, isExpoGo } from "../../src/push/notificationRuntime";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { Pressable } from "../../src/ui/Pressable";
@@ -39,6 +41,8 @@ export default function NotificationsScreen() {
   const { role: userRole, refresh: refreshRole } = useRole();
   const { activeOrganization, devProfilePreview, setDevProfilePreview } = useOrganization();
   const router = useRouter();
+  const effectiveProfile = useEffectiveProfile();
+  const inboxScope = notificationScopeForEffectiveProfile(effectiveProfile);
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [items, setItems] = useState<AppNotification[]>([]);
@@ -59,10 +63,10 @@ export default function NotificationsScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const nextItems = await getNotifications();
+      const nextItems = await getNotifications(inboxScope);
       if (!alive) return;
       setItems(nextItems);
-      await markAllRead();
+      await markAllRead(inboxScope);
       if (alive) {
         const readAt = new Date().toISOString();
         setItems(nextItems.map((item) => ({ ...item, read: true, readAt: item.readAt ?? readAt })));
@@ -71,7 +75,7 @@ export default function NotificationsScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [inboxScope]);
 
   const requestPermissions = async () => {
     if (isWeb || isExpoGo) return false;
@@ -161,7 +165,7 @@ export default function NotificationsScreen() {
                 <Pressable
                   onPress={() => {
                     void (async () => {
-                      await clearNotifications();
+                      await clearNotifications(inboxScope);
                       setItems([]);
                     })();
                   }}
@@ -192,7 +196,7 @@ export default function NotificationsScreen() {
                   key={item.id}
                   onPress={() => {
                     void (async () => {
-                      await markNotificationRead(item.id);
+                      await markNotificationRead(item.id, inboxScope);
                       if (item.actionUrl) router.push(item.actionUrl as never);
                     })();
                   }}

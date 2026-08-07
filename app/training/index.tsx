@@ -58,7 +58,9 @@ import {
     upsertTrainingSession,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
 import { notifyTrainingSaved } from "../../src/notifications";
+import { notificationScopeForEffectiveProfile } from "../../src/notifications/inbox-scope";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { TrainingAnchoredDropdownOption } from "../../src/screens/training/components/TrainingAnchoredDropdownOption";
@@ -369,6 +371,8 @@ export default function TrainingList() {
   const insets = useSafeAreaInsets();
   const responsiveLayout = useResponsiveLayout("dashboard");
   const router = useRouter();
+  const effectiveProfile = useEffectiveProfile();
+  const notificationInboxScope = notificationScopeForEffectiveProfile(effectiveProfile);
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
@@ -2259,7 +2263,7 @@ export default function TrainingList() {
       planId: plan.id,
       classId,
     });
-    void notifyTrainingSaved();
+    void notifyTrainingSaved({ inboxScope: notificationInboxScope });
     showSaveToast({
       message: "Plano salvo com sucesso.",
       actionLabel: "Ver plano",

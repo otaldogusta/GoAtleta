@@ -11,12 +11,14 @@ import {
   markNotificationRead as markRemoteNotificationRead,
   restoreNotification as restoreRemoteNotification,
 } from "./api/notifications";
+import type { NotificationInboxScope } from "./notifications/inbox-scope";
 
 export type {
   AppNotification,
   CreateNotificationInput,
   NotificationArchiveScope,
 };
+export type { NotificationInboxScope };
 
 type Listener = (items: AppNotification[]) => void;
 
@@ -48,9 +50,9 @@ const emit = (items: AppNotification[]) => {
   listeners.forEach((listener) => listener(visibleItems));
 };
 
-const readAll = async () => {
+const readAll = async (inboxScope: NotificationInboxScope) => {
   try {
-    const items = await listNotifications();
+    const items = await listNotifications({ inboxScope });
     return items.filter(isUserVisibleNotification);
   } catch {
     return [];
@@ -64,17 +66,20 @@ export type NotificationsPage = {
 };
 
 export const getNotificationsPage = async ({
+  inboxScope,
   limit = 20,
   offset = 0,
   archiveScope = "active",
 }: {
+  inboxScope: NotificationInboxScope;
   limit?: number;
   offset?: number;
   archiveScope?: NotificationArchiveScope;
-} = {}): Promise<NotificationsPage> => {
+}): Promise<NotificationsPage> => {
   const pageSize = Math.max(1, Math.min(Math.floor(limit), 50));
   try {
     const rows = await listNotifications({
+      inboxScope,
       limit: pageSize + 1,
       offset,
       archiveScope,
@@ -91,8 +96,8 @@ export const getNotificationsPage = async ({
   }
 };
 
-const refreshListeners = async () => {
-  const items = await readAll();
+const refreshListeners = async (inboxScope: NotificationInboxScope) => {
+  const items = await readAll(inboxScope);
   emit(items);
   return items;
 };
@@ -104,14 +109,14 @@ export const subscribeNotifications = (listener: Listener) => {
   };
 };
 
-export const getNotifications = async () => {
-  return await readAll();
+export const getNotifications = async (inboxScope: NotificationInboxScope) => {
+  return await readAll(inboxScope);
 };
 
 export const addNotification = async (
   title: string,
   body: string,
-  options: Omit<CreateNotificationInput, "title" | "body"> = {},
+  options: Omit<CreateNotificationInput, "title" | "body">,
 ) => {
   const candidate = { title, body };
   if (!isUserVisibleNotification(candidate)) return null;
@@ -121,38 +126,44 @@ export const addNotification = async (
       title,
       body,
     });
-    await refreshListeners();
+    await refreshListeners(options.inboxScope);
     return created;
   } catch {
     return null;
   }
 };
 
-export const markAllRead = async () => {
-  await markAllNotificationsRead();
-  await refreshListeners();
+export const markAllRead = async (inboxScope: NotificationInboxScope) => {
+  await markAllNotificationsRead(inboxScope);
+  await refreshListeners(inboxScope);
 };
 
-export const markNotificationRead = async (id: string) => {
+export const markNotificationRead = async (
+  id: string,
+  inboxScope: NotificationInboxScope,
+) => {
   await markRemoteNotificationRead(id);
-  await refreshListeners();
+  await refreshListeners(inboxScope);
 };
 
-export const archiveRead = async () => {
-  await archiveReadNotifications();
-  await refreshListeners();
+export const archiveRead = async (inboxScope: NotificationInboxScope) => {
+  await archiveReadNotifications(inboxScope);
+  await refreshListeners(inboxScope);
 };
 
-export const restoreNotification = async (id: string) => {
+export const restoreNotification = async (
+  id: string,
+  inboxScope: NotificationInboxScope,
+) => {
   await restoreRemoteNotification(id);
-  await refreshListeners();
+  await refreshListeners(inboxScope);
 };
 
-export const clearNotifications = async () => {
-  await clearMyNotifications();
+export const clearNotifications = async (inboxScope: NotificationInboxScope) => {
+  await clearMyNotifications(inboxScope);
   emit([]);
 };
 
-export const getUnreadCount = async () => {
-  return await getUnreadNotificationCount();
+export const getUnreadCount = async (inboxScope: NotificationInboxScope) => {
+  return await getUnreadNotificationCount(inboxScope);
 };

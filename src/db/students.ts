@@ -347,6 +347,7 @@ const notifyAbsenceNoticeRecipients = async (params: {
           createNotification({
             organizationId,
             recipientUserId: head.userId,
+            inboxScope: "prof",
             type: params.type,
             title: params.title,
             body: params.body,

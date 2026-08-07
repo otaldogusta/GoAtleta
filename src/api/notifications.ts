@@ -8,6 +8,10 @@ import {
   supabaseRestPost,
 } from "./rest";
 import { sendPushToUser } from "./push";
+import {
+  notificationInboxFilter,
+  type NotificationInboxScope,
+} from "../notifications/inbox-scope";
 
 export type AppNotificationType =
   | "training_created"
@@ -23,6 +27,7 @@ type NotificationRow = {
   id: string;
   organization_id: string;
   recipient_user_id: string;
+  inbox_scope: NotificationInboxScope;
   actor_user_id: string | null;
   type: AppNotificationType;
   title: string;
@@ -40,6 +45,7 @@ export type AppNotification = {
   id: string;
   organizationId: string;
   recipientUserId: string;
+  inboxScope: NotificationInboxScope;
   actorUserId: string | null;
   type: AppNotificationType;
   title: string;
@@ -60,6 +66,7 @@ export type NotificationArchiveScope = "active" | "archived" | "all";
 export type CreateNotificationInput = {
   organizationId?: string | null;
   recipientUserId?: string | null;
+  inboxScope: NotificationInboxScope;
   actorUserId?: string | null;
   type?: AppNotificationType;
   title: string;
@@ -73,14 +80,15 @@ export type CreateNotificationInput = {
 };
 
 const NOTIFICATION_SELECT =
-  "id,organization_id,recipient_user_id,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,archived_at,created_at";
+  "id,organization_id,recipient_user_id,inbox_scope,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,archived_at,created_at";
 const NOTIFICATION_SELECT_LEGACY =
-  "id,organization_id,recipient_user_id,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,created_at";
+  "id,organization_id,recipient_user_id,inbox_scope,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,created_at";
 
 const mapNotification = (row: NotificationRow): AppNotification => ({
   id: row.id,
   organizationId: row.organization_id,
   recipientUserId: row.recipient_user_id,
+  inboxScope: row.inbox_scope ?? "all",
   actorUserId: row.actor_user_id,
   type: row.type,
   title: row.title,
@@ -135,6 +143,7 @@ const buildCreatePayload = async (input: CreateNotificationInput) => {
   return {
     organization_id: organizationId,
     recipient_user_id: recipientUserId,
+    inbox_scope: input.inboxScope,
     actor_user_id: actorUserId || null,
     type: input.type ?? "generic",
     title,
@@ -154,6 +163,8 @@ const findExistingNotification = async (
     payload.organization_id,
   )}&recipient_user_id=eq.${encodeURIComponent(
     payload.recipient_user_id,
+  )}&inbox_scope=eq.${encodeURIComponent(
+    payload.inbox_scope,
   )}&type=eq.${encodeURIComponent(payload.type)}&source_type=eq.${encodeURIComponent(
     payload.source_type,
   )}&source_id=eq.${encodeURIComponent(payload.source_id)}`;
@@ -212,12 +223,13 @@ const callCreateNotificationFunction = async (
 
 export async function listNotifications(
   options: {
+    inboxScope: NotificationInboxScope;
     organizationId?: string | null;
     limit?: number;
     offset?: number;
     unreadOnly?: boolean;
     archiveScope?: NotificationArchiveScope;
-  } = {},
+  },
 ): Promise<AppNotification[]> {
   const organizationId = await resolveOrganizationId(options.organizationId);
   const recipientUserId = await getSessionUserId();
@@ -232,13 +244,14 @@ export async function listNotifications(
       : options.archiveScope === "archived"
         ? "&archived_at=not.is.null"
         : "&archived_at=is.null";
+  const inboxFilter = `&${notificationInboxFilter(options.inboxScope)}`;
   try {
     const rows = await supabaseRestGet<NotificationRow[]>(
       `/notifications?select=${NOTIFICATION_SELECT}&organization_id=eq.${encodeURIComponent(
         organizationId,
       )}&recipient_user_id=eq.${encodeURIComponent(
         recipientUserId,
-      )}${unreadFilter}${archiveFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
+      )}${inboxFilter}${unreadFilter}${archiveFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
     );
     return (rows ?? []).map(mapNotification);
   } catch (error) {
@@ -249,7 +262,7 @@ export async function listNotifications(
           organizationId,
         )}&recipient_user_id=eq.${encodeURIComponent(
           recipientUserId,
-        )}${unreadFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
+        )}${inboxFilter}${unreadFilter}&order=created_at.desc,id.desc&limit=${limit}&offset=${offset}`,
       );
       return (rows ?? []).map(mapNotification);
     }
@@ -259,10 +272,12 @@ export async function listNotifications(
 }
 
 export async function getUnreadNotificationCount(
+  inboxScope: NotificationInboxScope,
   organizationId?: string | null,
 ): Promise<number> {
   const rows = await listNotifications({
     organizationId,
+    inboxScope,
     unreadOnly: true,
     limit: 100,
   });
@@ -360,18 +375,20 @@ export async function markNotificationRead(id: string): Promise<void> {
 }
 
 export async function markAllNotificationsRead(
+  inboxScope: NotificationInboxScope,
   organizationId?: string | null,
 ): Promise<void> {
   const resolvedOrganizationId = await resolveOrganizationId(organizationId);
   const recipientUserId = await getSessionUserId();
   if (!resolvedOrganizationId || !recipientUserId) return;
+  const inboxFilter = notificationInboxFilter(inboxScope);
   try {
     await supabaseRestPatch(
       `/notifications?organization_id=eq.${encodeURIComponent(
         resolvedOrganizationId,
       )}&recipient_user_id=eq.${encodeURIComponent(
         recipientUserId,
-      )}&read_at=is.null&archived_at=is.null`,
+      )}&${inboxFilter}&read_at=is.null&archived_at=is.null`,
       { read_at: new Date().toISOString() },
       "return=minimal",
     );
@@ -380,7 +397,9 @@ export async function markAllNotificationsRead(
       await supabaseRestPatch(
         `/notifications?organization_id=eq.${encodeURIComponent(
           resolvedOrganizationId,
-        )}&recipient_user_id=eq.${encodeURIComponent(recipientUserId)}&read_at=is.null`,
+        )}&recipient_user_id=eq.${encodeURIComponent(
+          recipientUserId,
+        )}&${inboxFilter}&read_at=is.null`,
         { read_at: new Date().toISOString() },
         "return=minimal",
       );
@@ -392,18 +411,20 @@ export async function markAllNotificationsRead(
 }
 
 export async function archiveReadNotifications(
+  inboxScope: NotificationInboxScope,
   organizationId?: string | null,
 ): Promise<void> {
   const resolvedOrganizationId = await resolveOrganizationId(organizationId);
   const recipientUserId = await getSessionUserId();
   if (!resolvedOrganizationId || !recipientUserId) return;
+  const inboxFilter = notificationInboxFilter(inboxScope);
   try {
     await supabaseRestPatch(
       `/notifications?organization_id=eq.${encodeURIComponent(
         resolvedOrganizationId,
       )}&recipient_user_id=eq.${encodeURIComponent(
         recipientUserId,
-      )}&read_at=not.is.null&archived_at=is.null`,
+      )}&${inboxFilter}&read_at=not.is.null&archived_at=is.null`,
       { archived_at: new Date().toISOString() },
       "return=minimal",
     );
@@ -448,16 +469,20 @@ export async function restoreNotification(
 }
 
 export async function clearMyNotifications(
+  inboxScope: NotificationInboxScope,
   organizationId?: string | null,
 ): Promise<void> {
   const resolvedOrganizationId = await resolveOrganizationId(organizationId);
   const recipientUserId = await getSessionUserId();
   if (!resolvedOrganizationId || !recipientUserId) return;
+  const inboxFilter = notificationInboxFilter(inboxScope);
   try {
     await supabaseRestDelete(
       `/notifications?organization_id=eq.${encodeURIComponent(
         resolvedOrganizationId,
-      )}&recipient_user_id=eq.${encodeURIComponent(recipientUserId)}`,
+      )}&recipient_user_id=eq.${encodeURIComponent(
+        recipientUserId,
+      )}&${inboxFilter}`,
       "return=minimal",
     );
   } catch (error) {

@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SectionList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ResponsivePage } from "../src/components/ui/ResponsivePage";
 import { SectionLoadingState } from "../src/components/ui/SectionLoadingState";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
+import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
 import type { AbsenceNotice, ClassGroup, Student } from "../src/core/models";
 import {
   getAbsenceNotices,
@@ -23,6 +24,7 @@ import {
   restoreNotification,
 } from "../src/notificationsInbox";
 import { markRender, measureAsync } from "../src/observability/perf";
+import { resolveNotificationInboxScope } from "../src/notifications/inbox-scope";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { canActOnAbsenceNotice } from "../src/screens/absence-notices/absence-notice-state";
 import {
@@ -136,6 +138,12 @@ export function NotificationsCenterScreen({
   const responsive = useResponsiveLayout("content");
   const { activeOrganization } = useOrganization();
   const router = useRouter();
+  const pathname = usePathname();
+  const effectiveProfile = useEffectiveProfile();
+  const inboxScope = resolveNotificationInboxScope({
+    pathname,
+    effectiveProfile,
+  });
   const { confirm: confirmDialog } = useConfirmDialog();
   markRender("screen.absenceNotices.render.root");
 
@@ -167,6 +175,7 @@ export function NotificationsCenterScreen({
           () =>
             Promise.all([
               getNotificationsPage({
+                inboxScope,
                 limit: NOTIFICATIONS_PAGE_SIZE,
                 archiveScope: showingArchived ? "archived" : "active",
               }),
@@ -195,7 +204,7 @@ export function NotificationsCenterScreen({
     } finally {
       setIsLoading(false);
     }
-  }, [activeOrganization?.id, showingArchived]);
+  }, [activeOrganization?.id, inboxScope, showingArchived]);
 
   useEffect(() => {
     let alive = true;
@@ -369,7 +378,7 @@ export function NotificationsCenterScreen({
 
   const markRead = useCallback(async (notification: AppNotification) => {
     if (notification.read) return;
-    await markNotificationRead(notification.id);
+    await markNotificationRead(notification.id, inboxScope);
     const readAt = new Date().toISOString();
     setNotifications((prev) =>
       prev.map((item) =>
@@ -378,14 +387,14 @@ export function NotificationsCenterScreen({
           : item,
       ),
     );
-  }, []);
+  }, [inboxScope]);
 
   const markAllNotificationsAsRead = useCallback(async () => {
     if (isMarkingAllRead || unreadCount === 0) return;
     setIsMarkingAllRead(true);
     setActionError(null);
     try {
-      await markAllRead();
+      await markAllRead(inboxScope);
       const readAt = new Date().toISOString();
       setNotifications((current) =>
         current.map((item) => ({
@@ -399,7 +408,7 @@ export function NotificationsCenterScreen({
     } finally {
       setIsMarkingAllRead(false);
     }
-  }, [isMarkingAllRead, unreadCount]);
+  }, [inboxScope, isMarkingAllRead, unreadCount]);
 
   const loadMoreNotifications = useCallback(async () => {
     if (isLoadingMore || !hasMoreNotifications) return;
@@ -407,6 +416,7 @@ export function NotificationsCenterScreen({
     setActionError(null);
     try {
       const page = await getNotificationsPage({
+        inboxScope,
         limit: NOTIFICATIONS_PAGE_SIZE,
         offset: notificationOffset,
         archiveScope: showingArchived ? "archived" : "active",
@@ -427,6 +437,7 @@ export function NotificationsCenterScreen({
     }
   }, [
     hasMoreNotifications,
+    inboxScope,
     isLoadingMore,
     notificationOffset,
     showingArchived,
@@ -444,7 +455,7 @@ export function NotificationsCenterScreen({
         setIsArchivingRead(true);
         setActionError(null);
         try {
-          await archiveRead();
+          await archiveRead(inboxScope);
           await loadNotices();
         } catch {
           setActionError("Não foi possível arquivar os avisos lidos.");
@@ -453,7 +464,7 @@ export function NotificationsCenterScreen({
         }
       },
     });
-  }, [confirmDialog, isArchivingRead, loadNotices, readActiveCount]);
+  }, [confirmDialog, inboxScope, isArchivingRead, loadNotices, readActiveCount]);
 
   const restoreArchivedNotification = useCallback(
     async (notificationId: string) => {
@@ -461,7 +472,7 @@ export function NotificationsCenterScreen({
       setRestoringId(notificationId);
       setActionError(null);
       try {
-        await restoreNotification(notificationId);
+        await restoreNotification(notificationId, inboxScope);
         setNotifications((current) =>
           current.filter((item) => item.id !== notificationId),
         );
@@ -471,7 +482,7 @@ export function NotificationsCenterScreen({
         setRestoringId(null);
       }
     },
-    [restoringId],
+    [inboxScope, restoringId],
   );
 
   const openNotification = useCallback(

@@ -56,6 +56,7 @@ export async function notifyConsultationEvent(
       type: "consultation_event",
       organizationId: payload.organizationId,
       recipientUserId: payload.targetUserId,
+      inboxScope: notification.recipientRole === "student" ? "student" : "prof",
       actionUrl,
       sourceType: "consultation",
       sourceId: eventKey,

@@ -36,12 +36,12 @@ const hasValidEmailFormat = (value: string) =>
 // perf-check: ignore-measure - this form has no automatic asynchronous screen load.
 export default function SignupScreen() {
   markRender("screen.signup.render.root");
-  const { colors } = useAppTheme();
+  const { colors, mode } = useAppTheme();
   const { signUp, signInWithOAuth } = useAuth();
   const { inviteCode: inviteCodeParam } = useLocalSearchParams<{
     inviteCode?: string;
   }>();
-  const solidInputBg = colors.inputBg;
+  const solidInputBg = mode === "dark" ? "#121c30" : colors.inputBg;
   const router = useRouter();
   const [email, setEmail] = useState("");
   useState("");
@@ -241,7 +241,10 @@ export default function SignupScreen() {
               style={{
                 flex: 1,
                 justifyContent: "center",
-                gap: 24,
+                maxWidth: 440,
+                width: "100%",
+                alignSelf: "center",
+                gap: 18,
                 opacity: enterAnim,
                 transform: [
                   {
@@ -255,20 +258,32 @@ export default function SignupScreen() {
             >
             <Pressable
               onPress={() => router.replace("/login")}
-              style={{ alignSelf: "flex-start" }}
+              suppressWebHoverFeedback
+              style={({ pressed, hovered }: any) => ({
+                alignSelf: "flex-start",
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                backgroundColor: colors.secondaryBg,
+                borderWidth: 1,
+                borderColor: hovered ? colors.primaryBg : colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.8 : 1,
+                ...(Platform.OS === "web"
+                  ? { boxShadow: hovered ? "0px 0px 10px rgba(74, 222, 128, 0.2)" : "0px 4px 8px rgba(0, 0, 0, 0.12)" }
+                  : {
+                      shadowColor: "#000",
+                      shadowOpacity: 0.12,
+                      shadowRadius: 8,
+                      shadowOffset: { width: 0, height: 4 },
+                      elevation: 3,
+                    }),
+              })}
             >
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  backgroundColor: colors.secondaryBg,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
-              </View>
+              {({ hovered }: any) => (
+                <GoAtletaIcon name="chevronBack" size={18} color={hovered ? colors.primaryBg : colors.text} />
+              )}
             </Pressable>
 
             <ScreenHeader
@@ -281,8 +296,8 @@ export default function SignupScreen() {
                 padding: 18,
                 borderRadius: 22,
                 backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
+                borderWidth: 0,
+                overflow: "hidden",
                 gap: 14,
                 ...shadow.elevated,
               }}
@@ -344,13 +359,13 @@ export default function SignupScreen() {
                     borderWidth: emailError ? 2 : 1,
                     borderColor: emailError
                       ? colors.dangerSolidBg
-                      : colors.border,
-                    borderRadius: 14,
+                      : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
+                    borderRadius: 12,
                     backgroundColor: solidInputBg,
                     overflow: "hidden",
-                    paddingHorizontal: emailError ? 11 : 12,
-                    paddingVertical: emailError ? 9 : 10,
-                    minHeight: 48,
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    minHeight: 50,
                   }}
                 >
                   <TextInput
@@ -380,6 +395,8 @@ export default function SignupScreen() {
                       color: colors.inputText,
                       backgroundColor: "transparent",
                       borderWidth: 0,
+                      fontSize: 15,
+                      borderRadius: 0,
                     }}
                   />
                 </View>
@@ -387,20 +404,24 @@ export default function SignupScreen() {
 
               <Animated.View style={{ transform: [{ translateX: passwordShakeAnim }] }}>
                 {passwordTooShort ? (
-                  <View style={{ position: "relative", marginBottom: 6 }}>
-                    <View
-                      style={{
-                        backgroundColor: colors.dangerSolidBg,
-                        borderRadius: 8,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        alignSelf: "flex-start",
-                      }}
-                    >
-                      <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
-                        A senha precisa ter pelo menos 6 caracteres.
-                      </Text>
-                    </View>
+                    <View style={{ position: "relative", marginBottom: 6 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          backgroundColor: colors.dangerSolidBg,
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          alignSelf: "flex-start",
+                        }}
+                      >
+                        <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
+                        <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
+                          A senha precisa ter pelo menos 6 caracteres.
+                        </Text>
+                      </View>
                     <View
                       style={{
                         width: 0,
@@ -421,13 +442,13 @@ export default function SignupScreen() {
                     flexDirection: "row",
                     alignItems: "center",
                     borderWidth: 1,
-                    borderColor: passwordTooShort ? colors.dangerSolidBg : colors.border,
-                    paddingHorizontal: 12,
+                    borderColor: passwordTooShort ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
+                    paddingHorizontal: 14,
                     paddingVertical: 10,
-                    borderRadius: 14,
+                    borderRadius: 12,
                     backgroundColor: solidInputBg,
                     overflow: "hidden",
-                    minHeight: 48,
+                    minHeight: 50,
                   }}
                 >
 
@@ -449,6 +470,9 @@ export default function SignupScreen() {
                       padding: 0,
                       color: colors.inputText,
                       backgroundColor: "transparent",
+                      borderWidth: 0,
+                      fontSize: 15,
+                      borderRadius: 0,
                     }}
                   />
                   <Pressable
@@ -479,6 +503,9 @@ export default function SignupScreen() {
                     <View style={{ position: "relative", marginBottom: 6 }}>
                       <View
                         style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
                           backgroundColor: colors.dangerSolidBg,
                           borderRadius: 8,
                           paddingHorizontal: 10,
@@ -486,6 +513,7 @@ export default function SignupScreen() {
                           alignSelf: "flex-start",
                         }}
                       >
+                        <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
                         <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
                           As senhas não conferem
                         </Text>
@@ -510,13 +538,13 @@ export default function SignupScreen() {
                       flexDirection: "row",
                       alignItems: "center",
                       borderWidth: 1,
-                      borderColor: confirmMismatch ? colors.dangerSolidBg : colors.border,
-                      paddingHorizontal: 12,
+                      borderColor: confirmMismatch ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
+                      paddingHorizontal: 14,
                       paddingVertical: 10,
-                      borderRadius: 14,
+                      borderRadius: 12,
                       backgroundColor: solidInputBg,
                       overflow: "hidden",
-                      minHeight: 48,
+                      minHeight: 50,
                     }}
                   >
                     <TextInput
@@ -535,6 +563,9 @@ export default function SignupScreen() {
                         padding: 0,
                         color: colors.inputText,
                         backgroundColor: "transparent",
+                        borderWidth: 0,
+                        fontSize: 15,
+                        borderRadius: 0,
                       }}
                     />
                     <Pressable
@@ -739,11 +770,18 @@ export default function SignupScreen() {
 
               <Pressable
                 onPress={handleSignup}
-                disabled={busy}
+                disabled={busy || !email.trim() || !password.trim() || password.length < 6}
                 style={{
                   paddingVertical: 12,
                   borderRadius: 14,
-                  backgroundColor: busy ? colors.primaryDisabledBg : colors.primaryBg,
+                  backgroundColor:
+                    busy || !email.trim() || !password.trim() || password.length < 6
+                      ? colors.primaryDisabledBg
+                      : colors.primaryBg,
+                  opacity:
+                    busy || !email.trim() || !password.trim() || password.length < 6
+                      ? 0.55
+                      : 1,
                   alignItems: "center",
                 }}
               >
@@ -796,11 +834,25 @@ export default function SignupScreen() {
                       : undefined,
                   })
                 }
-                style={{ paddingVertical: 4 }}
+                suppressWebHoverFeedback
+                style={({ pressed }: any) => ({
+                  paddingVertical: 4,
+                  paddingHorizontal: 6,
+                  backgroundColor: "transparent",
+                  opacity: pressed ? 0.75 : 1,
+                })}
               >
-                <Text style={{ color: colors.primaryBg, fontWeight: "700" }}>
-                  Entrar
-                </Text>
+                {({ hovered }: any) => (
+                  <Text
+                    style={{
+                      color: hovered ? "#4ade80" : colors.primaryBg,
+                      fontWeight: "700",
+                      textDecorationLine: hovered ? "underline" : "none",
+                    }}
+                  >
+                    Entrar
+                  </Text>
+                )}
               </Pressable>
             </View>
             </Animated.View>

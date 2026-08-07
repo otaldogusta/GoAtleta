@@ -216,7 +216,9 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const { availableRoles, refresh: refreshRole, setActiveRole } = useRole();
   const organizationContext = useOptionalOrganization();
   const { unreadCount: unreadNotificationCount } = useUnreadNotificationCount(
-    organizationContext?.activeOrganization?.id
+    organizationContext?.activeOrganization?.id,
+    true,
+    role,
   );
   const unreadNotificationBadge = formatUnreadNotificationBadge(unreadNotificationCount);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);

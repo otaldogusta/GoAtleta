@@ -74,6 +74,7 @@ import {
 
     subscribeNotifications,
 } from "../../notificationsInbox";
+import { notificationScopeForEffectiveProfile } from "../../notifications/inbox-scope";
 
 import { useOrganization } from "../../providers/OrganizationProvider";
 
@@ -175,6 +176,9 @@ export function HomeProfessorScreen({
       : "/prof/home";
   const profilePath = getScopedProfilePath(profileScopePath);
   const effectiveProfile = useEffectiveProfile();
+  const notificationInboxScope = adminMode
+    ? "coord"
+    : notificationScopeForEffectiveProfile(effectiveProfile);
 
   const {
     activeOrganization,
@@ -376,12 +380,12 @@ export function HomeProfessorScreen({
   );
   const loadInbox = useCallback(async () => {
     try {
-      const items = await getNotifications();
+      const items = await getNotifications(notificationInboxScope);
       setInbox(items);
     } catch {
       setInbox([]);
     }
-  }, []);
+  }, [notificationInboxScope]);
   useEffect(() => {
     profilePhotoCacheRef.current = { uri: null, updatedAt: 0 };
   }, [role, session?.user?.id]);
@@ -574,7 +578,7 @@ export function HomeProfessorScreen({
 
     }).start();
 
-    await markAllRead();
+    await markAllRead(notificationInboxScope);
 
   };
 
@@ -2517,8 +2521,8 @@ export function HomeProfessorScreen({
                     onPress={() => {
 
                       const handleClear = async () => {
-                        await clearNotifications();
-                        const items = await getNotifications();
+                        await clearNotifications(notificationInboxScope);
+                        const items = await getNotifications(notificationInboxScope);
                         setInbox(items);
                         setExpandedId(null);
                       };
@@ -2742,7 +2746,7 @@ export function HomeProfessorScreen({
                           onPress={() => {
                             if (item.actionUrl) {
                               void (async () => {
-                                await markNotificationRead(item.id);
+                                await markNotificationRead(item.id, notificationInboxScope);
                                 closeInbox();
                                 router.push(item.actionUrl as never);
                               })();
