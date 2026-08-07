@@ -515,12 +515,6 @@ function RootLayoutContent() {
     } else if (!session && normalizedPathname === "/") {
       redirectTo = "/welcome";
     } else if (!session && !isPublicRoute) {
-      if (Platform.OS === "web") {
-        const elapsedMs = Date.now() - appStartedAtRef.current;
-        if (elapsedMs < 2500) {
-          return;
-        }
-      }
       const currentRoute =
         Platform.OS === "web" && typeof window !== "undefined"
           ? `${window.location.pathname}${window.location.search}${window.location.hash}`
