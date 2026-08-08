@@ -13,7 +13,7 @@ import {
 } from "react-native";
 
 import { ptBR } from "../../../constants/copy/pt-br";
-import type { ClassGroup, TrainingPlan } from "../../../core/models";
+import type { ClassGroup, TrainingPlan, TrainingPlanActivity } from "../../../core/models";
 import {
   resolveTrainingPlanBlock,
   type TrainingPlanBlockKey,
@@ -120,6 +120,27 @@ const getDuration = (plan: TrainingPlan, blockKey: TrainingPlanBlockKey) =>
     : blockKey === "main"
     ? plan.mainTime
     : plan.cooldownTime;
+
+const parseMultilineBlockText = (text: string, expectedCount: number): string[] => {
+  const rawLines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^(?:\d+[\.\)]\s*|[-*]\s*)/, "").trim())
+    .filter((line) => line.length > 0);
+
+  if (expectedCount <= 1) {
+    const cleanedFullText = text.replace(/^(?:\d+[\.\)]\s*|[-*]\s*)/, "").trim();
+    return [cleanedFullText];
+  }
+
+  const result: string[] = [];
+  for (let i = 0; i < expectedCount; i++) {
+    result.push(i < rawLines.length ? rawLines[i] : "");
+  }
+  if (rawLines.length > expectedCount) {
+    result[expectedCount - 1] += "\n" + rawLines.slice(expectedCount - 1).join("\n");
+  }
+  return result;
+};
 
 export function ClassPlanPreviewModal({
   visible,
@@ -396,9 +417,14 @@ export function ClassPlanPreviewModal({
             period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
           setSelectedBlockKey(blockKey);
           updateBlock(blockKey, (draft) => {
+            const expectedCount = Math.max(1, draft.activities.length);
+            const parsedDescriptions = parseMultilineBlockText(text, expectedCount);
             const activities = draft.activities.length > 0
-              ? draft.activities.map((act, i) => (i === 0 ? { ...act, description: text } : act))
-              : [{ name: "Atividade 1", description: text }];
+              ? draft.activities.map((act, i) => ({
+                  ...act,
+                  description: parsedDescriptions[i] ?? act.description ?? "",
+                }))
+              : [{ name: "Atividade 1", description: text.trim() }];
             return { ...draft, activities };
           });
         } else if (field.startsWith("block-activities-")) {
@@ -407,9 +433,15 @@ export function ClassPlanPreviewModal({
             period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
           setSelectedBlockKey(blockKey);
           updateBlock(blockKey, (draft) => {
-            const activities = draft.activities.length > 0
-              ? draft.activities.map((act, i) => (i === 0 ? { ...act, name: text } : act))
-              : [{ name: text, description: "" }];
+            const rawNames = text
+              .split(/\r?\n/)
+              .map((line) => line.replace(/^(?:\d+[\.\)]\s*|[-*]\s*)/, "").trim())
+              .filter(Boolean);
+            const names = rawNames.length > 0 ? rawNames : ["Atividade 1"];
+            const activities: TrainingPlanActivity[] = names.map((name, i) => {
+              const existing = draft.activities[i];
+              return existing ? { ...existing, name } : { name, description: "" };
+            });
             return { ...draft, activities };
           });
         } else if (field.startsWith("block-time-")) {

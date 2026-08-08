@@ -31,6 +31,16 @@ describe("profile switch options", () => {
     ).toEqual(["professor", "admin", "student"]);
   });
 
+  test("preserva Coordenação quando canUseDevPreview estiver ativo", () => {
+    expect(
+      resolveVisibleProfileSwitchIds({
+        hasHybridAccount: true,
+        isOrgAdmin: false,
+        canUseDevPreview: true,
+      }),
+    ).toEqual(["professor", "admin", "student"]);
+  });
+
   test("limita a troca real aos perfis autorizados pela conta", () => {
     expect(
       resolveAuthorizedProfileSwitchIds({

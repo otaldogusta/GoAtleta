@@ -256,6 +256,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const isOrgAdmin = (organizationContext?.activeOrganization?.role_level ?? 0) >= 50;
   const hasHybridAccount = availableRoles.includes("trainer") && availableRoles.includes("student");
   const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
+  const canUseDevPreview = __DEV__ && Boolean(setDevProfilePreview);
   const selectedPreview = rolePreview[role];
   const profilePath = getScopedProfilePath(pathname || "/");
   const isProfileMenuOpen = profileMenuOpen;
@@ -408,6 +409,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const visibleProfileSwitchIds = resolveVisibleProfileSwitchIds({
     hasHybridAccount,
     isOrgAdmin,
+    canUseDevPreview,
   });
   const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) =>
     visibleProfileSwitchIds.includes(option.id)

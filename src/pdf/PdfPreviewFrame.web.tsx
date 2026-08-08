@@ -95,13 +95,25 @@ export const buildPreviewHtml = (html: string, editable?: boolean) => {
         }
       }, true);
 
-      document.addEventListener('blur', function(e) {
-        var el = getEl(e.target);
+      function emitEdit(target) {
+        var el = getEl(target);
         if (el && el.hasAttribute && el.hasAttribute('data-field')) {
           var field = el.getAttribute('data-field');
-          var text = el.innerText ? el.innerText.trim() : '';
+          var text = el.innerText ? el.innerText : '';
           window.parent.postMessage({ type: 'GOATLETA_PDF_EDIT', field: field, text: text }, '*');
         }
+      }
+
+      document.addEventListener('input', function(e) {
+        emitEdit(e.target);
+      }, true);
+
+      document.addEventListener('blur', function(e) {
+        emitEdit(e.target);
+      }, true);
+
+      document.addEventListener('compositionend', function(e) {
+        emitEdit(e.target);
       }, true);
     </script>
     `

@@ -17,7 +17,9 @@ const profileScreenSwitchOrder: readonly ProfileSwitchId[] = [
 export function resolveVisibleProfileSwitchIds(params: {
   hasHybridAccount: boolean;
   isOrgAdmin: boolean;
+  canUseDevPreview?: boolean;
 }): ProfileSwitchId[] {
+  if (params.canUseDevPreview) return [...profileSwitchOrder];
   if (!params.hasHybridAccount) return [...profileSwitchOrder];
 
   return profileSwitchOrder.filter(
