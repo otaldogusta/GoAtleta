@@ -416,6 +416,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
 
   const openProfile = () => {
     closeProfileMenu();
+    setSidebarExpanded(false);
     navigateTo(profilePath);
   };
 
@@ -544,15 +545,10 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
           onMouseEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
           onPointerEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
         } as any)}
-        accessibilityLabel={canSwitchProfile ? "Alternar workspace" : "Abrir perfil e configurações"}
-        accessibilityState={canSwitchProfile ? { expanded: isProfileSwitcherOpen } : undefined}
+        accessibilityLabel="Abrir perfil e configurações"
         onFocus={() => canSwitchProfile && setProfileSwitcherOpen(true)}
         onHoverIn={() => canSwitchProfile && setProfileSwitcherOpen(true)}
         onPress={() => {
-          if (canSwitchProfile) {
-            setProfileSwitcherOpen(true);
-            return;
-          }
           openProfile();
         }}
         style={{
