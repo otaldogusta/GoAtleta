@@ -332,7 +332,10 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     const isEventInsideMenu = (target: EventTarget | null) => {
       if (typeof Node === "undefined" || !(target instanceof Node)) return false;
       const rootElement = profileMenuRootRef.current as unknown as HTMLElement | null;
-      return Boolean(rootElement?.contains(target));
+      if (rootElement?.contains(target)) return true;
+      const targetEl = target as HTMLElement;
+      if (targetEl.closest?.('[data-goatleta-profile-menu="true"]')) return true;
+      return false;
     };
 
     const closeMenu = () => {
@@ -383,6 +386,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const applyProfilePreview = useCallback(
     async (preview: ProfileSwitchId) => {
       closeProfileMenu();
+      setSidebarExpanded(false);
       const realRole: Extract<UserRole, "trainer" | "student"> =
         preview === "student" ? "student" : "trainer";
       if (hasHybridAccount) {
@@ -398,7 +402,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
       }
       router.replace(previewRoutes[preview] as never);
     },
-    [closeProfileMenu, hasHybridAccount, refreshRole, router, setActiveRole, setDevProfilePreview]
+    [closeProfileMenu, setSidebarExpanded, hasHybridAccount, refreshRole, router, setActiveRole, setDevProfilePreview]
   );
 
   const visibleProfileSwitchIds = resolveVisibleProfileSwitchIds({
@@ -428,8 +432,9 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const renderProfileSwitcher = () => (
     <View
       {...({
-        dataSet: { goatletaWorkspaceMenu: "true" },
+        dataSet: { goatletaWorkspaceMenu: "true", goatletaProfileMenu: "true" },
         "data-goatleta-workspace-menu": "true",
+        "data-goatleta-profile-menu": "true",
       } as any)}
       accessibilityLabel="Alternar workspace"
       style={{
@@ -516,7 +521,10 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
 
   const renderProfileMenu = (placement: "compact" | "expanded") => (
     <View
-      {...({ onMouseLeave: () => setProfileSwitcherOpen(false) } as any)}
+      {...({
+        dataSet: { goatletaProfileMenu: "true" },
+        "data-goatleta-profile-menu": "true",
+      } as any)}
       accessibilityLabel="Menu de perfil"
       style={[
         {
@@ -545,10 +553,14 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
           onMouseEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
           onPointerEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
         } as any)}
-        accessibilityLabel="Abrir perfil e configurações"
+        accessibilityLabel={canSwitchProfile ? "Alternar workspace" : "Abrir perfil e configurações"}
         onFocus={() => canSwitchProfile && setProfileSwitcherOpen(true)}
         onHoverIn={() => canSwitchProfile && setProfileSwitcherOpen(true)}
         onPress={() => {
+          if (canSwitchProfile) {
+            setProfileSwitcherOpen((current) => !current);
+            return;
+          }
           openProfile();
         }}
         style={{
