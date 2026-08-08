@@ -320,8 +320,10 @@ function RootLayoutContent() {
 
   const shouldShowEmailVerifyBanner =
     Boolean(session) &&
+    (role === "trainer" || role === "student") &&
     !isPublicRoute &&
     !isInviteRoute &&
+    normalizedPathname !== "/pending" &&
     needsHybridEmailVerification &&
     !emailBannerDismissed;
 
@@ -508,10 +510,14 @@ function RootLayoutContent() {
       return;
     }
 
+    if (roleLoading) return;
+
+    const authDestinationHref = role === "pending" ? "/pending" : appHomeHref;
+
     if (normalizedPathname === "/onboarding") {
-      redirectTo = session ? appHomeHref : "/welcome";
+      redirectTo = session ? authDestinationHref : "/welcome";
     } else if (session && ["/onboarding", "/welcome", "/login", "/signup"].includes(normalizedPathname)) {
-      redirectTo = appHomeHref;
+      redirectTo = authDestinationHref;
     } else if (!session && normalizedPathname === "/") {
       redirectTo = "/welcome";
     } else if (!session && !isPublicRoute) {
@@ -529,7 +535,6 @@ function RootLayoutContent() {
       return;
     }
 
-    if (roleLoading) return;
     if (session && role === "trainer" && (permissionsLoading || organizationLoading)) return;
 
     if (

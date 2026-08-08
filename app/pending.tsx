@@ -1,44 +1,201 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getInviteErrorCode } from "../src/api/invite-errors";
 import { claimStudentInvite } from "../src/api/student-invite";
 import { claimTrainerInvite } from "../src/api/trainer-invite";
-import { requestAccessReview } from "../src/api/access-request";
 import { useAuth } from "../src/auth/auth";
 import {
-    clearPendingInvite,
-    clearPendingTrainerInvite,
-    getPendingInvite,
-    getPendingTrainerInvite,
+  clearPendingInvite,
+  clearPendingTrainerInvite,
+  getPendingInvite,
+  getPendingTrainerInvite,
 } from "../src/auth/pending-invite";
 import { useRole } from "../src/auth/role";
-import { ResponsivePage } from "../src/components/ui/ResponsivePage";
-import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { radius, spacing } from "../src/theme/tokens";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
+import { Button } from "../src/ui/Button";
+
+function PulseRadarBadge({ approved }: { approved?: boolean }) {
+  const { colors } = useAppTheme();
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const successAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (approved) {
+      Animated.spring(successAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 90,
+        useNativeDriver: Platform.OS !== "web",
+      }).start();
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 2400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: Platform.OS !== "web",
+      })
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [approved, pulseAnim, successAnim]);
+
+  const ring1Scale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.6],
+  });
+
+  const ring1Opacity = pulseAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.45, 0.2, 0],
+  });
+
+  const ring2Scale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.1],
+  });
+
+  const ring2Opacity = pulseAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.25, 0.1, 0],
+  });
+
+  const successScale = successAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.4, 1],
+  });
+
+  const successRippleScale = successAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 2.2],
+  });
+
+  const successRippleOpacity = successAnim.interpolate({
+    inputRange: [0, 0.4, 1],
+    outputRange: [0.7, 0.3, 0],
+  });
+
+  const checkIconScale = successAnim.interpolate({
+    inputRange: [0, 0.6, 1],
+    outputRange: [0, 1.3, 1],
+  });
+
+  if (approved) {
+    return (
+      <View style={{ width: 100, height: 100, alignItems: "center", justifyContent: "center" }}>
+        <Animated.View
+          style={{
+            position: "absolute",
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: "#86efac",
+            opacity: successRippleOpacity,
+            transform: [{ scale: successRippleScale }],
+          }}
+        />
+        <Animated.View
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: "#dcfce7",
+            borderWidth: 1.5,
+            borderColor: "#86efac",
+            alignItems: "center",
+            justifyContent: "center",
+            transform: [{ scale: successScale }],
+          }}
+        >
+          <Animated.View style={{ transform: [{ scale: checkIconScale }] }}>
+            <GoAtletaIcon name="checkmarkCircle" size={32} color="#166534" />
+          </Animated.View>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ width: 100, height: 100, alignItems: "center", justifyContent: "center" }}>
+      <Animated.View
+        style={{
+          position: "absolute",
+          width: 64,
+          height: 64,
+          borderRadius: 32,
+          backgroundColor: colors.primaryBg,
+          opacity: ring2Opacity,
+          transform: [{ scale: ring2Scale }],
+        }}
+      />
+      <Animated.View
+        style={{
+          position: "absolute",
+          width: 64,
+          height: 64,
+          borderRadius: 32,
+          backgroundColor: colors.primaryBg,
+          opacity: ring1Opacity,
+          transform: [{ scale: ring1Scale }],
+        }}
+      />
+      <View
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 32,
+          backgroundColor: colors.card,
+          borderWidth: 1.5,
+          borderColor: colors.border,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <GoAtletaIcon name="personSolid" size={28} color={colors.primaryBg} />
+      </View>
+    </View>
+  );
+}
 
 export default function PendingScreen() {
   markRender("screen.pending.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const { session, signOut } = useAuth();
-  const { loading: roleLoading, refresh, role } = useRole();
-  const [busy, setBusy] = useState(false);
+  const { refresh, role } = useRole();
   const [inviteBusy, setInviteBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [storedToken, setStoredToken] = useState("");
   const [storedTrainerCode, setStoredTrainerCode] = useState("");
-  const [storedInvitesLoading, setStoredInvitesLoading] = useState(true);
-  const [coordinatorEmail, setCoordinatorEmail] = useState("");
-  const [requestBusy, setRequestBusy] = useState(false);
-  const [requestMessage, setRequestMessage] = useState("");
+  const [accessApproved, setAccessApproved] = useState(false);
   const autoClaimedRef = useRef(false);
+  const textAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (role === "trainer" || role === "student" || accessApproved) {
+      setAccessApproved(true);
+      Animated.timing(textAnim, {
+        toValue: 1,
+        duration: 450,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: Platform.OS !== "web",
+      }).start();
+
+      const timer = setTimeout(() => {
+        router.replace(role === "student" ? "/student/home" : "/prof/home");
+      }, 1800);
+      return () => clearTimeout(timer);
+    }
+  }, [accessApproved, role, router, textAnim]);
 
   const parseInviteError = (error: unknown) => {
     const code = getInviteErrorCode(error);
@@ -93,35 +250,18 @@ export default function PendingScreen() {
     autoClaimedRef.current = false;
   };
 
-  const handleAccessRequest = async () => {
-    const normalizedEmail = coordinatorEmail.trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes("@")) {
-      setRequestMessage("Informe o e-mail da coordenação.");
-      return;
-    }
-    if (requestBusy) return;
-    setRequestBusy(true);
-    setRequestMessage("");
-    try {
-      await requestAccessReview(normalizedEmail);
-      setRequestMessage(
-        "Solicitação enviada. A coordenação receberá o aviso no app e por push, quando habilitado."
-      );
-    } catch (error) {
-      setRequestMessage(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível enviar a solicitação."
-      );
-    } finally {
-      setRequestBusy(false);
-    }
-  };
-
   const handleBackToLogin = async () => {
     await signOut();
     router.replace("/login");
   };
+
+  useEffect(() => {
+    if (!session) return;
+    const interval = setInterval(() => {
+      void refresh({ silent: true });
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [refresh, session]);
 
   useEffect(() => {
     let alive = true;
@@ -133,7 +273,6 @@ export default function PendingScreen() {
       if (!alive) return;
       setStoredToken(token);
       setStoredTrainerCode(trainerCode);
-      setStoredInvitesLoading(false);
       if (autoClaimedRef.current) return;
       if (!token && !trainerCode) {
         if (role === "trainer" || role === "student") {
@@ -151,263 +290,137 @@ export default function PendingScreen() {
     return () => {
       alive = false;
     };
-    // The stored values are claimed once per mount; including the handlers would
-    // recreate this effect whenever transient invite state changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh, role, router]);
 
-  if (
-    roleLoading ||
-    storedInvitesLoading ||
-    ((role === "trainer" || role === "student") && !storedToken && !storedTrainerCode)
-  ) {
-    return <ScreenLoadingState />;
+  if ((role === "trainer" || role === "student") && !storedToken && !storedTrainerCode) {
+    return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, width: "100%", justifyContent: "center", alignItems: "center" }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={{
             flexGrow: 1,
             justifyContent: "center",
-            paddingVertical: spacing.xxl,
+            alignItems: "center",
+            paddingVertical: spacing.xl,
+            paddingHorizontal: spacing.lg,
+            width: "100%",
           }}
           keyboardShouldPersistTaps="handled"
         >
-          <ResponsivePage
-            variant="content"
-            gap={spacing.lg}
-            style={{ width: "100%", maxWidth: 720 }}
+          <View
+            style={{
+              width: "100%",
+              maxWidth: 440,
+              alignSelf: "center",
+              alignItems: "center",
+              gap: spacing.lg,
+            }}
           >
-            <Pressable
-              onPress={() => void handleBackToLogin()}
-              style={{
-                alignSelf: "flex-start",
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.xs,
-                paddingVertical: spacing.xs,
-              }}
-            >
-              <GoAtletaIcon name="chevronBack" size={16} color={colors.muted} />
-              <Text style={{ color: colors.muted, fontWeight: "600" }}>
-                Voltar para entrar
-              </Text>
-            </Pressable>
+            <PulseRadarBadge approved={accessApproved} />
 
-            <View style={{ alignItems: "center", gap: spacing.sm }}>
-              <View
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: radius.full,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <GoAtletaIcon name="personSolid" size={24} color={colors.primaryBg} />
-              </View>
+            <Animated.View style={{ alignItems: "center", gap: spacing.xs, transform: [{ translateY: textAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, -8, 0] }) }] }}>
               <Text
                 style={{
                   color: colors.text,
-                  fontSize: 26,
+                  fontSize: 24,
                   fontWeight: "800",
                   textAlign: "center",
                 }}
               >
-                Acesso aguardando liberação
+                {accessApproved ? "Acesso liberado!" : "Aguardando liberação"}
               </Text>
               <Text
                 style={{
                   color: colors.muted,
-                  fontSize: 15,
-                  lineHeight: 22,
+                  fontSize: 14,
+                  lineHeight: 21,
                   textAlign: "center",
-                  maxWidth: 520,
                 }}
               >
-                Sua conta foi criada, mas ainda não está vinculada a uma organização.
+                {accessApproved
+                  ? "Sua conta foi aprovada pela coordenação. Redirecionando..."
+                  : "Sua conta foi criada com sucesso. Quando a coordenação aprovar seu acesso ou você acessar um link de convite, a liberação será automática."}
               </Text>
-            </View>
+            </Animated.View>
 
-            <View
-              style={{
-                padding: spacing.lg,
-                borderRadius: radius.container,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-                gap: spacing.lg,
-              }}
-            >
-              {storedToken || storedTrainerCode ? (
-                <View style={{ gap: spacing.sm }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                    <GoAtletaIcon name="link" size={18} color={colors.text} />
-                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
-                      Convite encontrado
-                    </Text>
-                  </View>
-                    <Text style={{ color: colors.muted, lineHeight: 20 }}>
-                      Encontramos um convite e estamos validando o vínculo automaticamente.
-                    </Text>
-                    {message ? <Text style={{ color: colors.muted }}>{message}</Text> : null}
-                    <Pressable
-                      onPress={() =>
-                        storedToken ? handleStoredInvite() : handleStoredTrainerInvite()
-                      }
-                      disabled={inviteBusy}
-                      style={{
-                        minHeight: 46,
-                        paddingHorizontal: spacing.md,
-                        borderRadius: radius.internal,
-                        backgroundColor: colors.primaryBg,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: inviteBusy ? 0.65 : 1,
-                      }}
-                    >
-                      <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                        {inviteBusy ? "Validando convite..." : "Tentar novamente"}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={clearStoredInvite}
-                      style={{ alignSelf: "center", padding: spacing.xs }}
-                    >
-                      <Text style={{ color: colors.muted, fontWeight: "600" }}>
-                        Descartar este convite
-                      </Text>
-                    </Pressable>
-                </View>
-              ) : (
-                <>
-                  <View style={{ gap: spacing.sm }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                  <GoAtletaIcon name="members" size={18} color={colors.text} />
-                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700" }}>
-                    Solicitar acesso
+            {Boolean(storedToken || storedTrainerCode) && (
+              <View
+                style={{
+                  width: "100%",
+                  padding: spacing.md,
+                  borderRadius: radius.container,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: spacing.sm,
+                  alignItems: "center",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                  <GoAtletaIcon name="link" size={16} color={colors.primaryBg} />
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>
+                    Convite encontrado
                   </Text>
                 </View>
-                <Text style={{ color: colors.muted, lineHeight: 20 }}>
-                  Informe o e-mail da coordenação responsável. Você está conectado como{" "}
-                  <Text style={{ color: colors.text, fontWeight: "600" }}>
-                    {session?.user?.email ?? "e-mail não informado"}
+                {Boolean(message) && (
+                  <Text style={{ color: colors.dangerSolidBg, fontSize: 13, textAlign: "center" }}>
+                    {message}
                   </Text>
-                  .
-                </Text>
-                <TextInput
-                  placeholder="E-mail da coordenação responsável"
-                  value={coordinatorEmail}
-                  onChangeText={setCoordinatorEmail}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="email-address"
-                  placeholderTextColor={colors.placeholder}
-                  style={{
-                    minHeight: 46,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    paddingHorizontal: spacing.sm,
-                    borderRadius: radius.internal,
-                    backgroundColor: colors.inputBg,
-                    color: colors.inputText,
-                  }}
+                )}
+                <Button
+                  label={inviteBusy ? "Validando convite..." : "Validar convite agora"}
+                  onPress={() =>
+                    storedToken ? handleStoredInvite() : handleStoredTrainerInvite()
+                  }
+                  disabled={inviteBusy}
                 />
-                {requestMessage ? (
-                  <Text style={{ color: colors.muted, lineHeight: 20 }}>{requestMessage}</Text>
-                ) : null}
-                <Pressable
-                  onPress={() => void handleAccessRequest()}
-                  disabled={requestBusy}
-                  style={{
-                    minHeight: 46,
-                    paddingHorizontal: spacing.md,
-                    borderRadius: radius.internal,
-                    backgroundColor: colors.primaryBg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    opacity: requestBusy ? 0.65 : 1,
-                  }}
-                >
-                  <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                    {requestBusy ? "Enviando solicitação..." : "Solicitar acesso"}
+                <Pressable onPress={clearStoredInvite} style={{ padding: spacing.xs }}>
+                  <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
+                    Descartar convite
                   </Text>
                 </Pressable>
               </View>
+            )}
 
-                  <View style={{ height: 1, backgroundColor: colors.border }} />
-
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "flex-start",
-                      gap: spacing.sm,
-                    }}
-                  >
-                    <GoAtletaIcon name="link" size={18} color={colors.muted} />
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        Recebeu um convite?
-                      </Text>
-                      <Text style={{ color: colors.muted, lineHeight: 20 }}>
-                        Abra o link recebido por e-mail ou mensagem. O vínculo será aplicado
-                        automaticamente; não é necessário colar o link nesta tela.
-                      </Text>
-                    </View>
-                  </View>
-                </>
-              )}
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: spacing.md,
-              }}
-            >
-              <Pressable
-                onPress={async () => {
-                  if (busy) return;
-                  setBusy(true);
-                  await refresh();
-                  setBusy(false);
-                }}
-                disabled={busy}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.xs,
-                  padding: spacing.xs,
-                  opacity: busy ? 0.65 : 1,
-                }}
-              >
-                <GoAtletaIcon name="refresh" size={16} color={colors.muted} />
-                <Text style={{ color: colors.muted, fontWeight: "600" }}>
-                  {busy ? "Verificando..." : "Verificar acesso novamente"}
-                </Text>
-              </Pressable>
-              <View style={{ width: 1, height: 18, backgroundColor: colors.border }} />
+            <View style={{ width: "100%", gap: spacing.sm, marginTop: spacing.xs }}>
               <Pressable
                 onPress={() => void handleBackToLogin()}
-                style={{ padding: spacing.xs }}
+                style={{ alignSelf: "center", paddingVertical: spacing.xs }}
+                suppressWebHoverFeedback
               >
-                <Text style={{ color: colors.muted, fontWeight: "600" }}>
+                <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "600" }}>
                   Entrar com outra conta
                 </Text>
               </Pressable>
+
+              {__DEV__ && !accessApproved && (
+                <Pressable
+                  onPress={() => setAccessApproved(true)}
+                  style={{
+                    alignSelf: "center",
+                    marginTop: spacing.xs,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    backgroundColor: colors.secondaryBg,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                  suppressWebHoverFeedback
+                >
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>
+                    🧪 Dev: Simular liberação de acesso
+                  </Text>
+                </Pressable>
+              )}
             </View>
-          </ResponsivePage>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

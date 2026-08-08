@@ -11,6 +11,7 @@ import { canSafelyUnlinkProvider, type LinkedIdentity } from "./identity-linking
 import { buildOAuthAuthorizeUrl } from "./oauth-url";
 import type { AuthSession } from "./session";
 import { loadSession, saveSession } from "./session";
+import { setDevProfilePreview } from "../dev/profile-preview";
 
 type AuthContextValue = {
   session: AuthSession | null;
@@ -310,6 +311,7 @@ export function AuthProvider({
   }, [session?.user?.id]);
 
   const signIn = useCallback(async (email: string, password: string, remember = true) => {
+    await setDevProfilePreview("auto");
     const payload = await authFetch("/auth/v1/token?grant_type=password", {
       email,
       password,
@@ -325,6 +327,7 @@ export function AuthProvider({
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, redirectPath: string, fullName?: string) => {
+    await setDevProfilePreview("auto");
     const redirectTo = redirectPath
       ? Platform.OS === "web"
         ? buildWebRedirectUrl(redirectPath)

@@ -90,30 +90,32 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
         }}
       />
 
-      <View style={{ width: compact ? 204 : 240, gap: compact ? 8 : 10 }}>
+      <View style={{ width: compact ? 150 : 180, gap: compact ? 6 : 8, flexShrink: 0 }}>
         <Pressable
           onPress={onOpenLesson}
           disabled={!primaryItem}
           style={{
-            height: compact ? 40 : 46,
+            height: compact ? 38 : 42,
+            paddingHorizontal: 12,
             borderRadius: radius.internal,
             backgroundColor: primaryItem ? colors.success : colors.primaryDisabledBg,
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "row",
-            gap: 10,
+            gap: 8,
           }}
         >
-          <Text style={{ color: brandPalette.navyDeep, fontSize: compact ? 12 : 14, fontWeight: "900" }}>
+          <Text style={{ color: brandPalette.navyDeep, fontSize: compact ? 12 : 13, fontWeight: "900" }} numberOfLines={1}>
             Ver aula
           </Text>
-          <GoAtletaIcon name="arrowForward" size={20} color={brandPalette.navyDeep} />
+          <GoAtletaIcon name="arrowForward" size={compact ? 16 : 18} color={brandPalette.navyDeep} />
         </Pressable>
         <Pressable
           onPress={onOpenAttendance}
           disabled={!primaryItem}
           style={{
-            height: compact ? 38 : 42,
+            height: compact ? 36 : 40,
+            paddingHorizontal: 12,
             borderRadius: radius.internal,
             borderWidth: 1,
             borderColor: colors.borderSubtle,
@@ -121,11 +123,11 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "row",
-            gap: 10,
+            gap: 8,
           }}
         >
-          <GoAtletaIcon name="students" size={20} color={primaryItem ? colors.textPrimary : colors.textMuted} />
-          <Text style={{ color: primaryItem ? colors.textPrimary : colors.textMuted, fontSize: compact ? 12 : 14, fontWeight: "800" }}>
+          <GoAtletaIcon name="students" size={compact ? 16 : 18} color={primaryItem ? colors.textPrimary : colors.textMuted} />
+          <Text style={{ color: primaryItem ? colors.textPrimary : colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "800" }} numberOfLines={1}>
             Fazer chamada
           </Text>
         </Pressable>

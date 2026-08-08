@@ -15,10 +15,6 @@ export function AppShell({ role, children }: AppShellProps) {
   const layout = useResponsiveLayout("dashboard");
   const { colors } = useAppTheme();
 
-  if (!layout.usesWorkspaceShell) {
-    return <>{children}</>;
-  }
-
   return (
     <View
       style={[

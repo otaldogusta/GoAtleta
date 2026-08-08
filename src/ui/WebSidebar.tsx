@@ -236,7 +236,16 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   } | null>(null);
   const profileMenuRootRef = useRef<View | null>(null);
 
-  const expanded = canExpand && sidebarExpanded;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleToggle = () => {
+      setSidebarExpandedState((prev) => !prev);
+    };
+    window.addEventListener("goatleta:toggle-sidebar", handleToggle);
+    return () => window.removeEventListener("goatleta:toggle-sidebar", handleToggle);
+  }, []);
+
+  const expanded = sidebarExpanded;
   const sidebarBackgroundColor =
     mode === "dark" ? colors.background : webShellTokens.sidebar;
   const professorName = getDisplayName(session);
@@ -950,124 +959,6 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     );
   };
 
-  if (!expanded) {
-    return (
-      <View
-        accessibilityLabel="Navegação principal"
-        style={{
-          width: SIDEBAR_COMPACT_WIDTH,
-          alignSelf: "stretch",
-          backgroundColor: sidebarBackgroundColor,
-          borderRightWidth: 1,
-          borderRightColor: "rgba(255,255,255,0.06)",
-          paddingVertical: 18,
-          paddingHorizontal: 10,
-          gap: 18,
-          flexShrink: 0,
-          height: "100%",
-          maxHeight: "100%",
-          position: "relative",
-          zIndex: 1000,
-          overflow: "visible",
-        }}
-      >
-        {compactTooltip ? (
-          <View
-            pointerEvents="none"
-            style={{
-              position: "fixed",
-              left: SIDEBAR_COMPACT_WIDTH - 4,
-              top: compactTooltip.top,
-              zIndex: 10000,
-              minHeight: 34,
-              justifyContent: "center",
-              paddingHorizontal: 12,
-              borderRadius: 12,
-              backgroundColor: "rgba(15,23,42,0.98)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.14)",
-              boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
-              transform: [{ translateY: -17 }],
-            } as any}
-          >
-            <Text
-              style={{
-                color: brandPalette.white,
-                fontSize: 12,
-                fontWeight: "800",
-                whiteSpace: "nowrap",
-              } as any}
-            >
-              {compactTooltip.label}
-            </Text>
-          </View>
-        ) : null}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-          }}
-        >
-          <BrandMark size={44} />
-          {canExpand ? (
-            <SidebarToggleButton expanded={false} onPress={() => setSidebarExpanded(true)} />
-          ) : null}
-        </View>
-
-        <ScrollView
-          style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{ gap: 6, alignItems: "center", paddingVertical: 2, paddingBottom: 6 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {navigationItems.map(renderCompactNavItem)}
-        </ScrollView>
-
-        <View ref={profileMenuRootRef} style={{ position: "relative", alignSelf: "center" }}>
-           {isProfileMenuOpen ? renderProfileMenu("compact") : null}
-           <Pressable
-            accessibilityLabel={isProfileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
-            accessibilityState={{ expanded: isProfileMenuOpen }}
-            onPress={toggleProfileMenu}
-            style={{
-              width: 58,
-              height: 58,
-              borderRadius: 18,
-              alignSelf: "center",
-              alignItems: "center",
-              justifyContent: "center",
-               backgroundColor: isProfileMenuOpen
-                 ? "rgba(255,255,255,0.13)"
-                 : "rgba(255,255,255,0.08)",
-              borderWidth: 1,
-              borderColor: isProfileMenuOpen
-                ? "rgba(65, 217, 132, 0.62)"
-                : "rgba(255,255,255,0.10)",
-            }}
-          >
-            <View
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: 19,
-                backgroundColor: "rgba(65, 217, 132, 0.18)",
-                borderWidth: 1,
-                borderColor: "rgba(65, 217, 132, 0.35)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
-                {professorInitials}
-              </Text>
-            </View>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
   const renderNavItem = (item: SidebarItem) => {
     const active = isActiveItem(item);
     const accessibilityLabel = item.badge
@@ -1143,11 +1034,136 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     );
   };
 
+  const renderExpandedContent = () => (
+    <>
+      <Pressable
+        accessibilityLabel="Fechar menu lateral"
+        suppressWebHoverFeedback
+        onPress={() => setSidebarExpanded(false)}
+        style={({ pressed }) =>
+          ({
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1090,
+            backgroundColor: webShellTokens.scrim,
+            cursor: "default",
+            outlineStyle: "none",
+            userSelect: "none",
+            WebkitTapHighlightColor: "transparent",
+            opacity: expanded ? 1 : 0,
+            pointerEvents: expanded ? "auto" : "none",
+            visibility: expanded ? "visible" : "hidden",
+            transition: "opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+          }) as any
+        }
+      />
+
+      <View
+        style={
+          ({
+            width: SIDEBAR_EXPANDED_WIDTH,
+            backgroundColor: sidebarBackgroundColor,
+            borderRightWidth: 1,
+            borderRightColor: "rgba(255,255,255,0.06)",
+            paddingVertical: 18,
+            paddingHorizontal: 14,
+            gap: 14,
+            height: "100vh",
+            maxHeight: "100vh",
+            position: "fixed",
+            left: 0,
+            top: 0,
+            bottom: 0,
+            zIndex: 1100,
+            boxShadow: expanded ? "18px 0 42px rgba(0,0,0,0.28)" : "none",
+            transform: expanded ? "translateX(0px)" : "translateX(-105%)",
+            pointerEvents: expanded ? "auto" : "none",
+            visibility: expanded ? "visible" : "hidden",
+            transition: "transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+            outlineStyle: "none",
+            userSelect: "none",
+            WebkitTapHighlightColor: "transparent",
+          }) as any
+        }
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <BrandMark size={46} />
+          <BrandWordmark role={role} fill={false} />
+          <SidebarToggleButton expanded onPress={() => setSidebarExpanded(false)} />
+        </View>
+
+        <ScrollView
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ gap: 14, paddingBottom: 4 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={{ gap: 6 }}>
+            {navigationItems.map(renderNavItem)}
+          </View>
+        </ScrollView>
+
+        <View ref={profileMenuRootRef} style={{ position: "relative" }}>
+          {isProfileMenuOpen ? renderProfileMenu("expanded") : null}
+
+          <Pressable
+            accessibilityLabel={isProfileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
+            accessibilityState={{ expanded: isProfileMenuOpen }}
+            onPress={toggleProfileMenu}
+            style={{
+              minHeight: 58,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: isProfileMenuOpen ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
+              backgroundColor: isProfileMenuOpen ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.08)",
+              paddingHorizontal: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <View
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                backgroundColor: "rgba(65, 217, 132, 0.18)",
+                borderWidth: 1,
+                borderColor: "rgba(65, 217, 132, 0.35)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
+                {professorInitials}
+              </Text>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }} numberOfLines={1}>
+                {professorName}
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
+                {roleProfileLabel[role]}
+              </Text>
+            </View>
+            <GoAtletaIcon
+              name={isProfileMenuOpen ? "chevronDown" : "chevronUp"}
+              size={17}
+              color="rgba(255,255,255,0.68)"
+            />
+          </Pressable>
+        </View>
+      </View>
+    </>
+  );
+
   return (
     <View
       accessibilityLabel="Navegação principal"
       style={{
-        width: SIDEBAR_COMPACT_WIDTH,
+        width: canExpand ? SIDEBAR_COMPACT_WIDTH : 0,
         alignSelf: "stretch",
         flexShrink: 0,
         height: "100%",
@@ -1156,103 +1172,121 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         zIndex: 1000,
       }}
     >
-      <Pressable
-        accessibilityLabel="Fechar menu lateral"
-        suppressWebHoverFeedback
-        onPress={() => setSidebarExpanded(false)}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 1090,
-          backgroundColor: webShellTokens.scrim,
-        } as any}
-      />
-
-      <View
-        style={{
-          width: SIDEBAR_EXPANDED_WIDTH,
-          backgroundColor: sidebarBackgroundColor,
-          borderRightWidth: 1,
-          borderRightColor: "rgba(255,255,255,0.06)",
-          paddingVertical: 18,
-          paddingHorizontal: 14,
-          gap: 14,
-          height: "100vh",
-          maxHeight: "100vh",
-          position: "fixed",
-          left: 0,
-          top: 0,
-          zIndex: 1100,
-          boxShadow: "18px 0 42px rgba(0,0,0,0.28)",
-        } as any}
-      >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <BrandMark size={46} />
-        <BrandWordmark role={role} fill={false} />
-        <SidebarToggleButton expanded onPress={() => setSidebarExpanded(false)} />
-      </View>
-
-      <ScrollView
-        style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={{ gap: 14, paddingBottom: 4 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={{ gap: 6 }}>
-          {navigationItems.map(renderNavItem)}
-        </View>
-      </ScrollView>
-
-      <View ref={profileMenuRootRef} style={{ position: "relative" }}>
-        {isProfileMenuOpen ? renderProfileMenu("expanded") : null}
-
-        <Pressable
-          accessibilityLabel={isProfileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
-          accessibilityState={{ expanded: isProfileMenuOpen }}
-          onPress={toggleProfileMenu}
+      {canExpand ? (
+        <View
+          accessibilityLabel="Navegação principal compacta"
           style={{
-            minHeight: 58,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: isProfileMenuOpen ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
-            backgroundColor: isProfileMenuOpen ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.08)",
-            paddingHorizontal: 12,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 10,
+            width: SIDEBAR_COMPACT_WIDTH,
+            alignSelf: "stretch",
+            backgroundColor: sidebarBackgroundColor,
+            borderRightWidth: 1,
+            borderRightColor: "rgba(255,255,255,0.06)",
+            paddingVertical: 18,
+            paddingHorizontal: 10,
+            gap: 18,
+            flexShrink: 0,
+            height: "100%",
+            maxHeight: "100%",
+            position: "relative",
+            zIndex: 1000,
+            overflow: "visible",
           }}
         >
+          {compactTooltip ? (
+            <View
+              pointerEvents="none"
+              style={{
+                position: "fixed",
+                left: SIDEBAR_COMPACT_WIDTH - 4,
+                top: compactTooltip.top,
+                zIndex: 10000,
+                minHeight: 34,
+                justifyContent: "center",
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                backgroundColor: "rgba(15,23,42,0.98)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.14)",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+                transform: [{ translateY: -17 }],
+              } as any}
+            >
+              <Text
+                style={{
+                  color: brandPalette.white,
+                  fontSize: 12,
+                  fontWeight: "800",
+                  whiteSpace: "nowrap",
+                } as any}
+              >
+                {compactTooltip.label}
+              </Text>
+            </View>
+          ) : null}
           <View
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: "rgba(65, 217, 132, 0.18)",
-              borderWidth: 1,
-              borderColor: "rgba(65, 217, 132, 0.35)",
+              flexDirection: "row",
               alignItems: "center",
               justifyContent: "center",
+              gap: 6,
             }}
           >
-            <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
-              {professorInitials}
-            </Text>
+            <BrandMark size={44} />
+            <SidebarToggleButton expanded={false} onPress={() => setSidebarExpanded(true)} />
           </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }} numberOfLines={1}>
-              {professorName}
-            </Text>
-            <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
-              {roleProfileLabel[role]}
-            </Text>
+
+          <ScrollView
+            style={{ flex: 1, minHeight: 0 }}
+            contentContainerStyle={{ gap: 6, alignItems: "center", paddingVertical: 2, paddingBottom: 6 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {navigationItems.map(renderCompactNavItem)}
+          </ScrollView>
+
+          <View ref={profileMenuRootRef} style={{ position: "relative", alignSelf: "center" }}>
+            {isProfileMenuOpen ? renderProfileMenu("compact") : null}
+            <Pressable
+              accessibilityLabel={isProfileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
+              accessibilityState={{ expanded: isProfileMenuOpen }}
+              onPress={toggleProfileMenu}
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 18,
+                alignSelf: "center",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: isProfileMenuOpen
+                  ? "rgba(255,255,255,0.13)"
+                  : "rgba(255,255,255,0.08)",
+                borderWidth: 1,
+                borderColor: isProfileMenuOpen
+                  ? "rgba(65, 217, 132, 0.62)"
+                  : "rgba(255,255,255,0.10)",
+              }}
+            >
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  backgroundColor: "rgba(65, 217, 132, 0.18)",
+                  borderWidth: 1,
+                  borderColor: "rgba(65, 217, 132, 0.35)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
+                  {professorInitials}
+                </Text>
+              </View>
+            </Pressable>
           </View>
-          <GoAtletaIcon
-            name={isProfileMenuOpen ? "chevronDown" : "chevronUp"}
-            size={17}
-            color="rgba(255,255,255,0.62)"
-          />
-        </Pressable>
-      </View>
-      </View>
+        </View>
+      ) : null}
+
+      {renderExpandedContent()}
     </View>
   );
 }

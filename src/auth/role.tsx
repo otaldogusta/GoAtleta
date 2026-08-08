@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/react-native";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import type { Student } from "../core/models";
@@ -20,7 +20,7 @@ type RoleState = {
   devProfilePreview: DevProfilePreview;
   student: Student | null;
   loading: boolean;
-  refresh: () => Promise<void>;
+  refresh: (options?: { silent?: boolean } | boolean) => Promise<void>;
   setActiveRole: (role: SelectableUserRole) => Promise<boolean>;
 };
 
@@ -150,8 +150,16 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [devProfilePreview, setDevProfilePreviewState] = useState<DevProfilePreview>("auto");
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
+  const lastSessionUserIdRef = useRef<string | undefined>(session?.user?.id);
 
-  const refresh = useCallback(async () => {
+  if (session?.user?.id !== lastSessionUserIdRef.current) {
+    lastSessionUserIdRef.current = session?.user?.id;
+    setLoading(true);
+    setRole(null);
+  }
+
+  const refresh = useCallback(async (options?: { silent?: boolean } | boolean) => {
+    const isSilent = typeof options === "object" ? options?.silent : Boolean(options);
     const preview = await getDevProfilePreview();
     setDevProfilePreviewState(preview);
 
@@ -163,7 +171,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    setLoading(true);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       if (preview === "professor" || preview === "admin") {
         const token = await getValidAccessToken();
@@ -177,6 +187,11 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
             ...(isTrainer ? (["trainer"] as const) : []),
             ...(studentRow ? (["student"] as const) : []),
           ]);
+          if (!isTrainer && !studentRow) {
+            setRole("pending");
+            setStudent(null);
+            return;
+          }
         }
         setRole("trainer");
         setStudent(null);

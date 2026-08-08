@@ -11,7 +11,7 @@ export function Button({
   onPress,
   variant = "primary",
   disabled = false,
-  disabledOpacity = 0.7,
+  disabledOpacity = 0.55,
   loading = false,
   loadingLabel,
 }: {
@@ -103,6 +103,7 @@ export function Button({
           borderColor: isDisabled ? disabledBorder : selected.border,
           alignItems: "center",
           opacity: isDisabled ? disabledOpacity : 1,
+          ...(isDisabled ? ({ pointerEvents: "none" } as any) : {}),
         },
         pressed && !isDisabled
           ? { transform: [{ scale: 0.98 }], opacity: 0.92 }

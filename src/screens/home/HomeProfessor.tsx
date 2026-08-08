@@ -1015,7 +1015,7 @@ export function HomeProfessorScreen({
 
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isWebHome = Platform.OS === "web";
-  const isUx2CWebHome = isWebHome && responsiveLayout.supportsSplitView;
+  const isUx2CWebHome = isWebHome;
 
   const isUx2CWideDesktop = responsiveLayout.supportsDenseGrid;
   const isUx2CUltraWide = responsiveLayout.tier === "ultrawide";
@@ -1618,20 +1618,38 @@ export function HomeProfessorScreen({
 
       >
 
-        <View>
-
-          <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
-
-            Hoje
-
-          </Text>
-
-          <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
-
-            {todayLabel}
-
-          </Text>
-
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          {isWebHome && !responsiveLayout.canExpandSidebar ? (
+            <Pressable
+              onPress={() => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("goatleta:toggle-sidebar"));
+                }
+              }}
+              accessibilityLabel="Abrir menu principal"
+              style={({ pressed, hovered }: any) => ({
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                backgroundColor: hovered ? colors.secondaryBg : colors.card,
+                borderWidth: 1,
+                borderColor: hovered ? colors.primaryBg : colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <GoAtletaIcon name="align" size={18} color={colors.text} />
+            </Pressable>
+          ) : null}
+          <View>
+            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+              Hoje
+            </Text>
+            <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
+              {todayLabel}
+            </Text>
+          </View>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -1969,17 +1987,19 @@ export function HomeProfessorScreen({
 
             </View>
 
-            <TodayScheduleRail
-              title={`Aulas de ${selectedDaySummary?.fullLabel ?? "hoje"}`}
-              subtitle={selectedDaySummary?.dateLabel ?? ""}
-              slots={selectedDaySlots}
-              totalDurationMinutes={selectedDaySummary?.durationMinutes ?? 0}
-              compact={isUx2CCompact}
-              width={ux2CRailWidth}
-              height={ux2CRailHeight}
-              onOpenLesson={handleOpenLesson}
-              onOpenAttendance={handleOpenAttendance}
-            />
+            {responsiveLayout.supportsSplitView ? (
+              <TodayScheduleRail
+                title={`Aulas de ${selectedDaySummary?.fullLabel ?? "hoje"}`}
+                subtitle={selectedDaySummary?.dateLabel ?? ""}
+                slots={selectedDaySlots}
+                totalDurationMinutes={selectedDaySummary?.durationMinutes ?? 0}
+                compact={isUx2CCompact}
+                width={ux2CRailWidth}
+                height={ux2CRailHeight}
+                onOpenLesson={handleOpenLesson}
+                onOpenAttendance={handleOpenAttendance}
+              />
+            ) : null}
           </View>
         ) : null}
 

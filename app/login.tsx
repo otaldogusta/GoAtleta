@@ -582,64 +582,119 @@ export default function LoginScreen() {
                       }),
               }}
             >
-              <View
-                style={{
-                  borderWidth: 1,
-                  borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
-                  borderRadius: 12,
-                  backgroundColor: loginInputBg,
-                  overflow: "hidden",
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  minHeight: 50,
-                  justifyContent: "center",
-                }}
-              >
-                <TextInput
-                  nativeID="login-email"
-                  placeholder="Email"
-                  value={email}
-                  onChangeText={(v) => {
-                    setEmail(v);
-                    if (message) setMessage("");
-                  }}
-                  onSubmitEditing={() => {
-                    if (showReset) {
-                      void handleReset();
-                      return;
-                    }
-                    passwordInputRef.current?.focus();
-                  }}
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="email-address"
-                  autoComplete="email"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType={showReset ? "send" : "next"}
-                  underlineColorAndroid="transparent"
-                  selectionColor={colors.primaryBg}
+              <View style={{ position: "relative", zIndex: message && (fromSignup === "1" || message.toLowerCase().includes("email")) ? 50 : 1 }}>
+                { message && (fromSignup === "1" || message.toLowerCase().includes("email")) ? (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: -38,
+                      left: 0,
+                      zIndex: 60,
+                      ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        backgroundColor: colors.dangerSolidBg,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        alignSelf: "flex-start",
+                        ...(Platform.OS === "web"
+                          ? ({ boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.24)" } as any)
+                          : {
+                              shadowColor: "#000",
+                              shadowOpacity: 0.24,
+                              shadowRadius: 6,
+                              shadowOffset: { width: 0, height: 3 },
+                              elevation: 6,
+                            }),
+                      }}
+                    >
+                      <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
+                      <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
+                        {message.startsWith("!") ? message.slice(1) : message}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        width: 0,
+                        height: 0,
+                        marginLeft: 14,
+                        borderLeftWidth: 6,
+                        borderRightWidth: 6,
+                        borderTopWidth: 6,
+                        borderLeftColor: "transparent",
+                        borderRightColor: "transparent",
+                        borderTopColor: colors.dangerSolidBg,
+                      }}
+                    />
+                  </View>
+                ) : null}
+                <View
                   style={{
-                    flex: 1,
-                    padding: 0,
-                    color: colors.inputText,
-                    backgroundColor: "transparent",
-                    borderWidth: 0,
-                    fontSize: 15,
-                    borderRadius: 0,
+                    borderWidth: message && (fromSignup === "1" || message.toLowerCase().includes("email")) ? 2 : 1,
+                    borderColor: message && (fromSignup === "1" || message.toLowerCase().includes("email"))
+                      ? colors.dangerSolidBg
+                      : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
+                    borderRadius: 12,
+                    backgroundColor: loginInputBg,
+                    overflow: "hidden",
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    minHeight: 50,
+                    justifyContent: "center",
                   }}
-                />
+                >
+                  <TextInput
+                    nativeID="login-email"
+                    placeholder="Email"
+                    value={email}
+                    onChangeText={(v) => {
+                      setEmail(v);
+                      if (message) setMessage("");
+                    }}
+                    onSubmitEditing={() => {
+                      if (showReset) {
+                        void handleReset();
+                        return;
+                      }
+                      passwordInputRef.current?.focus();
+                    }}
+                    placeholderTextColor={colors.placeholder}
+                    keyboardType="email-address"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType={showReset ? "send" : "next"}
+                    underlineColorAndroid="transparent"
+                    selectionColor={colors.primaryBg}
+                    style={{
+                      flex: 1,
+                      padding: 0,
+                      color: colors.inputText,
+                      backgroundColor: "transparent",
+                      borderWidth: 0,
+                      fontSize: 15,
+                      borderRadius: 0,
+                    }}
+                  />
+                </View>
               </View>
 
               { !showReset ? (
                 <>
-                  <View style={{ position: "relative", zIndex: 10 }}>
-                    { message ? (
+                  <View style={{ position: "relative", zIndex: message && !(fromSignup === "1" || message.toLowerCase().includes("email")) ? 50 : 1 }}>
+                    { message && !(fromSignup === "1" || message.toLowerCase().includes("email")) ? (
                       <View
                         style={{
                           position: "absolute",
                           top: -38,
                           left: 0,
-                          zIndex: 20,
+                          zIndex: 60,
                           ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
                         }}
                       >
@@ -690,7 +745,7 @@ export default function LoginScreen() {
                         flexDirection: "row",
                         alignItems: "center",
                         borderWidth: 1,
-                        borderColor: message ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
+                        borderColor: message && !(fromSignup === "1" || message.toLowerCase().includes("email")) ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
                         paddingHorizontal: 14,
                         paddingVertical: 10,
                         borderRadius: 12,

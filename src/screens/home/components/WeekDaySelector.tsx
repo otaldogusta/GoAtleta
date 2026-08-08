@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 
 import { Pressable } from "../../../ui/Pressable";
 import { radius, shadow } from "../../../theme/tokens";
@@ -37,8 +37,17 @@ export const WeekDaySelector = memo(function WeekDaySelector({
         Agenda da semana
       </Text>
 
-      <View style={{ flexDirection: "row", alignItems: "stretch" }}>
-        {days.map((day, index) => {
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          flexDirection: "row",
+          alignItems: "stretch",
+          flexGrow: 1,
+          gap: compact ? 6 : 8,
+        }}
+      >
+        {days.map((day) => {
           const isSelected = day.dateKey === selectedDateKey;
           return (
             <Pressable
@@ -46,17 +55,16 @@ export const WeekDaySelector = memo(function WeekDaySelector({
               onPress={() => onSelect(day.dateKey)}
               style={{
                 flex: 1,
-                minWidth: 0,
-                minHeight: compact ? 68 : 78,
+                minWidth: compact ? 68 : 80,
+                minHeight: compact ? 64 : 76,
                 borderRadius: radius.card,
                 backgroundColor: isSelected ? colors.successBg : colors.surface,
                 borderWidth: isSelected ? 1 : 0,
                 borderColor: isSelected ? colors.successBorder : "transparent",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: compact ? 4 : 5,
+                gap: compact ? 3 : 5,
                 paddingHorizontal: 8,
-                marginRight: index === days.length - 1 ? 0 : 8,
               }}
             >
               <Text
@@ -72,7 +80,7 @@ export const WeekDaySelector = memo(function WeekDaySelector({
               <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "700" }}>
                 {day.dateLabel}
               </Text>
-              <Text style={{ color: colors.textMuted, fontSize: compact ? 11 : 12 }} numberOfLines={1}>
+              <Text style={{ color: colors.textMuted, fontSize: compact ? 10 : 12 }} numberOfLines={1}>
                 {day.lessonCount} {day.lessonCount === 1 ? "aula" : "aulas"}
               </Text>
               <View
@@ -86,7 +94,7 @@ export const WeekDaySelector = memo(function WeekDaySelector({
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
     </View>
   );
 });

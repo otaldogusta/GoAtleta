@@ -29,6 +29,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
+import { Button } from "../src/ui/Button";
 
 const hasValidEmailFormat = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
@@ -63,7 +64,9 @@ export default function SignupScreen() {
     null,
   );
   const [passwordTooShort, setPasswordTooShort] = useState(false);
-  const [confirmMismatch, setConfirmMismatch] = useState(false);
+  const [confirmError, setConfirmError] = useState<"missing" | "mismatch" | null>(
+    null
+  );
 
   const passwordChecks = useMemo(() => {
     const value = password;
@@ -136,6 +139,52 @@ export default function SignupScreen() {
     ]).start();
   };
 
+  useEffect(() => {
+    if (!email.trim()) {
+      setEmailError(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (email.trim() && !hasValidEmailFormat(email)) {
+        setEmailError("invalid");
+      } else {
+        setEmailError(null);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  useEffect(() => {
+    if (!password) {
+      setPasswordTooShort(false);
+      return;
+    }
+    if (password.length >= 6) {
+      setPasswordTooShort(false);
+    }
+  }, [password]);
+
+  useEffect(() => {
+    if (!confirm.trim()) {
+      setConfirmError(null);
+      return;
+    }
+    if (confirm === password) {
+      setConfirmError(null);
+      return;
+    }
+    if (confirm.length >= password.length) {
+      setConfirmError("mismatch");
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (confirm && confirm !== password) {
+        setConfirmError("mismatch");
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [confirm, password]);
+
   const handleSignup = async () => {
     const normalizedEmail = email.trim();
     if (!normalizedEmail) {
@@ -163,8 +212,13 @@ export default function SignupScreen() {
       runShake(passwordShakeAnim);
       return;
     }
-    if (confirm && confirm !== password) {
-      setConfirmMismatch(true);
+    if (!confirm.trim()) {
+      setConfirmError("missing");
+      runShake(shakeAnim);
+      return;
+    }
+    if (confirm !== password) {
+      setConfirmError("mismatch");
       runShake(shakeAnim);
       return;
     }
@@ -176,14 +230,16 @@ export default function SignupScreen() {
         if (session) {
           await claimTrainerInvite(inviteCode.trim());
           await clearPendingTrainerInvite();
-          setMessage("Conta criada e convite validado. Confirme o e-mail por código para liberar acesso completo.");
+          router.replace("/");
         } else {
-          setMessage(
-            "Conta criada. Confirme o email e depois valide o convite ao entrar."
-          );
+          router.replace("/login");
         }
       } else {
-        setMessage("Conta criada! Você já pode entrar, mas o app pedirá confirmação por código para ações sensíveis.");
+        if (session) {
+          router.replace("/pending");
+        } else {
+          router.replace("/login");
+        }
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao cadastrar.";
@@ -193,7 +249,6 @@ export default function SignupScreen() {
           pathname: "/login",
           params: {
             email: email.trim(),
-            password,
             fromSignup: "1",
             inviteCode: inviteCode.trim() || undefined,
           },
@@ -303,29 +358,48 @@ export default function SignupScreen() {
                 borderRadius: 22,
                 backgroundColor: colors.card,
                 borderWidth: 0,
-                overflow: "hidden",
+                overflow: "visible",
                 gap: 14,
                 ...shadow.elevated,
               }}
             >
               <Animated.View
-                style={{ transform: [{ translateX: emailShakeAnim }] }}
+                style={{
+                  position: "relative",
+                  zIndex: emailError ? 50 : 1,
+                  transform: [{ translateX: emailShakeAnim }],
+                }}
               >
                 {emailError ? (
                   <View
                     accessibilityRole="alert"
-                    style={{ position: "relative", marginBottom: 6 }}
+                    style={{
+                      position: "absolute",
+                      top: -38,
+                      left: 0,
+                      zIndex: 60,
+                      ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
+                    }}
                   >
                     <View
                       style={{
-                        alignSelf: "flex-start",
                         flexDirection: "row",
                         alignItems: "center",
                         gap: 6,
-                        borderRadius: 8,
                         backgroundColor: colors.dangerSolidBg,
+                        borderRadius: 8,
                         paddingHorizontal: 10,
                         paddingVertical: 6,
+                        alignSelf: "flex-start",
+                        ...(Platform.OS === "web"
+                          ? ({ boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.24)" } as any)
+                          : {
+                              shadowColor: "#000",
+                              shadowOpacity: 0.24,
+                              shadowRadius: 6,
+                              shadowOffset: { width: 0, height: 3 },
+                              elevation: 6,
+                            }),
                       }}
                     >
                       <GoAtletaIcon
@@ -349,7 +423,7 @@ export default function SignupScreen() {
                       style={{
                         width: 0,
                         height: 0,
-                        marginLeft: 16,
+                        marginLeft: 14,
                         borderLeftWidth: 6,
                         borderRightWidth: 6,
                         borderTopWidth: 6,
@@ -408,31 +482,49 @@ export default function SignupScreen() {
                 </View>
               </Animated.View>
 
-              <Animated.View style={{ transform: [{ translateX: passwordShakeAnim }] }}>
+              <Animated.View style={{ position: "relative", zIndex: passwordTooShort ? 50 : 1, transform: [{ translateX: passwordShakeAnim }] }}>
                 {passwordTooShort ? (
-                    <View style={{ position: "relative", marginBottom: 6 }}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 6,
-                          backgroundColor: colors.dangerSolidBg,
-                          borderRadius: 8,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          alignSelf: "flex-start",
-                        }}
-                      >
-                        <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
-                        <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
-                          A senha precisa ter pelo menos 6 caracteres.
-                        </Text>
-                      </View>
+                  <View
+                    accessibilityRole="alert"
+                    style={{
+                      position: "absolute",
+                      top: -38,
+                      left: 0,
+                      zIndex: 60,
+                      ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        backgroundColor: colors.dangerSolidBg,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        alignSelf: "flex-start",
+                        ...(Platform.OS === "web"
+                          ? ({ boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.24)" } as any)
+                          : {
+                              shadowColor: "#000",
+                              shadowOpacity: 0.24,
+                              shadowRadius: 6,
+                              shadowOffset: { width: 0, height: 3 },
+                              elevation: 6,
+                            }),
+                      }}
+                    >
+                      <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
+                      <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
+                        A senha precisa ter pelo menos 6 caracteres.
+                      </Text>
+                    </View>
                     <View
                       style={{
                         width: 0,
                         height: 0,
-                        marginLeft: 16,
+                        marginLeft: 14,
                         borderLeftWidth: 6,
                         borderRightWidth: 6,
                         borderTopWidth: 6,
@@ -504,9 +596,18 @@ export default function SignupScreen() {
               </Animated.View>
 
               { password.length > 0 ? (
-                <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
-                  {confirmMismatch ? (
-                    <View style={{ position: "relative", marginBottom: 6 }}>
+                <Animated.View style={{ position: "relative", zIndex: confirmError ? 50 : 1, transform: [{ translateX: shakeAnim }] }}>
+                  {confirmError ? (
+                    <View
+                      accessibilityRole="alert"
+                      style={{
+                        position: "absolute",
+                        top: -38,
+                        left: 0,
+                        zIndex: 60,
+                        ...(Platform.OS === "web" ? ({ pointerEvents: "none" } as any) : {}),
+                      }}
+                    >
                       <View
                         style={{
                           flexDirection: "row",
@@ -517,18 +618,27 @@ export default function SignupScreen() {
                           paddingHorizontal: 10,
                           paddingVertical: 6,
                           alignSelf: "flex-start",
+                          ...(Platform.OS === "web"
+                            ? ({ boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.24)" } as any)
+                            : {
+                                shadowColor: "#000",
+                                shadowOpacity: 0.24,
+                                shadowRadius: 6,
+                                shadowOffset: { width: 0, height: 3 },
+                                elevation: 6,
+                              }),
                         }}
                       >
                         <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
                         <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "600" }}>
-                          As senhas não conferem
+                          {confirmError === "missing" ? "Confirme sua senha" : "As senhas não coincidem"}
                         </Text>
                       </View>
                       <View
                         style={{
                           width: 0,
                           height: 0,
-                          marginLeft: 16,
+                          marginLeft: 14,
                           borderLeftWidth: 6,
                           borderRightWidth: 6,
                           borderTopWidth: 6,
@@ -544,7 +654,7 @@ export default function SignupScreen() {
                       flexDirection: "row",
                       alignItems: "center",
                       borderWidth: 1,
-                      borderColor: confirmMismatch ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
+                      borderColor: confirmError ? colors.dangerSolidBg : mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)",
                       paddingHorizontal: 14,
                       paddingVertical: 10,
                       borderRadius: 12,
@@ -558,7 +668,6 @@ export default function SignupScreen() {
                       value={confirm}
                       onChangeText={(v) => {
                         setConfirm(v);
-                        if (confirmMismatch) setConfirmMismatch(false);
                       }}
                       placeholderTextColor={colors.placeholder}
                       secureTextEntry={!showConfirm}
@@ -774,27 +883,21 @@ export default function SignupScreen() {
                 </View>
               ) : null}
 
-              <Pressable
+              <Button
+                label="Criar conta"
+                loadingLabel="Criando conta..."
                 onPress={handleSignup}
-                disabled={busy || !email.trim() || !password.trim() || password.length < 6}
-                style={{
-                  paddingVertical: 12,
-                  borderRadius: 14,
-                  backgroundColor:
-                    busy || !email.trim() || !password.trim() || password.length < 6
-                      ? colors.primaryDisabledBg
-                      : colors.primaryBg,
-                  opacity:
-                    busy || !email.trim() || !password.trim() || password.length < 6
-                      ? 0.55
-                      : 1,
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-                  Criar conta
-                </Text>
-              </Pressable>
+                disabled={
+                  busy ||
+                  !email.trim() ||
+                  !hasValidEmailFormat(email) ||
+                  !password.trim() ||
+                  password.length < 6 ||
+                  !confirm.trim() ||
+                  password !== confirm
+                }
+                loading={busy}
+              />
             </View>
 
             <View style={{ marginTop: 12, gap: 10 }}>
