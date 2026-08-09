@@ -28,18 +28,18 @@ describe("responsive layout", () => {
   });
 
   test.each([
-    [390, false, false, false, false, false, 16],
-    [767, false, false, false, false, false, 16],
-    [768, true, true, false, false, false, 24],
-    [834, true, true, false, false, false, 24],
-    [959, true, true, false, false, false, 24],
-    [960, true, true, true, false, false, 24],
-    [1024, true, true, true, false, false, 24],
-    [1099, true, true, true, false, false, 24],
-    [1100, true, true, true, true, false, 24],
-    [1439, true, true, true, true, false, 24],
-    [1440, true, true, true, true, true, 32],
-    [1600, true, true, true, true, true, 32],
+    [390, false, false, false, false, false, false, 16],
+    [767, false, false, false, false, false, false, 16],
+    [768, true, true, false, true, false, false, 24],
+    [834, true, true, false, true, false, false, 24],
+    [959, true, true, false, true, false, false, 24],
+    [960, true, true, true, true, false, false, 24],
+    [1024, true, true, true, true, false, false, 24],
+    [1099, true, true, true, true, false, false, 24],
+    [1100, true, true, true, true, true, false, 24],
+    [1439, true, true, true, true, true, false, 24],
+    [1440, true, true, true, true, true, true, 32],
+    [1600, true, true, true, true, true, true, 32],
   ] as const)(
     "resolves semantic capabilities at %i pixels",
     (
@@ -48,6 +48,7 @@ describe("responsive layout", () => {
       expectedWorkspace,
       supportsSplitView,
       canExpandSidebar,
+      canPersistExpandedSidebar,
       supportsDenseGrid,
       gutter
     ) => {
@@ -56,6 +57,9 @@ describe("responsive layout", () => {
       expect(layout.usesWorkspaceShell).toBe(expectedWorkspace);
       expect(layout.supportsSplitView).toBe(supportsSplitView);
       expect(layout.canExpandSidebar).toBe(canExpandSidebar);
+      expect(layout.canPersistExpandedSidebar).toBe(
+        canPersistExpandedSidebar
+      );
       expect(layout.supportsDenseGrid).toBe(supportsDenseGrid);
       expect(layout.gutter).toBe(gutter);
     }
@@ -89,6 +93,26 @@ describe("responsive layout", () => {
         contentWidth: 786,
         isMobile: false,
         usesWorkspaceShell: true,
+      })
+    );
+  });
+
+  it("reduces visual density on mobile without shrinking touch targets", () => {
+    expect(resolveResponsiveLayout(390).density).toEqual({
+      pageTitleFontSize: 22,
+      pageTitleLineHeight: 28,
+      sectionTitleFontSize: 16,
+      cardTitleFontSize: 14,
+      bodyFontSize: 14,
+      metadataFontSize: 12,
+      pageGap: 12,
+      sectionGap: 10,
+      cardPadding: 12,
+    });
+    expect(resolveResponsiveLayout(1440).density).toEqual(
+      expect.objectContaining({
+        pageTitleFontSize: 26,
+        cardPadding: 20,
       })
     );
   });
@@ -129,13 +153,18 @@ describe("responsive layout", () => {
     expect(resolveResponsiveNavigation(resolveResponsiveLayout(768))).toEqual({
       showBottomNavigation: false,
       showSidebar: true,
-      allowExpandedSidebar: false,
+      allowExpandedSidebar: true,
     });
     expect(resolveResponsiveNavigation(resolveResponsiveLayout(1100))).toEqual({
       showBottomNavigation: false,
       showSidebar: true,
       allowExpandedSidebar: true,
     });
+  });
+
+  it("persists expanded sidebar preference only from 1100 pixels", () => {
+    expect(resolveResponsiveLayout(1099).canPersistExpandedSidebar).toBe(false);
+    expect(resolveResponsiveLayout(1100).canPersistExpandedSidebar).toBe(true);
   });
 
   it("splits a grid only when viewport and container have real capacity", () => {

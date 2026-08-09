@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { markRender } from "../src/observability/perf";
 import { useAppTheme } from "../src/ui/app-theme";
+import { GoAtletaBrandLockup } from "../src/ui/GoAtletaBrand";
 import { Pressable } from "../src/ui/Pressable";
 
 const CAROUSEL_SLIDES = [
@@ -154,17 +155,11 @@ export default function WelcomeScreen() {
           {/* Header Brand & Dynamic Tagline Section */}
           <View style={{ gap: 14, marginTop: 10 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text
-                style={{
-                  fontSize: 28,
-                  fontWeight: "900",
-                  color: colors.text,
-                  letterSpacing: -0.8,
-                  fontFamily: SystemFont,
-                }}
-              >
-                Go Atleta
-              </Text>
+              <GoAtletaBrandLockup
+                height={38}
+                tone={mode === "dark" ? "light" : "navy"}
+                gap={9}
+              />
 
               {/* Modality Badge Tag */}
               <Animated.View
@@ -361,8 +356,3 @@ export default function WelcomeScreen() {
     </SafeAreaView>
   );
 }
-const SystemFont = Platform.select({
-  web: "Inter Tight, Inter, system-ui, -apple-system, sans-serif",
-  ios: "System",
-  default: "sans-serif",
-});

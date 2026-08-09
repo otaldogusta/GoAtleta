@@ -61,8 +61,8 @@ export function PlanningBlockActivityCards({
     <View
       testID={`planning-block-${blockKey}`}
       style={{
-        gap: 10,
-        padding: compact ? 12 : 14,
+        gap: compact ? 8 : 10,
+        padding: compact ? 10 : 14,
         borderRadius: 16,
         borderWidth: 1,
         borderColor: colors.border,
@@ -71,31 +71,24 @@ export function PlanningBlockActivityCards({
     >
       <View
         style={{
-          flexDirection: compact ? "column" : "row",
-          alignItems: compact ? "stretch" : "center",
-          gap: compact ? 8 : 10,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: compact ? 6 : 10,
         }}
       >
         <View
           style={{
             flex: 1,
             minWidth: 0,
-            flexDirection: compact ? "row" : "column",
-            alignItems: compact ? "center" : "flex-start",
-            justifyContent: "space-between",
-            gap: 8,
           }}
         >
-          <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
+          <Text numberOfLines={1} style={{ color: colors.text, fontSize: compact ? 15 : 16, fontWeight: "900" }}>
             {getPlanningBlockLabel(blockKey)}
           </Text>
-          {compact ? (
-            <AddActivityButton blockKey={blockKey} onAdd={onAdd} />
-          ) : null}
         </View>
         <View
           style={{
-            width: compact ? "100%" : 104,
+            width: compact ? 94 : 104,
             flexDirection: "row",
             alignItems: "center",
             gap: 6,
@@ -104,7 +97,7 @@ export function PlanningBlockActivityCards({
             borderRadius: 12,
             backgroundColor: colors.inputBg,
             paddingLeft: 9,
-            minHeight: 46,
+            minHeight: compact ? 42 : 46,
           }}
         >
           <GoAtletaIcon name="time" size={15} color={colors.muted} />
@@ -116,17 +109,15 @@ export function PlanningBlockActivityCards({
             format={durationFormat}
             style={{
               flex: 1,
-              minHeight: 44,
+              minHeight: compact ? 40 : 44,
               borderWidth: 0,
               paddingHorizontal: 0,
-              paddingVertical: 8,
+              paddingVertical: compact ? 6 : 8,
               backgroundColor: "transparent",
             }}
           />
         </View>
-        {compact ? null : (
-          <AddActivityButton blockKey={blockKey} onAdd={onAdd} />
-        )}
+        <AddActivityButton blockKey={blockKey} compact={compact} onAdd={onAdd} />
       </View>
 
       <View style={{ gap: 8 }}>
@@ -147,8 +138,8 @@ export function PlanningBlockActivityCards({
                 borderColor: colors.border,
                 borderRadius: 12,
                 backgroundColor: colors.inputBg,
-                paddingHorizontal: 12,
-                minHeight: 58,
+                paddingHorizontal: compact ? 10 : 12,
+                minHeight: compact ? 48 : 58,
               }}
             >
               <TextInput
@@ -160,10 +151,10 @@ export function PlanningBlockActivityCards({
                 placeholderTextColor={colors.placeholder}
                 style={{
                   flex: 1,
-                  minHeight: 56,
-                  paddingVertical: 12,
+                  minHeight: compact ? 46 : 56,
+                  paddingVertical: compact ? 8 : 12,
                   color: colors.inputText,
-                  fontSize: 14,
+                  fontSize: compact ? 13 : 14,
                   textAlignVertical: "top",
                 }}
               />
@@ -176,7 +167,7 @@ export function PlanningBlockActivityCards({
                 onPress={() => onManualLineRemove(blockKey, index)}
                 style={{
                   width: 42,
-                  minHeight: 58,
+                  minHeight: compact ? 48 : 58,
                   borderRadius: 12,
                   alignItems: "center",
                   justifyContent: "center",
@@ -197,7 +188,7 @@ export function PlanningBlockActivityCards({
           onPress={addManualLine}
           style={{
             alignSelf: "flex-start",
-            minHeight: 32,
+            minHeight: 40,
             borderRadius: 10,
             flexDirection: "row",
             alignItems: "center",
@@ -290,9 +281,11 @@ export function PlanningBlockActivityCards({
 
 function AddActivityButton({
   blockKey,
+  compact,
   onAdd,
 }: {
   blockKey: TrainingPlanBlockKey;
+  compact: boolean;
   onAdd: (blockKey: TrainingPlanBlockKey) => void;
 }) {
   const { colors } = useAppTheme();
@@ -303,15 +296,15 @@ function AddActivityButton({
       accessibilityLabel={`Adicionar da biblioteca ou vídeo em ${getPlanningBlockLabel(blockKey)}`}
       onPress={() => onAdd(blockKey)}
       style={{
-        width: 46,
-        height: 46,
-        borderRadius: 14,
+        width: compact ? 42 : 46,
+        height: compact ? 42 : 46,
+        borderRadius: compact ? 12 : 14,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: colors.primaryBg,
       }}
     >
-      <GoAtletaIcon name="playCircle" size={22} color={colors.primaryText} />
+      <GoAtletaIcon name="playCircle" size={compact ? 20 : 22} color={colors.primaryText} />
     </Pressable>
   );
 }

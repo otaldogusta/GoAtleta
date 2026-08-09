@@ -7,6 +7,18 @@ export type ResponsiveTier =
 
 export type ResponsivePageVariant = "content" | "dashboard";
 
+export type ResponsiveDensity = {
+  pageTitleFontSize: number;
+  pageTitleLineHeight: number;
+  sectionTitleFontSize: number;
+  cardTitleFontSize: number;
+  bodyFontSize: number;
+  metadataFontSize: number;
+  pageGap: number;
+  sectionGap: number;
+  cardPadding: number;
+};
+
 export type ResponsiveLayout = {
   tier: ResponsiveTier;
   gutter: number;
@@ -16,7 +28,9 @@ export type ResponsiveLayout = {
   usesWorkspaceShell: boolean;
   supportsSplitView: boolean;
   canExpandSidebar: boolean;
+  canPersistExpandedSidebar: boolean;
   supportsDenseGrid: boolean;
+  density: ResponsiveDensity;
 };
 
 export const responsiveBreakpoints = {
@@ -44,6 +58,64 @@ const gutterByTier: Record<ResponsiveTier, number> = {
 const maxContentWidthByVariant: Record<ResponsivePageVariant, number> = {
   content: 1440,
   dashboard: 1600,
+};
+
+const densityByTier: Record<ResponsiveTier, ResponsiveDensity> = {
+  mobile: {
+    pageTitleFontSize: 22,
+    pageTitleLineHeight: 28,
+    sectionTitleFontSize: 16,
+    cardTitleFontSize: 14,
+    bodyFontSize: 14,
+    metadataFontSize: 12,
+    pageGap: 12,
+    sectionGap: 10,
+    cardPadding: 12,
+  },
+  tablet: {
+    pageTitleFontSize: 24,
+    pageTitleLineHeight: 30,
+    sectionTitleFontSize: 17,
+    cardTitleFontSize: 15,
+    bodyFontSize: 14,
+    metadataFontSize: 12,
+    pageGap: 16,
+    sectionGap: 12,
+    cardPadding: 16,
+  },
+  desktop: {
+    pageTitleFontSize: 26,
+    pageTitleLineHeight: 32,
+    sectionTitleFontSize: 18,
+    cardTitleFontSize: 15,
+    bodyFontSize: 15,
+    metadataFontSize: 12,
+    pageGap: 16,
+    sectionGap: 12,
+    cardPadding: 16,
+  },
+  wide: {
+    pageTitleFontSize: 26,
+    pageTitleLineHeight: 32,
+    sectionTitleFontSize: 18,
+    cardTitleFontSize: 16,
+    bodyFontSize: 15,
+    metadataFontSize: 13,
+    pageGap: 20,
+    sectionGap: 14,
+    cardPadding: 20,
+  },
+  ultrawide: {
+    pageTitleFontSize: 28,
+    pageTitleLineHeight: 34,
+    sectionTitleFontSize: 20,
+    cardTitleFontSize: 16,
+    bodyFontSize: 16,
+    metadataFontSize: 13,
+    pageGap: 20,
+    sectionGap: 14,
+    cardPadding: 20,
+  },
 };
 
 const normalizeWidth = (width: number) =>
@@ -87,8 +159,11 @@ export function resolveResponsiveLayout(
     isMobile: safeWidth < responsiveBreakpoints.workspace,
     usesWorkspaceShell: safeWidth >= responsiveBreakpoints.workspace,
     supportsSplitView: safeWidth >= responsiveBreakpoints.splitView,
-    canExpandSidebar: safeWidth >= responsiveBreakpoints.expandedSidebar,
+    canExpandSidebar: safeWidth >= responsiveBreakpoints.workspace,
+    canPersistExpandedSidebar:
+      safeWidth >= responsiveBreakpoints.expandedSidebar,
     supportsDenseGrid: safeWidth >= responsiveBreakpoints.wide,
+    density: densityByTier[tier],
   };
 }
 

@@ -29,7 +29,12 @@ export function AppShell({ role, children }: AppShellProps) {
           : null,
       ]}
     >
-      <AdaptiveSidebar role={role} canExpand={layout.canExpandSidebar} />
+      <AdaptiveSidebar
+        role={role}
+        showCompact={layout.usesWorkspaceShell}
+        canExpand={layout.canExpandSidebar}
+        canPersistExpansion={layout.canPersistExpandedSidebar}
+      />
       <View
         style={{
           flex: 1,

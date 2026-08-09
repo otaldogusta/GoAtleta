@@ -6,13 +6,25 @@ import { WebSidebar } from "./WebSidebar";
 
 type AdaptiveSidebarProps = {
   role: AppRole;
+  showCompact: boolean;
   canExpand: boolean;
+  canPersistExpansion: boolean;
 };
 
-export function AdaptiveSidebar({ role, canExpand }: AdaptiveSidebarProps) {
+export function AdaptiveSidebar({
+  role,
+  showCompact,
+  canExpand,
+  canPersistExpansion,
+}: AdaptiveSidebarProps) {
   return Platform.OS === "web" ? (
-    <WebSidebar role={role} canExpand={canExpand} />
+    <WebSidebar
+      role={role}
+      showCompact={showCompact}
+      canExpand={canExpand}
+      canPersistExpansion={canPersistExpansion}
+    />
   ) : (
-    <NativeSidebar role={role} canExpand={canExpand} />
+    <NativeSidebar role={role} visible={showCompact} canExpand={canExpand} />
   );
 }

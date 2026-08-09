@@ -5,6 +5,7 @@ import { Platform, Text, View } from "react-native";
 import { ptBR } from "../../constants/copy/pt-br";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
+import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
 type BackTitleHeaderProps = {
   title: string;
@@ -15,6 +16,7 @@ type BackTitleHeaderProps = {
 
 export function BackTitleHeader({ title, onBack, accessory, style }: BackTitleHeaderProps) {
   const { colors } = useAppTheme();
+  const { density } = useResponsiveLayout();
 
   return (
     <View style={[{ marginBottom: 4, minWidth: 0 }, style]}>
@@ -74,7 +76,13 @@ export function BackTitleHeader({ title, onBack, accessory, style }: BackTitleHe
         </View>
         <Text
           numberOfLines={2}
-          style={{ flexShrink: 1, fontSize: 26, fontWeight: "700", color: colors.text }}
+          style={{
+            flexShrink: 1,
+            fontSize: density.pageTitleFontSize,
+            lineHeight: density.pageTitleLineHeight,
+            fontWeight: "700",
+            color: colors.text,
+          }}
         >
           {title}
         </Text>

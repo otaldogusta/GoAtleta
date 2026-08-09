@@ -10,6 +10,7 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 
 type HomeProfessorBelowFoldProps = {
   variant?: "professor" | "coordination";
+  mobile?: boolean;
   canOpenClassesShortcut: boolean;
   canOpenStudentsShortcut: boolean;
   canOpenTrainingShortcut: boolean;
@@ -23,9 +24,10 @@ type ShortcutCardProps = {
   description: string;
   icon: GoAtletaIconName;
   onPress: () => void;
+  mobile: boolean;
 };
 
-function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) {
+function ShortcutCard({ label, description, icon, onPress, mobile }: ShortcutCardProps) {
   const { colors, mode } = useAppTheme();
   const isAndroidLight = Platform.OS === "android" && mode === "light";
   const isWeb = Platform.OS === "web";
@@ -57,17 +59,18 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
     <Pressable
       onPress={onPress}
       style={{
-        flexBasis: "48%",
-        padding: isWeb ? 12 : 14,
+        flexBasis: mobile ? 150 : "48%",
+        flexGrow: 1,
+        padding: mobile ? 10 : isWeb ? 12 : 14,
         borderRadius: 18,
         ...shortcutCardSurfaceStyle,
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: mobile ? 8 : 10 }}>
         <View
           style={{
-            width: isWeb ? 30 : 34,
-            height: isWeb ? 30 : 34,
+            width: mobile ? 28 : isWeb ? 30 : 34,
+            height: mobile ? 28 : isWeb ? 30 : 34,
             borderRadius: 999,
             backgroundColor: colors.secondaryBg,
             alignItems: "center",
@@ -76,13 +79,29 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
             borderColor: colors.border,
           }}
         >
-          <GoAtletaIcon name={icon} size={isWeb ? 15 : 17} color={colors.text} />
+          <GoAtletaIcon name={icon} size={mobile ? 14 : isWeb ? 15 : 17} color={colors.text} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ fontSize: isWeb ? 14 : 16, fontWeight: "700", color: colors.text }} numberOfLines={1}>
+          <Text
+            style={{
+              fontSize: mobile ? 13 : isWeb ? 14 : 16,
+              lineHeight: mobile ? 16 : undefined,
+              fontWeight: "700",
+              color: colors.text,
+            }}
+            numberOfLines={mobile ? 2 : 1}
+          >
             {label}
           </Text>
-          <Text style={{ color: colors.muted, marginTop: 2, fontSize: isWeb ? 12 : 14 }} numberOfLines={1}>
+          <Text
+            style={{
+              color: colors.muted,
+              marginTop: 2,
+              fontSize: mobile ? 11 : isWeb ? 12 : 14,
+              lineHeight: mobile ? 14 : undefined,
+            }}
+            numberOfLines={mobile ? 2 : 1}
+          >
             {description}
           </Text>
         </View>
@@ -93,6 +112,7 @@ function ShortcutCard({ label, description, icon, onPress }: ShortcutCardProps) 
 
 function HomeProfessorBelowFoldBase({
   variant = "professor",
+  mobile = false,
   canOpenClassesShortcut,
   canOpenStudentsShortcut,
   canOpenTrainingShortcut,
@@ -178,6 +198,7 @@ function HomeProfessorBelowFoldBase({
               label={shortcut.label}
               description={shortcut.description}
               icon={shortcut.icon}
+              mobile={mobile}
               onPress={() => router.push(shortcut.route)}
             />
           ))}
@@ -196,6 +217,7 @@ function HomeProfessorBelowFoldBase({
             label="Planejamento"
             description="Modelos e planejamentos"
             icon="planning"
+            mobile={mobile}
             onPress={() => router.push("/prof/planning")}
           />
         ) : null}
@@ -204,6 +226,7 @@ function HomeProfessorBelowFoldBase({
           label="Consultoria online"
           description="Prescrição individual"
           icon="consultation"
+          mobile={mobile}
           onPress={() => router.push("/prof/consultation")}
         />
 
@@ -212,6 +235,7 @@ function HomeProfessorBelowFoldBase({
             label="Turmas"
             description="Cadastros e lista"
             icon="classes"
+            mobile={mobile}
             onPress={() => router.push("/prof/classes")}
           />
         ) : null}
@@ -221,6 +245,7 @@ function HomeProfessorBelowFoldBase({
             label="Alunos"
             description="Lista e chamada"
             icon="students"
+            mobile={mobile}
             onPress={() => router.push("/prof/students")}
           />
         ) : null}
@@ -230,6 +255,7 @@ function HomeProfessorBelowFoldBase({
             label="Calendário mensal"
             description="Aulas e chamada"
             icon="calendar"
+            mobile={mobile}
             onPress={() => router.push("/prof/calendar")}
           />
         ) : null}
@@ -239,6 +265,7 @@ function HomeProfessorBelowFoldBase({
             label="Avisos de ausência"
             description="Alunos ausentes"
             icon="absenceNotices"
+            mobile={mobile}
             onPress={() => router.push("/prof/absence-notices")}
           />
         ) : null}
@@ -248,6 +275,7 @@ function HomeProfessorBelowFoldBase({
             label="Presença NFC"
             description="Registrar por UID"
             icon="nfc"
+            mobile={mobile}
             onPress={() => router.push("/prof/nfc-attendance")}
           />
         ) : null}
@@ -257,6 +285,7 @@ function HomeProfessorBelowFoldBase({
             label="Exercícios"
             description="Biblioteca com vídeos"
             icon="exercises"
+            mobile={mobile}
             onPress={() => router.push("/prof/exercises")}
           />
         ) : null}
@@ -266,6 +295,7 @@ function HomeProfessorBelowFoldBase({
             label="Periodização"
             description="Ciclos e cargas"
             icon="periodization"
+            mobile={mobile}
             onPress={() => router.push("/prof/periodization")}
           />
         ) : null}

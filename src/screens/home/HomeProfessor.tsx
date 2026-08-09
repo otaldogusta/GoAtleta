@@ -1020,6 +1020,7 @@ export function HomeProfessorScreen({
   const isUx2CWideDesktop = responsiveLayout.supportsDenseGrid;
   const isUx2CUltraWide = responsiveLayout.tier === "ultrawide";
   const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
+  const isUx2CMobile = isUx2CWebHome && responsiveLayout.isMobile;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
   const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;
   const ux2CRailHeight = Math.max(
@@ -1619,7 +1620,7 @@ export function HomeProfessorScreen({
       >
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          {isWebHome && !responsiveLayout.canExpandSidebar ? (
+          {isWebHome && responsiveLayout.isMobile ? (
             <Pressable
               onPress={() => {
                 if (typeof window !== "undefined") {
@@ -1643,10 +1644,17 @@ export function HomeProfessorScreen({
             </Pressable>
           ) : null}
           <View>
-            <Text style={{ fontSize: 26, fontWeight: "700", color: colors.text }}>
+            <Text
+              style={{
+                fontSize: responsiveLayout.density.pageTitleFontSize,
+                lineHeight: responsiveLayout.density.pageTitleLineHeight,
+                fontWeight: "700",
+                color: colors.text,
+              }}
+            >
               Hoje
             </Text>
-            <Text style={{ fontSize: 14, color: colors.muted, marginTop: 4 }}>
+            <Text style={{ fontSize: responsiveLayout.density.metadataFontSize, color: colors.muted, marginTop: 2 }}>
               {todayLabel}
             </Text>
           </View>
@@ -1943,6 +1951,7 @@ export function HomeProfessorScreen({
                 selectedDateLabel={todayLabel}
                 isToday={currentHeroSlot?.items[0]?.dateKey === todayDateKey}
                 compact={isUx2CCompact}
+                mobile={isUx2CMobile}
                 onOpenLesson={() => handleOpenLesson(currentHeroSlot?.items[0] ?? null)}
                 onOpenAttendance={() => handleOpenAttendance(currentHeroSlot?.items[0] ?? null)}
               />
@@ -1952,6 +1961,7 @@ export function HomeProfessorScreen({
                 selectedDateKey={selectedDateKey}
                 colors={colors}
                 compact={isUx2CCompact}
+                mobile={isUx2CMobile}
                 onSelect={setSelectedDateKey}
               />
 
@@ -1975,6 +1985,7 @@ export function HomeProfessorScreen({
                 <Suspense fallback={<HomeProfessorBelowFoldFallback />}>
                   <HomeProfessorBelowFold
                     variant={isAdminDashboardContext ? "coordination" : "professor"}
+                    mobile={isUx2CMobile}
                     canOpenClassesShortcut={canOpenClassesShortcut}
                     canOpenStudentsShortcut={canOpenStudentsShortcut}
                     canOpenTrainingShortcut={canOpenTrainingShortcut}

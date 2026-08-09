@@ -19,6 +19,7 @@ import { webShellTokens } from "./web-shell-tokens";
 
 type NativeSidebarProps = {
   role: AppRole;
+  visible: boolean;
   canExpand: boolean;
 };
 
@@ -32,7 +33,7 @@ type NativeNavItem = {
 const COMPACT_WIDTH = 80;
 const EXPANDED_WIDTH = 268;
 
-export function NativeSidebar({ role, canExpand }: NativeSidebarProps) {
+export function NativeSidebar({ role, visible, canExpand }: NativeSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const organization = useOptionalOrganization();
@@ -80,6 +81,8 @@ export function NativeSidebar({ role, canExpand }: NativeSidebarProps) {
       }));
     return [...primary, ...actions.filter((item) => !primary.some((primaryItem) => primaryItem.href === item.href))];
   }, [activeOrganization?.role_level, memberPermissions, permissionsLoading, role]);
+
+  if (!visible) return null;
 
   return (
     <View

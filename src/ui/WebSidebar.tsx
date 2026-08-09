@@ -16,7 +16,7 @@ import { useUnreadNotificationCount } from "../notifications/useUnreadNotificati
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { brandPalette, radius } from "../theme/tokens";
 import { Pressable } from "./Pressable";
-import { decorativeIconProps } from "./decorative-icon-props";
+import { GoAtletaBrandMark, GoAtletaBrandWordmark } from "./GoAtletaBrand";
 import { GoAtletaIcon, type GoAtletaIconName } from "./icon-registry";
 import {
   resolveVisibleProfileSwitchIds,
@@ -31,7 +31,9 @@ import {
 
 type WebSidebarProps = {
   role: AppRole;
+  showCompact: boolean;
   canExpand: boolean;
+  canPersistExpansion: boolean;
 };
 
 type SidebarItem = {
@@ -44,6 +46,7 @@ type SidebarItem = {
 
 const SIDEBAR_COMPACT_WIDTH = 88;
 const SIDEBAR_EXPANDED_WIDTH = 292;
+const SIDEBAR_EXPANSION_DISTANCE = SIDEBAR_EXPANDED_WIDTH - SIDEBAR_COMPACT_WIDTH;
 const SIDEBAR_EXPANDED_STORAGE_KEY = "goatleta:web-sidebar-expanded";
 
 const roleSubtitle: Record<AppRole, string> = {
@@ -125,32 +128,23 @@ const getInitials = (name: string) => {
   );
 };
 
-function BrandMark({ size = 46 }: { size?: number }) {
-  const outerRadius = Math.round(size * 0.36);
+function BrandMark({
+  size = 46,
+  decorative = false,
+}: {
+  size?: number;
+  decorative?: boolean;
+}) {
   return (
     <View
-      {...decorativeIconProps}
       style={{
         width: size,
         height: size,
-        borderRadius: outerRadius,
-        backgroundColor: "#000000",
         alignItems: "center",
         justifyContent: "center",
-        position: "relative",
-        overflow: "hidden",
       }}
     >
-      <Text
-        style={{
-          color: brandPalette.white,
-          fontSize: Math.round(size * 0.30),
-          fontWeight: "900",
-          lineHeight: Math.round(size * 0.34),
-        }}
-      >
-        GA
-      </Text>
+      <GoAtletaBrandMark size={size - 2} tone="light" decorative={decorative} />
     </View>
   );
 }
@@ -158,12 +152,7 @@ function BrandMark({ size = 46 }: { size?: number }) {
 function BrandWordmark({ role, fill = true }: { role: AppRole; fill?: boolean }) {
   return (
     <View style={{ flex: fill ? 1 : undefined, minWidth: 0, gap: 2 }}>
-      <Text
-        style={{ color: brandPalette.white, fontSize: 16, fontWeight: "900", lineHeight: 19 }}
-        numberOfLines={1}
-      >
-        GoAtleta
-      </Text>
+      <GoAtletaBrandWordmark height={18} tone="light" />
       <Text
         style={{
           color: "rgba(255,255,255,0.56)",
@@ -182,33 +171,89 @@ function BrandWordmark({ role, fill = true }: { role: AppRole; fill?: boolean })
 function SidebarToggleButton({
   expanded,
   onPress,
+  revealed,
+  reduceMotion,
+  edgeOffset = 0,
+  edgeDuration = 220,
 }: {
   expanded: boolean;
   onPress: () => void;
+  revealed: boolean;
+  reduceMotion: boolean;
+  edgeOffset?: number;
+  edgeDuration?: number;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const highlighted = hovered || focused;
+  const visible = revealed || focused;
+
   return (
     <Pressable
       accessibilityLabel={expanded ? "Recolher menu" : "Expandir menu"}
+      accessibilityState={{ expanded }}
+      suppressWebHoverFeedback
+      disableWebPressScale
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       onPress={onPress}
-      style={{
-        width: 24,
-        height: 44,
-        alignItems: "center",
-        justifyContent: "center",
-        borderLeftWidth: 1,
-        borderLeftColor: "rgba(255,255,255,0.12)",
-      }}
+      style={({ pressed }) =>
+        ({
+          position: "absolute",
+          top: 18,
+          right: -22,
+          height: 44,
+          width: 44,
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1120,
+          opacity: pressed ? 0.82 : visible ? 1 : 0,
+          pointerEvents: visible ? "auto" : "none",
+          transform: `translateX(${edgeOffset + (visible ? 0 : -14)}px)`,
+          transition: reduceMotion
+            ? "none"
+            : `opacity 150ms ease, transform ${edgeDuration}ms cubic-bezier(0.16, 1, 0.3, 1)`,
+        }) as any
+      }
     >
-      <GoAtletaIcon
-        name={expanded ? "chevronBack" : "chevronForward"}
-        size={16}
-        color="rgba(255,255,255,0.68)"
-      />
+      <View
+        style={
+          ({
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: highlighted
+              ? "rgba(255,255,255,0.16)"
+              : webShellTokens.sidebar,
+            borderWidth: focused ? 2 : 1,
+            borderColor: focused
+              ? webShellTokens.primaryLight
+              : "rgba(255,255,255,0.16)",
+            boxShadow: "0 6px 18px rgba(2,6,23,0.28)",
+            transition: "background-color 140ms ease, border-color 140ms ease",
+          }) as any
+        }
+      >
+        <GoAtletaIcon
+          name={expanded ? "chevronBack" : "chevronForward"}
+          size={14}
+          color={highlighted ? brandPalette.white : "rgba(255,255,255,0.72)"}
+        />
+      </View>
     </Pressable>
   );
 }
 
-export function WebSidebar({ role, canExpand }: WebSidebarProps) {
+export function WebSidebar({
+  role,
+  showCompact,
+  canExpand,
+  canPersistExpansion,
+}: WebSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { mode, colors } = useAppTheme();
@@ -224,10 +269,13 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpandedState] = useState(() => {
-    if (typeof window === "undefined") return false;
+    if (!canPersistExpansion || typeof window === "undefined") return false;
     const stored = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
     return stored === "expanded";
   });
+  const [supportsHoverPointer, setSupportsHoverPointer] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [hoveredCompactItemKey, setHoveredCompactItemKey] = useState<string | null>(null);
   const [compactTooltip, setCompactTooltip] = useState<{
     key: string;
@@ -237,15 +285,36 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
   const profileMenuRootRef = useRef<View | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleToggle = () => {
-      setSidebarExpandedState((prev) => !prev);
+    if (canPersistExpansion) return;
+    setSidebarExpandedState(false);
+  }, [canPersistExpansion, showCompact]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const hoverQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncInteractionPreferences = () => {
+      setSupportsHoverPointer(hoverQuery.matches);
+      setPrefersReducedMotion(motionQuery.matches);
     };
-    window.addEventListener("goatleta:toggle-sidebar", handleToggle);
-    return () => window.removeEventListener("goatleta:toggle-sidebar", handleToggle);
+
+    syncInteractionPreferences();
+    hoverQuery.addEventListener("change", syncInteractionPreferences);
+    motionQuery.addEventListener("change", syncInteractionPreferences);
+
+    return () => {
+      hoverQuery.removeEventListener("change", syncInteractionPreferences);
+      motionQuery.removeEventListener("change", syncInteractionPreferences);
+    };
   }, []);
 
-  const expanded = sidebarExpanded;
+  const expanded = sidebarExpanded && (canExpand || !showCompact);
+  const revealSidebarToggle = !supportsHoverPointer || sidebarHovered;
+  const sidebarRevealEvents = {
+    onMouseEnter: () => setSidebarHovered(true),
+    onMouseLeave: () => setSidebarHovered(false),
+  } as any;
   const sidebarBackgroundColor =
     mode === "dark" ? colors.background : webShellTokens.sidebar;
   const professorName = getDisplayName(session);
@@ -302,17 +371,27 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     [pathname, router, closeProfileMenu]
   );
 
-  const setSidebarExpanded = useCallback((nextExpanded: boolean) => {
-    setSidebarExpandedState(nextExpanded);
-    if (!nextExpanded) {
+  const setSidebarExpanded = useCallback(
+    (nextExpanded: boolean) => {
+      setSidebarExpandedState(nextExpanded);
       closeProfileMenu();
-    }
+      if (!canPersistExpansion || typeof window === "undefined") return;
+      window.localStorage.setItem(
+        SIDEBAR_EXPANDED_STORAGE_KEY,
+        nextExpanded ? "expanded" : "compact"
+      );
+    },
+    [canPersistExpansion, closeProfileMenu]
+  );
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(
-      SIDEBAR_EXPANDED_STORAGE_KEY,
-      nextExpanded ? "expanded" : "compact"
-    );
-  }, [closeProfileMenu]);
+    const handleToggle = () => {
+      setSidebarExpanded(!expanded);
+    };
+    window.addEventListener("goatleta:toggle-sidebar", handleToggle);
+    return () => window.removeEventListener("goatleta:toggle-sidebar", handleToggle);
+  }, [expanded, setSidebarExpanded]);
 
   useEffect(() => {
     if (!expanded || typeof document === "undefined") return;
@@ -548,78 +627,51 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     >
       {canSwitchProfile && isProfileSwitcherOpen ? renderProfileSwitcher() : null}
 
-      <Pressable
-        {...({
-          dataSet: { goatletaWorkspaceTrigger: "true" },
-          "data-goatleta-workspace-trigger": "true",
-          onMouseEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
-          onPointerEnter: () => canSwitchProfile && setProfileSwitcherOpen(true),
-        } as any)}
-        accessibilityLabel={canSwitchProfile ? "Alternar workspace" : "Abrir perfil e configurações"}
-        onFocus={() => canSwitchProfile && setProfileSwitcherOpen(true)}
-        onHoverIn={() => canSwitchProfile && setProfileSwitcherOpen(true)}
-        onPress={() => {
-          if (canSwitchProfile) {
-            setProfileSwitcherOpen((current) => !current);
-            return;
-          }
-          openProfile();
-        }}
-        style={{
-          minHeight: 62,
-          borderRadius: radius.card,
-          paddingHorizontal: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 11,
-          backgroundColor: isProfileSwitcherOpen ? "rgba(255,255,255,0.08)" : "transparent",
-        }}
-      >
-        <View
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: "rgba(65, 217, 132, 0.18)",
-            borderWidth: 1,
-            borderColor: "rgba(65, 217, 132, 0.35)",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Text style={{ color: brandPalette.quadra, fontSize: 12, fontWeight: "900" }}>
-            {professorInitials}
-          </Text>
-        </View>
-        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <Text
-            style={{ color: brandPalette.white, fontSize: 14, fontWeight: "800" }}
-            numberOfLines={1}
+      {canSwitchProfile ? (
+        <>
+          <Pressable
+            {...({
+              dataSet: { goatletaWorkspaceTrigger: "true" },
+              "data-goatleta-workspace-trigger": "true",
+              onMouseEnter: () => setProfileSwitcherOpen(true),
+              onPointerEnter: () => setProfileSwitcherOpen(true),
+            } as any)}
+            accessibilityLabel="Alternar perfil"
+            onFocus={() => setProfileSwitcherOpen(true)}
+            onHoverIn={() => setProfileSwitcherOpen(true)}
+            onPress={() => setProfileSwitcherOpen((current) => !current)}
+            style={{
+              minHeight: 48,
+              borderRadius: radius.card,
+              paddingHorizontal: 10,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 11,
+              backgroundColor: isProfileSwitcherOpen ? "rgba(255,255,255,0.08)" : "transparent",
+            }}
           >
-            {professorName}
-          </Text>
-          <Text
-            style={{ color: "rgba(255,255,255,0.56)", fontSize: 11, fontWeight: "600" }}
-            numberOfLines={1}
-          >
-            {roleProfileLabel[role]}
-          </Text>
-        </View>
-        <GoAtletaIcon
-          name="chevronForward"
-          size={17}
-          color="rgba(255,255,255,0.62)"
-        />
-      </Pressable>
+            <GoAtletaIcon name="swap" size={18} color="rgba(255,255,255,0.72)" />
+            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+              <Text style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }}>
+                Alternar perfil
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
+                Atual: {roleProfileLabel[role]}
+              </Text>
+            </View>
+            <GoAtletaIcon name="chevronForward" size={17} color="rgba(255,255,255,0.62)" />
+          </Pressable>
 
-      <View
-        style={{
-          height: 1,
-          backgroundColor: "rgba(255,255,255,0.10)",
-          marginHorizontal: 8,
-          marginVertical: 4,
-        }}
-      />
+          <View
+            style={{
+              height: 1,
+              backgroundColor: "rgba(255,255,255,0.10)",
+              marginHorizontal: 8,
+              marginVertical: 4,
+            }}
+          />
+        </>
+      ) : null}
 
       <Pressable
         onHoverIn={() => setProfileSwitcherOpen(false)}
@@ -895,6 +947,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
           backgroundColor: active ? webShellTokens.primarySoft : "transparent",
           borderWidth: 1,
           borderColor: active ? webShellTokens.primary : "transparent",
+          overflow: "hidden",
         }}
       >
         <View
@@ -977,7 +1030,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     return (
       <Pressable
         key={item.key}
-        accessibilityLabel={accessibilityLabel}
+        accessibilityLabel={expanded ? accessibilityLabel : undefined}
         onPress={() => {
           closeProfileMenu();
           navigateTo(item.href);
@@ -985,13 +1038,14 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         style={{
           minHeight: 46,
           borderRadius: radius.card,
-          paddingHorizontal: 12,
+          paddingHorizontal: 18,
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
           backgroundColor: active ? webShellTokens.primarySoft : "transparent",
           borderWidth: 1,
           borderColor: active ? webShellTokens.primary : "transparent",
+          overflow: "hidden",
         }}
       >
         <View
@@ -1011,12 +1065,21 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
           />
         </View>
         <Text
-          style={{
-            flex: 1,
-            color: active ? brandPalette.white : "rgba(255,255,255,0.72)",
-            fontSize: 13,
-            fontWeight: active ? "800" : "700",
-          }}
+          style={
+            ({
+              flex: 1,
+              color: active ? brandPalette.white : "rgba(255,255,255,0.72)",
+              fontSize: 13,
+              fontWeight: active ? "800" : "700",
+              opacity: expanded ? 1 : 0,
+              transform: expanded ? "translateX(0px)" : "translateX(-8px)",
+              transition: prefersReducedMotion
+                ? "none"
+                : expanded
+                  ? "opacity 150ms ease 70ms, transform 220ms cubic-bezier(0.16, 1, 0.3, 1) 50ms"
+                  : "opacity 80ms ease, transform 120ms ease",
+            }) as any
+          }
           numberOfLines={1}
         >
           {item.label}
@@ -1044,10 +1107,30 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     );
   };
 
+  const sidebarScrimTransition = prefersReducedMotion
+    ? "none"
+    : expanded
+      ? "opacity 180ms ease, visibility 0s"
+      : "opacity 160ms ease, visibility 0s linear 160ms";
+  const sidebarPanelTransition = prefersReducedMotion
+    ? "none"
+    : expanded
+      ? "clip-path 280ms cubic-bezier(0.16, 1, 0.3, 1)"
+      : "clip-path 200ms cubic-bezier(0.4, 0, 0.2, 1)";
+  const sidebarLabelRevealStyle = {
+    opacity: expanded ? 1 : 0,
+    transform: expanded ? "translateX(0px)" : "translateX(-8px)",
+    transition: prefersReducedMotion
+      ? "none"
+      : expanded
+        ? "opacity 150ms ease 70ms, transform 220ms cubic-bezier(0.16, 1, 0.3, 1) 50ms"
+        : "opacity 80ms ease, transform 120ms ease",
+  } as any;
+
   const renderExpandedContent = () => (
     <>
       <Pressable
-        accessibilityLabel="Fechar menu lateral"
+        accessibilityLabel={expanded ? "Fechar menu lateral" : undefined}
         suppressWebHoverFeedback
         onPress={() => setSidebarExpanded(false)}
         style={({ pressed }) =>
@@ -1066,21 +1149,18 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
             opacity: expanded ? 1 : 0,
             pointerEvents: expanded ? "auto" : "none",
             visibility: expanded ? "visible" : "hidden",
-            transition: "opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+            transition: sidebarScrimTransition,
           }) as any
         }
       />
 
       <View
+        {...sidebarRevealEvents}
+        accessibilityElementsHidden={!expanded}
+        importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
         style={
           ({
             width: SIDEBAR_EXPANDED_WIDTH,
-            backgroundColor: sidebarBackgroundColor,
-            borderRightWidth: 1,
-            borderRightColor: "rgba(255,255,255,0.06)",
-            paddingVertical: 18,
-            paddingHorizontal: 14,
-            gap: 14,
             height: "100vh",
             maxHeight: "100vh",
             position: "fixed",
@@ -1088,82 +1168,145 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
             top: 0,
             bottom: 0,
             zIndex: 1100,
-            boxShadow: expanded ? "18px 0 42px rgba(0,0,0,0.28)" : "none",
-            transform: expanded ? "translateX(0px)" : "translateX(-105%)",
+            opacity: 1,
             pointerEvents: expanded ? "auto" : "none",
             visibility: expanded ? "visible" : "hidden",
-            transition: "transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+            transition: prefersReducedMotion
+              ? "none"
+              : expanded
+                ? "visibility 0s"
+                : "visibility 0s linear 200ms",
             outlineStyle: "none",
             userSelect: "none",
             WebkitTapHighlightColor: "transparent",
           }) as any
         }
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <BrandMark size={46} />
-          <BrandWordmark role={role} fill={false} />
-          <SidebarToggleButton expanded onPress={() => setSidebarExpanded(false)} />
-        </View>
+        <SidebarToggleButton
+          expanded
+          onPress={() => setSidebarExpanded(false)}
+          revealed={revealSidebarToggle}
+          reduceMotion={prefersReducedMotion}
+          edgeOffset={expanded ? 0 : -SIDEBAR_EXPANSION_DISTANCE}
+          edgeDuration={expanded ? 280 : 200}
+        />
 
-        <ScrollView
-          style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{ gap: 14, paddingBottom: 4 }}
-          showsVerticalScrollIndicator={false}
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            bottom: 0,
+            width: SIDEBAR_EXPANDED_WIDTH,
+            overflow: "hidden",
+            backgroundColor: sidebarBackgroundColor,
+            borderRightWidth: 1,
+            borderRightColor: "rgba(255,255,255,0.06)",
+            clipPath: expanded
+              ? "inset(0 0 0 0)"
+              : `inset(0 ${SIDEBAR_EXPANSION_DISTANCE}px 0 0)`,
+            transition: sidebarPanelTransition,
+            willChange: "clip-path",
+            transform: "translateZ(0)",
+            backfaceVisibility: "hidden",
+            contain: "paint",
+          } as any}
         >
-          <View style={{ gap: 6 }}>
-            {navigationItems.map(renderNavItem)}
-          </View>
-        </ScrollView>
-
-        <View ref={profileMenuRootRef} style={{ position: "relative" }}>
-          {isProfileMenuOpen ? renderProfileMenu("expanded") : null}
-
-          <Pressable
-            accessibilityLabel={isProfileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
-            accessibilityState={{ expanded: isProfileMenuOpen }}
-            onPress={toggleProfileMenu}
+          <View
             style={{
-              minHeight: 58,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: isProfileMenuOpen ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
-              backgroundColor: isProfileMenuOpen ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.08)",
-              paddingHorizontal: 12,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
+              width: SIDEBAR_EXPANDED_WIDTH,
+              height: "100%",
+              paddingVertical: 18,
+              paddingHorizontal: 10,
+              gap: 18,
             }}
           >
             <View
               style={{
-                width: 38,
-                height: 38,
-                borderRadius: 19,
-                backgroundColor: "rgba(65, 217, 132, 0.18)",
-                borderWidth: 1,
-                borderColor: "rgba(65, 217, 132, 0.35)",
+                height: 44,
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
+                gap: 10,
+                overflow: "hidden",
               }}
             >
-              <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
-                {professorInitials}
-              </Text>
+              <View style={{ width: 68, alignItems: "center", justifyContent: "center" }}>
+                <BrandMark size={44} decorative />
+              </View>
+              <View style={[{ flex: 1, minWidth: 0 }, sidebarLabelRevealStyle]}>
+                <BrandWordmark role={role} />
+              </View>
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }} numberOfLines={1}>
-                {professorName}
-              </Text>
-              <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
-                {roleProfileLabel[role]}
-              </Text>
+
+            <ScrollView
+              style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
+              contentContainerStyle={{ gap: 6, paddingVertical: 2, paddingBottom: 6 }}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={{ gap: 6 }}>
+                {navigationItems.map(renderNavItem)}
+              </View>
+            </ScrollView>
+
+            <View ref={profileMenuRootRef} style={{ position: "relative" }}>
+              {expanded && isProfileMenuOpen ? renderProfileMenu("expanded") : null}
+
+              <Pressable
+                accessibilityLabel={
+                  expanded
+                    ? isProfileMenuOpen
+                      ? "Fechar menu de perfil"
+                      : "Abrir menu de perfil"
+                    : undefined
+                }
+                accessibilityState={{ expanded: isProfileMenuOpen }}
+                onPress={toggleProfileMenu}
+                style={{
+                  minHeight: 58,
+                  borderRadius: 18,
+                  borderWidth: 1,
+                  borderColor: isProfileMenuOpen ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.10)",
+                  backgroundColor: isProfileMenuOpen ? "rgba(255,255,255,0.13)" : "rgba(255,255,255,0.08)",
+                  paddingLeft: 14,
+                  paddingRight: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  overflow: "hidden",
+                }}
+              >
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: "rgba(65, 217, 132, 0.18)",
+                    borderWidth: 1,
+                    borderColor: "rgba(65, 217, 132, 0.35)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
+                    {professorInitials}
+                  </Text>
+                </View>
+                <View style={[{ flex: 1, minWidth: 0 }, sidebarLabelRevealStyle]}>
+                  <Text style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }} numberOfLines={1}>
+                    {professorName}
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
+                    {roleProfileLabel[role]}
+                  </Text>
+                </View>
+                <GoAtletaIcon
+                  name={isProfileMenuOpen ? "chevronDown" : "chevronUp"}
+                  size={17}
+                  color="rgba(255,255,255,0.68)"
+                />
+              </Pressable>
             </View>
-            <GoAtletaIcon
-              name={isProfileMenuOpen ? "chevronDown" : "chevronUp"}
-              size={17}
-              color="rgba(255,255,255,0.68)"
-            />
-          </Pressable>
+          </View>
         </View>
       </View>
     </>
@@ -1173,7 +1316,7 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
     <View
       accessibilityLabel="Navegação principal"
       style={{
-        width: canExpand ? SIDEBAR_COMPACT_WIDTH : 0,
+        width: showCompact ? SIDEBAR_COMPACT_WIDTH : 0,
         alignSelf: "stretch",
         flexShrink: 0,
         height: "100%",
@@ -1182,8 +1325,9 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
         zIndex: 1000,
       }}
     >
-      {canExpand ? (
+      {showCompact && !expanded ? (
         <View
+          {...sidebarRevealEvents}
           accessibilityLabel="Navegação principal compacta"
           style={{
             width: SIDEBAR_COMPACT_WIDTH,
@@ -1233,16 +1377,17 @@ export function WebSidebar({ role, canExpand }: WebSidebarProps) {
               </Text>
             </View>
           ) : null}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
-          >
+          {canExpand ? (
+            <SidebarToggleButton
+              expanded={false}
+              onPress={() => setSidebarExpanded(true)}
+              revealed={revealSidebarToggle}
+              reduceMotion={prefersReducedMotion}
+            />
+          ) : null}
+
+          <View style={{ alignItems: "center", justifyContent: "center" }}>
             <BrandMark size={44} />
-            <SidebarToggleButton expanded={false} onPress={() => setSidebarExpanded(true)} />
           </View>
 
           <ScrollView

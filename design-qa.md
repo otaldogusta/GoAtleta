@@ -1,3 +1,49 @@
+# Design QA — marca Go Atleta vetorizada
+
+## Fonte de verdade
+
+- Referência aprovada: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-16fc8203-ae4b-43b8-a726-c2db913f3001.png`.
+- Implementação autenticada: `http://localhost:8081/prof/home`.
+- Menu expandido: `artifacts/design-qa/goatleta-brand-sidebar-expanded.png`.
+- Menu compacto: `artifacts/design-qa/goatleta-brand-sidebar-compact.png`.
+- Comparação focada: `artifacts/design-qa/goatleta-brand-comparison.png`.
+
+## Viewport, estado e normalização
+
+- Referência: 1254 × 1254 px.
+- Implementação: 797 × 974 px em viewport CSS de 797 × 974, tema escuro e perfil Professor.
+- Estados verificados: navegação compacta e navegação expandida.
+- A comparação focada recorta somente a assinatura da prancha e o cabeçalho real do menu; os dois recortes foram normalizados para 660 × 200 px dentro de uma prancha de 1400 × 280 px.
+- A responsividade do shell também foi exercitada em 390 × 844 CSS px; no celular, a navegação mantém o botão de menu previsto e não força a assinatura dentro do cabeçalho reduzido.
+
+## Findings
+
+- Nenhum P0, P1 ou P2 restante.
+- Tipografia: o logotipo não depende de fonte instalada; as letras são o vetor extraído da referência, preservando peso, terminais arredondados e espaçamento. O subtítulo do perfil permanece como texto de interface separado.
+- Espaçamento: símbolo, logotipo, divisor e controle de recolhimento mantêm respiro suficiente no menu de 292 px; o símbolo isolado permanece legível na barra de 88 px.
+- Cores: `#102A72` preserva o azul da referência nos fundos claros; a variante `#F8FAFC` é uma inversão intencional para contraste no shell escuro.
+- Qualidade de imagem: símbolo e logotipo são SVGs derivados da arte aprovada, sem sombra, textura, desfoque, halo de transparência ou desenho aproximado em código.
+- Conteúdo: a grafia visível foi normalizada para `Go Atleta`, mantendo os subtítulos de Professor, Coordenação e Aluno existentes.
+
+## Comparação e histórico
+
+1. P2 inicial — o SVG azul carregava sem inversão no menu escuro e perdia contraste.
+2. Correção — foram criados assets vetoriais claros próprios; a seleção agora ocorre por variante de arquivo, sem depender de `tintColor` do navegador.
+3. Pós-correção — a captura compacta e a comparação focada confirmam leitura nítida do símbolo e assinatura; nenhum P0, P1 ou P2 permaneceu.
+
+## Interações e validação visual
+
+- Expansão e recolhimento do menu continuam funcionais.
+- A assinatura expandida e o símbolo compacto usam a mesma fonte vetorial.
+- O DOM expõe a marca com o rótulo acessível `Go Atleta`.
+- Não foram observados erros de interface durante as capturas finais; o carregamento frio do Metro foi aguardado antes da comparação.
+
+## Resultado final
+
+final result: passed
+
+---
+
 # Design QA — rolagens independentes na periodização
 
 ## Fonte de verdade

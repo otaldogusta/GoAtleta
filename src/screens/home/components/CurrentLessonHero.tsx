@@ -13,6 +13,7 @@ type CurrentLessonHeroProps = {
   selectedDateLabel: string;
   isToday: boolean;
   compact?: boolean;
+  mobile?: boolean;
   onOpenLesson: () => void;
   onOpenAttendance: () => void;
 };
@@ -22,6 +23,7 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
   selectedDateLabel,
   isToday,
   compact = false,
+  mobile = false,
   onOpenLesson,
   onOpenAttendance,
 }: CurrentLessonHeroProps) {
@@ -41,61 +43,86 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
         borderRadius: radius.container,
         borderWidth: 1,
         borderColor: colors.borderSubtle,
-        padding: compact ? 14 : 18,
+        padding: mobile ? 12 : compact ? 14 : 18,
         ...shadow.card,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: compact ? 14 : 18,
+        flexDirection: mobile ? "column" : "row",
+        alignItems: mobile ? "stretch" : "center",
+        gap: mobile ? 10 : compact ? 14 : 18,
       }}
     >
       <View
         style={{
-          width: compact ? 62 : 72,
-          height: compact ? 62 : 72,
-          borderRadius: radius.container,
-          backgroundColor: colors.successBg,
+          flex: 1,
+          minWidth: 0,
+          flexDirection: "row",
           alignItems: "center",
-          justifyContent: "center",
+          gap: mobile ? 10 : compact ? 14 : 18,
         }}
       >
-        <GoAtletaIcon name="calendar" size={compact ? 23 : 26} color={colors.successText} />
-      </View>
-
-      <View style={{ flex: 1, minWidth: 0, gap: compact ? 5 : 7 }}>
-        <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "900" }}>
-          {statusLabel}
-        </Text>
-        <Text style={{ color: colors.textMuted, fontSize: compact ? 14 : 16, fontWeight: "700" }}>
-          {slot?.timeLabel ?? selectedDateLabel}
-        </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <Text style={{ color: colors.textPrimary, fontSize: compact ? 21 : 24, fontWeight: "900" }} numberOfLines={1}>
-            {title}
-          </Text>
-          {primaryItem?.gender ? <ClassGenderBadge gender={primaryItem.gender} size="sm" /> : null}
+        <View
+          style={{
+            width: mobile ? 46 : compact ? 62 : 72,
+            height: mobile ? 46 : compact ? 62 : 72,
+            borderRadius: mobile ? radius.card : radius.container,
+            backgroundColor: colors.successBg,
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <GoAtletaIcon name="calendar" size={mobile ? 20 : compact ? 23 : 26} color={colors.successText} />
         </View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <GoAtletaIcon name="location" size={16} color={colors.textMuted} />
-          <Text style={{ color: colors.textMuted, fontSize: compact ? 12 : 14, fontWeight: "600" }} numberOfLines={1}>
-            {primaryItem?.unit ?? "Escolha um dia na agenda da semana"}
-          </Text>
+
+        <View style={{ flex: 1, minWidth: 0, gap: mobile ? 3 : compact ? 5 : 7 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ color: colors.successText, fontSize: mobile ? 10 : 11, fontWeight: "900" }}>
+              {statusLabel}
+            </Text>
+            <Text style={{ color: colors.textMuted, fontSize: mobile ? 12 : compact ? 14 : 16, fontWeight: "700" }}>
+              {slot?.timeLabel ?? selectedDateLabel}
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <Text
+              style={{ flexShrink: 1, color: colors.textPrimary, fontSize: mobile ? 18 : compact ? 21 : 24, fontWeight: "900" }}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+            {primaryItem?.gender ? <ClassGenderBadge gender={primaryItem.gender} size="sm" /> : null}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <GoAtletaIcon name="location" size={mobile ? 13 : 16} color={colors.textMuted} />
+            <Text style={{ flex: 1, color: colors.textMuted, fontSize: mobile ? 11 : compact ? 12 : 14, fontWeight: "600" }} numberOfLines={1}>
+              {primaryItem?.unit ?? "Escolha um dia na agenda da semana"}
+            </Text>
+          </View>
         </View>
       </View>
 
       <View
         style={{
-          width: 1,
+          width: mobile ? "100%" : 1,
+          height: mobile ? 1 : undefined,
           alignSelf: "stretch",
           backgroundColor: colors.borderSubtle,
         }}
       />
 
-      <View style={{ width: compact ? 150 : 180, gap: compact ? 6 : 8, flexShrink: 0 }}>
+      <View
+        style={{
+          width: mobile ? "100%" : compact ? 150 : 180,
+          flexDirection: mobile ? "row" : "column",
+          gap: mobile ? 8 : compact ? 6 : 8,
+          flexShrink: 0,
+        }}
+      >
         <Pressable
           onPress={onOpenLesson}
           disabled={!primaryItem}
           style={{
-            height: compact ? 38 : 42,
+            flex: mobile ? 1 : undefined,
+            height: mobile ? 40 : compact ? 38 : 42,
             paddingHorizontal: 12,
             borderRadius: radius.internal,
             backgroundColor: primaryItem ? colors.success : colors.primaryDisabledBg,
@@ -105,16 +132,17 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
             gap: 8,
           }}
         >
-          <Text style={{ color: brandPalette.navyDeep, fontSize: compact ? 12 : 13, fontWeight: "900" }} numberOfLines={1}>
+          <Text style={{ color: brandPalette.navyDeep, fontSize: mobile ? 12 : compact ? 12 : 13, fontWeight: "900" }} numberOfLines={1}>
             Ver aula
           </Text>
-          <GoAtletaIcon name="arrowForward" size={compact ? 16 : 18} color={brandPalette.navyDeep} />
+          <GoAtletaIcon name="arrowForward" size={mobile ? 16 : compact ? 16 : 18} color={brandPalette.navyDeep} />
         </Pressable>
         <Pressable
           onPress={onOpenAttendance}
           disabled={!primaryItem}
           style={{
-            height: compact ? 36 : 40,
+            flex: mobile ? 1 : undefined,
+            height: mobile ? 40 : compact ? 36 : 40,
             paddingHorizontal: 12,
             borderRadius: radius.internal,
             borderWidth: 1,
@@ -126,8 +154,8 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
             gap: 8,
           }}
         >
-          <GoAtletaIcon name="students" size={compact ? 16 : 18} color={primaryItem ? colors.textPrimary : colors.textMuted} />
-          <Text style={{ color: primaryItem ? colors.textPrimary : colors.textMuted, fontSize: compact ? 12 : 13, fontWeight: "800" }} numberOfLines={1}>
+          <GoAtletaIcon name="students" size={mobile ? 15 : compact ? 16 : 18} color={primaryItem ? colors.textPrimary : colors.textMuted} />
+          <Text style={{ color: primaryItem ? colors.textPrimary : colors.textMuted, fontSize: mobile ? 11 : compact ? 12 : 13, fontWeight: "800" }} numberOfLines={1}>
             Fazer chamada
           </Text>
         </Pressable>

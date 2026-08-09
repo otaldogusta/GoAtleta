@@ -8,11 +8,18 @@ produto operacional.
 
 ## Tipografia
 
-- Display: `Inter Tight`, 28–32, peso 700.
-- Título de página: 26–28, peso 700.
-- Título de seção: 18–20, peso 700.
-- Título de card/linha: 15–16, peso 700.
-- Corpo: 14–16; metadado: 12–13.
+A escala base é resolvida por `responsiveLayout.density`; componentes
+compartilhados não devem escolher tamanho por `Platform.OS`.
+
+| Uso | Mobile | Tablet/desktop | Wide/ultrawide |
+| --- | ---: | ---: | ---: |
+| Título de página | 22/28 | 24–26/30–32 | 26–28/32–34 |
+| Título de seção | 16 | 17–18 | 18–20 |
+| Título de card/linha | 14 | 15 | 16 |
+| Corpo | 14 | 14–15 | 15–16 |
+| Metadado | 12 | 12 | 13 |
+
+- Display: `Inter Tight`, reservado para superfícies editoriais ou institucionais.
 - Monoespaçada somente para código, IDs e valores técnicos.
 
 ## Espaçamento e superfícies
@@ -20,7 +27,8 @@ produto operacional.
 - Usar a escala `8, 12, 16, 20, 24, 32` de `src/theme/tokens.ts`.
 - Usar `radius.internal`, `radius.card` e `radius.container`; não criar radius local.
 - Preferir uma superfície principal com seções e separadores a cards aninhados.
-- Cards operacionais usam 16 px no mobile e 20 px no desktop.
+- Cards operacionais usam 10–12 px no mobile e 16–20 px no workspace, conforme
+  a complexidade e os alvos de toque internos.
 - Sombras são último recurso; borda e contraste de superfície vêm primeiro.
 
 ## Ações

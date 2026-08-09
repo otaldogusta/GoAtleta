@@ -56,10 +56,12 @@ function MetaPill({
   label,
   colors,
   tone = "neutral",
+  compact = false,
 }: {
   label: string;
   colors: Record<string, string>;
   tone?: "neutral" | "success" | "warning";
+  compact?: boolean;
 }) {
   const pillBg =
     tone === "success"
@@ -83,6 +85,7 @@ function MetaPill({
     <View
       style={[
         styles.metaPill,
+        compact ? styles.metaPillCompact : null,
         {
           backgroundColor: pillBg,
           borderColor: pillBorder,
@@ -464,6 +467,7 @@ export const ClassCard = memo(function ClassCard({
         const isHovered = Boolean((state as typeof state & { hovered?: boolean }).hovered);
         return [
           styles.container,
+          narrowCard ? styles.containerNarrow : null,
           {
             backgroundColor: colors.surface ?? colors.background,
             borderColor: colors.borderSubtle ?? colors.border,
@@ -482,10 +486,11 @@ export const ClassCard = memo(function ClassCard({
       }}
     >
       <View style={styles.topRow}>
-        <View style={styles.classIdentity}>
+        <View style={[styles.classIdentity, narrowCard ? styles.classIdentityNarrow : null]}>
           <View
             style={[
               styles.classAvatar,
+              narrowCard ? styles.classAvatarNarrow : null,
               {
                 backgroundColor: colors.primaryBg,
                 borderColor: colors.borderSubtle ?? colors.border,
@@ -504,7 +509,12 @@ export const ClassCard = memo(function ClassCard({
               <ClassGenderBadge gender={item.gender} />
             </View>
             <Text numberOfLines={1} style={[styles.subtitle, { color: colors.textMuted ?? colors.muted }]}>
-              {[timeLabel, daysLabel, item.trainingSpace?.trim()].filter(Boolean).join(" · ")}
+              {[
+                timeLabel,
+                daysLabel,
+                item.trainingSpace?.trim(),
+                narrowCard ? `${viewModel.studentCount} ${viewModel.studentCount === 1 ? "aluno" : "alunos"}` : null,
+              ].filter(Boolean).join(" · ")}
             </Text>
           </View>
         </View>
@@ -570,49 +580,15 @@ export const ClassCard = memo(function ClassCard({
         {actionMenuPortal}
       </View>
 
-      {narrowCard ? (
-        <View style={styles.narrowStudentRow}>
-          <View style={styles.studentStack}>
-            {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
-              <View
-                key={avatar.id}
-                style={[
-                  styles.studentAvatar,
-                  {
-                    backgroundColor: avatar.color,
-                    borderColor: colors.surface ?? colors.background,
-                    marginLeft: index === 0 ? 0 : -8,
-                  },
-                ]}
-              >
-                {avatar.photoUrl ? (
-                  <Image source={{ uri: avatar.photoUrl }} style={styles.studentAvatarImage} />
-                ) : (
-                  <Text style={styles.studentAvatarText}>{avatar.label}</Text>
-                )}
-              </View>
-            )) : (
-              <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
-                Sem alunos
-              </Text>
-            )}
-            {viewModel.studentCount > 0 ? (
-              <Text numberOfLines={1} style={[styles.studentCount, { color: colors.successText ?? colors.primaryBg }]}>
-                {viewModel.extraStudentCount > 0 ? `+${viewModel.extraStudentCount}` : `${viewModel.studentCount}`}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-      ) : null}
-
-      <View style={styles.metaGrid}>
-        <MetaPill label={item.ageBand || "Faixa não definida"} colors={colors} />
-        <MetaPill label={viewModel.developmentLevelLabel} colors={colors} />
+      <View style={[styles.metaGrid, narrowCard ? styles.metaGridNarrow : null]}>
+        <MetaPill label={item.ageBand || "Faixa não definida"} colors={colors} compact={narrowCard} />
+        <MetaPill label={viewModel.developmentLevelLabel} colors={colors} compact={narrowCard} />
         {viewModel.coverageSummary ? (
           <MetaPill
             label={`${viewModel.coverageSummary.label} · ${viewModel.coverageSummary.dateLabel}`}
             colors={colors}
             tone={viewModel.coverageSummary.tone}
+            compact={narrowCard}
           />
         ) : null}
         {canIntegrate ? (
@@ -658,8 +634,8 @@ export const ClassCard = memo(function ClassCard({
         ) : null}
       </View>
 
-      <View style={[styles.teacherRow, { borderTopColor: colors.borderSubtle ?? colors.border }]}>
-        <View style={[styles.teacherAvatar, { backgroundColor: colors.infoBg }]}>
+      <View style={[styles.teacherRow, narrowCard ? styles.teacherRowNarrow : null, { borderTopColor: colors.borderSubtle ?? colors.border }]}>
+        <View style={[styles.teacherAvatar, narrowCard ? styles.teacherAvatarNarrow : null, { backgroundColor: colors.infoBg }]}>
           {viewModel.teacher.photoUrl ? (
             <Image source={{ uri: viewModel.teacher.photoUrl }} style={styles.teacherAvatarImage} />
           ) : (
@@ -669,7 +645,9 @@ export const ClassCard = memo(function ClassCard({
           )}
         </View>
         <View style={{ minWidth: 0, flex: 1 }}>
-          <Text style={[styles.teacherKicker, { color: colors.textMuted ?? colors.muted }]}>Professor</Text>
+          {!narrowCard ? (
+            <Text style={[styles.teacherKicker, { color: colors.textMuted ?? colors.muted }]}>Professor</Text>
+          ) : null}
           <Text numberOfLines={1} style={[styles.teacherName, { color: colors.textPrimary ?? colors.text }]}>
             {viewModel.teacher.name}
           </Text>
@@ -785,6 +763,10 @@ const styles = StyleSheet.create({
     position: "relative",
     elevation: 0,
   },
+  containerNarrow: {
+    minHeight: 0,
+    padding: 10,
+  },
   conflictPill: {
     alignSelf: "flex-start",
     paddingVertical: 1,
@@ -849,6 +831,9 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 10,
   },
+  classIdentityNarrow: {
+    gap: 8,
+  },
   classAvatar: {
     width: 36,
     height: 36,
@@ -856,6 +841,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
+  },
+  classAvatarNarrow: {
+    width: 32,
+    height: 32,
   },
   classAvatarText: {
     fontSize: 17,
@@ -868,13 +857,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     maxWidth: 118,
     paddingTop: 7,
-  },
-  narrowStudentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    minHeight: 24,
-    marginTop: 2,
   },
   studentAvatar: {
     width: 21,
@@ -981,6 +963,10 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 9,
   },
+  metaGridNarrow: {
+    gap: 4,
+    marginTop: 6,
+  },
   metaPill: {
     alignItems: "center",
     justifyContent: "center",
@@ -988,6 +974,10 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radius.full,
     borderWidth: 1,
+  },
+  metaPillCompact: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   metaPillText: {
     fontSize: 10,
@@ -1006,12 +996,20 @@ const styles = StyleSheet.create({
     paddingTop: 9,
     borderTopWidth: 1,
   },
+  teacherRowNarrow: {
+    marginTop: 8,
+    paddingTop: 8,
+  },
   teacherAvatar: {
     width: 30,
     height: 30,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+  },
+  teacherAvatarNarrow: {
+    width: 26,
+    height: 26,
   },
   teacherAvatarImage: {
     width: "100%",

@@ -20,6 +20,8 @@ type AnimatedSegmentedTabsProps<T extends string> = {
   inactiveTextColor?: string;
   itemMinHeight?: number;
   itemPaddingVertical?: number;
+  itemFontSize?: number;
+  itemGap?: number;
 };
 
 export function AnimatedSegmentedTabs<T extends string>({
@@ -33,6 +35,8 @@ export function AnimatedSegmentedTabs<T extends string>({
   inactiveTextColor,
   itemMinHeight = 40,
   itemPaddingVertical = 10,
+  itemFontSize = 12,
+  itemGap = 6,
 }: AnimatedSegmentedTabsProps<T>) {
   const { colors } = useAppTheme();
   const animRef = useRef<Record<string, Animated.Value>>({});
@@ -63,7 +67,7 @@ export function AnimatedSegmentedTabs<T extends string>({
       style={[
         {
           flexDirection: "row",
-          gap: 6,
+          gap: itemGap,
           backgroundColor: "transparent",
           padding: 0,
           borderRadius: containerRadius,
@@ -120,7 +124,7 @@ export function AnimatedSegmentedTabs<T extends string>({
                 style={{
                   color: tabTextColor,
                   fontWeight: "700",
-                  fontSize: 12,
+                  fontSize: itemFontSize,
                 }}
               >
                 {tab.label}

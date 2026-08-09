@@ -45,6 +45,15 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { REPORT_ATTENDANCE_EXPORT_HEADERS_PTBR } from "../../src/utils/export-schemas";
 import { exportWorkbookXlsx } from "../../src/utils/export-xlsx";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
+import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
+
+const REPORT_TABS = [
+  { id: "month" as const, label: "Mês atual" },
+  { id: "reports" as const, label: "Relatórios" },
+  { id: "students" as const, label: "Destaques" },
+] as const;
+
+type ReportTabId = (typeof REPORT_TABS)[number]["id"];
 
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
@@ -92,6 +101,8 @@ export default function ReportsScreen() {
   markRender("screen.reportsTrainer.render.root");
 
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout();
+  const isMobile = responsiveLayout.isMobile;
   const { activeOrganization } = useOrganization();
   const router = useRouter();
   const [month, setMonth] = useState(new Date());
@@ -105,34 +116,28 @@ export default function ReportsScreen() {
     score: number;
   } | null>(null);
   const highlightModalStyle = useModalCardStyle({ maxHeight: "70%", maxWidth: 440 });
-  const reportTabs = [
-    { id: "month" as const, label: "Mês atual" },
-    { id: "reports" as const, label: "Relatórios" },
-    { id: "students" as const, label: "Destaques" },
-  ];
-  type ReportTabId = (typeof reportTabs)[number]["id"];
   const [reportTab, setReportTab] = useState<ReportTabId>("month");
   const monthKey = useMemo(() => formatMonthKey(month), [month]);
   const cardStyle = {
-    padding: 16,
-    borderRadius: 22,
+    padding: isMobile ? 10 : 16,
+    borderRadius: isMobile ? 16 : 22,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: "visible" as const,
     ...shadow.card,
-    gap: 12,
+    gap: isMobile ? 10 : 12,
   };
   const insetCardStyle = {
-    padding: 12,
-    borderRadius: 16,
+    padding: isMobile ? 10 : 12,
+    borderRadius: isMobile ? 14 : 16,
     backgroundColor: colors.inputBg,
     borderWidth: 1,
     borderColor: colors.border,
     gap: 6,
   };
   const sectionTitleStyle = {
-    fontSize: 15,
+    fontSize: isMobile ? 14 : 15,
     fontWeight: "700" as const,
     color: colors.text,
   };
@@ -357,12 +362,21 @@ export default function ReportsScreen() {
         onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
       >
         <AnimatedSegmentedTabs
-          tabs={reportTabs}
+          tabs={REPORT_TABS}
           activeTab={reportTab}
           onChange={(tab) => setReportTab(tab)}
+          itemMinHeight={40}
+          itemPaddingVertical={isMobile ? 8 : 10}
         />
       </ScreenPageHeader>
-      <ScrollView contentContainerStyle={{ gap: 16, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 12 }}>
+      <ScrollView
+        contentContainerStyle={{
+          gap: isMobile ? 10 : 16,
+          paddingBottom: 24,
+          paddingHorizontal: isMobile ? 12 : 16,
+          paddingTop: isMobile ? 8 : 12,
+        }}
+      >
 
         {loadError ? (
           <View
@@ -477,24 +491,24 @@ export default function ReportsScreen() {
             </View>
           </View>
 
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: isMobile ? 8 : 10 }}>
             {statCards.map((card) => (
               <View
                 key={card.label}
                 style={{
                   flexBasis: "48%",
-                  padding: 12,
-                  borderRadius: 16,
+                  padding: isMobile ? 10 : 12,
+                  borderRadius: isMobile ? 14 : 16,
                   backgroundColor: colors.inputBg,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  gap: 4,
+                  gap: isMobile ? 2 : 4,
                 }}
               >
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                <Text style={{ color: colors.muted, fontSize: isMobile ? 11 : 12 }}>
                   {card.label}
                 </Text>
-                <Text style={{ color: colors.text, fontSize: 22, fontWeight: "700" }}>
+                <Text style={{ color: colors.text, fontSize: isMobile ? 20 : 22, fontWeight: "700" }}>
                   {card.value}
                 </Text>
               </View>
@@ -556,20 +570,20 @@ export default function ReportsScreen() {
           ) : (
             <View style={insetCardStyle}>
               <Text style={sectionTitleStyle}>Presença geral</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: isMobile ? 12 : 16 }}>
                 <View
                   style={{
-                    width: 88,
-                    height: 88,
-                    borderRadius: 44,
-                    borderWidth: 8,
+                    width: isMobile ? 76 : 88,
+                    height: isMobile ? 76 : 88,
+                    borderRadius: isMobile ? 38 : 44,
+                    borderWidth: isMobile ? 7 : 8,
                     borderColor: colors.primaryBg,
                     alignItems: "center",
                     justifyContent: "center",
                     backgroundColor: colors.card,
                   }}
                 >
-                  <Text style={{ fontSize: 20, fontWeight: "700", color: colors.text }}>
+                  <Text style={{ fontSize: isMobile ? 18 : 20, fontWeight: "700", color: colors.text }}>
                     {summary.percent}%
                   </Text>
                 </View>
@@ -869,12 +883,12 @@ export default function ReportsScreen() {
           <View style={cardStyle}>
             <View
               style={{
-                padding: 16,
-                borderRadius: 24,
+                padding: isMobile ? 10 : 16,
+                borderRadius: isMobile ? 16 : 24,
                 backgroundColor: colors.card,
                 borderWidth: 1,
                 borderColor: colors.border,
-                gap: 16,
+                gap: isMobile ? 10 : 16,
               }}
             >
               <View style={{ alignItems: "center", gap: 6 }}>

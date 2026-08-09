@@ -33,7 +33,8 @@ Os breakpoints globais ficam em `src/ui/responsive-layout.ts`:
 | `isMobile` | `< 768` | Experiência mobile dedicada |
 | `usesWorkspaceShell` | `≥ 768` | Sidebar e ausência de navegação inferior |
 | `supportsSplitView` | `≥ 960` | Autoriza painéis lado a lado se o container também couber |
-| `canExpandSidebar` | `≥ 1100` | Autoriza sidebar expandida |
+| `canExpandSidebar` | `≥ 768` | Autoriza expansão temporária da sidebar sobre o conteúdo |
+| `canPersistExpandedSidebar` | `≥ 1100` | Autoriza salvar a sidebar expandida no desktop |
 | `supportsDenseGrid` | `≥ 1440` | Autoriza maior densidade de colunas |
 
 Telas devem preferir essas capacidades a comparações de tier ou variáveis como
@@ -63,13 +64,15 @@ de capacidade, como `UNIT_PANE_MIN_CONTENT_WIDTH` e
 
 ## Shell e navegação
 
-- Abaixo de `768 px`, a sidebar não é renderizada e a navegação inferior fica
-  disponível, respeitando as exceções de rota existentes.
+- Abaixo de `768 px`, a sidebar compacta não é renderizada e a navegação
+  inferior fica disponível, respeitando as exceções de rota existentes. O
+  botão de menu do cabeçalho abre a navegação lateral apenas como overlay.
 - A partir de `768 px`, web, Android e iPadOS usam o workspace lateral e a
   navegação inferior desaparece.
-- De `768` a `1099 px`, a sidebar permanece compacta, entre 72 e 88 px.
-- A partir de `1100 px`, a pessoa pode expandir a sidebar; ao reduzir a janela,
-  ela recolhe automaticamente.
+- De `768` a `1099 px`, a sidebar começa compacta, entre 72 e 88 px, mas pode
+  ser expandida temporariamente sobre o conteúdo.
+- A partir de `1100 px`, a preferência expandida pode ser salva. Ao reduzir a
+  janela abaixo desse limite, a sidebar recolhe automaticamente.
 - A implementação web preserva tooltip, hover, foco e persistência local. A
   implementação native usa labels de acessibilidade e mantém expansão apenas na
   sessão.
@@ -92,6 +95,12 @@ No mobile, preservar uma coluna, gutter de 16 px, alvos de toque, ações
 principais e todas as informações. Quando algo não couber: empilhar, recolher,
 abrir em modal ou sheet, aplicar rolagem interna, ou levar para uma tela de
 detalhe. Não esconder uma operação apenas por falta de espaço.
+
+A densidade visual vem de `responsiveLayout.density`: títulos, corpo,
+metadados, espaçamento de página e padding de cards variam por faixa, enquanto
+alvos interativos permanecem com pelo menos 40–44 px. Componentes repetidos
+devem receber a capacidade calculada pelo pai, evitando um listener de viewport
+por item de lista.
 
 ## Antes de criar um breakpoint local
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 
 import { WebSidebar } from "../WebSidebar";
 
@@ -60,8 +60,20 @@ jest.mock("../../providers/OrganizationProvider", () => ({
   }),
 }));
 
+jest.mock("../../notifications/useUnreadNotificationCount", () => ({
+  useUnreadNotificationCount: () => ({ unreadCount: 0 }),
+}));
+
 describe("WebSidebar profile menu", () => {
   beforeEach(() => {
+    Object.defineProperty(window, "addEventListener", {
+      configurable: true,
+      value: jest.fn(),
+    });
+    Object.defineProperty(window, "removeEventListener", {
+      configurable: true,
+      value: jest.fn(),
+    });
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: {
@@ -75,7 +87,9 @@ describe("WebSidebar profile menu", () => {
     const screen = render(
       React.createElement(WebSidebar, {
         role: "prof",
+        showCompact: true,
         canExpand: true,
+        canPersistExpansion: true,
       })
     );
 
@@ -83,10 +97,76 @@ describe("WebSidebar profile menu", () => {
 
     fireEvent.press(screen.getByLabelText("Abrir menu de perfil"));
 
-    expect(screen.getByLabelText("Menu de perfil")).toBeTruthy();
+    expect(screen.getAllByLabelText("Menu de perfil")).toHaveLength(1);
     expect(screen.getByLabelText("Fechar menu de perfil")).toBeTruthy();
-    expect(screen.getByText("Gustavo Ribeiro")).toBeTruthy();
+    expect(screen.queryByText("Gustavo Ribeiro")).toBeNull();
     expect(screen.getByText("Perfil e configurações")).toBeTruthy();
     expect(screen.getByText("Sair")).toBeTruthy();
+  });
+
+  it("keeps a single profile surface while the sidebar is expanded", () => {
+    const screen = render(
+      React.createElement(WebSidebar, {
+        role: "prof",
+        showCompact: true,
+        canExpand: true,
+        canPersistExpansion: true,
+      })
+    );
+
+    fireEvent.press(screen.getByLabelText("Expandir menu"));
+
+    expect(window.localStorage.setItem).toHaveBeenCalledWith(
+      "goatleta:web-sidebar-expanded",
+      "expanded"
+    );
+
+    expect(screen.queryByLabelText("Navegação principal compacta")).toBeNull();
+    fireEvent.press(screen.getByLabelText("Abrir menu de perfil"));
+
+    expect(screen.getAllByLabelText("Menu de perfil")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Fechar menu de perfil")).toHaveLength(1);
+    expect(screen.getAllByText("Gustavo Ribeiro")).toHaveLength(1);
+  });
+
+  it("allows temporary tablet expansion without persisting it", () => {
+    const screen = render(
+      React.createElement(WebSidebar, {
+        role: "prof",
+        showCompact: true,
+        canExpand: true,
+        canPersistExpansion: false,
+      })
+    );
+
+    fireEvent.press(screen.getByLabelText("Expandir menu"));
+
+    expect(screen.getByLabelText("Recolher menu")).toBeTruthy();
+    expect(window.localStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it("opens the mobile navigation overlay from the global menu event", () => {
+    const screen = render(
+      React.createElement(WebSidebar, {
+        role: "prof",
+        showCompact: false,
+        canExpand: false,
+        canPersistExpansion: false,
+      })
+    );
+
+    expect(screen.queryByLabelText("Fechar menu lateral")).toBeNull();
+
+    const toggleListener = (window.addEventListener as jest.Mock).mock.calls.find(
+      ([eventName]) => eventName === "goatleta:toggle-sidebar"
+    )?.[1];
+    expect(toggleListener).toEqual(expect.any(Function));
+
+    act(() => toggleListener());
+
+    expect(screen.getByLabelText("Fechar menu lateral")).toBeTruthy();
+    expect(screen.getByLabelText("Recolher menu")).toBeTruthy();
+    expect(screen.queryByLabelText("Navegação principal compacta")).toBeNull();
+    expect(window.localStorage.setItem).not.toHaveBeenCalled();
   });
 });

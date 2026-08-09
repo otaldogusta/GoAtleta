@@ -25,9 +25,9 @@ const plugins = [
 			image: "./assets/images/splash-icon.png",
 			imageWidth: 200,
 			resizeMode: "contain",
-			backgroundColor: "#ffffff",
+			backgroundColor: "#F5F0E8",
 			dark: {
-				backgroundColor: "#000000",
+				backgroundColor: "#0A1322",
 			},
 		},
 	],
@@ -119,7 +119,7 @@ module.exports = {
 		},
 		android: {
 			adaptiveIcon: {
-				backgroundColor: "#E6F4FE",
+				backgroundColor: "#F5F0E8",
 				foregroundImage: "./assets/images/android-icon-foreground.png",
 				backgroundImage: "./assets/images/android-icon-background.png",
 				monochromeImage: "./assets/images/android-icon-monochrome.png",

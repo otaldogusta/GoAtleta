@@ -28,7 +28,6 @@ import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { Pressable } from "../../src/ui/Pressable";
-
 import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
 import { normalizeAgeBand, sortAgeBandList } from "../../src/core/age-band";
 import { translateMethodology } from "../../src/core/methodology/methodology-translator";
@@ -104,6 +103,12 @@ import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import {  shadow } from "../../src/theme/tokens";
 
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
+
+const PLANNING_TABS = [
+  { id: "formulario" as const, label: "Planejar" },
+  { id: "salvos" as const, label: "Planos salvos" },
+  { id: "modelos" as const, label: "Modelos prontos" },
+] as const;
 
 const TemplateEditorModalContent = lazy(() =>
   import("../../src/screens/training/components/TemplateEditorModalContent").then((module) => ({
@@ -3191,17 +3196,24 @@ export default function TrainingList() {
         <ScreenPageHeader
           title="Planejamento"
           onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
-          contentStyle={[planningShellStyle, { gap: 16, paddingTop: 16, paddingBottom: 2 }]}
+          contentStyle={[
+            planningShellStyle,
+            {
+              gap: isPlanningCompact ? 12 : 16,
+              paddingTop: isPlanningCompact ? 10 : 16,
+              paddingBottom: isPlanningCompact ? 0 : 2,
+            },
+          ]}
         >
           <AnimatedSegmentedTabs
-            tabs={[
-              { id: "formulario" as const, label: "Planejar" },
-              { id: "salvos" as const, label: "Planos salvos" },
-              { id: "modelos" as const, label: "Modelos prontos" },
-            ]}
+            tabs={PLANNING_TABS}
             activeTab={planningTab}
             onChange={setPlanningTab}
             style={planningShellStyle}
+            itemMinHeight={40}
+            itemPaddingVertical={isPlanningCompact ? 7 : 10}
+            itemFontSize={isPlanningCompact ? 11 : 12}
+            itemGap={isPlanningCompact ? 4 : 6}
           />
         </ScreenPageHeader>
 
