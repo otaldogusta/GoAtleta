@@ -807,12 +807,6 @@ export function WebSidebar({
         icon: "events",
       },
       {
-        key: "members",
-        label: "Membros",
-        href: "/coord/org-members",
-        icon: "members",
-      },
-      {
         key: "nfc",
         label: "Presença NFC",
         href: "/coord/nfc-attendance",

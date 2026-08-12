@@ -1,5 +1,5 @@
-import { OrgMembersPanel } from "../src/screens/coordination/OrgMembersPanel";
+import { Redirect } from "expo-router";
 
-export default function OrgMembersScreen() {
-  return <OrgMembersPanel />;
+export default function LegacyOrgMembersRedirect() {
+  return <Redirect href="/coord/management" />;
 }

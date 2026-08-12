@@ -150,12 +150,6 @@ function HomeProfessorBelowFoldBase({
         route: "/coord/events",
       },
       {
-        label: "Membros",
-        description: "Funções e permissões",
-        icon: "members",
-        route: "/coord/org-members",
-      },
-      {
         label: "Presença NFC",
         description: "Registrar por UID",
         icon: "nfc",

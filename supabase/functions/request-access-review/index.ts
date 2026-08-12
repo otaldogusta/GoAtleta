@@ -103,6 +103,39 @@ Deno.serve(async (request) => {
   let createdCount = 0;
   for (const membership of memberships.slice(0, 20)) {
     const organizationId = String(membership.organization_id);
+    const { data: existingRequest, error: existingRequestError } = await service
+      .from("organization_access_requests")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("requester_user_id", authData.user.id)
+      .eq("status", "pending")
+      .maybeSingle();
+    if (existingRequestError) {
+      return response(request, 500, {
+        error: "Não foi possível registrar a solicitação de acesso.",
+      });
+    }
+
+    let accessRequestId = String(existingRequest?.id ?? "");
+    if (!accessRequestId) {
+      const { data: createdRequest, error: requestInsertError } = await service
+        .from("organization_access_requests")
+        .insert({
+          organization_id: organizationId,
+          requester_user_id: authData.user.id,
+          requester_email: requesterEmail,
+          requester_name: requesterName,
+        })
+        .select("id")
+        .single();
+      if (requestInsertError || !createdRequest?.id) {
+        return response(request, 500, {
+          error: "Não foi possível registrar a solicitação de acesso.",
+        });
+      }
+      accessRequestId = String(createdRequest.id);
+    }
+
     const { data: existing } = await service
       .from("notifications")
       .select("id")
@@ -110,14 +143,14 @@ Deno.serve(async (request) => {
       .eq("recipient_user_id", coordinatorUser.id)
       .eq("inbox_scope", "coord")
       .eq("source_type", "access_request")
-      .eq("source_id", authData.user.id)
+      .eq("source_id", accessRequestId)
       .is("read_at", null)
       .maybeSingle();
 
     if (existing) continue;
 
-    const actionUrl = `/org-members?releaseEmail=${encodeURIComponent(
-      requesterEmail
+    const actionUrl = `/coord/management?accessRequestId=${encodeURIComponent(
+      accessRequestId
     )}`;
     const { error: insertError } = await service.from("notifications").insert({
       organization_id: organizationId,
@@ -129,8 +162,9 @@ Deno.serve(async (request) => {
       body: bodyText,
       action_url: actionUrl,
       source_type: "access_request",
-      source_id: authData.user.id,
+      source_id: accessRequestId,
       metadata: {
+        accessRequestId,
         requesterEmail,
         requesterName,
         requestedOrganizationId: organizationId,
@@ -153,7 +187,7 @@ Deno.serve(async (request) => {
         title,
         body: bodyText,
         data: {
-          route: "/prof/absence-notices",
+          route: "/coord/management",
           sourceType: "access_request",
           actionUrl,
         },

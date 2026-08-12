@@ -39,6 +39,10 @@ import {
     listTrainerInvites,
     type TrainerInviteItem,
 } from "../src/api/trainer-invite";
+import {
+    adminListOrgAccessRequests,
+    type OrganizationAccessRequest,
+} from "../src/api/organization-access-requests";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import {
     useCopilotActions,
@@ -377,6 +381,7 @@ export default function CoordinationScreen() {
   const [memberClassHeads, setMemberClassHeads] = useState<MemberClassHead[]>([]);
   const [organizationClasses, setOrganizationClasses] = useState<OrgClass[]>([]);
   const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
+  const [pendingAccessRequests, setPendingAccessRequests] = useState<OrganizationAccessRequest[]>([]);
   const [loadedOrganizationId, setLoadedOrganizationId] = useState<string | null>(null);
   const dashboardRequestRef = useRef(0);
 
@@ -649,6 +654,7 @@ export default function CoordinationScreen() {
       setMemberClassHeads([]);
       setOrganizationClasses([]);
       setPendingTrainerInvites([]);
+      setPendingAccessRequests([]);
       setPendingWritesDiagnostics({
         total: 0,
         highRetry: 0,
@@ -683,6 +689,7 @@ export default function CoordinationScreen() {
         classHeadRows,
         classRows,
         inviteRows,
+        accessRequestRows,
       ] =
         await measureAsync(
           "screen.coordination.load.dashboard",
@@ -701,6 +708,8 @@ export default function CoordinationScreen() {
               listTrainerInvites(organizationId)
                 .then((result) => result.invites.filter((invite) => !invite.revoked))
                 .catch(() => [] as TrainerInviteItem[]),
+              adminListOrgAccessRequests(organizationId)
+                .catch(() => [] as OrganizationAccessRequest[]),
             ]),
           { screen: "coordination", organizationId }
         );
@@ -727,6 +736,7 @@ export default function CoordinationScreen() {
         })
       );
       setPendingTrainerInvites(inviteRows);
+      setPendingAccessRequests(accessRequestRows);
 
       const now = new Date();
       const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -791,6 +801,7 @@ export default function CoordinationScreen() {
       setMemberClassHeads([]);
       setOrganizationClasses([]);
       setPendingTrainerInvites([]);
+      setPendingAccessRequests([]);
       setPendingWritesDiagnostics({
         total: 0,
         highRetry: 0,
@@ -1549,6 +1560,7 @@ export default function CoordinationScreen() {
             memberClassHeads={memberClassHeads}
             organizationClasses={organizationClasses}
             pendingInvites={pendingTrainerInvites}
+            accessRequests={pendingAccessRequests}
             pendingAttendance={pendingAttendance}
             pendingReports={pendingReports}
             syncHealthy={

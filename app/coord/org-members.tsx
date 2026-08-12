@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import { Redirect } from "expo-router";
 
-const CoordOrgMembersRoute = createLazyRoute(
-  () => import("../org-members"),
-  createLoadingFallback(ptBR.loading.routes.members)
-);
-
-export default CoordOrgMembersRoute;
+export default function LegacyCoordMembersRedirect() {
+  return <Redirect href="/coord/management" />;
+}

@@ -13,10 +13,14 @@ export type TrainerInviteItem = {
   max_uses: number;
   uses: number;
   revoked: boolean;
+  claimed_by?: string | null;
+  claimed_at?: string | null;
   invited_via: string;
   invited_to: string | null;
   delivery_status?: "not_applicable" | "pending_delivery" | "sent" | "delivery_failed";
   delivery_attempted_at?: string | null;
+  claim_failed_at?: string | null;
+  claim_error_code?: string | null;
 };
 
 const base = SUPABASE_URL.replace(/\/$/, "");

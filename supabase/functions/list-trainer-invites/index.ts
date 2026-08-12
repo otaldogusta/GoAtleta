@@ -87,15 +87,13 @@ Deno.serve(async (req) => {
     return createError(req, 403, "ORG_FORBIDDEN", "Forbidden");
   }
 
-  const nowIso = new Date().toISOString();
   const { data, error } = await admin
     .from("trainer_invites")
     .select(
-      "id, organization_id, target_role_level, created_at, expires_at, max_uses, uses, revoked, invited_via, invited_to, delivery_status, delivery_attempted_at"
+      "id, organization_id, target_role_level, created_at, expires_at, max_uses, uses, revoked, claimed_by, claimed_at, invited_via, invited_to, delivery_status, delivery_attempted_at, claim_failed_at, claim_error_code"
     )
     .eq("organization_id", orgValidation.data)
     .eq("revoked", false)
-    .gte("expires_at", nowIso)
     .order("created_at", { ascending: false })
     .limit(100);
 
@@ -103,6 +101,5 @@ Deno.serve(async (req) => {
     return createError(req, 500, "SERVER_ERROR", "Failed to list invites");
   }
 
-  const invites = (data ?? []).filter((row) => (row.uses ?? 0) < (row.max_uses ?? 1));
-  return new Response(JSON.stringify({ invites }), { headers: makeJsonHeaders(req) });
+  return new Response(JSON.stringify({ invites: data ?? [] }), { headers: makeJsonHeaders(req) });
 });

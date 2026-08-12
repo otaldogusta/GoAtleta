@@ -27,7 +27,9 @@ import * as Sentry from '@sentry/react-native';
 import { AuthProvider, useAuth } from "../src/auth/auth";
 import {
     getPendingInvite,
+    getPendingTrainerInvite,
     resolveAuthenticatedTrainerInviteEntry,
+    resolvePendingInviteRedirect,
     savePendingTrainerInvite,
 } from "../src/auth/pending-invite";
 import { buildLoginRedirectHref, sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
@@ -629,8 +631,15 @@ function RootLayoutContent() {
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
       const redirectAfterAuth = async () => {
-        const pending = await getPendingInvite();
-        const destination = pending ? `/invite/${pending}` : nextAfterAuth ?? "/";
+        const [pendingStudentToken, pendingTrainerCode] = await Promise.all([
+          getPendingInvite(),
+          getPendingTrainerInvite(),
+        ]);
+        const destination = resolvePendingInviteRedirect({
+          pendingStudentToken,
+          pendingTrainerCode,
+          defaultTarget: nextAfterAuth ?? "/",
+        });
         router.replace(destination as Parameters<typeof router.replace>[0]);
       };
       exchangeCodeForSession(code).then(async () => {
@@ -664,8 +673,15 @@ function RootLayoutContent() {
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
       const redirectAfterAuth = async () => {
-        const pending = await getPendingInvite();
-        const destination = pending ? `/invite/${pending}` : nextAfterAuth ?? "/";
+        const [pendingStudentToken, pendingTrainerCode] = await Promise.all([
+          getPendingInvite(),
+          getPendingTrainerInvite(),
+        ]);
+        const destination = resolvePendingInviteRedirect({
+          pendingStudentToken,
+          pendingTrainerCode,
+          defaultTarget: nextAfterAuth ?? "/",
+        });
         router.replace(destination as Parameters<typeof router.replace>[0]);
       };
       consumeAuthUrl(window.location.href).then(async () => {

@@ -19,6 +19,21 @@ describe("professor and coordination route contract", () => {
     expect(read("app/coord/nfc-attendance.tsx")).toContain('import("../nfc-attendance")');
   });
 
+  it("keeps member management in one coordination center", () => {
+    const config = read("src/components/navigation/tab-config.ts");
+    const sidebar = read("src/ui/WebSidebar.tsx");
+    expect(config).toContain('href: "/coord/management"');
+    expect(config).not.toContain('href: "/coord/org-members"');
+    expect(sidebar).not.toContain('key: "members"');
+    expect(sidebar).not.toContain('href: "/coord/org-members"');
+    expect(read("app/coord/org-members.tsx")).toContain(
+      '<Redirect href="/coord/management" />'
+    );
+    expect(read("app/org-members.tsx")).toContain(
+      '<Redirect href="/coord/management" />'
+    );
+  });
+
   it("does not send coordination shortcuts into the professor shell", () => {
     const sidebar = read("src/ui/WebSidebar.tsx");
     const home = read("src/screens/home/HomeProfessorBelowFold.tsx");

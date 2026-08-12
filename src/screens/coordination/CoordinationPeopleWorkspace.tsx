@@ -33,6 +33,10 @@ import {
   type TrainerInviteItem,
   type TrainerInviteRole,
 } from "../../api/trainer-invite";
+import {
+  adminReviewOrgAccessRequest,
+  type OrganizationAccessRequest,
+} from "../../api/organization-access-requests";
 import { radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
@@ -68,6 +72,10 @@ import {
   getMemberDeactivationBlockReason,
 } from "./application/member-deactivation";
 import { formatMemberLastAccess } from "./application/member-last-access";
+import {
+  inviteNeedsAction,
+  resolveInviteLifecycleStatus,
+} from "./application/invite-lifecycle";
 
 type SecondaryModuleKey = "attendance" | "access" | "reports" | "sync";
 type RoleFilter = "all" | "coordination" | "professor" | "intern";
@@ -90,6 +98,7 @@ type CoordinationPeopleWorkspaceProps = {
   memberClassHeads: MemberClassHead[];
   organizationClasses: OrgClass[];
   pendingInvites: TrainerInviteItem[];
+  accessRequests: OrganizationAccessRequest[];
   pendingAttendance: AdminPendingAttendance[];
   pendingReports: AdminPendingSessionLogs[];
   syncHealthy: boolean;
@@ -483,6 +492,7 @@ export function CoordinationPeopleWorkspace({
   memberClassHeads,
   organizationClasses,
   pendingInvites,
+  accessRequests,
   pendingAttendance,
   pendingReports,
   syncHealthy,
@@ -552,7 +562,9 @@ export function CoordinationPeopleWorkspace({
   const [editAccessLoading, setEditAccessLoading] = useState(false);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<MemberPermissionKey[]>([]);
   const [selectedPermissionsLoading, setSelectedPermissionsLoading] = useState(false);
-  const [visiblePendingInvites, setVisiblePendingInvites] = useState(pendingInvites);
+  const [visibleInvites, setVisibleInvites] = useState(pendingInvites);
+  const [accessRequestRoles, setAccessRequestRoles] = useState<Record<string, 5 | 10 | 50>>({});
+  const [accessRequestBusyId, setAccessRequestBusyId] = useState<string | null>(null);
   const selectedPermissionRequestRef = useRef(0);
   const editPermissionRequestRef = useRef(0);
   const editSubmissionRef = useRef<{ signature: string; idempotencyKey: string } | null>(
@@ -561,8 +573,8 @@ export function CoordinationPeopleWorkspace({
   const getPendingInviteId = useCallback((invite: TrainerInviteItem) => invite.id, []);
 
   const undoableInviteCancel = useUndoableListDelete({
-    items: visiblePendingInvites,
-    setItems: setVisiblePendingInvites,
+    items: visibleInvites,
+    setItems: setVisibleInvites,
     getId: getPendingInviteId,
     confirm: confirmUndo,
     title: "Cancelar convite?",
@@ -596,7 +608,7 @@ export function CoordinationPeopleWorkspace({
 
   useEffect(() => {
     Promise.resolve().then(() => {
-      setVisiblePendingInvites(pendingInvites);
+      setVisibleInvites(pendingInvites);
     });
   }, [pendingInvites]);
 
@@ -640,11 +652,13 @@ export function CoordinationPeopleWorkspace({
   const filteredInvites = useMemo(() => {
     if (statusFilter === "active" || roleFilter !== "all") return [];
     const query = search.trim().toLowerCase();
-    return visiblePendingInvites.filter(
-      (invite) =>
-        !query || (invite.invited_to ?? "convite pendente").toLowerCase().includes(query)
-    );
-  }, [roleFilter, search, statusFilter, visiblePendingInvites]);
+    return visibleInvites.filter((invite) => {
+      return (
+        inviteNeedsAction(invite) &&
+        (!query || (invite.invited_to ?? "convite pendente").toLowerCase().includes(query))
+      );
+    });
+  }, [roleFilter, search, statusFilter, visibleInvites]);
 
   const selectedMember =
     members.find((member) => member.userId === selectedMemberId) ?? members[0] ?? null;
@@ -1074,9 +1088,11 @@ export function CoordinationPeopleWorkspace({
     : "";
 
   const uniqueClasses = new Set(memberClassHeads.map((item) => item.classId)).size;
+  const pendingAccessCount =
+    visibleInvites.filter((invite) => inviteNeedsAction(invite)).length + accessRequests.length;
   const moduleMeta: Record<SecondaryModuleKey, { label: string; value: string | number }> = {
     attendance: { label: "Chamadas pendentes", value: pendingAttendance.length },
-    access: { label: "Convites e solicitações de acesso", value: pendingInvites.length },
+    access: { label: "Convites e solicitações", value: pendingAccessCount },
     reports: { label: "Relatórios pendentes", value: pendingReports.length },
     sync: { label: "Suporte e sincronização", value: syncHealthy ? "Tudo certo" : "Atenção" },
   };
@@ -1149,22 +1165,169 @@ export function CoordinationPeopleWorkspace({
     if (key === "access") {
       return (
         <ScrollView style={{ maxHeight: listMaxHeight }} showsVerticalScrollIndicator>
-          {pendingInvites.map((invite) => (
-            <View
-              key={invite.id}
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 11,
-                borderBottomWidth: 1,
-                borderBottomColor: border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                {invite.invited_to ?? "Convite sem e-mail"}
+          {accessRequests.length ? (
+            <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }}>
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                Solicitações para revisar
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Aguardando aceite</Text>
             </View>
-          ))}
+          ) : null}
+          {accessRequests.map((request) => {
+            const requestRole = accessRequestRoles[request.id] ?? 10;
+            const busy = accessRequestBusyId === request.id;
+            const review = async (decision: "approved" | "rejected") => {
+              if (accessRequestBusyId) return;
+              setAccessRequestBusyId(request.id);
+              try {
+                await adminReviewOrgAccessRequest({
+                  requestId: request.id,
+                  decision,
+                  roleLevel: requestRole,
+                  idempotencyKey: createMemberAccessIdempotencyKey(),
+                });
+                showSaveToast({
+                  variant: "success",
+                  message:
+                    decision === "approved"
+                      ? `Acesso de ${request.requesterName.split(" ")[0]} aprovado.`
+                      : "Solicitação recusada.",
+                });
+                await onRefresh();
+              } catch (error) {
+                showSaveToast({ variant: "error", error });
+              } finally {
+                setAccessRequestBusyId(null);
+              }
+            };
+            return (
+              <View
+                key={request.id}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 11,
+                  borderBottomWidth: 1,
+                  borderBottomColor: border,
+                  gap: 9,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700" }}>
+                      {request.requesterName}
+                    </Text>
+                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
+                      {request.requesterEmail}
+                    </Text>
+                  </View>
+                  <DropdownButton
+                    value={requestRole}
+                    onChange={(role) =>
+                      setAccessRequestRoles((current) => ({ ...current, [request.id]: role }))
+                    }
+                    disabled={busy}
+                    density="compact"
+                    compact
+                    options={[
+                      { value: 10, label: "Professor" },
+                      { value: 5, label: "Estagiário" },
+                      { value: 50, label: "Coordenação" },
+                    ]}
+                  />
+                </View>
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+                  <Pressable
+                    disabled={busy}
+                    onPress={() => void review("rejected")}
+                    style={{
+                      borderRadius: radius.internal,
+                      borderWidth: 1,
+                      borderColor: border,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      opacity: busy ? 0.55 : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                      Recusar
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={busy}
+                    onPress={() => void review("approved")}
+                    style={{
+                      borderRadius: radius.internal,
+                      backgroundColor: colors.primaryBg,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      opacity: busy ? 0.55 : 1,
+                    }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
+                      {busy ? "Salvando..." : "Aprovar acesso"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+          {visibleInvites.length ? (
+            <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }}>
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                Convites enviados
+              </Text>
+            </View>
+          ) : null}
+          {visibleInvites.map((invite) => {
+            const lifecycleStatus = resolveInviteLifecycleStatus(invite);
+            const status =
+              lifecycleStatus === "accepted"
+                ? "Aceito automaticamente"
+                : lifecycleStatus === "claim_failed"
+                  ? "Falha no vínculo"
+                  : lifecycleStatus === "delivery_failed"
+                    ? "Falha no envio"
+                    : lifecycleStatus === "expired"
+                      ? "Expirado"
+                      : "Convite enviado";
+            const statusColor =
+              lifecycleStatus === "accepted"
+                ? colors.successText
+                : lifecycleStatus !== "sent"
+                  ? colors.dangerText
+                  : colors.warningText;
+            return (
+              <View
+                key={invite.id}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 11,
+                  borderBottomWidth: 1,
+                  borderBottomColor: border,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700" }}>
+                    {invite.invited_to ?? "Convite por link"}
+                  </Text>
+                  <Text style={{ color: statusColor, fontSize: 11 }}>{status}</Text>
+                </View>
+                {inviteNeedsAction(invite) ? (
+                  <InviteActionMenu
+                    invite={invite}
+                    onCancel={(target) => undoableInviteCancel.deleteOne(target)}
+                  />
+                ) : null}
+              </View>
+            );
+          })}
+          {!pendingAccessCount ? (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 16 }}>
+              Nenhum acesso aguardando ação.
+            </Text>
+          ) : null}
         </ScrollView>
       );
     }
@@ -1288,7 +1451,7 @@ export function CoordinationPeopleWorkspace({
       >
         {[
           ["members", members.length, "membros"],
-          ["communications", pendingInvites.length, "convite"],
+          ["communications", pendingAccessCount, "acessos pendentes"],
           ["attendance", pendingAttendance.length, "chamadas pendentes"],
           ["classes", uniqueClasses, "turmas"],
           ["reports", healthScore === null ? "..." : `${healthScore}%`, "operacional"],

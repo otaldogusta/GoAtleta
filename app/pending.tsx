@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getInviteErrorCode } from "../src/api/invite-errors";
+import { requestAccessReview } from "../src/api/access-request";
 import { claimStudentInvite } from "../src/api/student-invite";
 import { claimTrainerInvite } from "../src/api/trainer-invite";
 import { useAuth } from "../src/auth/auth";
@@ -177,6 +178,10 @@ export default function PendingScreen() {
   const [storedToken, setStoredToken] = useState("");
   const [storedTrainerCode, setStoredTrainerCode] = useState("");
   const [accessApproved, setAccessApproved] = useState(false);
+  const [coordinatorEmail, setCoordinatorEmail] = useState("");
+  const [accessRequestBusy, setAccessRequestBusy] = useState(false);
+  const [accessRequestSent, setAccessRequestSent] = useState(false);
+  const [coordinatorEmailError, setCoordinatorEmailError] = useState(false);
   const autoClaimedRef = useRef(false);
   const textAnim = useRef(new Animated.Value(0)).current;
 
@@ -253,6 +258,25 @@ export default function PendingScreen() {
   const handleBackToLogin = async () => {
     await signOut();
     router.replace("/login");
+  };
+
+  const handleAccessRequest = async () => {
+    const email = coordinatorEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setCoordinatorEmailError(true);
+      return;
+    }
+    if (accessRequestBusy) return;
+    setAccessRequestBusy(true);
+    setMessage("");
+    try {
+      await requestAccessReview(email);
+      setAccessRequestSent(true);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
+    } finally {
+      setAccessRequestBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -387,6 +411,94 @@ export default function PendingScreen() {
                 </Pressable>
               </View>
             )}
+
+            {!storedToken && !storedTrainerCode ? (
+              <View
+                style={{
+                  width: "100%",
+                  padding: spacing.md,
+                  borderRadius: radius.container,
+                  backgroundColor: colors.card,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  gap: spacing.sm,
+                  overflow: "visible",
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                  Solicitar acesso
+                </Text>
+                {accessRequestSent ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                    <GoAtletaIcon name="checkmarkCircle" size={18} color={colors.successText} />
+                    <Text style={{ color: colors.successText, fontSize: 13, flex: 1 }}>
+                      Solicitação enviada. A coordenação já pode revisar seu acesso.
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <View style={{ position: "relative", overflow: "visible" }}>
+                      {coordinatorEmailError ? (
+                        <View
+                          accessibilityRole="alert"
+                          pointerEvents="none"
+                          style={{
+                            position: "absolute",
+                            top: -38,
+                            left: 0,
+                            zIndex: 20,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            borderRadius: 8,
+                            backgroundColor: colors.dangerSolidBg,
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                          }}
+                        >
+                          <GoAtletaIcon name="warningCircle" size={14} color={colors.dangerSolidText} />
+                          <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "700" }}>
+                            Digite o e-mail da coordenação
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View
+                        style={{
+                          minHeight: 50,
+                          borderRadius: 12,
+                          borderWidth: coordinatorEmailError ? 2 : 1,
+                          borderColor: coordinatorEmailError ? colors.dangerSolidBg : colors.border,
+                          paddingHorizontal: 14,
+                          backgroundColor: colors.inputBg,
+                          justifyContent: "center",
+                        }}
+                      >
+                        <TextInput
+                          value={coordinatorEmail}
+                          onChangeText={(value) => {
+                            setCoordinatorEmail(value);
+                            if (coordinatorEmailError) setCoordinatorEmailError(false);
+                          }}
+                          autoCapitalize="none"
+                          keyboardType="email-address"
+                          placeholder="coordenacao@organizacao.com"
+                          placeholderTextColor={colors.placeholder}
+                          style={{ color: colors.inputText, borderRadius: 0, paddingVertical: 12 }}
+                        />
+                      </View>
+                    </View>
+                    {Boolean(message) ? (
+                      <Text style={{ color: colors.dangerText, fontSize: 12 }}>{message}</Text>
+                    ) : null}
+                    <Button
+                      label={accessRequestBusy ? "Enviando..." : "Enviar solicitação"}
+                      onPress={handleAccessRequest}
+                      disabled={accessRequestBusy || !coordinatorEmail.trim()}
+                    />
+                  </>
+                )}
+              </View>
+            ) : null}
 
             <View style={{ width: "100%", gap: spacing.sm, marginTop: spacing.xs }}>
               <Pressable

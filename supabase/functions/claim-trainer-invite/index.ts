@@ -139,6 +139,20 @@ Deno.serve(async (req) => {
   });
   if (claimError) {
     const message = claimError.message ?? "";
+    const claimErrorCode = message.includes("INVITE_ALREADY_USED")
+      ? "INVITE_ALREADY_USED"
+      : message.includes("INVITE_REVOKED")
+        ? "INVITE_REVOKED"
+        : message.includes("INVITE_EXPIRED")
+          ? "INVITE_EXPIRED"
+          : "SERVER_ERROR";
+    await supabase
+      .from("trainer_invites")
+      .update({
+        claim_failed_at: new Date().toISOString(),
+        claim_error_code: claimErrorCode,
+      })
+      .eq("id", invite.id);
     if (message.includes("INVITE_ALREADY_USED")) {
       return createError(req, 409, "INVITE_ALREADY_USED", "Invite already used");
     }
@@ -150,6 +164,11 @@ Deno.serve(async (req) => {
     }
     return createError(req, 500, "SERVER_ERROR", "Failed to apply invite access");
   }
+
+  await supabase
+    .from("trainer_invites")
+    .update({ claim_failed_at: null, claim_error_code: null })
+    .eq("id", invite.id);
 
   return new Response(JSON.stringify({ status: "ok" }), {
     headers: makeJsonHeaders(req),

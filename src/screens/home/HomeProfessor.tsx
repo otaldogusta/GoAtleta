@@ -1552,7 +1552,6 @@ export function HomeProfessorScreen({
         { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "management" },
         { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "reports" },
         { id: "events", label: "Eventos", route: "/coord/events", icon: "events" },
-        { id: "members", label: "Membros", route: "/coord/org-members", icon: "members" },
         { id: "nfc", label: "Presença NFC", route: "/coord/nfc-attendance", icon: "nfc" },
       ] as const,
     []
