@@ -1,8 +1,8 @@
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { Platform, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as XLSX from "@e965/xlsx";
 import * as cptable from "@e965/xlsx/dist/cpexcel";
@@ -19,6 +19,9 @@ import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { markRender } from "../../src/observability/perf";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
+import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
+import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
 import {
     assertImportAssetWithinLimits,
@@ -446,7 +449,23 @@ const buildPlanRow = (row: CsvRow, classId: string): TrainingPlan => {
   };
 };
 
-export default function ImportTrainingCsvScreen() {
+type ImportTrainingCsvScreenProps = {
+  presentation: "screen" | "modal";
+  visible?: boolean;
+  classId?: string;
+  unit?: string;
+  onClose?: () => void;
+  onImported?: () => void;
+};
+
+function ImportTrainingCsvScreen({
+  presentation,
+  visible = true,
+  classId: classIdProp,
+  unit: unitProp,
+  onClose,
+  onImported,
+}: ImportTrainingCsvScreenProps) {
   markRender("screen.trainingImport.render.root");
 
   const { classId: classIdHintParam, unit: unitHintParam } = useLocalSearchParams<{
@@ -454,17 +473,20 @@ export default function ImportTrainingCsvScreen() {
     unit?: string;
   }>();
   const router = useRouter();
+  const { width, height } = useWindowDimensions();
   const { colors } = useAppTheme();
+  const { confirm } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const [csvText, setCsvText] = useState("");
   const [loadedRows, setLoadedRows] = useState<CsvRow[] | null>(null);
-  const [unitHint, setUnitHint] = useState(String(unitHintParam ?? ""));
+  const [unitHint, setUnitHint] = useState(String(unitProp ?? unitHintParam ?? ""));
   const [allowPartial, setAllowPartial] = useState(false);
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const classIdHint = String(classIdHintParam ?? "").trim();
+  const classIdHint = String(classIdProp ?? classIdHintParam ?? "").trim();
+  const isModal = presentation === "modal";
 
   const hasPreview = preview.length > 0;
 
@@ -622,20 +644,99 @@ export default function ImportTrainingCsvScreen() {
       } else {
         showSaveToast("Planejamento importado.");
       }
-      navigateBackOrReplace({ router, fallback: "/training" });
+      onImported?.();
+      if (isModal) onClose?.();
+      else navigateBackOrReplace({ router, fallback: "/training" });
+    } catch (error) {
+      showSaveToast({
+        message: error instanceof Error ? error.message : "Não foi possível importar o planejamento.",
+        variant: "error",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} stickyHeaderIndices={[0]}>
-        <ScreenPageHeader
-          title="Importar planejamento"
-          subtitle="Selecione planilha (.csv/.xls/.xlsx) ou cole CSV e revise antes de salvar."
-          onBack={() => navigateBackOrReplace({ router, fallback: "/training" })}
-        />
+  const requestClose = async () => {
+    if (loading || fileLoading) return;
+    const hasUnfinishedInput = Boolean(csvText.trim() || loadedRows?.length || preview.length);
+    if (hasUnfinishedInput) {
+      const accepted = await confirm({
+        title: "Fechar importação?",
+        message: "O arquivo e a revisão atual serão descartados.",
+        confirmLabel: "Descartar e fechar",
+        cancelLabel: "Continuar revisando",
+        tone: "danger",
+        onConfirm: () => {},
+      });
+      if (!accepted) return;
+    }
+    if (isModal) onClose?.();
+    else navigateBackOrReplace({ router, fallback: "/training" });
+  };
+
+  const content = (
+      <ScrollView
+        style={{ minHeight: 0 }}
+        contentContainerStyle={{ padding: 16, gap: 12 }}
+        stickyHeaderIndices={isModal ? undefined : [0]}
+        showsVerticalScrollIndicator={false}
+      >
+        {isModal ? (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 11,
+              paddingBottom: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            }}
+          >
+            <View
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 11,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.successBg,
+              }}
+            >
+              <GoAtletaIcon name="upload" size={19} color={colors.primaryBg} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>
+                Importar planilha
+              </Text>
+              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
+                CSV, XLS ou XLSX com revisão antes de salvar.
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => void requestClose()}
+              accessibilityRole="button"
+              accessibilityLabel="Fechar importação"
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <GoAtletaIcon name="close" size={18} color={colors.text} />
+            </Pressable>
+          </View>
+        ) : (
+          <ScreenPageHeader
+            title="Importar planejamento"
+            subtitle="Selecione planilha (.csv/.xls/.xlsx) ou cole CSV e revise antes de salvar."
+            onBack={() => void requestClose()}
+          />
+        )}
 
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -822,6 +923,40 @@ export default function ImportTrainingCsvScreen() {
           </Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
   );
+
+  if (isModal) {
+    return (
+      <ModalSheet
+        visible={visible}
+        onClose={() => void requestClose()}
+        position="center"
+        containerPadding={width < 600 ? 10 : 20}
+        cardStyle={{
+          width: Math.min(width - (width < 600 ? 20 : 40), 760),
+          maxHeight: Math.min(height - 40, 860),
+          minHeight: Math.min(height - 40, 520),
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 16,
+          backgroundColor: colors.card,
+          overflow: "visible",
+        }}
+      >
+        {content}
+      </ModalSheet>
+    );
+  }
+
+  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>{content}</SafeAreaView>;
+}
+
+export function TrainingSpreadsheetImportModal(
+  props: Omit<ImportTrainingCsvScreenProps, "presentation">
+) {
+  return <ImportTrainingCsvScreen {...props} presentation="modal" />;
+}
+
+export default function ImportTrainingRoute() {
+  return <Redirect href="/training?import=spreadsheet" />;
 }

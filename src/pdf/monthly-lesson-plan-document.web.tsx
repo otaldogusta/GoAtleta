@@ -95,10 +95,10 @@ const styles = StyleSheet.create({
     width: "83%",
   },
   contentRow: {
-    minHeight: 40,
+    minHeight: 24,
   },
   situationRow: {
-    minHeight: 32,
+    minHeight: 24,
   },
   pairValue: {
     width: "26%",
@@ -136,19 +136,19 @@ const styles = StyleSheet.create({
     width: "47%",
   },
   shortBlockRow: {
-    minHeight: 54,
+    minHeight: 34,
   },
   cooldownBlockRow: {
     minHeight: 20,
   },
   mainBlockRow: {
-    minHeight: 118,
+    minHeight: 52,
   },
   observationsRow: {
-    minHeight: 58,
+    minHeight: 34,
   },
   specificRow: {
-    minHeight: 78,
+    minHeight: 34,
   },
   pageLabel: {
     height: 18,
@@ -214,19 +214,22 @@ function FieldRow({
   leftValue,
   rightLabel,
   rightValue,
+  preserveEmpty = false,
 }: {
   leftLabel: string;
   leftValue: string;
   rightLabel?: string;
   rightValue?: string;
+  preserveEmpty?: boolean;
 }) {
+  const emptyValue = preserveEmpty ? "" : "-";
   return (
     <View style={[styles.row, styles.fieldRow]}>
       <View style={[styles.cell, styles.fieldCell, styles.labelCell, styles.fieldLabel]}>
         <Text style={styles.labelText}>{leftLabel}:</Text>
       </View>
       <View style={[styles.cell, styles.fieldCell, rightLabel ? styles.pairValue : styles.fieldValue, ...(rightLabel ? [] : [styles.lastCell])] as any}>
-        <Text style={styles.text}>{leftValue || "-"}</Text>
+        <Text style={styles.text}>{leftValue || emptyValue}</Text>
       </View>
       {rightLabel ? (
         <>
@@ -234,7 +237,7 @@ function FieldRow({
             <Text style={styles.labelText}>{rightLabel}:</Text>
           </View>
           <View style={[styles.cell, styles.fieldCell, styles.rightPairValue, styles.lastCell]}>
-            <Text style={styles.text}>{rightValue || "-"}</Text>
+            <Text style={styles.text}>{rightValue || emptyValue}</Text>
           </View>
         </>
       ) : null}
@@ -242,7 +245,8 @@ function FieldRow({
   );
 }
 
-function ContentRow({ label, value, situation = false, specific = false }: { label: string; value: string; situation?: boolean; specific?: boolean }) {
+function ContentRow({ label, value, situation = false, specific = false, preserveEmpty = false }: { label: string; value: string; situation?: boolean; specific?: boolean; preserveEmpty?: boolean }) {
+  const emptyValue = preserveEmpty ? "" : "-";
   return (
     <View style={[styles.row, styles.contentRow, ...(specific ? [styles.specificRow] : []), ...(situation ? [styles.situationRow] : [])] as any}>
       <View style={[styles.cell, styles.labelCell, styles.fieldLabel, ...(situation ? [styles.situationLabel] : [])] as any}>
@@ -250,9 +254,9 @@ function ContentRow({ label, value, situation = false, specific = false }: { lab
       </View>
       <View style={[styles.cell, styles.fullValue, styles.lastCell]}>
         {specific ? (
-          <StructuredSpecificObjective value={value || "-"} />
+          <StructuredSpecificObjective value={value || emptyValue} />
         ) : (
-          <Text style={[styles.text, ...(situation ? [styles.italic] : [])] as any}>{value || "-"}</Text>
+          <Text style={[styles.text, ...(situation ? [styles.italic] : [])] as any}>{value || emptyValue}</Text>
         )}
       </View>
     </View>
@@ -260,6 +264,8 @@ function ContentRow({ label, value, situation = false, specific = false }: { lab
 }
 
 function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanItem; data: MonthlyPlanPdfData; pageLabel: string }) {
+  const preserveEmpty = lesson.preserveEmptyFields === true;
+  const emptyValue = preserveEmpty ? "" : "-";
   return (
     <>
       {pageLabel ? <Text style={styles.pageLabel}>{pageLabel}</Text> : null}
@@ -275,12 +281,13 @@ function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanIte
         leftValue={data.professorName}
         rightLabel="Turma"
         rightValue={`${data.className}${data.ageGroup ? ` (${data.ageGroup} anos${data.genderLabel ? `, ${data.genderLabel}` : ""})` : ""}`}
+        preserveEmpty={preserveEmpty}
       />
-      <FieldRow leftLabel="Semana" leftValue={lesson.weekLabel} />
-      <FieldRow leftLabel="Data" leftValue={lesson.dateLabel} rightLabel="Horário" rightValue={lesson.timeLabel || "-"} />
-      <ContentRow label="Objetivo geral" value={lesson.generalObjective} />
-      <ContentRow label="Objetivo específico" value={lesson.specificObjective} specific />
-      <ContentRow label="Situação-problema" value={lesson.situationProblem || "-"} situation />
+      <FieldRow leftLabel="Semana" leftValue={lesson.weekLabel} preserveEmpty={preserveEmpty} />
+      <FieldRow leftLabel="Data" leftValue={lesson.dateLabel} rightLabel="Horário" rightValue={lesson.timeLabel || emptyValue} preserveEmpty={preserveEmpty} />
+      <ContentRow label="Objetivo geral" value={lesson.generalObjective} preserveEmpty={preserveEmpty} />
+      <ContentRow label="Objetivo específico" value={lesson.specificObjective} specific preserveEmpty={preserveEmpty} />
+      <ContentRow label="Situação-problema" value={lesson.situationProblem || emptyValue} situation preserveEmpty={preserveEmpty} />
 
       <View style={styles.row}>
         <View style={[styles.cell, styles.tableHeaderCell, styles.periodCell]}>
@@ -297,36 +304,63 @@ function LessonTable({ lesson, data, pageLabel }: { lesson: MonthlyLessonPlanIte
         </View>
       </View>
 
-      {lesson.blocks.map((block) => (
-        block.period === "Volta à calma" ? (
-          <View key={`${lesson.id}-${block.period}`} style={[styles.row, styles.cooldownBlockRow]}>
+      {lesson.blocks.map((block) => {
+        if (block.period === "Volta à calma") {
+          return <View key={`${lesson.id}-${block.period}`} style={[styles.row, styles.cooldownBlockRow]} wrap={false}>
             <View style={[styles.cell, styles.labelCell, styles.periodCell, styles.centeredCell]}>
               <Text style={[styles.text, styles.bold]}>Volta à calma:</Text>
             </View>
             <View style={[styles.cell, styles.fullValue, styles.lastCell, styles.centeredCell]}>
-              <Text style={styles.text}>{block.activities || block.description || "-"}</Text>
+              <Text style={styles.text}>{block.activities || block.description || emptyValue}</Text>
             </View>
-          </View>
-        ) : (
-          <View
+          </View>;
+        }
+
+        const structuredItems = block.items?.filter(
+          (item) => item.activity.trim() || item.description.trim()
+        );
+        if (structuredItems?.length) {
+          return structuredItems.map((item, itemIndex) => (
+            <View
+              key={`${lesson.id}-${block.period}-${itemIndex}`}
+              style={[styles.row, block.period === "Parte principal" ? styles.mainBlockRow : styles.shortBlockRow]}
+              wrap={false}
+            >
+              <View style={[styles.cell, styles.periodCell, styles.centeredCell]}>
+                <Text style={[styles.text, styles.bold]}>{itemIndex === 0 ? block.period : ""}</Text>
+              </View>
+              <View style={[styles.cell, styles.activitiesCell, styles.centeredCell]}>
+                <Text style={styles.text}>{item.activity || emptyValue}</Text>
+              </View>
+              <View style={[styles.cell, styles.timeCell, styles.centeredCell]}>
+                <Text style={[styles.text, styles.bold]}>{itemIndex === 0 ? block.time || emptyValue : ""}</Text>
+              </View>
+              <View style={[styles.cell, styles.descriptionCell, styles.lastCell, styles.centeredCell]}>
+                <Text style={styles.text}>{item.description || emptyValue}</Text>
+              </View>
+            </View>
+          ));
+        }
+
+        return <View
             key={`${lesson.id}-${block.period}`}
             style={[styles.row, block.period === "Parte principal" ? styles.mainBlockRow : styles.shortBlockRow]}
+            wrap={false}
           >
             <View style={[styles.cell, styles.periodCell, styles.centeredCell]}>
               <Text style={[styles.text, styles.bold]}>{block.period}</Text>
             </View>
             <View style={[styles.cell, styles.activitiesCell, styles.centeredCell]}>
-              <MultilineText value={block.activities || "-"} />
+              <MultilineText value={block.activities || emptyValue} />
             </View>
             <View style={[styles.cell, styles.timeCell, styles.centeredCell]}>
-              <Text style={[styles.text, styles.bold]}>{block.time || "-"}</Text>
+              <Text style={[styles.text, styles.bold]}>{block.time || emptyValue}</Text>
             </View>
             <View style={[styles.cell, styles.descriptionCell, styles.lastCell, styles.centeredCell]}>
-              <MultilineText value={block.description || "-"} />
+              <MultilineText value={block.description || emptyValue} />
             </View>
-          </View>
-        )
-      ))}
+          </View>;
+      })}
 
       <View style={[styles.row, styles.observationsRow, styles.lastRow]}>
         <View style={[styles.cell, styles.labelCell, styles.fieldLabel]}>

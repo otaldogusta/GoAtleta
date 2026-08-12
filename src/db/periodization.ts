@@ -96,13 +96,17 @@ const postClassPlansPayload = async (payload: Record<string, unknown>[]) => {
 
 const getExistingClassPlanByLegacyWeek = async (params: {
   classId: string;
+  cycleId?: string | null;
   weekNumber: number;
   organizationId?: string | null;
 }) => {
-  const { classId, weekNumber, organizationId } = params;
+  const { classId, cycleId, weekNumber, organizationId } = params;
+  const cycleFilter = cycleId
+    ? `&cycle_id=eq.${encodeURIComponent(cycleId)}`
+    : "";
   const path = organizationId
-    ? `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&weeknumber=eq.${weekNumber}&organization_id=eq.${encodeURIComponent(organizationId)}&order=updatedat.desc.nullslast,createdat.desc.nullslast&limit=1`
-    : `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}&weeknumber=eq.${weekNumber}&order=updatedat.desc.nullslast,createdat.desc.nullslast&limit=1`;
+    ? `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}${cycleFilter}&weeknumber=eq.${weekNumber}&organization_id=eq.${encodeURIComponent(organizationId)}&order=updatedat.desc.nullslast,createdat.desc.nullslast&limit=1`
+    : `/class_plans?select=*&classid=eq.${encodeURIComponent(classId)}${cycleFilter}&weeknumber=eq.${weekNumber}&order=updatedat.desc.nullslast,createdat.desc.nullslast&limit=1`;
   const rows = await supabaseGet<ClassPlanRow[]>(path);
   const row = rows[0];
   if (!row) return null;
@@ -258,22 +262,7 @@ export async function getClassPlansByClass(
     const normalizedCycleId = (options.cycleId ?? "").trim();
     const filtered = normalizedCycleId
       ? mapped
-          .filter((row) => {
-            if ((row.cycleId ?? "").trim() === normalizedCycleId) return true;
-            if (!cycleYear) return false;
-            const year = Number((row.startDate ?? "").slice(0, 4));
-            return Number.isFinite(year) && year === cycleYear;
-          })
-          .map((row) => {
-            if ((row.cycleId ?? "").trim()) return row;
-            if (!cycleYear) return row;
-            const year = Number((row.startDate ?? "").slice(0, 4));
-            if (!Number.isFinite(year) || year !== cycleYear) return row;
-            return {
-              ...row,
-              cycleId: normalizedCycleId,
-            };
-          })
+          .filter((row) => (row.cycleId ?? "").trim() === normalizedCycleId)
       : mapped;
     const cache = (await readCache<Record<string, ClassPlan[]>>(CACHE_KEYS.classPlans)) ?? {};
     cache[classId] = filtered;
@@ -383,6 +372,7 @@ export async function saveClassPlans(plans: ClassPlan[], options?: { organizatio
     for (const plan of plans) {
       const existing = await getExistingClassPlanByLegacyWeek({
         classId: plan.classId,
+        cycleId: plan.cycleId,
         weekNumber: plan.weekNumber,
         organizationId,
       });

@@ -38,6 +38,75 @@ const plan = {
 } as TrainingPlan;
 
 describe("buildClassPlanPdfData", () => {
+  it("keeps class metadata blank while the document is still unassigned", () => {
+    const data = buildClassPlanPdfData({
+      classGroup,
+      plan: { ...plan, classId: "" },
+      lessonDate: "2026-08-11",
+    });
+
+    expect(data).toMatchObject({
+      className: "",
+      ageGroup: "",
+      unitLabel: "",
+      genderLabel: "",
+      timeLabel: "",
+    });
+  });
+
+  it("mantém uma folha realmente limpa para um novo plano manual", () => {
+    const blankPlan = {
+      ...plan,
+      id: "draft-blank",
+      title: "",
+      warmup: [],
+      main: [],
+      cooldown: [],
+      warmupTime: "",
+      mainTime: "",
+      cooldownTime: "",
+      pedagogy: {
+        sessionObjective: "",
+        sessionObjectiveSource: "manual",
+        preserveEmptyFields: true,
+        lessonPlanObservations: "",
+        learningObjectives: {
+          general: "",
+          specific: [""],
+          pedagogicalGuidelines: [""],
+        },
+        blocks: {
+          warmup: { summary: "", activities: [] },
+          main: { summary: "", activities: [] },
+          cooldown: { summary: "", activities: [] },
+        },
+      },
+    } as TrainingPlan;
+
+    const data = buildClassPlanPdfData({
+      classGroup,
+      plan: blankPlan,
+      lessonDate: "2026-08-10",
+    });
+    const lesson = buildSessionMonthlyPlanData(data).lessons[0];
+
+    expect(data.preserveEmptyFields).toBe(true);
+    expect(data.blocks.map((block) => block.durationMinutes)).toEqual([undefined, undefined, undefined]);
+    expect(lesson).toMatchObject({
+      weekLabel: "",
+      generalObjective: "",
+      specificObjective: "",
+      situationProblem: "",
+      observations: "",
+      preserveEmptyFields: true,
+      blocks: [
+        { period: "Aquecimento", activities: "", time: "", description: "" },
+        { period: "Parte principal", activities: "", time: "", description: "" },
+        { period: "Volta à calma", activities: "", time: "", description: "" },
+      ],
+    });
+  });
+
   it("preserva o modelo pedagógico, os horários e as atividades da aula", () => {
     const data = buildClassPlanPdfData({
       classGroup,
@@ -127,9 +196,27 @@ describe("buildClassPlanPdfData", () => {
     });
     expect(lesson.specificObjective).toContain("Procedimental: Objetivo específico editado");
     expect(lesson.blocks).toEqual([
-      { period: "Aquecimento", activities: "Aquecimento editado", time: "12'", description: "Descrição do aquecimento" },
-      { period: "Parte principal", activities: "1. Atividade principal editada", time: "40'", description: "1. Descrição principal" },
-      { period: "Volta à calma", activities: "Volta à calma editada", time: "", description: "Descrição final" },
+      {
+        period: "Aquecimento",
+        activities: "Aquecimento editado",
+        time: "12'",
+        description: "Descrição do aquecimento",
+        items: [{ activity: "Aquecimento editado", description: "Descrição do aquecimento" }],
+      },
+      {
+        period: "Parte principal",
+        activities: "1. Atividade principal editada",
+        time: "40'",
+        description: "1. Descrição principal",
+        items: [{ activity: "Atividade principal editada", description: "Descrição principal" }],
+      },
+      {
+        period: "Volta à calma",
+        activities: "Volta à calma editada",
+        time: "",
+        description: "Descrição final",
+        items: [{ activity: "Volta à calma editada", description: "Descrição final" }],
+      },
     ]);
   });
 });

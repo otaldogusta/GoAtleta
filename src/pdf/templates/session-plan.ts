@@ -44,6 +44,7 @@ export type SessionPlanPdfData = {
   notes?: string;
   blocks: SessionBlock[];
   coachName?: string;
+  preserveEmptyFields?: boolean;
 };
 
 const asText = (value: unknown) => sanitizeVolleyballLanguage(toPdfText(value));
@@ -75,21 +76,30 @@ const resolvePeriod = (label: string): MonthlyLessonPlanBlockRow["period"] => {
   return "Parte principal";
 };
 
-const formatActivityNames = (items: SessionPlanActivity[], enumerate: boolean) => {
+const formatActivityNames = (
+  items: SessionPlanActivity[],
+  enumerate: boolean,
+  preserveEmptyFields = false
+) => {
   const names = items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean);
-  if (!names.length) return "-";
+  if (!names.length) return preserveEmptyFields ? "" : "-";
   if (!enumerate) return names.join("\n");
   return names.map((name, index) => `${index + 1}. ${name}`).join("\n");
 };
 
-const formatDescriptions = (block: SessionBlock, items: SessionPlanActivity[], enumerate: boolean) => {
+const formatDescriptions = (
+  block: SessionBlock,
+  items: SessionPlanActivity[],
+  enumerate: boolean,
+  preserveEmptyFields = false
+) => {
   const descriptions = items.map(resolveActivityDescription).filter(Boolean);
   if (descriptions.length) {
     return enumerate
       ? descriptions.map((description, index) => `${index + 1}. ${description}`).join("\n")
       : descriptions.join("\n");
   }
-  return asCoachingText(block?.summary).trim() || "-";
+  return asCoachingText(block?.summary).trim() || (preserveEmptyFields ? "" : "-");
 };
 
 const lowerFirst = (value: string) => value.replace(/^./, (character) => character.toLocaleLowerCase("pt-BR"));
@@ -107,16 +117,23 @@ const buildStructuredSpecificObjective = (specificObjective: string, focus: stri
 export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPlanPdfData => {
   const title = asCoachingText(data?.title);
   const weeklyFocus = asCoachingText(data?.weeklyFocus);
-  const resolvedObjectives = resolveLearningObjectives({
-    generalObjective: asCoachingText(data?.generalObjective),
-    specificObjective: asCoachingText(data?.specificObjective) || asCoachingText(data?.objective),
-    title,
-    weeklyFocus,
-    theme: weeklyFocus,
-    technicalFocus: weeklyFocus,
-    ageBand: data?.ageGroup,
-  });
-  const weekLabel = [asText(data?.weekLabel), title].filter(Boolean).join(" — ") || "-";
+  const preserveEmptyFields = data?.preserveEmptyFields === true;
+  const rawGeneralObjective = asCoachingText(data?.generalObjective);
+  const rawSpecificObjective = asCoachingText(data?.specificObjective) || asCoachingText(data?.objective);
+  const resolvedObjectives = preserveEmptyFields
+    ? { generalObjective: rawGeneralObjective, specificObjective: rawSpecificObjective }
+    : resolveLearningObjectives({
+        generalObjective: rawGeneralObjective,
+        specificObjective: rawSpecificObjective,
+        title,
+        weeklyFocus,
+        theme: weeklyFocus,
+        technicalFocus: weeklyFocus,
+        ageBand: data?.ageGroup,
+      });
+  const weekLabel =
+    [asText(data?.weekLabel), title].filter(Boolean).join(" — ") ||
+    (preserveEmptyFields ? "" : "-");
   const resolvedSpecificObjective = sanitizeVolleyballLanguage(resolvedObjectives.specificObjective);
   const focus = weeklyFocus || title;
   const blocks = (Array.isArray(data?.blocks) ? data.blocks : []).map((block) => {
@@ -126,9 +143,17 @@ export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPl
     const enumerate = period === "Parte principal";
     return {
       period,
-      activities: formatActivityNames(items, enumerate),
-      time: period === "Volta à calma" ? "" : getBlockTime(block),
-      description: formatDescriptions(block, items, enumerate),
+      activities: formatActivityNames(items, enumerate, preserveEmptyFields),
+      time:
+        period === "Volta à calma" ||
+        (preserveEmptyFields && block.durationMinutes === undefined && !asText(block.time))
+          ? ""
+          : getBlockTime(block),
+      description: formatDescriptions(block, items, enumerate, preserveEmptyFields),
+      items: items.map((item) => ({
+        activity: asCoachingText(item?.name).trim(),
+        description: resolveActivityDescription(item),
+      })),
     } satisfies MonthlyLessonPlanBlockRow;
   });
 
@@ -137,7 +162,7 @@ export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPl
     unitLabel: asText(data?.unitLabel),
     ageGroup: asText(data?.ageGroup),
     genderLabel: asText(data?.genderLabel),
-    professorName: asText(data?.coachName) || "-",
+    professorName: asText(data?.coachName) || (preserveEmptyFields ? "" : "-"),
     monthLabel: asText(data?.dateLabel),
     generatedAt: new Date().toISOString(),
     totalWeeks: 1,
@@ -149,12 +174,17 @@ export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPl
         dateLabel: asText(data?.dateLabel) || "-",
         timeLabel: asText(data?.timeLabel) || "-",
         generalObjective: sanitizeVolleyballLanguage(resolvedObjectives.generalObjective),
-        specificObjective: buildStructuredSpecificObjective(resolvedSpecificObjective, focus),
+        specificObjective: preserveEmptyFields
+          ? resolvedSpecificObjective
+          : buildStructuredSpecificObjective(resolvedSpecificObjective, focus),
         situationProblem:
           asCoachingText(data?.pedagogicalRule).trim() ||
-          `Como aplicar ${lowerFirst(focus || "o fundamento da aula")} mantendo a continuidade e o controle da bola?`,
+          (preserveEmptyFields
+            ? ""
+            : `Como aplicar ${lowerFirst(focus || "o fundamento da aula")} mantendo a continuidade e o controle da bola?`),
         blocks,
         observations: asCoachingText(data?.notes),
+        preserveEmptyFields,
       },
     ],
   };

@@ -65,9 +65,25 @@ type ClassPlanPreviewModalProps = {
   lessonDate: string;
   coachName?: string;
   initialMode?: "preview" | "edit";
+  initialDirty?: boolean;
+  presentation?: "modal" | "workspace";
+  draftStatus?: "idle" | "saving" | "saved" | "restored" | "error";
   periodizationSource?: ClassPlanPeriodizationSource;
   onSavePlan: (plan: TrainingPlan) => Promise<TrainingPlan>;
-  onRemovePlan: () => Promise<void>;
+  onDraftChange?: (plan: TrainingPlan) => void;
+  onDirtyChange?: (isDirty: boolean) => void;
+  onRemovePlan?: () => Promise<void>;
+  onApplyPlan?: (plan: TrainingPlan) => void | Promise<void>;
+  onWorkspaceControlsChange?: (controls: ClassPlanWorkspaceHeaderControls | null) => void;
+};
+
+export type ClassPlanWorkspaceHeaderControls = {
+  status: "saving" | "saved" | "error";
+  onDownload: () => void;
+  downloadDisabled: boolean;
+  onApply?: () => void;
+  applyDisabled: boolean;
+  applyLabel: string;
 };
 
 type PreviewStatus = "idle" | "loading" | "ready" | "error";
@@ -150,14 +166,22 @@ export function ClassPlanPreviewModal({
   lessonDate,
   coachName,
   initialMode = "preview",
+  initialDirty = false,
+  presentation = "modal",
+  draftStatus = "idle",
   periodizationSource,
   onSavePlan,
+  onDraftChange,
+  onDirtyChange,
   onRemovePlan,
+  onApplyPlan,
+  onWorkspaceControlsChange,
 }: ClassPlanPreviewModalProps) {
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const { confirm } = useConfirmDialog();
   const { width } = useWindowDimensions();
+  const workspaceMode = presentation === "workspace";
   const splitLayout = Platform.OS === "web" && width >= 980;
   const phoneLayout = Platform.OS === "web" && width < 600;
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle");
@@ -178,6 +202,10 @@ export function ClassPlanPreviewModal({
   const [workingPlan, setWorkingPlan] = useState(plan);
   const [isDirty, setIsDirty] = useState(false);
   const [pdfStatusLabel, setPdfStatusLabel] = useState("PDF sincronizado");
+  const [previewZoom, setPreviewZoom] = useState(100);
+  const [previewPage, setPreviewPage] = useState(1);
+  const [previewPageCount, setPreviewPageCount] = useState(1);
+  const [previewRevision, setPreviewRevision] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
   const [menuLayout, setMenuLayout] = useState<{
     x: number;
@@ -189,6 +217,29 @@ export function ClassPlanPreviewModal({
   const menuAnimation = useRef(new Animated.Value(1)).current;
   const workingPlanRef = useRef(plan);
   const undoStackRef = useRef<PlanUndoEntry[]>([]);
+  const directEditSnapshotCapturedRef = useRef(false);
+  const workspaceRootRef = useRef<View | null>(null);
+
+  useEffect(() => {
+    if (!workspaceMode) return;
+    const responsiveZoom = width < 600 ? 70 : width < 980 ? 80 : 100;
+    Promise.resolve().then(() => setPreviewZoom(responsiveZoom));
+  }, [width, workspaceMode]);
+
+  const keepWorkspaceAtTop = useCallback(() => {
+    if (!workspaceMode || Platform.OS !== "web" || typeof window === "undefined") return;
+    const resetScroll = () => {
+      let node = workspaceRootRef.current as unknown as HTMLElement | null;
+      while (node) {
+        if (node.scrollTop > 0) node.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        node = node.parentElement;
+      }
+    };
+    window.requestAnimationFrame(() => {
+      resetScroll();
+      window.requestAnimationFrame(resetScroll);
+    });
+  }, [workspaceMode]);
 
   const cardStyle = useModalCardStyle({
     maxHeight: "100%",
@@ -209,8 +260,9 @@ export function ClassPlanPreviewModal({
     });
     workingPlanRef.current = plan;
     undoStackRef.current = [];
+    directEditSnapshotCapturedRef.current = false;
     Promise.resolve().then(() => {
-      setIsDirty(false);
+      setIsDirty(initialDirty);
     });
     Promise.resolve().then(() => {
       setIsEditing(initialMode === "edit");
@@ -231,12 +283,22 @@ export function ClassPlanPreviewModal({
       setMobileView(initialMode === "edit" ? "outline" : "pdf");
     });
     Promise.resolve().then(() => {
-      setPdfStatusLabel("PDF sincronizado");
+      setPdfStatusLabel(initialDirty ? "Rascunho restaurado" : "PDF sincronizado");
+    });
+    Promise.resolve().then(() => {
+      setPreviewPage(1);
+      setPreviewPageCount(1);
     });
     Promise.resolve().then(() => {
       setShowMenu(false);
     });
-  }, [initialMode, plan, visible]);
+    keepWorkspaceAtTop();
+  }, [initialDirty, initialMode, keepWorkspaceAtTop, plan, visible]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+    if (isDirty) onDraftChange?.(workingPlan);
+  }, [isDirty, onDirtyChange, onDraftChange, workingPlan]);
 
   const pdfData = useMemo(
     () => buildClassPlanPdfData({ classGroup, plan: pdfPlan, lessonDate, coachName }),
@@ -335,14 +397,14 @@ export function ClassPlanPreviewModal({
       blockKey: TrainingPlanBlockKey,
       update: (draft: ClassPlanBlockDraft) => ClassPlanBlockDraft
     ) => {
-      setWorkingPlan((current) => {
-        const draft = buildClassPlanBlockDraft(current, blockKey);
-        const nextPlan = updateClassTrainingPlanBlock(current, blockKey, update(draft));
-        workingPlanRef.current = nextPlan;
-        return nextPlan;
-      });
+      const current = workingPlanRef.current;
+      const draft = buildClassPlanBlockDraft(current, blockKey);
+      const nextPlan = updateClassTrainingPlanBlock(current, blockKey, update(draft));
+      workingPlanRef.current = nextPlan;
+      setWorkingPlan(nextPlan);
       setIsDirty(true);
       setPdfStatusLabel("Alterações não salvas");
+      return nextPlan;
     },
     []
   );
@@ -353,6 +415,14 @@ export function ClassPlanPreviewModal({
     },
     [selectedBlockKey, updateBlock]
   );
+
+  const updatePlanTitle = useCallback((title: string) => {
+    const nextPlan = { ...workingPlanRef.current, title: title.trim() };
+    workingPlanRef.current = nextPlan;
+    setWorkingPlan(nextPlan);
+    setIsDirty(true);
+    setPdfStatusLabel("Alterações não salvas");
+  }, []);
 
   const updatePdfContentField = useCallback(<Key extends keyof ClassPlanPdfContentDraft,>(
     field: Key,
@@ -381,6 +451,9 @@ export function ClassPlanPreviewModal({
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const handleMessage = (event: MessageEvent) => {
+      if (typeof event.data?.type === "string" && event.data.type.startsWith("GOATLETA_PDF_")) {
+        keepWorkspaceAtTop();
+      }
       if (event.data?.type === "GOATLETA_PDF_BLOCK_CLICK") {
         const { blockKey } = event.data;
         if (blockKey === "warmup" || blockKey === "main" || blockKey === "cooldown") {
@@ -399,11 +472,30 @@ export function ClassPlanPreviewModal({
         }
       } else if (event.data?.type === "GOATLETA_PDF_BACKGROUND_CLICK") {
         setIsEditing(false);
+      } else if (event.data?.type === "GOATLETA_PDF_PAGE_COUNT") {
+        const pageCount = Math.max(1, Number(event.data?.pageCount) || 1);
+        setPreviewPageCount(pageCount);
+        setPreviewPage((current) => Math.min(current, pageCount));
+      } else if (event.data?.type === "GOATLETA_PDF_PAGE_CHANGE") {
+        const pageCount = Math.max(1, Number(event.data?.pageCount) || 1);
+        const currentPage = Math.max(1, Math.min(pageCount, Number(event.data?.currentPage) || 1));
+        setPreviewPageCount(pageCount);
+        setPreviewPage(currentPage);
       } else if (event.data?.type === "GOATLETA_PDF_EDIT") {
         const { field, text } = event.data;
         if (!field || typeof text !== "string") return;
 
-        if (field === "generalObjective") {
+        if (!directEditSnapshotCapturedRef.current) {
+          undoStackRef.current = [
+            ...undoStackRef.current.slice(-19),
+            { plan: workingPlanRef.current, isDirty, pdfStatusLabel },
+          ];
+          directEditSnapshotCapturedRef.current = true;
+        }
+
+        if (field === "title") {
+          updatePlanTitle(text);
+        } else if (field === "generalObjective") {
           updatePdfContentField("generalObjective", text);
         } else if (field === "specificObjective") {
           updatePdfContentField("specificObjective", text);
@@ -411,6 +503,30 @@ export function ClassPlanPreviewModal({
           updatePdfContentField("situationProblem", text);
         } else if (field === "observations") {
           updatePdfContentField("observations", text);
+        } else if (field.startsWith("block-activity-")) {
+          const [, , blockKeyValue, indexValue] = field.split("-");
+          const blockKey = blockKeyValue as TrainingPlanBlockKey;
+          const activityIndex = Number(indexValue);
+          if (!CLASS_PLAN_BLOCK_KEYS.includes(blockKey) || !Number.isInteger(activityIndex)) return;
+          setSelectedBlockKey(blockKey);
+          updateBlock(blockKey, (draft) => {
+            const activities = [...draft.activities];
+            const currentActivity = activities[activityIndex] ?? { name: "", description: "" };
+            activities[activityIndex] = { ...currentActivity, name: text.trim() };
+            return { ...draft, activities };
+          });
+        } else if (field.startsWith("block-description-item-")) {
+          const [, , , blockKeyValue, indexValue] = field.split("-");
+          const blockKey = blockKeyValue as TrainingPlanBlockKey;
+          const activityIndex = Number(indexValue);
+          if (!CLASS_PLAN_BLOCK_KEYS.includes(blockKey) || !Number.isInteger(activityIndex)) return;
+          setSelectedBlockKey(blockKey);
+          updateBlock(blockKey, (draft) => {
+            const activities = [...draft.activities];
+            const currentActivity = activities[activityIndex] ?? { name: "", description: "" };
+            activities[activityIndex] = { ...currentActivity, description: text.trim() };
+            return { ...draft, activities };
+          });
         } else if (field.startsWith("block-description-")) {
           const period = field.replace("block-description-", "");
           const blockKey: TrainingPlanBlockKey =
@@ -424,7 +540,9 @@ export function ClassPlanPreviewModal({
                   ...act,
                   description: parsedDescriptions[i] ?? act.description ?? "",
                 }))
-              : [{ name: "Atividade 1", description: text.trim() }];
+              : text.trim()
+                ? [{ name: "", description: text.trim() }]
+                : [];
             return { ...draft, activities };
           });
         } else if (field.startsWith("block-activities-")) {
@@ -437,7 +555,7 @@ export function ClassPlanPreviewModal({
               .split(/\r?\n/)
               .map((line) => line.replace(/^(?:\d+[\.\)]\s*|[-*]\s*)/, "").trim())
               .filter(Boolean);
-            const names = rawNames.length > 0 ? rawNames : ["Atividade 1"];
+            const names = rawNames;
             const activities: TrainingPlanActivity[] = names.map((name, i) => {
               const existing = draft.activities[i];
               return existing ? { ...existing, name } : { name, description: "" };
@@ -455,10 +573,11 @@ export function ClassPlanPreviewModal({
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [splitLayout, updateBlock, updatePdfContentField]);
+  }, [isDirty, keepWorkspaceAtTop, pdfStatusLabel, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle]);
 
-  const handleSave = useCallback(async () => {
-    if (isSaving || !isDirty) return;
+  const persistWorkingPlan = useCallback(async (): Promise<TrainingPlan | null> => {
+    if (isSaving) return null;
+    if (!isDirty) return workingPlanRef.current;
     const unnamedActivity = findClassPlanUnnamedActivity(workingPlan);
     if (unnamedActivity) {
       setSelectedBlockKey(unnamedActivity.blockKey);
@@ -472,7 +591,7 @@ export function ClassPlanPreviewModal({
         message: `Dê um nome à atividade ${unnamedActivity.index + 1} de ${blockLabel}.`,
         variant: "warning",
       });
-      return;
+      return null;
     }
 
     const normalizedPlan = normalizeClassTrainingPlan(workingPlan);
@@ -481,7 +600,7 @@ export function ClassPlanPreviewModal({
         message: "Mantenha pelo menos uma atividade na parte principal.",
         variant: "warning",
       });
-      return;
+      return null;
     }
     setIsSaving(true);
     try {
@@ -490,15 +609,18 @@ export function ClassPlanPreviewModal({
       workingPlanRef.current = savedPlan;
       setPdfPlan(savedPlan);
       undoStackRef.current = [];
+      directEditSnapshotCapturedRef.current = false;
       setIsDirty(false);
       setPdfStatusLabel("PDF atualizado agora");
       showSaveToast({ message: "Plano salvo e PDF atualizado.", variant: "success" });
+      return savedPlan;
     } catch (error) {
       showSaveToast({
         error,
         message: "Não foi possível salvar o plano.",
         variant: "error",
       });
+      return null;
     } finally {
       setIsSaving(false);
     }
@@ -511,10 +633,77 @@ export function ClassPlanPreviewModal({
     workingPlan,
   ]);
 
+  const handleSave = useCallback(() => {
+    void persistWorkingPlan();
+  }, [persistWorkingPlan]);
+
+  const handleApplyFromWorkspace = useCallback(async () => {
+    if (!onApplyPlan || isSaving) return;
+    const planToApply = isDirty ? await persistWorkingPlan() : workingPlanRef.current;
+    if (planToApply) await onApplyPlan(planToApply);
+  }, [isDirty, isSaving, onApplyPlan, persistWorkingPlan]);
+
+  const handleWorkspaceUndo = useCallback(() => {
+    const previous = undoStackRef.current.pop();
+    if (!previous) return;
+    workingPlanRef.current = previous.plan;
+    setWorkingPlan(previous.plan);
+    setPdfPlan(previous.plan);
+    setPreviewRevision((current) => current + 1);
+    setIsDirty(previous.isDirty);
+    setPdfStatusLabel(previous.pdfStatusLabel);
+    directEditSnapshotCapturedRef.current = false;
+  }, []);
+
+  const handleWorkspaceAddActivity = useCallback(() => {
+    undoStackRef.current = [
+      ...undoStackRef.current.slice(-19),
+      { plan: workingPlanRef.current, isDirty, pdfStatusLabel },
+    ];
+    const nextPlan = updateBlock(selectedBlockKey, appendClassPlanActivity);
+    setPdfPlan(nextPlan);
+  }, [isDirty, pdfStatusLabel, selectedBlockKey, updateBlock]);
+
+  useEffect(() => {
+    if (!workspaceMode || !onWorkspaceControlsChange) return undefined;
+    onWorkspaceControlsChange({
+      status:
+        draftStatus === "error"
+          ? "error"
+          : draftStatus === "saving"
+            ? "saving"
+            : draftStatus === "saved" || draftStatus === "restored"
+              ? "saved"
+              : isDirty
+                ? "saving"
+                : "saved",
+      onDownload: () => void handleDownload(),
+      downloadDisabled: isDownloading || previewStatus === "loading",
+      onApply: onApplyPlan ? () => void handleApplyFromWorkspace() : undefined,
+      applyDisabled: isSaving,
+      applyLabel: workingPlan.classId ? "Aplicar à aula" : "Adicionar à turma",
+    });
+    return () => onWorkspaceControlsChange(null);
+  }, [
+    draftStatus,
+    handleApplyFromWorkspace,
+    handleDownload,
+    isDirty,
+    isDownloading,
+    isSaving,
+    onApplyPlan,
+    onWorkspaceControlsChange,
+    previewStatus,
+    workspaceMode,
+    workingPlan.classId,
+  ]);
+
   const handleCancelEditing = useCallback(() => {
     setWorkingPlan(pdfPlan);
     workingPlanRef.current = pdfPlan;
     undoStackRef.current = [];
+    directEditSnapshotCapturedRef.current = false;
+    setPreviewRevision((current) => current + 1);
     setIsDirty(false);
     setIsEditing(false);
     setIsEditorExpanded(false);
@@ -601,6 +790,7 @@ export function ClassPlanPreviewModal({
   }, [showSaveToast, visible]);
 
   const handleRemove = useCallback(() => {
+    if (!onRemovePlan) return;
     setShowMenu(false);
     void confirm({
       title: "Remover plano desta aula?",
@@ -682,7 +872,14 @@ export function ClassPlanPreviewModal({
   const preview = (
     <View style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}>
       {previewStatus === "ready" && pdfUrl ? (
-        <PdfPreviewFrame url={pdfUrl} html={previewHtml} title={`PDF do plano ${pdfPlan.title}`} editable={true} />
+        <PdfPreviewFrame
+          key={`plan-preview-${previewRevision}`}
+          url={pdfUrl}
+          html={previewHtml}
+          title={`PDF do plano ${pdfPlan.title}`}
+          editable={true}
+          zoom={workspaceMode ? previewZoom : 100}
+        />
       ) : previewStatus === "error" ? (
         <View style={styles.previewState} accessibilityLiveRegion="polite">
           <GoAtletaIcon name="document" size={30} color={colors.muted} />
@@ -1131,6 +1328,72 @@ export function ClassPlanPreviewModal({
     </View>
   );
 
+  if (workspaceMode) {
+    if (!visible) return null;
+
+    return (
+      <View ref={workspaceRootRef} style={[styles.workspaceRoot, { backgroundColor: colors.backgroundSubtle, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.workspaceFloatingControls,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+            <Pressable
+              onPress={handleWorkspaceUndo}
+              disabled={!undoStackRef.current.length}
+              accessibilityRole="button"
+              accessibilityLabel="Desfazer alteração"
+              style={({ pressed }) => [
+                styles.workspaceIconButton,
+                {
+                  borderColor: colors.border,
+                  opacity: !undoStackRef.current.length ? 0.4 : pressed ? 0.68 : 1,
+                },
+              ]}
+            >
+              <GoAtletaIcon name="restore" size={17} color={colors.text} />
+            </Pressable>
+            <View style={[styles.workspaceZoomControl, { borderColor: colors.border }]}>
+              <Pressable
+                onPress={() => setPreviewZoom((current) => Math.max(70, current - 10))}
+                accessibilityRole="button"
+                accessibilityLabel="Reduzir zoom"
+                style={styles.workspaceZoomButton}
+              >
+                <GoAtletaIcon name="remove" size={16} color={colors.text} />
+              </Pressable>
+              <Text style={[styles.workspaceZoomLabel, { color: colors.text }]}>{previewZoom}%</Text>
+              <Pressable
+                onPress={() => setPreviewZoom((current) => Math.min(140, current + 10))}
+                accessibilityRole="button"
+                accessibilityLabel="Aumentar zoom"
+                style={styles.workspaceZoomButton}
+              >
+                <GoAtletaIcon name="add" size={16} color={colors.text} />
+              </Pressable>
+            </View>
+            <View style={[styles.workspacePageChip, { borderColor: colors.border }]}>
+              <Text style={[styles.workspacePageChipLabel, { color: colors.muted }]}>{previewPage} / {previewPageCount}</Text>
+            </View>
+            <Pressable
+              onPress={() => setPreviewZoom(100)}
+              accessibilityRole="button"
+              accessibilityLabel="Ajustar documento à largura"
+              style={({ pressed }) => [
+                styles.workspaceFitButton,
+                { opacity: pressed ? 0.68 : 1 },
+              ]}
+            >
+              <GoAtletaIcon name="expand" size={16} color={colors.text} />
+            </Pressable>
+        </View>
+
+        <View style={styles.workspacePreview}>{preview}</View>
+      </View>
+    );
+  }
+
   return (
     <ModalSheet
       visible={visible}
@@ -1312,6 +1575,115 @@ export function ClassPlanPreviewModal({
 }
 
 const styles = StyleSheet.create({
+  workspaceRoot: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderRadius: 14,
+    position: "relative",
+  },
+  workspaceFloatingControls: {
+    position: "absolute",
+    left: 14,
+    top: 14,
+    zIndex: 20,
+    minHeight: 42,
+    padding: 4,
+    borderWidth: 1,
+    borderRadius: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    boxShadow: "0 8px 20px rgba(10, 19, 34, 0.22)",
+  },
+  workspaceIconButton: {
+    width: 38,
+    height: 38,
+    borderWidth: 1,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workspaceZoomControl: {
+    height: 38,
+    borderWidth: 1,
+    borderRadius: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  workspaceZoomButton: {
+    width: 34,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workspaceZoomLabel: {
+    minWidth: 44,
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  workspacePageChip: {
+    minWidth: 54,
+    height: 38,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workspacePageChipLabel: { fontSize: 12, fontWeight: "800" },
+  workspaceFitButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workspaceContextBar: {
+    minHeight: 46,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  workspaceContextCopy: {
+    minWidth: 0,
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  workspaceContextTitle: { fontSize: 13, fontWeight: "900" },
+  workspaceContextMeta: { fontSize: 11 },
+  workspaceDuration: {
+    minHeight: 32,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  workspaceDurationInput: {
+    width: 34,
+    minHeight: 28,
+    paddingVertical: 3,
+    paddingHorizontal: 2,
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "800",
+    outlineStyle: "none",
+  } as any,
+  workspaceDurationSuffix: { fontSize: 11, fontWeight: "700" },
+  workspacePreview: { flex: 1, minHeight: 0, paddingTop: 68 },
   modalCard: { overflow: "hidden", paddingBottom: 0, marginBottom: 0, gap: 0 },
   modalCardDesktop: {
     width: "94%",

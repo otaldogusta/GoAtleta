@@ -133,6 +133,8 @@ export const GOATLETA_ICON_NAMES = {
   externalProvider: "globe-outline",
   ellipsisVertical: "ellipsis-vertical",
   add: "add",
+  remove: "remove",
+  expand: "expand-outline",
   chevronBack: "chevron-back-outline",
   chevronForward: "chevron-forward-outline",
   chevronRight: "chevron-forward",

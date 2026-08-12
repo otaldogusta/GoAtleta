@@ -11,6 +11,7 @@ import {
     useState
 } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Animated,
     FlatList,
@@ -24,7 +25,6 @@ import {
     View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
 import { Pressable } from "../../src/ui/Pressable";
@@ -57,6 +57,7 @@ import {
     upsertTrainingSession,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useAuth } from "../../src/auth/auth";
 import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
 import { notifyTrainingSaved } from "../../src/notifications";
 import { notificationScopeForEffectiveProfile } from "../../src/notifications/inbox-scope";
@@ -67,11 +68,22 @@ import { TrainingFabMenu } from "../../src/screens/training/components/TrainingF
 import { PlanningBlockActivityCards } from "../../src/screens/training/components/PlanningBlockActivityCards";
 import { PlanningLibraryBridgeSheet } from "../../src/screens/training/components/PlanningLibraryBridgeSheet";
 import {
+  TrainingPlanningWorkspaceLibrary,
+  type TrainingPlanningWorkspaceTemplate,
+} from "../../src/screens/training/components/TrainingPlanningWorkspaceLibrary";
+import { TrainingPlanPdfImportModal } from "../../src/screens/training/components/TrainingPlanPdfImportModal";
+import {
+  ClassPlanPreviewModal,
+  type ClassPlanWorkspaceHeaderControls,
+} from "../../src/screens/classes/components/ClassPlanPreviewModal";
+import { normalizeClassTrainingPlan } from "../../src/screens/classes/application/edit-class-training-plan";
+import {
     addPlanningActivityToBlock,
     buildPedagogyBlocksFromPlanningForm,
     buildPlanningActivitiesFromLegacyLines,
     buildTrainingPlanActivityFromCatalogItem,
     buildTrainingPlanActivityFromExerciseLink,
+    createPlanningWorkspaceDraft,
     createEmptyPlanningBlockActivities,
     hydratePlanningActivitiesFromPlan,
     planningBlockKeys,
@@ -80,8 +92,15 @@ import {
     type PlanningBlockActivities,
 } from "../../src/screens/training/application/planning-library-bridge";
 import { formatTrainingPlanDisplayText } from "../../src/screens/training/application/training-plan-display-text";
+import {
+  buildTrainingPlanWorkspaceDraftKey,
+  loadTrainingPlanWorkspaceLibrary,
+  removeTrainingPlanWorkspaceLibraryItem,
+  upsertTrainingPlanWorkspaceLibrary,
+} from "../../src/screens/training/application/training-plan-workspace-draft";
 import { useTemplateEditorForm } from "../../src/screens/training/hooks/useTemplateEditorForm";
 import { useTrainingPlanForm } from "../../src/screens/training/hooks/useTrainingPlanForm";
+import { useTrainingPlanWorkspaceDraft } from "../../src/screens/training/hooks/useTrainingPlanWorkspaceDraft";
 import type { ActivityCatalogListItem } from "../../src/screens/library/activity-catalog-view-model";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { animateLayout } from "../../src/ui/animate-layout";
@@ -100,9 +119,11 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
+import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 import {  shadow } from "../../src/theme/tokens";
 
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
+import { TrainingSpreadsheetImportModal } from "./import";
 
 const PLANNING_TABS = [
   { id: "formulario" as const, label: "Planejar" },
@@ -377,6 +398,8 @@ export default function TrainingList() {
   const responsiveLayout = useResponsiveLayout("dashboard");
   const router = useRouter();
   const effectiveProfile = useEffectiveProfile();
+  const { session } = useAuth();
+  const activeOrganization = useOptionalOrganization()?.activeOrganization ?? null;
   const notificationInboxScope = notificationScopeForEffectiveProfile(effectiveProfile);
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
@@ -396,6 +419,8 @@ export default function TrainingList() {
     typeof params.targetDate === "string" ? params.targetDate : "";
   const initialTabRaw =
     typeof params.tab === "string" ? params.tab : "";
+  const importMode =
+    typeof params.import === "string" ? params.import : "";
   const openForm =
     typeof params.openForm === "string" ? params.openForm === "1" : false;
   const aiDraftRaw =
@@ -468,6 +493,81 @@ export default function TrainingList() {
     isVisible: showTemplatesContent,
   } = useCollapsibleAnimation(showTemplates);
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
+  const [showPlanningPdfImport, setShowPlanningPdfImport] = useState(false);
+  const [showSpreadsheetImport, setShowSpreadsheetImport] = useState(false);
+  const workspaceDraftKey = useMemo(
+    () =>
+      buildTrainingPlanWorkspaceDraftKey({
+        userId: session?.user?.id,
+        organizationId: activeOrganization?.id,
+      }),
+    [activeOrganization?.id, session?.user?.id]
+  );
+  const {
+    restoredDraft: restoredWorkspaceDraft,
+    status: workspaceDraftStatus,
+    isHydrated: workspaceDraftHydrated,
+    queueDraft: queueWorkspaceDraft,
+    flushDraft: flushWorkspaceDraft,
+    clearDraft: clearWorkspaceDraft,
+    consumeRestoredDraft,
+  } = useTrainingPlanWorkspaceDraft(workspaceDraftKey);
+  const [workspaceHasUnsavedChanges, setWorkspaceHasUnsavedChanges] = useState(false);
+  const [workspaceHeaderControls, setWorkspaceHeaderControls] =
+    useState<ClassPlanWorkspaceHeaderControls | null>(null);
+  const [workspaceDraftRestored, setWorkspaceDraftRestored] = useState(false);
+  const [workspaceDraftLessonDate, setWorkspaceDraftLessonDate] = useState("");
+  const [workspaceLibraryCollapsed, setWorkspaceLibraryCollapsed] = usePersistedState<boolean>(
+    "training_workspace_library_collapsed_v1",
+    false
+  );
+  const screenRootRef = useRef<View>(null);
+  useEffect(() => {
+    if (responsiveLayout.canPersistExpandedSidebar) return;
+    Promise.resolve().then(() => setWorkspaceLibraryCollapsed(true));
+  }, [responsiveLayout.canPersistExpandedSidebar, setWorkspaceLibraryCollapsed]);
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
+      let node = screenRootRef.current as unknown as HTMLElement | null;
+      while (node) {
+        if (node.scrollTop > 0) node.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        node = node.parentElement;
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [items.length, selectedPlan?.id]);
+  useEffect(() => {
+    if (!restoredWorkspaceDraft) return;
+    const draftClassId = restoredWorkspaceDraft.plan.classId;
+    const draftClass = draftClassId ? classes.find((item) => item.id === draftClassId) : null;
+    if (draftClassId && !draftClass) {
+      consumeRestoredDraft();
+      void clearWorkspaceDraft();
+      return;
+    }
+    setSelectedPlan(restoredWorkspaceDraft.plan);
+    setClassId(restoredWorkspaceDraft.plan.classId);
+    setWorkspaceDraftLessonDate(restoredWorkspaceDraft.lessonDate);
+    setWorkspaceDraftRestored(true);
+    setWorkspaceHasUnsavedChanges(true);
+    consumeRestoredDraft();
+  }, [classes, clearWorkspaceDraft, consumeRestoredDraft, restoredWorkspaceDraft]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || !workspaceHasUnsavedChanges) {
+      return undefined;
+    }
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      void flushWorkspaceDraft();
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [flushWorkspaceDraft, workspaceHasUnsavedChanges]);
   const [showSavedPlans, setShowSavedPlans] = usePersistedState<boolean>(
     "training_show_saved_plans_v1",
     true
@@ -811,8 +911,8 @@ export default function TrainingList() {
     const defaultClass = classes.find((item) => item.id === applyPlan.classId);
     const targetClass = classes.find((item) => item.id === targetClassId);
     const resolvedClass = targetClass ?? defaultClass;
-    const resolvedClassId = resolvedClass?.id ?? applyPlan.classId;
-    const resolvedUnit = unitLabel(resolvedClass?.unit ?? "");
+    const resolvedClassId = resolvedClass?.id ?? "";
+    const resolvedUnit = resolvedClass ? unitLabel(resolvedClass.unit) : ALL_UNITS_VALUE;
     const resolvedDate = targetDate || applyPlan.applyDate || "";
     const isFreshPlan =
       lastCreatedPlanId && applyPlan.id === lastCreatedPlanId;
@@ -1081,18 +1181,19 @@ export default function TrainingList() {
     let alive = true;
     (async () => {
       try {
-        const [classList, plans] = await measureAsync(
+        const [classList, plans, localPlans] = await measureAsync(
           "screen.training.load.initial",
           () =>
             Promise.all([
               getClasses(),
               getTrainingPlans(),
+              loadTrainingPlanWorkspaceLibrary(workspaceDraftKey),
             ]),
           { hasSelectedClass: classId ? 1 : 0 }
         );
         if (!alive) return;
         setClasses(classList);
-        setItems(plans);
+        setItems([...localPlans, ...plans.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
         void measureAsync(
           "screen.training.load.templates",
           async () => {
@@ -1122,7 +1223,37 @@ export default function TrainingList() {
     return () => {
       alive = false;
     };
-  }, [classId]);
+  }, [classId, workspaceDraftKey]);
+
+  useEffect(() => {
+    if (
+      Platform.OS !== "web" ||
+      !workspaceDraftHydrated ||
+      restoredWorkspaceDraft ||
+      selectedPlan ||
+      !classes.length
+    ) {
+      return;
+    }
+    const routePlan = items.find(
+      (plan) =>
+        (!targetClassId || plan.classId === targetClassId) &&
+        (!targetDate || plan.applyDate === targetDate)
+    );
+    const initialPlan = routePlan ?? items[0] ?? createPlanningWorkspaceDraft();
+    Promise.resolve().then(() => {
+      setSelectedPlan(initialPlan);
+      setClassId(initialPlan.classId);
+    });
+  }, [
+    classes,
+    items,
+    restoredWorkspaceDraft,
+    selectedPlan,
+    targetClassId,
+    targetDate,
+    workspaceDraftHydrated,
+  ]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
@@ -1890,8 +2021,11 @@ export default function TrainingList() {
   ]);
 
   const reload = async () => {
-    const data = await getTrainingPlans();
-    setItems(data);
+    const [data, localPlans] = await Promise.all([
+      getTrainingPlans(),
+      loadTrainingPlanWorkspaceLibrary(workspaceDraftKey),
+    ]);
+    setItems([...localPlans, ...data.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
   };
 
   const planningBlockText = useMemo(
@@ -2542,6 +2676,7 @@ export default function TrainingList() {
 
   const handleConfirmApply = async () => {
     if (!applyPlan || !applyClassId) return;
+    const wasUnassignedDraft = !applyPlan.classId;
     if (!applyDays.length) {
       Alert.alert("Selecione os dias", "Escolha pelo menos um dia da semana.");
       return;
@@ -2593,9 +2728,25 @@ export default function TrainingList() {
       status: "final",
       finalizedAt: nowIso,
       inputHash: applyPlan.inputHash,
+      pedagogy: applyPlan.pedagogy,
     });
     await measure("applyTrainingPlan", () => saveTrainingPlan(updated));
     await createCalendarEvent(updated);
+    if (wasUnassignedDraft) {
+      await Promise.all([
+        clearWorkspaceDraft(),
+        removeTrainingPlanWorkspaceLibraryItem(workspaceDraftKey, applyPlan.id),
+      ]);
+    }
+    setSelectedPlan(updated);
+    setClassId(updated.classId);
+    setWorkspaceHasUnsavedChanges(false);
+    setWorkspaceDraftRestored(false);
+    setWorkspaceDraftLessonDate(updated.applyDate ?? "");
+    setItems((current) => [
+      updated,
+      ...current.filter((item) => item.id !== applyPlan.id && item.id !== updated.id),
+    ]);
     await reload();
     closeApplyModal();
     logAction("Aplicar planejamento", {
@@ -3165,7 +3316,222 @@ export default function TrainingList() {
 
   const handleViewPlan = useCallback((plan: TrainingPlan) => {
     setSelectedPlan(plan);
+    setClassId(plan.classId);
+    setWorkspaceDraftRestored(false);
+    setWorkspaceDraftLessonDate("");
+    setWorkspaceHasUnsavedChanges(false);
   }, []);
+
+  const confirmWorkspaceReplacement = useCallback(
+    async (action: () => void) => {
+      if (!workspaceHasUnsavedChanges) {
+        action();
+        return;
+      }
+      await flushWorkspaceDraft();
+      const accepted = await confirmDialog({
+        title: "Trocar de plano?",
+        message: "O rascunho atual está salvo neste dispositivo. Ao trocar, ele será descartado.",
+        confirmLabel: "Descartar e trocar",
+        cancelLabel: "Continuar editando",
+        tone: "danger",
+        onConfirm: () => {},
+      });
+      if (!accepted) return;
+      await clearWorkspaceDraft();
+      setWorkspaceHasUnsavedChanges(false);
+      setWorkspaceDraftRestored(false);
+      setWorkspaceDraftLessonDate("");
+      action();
+    },
+    [clearWorkspaceDraft, confirmDialog, flushWorkspaceDraft, workspaceHasUnsavedChanges]
+  );
+
+  const handleWorkspaceBack = useCallback(async () => {
+    if (workspaceHasUnsavedChanges) {
+      await flushWorkspaceDraft();
+      const accepted = await confirmDialog({
+        title: "Sair do planejamento?",
+        message: "Seu rascunho está salvo neste dispositivo e será restaurado quando você voltar.",
+        confirmLabel: "Sair",
+        cancelLabel: "Continuar editando",
+        onConfirm: () => {},
+      });
+      if (!accepted) return;
+    }
+    navigateBackOrReplace({ router, fallback: "/prof/home" });
+  }, [confirmDialog, flushWorkspaceDraft, router, workspaceHasUnsavedChanges]);
+
+  const handleCreateWorkspacePlan = useCallback(() => {
+    const draft = createPlanningWorkspaceDraft();
+    setSelectedPlan(draft);
+    setClassId("");
+    setWorkspaceDraftRestored(false);
+    setWorkspaceDraftLessonDate("");
+    setWorkspaceHasUnsavedChanges(false);
+  }, []);
+
+  const handleOpenPlanningPdfImport = () => {
+    if (!activeOrganization?.id) {
+      showSaveToast({ message: "Selecione um workspace antes de importar o PDF.", variant: "warning" });
+      return;
+    }
+    setShowPlanningPdfImport(true);
+  };
+
+  const handleUseWorkspaceTemplate = useCallback(
+    (template: TrainingPlanningWorkspaceTemplate) => {
+      const draft = createPlanningWorkspaceDraft(null, template);
+      setSelectedPlan(draft);
+      setClassId("");
+      setWorkspaceDraftRestored(false);
+      setWorkspaceDraftLessonDate("");
+      setWorkspaceHasUnsavedChanges(false);
+      showSaveToast({ message: "Modelo aberto no documento.", variant: "success" });
+    },
+    [showSaveToast]
+  );
+
+  const handleSaveWorkspacePlan = useCallback(
+    async (draft: TrainingPlan) => {
+      const normalized = normalizeClassTrainingPlan(draft);
+      if (!normalized.classId) {
+        const draftLessonDate = workspaceDraftLessonDate || normalized.applyDate || targetDate || formatShortDateValue(new Date());
+        queueWorkspaceDraft(normalized, draftLessonDate);
+        await Promise.all([
+          flushWorkspaceDraft(),
+          upsertTrainingPlanWorkspaceLibrary(workspaceDraftKey, [normalized]),
+        ]);
+        setSelectedPlan(normalized);
+        setWorkspaceHasUnsavedChanges(false);
+        setWorkspaceDraftRestored(false);
+        setItems((current) => [normalized, ...current.filter((item) => item.id !== normalized.id)]);
+        showSaveToast({ message: "Rascunho salvo neste dispositivo.", variant: "success" });
+        return normalized;
+      }
+      const latestPlan = await getLatestTrainingPlanByClass(normalized.classId);
+      const nowIso = new Date().toISOString();
+      const isNewDraft = normalized.id.startsWith("draft_");
+      const nextPlan = createTrainingPlanVersion({
+        classId: normalized.classId,
+        version: Math.max(normalized.version ?? 0, latestPlan?.version ?? 0) + 1,
+        origin: isNewDraft ? "manual" : normalized.origin === "auto" ? "edited_auto" : "manual",
+        draft: {
+          title: normalized.title,
+          tags: normalized.tags,
+          warmup: normalized.warmup,
+          main: normalized.main,
+          cooldown: normalized.cooldown,
+          warmupTime: normalized.warmupTime,
+          mainTime: normalized.mainTime,
+          cooldownTime: normalized.cooldownTime,
+        },
+        applyDays: normalized.applyDays ?? [],
+        applyDate: normalized.applyDate ?? "",
+        inputHash: normalized.inputHash,
+        nowIso,
+        idPrefix: isNewDraft ? "plan" : "plan_edit",
+        status: "final",
+        generatedAt: normalized.generatedAt,
+        finalizedAt: nowIso,
+        parentPlanId: isNewDraft ? undefined : normalized.parentPlanId ?? normalized.id,
+        previousVersionId: isNewDraft ? undefined : normalized.id,
+        pedagogy: normalized.pedagogy,
+      });
+      await measure("saveTrainingPlanWorkspace", () => saveTrainingPlan(nextPlan));
+      await clearWorkspaceDraft();
+      setSelectedPlan(nextPlan);
+      setWorkspaceHasUnsavedChanges(false);
+      setWorkspaceDraftRestored(false);
+      setWorkspaceDraftLessonDate("");
+      setItems((current) => [nextPlan, ...current.filter((item) => item.id !== nextPlan.id)]);
+      void notifyTrainingSaved({ inboxScope: notificationInboxScope });
+      await reload();
+      return nextPlan;
+    },
+    [clearWorkspaceDraft, flushWorkspaceDraft, notificationInboxScope, queueWorkspaceDraft, showSaveToast, targetDate, workspaceDraftKey, workspaceDraftLessonDate]
+  );
+
+  const handleImportWorkspacePlans = useCallback(
+    async (drafts: TrainingPlan[]) => {
+      if (!drafts.length) return;
+      const plans = drafts.map((draft) => ({
+        ...normalizeClassTrainingPlan(draft),
+        classId: "",
+      }));
+      await upsertTrainingPlanWorkspaceLibrary(workspaceDraftKey, plans);
+      const firstPlan = plans[0];
+      setSelectedPlan(firstPlan);
+      setClassId("");
+      setWorkspaceDraftRestored(false);
+      setWorkspaceDraftLessonDate(firstPlan.applyDate ?? "");
+      setWorkspaceHasUnsavedChanges(true);
+      setItems((current) => [
+        ...plans,
+        ...current.filter((item) => !plans.some((plan) => plan.id === item.id)),
+      ]);
+      queueWorkspaceDraft(firstPlan, firstPlan.applyDate ?? "");
+      showSaveToast({
+        message: plans.length === 1
+          ? "PDF aberto como rascunho editável."
+          : `${plans.length} páginas abertas como rascunhos.`,
+        variant: "success",
+      });
+    },
+    [queueWorkspaceDraft, showSaveToast, workspaceDraftKey]
+  );
+
+  const unassignedWorkspaceClass = useMemo<ClassGroup>(() => {
+    const base = selectedClass ?? classes[0];
+    return {
+      ...(base ?? {
+        organizationId: activeOrganization?.id ?? "",
+        unit: "",
+        unitId: "",
+        trainingSpace: "",
+        colorKey: "green",
+        modality: "voleibol",
+        ageBand: "",
+        gender: "misto",
+        startTime: "",
+        endTime: "",
+        durationMinutes: 60,
+        daysOfWeek: [],
+        daysPerWeek: 0,
+        goal: "",
+        equipment: "quadra",
+        level: 1,
+        mvLevel: "",
+        cycleStartDate: "",
+        cycleLengthWeeks: 1,
+        acwrLow: 0.8,
+        acwrHigh: 1.3,
+        createdAt: new Date(0).toISOString(),
+      }),
+      id: "__planning_draft__",
+      name: "",
+      organizationId: activeOrganization?.id ?? base?.organizationId ?? "",
+      unit: "",
+      unitId: "",
+      startTime: "",
+      endTime: "",
+      daysOfWeek: [],
+      daysPerWeek: 0,
+    };
+  }, [activeOrganization?.id, classes, selectedClass]);
+  const workspaceClass = selectedPlan
+    ? selectedPlan.classId
+      ? classById.get(selectedPlan.classId) ?? selectedClass ?? classes[0]
+      : unassignedWorkspaceClass
+    : selectedClass ?? classes[0];
+  const workspaceLessonDate =
+    workspaceDraftLessonDate || selectedPlan?.applyDate || targetDate || formatShortDateValue(new Date());
+  const handleWorkspaceDraftChange = useCallback(
+    (draft: TrainingPlan) => {
+      queueWorkspaceDraft(draft, workspaceLessonDate);
+    },
+    [queueWorkspaceDraft, workspaceLessonDate]
+  );
 
   const selectedPlanClassItem = selectedPlan
     ? classById.get(selectedPlan.classId)
@@ -3186,13 +3552,283 @@ export default function TrainingList() {
     : "";
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenBackdrop />
+    <View ref={screenRootRef} style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
+        {Platform.OS === "web" ? (
+          <>
+            <ScreenPageHeader
+              title="Planejamento"
+              onBack={() => void handleWorkspaceBack()}
+              right={
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: responsiveLayout.isMobile ? 5 : 8,
+                    flexWrap: "wrap",
+                    maxWidth: responsiveLayout.isMobile ? 178 : undefined,
+                  }}
+                >
+                  {selectedPlan && workspaceHeaderControls ? (
+                    <>
+                      <View style={{ minHeight: 40, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        {workspaceHeaderControls.status === "saving" ? (
+                          <ActivityIndicator size="small" color={colors.warningText} />
+                        ) : (
+                          <GoAtletaIcon
+                            name={workspaceHeaderControls.status === "error" ? "warningCircle" : "success"}
+                            size={17}
+                            color={workspaceHeaderControls.status === "error" ? colors.dangerText : colors.successText}
+                          />
+                        )}
+                        {!responsiveLayout.isMobile ? (
+                          <Text
+                            style={{
+                              color:
+                                workspaceHeaderControls.status === "error"
+                                  ? colors.dangerText
+                                  : workspaceHeaderControls.status === "saving"
+                                    ? colors.warningText
+                                    : colors.text,
+                              fontSize: 12,
+                              fontWeight: "700",
+                            }}
+                          >
+                            {workspaceHeaderControls.status === "error"
+                              ? "Falha ao salvar"
+                              : workspaceHeaderControls.status === "saving"
+                                ? "Salvando"
+                                : "Salvo"}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Pressable
+                        onPress={workspaceHeaderControls.onDownload}
+                        disabled={workspaceHeaderControls.downloadDisabled}
+                        accessibilityRole="button"
+                        accessibilityLabel="Baixar PDF"
+                        style={({ pressed }) => ({
+                          width: 40,
+                          height: 40,
+                          borderRadius: 9,
+                          backgroundColor: colors.secondaryBg,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          opacity: workspaceHeaderControls.downloadDisabled ? 0.46 : pressed ? 0.72 : 1,
+                        })}
+                      >
+                        <GoAtletaIcon name="download" size={18} color={colors.text} />
+                      </Pressable>
+                      {workspaceHeaderControls.onApply ? (
+                        <Pressable
+                          onPress={workspaceHeaderControls.onApply}
+                          disabled={workspaceHeaderControls.applyDisabled}
+                          accessibilityRole="button"
+                          accessibilityLabel={workspaceHeaderControls.applyLabel}
+                          style={({ pressed }) => ({
+                            minHeight: 40,
+                            paddingHorizontal: 13,
+                            borderWidth: 1,
+                            borderColor: colors.primaryBg,
+                            borderRadius: 9,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 7,
+                            opacity: workspaceHeaderControls.applyDisabled ? 0.46 : pressed ? 0.72 : 1,
+                          })}
+                        >
+                          <GoAtletaIcon name="success" size={17} color={colors.primaryBg} />
+                          {!responsiveLayout.isMobile ? (
+                            <Text style={{ color: colors.primaryBg, fontSize: 12, fontWeight: "900" }}>
+                              {workspaceHeaderControls.applyLabel}
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                      ) : null}
+                    </>
+                  ) : null}
+                  <Pressable
+                    onPress={() => {
+                      void confirmWorkspaceReplacement(handleCreateWorkspacePlan);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Criar novo plano"
+                    style={({ pressed }) => ({
+                      minHeight: 40,
+                      paddingHorizontal: responsiveLayout.isMobile ? 11 : 14,
+                      borderWidth: 1,
+                      borderColor: colors.primaryBg,
+                      borderRadius: 9,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      opacity: pressed ? 0.72 : 1,
+                    })}
+                  >
+                    <GoAtletaIcon name="add" size={18} color={colors.primaryBg} />
+                    {!responsiveLayout.isMobile ? (
+                      <Text style={{ color: colors.primaryBg, fontSize: 12, fontWeight: "900" }}>Novo plano</Text>
+                    ) : null}
+                  </Pressable>
+                  <Pressable
+                    onPress={handleOpenPlanningPdfImport}
+                    accessibilityRole="button"
+                    accessibilityLabel="Importar PDF"
+                    style={({ pressed }) => ({
+                      minHeight: 40,
+                      paddingHorizontal: responsiveLayout.isMobile ? 11 : 14,
+                      borderRadius: 9,
+                      backgroundColor: colors.secondaryBg,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      opacity: pressed ? 0.72 : 1,
+                    })}
+                  >
+                    <GoAtletaIcon name="document" size={17} color={colors.text} />
+                    {!responsiveLayout.isMobile ? (
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>Importar PDF</Text>
+                    ) : null}
+                  </Pressable>
+                </View>
+              }
+              contentStyle={{
+                width: "100%",
+                maxWidth: responsiveLayout.supportsDenseGrid ? 1600 : 1440,
+                alignSelf: "center",
+                paddingTop: responsiveLayout.isMobile ? 8 : 12,
+                paddingBottom: 8,
+              }}
+            />
+
+            <View
+              style={{
+                flex: 1,
+                minHeight: 0,
+                width: "100%",
+                maxWidth: responsiveLayout.supportsDenseGrid ? 1600 : 1440,
+                alignSelf: "center",
+                paddingHorizontal: responsiveLayout.isMobile ? 10 : 16,
+                paddingBottom: Math.max(insets.bottom + (responsiveLayout.usesWorkspaceShell ? 14 : 92), 14),
+                position: "relative",
+              }}
+            >
+              <View style={{ flex: 1, minHeight: 0, flexDirection: "row", gap: 10 }}>
+                <View
+                  style={[
+                    {
+                      minHeight: 0,
+                      alignSelf: "stretch",
+                      overflow: "hidden",
+                    },
+                    responsiveLayout.isMobile
+                      ? {
+                          position: "absolute",
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          zIndex: 40,
+                        }
+                      : { flexShrink: 0 },
+                  ]}
+                >
+                  <TrainingPlanningWorkspaceLibrary
+                    collapsed={workspaceLibraryCollapsed}
+                    plans={items}
+                    templates={templates}
+                    classes={classes}
+                    selectedPlanId={selectedPlan?.id}
+                    onToggleCollapsed={() => setWorkspaceLibraryCollapsed((current) => !current)}
+                    onSelectPlan={(plan) => {
+                      void confirmWorkspaceReplacement(() => {
+                        handleViewPlan(plan);
+                        if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+                      });
+                    }}
+                    onUseTemplate={(template) => {
+                      void confirmWorkspaceReplacement(() => {
+                        handleUseWorkspaceTemplate(template);
+                        if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+                      });
+                    }}
+                  />
+                </View>
+
+                <View
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 0,
+                    paddingLeft: responsiveLayout.isMobile && workspaceLibraryCollapsed ? 64 : 0,
+                  }}
+                >
+                  {selectedPlan && workspaceClass ? (
+                    <ClassPlanPreviewModal
+                      visible
+                      presentation="workspace"
+                      initialMode="edit"
+                      initialDirty={workspaceDraftRestored}
+                      draftStatus={workspaceDraftStatus}
+                      onClose={() => {}}
+                      plan={selectedPlan}
+                      classGroup={workspaceClass}
+                      lessonDate={workspaceLessonDate}
+                      onSavePlan={handleSaveWorkspacePlan}
+                      onDraftChange={handleWorkspaceDraftChange}
+                      onDirtyChange={setWorkspaceHasUnsavedChanges}
+                      onWorkspaceControlsChange={setWorkspaceHeaderControls}
+                      onApplyPlan={(plan) => {
+                        setSelectedPlan(plan);
+                        handleApplyPlan(plan);
+                      }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 10,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: 14,
+                        backgroundColor: colors.card,
+                      }}
+                    >
+                      <GoAtletaIcon name="document" size={30} color={colors.muted} />
+                      <Text style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}>Comece um plano de aula</Text>
+                      <Pressable
+                        onPress={handleCreateWorkspacePlan}
+                        style={{
+                          minHeight: 40,
+                          paddingHorizontal: 14,
+                          borderRadius: 10,
+                          backgroundColor: colors.primaryBg,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 7,
+                        }}
+                      >
+                        <GoAtletaIcon name="add" size={18} color={colors.primaryText} />
+                        <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>Novo plano</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
         <ScreenPageHeader
           title="Planejamento"
           onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
@@ -3819,9 +4455,9 @@ export default function TrainingList() {
           <Pressable
             onPress={() => setShowTrainingFabMenu((current) => !current)}
             style={{
-              ...(Platform.OS === "web"
-                ? ({ position: "fixed", right: trainingFabRight, bottom: trainingFabBottom } as any)
-                : { position: "absolute" as const, right: trainingFabRight, bottom: trainingFabBottom }),
+              position: "absolute" as const,
+              right: trainingFabRight,
+              bottom: trainingFabBottom,
               width: 56,
               height: 56,
               borderRadius: 28,
@@ -3855,12 +4491,38 @@ export default function TrainingList() {
             }}
             onImportPress={() => {
               setShowTrainingFabMenu(false);
-              router.push({ pathname: "/training/import" });
+              setShowSpreadsheetImport(true);
             }}
           />
         </>
       ) : null}
+          </>
+        )}
       </KeyboardAvoidingView>
+      {showPlanningPdfImport && activeOrganization?.id ? (
+        <TrainingPlanPdfImportModal
+          visible
+          organizationId={activeOrganization.id}
+          onClose={() => setShowPlanningPdfImport(false)}
+          onCreatePlans={handleImportWorkspacePlans}
+        />
+      ) : null}
+      {showSpreadsheetImport || importMode === "spreadsheet" ? (
+        <TrainingSpreadsheetImportModal
+          visible
+          classId={selectedPlan?.classId || targetClassId || undefined}
+          unit={workspaceClass?.unit || undefined}
+          onClose={() => {
+            setShowSpreadsheetImport(false);
+            if (importMode === "spreadsheet") {
+              router.replace({ pathname: "/training" });
+            }
+          }}
+          onImported={() => {
+            void reload();
+          }}
+        />
+      ) : null}
       {showTrainingSessionCreate ? (
         <Suspense fallback={null}>
           <TrainingSessionCreateModalContent
@@ -3955,7 +4617,7 @@ export default function TrainingList() {
           />
         </Suspense>
       </ModalSheet>
-      {selectedPlan ? (
+      {Platform.OS !== "web" && selectedPlan ? (
         <ModalSheet
           visible
           onClose={() => setSelectedPlan(null)}
@@ -4064,7 +4726,7 @@ export default function TrainingList() {
         />
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-            Aplicar planejamento
+            {applyPlan?.classId ? "Aplicar planejamento" : "Adicionar à turma"}
           </Text>
           <Pressable
             onPress={requestCloseApplyModal}
@@ -4086,6 +4748,7 @@ export default function TrainingList() {
           fallback={<SectionLoadingState />}
         >
           <TrainingApplyModalContent
+            isAssigning={!applyPlan?.classId}
             applyContainerRef={applyContainerRef}
             applyUnitTriggerRef={applyUnitTriggerRef}
             applyClassTriggerRef={applyClassTriggerRef}

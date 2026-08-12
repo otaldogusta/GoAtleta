@@ -5,6 +5,10 @@ export type MonthlyLessonPlanBlockRow = {
   activities: string;
   time: string;
   description: string;
+  items?: Array<{
+    activity: string;
+    description: string;
+  }>;
 };
 
 export type MonthlyLessonPlanItem = {
@@ -17,6 +21,7 @@ export type MonthlyLessonPlanItem = {
   situationProblem?: string;
   blocks: MonthlyLessonPlanBlockRow[];
   observations?: string;
+  preserveEmptyFields?: boolean;
 };
 
 export type MonthlyPlanPdfData = {
@@ -58,8 +63,8 @@ const specificObjectiveHtml = (value: string) =>
     })
     .join("<br/>");
 
-const multilineBlockHtml = (value: string) =>
-  (value || "-")
+const multilineBlockHtml = (value: string, emptyValue = "-") =>
+  (value || emptyValue)
     .split(/\r?\n/)
     .filter(Boolean)
     .map((line) => `<div class="block-paragraph">${esc(line)}</div>`)
@@ -75,6 +80,7 @@ const lessonCardHtmlWithProfessor = (
   options?: { editable?: boolean }
 ) => {
   const editable = Boolean(options?.editable);
+  const emptyValue = lesson.preserveEmptyFields ? "" : "-";
   const editAttr = (field: string, extra = "") =>
     editable ? ` contenteditable="true" data-field="${field}" class="pdf-editable-cell"${extra ? ` ${extra}` : ""}` : "";
 
@@ -85,19 +91,35 @@ const lessonCardHtmlWithProfessor = (
     .map((block) => {
       const blockKey = getBlockKey(block.period);
       const bKeyAttr = editable ? `data-block-key="${blockKey}"` : "";
+      const structuredItems = block.items?.filter(
+        (item) => item.activity.trim() || item.description.trim()
+      );
       return block.period === "Volta à calma"
         ? `
         <tr class="block-row block-cooldown">
           <th class="label-cell period">Volta à calma:</th>
-          <td colspan="3"${editAttr(`block-description-${block.period}`, bKeyAttr)}>${esc(block.activities || block.description || "-")}</td>
+          <td colspan="3"${editAttr(`block-description-${block.period}`, bKeyAttr)}>${esc(block.activities || block.description || emptyValue)}</td>
         </tr>
       `
+        : structuredItems?.length
+        ? structuredItems
+            .map(
+              (item, itemIndex) => `
+        <tr class="block-row block-${block.period === "Parte principal" ? "main" : "warmup"}${itemIndex > 0 ? " block-continuation" : ""}">
+          <td class="period"${bKeyAttr ? ` ${bKeyAttr}` : ""}>${itemIndex === 0 ? esc(block.period) : ""}</td>
+          <td class="activities"${editAttr(`block-activity-${blockKey}-${itemIndex}`, bKeyAttr)}>${esc(item.activity || emptyValue)}</td>
+          <td class="time"${itemIndex === 0 ? editAttr(`block-time-${block.period}`, bKeyAttr) : ""}>${itemIndex === 0 ? esc(block.time || emptyValue) : ""}</td>
+          <td class="description"${editAttr(`block-description-item-${blockKey}-${itemIndex}`, bKeyAttr)}>${esc(item.description || emptyValue)}</td>
+        </tr>
+      `
+            )
+            .join("")
         : `
         <tr class="block-row block-${block.period === "Parte principal" ? "main" : "warmup"}">
           <td class="period"${bKeyAttr ? ` ${bKeyAttr}` : ""}>${esc(block.period)}</td>
-          <td class="activities"${editAttr(`block-activities-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.activities)}</td>
-          <td class="time"${editAttr(`block-time-${block.period}`, bKeyAttr)}>${esc(block.time)}</td>
-          <td class="description"${editAttr(`block-description-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.description)}</td>
+          <td class="activities"${editAttr(`block-activities-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.activities, emptyValue)}</td>
+          <td class="time"${editAttr(`block-time-${block.period}`, bKeyAttr)}>${esc(block.time || emptyValue)}</td>
+          <td class="description"${editAttr(`block-description-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.description, emptyValue)}</td>
         </tr>
       `;
     })
@@ -125,7 +147,7 @@ const lessonCardHtmlWithProfessor = (
           </tr>
           <tr class="field-row">
             <th class="label-cell">Semana:</th>
-            <td class="value-cell" colspan="3">${esc(lesson.weekLabel)}</td>
+            <td class="value-cell"${lesson.preserveEmptyFields ? editAttr("title") : ""} colspan="3">${esc(lesson.weekLabel)}</td>
           </tr>
           <tr class="field-row">
             <th class="label-cell">Data:</th>
@@ -143,7 +165,7 @@ const lessonCardHtmlWithProfessor = (
           </tr>
           <tr class="content-row situation-row">
             <th class="label-cell">Situação-problema:</th>
-            <td class="value-cell situation-value"${editAttr("situationProblem", 'data-section="pedagogy"')} colspan="3">${esc(lesson.situationProblem || "-")}</td>
+            <td class="value-cell situation-value"${editAttr("situationProblem", 'data-section="pedagogy"')} colspan="3">${esc(lesson.situationProblem || emptyValue)}</td>
           </tr>
           <tr class="table-header-row">
             <th>Período</th>
@@ -271,12 +293,12 @@ export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?:
         .situation-value { font-style: italic; }
         .content-row td,
         .content-row th {
-          height: 10mm;
+          height: 8mm;
         }
         .specific-row td,
-        .specific-row th { height: 24mm; }
+        .specific-row th { height: 12mm; }
         .situation-row td,
-        .situation-row th { height: 9mm; }
+        .situation-row th { height: 8mm; }
         .table-header-row th {
           height: 5.5mm;
           vertical-align: middle;
@@ -297,15 +319,19 @@ export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?:
         }
         .block-paragraph:not(:last-child) { margin-bottom: 3pt; }
         .block-warmup td {
-          height: 16mm;
+          height: 12mm;
         }
         .block-cooldown th,
-        .block-cooldown td { height: 5.5mm; vertical-align: middle; }
+        .block-cooldown td { height: 7mm; vertical-align: middle; }
         .block-main td {
-          height: 36mm;
+          height: 18mm;
+        }
+        .block-continuation td {
+          height: auto;
+          min-height: 12mm;
         }
         .observations-row td {
-          height: 20mm;
+          height: 12mm;
         }
         .observations-row .label-cell {
           text-align: left;

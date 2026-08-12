@@ -56,12 +56,12 @@ const blockData = (
   plan: TrainingPlan,
   key: "warmup" | "main" | "cooldown",
   title: string,
-  durationMinutes: number
+  durationMinutes: number | undefined
 ) => {
   const block = resolveTrainingPlanBlock(plan, key);
   return {
     title,
-    durationMinutes,
+    ...(durationMinutes === undefined ? {} : { durationMinutes }),
     summary: block.summary,
     items: block.activities.map((activity) => ({
       ...activity,
@@ -79,13 +79,25 @@ export const buildClassPlanPdfData = ({
   lessonDate,
   coachName,
 }: BuildClassPlanPdfDataInput): SessionPlanPdfData => {
+  const hasAssignedClass = Boolean(plan.classId);
   const totalDuration = classGroup.durationMinutes ?? 60;
-  const warmupMinutes = parseMinutes(plan.warmupTime, Math.max(5, Math.round(totalDuration / 6)));
-  const cooldownMinutes = parseMinutes(plan.cooldownTime, Math.max(5, Math.round(totalDuration / 12)));
-  const mainMinutes = parseMinutes(
-    plan.mainTime,
-    Math.max(10, totalDuration - warmupMinutes - cooldownMinutes)
+  const preserveEmptyFields = plan.pedagogy?.preserveEmptyFields === true;
+  const warmupMinutes =
+    preserveEmptyFields && !plan.warmupTime.trim()
+      ? undefined
+      : parseMinutes(plan.warmupTime, Math.max(5, Math.round(totalDuration / 6)));
+  const cooldownMinutes =
+    preserveEmptyFields && !plan.cooldownTime.trim()
+      ? undefined
+      : parseMinutes(plan.cooldownTime, Math.max(5, Math.round(totalDuration / 12)));
+  const mainFallback = Math.max(
+    10,
+    totalDuration - (warmupMinutes ?? 0) - (cooldownMinutes ?? 0)
   );
+  const mainMinutes =
+    preserveEmptyFields && !plan.mainTime.trim()
+      ? undefined
+      : parseMinutes(plan.mainTime, mainFallback);
   const learningObjectives = plan.pedagogy?.learningObjectives;
   const periodization = plan.pedagogy?.periodization;
   const weeklyFocus =
@@ -96,13 +108,13 @@ export const buildClassPlanPdfData = ({
     "";
 
   return {
-    className: normalizeDisplayText(classGroup.name),
-    ageGroup: normalizeDisplayText(classGroup.ageBand),
-    unitLabel: normalizeDisplayText(classGroup.unit),
-    genderLabel: formatGender(classGroup.gender),
+    className: hasAssignedClass ? normalizeDisplayText(classGroup.name) : "",
+    ageGroup: hasAssignedClass ? normalizeDisplayText(classGroup.ageBand) : "",
+    unitLabel: hasAssignedClass ? normalizeDisplayText(classGroup.unit) : "",
+    genderLabel: hasAssignedClass ? formatGender(classGroup.gender) : "",
     coachName: normalizeDisplayText(coachName ?? ""),
     dateLabel: formatDateLabel(lessonDate),
-    timeLabel: formatTimeLabel(classGroup.startTime, totalDuration),
+    timeLabel: hasAssignedClass ? formatTimeLabel(classGroup.startTime, totalDuration) : "",
     weekLabel: periodization?.weekNumber ? `SEMANA ${String(periodization.weekNumber).padStart(2, "0")}` : "",
     title: normalizeDisplayText(plan.title),
     generalObjective: normalizeDisplayText(
@@ -112,7 +124,11 @@ export const buildClassPlanPdfData = ({
     weeklyFocus: normalizeDisplayText(weeklyFocus),
     pedagogicalRule: normalizeDisplayText(learningObjectives?.pedagogicalGuidelines?.[0] ?? ""),
     notes: normalizeDisplayText(plan.pedagogy?.lessonPlanObservations ?? ""),
-    totalTime: `${warmupMinutes + mainMinutes + cooldownMinutes} min`,
+    totalTime:
+      warmupMinutes === undefined && mainMinutes === undefined && cooldownMinutes === undefined
+        ? ""
+        : `${(warmupMinutes ?? 0) + (mainMinutes ?? 0) + (cooldownMinutes ?? 0)} min`,
+    preserveEmptyFields,
     blocks: [
       blockData(plan, "warmup", "Aquecimento", warmupMinutes),
       blockData(plan, "main", "Parte principal", mainMinutes),

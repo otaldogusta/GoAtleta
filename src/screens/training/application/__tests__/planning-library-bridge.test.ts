@@ -1,4 +1,4 @@
-import type { Exercise, TrainingPlan } from "../../../../core/models";
+import type { ClassGroup, Exercise, TrainingPlan } from "../../../../core/models";
 import { buildActivityCatalogListItems } from "../../../library/activity-catalog-view-model";
 import {
   addPlanningActivityToBlock,
@@ -7,6 +7,7 @@ import {
   buildTrainingPlanActivityFromCatalogItem,
   buildTrainingPlanActivityFromExerciseLink,
   createEmptyPlanningBlockActivities,
+  createPlanningWorkspaceDraft,
   hydratePlanningActivitiesFromPlan,
   removePlanningActivityFromBlock,
   syncLegacyLinesFromBlocks,
@@ -41,6 +42,50 @@ const basePlan = (): TrainingPlan => ({
 });
 
 describe("planning library bridge", () => {
+  it("creates a genuinely blank workspace draft without generated teaching content", () => {
+    const classGroup = {
+      id: "class-blank",
+      name: "Turma teste",
+      ageBand: "10-12",
+      gender: "misto",
+      unit: "Unidade teste",
+    } as ClassGroup;
+
+    const draft = createPlanningWorkspaceDraft(
+      classGroup,
+      undefined,
+      "2026-08-10T12:00:00.000Z"
+    );
+
+    expect(draft).toMatchObject({
+      classId: "class-blank",
+      title: "",
+      warmup: [],
+      main: [],
+      cooldown: [],
+      warmupTime: "",
+      mainTime: "",
+      cooldownTime: "",
+      createdAt: "2026-08-10T12:00:00.000Z",
+      origin: "manual",
+      pedagogy: {
+        sessionObjective: "",
+        sessionObjectiveSource: "manual",
+        preserveEmptyFields: true,
+        learningObjectives: {
+          general: "",
+          specific: [""],
+          pedagogicalGuidelines: [""],
+        },
+        blocks: {
+          warmup: { activities: [] },
+          main: { activities: [] },
+          cooldown: { activities: [] },
+        },
+      },
+    });
+  });
+
   it("builds catalog activities for the selected block and preserves catalog metadata", () => {
     const item = catalogItem();
     const activity = buildTrainingPlanActivityFromCatalogItem(

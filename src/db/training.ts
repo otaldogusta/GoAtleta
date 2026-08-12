@@ -290,6 +290,27 @@ export async function saveTrainingPlan(plan: TrainingPlan, options?: { organizat
   }
 }
 
+export async function saveTrainingPlans(
+  plans: TrainingPlan[],
+  options?: { organizationId?: string }
+) {
+  if (!plans.length) return;
+  const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
+  try {
+    await supabasePost(
+      "/training_plans",
+      plans.map((plan) => buildTrainingPlanVersionedPayload(plan, organizationId))
+    );
+  } catch (error) {
+    if (!isMissingVersioningColumnError(error)) throw error;
+    logVersioningSchemaFallback("insert", error);
+    await supabasePost(
+      "/training_plans",
+      plans.map((plan) => buildTrainingPlanBasePayload(plan, organizationId))
+    );
+  }
+}
+
 export async function updateTrainingPlan(plan: TrainingPlan, options?: { organizationId?: string }) {
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   const endpoint = organizationId

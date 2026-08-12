@@ -1,4 +1,5 @@
 import type {
+  ClassGroup,
   Exercise,
   TrainingPlan,
   TrainingPlanActivity,
@@ -19,6 +20,17 @@ import type { ActivityCatalogListItem } from "../../library/activity-catalog-vie
 export type PlanningBlockActivities = Record<TrainingPlanBlockKey, TrainingPlanActivity[]>;
 
 export type PlanningBlockText = Record<TrainingPlanBlockKey, string>;
+
+export type PlanningWorkspaceDraftTemplate = {
+  title: string;
+  tags: string[];
+  warmup: string[];
+  main: string[];
+  cooldown: string[];
+  warmupTime: string;
+  mainTime: string;
+  cooldownTime: string;
+};
 
 export const planningBlockKeys: TrainingPlanBlockKey[] = ["warmup", "main", "cooldown"];
 
@@ -44,6 +56,53 @@ export const createEmptyPlanningBlockActivities = (): PlanningBlockActivities =>
   main: [],
   cooldown: [],
 });
+
+export const createPlanningWorkspaceDraft = (
+  classGroup?: ClassGroup | null,
+  template?: PlanningWorkspaceDraftTemplate,
+  nowIso = new Date().toISOString()
+): TrainingPlan => {
+  const warmup = template?.warmup ?? [];
+  const main = template?.main ?? [];
+  const cooldown = template?.cooldown ?? [];
+  const toActivities = (values: string[]) =>
+    values.map((name) => ({ name, description: "" }));
+
+  return {
+    id: `draft_${Date.now()}`,
+    classId: classGroup?.id ?? "",
+    title: template?.title ?? "",
+    tags: template?.tags ?? [],
+    warmup,
+    main,
+    cooldown,
+    warmupTime: template?.warmupTime ?? "",
+    mainTime: template?.mainTime ?? "",
+    cooldownTime: template?.cooldownTime ?? "",
+    applyDays: [],
+    applyDate: "",
+    createdAt: nowIso,
+    version: 0,
+    status: "final",
+    origin: "manual",
+    pedagogy: {
+      sessionObjective: "",
+      sessionObjectiveSource: "manual",
+      ...(template ? {} : { preserveEmptyFields: true }),
+      lessonPlanObservations: "",
+      learningObjectives: {
+        general: "",
+        specific: [""],
+        pedagogicalGuidelines: [""],
+      },
+      blocks: {
+        warmup: { summary: "", activities: toActivities(warmup) },
+        main: { summary: "", activities: toActivities(main) },
+        cooldown: { summary: "", activities: toActivities(cooldown) },
+      },
+    },
+  };
+};
 
 export const getPlanningBlockLabel = (blockKey: TrainingPlanBlockKey) => {
   if (blockKey === "warmup") return "Aquecimento";

@@ -1,253 +1,98 @@
-# Design QA — marca Go Atleta vetorizada
+# Design QA — Planejamento unificado
 
 ## Fonte de verdade
 
-- Referência aprovada: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-16fc8203-ae4b-43b8-a726-c2db913f3001.png`.
-- Implementação autenticada: `http://localhost:8081/prof/home`.
-- Menu expandido: `artifacts/design-qa/goatleta-brand-sidebar-expanded.png`.
-- Menu compacto: `artifacts/design-qa/goatleta-brand-sidebar-compact.png`.
-- Comparação focada: `artifacts/design-qa/goatleta-brand-comparison.png`.
+- Mockup aprovado: `C:\Users\gusta\.codex\generated_images\019fe23d-25f6-7a70-bcd7-799bd2aa0d13\exec-eea9f356-20fe-45b2-a751-ddfe3e19fe7a.png`.
+- Cópia estável da referência: `artifacts/design-audit/planning-workspace-2026-08-09/source-selected-mockup.png`.
+- Implementação autenticada: `http://localhost:8081/prof/planning`.
+- Evidência do workspace preenchido: `artifacts/design-audit/planning-workspace-2026-08-09/implementation-1707x960.png`.
+- Evidência final do estado `Novo plano`: `artifacts/design-audit/planning-workspace-2026-08-09/new-plan-blank-final-1707x960.png`.
 
 ## Viewport, estado e normalização
 
-- Referência: 1254 × 1254 px.
-- Implementação: 797 × 974 px em viewport CSS de 797 × 974, tema escuro e perfil Professor.
-- Estados verificados: navegação compacta e navegação expandida.
-- A comparação focada recorta somente a assinatura da prancha e o cabeçalho real do menu; os dois recortes foram normalizados para 660 × 200 px dentro de uma prancha de 1400 × 280 px.
-- A responsividade do shell também foi exercitada em 390 × 844 CSS px; no celular, a navegação mantém o botão de menu previsto e não força a assinatura dentro do cabeçalho reduzido.
-
-## Findings
-
-- Nenhum P0, P1 ou P2 restante.
-- Tipografia: o logotipo não depende de fonte instalada; as letras são o vetor extraído da referência, preservando peso, terminais arredondados e espaçamento. O subtítulo do perfil permanece como texto de interface separado.
-- Espaçamento: símbolo, logotipo, divisor e controle de recolhimento mantêm respiro suficiente no menu de 292 px; o símbolo isolado permanece legível na barra de 88 px.
-- Cores: `#102A72` preserva o azul da referência nos fundos claros; a variante `#F8FAFC` é uma inversão intencional para contraste no shell escuro.
-- Qualidade de imagem: símbolo e logotipo são SVGs derivados da arte aprovada, sem sombra, textura, desfoque, halo de transparência ou desenho aproximado em código.
-- Conteúdo: a grafia visível foi normalizada para `Go Atleta`, mantendo os subtítulos de Professor, Coordenação e Aluno existentes.
+- Referência: 1488 × 1054 px.
+- Implementação: viewport CSS de 1707 × 960 px, tema escuro e perfil Professor.
+- Estado principal comparado: Biblioteca expandida, plano recente selecionado, PDF em 100%, ajuste à largura, conteúdo salvo e bloco `Parte principal` selecionado.
+- Estado adicional verificado: `Novo plano`, com apenas turma, data e horário contextuais; título, objetivos, situação-problema, tempos, atividades, descrições e observações vazios.
+- A comparação foi feita pela hierarquia e proporção dos elementos porque a referência e a superfície real têm relações de aspecto diferentes. Não houve normalização de densidade necessária para essa avaliação de layout.
 
 ## Comparação e histórico
 
-1. P2 inicial — o SVG azul carregava sem inversão no menu escuro e perdia contraste.
-2. Correção — foram criados assets vetoriais claros próprios; a seleção agora ocorre por variante de arquivo, sem depender de `tintColor` do navegador.
-3. Pós-correção — a captura compacta e a comparação focada confirmam leitura nítida do símbolo e assinatura; nenhum P0, P1 ou P2 permaneceu.
+1. P2 inicial — a barra contextual repetia o bloco selecionado e consumia altura sem acrescentar uma decisão.
+2. P2 inicial — o canvas limitava o documento a 210 mm, proporção de A4 retrato, apesar de o plano ser paisagem.
+3. Correção inicial — a barra redundante foi removida, o documento passou a ocupar a área útil e a posição do editor foi estabilizada depois de carregamentos e interações no iframe.
+4. Refinamento posterior — a prévia passou a respeitar as dimensões reais do A4 retrato, com 210 mm de largura e 297 mm de altura mínima, igualando a orientação já usada pelo arquivo exportado.
+5. P1 de interação — `Novo plano` preenchia a folha com objetivos, pergunta pedagógica, atividades e tempos genéricos, contrariando a expectativa de começar do zero.
+6. Correção — o rascunho ganhou modo explícito de campos vazios; o renderizador deixou de gerar conteúdo de fallback e a célula `Semana` passou a editar o título diretamente.
+7. Pós-correção — a captura `new-plan-blank-final-1707x960.png` confirma a folha limpa, com toolbar visível, sem texto genérico e sem erro de console.
+8. P1 de persistência — alterações feitas diretamente no documento podiam ser perdidas ao sair, sem restauração nem confirmação contextual.
+9. Correção — o workspace passou a salvar um rascunho local por usuário e organização, aguardar a hidratação antes da seleção inicial e confirmar saída ou troca de plano quando houver alterações.
+10. Pós-correção — o fluxo autenticado `digitar → Rascunho salvo → sair → voltar` restaurou o conteúdo editado e exibiu `Rascunho restaurado`; o rascunho só é descartado ao trocar de plano com confirmação ou após o salvamento definitivo.
+11. Refinamento de conteúdo — linhas pedagógicas e blocos passaram a usar alturas mínimas compactas; texto curto não cria grandes vazios e conteúdo longo continua expandindo a linha naturalmente na prévia e no PDF exportado.
 
-## Interações e validação visual
+## Fidelidade visual
 
-- Expansão e recolhimento do menu continuam funcionais.
-- A assinatura expandida e o símbolo compacto usam a mesma fonte vetorial.
-- O DOM expõe a marca com o rótulo acessível `Go Atleta`.
-- Não foram observados erros de interface durante as capturas finais; o carregamento frio do Metro foi aguardado antes da comparação.
+- Tipografia: títulos, ações, metadados e itens da Biblioteca preservam a hierarquia compacta do GoAtleta; o PDF mantém tipografia documental legível e independente do shell.
+- Espaçamento: Biblioteca e editor formam um workspace contínuo, sem a antiga coluna duplicada de roteiro; toolbar e canvas permanecem visíveis sem overflow horizontal.
+- Cores: superfícies azul-marinho, bordas discretas, verde de ação e seleção verde do bloco seguem os tokens já usados em Turmas e Gestão.
+- Imagens e ícones: a marca vetorial e o registro de ícones existentes foram reutilizados; não há raster temporário nem placeholder na interface.
+- Copy: rótulos são curtos e operacionais — `Biblioteca`, `Novo plano`, `Inserir atividade`, `Salvar`, `Aplicar à aula` e `Baixar PDF`.
 
-## Resultado final
+## Interações verificadas
 
-final result: passed
+- Seleção de plano recente e de modelo pronto.
+- Busca, recolhimento e expansão da Biblioteca.
+- Zoom, ajuste à largura e seleção direta de blocos no PDF.
+- Edição direta no documento, transição `salvo` → `alterado` e restauração por desfazer, sem gravar dados reais durante o teste.
+- Salvamento automático local após edição, confirmação ao sair e restauração do rascunho em uma nova sessão da tela.
+- Criação de uma folha limpa e edição direta do título na célula `Semana`; apagar atividades não recria placeholders automaticamente.
+- Inclusão de atividade, salvamento, aplicação à aula e download permanecem ligados aos fluxos existentes.
+- Nenhum erro de console foi observado na captura final; permaneceu apenas o aviso conhecido do React Native Web sobre `Animated` e `useNativeDriver`.
 
----
+## Responsividade
 
-# Design QA — rolagens independentes na periodização
+- O contrato automatizado passou nos breakpoints exatos de 390, 834 e 1440 px.
+- Em celular e tablet, a Biblioteca recolhe automaticamente; no celular, o rail compacto deixa apenas o controle de expansão e o editor recebe espaço lateral para não ficar coberto.
+- A superfície fixa do navegador de validação não permitiu capturas pixel a pixel nos dois viewports menores. Isso permanece como lacuna P3 de evidência, não como defeito funcional identificado.
 
-## Fonte de verdade
+## Diferenças intencionais P3
 
-- Solicitação visual: comentário do navegador sobre a separação de `Parâmetros do ciclo` e `Prévia do impacto`.
-- Estado anterior capturado: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\periodization-independent-scroll-before.jpg`.
-- Implementação no topo: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\periodization-independent-scroll-top.jpg`.
-- Implementação com as duas regiões deslocadas: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\periodization-independent-scroll-after.jpg`.
-- Comparação lado a lado: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\periodization-independent-scroll-comparison.png`.
-
-## Viewport e estado
-
-- Rota autenticada: `http://localhost:8081/class/c_1769011692095/periodization`.
-- Desktop comparado em 1209 × 812 CSS px, DPR normalizado em captura de 1209 × 812 px.
-- Tema escuro, modal aberto, turma `Turma 10-12`.
-- Tablet validado em 833 × 1194 CSS px e celular em 390 × 844 CSS px.
-- Comparação completa suficiente para composição; a captura deslocada foi usada como evidência focada da interação.
-
-## Findings
-
-- Nenhum P0, P1 ou P2 restante.
-- Desktop: os dois painéis ocupam a mesma região vertical e possuem barras de rolagem próprias.
-- Tablet e celular: o conteúdo continua empilhado em uma única rolagem, evitando duas áreas estreitas competindo pelo gesto.
-- Cabeçalho e rodapé permanecem fixos em todos os tamanhos.
-- Não há overflow horizontal global: 822/833 px no tablet e 379/390 px no celular.
-
-## Interação verificada
-
-- Rolagem somente em `Parâmetros do ciclo`: esquerda 210 px, direita 0 px.
-- Rolagem posterior em `Prévia do impacto`: esquerda preservada em 210 px, direita 180 px.
-- Limites úteis medidos: 332 px no painel esquerdo e 322 px no painel direito.
-- Console sem erros. Permanecem apenas warnings globais conhecidos do React Native Web e o aviso de desconexão causado pelo reinício controlado do Metro.
-
-## Fidelidade
-
-- Tipografia, cores, ícones, bordas, espaçamento e conteúdo foram preservados.
-- A única mudança visual é estrutural: duas barras verticais no desktop, uma por painel.
-- Nenhuma imagem ou ativo foi alterado.
-
-## Histórico de comparação
-
-1. P2 inicial — uma única rolagem movia os dois blocos e dificultava consultar parâmetros enquanto se lia o impacto.
-2. Correção — o corpo desktop foi dividido em duas regiões roláveis, mantendo o shell do modal fixo.
-3. Pós-correção — comparação e teste de deslocamento confirmaram independência sem regressão responsiva.
-
-## Resultado final
+- As ações permanecem na toolbar do editor, em vez de duplicadas no cabeçalho da página, para manter uma única área operacional.
+- A toolbar flutuante de rich text do mockup não foi simulada: o modelo atual persiste conteúdo estruturado em texto, e um controle visual sem persistência seria enganoso.
+- A Biblioteca usa `Recentes` e `Modelos prontos` alimentados pelo código real, em vez dos agrupamentos fictícios da referência.
+- O mockup não especifica o estado vazio. A implementação mantém a mesma moldura visual e deixa o conteúdo pedagógico intencionalmente em branco nesse estado.
 
 final result: passed
 
 ---
 
-# Design QA — Planejamento unificado da turma
+# Design QA — Biblioteca hierárquica e cabeçalho do planejamento
 
 ## Fonte de verdade
 
-- Mockup aprovado pelo usuário: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-a576b124-f0b6-4253-a9f9-26c71b46ffa0.png`.
-- Implementação autenticada: `http://localhost:8081/class/c_1784666702066/periodization?classId=c_1784666702066&month=2026-07&backTo=%2Fclass%2Fc_1784666702066`.
-- A composição foi comparada no navegador local após o carregamento dos dados reais da turma.
+- Mockup aprovado: `C:\Users\gusta\.codex\generated_images\019fe23d-25f6-7a70-bcd7-799bd2aa0d13\exec-649e0e80-9178-4282-8d82-3c612e62b9e4.png`.
+- Implementação autenticada: `http://localhost:8081/training?ui=planning-library-hierarchy-v3` (mesma tela servida por `/prof/planning` no perfil Professor).
+- Evidência final: `artifacts/design-audit/planning-library-hierarchy-2026-08-11/implementation-1440x1024.png`.
+- Viewports verificados pelo controle responsivo do Browser: 1440 × 1024, 834 × 1194 e 390 × 844. O navegador aplicou o fator de escala do sistema; as dimensões internas observadas foram 1600 × 1138, 926 × 1326 e 433 × 938.
+- Capturas foram inspecionadas lado a lado com o mockup durante a implementação; a evidência ficou no histórico visual desta tarefa.
 
-## Verificação visual
+## Comparação e correções
 
-- Desktop usa uma área operacional plana em três colunas: trilho anual, planejamento mensal e inspetor da aula.
-- O trilho anual apresenta mês, fase pedagógica, intervalo de semanas e curva de carga sem cartões altos ou informação duplicada.
-- O mês reúne resumo, semanas e aulas em uma tabela compacta; a aula selecionada controla o inspetor à direita.
-- O inspetor apresenta origem, distribuição de tempo, resumo, relação com o ciclo e ação para abrir a aula.
-- A última aula válida de julho aparece como `Jogo consolidado do mês`, com origem na regra mensal do voleibol e distribuição de 10/45/5 minutos.
-- O rodapé informa a preservação de planos personalizados e aulas concluídas antes da ação de aplicar ajustes.
-- As fases exibidas são as fases reais salvas para a turma; o mockup define a composição, não dados demonstrativos.
+1. O cabeçalho foi reduzido a `Planejamento` e às ações globais: estado do autosave, download, adicionar à turma, novo plano e importar PDF.
+2. `Novo plano` e `Importar PDF` deixaram de aparecer na Biblioteca; `Inserir atividade` e a segunda toolbar foram removidos do workspace.
+3. Somente desfazer, zoom, contador de páginas e ajustar largura permanecem flutuando sobre a margem do documento.
+4. A Biblioteca ganhou navegação por `Por turma` e `Rascunhos`, busca unificada, hierarquia Unidade → Turma → Mês → Semana e modelos recolhíveis.
+5. A lista interna mantém scroll independente e não prende o restante do workspace.
+6. O estado sem planos foi protegido contra data indefinida; `Novo plano` abre uma folha A4 limpa.
+7. O A4 usa zoom inicial responsivo e centralização calculada dentro do iframe; o documento não cria overflow horizontal no viewport móvel.
+8. O status do cabeçalho acompanha o autosave real do rascunho: `Salvando`, `Salvo` ou falha.
 
-## Responsividade e interação
+## Fidelidade e responsividade
 
-- Desktop mantém as três regiões simultaneamente visíveis, com rolagens internas nas colunas extensas.
-- Tablet transforma o trilho anual em faixa horizontal e mantém planejamento e inspetor lado a lado.
-- Celular empilha mês e aulas, mantém o trilho horizontal e insere o detalhe imediatamente abaixo da aula selecionada.
-- A seleção de aula atualiza o inspetor sem navegação e sem perder o contexto do mês.
-- O navegador local não registrou erros nem avisos durante a verificação final.
-
-## Validações técnicas
-
-- Testes focados de agenda e regra mensal do voleibol: 8 aprovados.
-- `npm run typecheck:app`: aprovado.
-- `npm run check:org-scope`: aprovado.
-- `git diff --check`: aprovado; apenas aviso de normalização futura de CRLF em arquivo já modificado no worktree.
-- `npm run build`: aprovado; permanecem somente os avisos conhecidos do `expo-font` e da configuração do Sentry.
-
-## Resultado final
-
-final result: passed
-
----
-
-# Design QA — Exportar e sincronizar em Turmas
-
-## Fonte de verdade
-
-- Mockup escolhido pelo usuário: `artifacts/design-qa/classes-google-actions-selected-reference.png`.
-- Implementação autenticada: `http://localhost:8081/prof/classes`.
-- Comparação lado a lado: `artifacts/design-qa/classes-google-actions-comparison.png`.
-
-## Verificação visual
-
-- `Criar turma` permanece como única ação primária em verde.
-- `Exportar e sincronizar` usa botão secundário contornado, chevron animado e menu ancorado à direita.
-- O menu fica acima da tabela e contém, na ordem aprovada, exportação `.xlsx`, exportação `.ics`, sincronização assistida com Google Agenda e estado da conta Google.
-- Tipografia, cores, bordas, espaçamento, altura dos controles e alinhamento seguem a tela de Turmas existente.
-- Desktop mantém rótulos completos; tablet e celular usam ações compactas para evitar overflow no cabeçalho.
-- Nenhum P0, P1 ou P2 visual restante na comparação.
-
-## Interação e responsividade
-
-- Desktop: menu abre e fecha no mesmo ponto do mockup, sem deslocar a tabela.
-- Tablet: ações compactas permanecem integralmente dentro do viewport.
-- Celular: menu abre acima do conteúdo, com todas as opções acessíveis e sem overflow horizontal.
-- Exportação `.xlsx`: executada no localhost com retorno de sucesso.
-- Exportação `.ics`: executada no localhost com retorno de sucesso.
-- Sincronização com Google é transparente: gera o arquivo `.ics` e abre a importação do Google Agenda; o estado `Google conectado` só aparece quando a conta autenticada possui identidade Google.
-
-## Validações técnicas
-
-- Testes focados de exportação: 2 aprovados.
-- `npm run typecheck:app`: aprovado.
-- `npm run check:org-scope`: aprovado.
-- `npm run check:perf-hygiene:strict`: aprovado.
-- `git diff --check`: aprovado.
-- `npm run build`: aprovado; permanecem apenas avisos conhecidos do `expo-font` e da configuração do Sentry.
-
-## Resultado final
-
-final result: passed
-
----
-
-# Design QA — Fidelidade entre Alunos e Turmas
-
-## Fonte de verdade
-
-- Captura de referência fornecida pelo usuário para a tela de Turmas.
-- Tela autenticada de Turmas no mesmo ambiente local.
-- Implementação em `http://localhost:8081/prof/students`.
-
-## Comparação visual
-
-- Referência e implementação foram capturadas no mesmo viewport desktop de 1600 × 1138 CSS px.
-- O shell de Alunos agora compartilha com Turmas o fundo, a largura de 256 px do painel de unidades, as superfícies, a escala tipográfica, os divisores e o ritmo vertical.
-- Cabeçalho, título da coleção, busca de unidades, controle A–Z, linhas da unidade e tabela seguem as mesmas medidas de Turmas.
-- Busca e filtros específicos de Alunos foram preservados porque fazem parte da operação dessa tela.
-- Nenhum P0, P1 ou P2 visual restante na comparação lado a lado.
-
-## Responsividade e interação
-
-- Desktop: 1600 × 1138 CSS px, sem overflow horizontal.
-- Tablet: 926 × 1326 CSS px, sem overflow horizontal.
-- Celular: 433 × 938 CSS px, sem overflow horizontal e com cabeçalho compacto equivalente ao de Turmas.
-- O filtro de status abre e fecha normalmente após o realinhamento.
-- A lista mantém rolagem interna, cabeçalho fixo e paginação fixa.
-
-## Validações técnicas
-
-- `npm run typecheck:app`: aprovado.
-- `npm run check:org-scope`: aprovado.
-- `git diff --check`: aprovado.
-- `npm run build`: aprovado; permanecem apenas avisos conhecidos de resolução do `expo-font` e configuração de build do Sentry.
-
-## Resultado final
-
-final result: passed
-
----
-
-# Design QA — Alunos e aniversários
-
-## Fonte de verdade
-
-- Mockup aprovado pelo usuário para a lista de alunos e o cadastro em painel lateral.
-- Mockup fornecido para a tela de aniversários.
-- Implementação validada em `http://localhost:8081/prof/students`.
-
-## Verificação
-
-- A estrutura principal é exibida imediatamente; o carregamento dos dados acontece dentro da área de conteúdo, sem bloquear toda a aplicação.
-- A tela de alunos usa o mesmo padrão visual da listagem de turmas: unidades à esquerda e tabela plana à direita.
-- Foram removidos o resumo redundante, os agrupamentos expansíveis antigos e o botão flutuante de cadastro.
-- A tabela apresenta aluno, idade, turma, status e contato do responsável, com foto ou avatar de fallback.
-- O cadastro abre em painel lateral pela direita, com animação, formulário contínuo sem etapas e rodapé fixo.
-- A tela de aniversários segue o mesmo shell, com unidades, indicadores de hoje e próximos sete dias, busca, filtro de mês e tabela.
-- Cabeçalho, ações e subtítulo mudam de acordo com a visão de alunos ou aniversários.
-- A lista renderiza oito alunos por página e expõe paginação com total e navegação.
-- No desktop, somente as linhas da tabela possuem rolagem própria; título, busca, filtros e cabeçalho das colunas permanecem fixos.
-- O painel de unidades e a paginação permanecem fixos durante a rolagem da lista.
-- O teste local confirmou rolagem interna real na lista (`408 px` visíveis para `504 px` de conteúdo), sem deslocar as regiões fixas.
-- Status, gênero, turma e contato são filtros funcionais; a busca e a unidade continuam combináveis.
-- O filtro de mês abre como dropdown ancorado e rolável, e as linhas não repetem a distância em dias.
-- O aniversariante do dia recebe um pequeno chapéu festivo no canto superior direito do avatar, com leve inclinação, tanto na lista de alunos quanto na visão de aniversários, sem substituir a foto.
-- As contagens por unidade permanecem globais ao trocar unidade, página ou filtro.
-- Clicar novamente em `Alunos` na barra lateral enquanto Aniversários está aberto retorna para a lista.
-- Nenhum P0, P1 ou P2 visual restante na comparação local.
-
-## Validações técnicas
-
-- TypeScript do aplicativo: aprovado.
-- Isolamento por organização: aprovado.
-- Higiene de performance: aprovado.
-- `git diff --check`: aprovado nos arquivos alterados.
-
-## Resultado final
+- Desktop: hierarquia, densidade, contraste e distribuição de ações correspondem ao mockup aprovado, usando tokens e componentes reais do GoAtleta.
+- Tablet: Biblioteca recolhida, A4 redimensionado e controles acessíveis sem duplicar a toolbar.
+- Mobile: cabeçalho quebra as ações em ícones compactos, rail da Biblioteca permanece recolhido e o documento cabe no iframe sem scroll horizontal da página.
+- Diferença intencional P3: o mockup usa dados demonstrativos de Rede Esperança/Primeiros Saques; a implementação mostra somente unidades, turmas, meses e semanas existentes no estado real do usuário.
+- Avisos antigos do console foram desconsiderados na leitura final; após a correção do estado vazio, nenhuma nova exceção foi produzida pelo bundle atual.
 
 final result: passed

@@ -57,6 +57,7 @@ type TrainingApplyModalContentProps = {
     onApply: () => void | Promise<void>;
   };
   canApply: boolean;
+  isAssigning?: boolean;
 };
 
 function TrainingApplyModalContentBase({
@@ -69,6 +70,7 @@ function TrainingApplyModalContentBase({
   data,
   actions,
   canApply,
+  isAssigning,
 }: TrainingApplyModalContentProps) {
   const { colors } = useAppTheme();
 
@@ -312,7 +314,7 @@ function TrainingApplyModalContentBase({
             fontWeight: "700",
           }}
         >
-          Aplicar nesta turma
+          {isAssigning ? "Adicionar a esta turma" : "Aplicar nesta turma"}
         </Text>
       </Pressable>
 

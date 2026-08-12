@@ -1,5 +1,5 @@
 import type { TrainingPlan, TrainingPlanPedagogy } from "../../core/models";
-import { saveTrainingPlan } from "../training";
+import { saveTrainingPlan, saveTrainingPlans } from "../training";
 
 const mockSupabasePost = jest.fn();
 
@@ -139,5 +139,18 @@ describe("training plan persistence", () => {
     expect(fallbackRows[0]).not.toHaveProperty("version");
     expect(fallbackRows[0].pedagogy.decisionTrace.schemaVersion).toBe(1);
     expect(fallbackRows[0].pedagogy.decisionTrace.source.classId).toBe("class_1");
+  });
+
+  it("persists an imported batch in one atomic PostgREST insert", async () => {
+    const secondPlan = { ...buildPlan(), id: "plan_2", title: "Turma 07-09 · Saque", version: 2 };
+
+    await saveTrainingPlans([buildPlan(), secondPlan], { organizationId: "org_1" });
+
+    expect(mockSupabasePost).toHaveBeenCalledTimes(1);
+    const [path, rows] = mockSupabasePost.mock.calls[0];
+    expect(path).toBe("/training_plans");
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row: { id: string }) => row.id)).toEqual(["plan_1", "plan_2"]);
+    expect(rows.every((row: { organization_id: string }) => row.organization_id === "org_1")).toBe(true);
   });
 });
