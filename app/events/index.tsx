@@ -25,6 +25,7 @@ import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
@@ -218,6 +219,7 @@ export default function EventsScreen() {
   markRender("screen.events.render.root");
 
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const organization = useOptionalOrganization();
@@ -622,7 +624,7 @@ export default function EventsScreen() {
         <ScreenPageHeader
           title="Eventos"
           subtitle="Agenda mensal da organização"
-          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
         >
           {isAdmin ? (
             <View

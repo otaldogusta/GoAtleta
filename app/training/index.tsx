@@ -57,6 +57,7 @@ import {
     upsertTrainingSession,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { useAuth } from "../../src/auth/auth";
 import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
 import { notifyTrainingSaved } from "../../src/notifications";
@@ -397,6 +398,7 @@ export default function TrainingList() {
   const insets = useSafeAreaInsets();
   const responsiveLayout = useResponsiveLayout("dashboard");
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const effectiveProfile = useEffectiveProfile();
   const { session } = useAuth();
   const activeOrganization = useOptionalOrganization()?.activeOrganization ?? null;
@@ -3359,8 +3361,8 @@ export default function TrainingList() {
       });
       if (!accepted) return;
     }
-    navigateBackOrReplace({ router, fallback: "/prof/home" });
-  }, [confirmDialog, flushWorkspaceDraft, router, workspaceHasUnsavedChanges]);
+    navigateBackOrReplace({ router, fallback: scopedRoutes.home });
+  }, [confirmDialog, flushWorkspaceDraft, router, scopedRoutes.home, workspaceHasUnsavedChanges]);
 
   const handleCreateWorkspacePlan = useCallback(() => {
     const draft = createPlanningWorkspaceDraft();
@@ -3831,7 +3833,7 @@ export default function TrainingList() {
           <>
         <ScreenPageHeader
           title="Planejamento"
-          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
           contentStyle={[
             planningShellStyle,
             {
@@ -4515,7 +4517,7 @@ export default function TrainingList() {
           onClose={() => {
             setShowSpreadsheetImport(false);
             if (importMode === "spreadsheet") {
-              router.replace({ pathname: "/training" });
+              router.replace({ pathname: scopedRoutes.planning });
             }
           }}
           onImported={() => {

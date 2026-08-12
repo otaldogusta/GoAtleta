@@ -271,7 +271,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
       { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "reports" },
       { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "management" },
       { id: "events", label: "Eventos", route: "/coord/events", icon: "events" },
-      { id: "nfc", label: "NFC", route: "/prof/nfc-attendance", icon: "nfc" },
+      { id: "nfc", label: "NFC", route: "/coord/nfc-attendance", icon: "nfc" },
       { id: "members", label: "Membros", route: "/coord/org-members", icon: "members" },
     ],
     []

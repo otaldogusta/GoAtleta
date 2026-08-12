@@ -30,9 +30,8 @@ export const getScopedAssistantPath = (currentPath: string) => {
 
 export const getScopedPlanningPath = (currentPath: string) => {
   const path = normalizePath(currentPath);
-  if (isScopedPath(path, "/prof") || isScopedPath(path, "/coord") || path === "/coordination") {
-    return "/prof/planning";
-  }
+  if (isScopedPath(path, "/prof")) return "/prof/planning";
+  if (isScopedPath(path, "/coord") || path === "/coordination") return "/coord/planning";
   return "/training";
 };
 

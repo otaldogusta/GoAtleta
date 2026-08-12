@@ -47,6 +47,7 @@ import {
     updateStudentPhoto,
 } from "../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../../src/navigation/use-trainer-route-scope";
 import { useIsOnline } from "../../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../../src/hooks/useDebouncedValue";
 import { AnchoredDropdown } from "../../../src/ui/AnchoredDropdown";
@@ -230,13 +231,14 @@ export default function ClassStudentsScreen() {
   markRender("screen.classStudents.render.main");
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const { colors } = useAppTheme();
   const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
-  const canRevealCpf = effectiveProfile === "admin";
+  const canRevealCpf = scopedRoutes.scope === "coord" && effectiveProfile === "admin";
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const isCompactForm = Platform.OS !== "web" && windowWidth <= 760;

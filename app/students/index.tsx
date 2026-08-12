@@ -54,6 +54,7 @@ import {
   updateStudent,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { useIsOnline } from "../../src/hooks/use-is-online";
 import { useDebouncedValue } from "../../src/hooks/useDebouncedValue";
 import { logAction } from "../../src/observability/breadcrumbs";
@@ -222,11 +223,12 @@ export default function StudentsScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isCompactForm = Platform.OS !== "web" && windowWidth <= 760;
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
-  const canRevealCpf = effectiveProfile === "admin";
+  const canRevealCpf = scopedRoutes.scope === "coord" && effectiveProfile === "admin";
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const { activeOrganization } = useOrganization();
@@ -2016,8 +2018,8 @@ export default function StudentsScreen() {
   };
 
   const goBackFromStudents = useCallback(() => {
-    navigateBackOrReplace({ router, fallback: "/prof/home" });
-  }, [router]);
+    navigateBackOrReplace({ router, fallback: scopedRoutes.home });
+  }, [router, scopedRoutes.home]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -2441,6 +2443,7 @@ export default function StudentsScreen() {
             visible={showStudentsFormsSyncModal}
             organizationId={activeOrganization?.id ?? null}
             classes={classes}
+            classesRoute={scopedRoutes.classes}
             onClose={() => setShowStudentsFormsSyncModal(false)}
             onImportApplied={() => {
               void reload();

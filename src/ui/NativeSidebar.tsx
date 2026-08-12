@@ -65,7 +65,7 @@ export function NativeSidebar({ role, visible, canExpand }: NativeSidebarProps) 
         key: item.key,
         label: item.label,
         icon: item.icon,
-        href: `/${role}/${item.routeName}`,
+        href: String(item.href),
       }));
     const actions = ROLE_RADIAL_ACTIONS[role]
       .filter((item) => {

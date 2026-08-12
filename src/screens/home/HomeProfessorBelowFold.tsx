@@ -159,7 +159,7 @@ function HomeProfessorBelowFoldBase({
         label: "Presença NFC",
         description: "Registrar por UID",
         icon: "nfc",
-        route: "/prof/nfc-attendance",
+        route: "/coord/nfc-attendance",
       },
       {
         label: "Comunicados",

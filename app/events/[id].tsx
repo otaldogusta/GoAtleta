@@ -23,6 +23,7 @@ import { useAuth } from "../../src/auth/auth";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { getClasses } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
@@ -110,6 +111,7 @@ const buildSnapshot = (values: EventFormSnapshot) => {
 
 export default function EventDetailsScreen() {
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const params = useLocalSearchParams<{ id?: string }>();
   const eventId = params.id ?? "";
   markRender("screen.eventsDetail.render.root", { hasEventId: eventId ? 1 : 0 });
@@ -221,7 +223,7 @@ export default function EventDetailsScreen() {
       );
       if (!event) {
         setError("Evento não encontrado.");
-        router.replace("/events");
+        router.replace(scopedRoutes.events);
         return;
       }
       setClasses(classRows.map((item) => ({ id: item.id, name: item.name, unitId: item.unitId })));
@@ -257,7 +259,7 @@ export default function EventDetailsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeOrganization, eventId, router, session]);
+  }, [activeOrganization, eventId, router, scopedRoutes.events, session]);
 
   useEffect(() => {
     if (!session) {
@@ -268,16 +270,16 @@ export default function EventDetailsScreen() {
 
   useEffect(() => {
     if (!eventId) {
-      router.replace("/events");
+      router.replace(scopedRoutes.events);
       return;
     }
-  }, [eventId, router]);
+  }, [eventId, router, scopedRoutes.events]);
 
   useEffect(() => {
     if (organizationLoading) return;
     if (activeOrganization?.id) return;
-    router.replace("/events");
-  }, [activeOrganization?.id, organizationLoading, router]);
+    router.replace(scopedRoutes.events);
+  }, [activeOrganization?.id, organizationLoading, router, scopedRoutes.events]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -343,7 +345,7 @@ export default function EventDetailsScreen() {
       await setEventClasses(eventId, activeOrganization.id, classIds);
       setRuleSetId(resolvedRuleSetId);
       const nav = router as unknown as { replace: (path: string) => void };
-      nav.replace("/events");
+      nav.replace(scopedRoutes.events);
     } catch (err) {
       Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao salvar.");
     } finally {
@@ -367,7 +369,7 @@ export default function EventDetailsScreen() {
       onConfirm: async () => {
         try {
           await deleteEvent(eventId, organizationId);
-          router.replace("/events");
+          router.replace(scopedRoutes.events);
         } catch (err) {
           Alert.alert("Erro", err instanceof Error ? err.message : "Falha ao excluir.");
         }
@@ -419,7 +421,7 @@ export default function EventDetailsScreen() {
 
   const closeDetails = () => {
     closeDetailDropdowns();
-    navigateBackOrReplace({ router, fallback: "/events" });
+    navigateBackOrReplace({ router, fallback: scopedRoutes.events });
   };
 
   useEffect(() => {

@@ -43,6 +43,7 @@ import {
     type NfcMetrics,
 } from "../src/nfc/metrics";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../src/navigation/use-trainer-route-scope";
 import { isNfcSupported } from "../src/nfc/nfc";
 import { NFC_ERRORS } from "../src/nfc/nfc-errors";
 import { useNfcContinuousScan } from "../src/nfc/nfc-hooks";
@@ -101,6 +102,7 @@ export default function NfcAttendanceScreen() {
 
   const { colors } = useAppTheme();
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const { activeOrganization } = useOrganization();
   const { session } = useAuth();
   const { showSaveToast } = useSaveToast();
@@ -880,7 +882,7 @@ export default function NfcAttendanceScreen() {
   const openAssistantFromNfc = useCallback(
     (prompt: string) => {
       router.push({
-        pathname: "/prof/assistant",
+        pathname: scopedRoutes.assistant,
         params: {
           prompt,
           source: "nfc_attendance",
@@ -1053,7 +1055,7 @@ export default function NfcAttendanceScreen() {
           title="Presença NFC"
           subtitle={organizationLabel}
           onBack={() => {
-            void stopScanning().finally(() => navigateBackOrReplace({ router, fallback: "/prof/home" }));
+            void stopScanning().finally(() => navigateBackOrReplace({ router, fallback: scopedRoutes.home }));
           }}
         />
 

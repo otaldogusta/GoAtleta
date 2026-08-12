@@ -131,6 +131,7 @@ import {
 } from "../../../src/db/seed";
 import { logAction, logPlanGenerationDecision } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
+import { useTrainerRouteScope } from "../../../src/navigation/use-trainer-route-scope";
 import { exportPdf, safeFileName } from "../../../src/pdf/export-pdf";
 import { SessionPlanDocument } from "../../../src/pdf/session-plan-document";
 import { SessionReportDocument } from "../../../src/pdf/session-report-document";
@@ -1697,6 +1698,7 @@ export function SessionScreen({
     source?: string;
   }>();
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const { session } = useAuth();
   const { config: pedagogicalConfig } = usePedagogicalConfig();
   const insets = useSafeAreaInsets();
@@ -3846,7 +3848,7 @@ export function SessionScreen({
           onImportPlan={() => {
             setShowPlanFabMenu(false);
             router.push({
-              pathname: "/prof/planning",
+              pathname: scopedRoutes.planning,
               params: {
                 targetClassId: cls?.id ?? "",
                 openImport: "1",

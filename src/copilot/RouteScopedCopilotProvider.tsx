@@ -21,6 +21,10 @@ const COPILOT_ROUTE_PREFIXES = [
   "/prof/classes",
   "/prof/nfc-attendance",
   "/prof/periodization",
+  "/coord/classes",
+  "/coord/nfc-attendance",
+  "/coord/periodization",
+  "/coord/planning",
 ] as const;
 
 const shouldEnableCopilot = (pathname: string) =>

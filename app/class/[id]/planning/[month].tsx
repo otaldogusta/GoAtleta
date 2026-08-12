@@ -24,6 +24,7 @@ import {
   listDailyLessonPlansByWeekIds,
 } from "../../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../../../src/navigation/use-trainer-route-scope";
 import { markRender, measureAsync } from "../../../../src/observability/perf";
 import { exportPdf, safeFileName } from "../../../../src/pdf/export-pdf";
 import { MonthlyLessonPlanDocument } from "../../../../src/pdf/monthly-lesson-plan-document";
@@ -1124,6 +1125,7 @@ export function LegacyClassPlanningMonthRoute() {
 
   const { id, month } = useLocalSearchParams<{ id: string; month: string }>();
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
@@ -1558,7 +1560,7 @@ export function LegacyClassPlanningMonthRoute() {
       return;
     }
 
-    navigateBackOrReplace({ router, fallback: "/classes" });
+    navigateBackOrReplace({ router, fallback: scopedRoutes.classes });
   };
 
   if (isLoading) {

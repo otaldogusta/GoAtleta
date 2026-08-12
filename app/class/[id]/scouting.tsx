@@ -26,6 +26,7 @@ import {
   getTrainingSessionsByClass,
 } from "../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../../src/navigation/use-trainer-route-scope";
 import { markRender, measureAsync } from "../../../src/observability/perf";
 import { Button } from "../../../src/ui/Button";
 import { DateInput } from "../../../src/ui/DateInput";
@@ -69,6 +70,7 @@ export default function ClassScoutingRoute() {
   markRender("screen.scouting.render.root");
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const { colors } = useAppTheme();
   const modalCardStyle = useModalCardStyle({ maxWidth: 560, maxHeight: "88%" });
   const classId = typeof id === "string" ? id : "";
@@ -156,7 +158,7 @@ export default function ClassScoutingRoute() {
       });
       return;
     }
-    navigateBackOrReplace({ router, fallback: "/classes" });
+    navigateBackOrReplace({ router, fallback: scopedRoutes.classes });
   };
 
   const openSession = (sessionId: string) => {

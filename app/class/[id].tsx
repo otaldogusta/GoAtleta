@@ -54,6 +54,7 @@ import {
     updateClassColor,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
@@ -223,6 +224,7 @@ export default function ClassDetails() {
 
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const { width: windowWidth } = useWindowDimensions();
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
@@ -1758,7 +1760,7 @@ export default function ClassDetails() {
         try {
           await measure("deleteClassCascade", () => deleteClassCascade(targetClassId));
           logAction("Excluir turma", { classId: targetClassId });
-          router.replace("/classes");
+          router.replace(scopedRoutes.classes);
         } catch (error) {
           showSaveToast({
             error,
@@ -2097,7 +2099,7 @@ export default function ClassDetails() {
   const handleOpenAssistant = () => {
     if (!displayedInsight) return;
     router.push({
-      pathname: "/assistant",
+      pathname: scopedRoutes.assistant,
       params: { classId: id, prefilledInsight: displayedInsight.insight },
     });
   };
@@ -2111,7 +2113,7 @@ export default function ClassDetails() {
         <ScreenPageHeader
           title={className}
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
-          onBack={() => navigateBackOrReplace({ router, fallback: "/classes" })}
+          onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.classes })}
           right={
             <Pressable
               onPress={() => {

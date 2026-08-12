@@ -46,6 +46,7 @@ import {
 } from "../src/db/academic-knowledge";
 import type { DevProfilePreview } from "../src/dev/profile-preview";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../src/navigation/use-trainer-route-scope";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
 import { useBiometricLock } from "../src/security/biometric-lock";
@@ -125,6 +126,7 @@ export default function ProfileScreen() {
   } = useBiometricLock();
   const router = useRouter();
   const pathname = usePathname();
+  const scopedRoutes = useTrainerRouteScope();
   const LEGACY_PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
   const NOTIFY_SETTINGS_KEY = "notify_settings_v1";
   const isWeb = Platform.OS === "web";
@@ -1043,7 +1045,7 @@ export default function ProfileScreen() {
 
         <BackTitleHeader
           title="Perfil"
-          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
         />
 
         <View style={{ gap: 12 }}>
@@ -1297,7 +1299,7 @@ export default function ProfileScreen() {
                   iconBg="rgba(120, 220, 180, 0.16)"
                   label="Presença NFC"
                   subtitle="Modo presença por tag UID"
-                  onPress={() => router.push("/nfc-attendance")}
+                  onPress={() => router.push(scopedRoutes.nfcAttendance)}
                   rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
                 />
               ) : null}

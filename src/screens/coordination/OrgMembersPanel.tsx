@@ -851,7 +851,7 @@ export function OrgMembersPanel({ embedded = false }: { embedded?: boolean } = {
       setShowInviteSheet(false);
       setInviteNotice(null);
       setInviteGeneratedLink(null);
-      router.push("/students");
+      router.push("/coord/students");
       return;
     }
 

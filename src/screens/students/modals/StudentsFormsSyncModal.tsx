@@ -130,6 +130,7 @@ type StudentsFormsSyncModalProps = {
   visible: boolean;
   organizationId: string | null;
   classes: ClassGroup[];
+  classesRoute?: "/prof/classes" | "/coord/classes";
   onClose: () => void;
   onImportApplied?: () => void;
 };
@@ -232,6 +233,7 @@ export function StudentsFormsSyncModal({
   visible,
   organizationId,
   classes,
+  classesRoute = "/prof/classes",
   onClose,
   onImportApplied,
 }: StudentsFormsSyncModalProps) {
@@ -645,7 +647,7 @@ export function StudentsFormsSyncModal({
     (modalityLabel: string) => {
       onClose();
       router.push({
-        pathname: "/classes",
+        pathname: classesRoute,
         params: {
           tab: "criar",
           prefillName: modalityLabel,
@@ -653,7 +655,7 @@ export function StudentsFormsSyncModal({
         },
       });
     },
-    [onClose, router]
+    [classesRoute, onClose, router]
   );
 
   const closeSyncDropdowns = useCallback(() => {

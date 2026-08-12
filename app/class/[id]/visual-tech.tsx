@@ -37,6 +37,7 @@ import {
   saveTechnicalVisual,
 } from "../../../src/db/seed";
 import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../../src/navigation/use-trainer-route-scope";
 import { markRender, measureAsync } from "../../../src/observability/perf";
 import { Button } from "../../../src/ui/Button";
 import { Pressable } from "../../../src/ui/Pressable";
@@ -299,6 +300,7 @@ export default function ClassVisualTechRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const classId = typeof id === "string" ? id : "";
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [cls, setCls] = useState<ClassGroup | null>(null);
@@ -856,7 +858,7 @@ export default function ClassVisualTechRoute() {
       });
       return;
     }
-    navigateBackOrReplace({ router, fallback: "/classes" });
+    navigateBackOrReplace({ router, fallback: scopedRoutes.classes });
   };
 
   const alignButtonLabel = currentStep.passers?.length

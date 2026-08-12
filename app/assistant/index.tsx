@@ -28,6 +28,7 @@ import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
 import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import {
     buildAutoFixSuggestions,
     buildCommunicationDraft,
@@ -474,6 +475,7 @@ export default function AssistantScreen() {
   markRender("screen.assistant.render.root");
 
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const pathname = usePathname();
   const effectiveProfile = useEffectiveProfile();
   const notificationInboxScope = resolveNotificationInboxScope({
@@ -1516,7 +1518,7 @@ export default function AssistantScreen() {
             }}
           >
             <Pressable
-              onPress={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+              onPress={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
               accessibilityLabel="Voltar"
               style={{
                 width: 40,

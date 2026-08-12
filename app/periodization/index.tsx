@@ -129,6 +129,7 @@ import {
   updateClassAcwrLimits,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 
 import {
@@ -491,6 +492,7 @@ export default function PeriodizationScreen() {
   markRender("screen.periodization.render.root");
 
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const {
     classId: initialClassId,
     id: routeClassId,
@@ -516,7 +518,8 @@ export default function PeriodizationScreen() {
   const insets = useSafeAreaInsets();
   const organization = useOptionalOrganization();
   const activeOrganization = organization?.activeOrganization ?? null;
-  const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+  const isOrgAdmin =
+    scopedRoutes.scope === "coord" && (activeOrganization?.role_level ?? 0) >= 50;
 
   const { confirm: confirmDialog } = useConfirmDialog();
 
@@ -1117,8 +1120,8 @@ export default function PeriodizationScreen() {
 
     const initialClass = initialClassParam;
 
-    return initialClass ? `/class/${initialClass}` : "/prof/home";
-  }, [initialBackToParam, initialClassParam, selectedClass?.id]);
+    return initialClass ? `/class/${initialClass}` : scopedRoutes.home;
+  }, [initialBackToParam, initialClassParam, scopedRoutes.home, selectedClass?.id]);
   const periodizationKnowledgeDomain = useMemo(
     () =>
       selectedClass
@@ -4329,6 +4332,7 @@ export default function PeriodizationScreen() {
               painAlertDates={painAlertDates}
               isOrgAdmin={isOrgAdmin}
               router={router}
+              reportsRoute={scopedRoutes.reports}
               classPlans={classPlans}
               hasWeekPlans={hasWeekPlans}
               isSavingPlans={isSavingPlans}

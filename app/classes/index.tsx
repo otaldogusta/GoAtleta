@@ -40,6 +40,7 @@ import {
     updateClass,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
+import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { getStudents } from "../../src/db/students";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
@@ -272,6 +273,7 @@ export default function ClassesScreen() {
   markRender("screen.classes.render.root");
 
   const router = useRouter();
+  const scopedRoutes = useTrainerRouteScope();
   const insets = useSafeAreaInsets();
   const { edit, tab, prefillName, prefillModality, prefillUnit } = useLocalSearchParams<{
     edit?: string | string[];
@@ -1123,8 +1125,11 @@ export default function ClassesScreen() {
         tone: "default",
         onConfirm: () => {
           router.push({
-            pathname: "/periodization",
-            params: { classId: createdClassId },
+            pathname: scopedRoutes.periodization,
+            params: {
+              classId: createdClassId,
+              backTo: scopedRoutes.classes,
+            },
           });
         },
       });
@@ -1487,7 +1492,7 @@ export default function ClassesScreen() {
           tone: "default",
           onConfirm: () => {
             router.push({
-              pathname: "/training",
+              pathname: scopedRoutes.planning,
               params: {
                 createSessionClassIds: classIds.join(","),
                 createSessionStartTime: timeValue,
@@ -1855,7 +1860,7 @@ export default function ClassesScreen() {
         },
       });
     },
-    [confirmDialog, loadClasses, router]
+    [confirmDialog, loadClasses, router, scopedRoutes.planning]
   );
 
   const handleDeleteClassFromCard = useCallback(
@@ -1890,7 +1895,7 @@ export default function ClassesScreen() {
       <View ref={containerRef} style={{ flex: 1, minHeight: 0, position: "relative", overflow: "visible" }}>
         <ScreenPageHeader
           title="Turmas"
-          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
           right={
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <ClassesExportSyncMenu

@@ -37,6 +37,7 @@ type OverviewTabProps = {
   painAlertDates: string[];
   isOrgAdmin: boolean;
   router: { push: (params: any) => void };
+  reportsRoute: "/prof/reports" | "/coord/reports";
   classPlans: ClassPlan[];
   hasWeekPlans: boolean;
   isSavingPlans: boolean;
@@ -76,6 +77,7 @@ export function OverviewTab({
   painAlertDates,
   isOrgAdmin,
   router,
+  reportsRoute,
   classPlans,
   hasWeekPlans,
   isSavingPlans,
@@ -637,7 +639,7 @@ export function OverviewTab({
             {isOrgAdmin ? (
             <Pressable
 
-              onPress={() => router.push({ pathname: "/coord/reports" })}
+              onPress={() => router.push({ pathname: reportsRoute })}
 
               style={{
 

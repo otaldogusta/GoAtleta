@@ -55,12 +55,6 @@ const roleSubtitle: Record<AppRole, string> = {
   student: "Minha rotina",
 };
 
-const routePrefix: Record<AppRole, string> = {
-  prof: "/prof",
-  coord: "/coord",
-  student: "/student",
-};
-
 const roleProfileLabel: Record<AppRole, string> = {
   prof: "Professor",
   coord: "Coordenação",
@@ -729,7 +723,7 @@ export function WebSidebar({
   const tabItems = compactTabs.map((tab) => ({
     key: tab.key,
     label: tab.label,
-    href: `${routePrefix[role]}/${tab.routeName}`,
+    href: String(tab.href),
     icon: tab.icon,
   }));
 
@@ -821,7 +815,7 @@ export function WebSidebar({
       {
         key: "nfc",
         label: "Presença NFC",
-        href: "/prof/nfc-attendance",
+        href: "/coord/nfc-attendance",
         icon: "nfc",
       },
       {

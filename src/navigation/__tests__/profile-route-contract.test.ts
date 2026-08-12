@@ -1,0 +1,54 @@
+import fs from "node:fs";
+import path from "node:path";
+
+const repoRoot = path.resolve(__dirname, "../../..");
+
+const read = (relativePath: string) =>
+  fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+
+describe("professor and coordination route contract", () => {
+  it("keeps primary tabs in their own shells", () => {
+    const config = read("src/components/navigation/tab-config.ts");
+    expect(config).toContain('href: "/prof/classes"');
+    expect(config).toContain('href: "/coord/classes"');
+    expect(config).not.toContain('role === "coord" ? "/prof/classes"');
+  });
+
+  it("provides coordination wrappers for shared planning and NFC screens", () => {
+    expect(read("app/coord/planning.tsx")).toContain('import("../training")');
+    expect(read("app/coord/nfc-attendance.tsx")).toContain('import("../nfc-attendance")');
+  });
+
+  it("does not send coordination shortcuts into the professor shell", () => {
+    const sidebar = read("src/ui/WebSidebar.tsx");
+    const home = read("src/screens/home/HomeProfessorBelowFold.tsx");
+    const professorItems = sidebar.slice(
+      sidebar.indexOf("prof: ["),
+      sidebar.indexOf("coord: [")
+    );
+    const coordinationItems = sidebar.slice(
+      sidebar.indexOf("coord: ["),
+      sidebar.indexOf("student: [")
+    );
+    expect(professorItems).toContain('href: "/prof/nfc-attendance"');
+    expect(professorItems).not.toContain('href: "/coord/nfc-attendance"');
+    expect(coordinationItems).toContain('href: "/coord/nfc-attendance"');
+    expect(coordinationItems).not.toContain('href: "/prof/nfc-attendance"');
+    expect(home).toContain('route: "/coord/nfc-attendance"');
+  });
+
+  it("makes shared class and student screens use scoped routes", () => {
+    expect(read("app/classes/index.tsx")).toContain("useTrainerRouteScope");
+    expect(read("app/students/index.tsx")).toContain("useTrainerRouteScope");
+    expect(read("app/class/[id].tsx")).toContain("scopedRoutes.classes");
+  });
+
+  it("keeps shared event and session actions inside the active trainer shell", () => {
+    const eventDetails = read("app/events/[id].tsx");
+    const session = read("app/class/[id]/session.tsx");
+    expect(eventDetails).toContain("scopedRoutes.events");
+    expect(eventDetails).not.toContain('router.replace("/events")');
+    expect(session).toContain("pathname: scopedRoutes.planning");
+    expect(session).not.toContain('pathname: "/prof/planning"');
+  });
+});
