@@ -89,6 +89,7 @@ import { toRgba } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
+import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
 import {
     buildWaMeLink,
     getContactPhone,
@@ -1847,7 +1848,7 @@ export default function ClassDetails() {
   ) => {
     if (!cls) return;
     try {
-      const list = await getStudentsByClass(cls.id);
+      const list = await getStudentsByClass(cls.id, { includeInactive: true });
       const exportDate = new Date().toLocaleDateString("pt-BR");
       const timeParts = parseTime(classStartTime);
       const timeLabel = timeParts
@@ -2005,6 +2006,62 @@ export default function ClassDetails() {
       });
     } catch {
       Alert.alert("Falha ao exportar lista", "Tente novamente.");
+    }
+  };
+
+  const exportAttendancePeriodXlsx = async (monthValue = rosterMonthValue) => {
+    if (!cls) return;
+    try {
+      const monthKey = formatMonthKey(monthValue);
+      const [list, records] = await Promise.all([
+        getStudentsByClass(cls.id, { includeInactive: true }),
+        getAttendanceByClass(cls.id),
+      ]);
+      const studentById = new Map(list.map((student) => [student.id, student]));
+      const periodRows = records
+        .filter((record) => record.date.startsWith(monthKey))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((record) => {
+          const student = studentById.get(record.studentId);
+          return [
+            record.date.split("-").reverse().join("/"),
+            cls.name,
+            student?.name ?? "Aluno não localizado",
+            student?.membershipStatus === "inactive" ? "Inativo" : "Ativo",
+            student?.financialStatus === "delinquent" ? "Inadimplente" : "Regular",
+            record.status === "presente" ? "Presente" : "Faltou",
+          ];
+        });
+
+      const fileName = `chamada-${slugify(cls.name)}-${monthKey}.xlsx`;
+      await exportWorkbookXlsx({
+        fileName,
+        dialogTitle: "Exportar chamadas do período",
+        sheets: [
+          {
+            name: "Chamadas",
+            rows: [
+              ["Data", "Turma", "Atleta", "Situação", "Financeiro", "Presença"],
+              ...periodRows,
+            ],
+            options: {
+              freezeHeaderRow: true,
+              autoFilterHeaderRow: true,
+              columnWidths: [13, 24, 28, 14, 16, 14],
+            },
+          },
+        ],
+      });
+      showSaveToast({
+        message: `${periodRows.length} registro(s) exportado(s) em XLSX.`,
+        variant: "success",
+      });
+    } catch (error) {
+      showSaveToast({
+        error,
+        message: "Não foi possível exportar as chamadas em XLSX.",
+        variant: "error",
+      });
     }
   };
 
@@ -3073,6 +3130,8 @@ export default function ClassDetails() {
             paddingTop: 12,
             borderTopWidth: 1,
             borderTopColor: colors.border,
+            flexDirection: windowWidth < 620 ? "column" : "row",
+            gap: 10,
           }}
         >
           <Pressable
@@ -3081,6 +3140,7 @@ export default function ClassDetails() {
               void exportRosterPdf(rosterMonthValue, rosterExportOptions);
             }}
             style={{
+              flex: 1,
               paddingVertical: 13,
               borderRadius: 12,
               backgroundColor: colors.primaryBg,
@@ -3089,6 +3149,25 @@ export default function ClassDetails() {
           >
             <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 14 }}>
               Baixar PDF
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              closeRosterExportModal();
+              void exportAttendancePeriodXlsx(rosterMonthValue);
+            }}
+            style={{
+              flex: 1,
+              paddingVertical: 13,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.primaryBg,
+              backgroundColor: colors.card,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: colors.successText, fontWeight: "700", fontSize: 14 }}>
+              Baixar XLSX
             </Text>
           </Pressable>
         </View>

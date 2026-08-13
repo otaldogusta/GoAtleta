@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Platform } from "react-native";
 
 import { clearAiCache } from "../api/ai";
+import { verifySignupEmailCode } from "../api/email-verification";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearSentryUser, setSentryUser } from "../observability/sentry";
 import { safeJsonParse } from "../utils/safe-json";
@@ -27,7 +28,7 @@ type AuthContextValue = {
   exchangeCodeForSession: (code: string) => Promise<void>;
   consumeAuthUrl: (url: string) => Promise<AuthSession | null>;
   resendSignupCode: (email: string, redirectPath?: string) => Promise<void>;
-  verifySignupCode: (email: string, code: string) => Promise<void>;
+  verifySignupCode: (email: string, code: string) => Promise<AuthSession | null>;
   unlinkIdentityProvider: (provider: "google" | "facebook" | "apple") => Promise<void>;
   refreshUser: () => Promise<void>;
   resetPassword: (email: string, redirectTo: string) => Promise<void>;
@@ -154,6 +155,9 @@ const fetchUser = async (accessToken: string) => {
     app_metadata?: {
       provider?: string | null;
       providers?: string[] | null;
+      email_verified_hybrid_at?: string | null;
+      email_verification_source?: string | null;
+      [key: string]: unknown;
     };
     identities?: {
       id?: string | null;
@@ -169,26 +173,6 @@ const fetchUser = async (accessToken: string) => {
   } | null>(text, null);
   if (!payload) return null;
   return payload.id ? payload : null;
-};
-
-const updateUserMetadata = async (
-  accessToken: string,
-  data: Record<string, unknown>
-) => {
-  if (!accessToken) return;
-  const res = await fetch(SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user", {
-    method: "PUT",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ data }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || "Falha ao atualizar dados da conta.");
-  }
 };
 
 const deleteUserIdentity = async (accessToken: string, identityId: string) => {
@@ -488,22 +472,7 @@ export function AuthProvider({
       throw new Error("Informe o código recebido por e-mail.");
     }
 
-    let payload: Record<string, unknown> | null = null;
-    let verifyToken = "";
-
-    payload = await authFetch("/auth/v1/verify", {
-      email: cleanEmail,
-      token: cleanCode,
-      type: "email",
-    });
-    verifyToken = String(payload.access_token ?? "");
-
-    const metadataToken = verifyToken || session?.access_token || "";
-    if (metadataToken) {
-      await updateUserMetadata(metadataToken, {
-        email_verified_hybrid_at: new Date().toISOString(),
-      });
-    }
+    const payload = await verifySignupEmailCode(cleanEmail, cleanCode);
 
     if (payload?.access_token) {
       const normalized = normalizeAuthSession(payload);
@@ -514,7 +483,7 @@ export function AuthProvider({
       };
       setSession(next);
       await saveSession(next, true);
-      return;
+      return next;
     }
 
     if (session?.access_token) {
@@ -526,8 +495,10 @@ export function AuthProvider({
         };
         setSession(next);
         await saveSession(next, true);
+        return next;
       }
     }
+    return null;
   }, [session]);
 
   const unlinkIdentityProvider = useCallback(
@@ -626,7 +597,7 @@ export const useAuth = () => {
       signInWithOAuth: async () => {},
       exchangeCodeForSession: async () => {},
       resendSignupCode: async () => {},
-      verifySignupCode: async () => {},
+      verifySignupCode: async () => null,
       unlinkIdentityProvider: async () => {},
       refreshUser: async () => {},
       resetPassword: async () => {},

@@ -48,6 +48,9 @@ type StudentRow = {
   athlete_objective?: string | null;
   learning_style?: string | null;
   birthdate: string | null;
+  membership_status?: string | null;
+  financial_status?: string | null;
+  inactivated_at?: string | null;
   createdat: string;
 };
 
@@ -73,6 +76,9 @@ const mapStudent = (row: StudentRow): Student => ({
   athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
   learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
   birthDate: row.birthdate ?? "",
+  membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
+  financialStatus: row.financial_status === "delinquent" ? "delinquent" : "regular",
+  inactivatedAt: row.inactivated_at ?? null,
   createdAt: row.createdat,
 });
 
@@ -140,6 +146,9 @@ const buildPreviewStudent = (userId: string | null): Student => ({
   athleteObjective: "base",
   learningStyle: "misto",
   birthDate: "",
+  membershipStatus: "active",
+  financialStatus: "regular",
+  inactivatedAt: null,
   createdAt: new Date().toISOString(),
 });
 

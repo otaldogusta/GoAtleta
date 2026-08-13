@@ -271,8 +271,8 @@ function RootLayoutContent() {
     session?.user?.email_confirmed_at ?? session?.user?.confirmed_at ?? null;
   const userMetadata = session?.user?.user_metadata ?? {};
   const hybridVerifiedAt =
-    typeof userMetadata.email_verified_hybrid_at === "string"
-      ? userMetadata.email_verified_hybrid_at
+    typeof session?.user?.app_metadata?.email_verified_hybrid_at === "string"
+      ? session.user.app_metadata.email_verified_hybrid_at
       : null;
   const requiresHybridVerification =
     userMetadata.requires_email_hybrid_verification === true;

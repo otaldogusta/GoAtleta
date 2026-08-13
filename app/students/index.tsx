@@ -52,6 +52,7 @@ import {
   revealStudentCpf,
   saveStudent,
   updateStudent,
+  updateStudentOperationalStatus,
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
@@ -288,6 +289,7 @@ export default function StudentsScreen() {
     useState(false);
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
   const [studentsExportBusy, setStudentsExportBusy] = useState(false);
+  const [operationalStatusSaving, setOperationalStatusSaving] = useState(false);
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] =
     useState<StudentsTab | null>(null);
@@ -725,6 +727,83 @@ export default function StudentsScreen() {
       console.warn("StudentsScreen reload failed", error);
     }
   }, [activeOrganization, loadSupplementaryStudentsData]);
+
+  const operationalStudent = useMemo(
+    () => students.find((student) => student.id === editingId) ?? null,
+    [editingId, students],
+  );
+
+  const handleUpdateOperationalStatus = useCallback(
+    async (patch: {
+      membershipStatus?: Student["membershipStatus"];
+      financialStatus?: Student["financialStatus"];
+    }) => {
+      if (!operationalStudent || operationalStatusSaving) return;
+      const nextMembership = patch.membershipStatus;
+      if (nextMembership) {
+        const confirmed = await confirmDialog({
+          title: nextMembership === "inactive" ? "Inativar aluno?" : "Reativar aluno?",
+          message:
+            nextMembership === "inactive"
+              ? "O aluno não aparecerá em novas chamadas. Matrícula e histórico serão preservados."
+              : "O aluno voltará a aparecer nas chamadas das turmas vinculadas.",
+          confirmLabel: nextMembership === "inactive" ? "Inativar" : "Reativar",
+          cancelLabel: "Cancelar",
+          tone: nextMembership === "inactive" ? "danger" : "default",
+          onConfirm: () => undefined,
+        });
+        if (!confirmed) return;
+      }
+
+      setOperationalStatusSaving(true);
+      try {
+        await updateStudentOperationalStatus(operationalStudent.id, patch, {
+          organizationId: activeOrganization?.id,
+        });
+        const now = new Date().toISOString();
+        setStudents((current) =>
+          current.map((student) =>
+            student.id === operationalStudent.id
+              ? {
+                  ...student,
+                  membershipStatus: patch.membershipStatus ?? student.membershipStatus,
+                  financialStatus: patch.financialStatus ?? student.financialStatus,
+                  inactivatedAt: patch.membershipStatus
+                    ? patch.membershipStatus === "inactive"
+                      ? now
+                      : null
+                    : student.inactivatedAt,
+                }
+              : student,
+          ),
+        );
+        showSaveToast({
+          message: patch.membershipStatus
+            ? patch.membershipStatus === "inactive"
+              ? "Aluno inativado. O histórico foi preservado."
+              : "Aluno reativado."
+            : patch.financialStatus === "delinquent"
+              ? "Situação financeira marcada como inadimplente."
+              : "Situação financeira marcada como regular.",
+          variant: "success",
+        });
+      } catch (error) {
+        showSaveToast({
+          error,
+          message: "Não foi possível atualizar a situação do aluno.",
+          variant: "error",
+        });
+      } finally {
+        setOperationalStatusSaving(false);
+      }
+    }, [
+      activeOrganization?.id,
+      confirmDialog,
+      operationalStatusSaving,
+      operationalStudent,
+      showSaveToast,
+    ],
+  );
 
   useEffect(() => {
     if ((studentsTab as string) === "importar") {
@@ -1249,6 +1328,9 @@ export default function StudentsScreen() {
         medicationNotes: medicationUse ? medicationNotes.trim() : "",
         healthObservations: healthObservations.trim(),
         birthDate: birthDate || "",
+        membershipStatus: operationalStudent?.membershipStatus ?? "active",
+        financialStatus: operationalStudent?.financialStatus ?? "regular",
+        inactivatedAt: operationalStudent?.inactivatedAt ?? null,
         createdAt: editingCreatedAt ? editingCreatedAt : nowIso,
       };
 
@@ -2709,6 +2791,9 @@ export default function StudentsScreen() {
           editClassPickerAnimStyle={editClassPickerAnimStyle}
           handleSelectEditClass={handleSelectEditClass}
           closeAllEditPickers={closeAllEditPickers}
+          operationalStudent={operationalStudent}
+          operationalStatusSaving={operationalStatusSaving}
+          onUpdateOperationalStatus={handleUpdateOperationalStatus}
           deleteEditingStudent={deleteEditingStudent}
           editSaving={editSaving}
           setEditSaving={setEditSaving}

@@ -15,6 +15,9 @@ export type AuthSession = {
     app_metadata?: {
       provider?: string | null;
       providers?: string[] | null;
+      email_verified_hybrid_at?: string | null;
+      email_verification_source?: string | null;
+      [key: string]: unknown;
     };
     identities?: {
       id?: string | null;

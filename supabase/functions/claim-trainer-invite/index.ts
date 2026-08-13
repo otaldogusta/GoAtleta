@@ -56,6 +56,23 @@ Deno.serve(async (req) => {
     return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
+  const appMetadata = user.app_metadata ?? {};
+  const providers = [
+    ...(Array.isArray(appMetadata.providers) ? appMetadata.providers : []),
+    appMetadata.provider,
+  ]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  const hasTrustedExternalProvider = providers.some(
+    (provider) => provider !== "email" && provider !== "phone"
+  );
+  if (
+    !hasTrustedExternalProvider &&
+    typeof appMetadata.email_verified_hybrid_at !== "string"
+  ) {
+    return createError(req, 403, "EMAIL_NOT_VERIFIED", "Email verification required");
+  }
+
   let payload: { code: string } = { code: "" };
   try {
     payload = (await req.json()) as { code: string };

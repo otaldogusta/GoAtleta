@@ -844,6 +844,22 @@ export default function AttendanceScreen() {
                       </Text>
                     </View>
                   ) : null}
+                  {item.student.financialStatus === "delinquent" ? (
+                    <View
+                      style={{
+                        borderRadius: radius.full,
+                        borderWidth: 1,
+                        borderColor: colors.warningBg,
+                        backgroundColor: colors.warningBg,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                      }}
+                    >
+                      <Text style={{ color: colors.warningText, fontSize: 10, fontWeight: "800" }}>
+                        Inadimplente
+                      </Text>
+                    </View>
+                  ) : null}
                   {item.activeContexts.length ? (
                     <View
                       style={{

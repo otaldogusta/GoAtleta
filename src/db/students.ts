@@ -180,6 +180,9 @@ const mapStudentRow = (
     rgNormalized: row.rg_normalized ?? null,
     collegeCourse: row.college_course ?? null,
     isExperimental: Boolean(row.is_experimental),
+    membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
+    financialStatus: row.financial_status === "delinquent" ? "delinquent" : "regular",
+    inactivatedAt: row.inactivated_at ?? null,
     sourcePreRegistrationId: row.source_pre_registration_id ?? null,
     classId: row.classid,
     age: row.age,
@@ -846,7 +849,7 @@ export async function getStudents(
 
 export async function getStudentsByClass(
   classId: string,
-  options: { organizationId?: string | null } = {}
+  options: { organizationId?: string | null; includeInactive?: boolean } = {}
 ): Promise<Student[]> {
   try {
     const activeOrganizationId =
@@ -897,14 +900,22 @@ export async function getStudentsByClass(
       }
     }
 
-    return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(byId.values())
+      .filter((student) => options.includeInactive || student.membershipStatus !== "inactive")
+      .sort((a, b) => a.name.localeCompare(b.name));
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
       const activeOrganizationId =
         options.organizationId ?? (await getActiveOrganizationId());
       const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
       const cached = await readCache<Student[]>(cacheKey);
-      if (cached) return cached.filter((item) => item.classId === classId);
+      if (cached) {
+        return cached.filter(
+          (item) =>
+            item.classId === classId &&
+            (options.includeInactive || item.membershipStatus !== "inactive")
+        );
+      }
       return [];
     }
     throw error;
@@ -954,6 +965,9 @@ export async function saveStudent(student: Student) {
     rg_normalized: rgNormalized,
     college_course: student.collegeCourse?.trim() || null,
     is_experimental: Boolean(student.isExperimental),
+    membership_status: student.membershipStatus ?? "active",
+    financial_status: student.financialStatus ?? "regular",
+    inactivated_at: student.inactivatedAt ?? null,
     source_pre_registration_id: student.sourcePreRegistrationId?.trim() || null,
     classid: student.classId,
     age: student.age,
@@ -1023,6 +1037,9 @@ export async function updateStudent(student: Student) {
     rg_normalized: rgNormalized,
     college_course: student.collegeCourse?.trim() || null,
     is_experimental: Boolean(student.isExperimental),
+    membership_status: student.membershipStatus ?? "active",
+    financial_status: student.financialStatus ?? "regular",
+    inactivated_at: student.inactivatedAt ?? null,
     source_pre_registration_id: student.sourcePreRegistrationId?.trim() || null,
     classid: student.classId,
     age: student.age,
@@ -1146,6 +1163,37 @@ export async function updateStudentPhoto(studentId: string, photoUrl: string | n
     {
       photo_url: photoUrl?.trim() || null,
     }
+  );
+}
+
+export async function updateStudentOperationalStatus(
+  studentId: string,
+  patch: {
+    membershipStatus?: Student["membershipStatus"];
+    financialStatus?: Student["financialStatus"];
+  },
+  options: { organizationId?: string | null } = {}
+) {
+  const activeOrganizationId =
+    options.organizationId ?? (await getActiveOrganizationId());
+  if (!activeOrganizationId) {
+    throw new Error("Selecione uma organização ativa.");
+  }
+
+  const payload: Record<string, unknown> = {};
+  if (patch.membershipStatus) {
+    payload.membership_status = patch.membershipStatus;
+    payload.inactivated_at =
+      patch.membershipStatus === "inactive" ? new Date().toISOString() : null;
+  }
+  if (patch.financialStatus) {
+    payload.financial_status = patch.financialStatus;
+  }
+  if (Object.keys(payload).length === 0) return;
+
+  await supabasePatch(
+    `/students?id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}`,
+    payload
   );
 }
 

@@ -286,6 +286,9 @@ const createPilotStudent = ({ name, contact }: { name: string; contact: string }
     athleteObjective: "rendimento",
     learningStyle: "misto",
     isExperimental: true,
+    membershipStatus: "active",
+    financialStatus: "regular",
+    inactivatedAt: null,
     createdAt: new Date().toISOString(),
   };
 };

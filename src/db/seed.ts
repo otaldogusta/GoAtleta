@@ -80,7 +80,7 @@ export {
     convertStudentPreRegistration, createAbsenceNotice, deleteStudent, deleteStudentPreRegistration, deleteStudents, getAbsenceNotices, getAthleteIntakesByClass, getAttendanceAll, getAttendanceByClass,
     getAttendanceByDate,
     getAttendanceByStudent, getStudentById, getStudentPreRegistrations, getStudents,
-    getStudentClassIds, getStudentsByClass, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, setStudentClassIds, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
+    getStudentClassIds, getStudentsByClass, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, setStudentClassIds, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentOperationalStatus, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
 } from "./students";
 
 export {

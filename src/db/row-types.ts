@@ -124,6 +124,9 @@ export type StudentRow = {
   rg_normalized?: string | null;
   college_course?: string | null;
   is_experimental?: boolean | null;
+  membership_status?: "active" | "inactive" | null;
+  financial_status?: "regular" | "delinquent" | null;
+  inactivated_at?: string | null;
   source_pre_registration_id?: string | null;
   guardian_cpf_hmac?: string | null;
   classid: string;

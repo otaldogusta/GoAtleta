@@ -1130,6 +1130,9 @@ export type Student = {
   rgNormalized?: string | null;
   collegeCourse?: string | null;
   isExperimental?: boolean;
+  membershipStatus: "active" | "inactive";
+  financialStatus: "regular" | "delinquent";
+  inactivatedAt?: string | null;
   sourcePreRegistrationId?: string | null;
   classId: string;
   age: number;

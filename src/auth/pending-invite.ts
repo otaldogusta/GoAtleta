@@ -41,6 +41,30 @@ export const resolvePendingTrainerCode = ({
   storedCode: string;
 }) => routeCode?.trim().toUpperCase() || storedCode.trim().toUpperCase();
 
+export const requiresTrainerInviteEmailVerification = (user?: {
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
+} | null) => {
+  const appMetadata = user?.app_metadata ?? {};
+  const userMetadata = user?.user_metadata ?? {};
+  const providers = [
+    ...(Array.isArray(appMetadata.providers) ? appMetadata.providers : []),
+    appMetadata.provider,
+  ]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  const hasTrustedExternalProvider = providers.some(
+    (provider) => provider !== "email" && provider !== "phone"
+  );
+  if (hasTrustedExternalProvider) return false;
+  const isHybridSignup = userMetadata.requires_email_hybrid_verification === true;
+  const usesEmailProvider = providers.includes("email");
+  return (
+    (isHybridSignup || usesEmailProvider) &&
+    typeof appMetadata.email_verified_hybrid_at !== "string"
+  );
+};
+
 export const resolveAuthenticatedTrainerInviteEntry = ({
   hasSession,
   pathname,

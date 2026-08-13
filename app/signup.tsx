@@ -18,10 +18,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../src/ui/Pressable";
 import { markRender } from "../src/observability/perf";
 
-import { claimTrainerInvite } from "../src/api/trainer-invite";
 import { useAuth } from "../src/auth/auth";
 import {
-  clearPendingTrainerInvite,
   savePendingTrainerInvite,
 } from "../src/auth/pending-invite";
 import { shadow } from "../src/theme/tokens";
@@ -227,10 +225,9 @@ export default function SignupScreen() {
     try {
       const session = await signUp(email.trim(), password, "login", "");
       if (inviteCode.trim()) {
+        await savePendingTrainerInvite(inviteCode.trim());
         if (session) {
-          await claimTrainerInvite(inviteCode.trim());
-          await clearPendingTrainerInvite();
-          router.replace("/");
+          router.replace(`/verify-email?email=${encodeURIComponent(email.trim())}`);
         } else {
           router.replace("/login");
         }

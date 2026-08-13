@@ -167,7 +167,9 @@ export type StudentsListTabProps = {
 
 const PAGE_SIZE = 8;
 
-type StudentStatusFilter = "all" | "regular" | "experimental";
+type StudentProfileFilter = "all" | "regular" | "experimental";
+type StudentMembershipFilter = "all" | Student["membershipStatus"];
+type StudentFinancialFilter = "all" | Student["financialStatus"];
 type StudentGenderFilter = "all" | ClassGroup["gender"];
 type StudentClassFilter = "all" | string;
 type StudentContactFilter = "all" | "with" | "without";
@@ -194,7 +196,9 @@ export const StudentsListTab = memo(function StudentsListTab({
   const desktop = width >= 1040;
   const [unitSearch, setUnitSearch] = useState("");
   const [unitAscending, setUnitAscending] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<StudentStatusFilter>("all");
+  const [profileFilter, setProfileFilter] = useState<StudentProfileFilter>("all");
+  const [membershipFilter, setMembershipFilter] = useState<StudentMembershipFilter>("all");
+  const [financialFilter, setFinancialFilter] = useState<StudentFinancialFilter>("all");
   const [genderFilter, setGenderFilter] = useState<StudentGenderFilter>("all");
   const [classFilter, setClassFilter] = useState<StudentClassFilter>("all");
   const [contactFilter, setContactFilter] =
@@ -249,10 +253,16 @@ export const StudentsListTab = memo(function StudentsListTab({
     () =>
       studentsFiltered.filter((student) => {
         const cls = classById.get(student.classId);
-        if (statusFilter === "regular" && Boolean(student.isExperimental)) {
+        if (profileFilter === "regular" && Boolean(student.isExperimental)) {
           return false;
         }
-        if (statusFilter === "experimental" && !student.isExperimental) {
+        if (profileFilter === "experimental" && !student.isExperimental) {
+          return false;
+        }
+        if (membershipFilter !== "all" && student.membershipStatus !== membershipFilter) {
+          return false;
+        }
+        if (financialFilter !== "all" && student.financialStatus !== financialFilter) {
           return false;
         }
         if (genderFilter !== "all" && cls?.gender !== genderFilter) {
@@ -271,7 +281,9 @@ export const StudentsListTab = memo(function StudentsListTab({
       classFilter,
       contactFilter,
       genderFilter,
-      statusFilter,
+      financialFilter,
+      membershipFilter,
+      profileFilter,
       studentsFiltered,
     ],
   );
@@ -282,7 +294,9 @@ export const StudentsListTab = memo(function StudentsListTab({
     classFilter,
     contactFilter,
     genderFilter,
-    statusFilter,
+    financialFilter,
+    membershipFilter,
+    profileFilter,
     studentsSearch,
     studentsUnitFilter,
   ]);
@@ -611,9 +625,29 @@ export const StudentsListTab = memo(function StudentsListTab({
             }}
           >
             <FilterSelect
-              label="Status"
-              value={statusFilter}
-              onChange={setStatusFilter}
+              label="Vínculo"
+              value={membershipFilter}
+              onChange={setMembershipFilter}
+              options={[
+                { value: "all", label: "Todos" },
+                { value: "active", label: "Ativos" },
+                { value: "inactive", label: "Inativos" },
+              ]}
+            />
+            <FilterSelect
+              label="Financeiro"
+              value={financialFilter}
+              onChange={setFinancialFilter}
+              options={[
+                { value: "all", label: "Todos" },
+                { value: "regular", label: "Regular" },
+                { value: "delinquent", label: "Inadimplente" },
+              ]}
+            />
+            <FilterSelect
+              label="Perfil"
+              value={profileFilter}
+              onChange={setProfileFilter}
               options={[
                 { value: "all", label: "Todos" },
                 { value: "regular", label: "Regulares" },

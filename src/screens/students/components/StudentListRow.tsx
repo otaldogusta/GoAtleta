@@ -161,6 +161,38 @@ export function StudentListRowContent({
                 </Text>
               </View>
             ) : null}
+            {student.membershipStatus === "inactive" ? (
+              <View
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondaryBg,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                }}
+              >
+                <Text style={{ color: colors.muted, fontSize: 10, fontWeight: "800" }}>
+                  Inativo
+                </Text>
+              </View>
+            ) : null}
+            {student.financialStatus === "delinquent" ? (
+              <View
+                style={{
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: colors.warningBg,
+                  backgroundColor: colors.warningBg,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                }}
+              >
+                <Text style={{ color: colors.warningText, fontSize: 10, fontWeight: "800" }}>
+                  Inadimplente
+                </Text>
+              </View>
+            ) : null}
             {healthAssessment.level !== "apto" ? (
               <View
                 style={{

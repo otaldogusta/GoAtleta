@@ -8,6 +8,7 @@ import {
   resolveAuthenticatedTrainerInviteEntry,
   resolvePendingInviteRedirect,
   resolvePendingTrainerCode,
+  requiresTrainerInviteEmailVerification,
   savePendingInvite,
   savePendingTrainerInvite,
 } from "../pending-invite";
@@ -129,5 +130,50 @@ describe("pending invite storage", () => {
         routeCode: "route-code",
       })
     ).toBe("");
+  });
+
+  test("blocks trainer invite claim until hybrid email verification finishes", () => {
+    expect(
+      requiresTrainerInviteEmailVerification({
+        app_metadata: {
+          provider: "email",
+        },
+        user_metadata: {
+          requires_email_hybrid_verification: true,
+        },
+      })
+    ).toBe(true);
+    expect(
+      requiresTrainerInviteEmailVerification({
+        app_metadata: {
+          provider: "email",
+          email_verified_hybrid_at: "2026-08-13T12:00:00.000Z",
+        },
+        user_metadata: {
+          requires_email_hybrid_verification: true,
+        },
+      })
+    ).toBe(false);
+  });
+
+  test("does not trust a verification timestamp written in user metadata", () => {
+    expect(
+      requiresTrainerInviteEmailVerification({
+        app_metadata: { provider: "email" },
+        user_metadata: {
+          requires_email_hybrid_verification: true,
+          email_verified_hybrid_at: "spoofed-by-client",
+        },
+      })
+    ).toBe(true);
+  });
+
+  test("accepts an external identity provider as the verified identity source", () => {
+    expect(
+      requiresTrainerInviteEmailVerification({
+        app_metadata: { provider: "google", providers: ["google"] },
+        user_metadata: { requires_email_hybrid_verification: true },
+      })
+    ).toBe(false);
   });
 });

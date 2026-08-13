@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.claim-trainer-invite]
 verify_jwt = false
 
+[functions.verify-signup-email-code]
+verify_jwt = false
+
 [functions.create-trainer-invite]
 verify_jwt = false
 

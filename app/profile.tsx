@@ -654,8 +654,8 @@ export default function ProfileScreen() {
       session?.user?.email_confirmed_at ?? session?.user?.confirmed_at ?? null;
     const metadata = session?.user?.user_metadata ?? {};
     const hybridVerifiedAt =
-      typeof metadata.email_verified_hybrid_at === "string"
-        ? metadata.email_verified_hybrid_at
+      typeof session?.user?.app_metadata?.email_verified_hybrid_at === "string"
+        ? session.user.app_metadata.email_verified_hybrid_at
         : null;
     const requiresHybridVerification =
       metadata.requires_email_hybrid_verification === true;
@@ -695,7 +695,7 @@ export default function ProfileScreen() {
           : "Conta em modo híbrido: confirme o e-mail por código para liberar ações sensíveis."
         : "Sua conta usa autenticação por e-mail e senha.",
     };
-  }, [session?.user?.app_metadata?.provider, session?.user?.app_metadata?.providers, session?.user?.confirmed_at, session?.user?.email, session?.user?.email_confirmed_at, session?.user?.identities, session?.user?.user_metadata]);
+  }, [session?.user?.app_metadata?.email_verified_hybrid_at, session?.user?.app_metadata?.provider, session?.user?.app_metadata?.providers, session?.user?.confirmed_at, session?.user?.email, session?.user?.email_confirmed_at, session?.user?.identities, session?.user?.user_metadata]);
 
   const toggleGoogleMenu = useCallback(() => {
     if (!accountSecurity.googleConnected || unlinkingGoogle) return;

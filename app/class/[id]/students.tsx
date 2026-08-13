@@ -1327,6 +1327,9 @@ export default function ClassStudentsScreen() {
         positionSecondary: createPositionSecondary,
         athleteObjective: "base",
         learningStyle: "misto",
+        membershipStatus: "active",
+        financialStatus: "regular",
+        inactivatedAt: null,
         createdAt: nowIso,
       });
       if (createPhotoUrl && cls?.organizationId) {

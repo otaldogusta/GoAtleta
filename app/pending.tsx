@@ -13,6 +13,7 @@ import {
   clearPendingTrainerInvite,
   getPendingInvite,
   getPendingTrainerInvite,
+  requiresTrainerInviteEmailVerification,
 } from "../src/auth/pending-invite";
 import { useRole } from "../src/auth/role";
 import { markRender, measureAsync } from "../src/observability/perf";
@@ -209,6 +210,7 @@ export default function PendingScreen() {
     if (code === "INVITE_INVALID" || code === "INVITE_REVOKED") return "Convite inválido.";
     if (code === "STUDENT_ALREADY_LINKED") return "Seu acesso já está vinculado.";
     if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") return "Sessão expirada. Entre novamente.";
+    if (code === "EMAIL_NOT_VERIFIED") return "Confirme seu e-mail para aplicar o convite.";
     if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") return "Sem permissão para validar o convite.";
     return "Não foi possível validar o convite.";
   };
@@ -308,13 +310,18 @@ export default function PendingScreen() {
       if (token) {
         await handleStoredInvite(token);
       } else {
+        if (requiresTrainerInviteEmailVerification(session?.user)) {
+          const email = encodeURIComponent(session?.user?.email ?? "");
+          router.replace(`/verify-email?email=${email}`);
+          return;
+        }
         await handleStoredTrainerInvite(trainerCode);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [refresh, role, router]);
+  }, [refresh, role, router, session?.user]);
 
   if ((role === "trainer" || role === "student") && !storedToken && !storedTrainerCode) {
     return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} />;

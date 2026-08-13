@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
+import { getPendingTrainerInvite } from "../src/auth/pending-invite";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -112,10 +113,15 @@ export default function VerifyEmailScreen() {
     setBusy(true);
     setMessage("");
     try {
-      await verifySignupCode(email.trim(), code.trim());
+      const verifiedSession = await verifySignupCode(email.trim(), code.trim());
       await refreshUser();
+      const pendingTrainerCode = await getPendingTrainerInvite();
+      if (pendingTrainerCode) {
+        router.replace("/pending");
+        return;
+      }
       setMessage("E-mail confirmado com sucesso.");
-      if (session) {
+      if (verifiedSession || session) {
         router.replace("/");
       } else {
         router.replace("/login");

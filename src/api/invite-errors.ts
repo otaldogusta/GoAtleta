@@ -12,6 +12,7 @@ export type InviteErrorCode =
   | "FORBIDDEN"
   | "UNAUTHORIZED"
   | "MISSING_AUTH_TOKEN"
+  | "EMAIL_NOT_VERIFIED"
   | "INVALID_REQUEST"
   | "SERVER_ERROR";
 
@@ -24,6 +25,9 @@ type InviteErrorPayload = {
 const mapMessageToCode = (message: string): InviteErrorCode => {
   const lower = message.toLowerCase();
   if (lower.includes("missing auth token")) return "MISSING_AUTH_TOKEN";
+  if (lower.includes("email verification") || lower.includes("confirme seu e-mail")) {
+    return "EMAIL_NOT_VERIFIED";
+  }
   if (lower.includes("unauthorized") || lower.includes("invalid jwt")) return "UNAUTHORIZED";
   if (lower.includes("forbidden") || lower.includes("permission")) return "FORBIDDEN";
   if (lower.includes("expired")) return "INVITE_EXPIRED";

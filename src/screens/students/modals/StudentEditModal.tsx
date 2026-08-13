@@ -206,6 +206,12 @@ export type StudentEditModalProps = {
     closeAllEditPickers: () => void;
 
     // Delete / Save
+    operationalStudent: Student | null;
+    operationalStatusSaving: boolean;
+    onUpdateOperationalStatus: (patch: {
+        membershipStatus?: Student["membershipStatus"];
+        financialStatus?: Student["financialStatus"];
+    }) => Promise<void>;
     deleteEditingStudent: () => void;
     editSaving: boolean;
     setEditSaving: (value: boolean) => void;
@@ -331,6 +337,9 @@ export function StudentEditModal({
     editClassPickerAnimStyle,
     handleSelectEditClass,
     closeAllEditPickers,
+    operationalStudent,
+    operationalStatusSaving,
+    onUpdateOperationalStatus,
     deleteEditingStudent,
     editSaving,
     setEditSaving,
@@ -525,6 +534,121 @@ export function StudentEditModal({
                                     </View>
                                 </View>
                             </View>
+
+                            {operationalStudent ? (
+                                <View
+                                    style={{
+                                        borderWidth: 1,
+                                        borderColor: colors.border,
+                                        borderRadius: 14,
+                                        backgroundColor: colors.card,
+                                        padding: 12,
+                                        gap: 10,
+                                    }}
+                                >
+                                    <View style={{ gap: 2 }}>
+                                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                                            Situação do aluno
+                                        </Text>
+                                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                            O financeiro não altera presença. Inativos saem de novas chamadas e mantêm o histórico.
+                                        </Text>
+                                    </View>
+                                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                                        <Pressable
+                                            disabled={operationalStatusSaving}
+                                            onPress={() =>
+                                                void onUpdateOperationalStatus({
+                                                    membershipStatus:
+                                                        operationalStudent.membershipStatus === "inactive"
+                                                            ? "active"
+                                                            : "inactive",
+                                                })
+                                            }
+                                            style={{
+                                                minHeight: 38,
+                                                borderRadius: 11,
+                                                borderWidth: 1,
+                                                borderColor:
+                                                    operationalStudent.membershipStatus === "inactive"
+                                                        ? colors.successBorder
+                                                        : colors.border,
+                                                backgroundColor:
+                                                    operationalStudent.membershipStatus === "inactive"
+                                                        ? colors.successBg
+                                                        : colors.secondaryBg,
+                                                paddingHorizontal: 12,
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                opacity: operationalStatusSaving ? 0.55 : 1,
+                                            }}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color:
+                                                        operationalStudent.membershipStatus === "inactive"
+                                                            ? colors.successText
+                                                            : colors.text,
+                                                    fontSize: 12,
+                                                    fontWeight: "800",
+                                                }}
+                                            >
+                                                {operationalStudent.membershipStatus === "inactive"
+                                                    ? "Reativar aluno"
+                                                    : "Inativar aluno"}
+                                            </Text>
+                                        </Pressable>
+                                        <Pressable
+                                            disabled={operationalStatusSaving}
+                                            onPress={() =>
+                                                void onUpdateOperationalStatus({
+                                                    financialStatus:
+                                                        operationalStudent.financialStatus === "delinquent"
+                                                            ? "regular"
+                                                            : "delinquent",
+                                                })
+                                            }
+                                            style={{
+                                                minHeight: 38,
+                                                borderRadius: 11,
+                                                borderWidth: 1,
+                                                borderColor:
+                                                    operationalStudent.financialStatus === "delinquent"
+                                                        ? colors.warningBg
+                                                        : colors.border,
+                                                backgroundColor:
+                                                    operationalStudent.financialStatus === "delinquent"
+                                                        ? colors.warningBg
+                                                        : colors.secondaryBg,
+                                                paddingHorizontal: 12,
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                opacity: operationalStatusSaving ? 0.55 : 1,
+                                            }}
+                                        >
+                                            <Text
+                                                style={{
+                                                    color:
+                                                        operationalStudent.financialStatus === "delinquent"
+                                                            ? colors.warningText
+                                                            : colors.text,
+                                                    fontSize: 12,
+                                                    fontWeight: "800",
+                                                }}
+                                            >
+                                                {operationalStudent.financialStatus === "delinquent"
+                                                    ? "Marcar financeiro regular"
+                                                    : "Marcar inadimplente"}
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                    {operationalStudent.membershipStatus === "inactive" && operationalStudent.inactivatedAt ? (
+                                        <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                            Inativado em {new Date(operationalStudent.inactivatedAt).toLocaleDateString("pt-BR")}.
+                                        </Text>
+                                    ) : null}
+                                </View>
+                            ) : null}
 
                             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
                                 <Pressable
