@@ -350,7 +350,7 @@ describe("buildAutoPlanForCycleDay", () => {
       classPlan: buildClassPlan({
         phase: "desenvolvimento",
         theme: "Exploração de fundamentos com cooperação e controle da bola",
-        technicalFocus: "Levantamento",
+        technicalFocus: "Passe e levantamento",
       }),
       dailyLessonPlan: buildDailyLessonPlan(),
       students: [buildStudent({ age: 8, birthDate: "2018-01-01" })],
@@ -382,6 +382,88 @@ describe("buildAutoPlanForCycleDay", () => {
     expect(result.decisionTrace.decision.primarySkill).toBe("passe");
     expect(visibleText).not.toMatch(/Passe orientado|Cone pega-toque|segundo contato/i);
   });
+
+  it("keeps the weekly pass and setting focus when an automatic daily plan contradicts it", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({
+        ageBand: "12-14",
+        durationMinutes: 60,
+        daysPerWeek: 1,
+        daysOfWeek: [3],
+        goal: "Passe e levantamento em tarefa cooperativa",
+        level: 1,
+      }),
+      classPlan: buildClassPlan({
+        phase: "desenvolvimento",
+        theme: "Continuidade dos três contatos",
+        technicalFocus: "Passe e levantamento em tarefa cooperativa",
+      }),
+      dailyLessonPlan: buildDailyLessonPlan({
+        date: "2026-08-12",
+        title: "Bloqueio",
+        warmup: "Bloqueio sombra com cobertura curta.",
+        mainPart: "Leitura do bloqueio e mini jogo com bloqueio.",
+        observations: "Objetivo da aula: desenvolver bloqueio.",
+        syncStatus: "in_sync",
+      }),
+      students: [buildStudent({ age: 13, birthDate: "2013-01-01" })],
+      sessionDate: "2026-08-12",
+      recentPlans: [],
+    });
+
+    const visibleText = [
+      result.package.input.objective,
+      ...result.package.final.warmup.activities.map((activity) => activity.name),
+      ...result.package.final.main.activities.map((activity) => activity.name),
+    ].join(" ");
+
+    expect(result.sessionPlanningContext.dailyPlanAnchor).toBeUndefined();
+    expect(result.decisionTrace.influences.periodizationDaily.used).toBe(false);
+    expect(result.strategy.primarySkill).toBe("passe");
+    expect(result.strategy.secondarySkill).toBe("levantamento");
+    expect(visibleText).not.toMatch(/bloqueio/i);
+  });
+
+  it("preserves an explicit teacher override even when it differs from the weekly focus", () => {
+    const result = buildAutoPlanForCycleDay({
+      classGroup: buildClassGroup({ goal: "Passe e levantamento" }),
+      classPlan: buildClassPlan({
+        theme: "Continuidade dos três contatos",
+        technicalFocus: "Passe e levantamento",
+      }),
+      dailyLessonPlan: buildDailyLessonPlan({
+        title: "Bloqueio com cobertura",
+        warmup: "Bloqueio sombra.",
+        mainPart: "Leitura do bloqueio.",
+        observations: "Objetivo da aula: desenvolver bloqueio.",
+        syncStatus: "overridden",
+      }),
+      students: [buildStudent()],
+      sessionDate: "2026-04-07",
+      recentPlans: [],
+    });
+
+    expect(result.sessionPlanningContext.dailyPlanAnchor?.syncStatus).toBe("overridden");
+    expect(result.strategy.primarySkill).toBe("bloqueio");
+    expect(result.decisionTrace.influences.periodizationDaily.used).toBe(true);
+  });
+
+  it.each(["out_of_sync", "stale_parent"] as const)(
+    "ignores a %s daily plan when generating the session",
+    (syncStatus) => {
+      const result = buildAutoPlanForCycleDay({
+        classGroup: buildClassGroup({ goal: "Passe" }),
+        classPlan: buildClassPlan({ technicalFocus: "Passe", theme: "Recepção" }),
+        dailyLessonPlan: buildDailyLessonPlan({ syncStatus }),
+        students: [buildStudent()],
+        sessionDate: "2026-04-07",
+        recentPlans: [],
+      });
+
+      expect(result.sessionPlanningContext.dailyPlanAnchor).toBeUndefined();
+      expect(result.strategy.primarySkill).toBe("passe");
+    }
+  );
 
   it("ignores a daily lesson plan from another session date", () => {
     const result = buildAutoPlanForCycleDay({

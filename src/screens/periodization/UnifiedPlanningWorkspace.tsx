@@ -6,7 +6,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 
 import type { LessonBlock } from "../../core/models";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
@@ -22,6 +22,7 @@ import {
   ClassPlanPreviewModal,
   type ClassPlanPeriodizationSource,
 } from "../classes/components/ClassPlanPreviewModal";
+import { PlanTimeDistribution } from "../classes/components/PlanTimeDistribution";
 import { regenerateMonthPlans } from "../planning/application/regenerate-month-plans";
 import {
   buildMonthPlanningSummaries,
@@ -277,20 +278,61 @@ function MonthRail({ colors, summaries, selectedMonthKey, selectedMonthEvents, p
   );
 }
 
-function MonthOverview({ colors, monthKey, events, presentation, compact = false, needsRegeneration, isApplying, onRegenerate }: {
+function resolveMonthContext(events: ProfessorAgendaEvent[], presentation?: MonthCyclePresentation) {
+  const representative = events.find((event) => !event.isMonthlyGameSession) ?? events[0];
+  const weekdays = [...new Set(events.map((event) => event.weekdayLabel))].join(" e ");
+  return [
+    { icon: "planning" as GoAtletaIconName, label: "Foco do mês", value: representative?.focusLabel || "Progressão definida pelo ciclo" },
+    { icon: "trend" as GoAtletaIconName, label: "Carga prevista", value: presentation?.loadRangeLabel || representative?.loadLabel || "Carga não gerada" },
+    { icon: "calendar" as GoAtletaIconName, label: "Aulas no mês", value: `${events.length} aulas${weekdays ? ` · ${weekdays}` : ""}` },
+  ];
+}
+
+function MonthContextSummary({ colors, events, presentation, compact = false }: {
+  colors: ThemeColors;
+  events: ProfessorAgendaEvent[];
+  presentation?: MonthCyclePresentation;
+  compact?: boolean;
+}) {
+  const items = resolveMonthContext(events, presentation);
+  return (
+    <View style={compact ? { gap: 9 } : { borderWidth: 1, borderColor: colors.border, borderRadius: 10, flexDirection: "column", overflow: "hidden" }}>
+      {items.map((item, index) => (
+        <View
+          key={item.label}
+          style={{
+            minHeight: compact ? 38 : 66,
+            paddingHorizontal: compact ? 0 : 11,
+            paddingVertical: compact ? 2 : 11,
+            flexDirection: "row",
+            alignItems: "flex-start",
+            gap: 9,
+            borderTopWidth: index ? 1 : 0,
+            borderColor: colors.border,
+          }}
+        >
+          <GoAtletaIcon name={item.icon} size={compact ? 16 : 18} color={colors.muted} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: colors.muted, fontSize: 9 }}>{item.label}</Text>
+            <Text numberOfLines={compact ? 2 : undefined} style={{ color: colors.text, fontSize: 10, lineHeight: 14, fontWeight: "700" }}>{item.value}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function MonthOverview({ colors, monthKey, events, presentation, compact = false, showContext = true, needsRegeneration, isApplying, onRegenerate }: {
   colors: ThemeColors;
   monthKey: string;
   events: ProfessorAgendaEvent[];
   presentation?: MonthCyclePresentation;
   compact?: boolean;
+  showContext?: boolean;
   needsRegeneration: boolean;
   isApplying: boolean;
   onRegenerate: () => void;
 }) {
-  const representative = events.find((event) => !event.isMonthlyGameSession) ?? events[0];
-  const focus = representative?.focusLabel || "Progressão definida pelo ciclo";
-  const load = presentation?.loadRangeLabel || representative?.loadLabel || "Carga não gerada";
-  const weekdays = [...new Set(events.map((event) => event.weekdayLabel))].join(" e ");
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: compact ? "column" : "row", alignItems: compact ? "stretch" : "center", justifyContent: "space-between", gap: 10 }}>
@@ -309,21 +351,7 @@ function MonthOverview({ colors, monthKey, events, presentation, compact = false
           onPress={onRegenerate}
         />
       </View>
-      <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, flexDirection: compact ? "column" : "row", overflow: "hidden" }}>
-        {[
-          { icon: "planning" as GoAtletaIconName, label: "Foco do mês", value: focus },
-          { icon: "trend" as GoAtletaIconName, label: "Carga prevista", value: load },
-          { icon: "calendar" as GoAtletaIconName, label: "Aulas no mês", value: `${events.length} aulas${weekdays ? ` · ${weekdays}` : ""}` },
-        ].map((item, index) => (
-          <View key={item.label} style={{ flex: 1, minHeight: 66, padding: 11, flexDirection: "row", gap: 9, borderLeftWidth: !compact && index ? 1 : 0, borderTopWidth: compact && index ? 1 : 0, borderColor: colors.border }}>
-            <GoAtletaIcon name={item.icon} size={18} color={colors.muted} />
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text style={{ color: colors.muted, fontSize: 9 }}>{item.label}</Text>
-              <Text numberOfLines={2} style={{ color: colors.text, fontSize: 10, lineHeight: 14, fontWeight: "700" }}>{item.value}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
+      {showContext ? <MonthContextSummary colors={colors} events={events} presentation={presentation} /> : null}
     </View>
   );
 }
@@ -592,7 +620,6 @@ function WeekGroups({ colors, events, selectedEventId, durationMinutes, mobile, 
   );
 }
 
-const DISTRIBUTION_COLORS = ["#67A9FF", "#7BD66B", "#B784F7", "#F1B44C"];
 function resolveDistribution(blocks: LessonBlock[]) {
   return blocks.length ? blocks.map((block) => ({ label: block.label, minutes: block.durationMinutes })) : [
     { label: "Aquecimento", minutes: 10 },
@@ -601,35 +628,24 @@ function resolveDistribution(blocks: LessonBlock[]) {
   ];
 }
 function TimeDonut({ colors, blocks }: { colors: ThemeColors; blocks: LessonBlock[] }) {
-  const items = resolveDistribution(blocks);
-  const total = Math.max(1, items.reduce((sum, item) => sum + item.minutes, 0));
-  const radius = 42;
-  const circumference = 2 * Math.PI * radius;
-  let offset = 0;
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
-      <View style={{ width: 112, height: 112, alignItems: "center", justifyContent: "center" }}>
-        <Svg width={112} height={112} style={{ position: "absolute", transform: [{ rotate: "-90deg" }] }} accessibilityLabel="Distribuição do tempo da aula">
-          <Circle cx={56} cy={56} r={radius} fill="none" stroke={colors.secondaryBg} strokeWidth={10} />
-          {items.map((item, index) => {
-            const length = (item.minutes / total) * circumference;
-            const currentOffset = offset;
-            offset += length;
-            return <Circle key={`${item.label}-${index}`} cx={56} cy={56} r={radius} fill="none" stroke={DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length]} strokeWidth={10} strokeDasharray={`${Math.max(0, length - 2)} ${circumference}`} strokeDashoffset={-currentOffset} strokeLinecap="butt" />;
-          })}
-        </Svg>
-        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>{total}</Text>
-        <Text style={{ color: colors.muted, fontSize: 10 }}>min</Text>
-      </View>
-      <View style={{ flex: 1, gap: 8 }}>
-        {items.map((item, index) => <View key={`${item.label}-${index}`} style={{ flexDirection: "row", gap: 7, alignItems: "flex-start" }}><View style={{ width: 8, height: 8, borderRadius: 4, marginTop: 3, backgroundColor: DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length] }} /><View style={{ flex: 1 }}><Text style={{ color: colors.muted, fontSize: 10 }}>{item.label}</Text><Text style={{ color: colors.muted, fontSize: 9 }}>{item.minutes} min · {Math.round(item.minutes / total * 100)}%</Text></View></View>)}
-      </View>
-    </View>
-  );
+  return <PlanTimeDistribution colors={colors} items={resolveDistribution(blocks)} />;
 }
 
-function LessonDetail({ colors, event, classTime, onOpen, onClear }: { colors: ThemeColors; event: ProfessorAgendaEvent | null; classTime: string; onOpen: () => void; onClear: () => void }) {
-  if (!event) return <View style={{ padding: 18, gap: 5 }}><Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Selecione uma aula</Text><Text style={{ color: colors.muted, fontSize: 11 }}>O vínculo com o ciclo aparecerá aqui.</Text></View>;
+function LessonDetail({ colors, event, classTime, monthEvents, monthPresentation, onOpen, onClear }: {
+  colors: ThemeColors;
+  event: ProfessorAgendaEvent | null;
+  classTime: string;
+  monthEvents: ProfessorAgendaEvent[];
+  monthPresentation?: MonthCyclePresentation;
+  onOpen: () => void;
+  onClear: () => void;
+}) {
+  if (!event) return (
+    <View style={{ padding: 18, gap: 14 }}>
+      <View style={{ gap: 5 }}><Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Visão do mês</Text><Text style={{ color: colors.muted, fontSize: 11 }}>Selecione uma aula para ver os detalhes.</Text></View>
+      <MonthContextSummary colors={colors} events={monthEvents} presentation={monthPresentation} compact />
+    </View>
+  );
   const title = event.isMonthlyGameSession ? "Jogo consolidado do mês" : event.title;
   const summary = event.isMonthlyGameSession
     ? "Aplicação da regra mensal em jogo formal, com aquecimento breve, tomada de decisão, comunicação e execução coletiva."
@@ -645,6 +661,12 @@ function LessonDetail({ colors, event, classTime, onOpen, onClear }: { colors: T
         </View>
         <Text style={{ color: colors.muted, fontSize: 10 }}>{event.weekdayLabel} · {event.dateLabel} · {classTime}</Text>
       </View>
+      <View style={{ height: 1, backgroundColor: colors.border }} />
+      <View style={{ gap: 10 }}>
+        <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>Visão do mês</Text>
+        <MonthContextSummary colors={colors} events={monthEvents} presentation={monthPresentation} compact />
+      </View>
+      <View style={{ height: 1, backgroundColor: colors.border }} />
       <View style={{ gap: 7 }}>
         <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>Origem</Text>
         <View style={{ flexDirection: "row", gap: 8 }}><GoAtletaIcon name="document" size={16} color={colors.muted} /><View style={{ flex: 1, gap: 2 }}><Text style={{ color: colors.text, fontSize: 10, fontWeight: "700" }}>{event.isMonthlyGameSession ? "Regra mensal do voleibol" : `Semana ${event.weekNumber} do ciclo`}</Text><Text style={{ color: colors.muted, fontSize: 9, lineHeight: 14 }}>{event.isMonthlyGameSession ? "Derivada da regra mensal aplicada ao ciclo." : `${event.plan.phase || "Fase ativa"} · ${event.loadLabel || "carga prevista"}.`}</Text></View></View>
@@ -779,10 +801,10 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, onO
       }
     : undefined;
   const monthRail = <MonthRail colors={colors} summaries={visibleSummaries} selectedMonthKey={selectedMonthKey} selectedMonthEvents={monthly.agendaEvents} presentations={monthPresentations} horizontal={!dense} onSelect={selectMonth} />;
-  const detail = <LessonDetail colors={colors} event={selectedEvent} classTime={classTime || "Horário da turma"} onClear={() => setSelectedEvent(null)} onOpen={() => { if (selectedEvent) void openEventPlan(selectedEvent); }} />;
+  const detail = <LessonDetail colors={colors} event={selectedEvent} classTime={classTime || "Horário da turma"} monthEvents={monthly.agendaEvents} monthPresentation={currentPresentation} onClear={() => setSelectedEvent(null)} onOpen={() => { if (selectedEvent) void openEventPlan(selectedEvent); }} />;
   const monthContent = (
     <View style={{ gap: 11 }}>
-      <MonthOverview colors={colors} monthKey={selectedMonthKey} events={monthly.agendaEvents} presentation={currentPresentation} compact={!dense} needsRegeneration={needsRegeneration} isApplying={isApplying} onRegenerate={() => void applyMonth()} />
+      <MonthOverview colors={colors} monthKey={selectedMonthKey} events={monthly.agendaEvents} presentation={currentPresentation} compact={!split} showContext={!split} needsRegeneration={needsRegeneration} isApplying={isApplying} onRegenerate={() => void applyMonth()} />
       <WeekGroups
         colors={colors}
         events={monthly.agendaEvents}

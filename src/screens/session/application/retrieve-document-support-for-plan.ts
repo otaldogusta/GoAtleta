@@ -45,7 +45,7 @@ export async function retrieveDocumentSupportForPlan(params: {
       modality: params.classGroup.modality,
       ageBand: params.classGroup.ageBand,
       objective,
-      skill: params.classPlan?.technicalFocus || params.classGroup.goal,
+      skill: params.classPlan?.theme || params.classPlan?.technicalFocus || params.classGroup.goal,
       pedagogicalApproach: params.classPlan?.pedagogicalRule,
       situationProblem: params.dailyLessonPlan?.observations,
       classNeeds,

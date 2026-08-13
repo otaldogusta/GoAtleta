@@ -590,24 +590,17 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           <View style={styles.emptyPlanContent}>
             <GoAtletaIcon name="document" size={30} color={colors.muted} />
             <Text style={[styles.emptyPlanTitle, { color: colors.text }]}>Sem plano aplicado</Text>
-            <Text style={[styles.emptyPlanDescription, { color: colors.muted }]}>Escolha um treino salvo ou gere um novo plano para esta aula.</Text>
+            <Text style={[styles.emptyPlanDescription, { color: colors.muted }]}>Monte e revise o plano desta aula no próprio PDF.</Text>
             <View style={styles.emptyPlanActions}>
               <Pressable
-                onPress={onOpenSession}
-                accessibilityRole="button"
-                accessibilityLabel="Aplicar treino"
-                style={({ pressed }) => [styles.planPrimaryButton, styles.emptyPlanAction, { backgroundColor: colors.primaryBg, opacity: pressed ? 0.8 : 1 }]}
-              >
-                <Text style={[styles.planPrimaryButtonLabel, { color: colors.primaryText }]}>Aplicar treino</Text>
-              </Pressable>
-              <Pressable
                 onPress={onGeneratePlan}
+                disabled={isGeneratingPlan}
                 accessibilityRole="button"
-                accessibilityLabel="Gerar plano automático"
-                style={({ pressed }) => [styles.planSecondaryButton, styles.emptyPlanAction, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
+                accessibilityLabel="Montar plano"
+                style={({ pressed }) => [styles.planPrimaryButton, styles.emptyPlanAction, { backgroundColor: colors.primaryBg, opacity: isGeneratingPlan ? 0.55 : pressed ? 0.8 : 1 }]}
               >
-                <GoAtletaIcon name="sparkles" size={16} color={colors.text} />
-                <Text style={[styles.planSecondaryButtonLabel, { color: colors.text }]}>Gerar plano automático</Text>
+                <GoAtletaIcon name="document" size={16} color={colors.primaryText} />
+                <Text style={[styles.planPrimaryButtonLabel, { color: colors.primaryText }]}>Montar plano</Text>
               </Pressable>
             </View>
           </View>

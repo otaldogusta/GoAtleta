@@ -42,6 +42,7 @@ const colors = {
 function renderWorkspace(compact: boolean, appliedPlan: any = null) {
   const onOpenPlanning = jest.fn();
   const onOpenLessonCalendar = jest.fn();
+  const onGeneratePlan = jest.fn();
   const screen = render(
     React.createElement(ClassOperationsWorkspace, {
       colors,
@@ -54,7 +55,7 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null) {
       onNextLesson: jest.fn(),
       onOpenLessonCalendar,
       onViewPlan: jest.fn(),
-      onGeneratePlan: jest.fn(),
+      onGeneratePlan,
       isGeneratingPlan: false,
       studentCount: 24,
       contactStatusValue: "24 pendentes",
@@ -73,7 +74,7 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null) {
     })
   );
 
-  return { screen, onOpenPlanning, onOpenLessonCalendar };
+  return { screen, onGeneratePlan, onOpenPlanning, onOpenLessonCalendar };
 }
 
 describe("ClassOperationsWorkspace responsive navigation", () => {
@@ -112,6 +113,16 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     fireEvent.press(screen.getByLabelText("Selecionar data da aula"));
 
     expect(onOpenLessonCalendar).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts the document-first plan flow from an empty lesson", () => {
+    const { screen, onGeneratePlan } = renderWorkspace(false);
+
+    expect(screen.queryByText("Aplicar treino")).toBeNull();
+    expect(screen.queryByText("Gerar plano automático")).toBeNull();
+    fireEvent.press(screen.getByLabelText("Montar plano"));
+
+    expect(onGeneratePlan).toHaveBeenCalledTimes(1);
   });
 
   it("opens the class planning from the applied plan actions", () => {

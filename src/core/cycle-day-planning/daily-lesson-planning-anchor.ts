@@ -1,5 +1,9 @@
-import type { DailyLessonPlan, LessonBlock, VolleyballSkill } from "../models";
+import type { ClassPlan, DailyLessonPlan, LessonBlock } from "../models";
 import type { SessionPlanningDailyPlanAnchor } from "../session-planning-context-contract";
+import {
+  extractVolleyballSkills,
+  resolveClassPlanSkills,
+} from "./volleyball-skill-signals";
 
 const normalizeText = (value: string | null | undefined) =>
   String(value ?? "")
@@ -14,31 +18,10 @@ const cleanText = (value: unknown) => String(value ?? "").trim();
 const uniqueStrings = (values: Array<string | null | undefined>) =>
   [...new Set(values.map((value) => cleanText(value)).filter(Boolean))];
 
-const skillSignals: Array<{ skill: VolleyballSkill; pattern: RegExp }> = [
-  { skill: "passe", pattern: /\b(passe|passes|recep\w*|manchete|primeiro contato)\b/ },
-  { skill: "levantamento", pattern: /\b(levant\w*|segundo contato|toque)\b/ },
-  { skill: "ataque", pattern: /\b(ataq\w*|cortada|spike)\b/ },
-  { skill: "bloqueio", pattern: /\b(bloq\w*|block)\b/ },
-  { skill: "defesa", pattern: /\b(defes\w*|dig|cobertura)\b/ },
-  { skill: "saque", pattern: /\b(saque|saques|sacar|serv\w*)\b/ },
-  { skill: "transicao", pattern: /\b(trans\w*|virada|jogo)\b/ },
-];
-
 const parseAgeBandStart = (value: string | null | undefined) => {
   const match = String(value ?? "").match(/(\d{1,2})/);
   return match ? Number(match[1]) : null;
 };
-
-const extractSkills = (text: string): VolleyballSkill[] =>
-  skillSignals
-    .map(({ skill, pattern }) => {
-      const match = pattern.exec(text);
-      return match ? { skill, index: match.index } : null;
-    })
-    .filter((match): match is { skill: VolleyballSkill; index: number } => Boolean(match))
-    .sort((left, right) => left.index - right.index)
-    .map((match) => match.skill)
-    .filter((skill, index, list) => list.indexOf(skill) === index);
 
 const parseBlocksJson = (value: string | undefined): LessonBlock[] => {
   if (!value) return [];
@@ -176,6 +159,7 @@ const extractConstraintHints = (text: string) => {
 
 export const buildDailyLessonPlanningAnchor = (params: {
   dailyLessonPlan?: DailyLessonPlan | null;
+  classPlan?: ClassPlan | null;
   sessionDate: string;
   ageBand?: string;
 }): SessionPlanningDailyPlanAnchor | null => {
@@ -192,6 +176,19 @@ export const buildDailyLessonPlanningAnchor = (params: {
     plan.observations,
     ...plannedBlocks.flatMap((block) => block.activities),
   ]).join(" ");
+  const dailySkills = extractVolleyballSkills(fullText);
+  const periodizationSkills = resolveClassPlanSkills(params.classPlan);
+  const explicitlyOverridden = plan.syncStatus === "overridden";
+  const unusableSyncState = plan.syncStatus === "out_of_sync" || plan.syncStatus === "stale_parent";
+  const contradictsPeriodization =
+    periodizationSkills.length > 0 &&
+    dailySkills.length > 0 &&
+    !dailySkills.some((skill) => periodizationSkills.includes(skill));
+
+  // A teacher override is an explicit pedagogical decision. Generated/stale daily plans,
+  // however, must never silently replace the current weekly focus.
+  if (unusableSyncState || (contradictsPeriodization && !explicitlyOverridden)) return null;
+
   const conflictSignals = resolveConflictSignals({
     text: fullText,
     ageBand: params.ageBand,
@@ -207,7 +204,7 @@ export const buildDailyLessonPlanningAnchor = (params: {
     plannedBlocks,
     observations: cleanText(plan.observations) || undefined,
     syncStatus: plan.syncStatus,
-    skillHints: extractSkills(normalizeText(fullText)),
+    skillHints: dailySkills,
     activityHints: uniqueStrings([
       plan.title,
       ...plannedBlocks.flatMap((block) => block.activities.map((activity) => activity.split(":")[0])),

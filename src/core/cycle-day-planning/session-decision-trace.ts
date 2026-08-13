@@ -50,7 +50,7 @@ const buildTeacherFacingSummary = (params: {
       ? `o plano do dia indica ${periodizationDaily.sourceObjective || periodizationDaily.title || "essa intenção"}`
       : null,
     periodization.used
-      ? `o planejamento da semana indica ${periodization.technicalFocus || periodization.theme || "esse foco"}`
+      ? `o planejamento da semana indica ${periodization.theme || periodization.technicalFocus || "esse foco"}`
       : null,
     scouting.used && scouting.dominantGapSkill
       ? `o scouting apontou necessidade em ${scouting.dominantGapSkill}`

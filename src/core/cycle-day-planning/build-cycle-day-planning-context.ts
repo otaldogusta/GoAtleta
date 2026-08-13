@@ -26,6 +26,7 @@ import { resolveDominantBlockStrategyProfile } from "./resolve-block-dominant-st
 import { resolveHistoricalConfidence } from "./resolve-historical-confidence";
 import { resolvePedagogicalDecisionSupport } from "./resolve-pedagogical-decision-support";
 import { resolveSessionIndexInWeek } from "./resolve-session-index-in-week";
+import { extractVolleyballSkills } from "./volleyball-skill-signals";
 
 export type BuildCycleDayPlanningContextParams = {
   classGroup: ClassGroup;
@@ -266,12 +267,20 @@ const resolvePrimarySkill = (params: {
   recentSkills: VolleyballSkill[];
   sessionIndexInWeek: number;
 }): VolleyballSkill => {
+  const themeSkills = extractVolleyballSkills(params.classPlan?.theme);
   const technicalFocusSkill = resolveSkillFromText(params.classPlan?.technicalFocus);
+  const themeOverridesConflictingTechnicalFocus =
+    themeSkills.length > 1 &&
+    Boolean(technicalFocusSkill) &&
+    !themeSkills.includes(technicalFocusSkill as VolleyballSkill);
+  const periodizationPrioritySkill = themeOverridesConflictingTechnicalFocus
+    ? themeSkills[0]
+    : technicalFocusSkill;
   const dailyPlanSkill =
-    params.dailyPlanAnchor?.skillHints.find((skill) => skill === technicalFocusSkill) ??
+    params.dailyPlanAnchor?.skillHints.find((skill) => skill === periodizationPrioritySkill) ??
     params.dailyPlanAnchor?.skillHints[0] ??
     null;
-  const themeSkill = resolveSkillFromText(params.classPlan?.theme);
+  const themeSkill = themeSkills[0] ?? null;
   const goalSkill = resolveSkillFromText(params.classGroup.goal);
   const modalitySkill = resolveSkillFromText(params.classGroup.modality);
   const scoutingSkill = resolveScoutingPrioritySkill(params.scoutingCounts, params.scoutingSignal);
@@ -281,7 +290,7 @@ const resolvePrimarySkill = (params: {
       : null;
 
   if (dailyPlanSkill) return dailyPlanSkill;
-  if (technicalFocusSkill) return technicalFocusSkill;
+  if (periodizationPrioritySkill) return periodizationPrioritySkill;
 
   const candidates = uniqueStrings([scoutingSkill, themeSkill, goalSkill, modalitySkill]) as VolleyballSkill[];
   const shiftedCandidates = params.sessionIndexInWeek > 1 ? [...candidates.slice(1), candidates[0]].filter(Boolean) : candidates;

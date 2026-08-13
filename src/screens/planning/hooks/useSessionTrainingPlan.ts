@@ -11,6 +11,7 @@ import type {
 import type { StudentPlanningContextInput } from "../application/build-unified-planning-context";
 import { buildUnifiedPlanningContext } from "../application/build-unified-planning-context";
 import { createTrainingPlanVersion } from "../../../core/training-plan-factory";
+import { shouldRegenerateInconsistentAutomaticPlan } from "../../../core/cycle-day-planning/volleyball-skill-signals";
 import {
   deleteTrainingPlan,
   deleteTrainingPlansByClassAndDate,
@@ -57,7 +58,12 @@ export function useSessionTrainingPlan({
           limit: 1,
         });
         const existingPlan = existingPlans[0] ?? null;
-        if (existingPlan) {
+        const shouldRegenerate = shouldRegenerateInconsistentAutomaticPlan({
+          plan: existingPlan,
+          classPlan: event.plan,
+          dailyLessonPlan: event.dailyPlan,
+        });
+        if (existingPlan && !shouldRegenerate) {
           setPlan(existingPlan);
           setLessonDate(event.date);
           return existingPlan;
@@ -97,7 +103,7 @@ export function useSessionTrainingPlan({
           sessionLogs: unifiedContext.sessionLogs,
           dimensionGuidelines: unifiedContext.dimensionGuidelines,
         });
-        const latestVersion = recentPlans.reduce(
+        const latestVersion = [...recentPlans, ...(existingPlan ? [existingPlan] : [])].reduce(
           (maximum, item) => Math.max(maximum, item.version ?? 0),
           0,
         );
@@ -108,6 +114,25 @@ export function useSessionTrainingPlan({
             sessionDate: event.date,
             existingPlan: null,
             version: latestVersion + 1,
+            pedagogy: {
+              decisionTrace: generated.decisionTrace,
+              sessionPlanningContext: generated.sessionPlanningContext,
+              readinessState: generated.readinessState,
+              adaptiveEnvelope: generated.adaptiveEnvelope,
+              coachGuidance: generated.coachGuidance,
+              periodization: event.plan
+                ? {
+                    phase: event.plan.phase,
+                    theme: event.plan.theme,
+                    technicalFocus: event.plan.technicalFocus,
+                    physicalFocus: event.plan.physicalFocus,
+                    constraints: event.plan.constraints,
+                    rpeTarget: event.plan.rpeTarget,
+                    weekNumber: event.plan.weekNumber,
+                    startDate: event.plan.startDate,
+                  }
+                : undefined,
+            },
           }),
           applyDays: [],
           status: "generated" as const,

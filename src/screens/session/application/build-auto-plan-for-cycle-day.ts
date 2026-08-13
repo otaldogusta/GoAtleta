@@ -205,6 +205,7 @@ export const buildAutoPlanForCycleDay = (
   );
   const dailyPlanAnchor = buildDailyLessonPlanningAnchor({
     dailyLessonPlan: params.dailyLessonPlan,
+    classPlan: params.classPlan,
     sessionDate: params.sessionDate,
     ageBand: params.classGroup.ageBand,
   });

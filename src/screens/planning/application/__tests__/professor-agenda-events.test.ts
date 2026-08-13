@@ -152,6 +152,20 @@ describe("professor agenda events", () => {
     expect(event.isMonthlyGameSession).toBe(true);
   });
 
+  it("uses the explicit weekly theme before a conflicting technical complement", () => {
+    const plan = makePlan({
+      theme: "Passe e levantamento em tarefa cooperativa",
+      technicalFocus: "Aplicação de escolha de solução, leitura do bloqueio e continuidade",
+    });
+
+    const [event] = buildProfessorAgendaEvents({
+      weeklyItems: [{ plan, label: "Semana 23", sessions: [makeSession("2026-06-04", 1)] }],
+      dailyPlansByKey: {},
+    });
+
+    expect(event.focusLabel).toBe("Passe e levantamento em tarefa cooperativa");
+  });
+
   it("recognizes the last real volleyball session even for legacy plans without a monthly snapshot", () => {
     const plan = makePlan({ rpeTarget: "PSE 5-6" });
     const sessions = [

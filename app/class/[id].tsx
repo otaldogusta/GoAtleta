@@ -69,7 +69,10 @@ import {
     ClassContextStrip,
     ClassOperationsWorkspace,
 } from "../../src/screens/classes/components/ClassOperationsWorkspace";
-import { ClassPlanPreviewModal } from "../../src/screens/classes/components/ClassPlanPreviewModal";
+import {
+    ClassPlanPreviewModal,
+    type ClassPlanPeriodizationSource,
+} from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -1584,6 +1587,25 @@ export default function ClassDetails() {
     setShowPlanPreviewModal(true);
   }, [appliedPlan]);
 
+  const appliedPlanPeriodizationSource = useMemo<ClassPlanPeriodizationSource | undefined>(() => {
+    const periodization = appliedPlan?.pedagogy?.periodization;
+    if (!periodization) return undefined;
+
+    return {
+      weekLabel: periodization.weekNumber
+        ? `Semana ${periodization.weekNumber}`
+        : "Semana do ciclo",
+      phaseLabel: periodization.phase || "Fase do ciclo",
+      focusLabel:
+        periodization.technicalFocus ||
+        periodization.theme ||
+        appliedPlan?.pedagogy?.sessionObjective ||
+        "Foco da semana",
+      loadLabel: periodization.rpeTarget || "Carga não informada",
+      roleLabel: "Aula planejada",
+    };
+  }, [appliedPlan]);
+
   const handleSaveAppliedPlan = useCallback(
     async (draft: TrainingPlan) => {
       if (!cls || !selectedLessonDateKey) {
@@ -1698,6 +1720,25 @@ export default function ClassDetails() {
           sessionDate: selectedLessonDateKey,
           existingPlan: null,
           version: latestVersion + 1,
+          pedagogy: {
+            decisionTrace: autoPlanResult.decisionTrace,
+            sessionPlanningContext: autoPlanResult.sessionPlanningContext,
+            readinessState: autoPlanResult.readinessState,
+            adaptiveEnvelope: autoPlanResult.adaptiveEnvelope,
+            coachGuidance: autoPlanResult.coachGuidance,
+            periodization: currentClassPlan
+              ? {
+                  phase: currentClassPlan.phase,
+                  theme: currentClassPlan.theme,
+                  technicalFocus: currentClassPlan.technicalFocus,
+                  physicalFocus: currentClassPlan.physicalFocus,
+                  constraints: currentClassPlan.constraints,
+                  rpeTarget: currentClassPlan.rpeTarget,
+                  weekNumber: currentClassPlan.weekNumber,
+                  startDate: currentClassPlan.startDate,
+                }
+              : undefined,
+          },
         }),
         // Auto-generated plans belong to this lesson only. Repeating them on
         // every class day would make different dates show the same plan.
@@ -1707,6 +1748,8 @@ export default function ClassDetails() {
         organizationId: cls.organizationId ?? undefined,
       });
       setAppliedPlan(generatedPlan);
+      setPlanPreviewMode("preview");
+      setShowPlanPreviewModal(true);
       showSaveToast({ message: "Plano preparado para esta aula.", variant: "success" });
     } catch (error) {
       showSaveToast({
@@ -2227,6 +2270,7 @@ export default function ClassDetails() {
           lessonDate={selectedLessonDateKey}
           coachName={resolvedCoachName}
           initialMode={planPreviewMode}
+          periodizationSource={appliedPlanPeriodizationSource}
           onSavePlan={handleSaveAppliedPlan}
           onRemovePlan={handleRemoveAppliedPlan}
         />

@@ -47,6 +47,7 @@ import {
   CLASS_PLAN_BLOCK_PRESENTATION,
   summarizeClassPlanActivities,
 } from "./class-plan-block-presentation";
+import { PlanTimeDistribution } from "./PlanTimeDistribution";
 
 export type ClassPlanPeriodizationSource = {
   weekLabel: string;
@@ -459,14 +460,14 @@ export function ClassPlanPreviewModal({
         if (blockKey === "warmup" || blockKey === "main" || blockKey === "cooldown") {
           setSelectedBlockKey(blockKey);
           setIsPdfContentExpanded(false);
-          if (splitLayout) {
+          if (splitLayout && !periodizationSource) {
             setIsEditing(true);
             setIsEditorExpanded(true);
           }
         }
       } else if (event.data?.type === "GOATLETA_PDF_SECTION_CLICK" && event.data?.section === "pedagogy") {
         setIsPdfContentExpanded(true);
-        if (splitLayout) {
+        if (splitLayout && !periodizationSource) {
           setIsEditing(true);
           setIsEditorExpanded(true);
         }
@@ -573,7 +574,7 @@ export function ClassPlanPreviewModal({
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [isDirty, keepWorkspaceAtTop, pdfStatusLabel, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle]);
+  }, [isDirty, keepWorkspaceAtTop, pdfStatusLabel, periodizationSource, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle]);
 
   const persistWorkingPlan = useCallback(async (): Promise<TrainingPlan | null> => {
     if (isSaving) return null;
@@ -919,7 +920,9 @@ export function ClassPlanPreviewModal({
         { backgroundColor: colors.card, borderColor: colors.border },
       ]}
     >
-      <Text style={[styles.outlineTitle, { color: colors.text }]}>Roteiro da aula</Text>
+      <Text style={[styles.outlineTitle, { color: colors.text }]}>
+        {periodizationSource ? "Parâmetros da semana" : "Roteiro da aula"}
+      </Text>
       <ScrollView
         style={styles.outlineScroll}
         contentContainerStyle={styles.outlineContent}
@@ -966,14 +969,19 @@ export function ClassPlanPreviewModal({
                 </Text>
               </View>
             </View>
-            <Text style={[styles.periodizationSourceHint, { color: colors.muted }]}>
-              {periodizationSource.monthlyGameSession
-                ? "A regra mensal do voleibol orientou esta aula: aquecimento breve, jogo e fechamento."
-                : "Esta diretriz do ciclo foi usada para construir o aquecimento, a parte principal e a volta à calma."}
-            </Text>
+            <View style={[styles.periodizationTimeDistribution, { borderTopColor: colors.border }]}>
+              <Text style={[styles.periodizationTimeDistributionTitle, { color: colors.text }]}>Distribuição do tempo</Text>
+              <PlanTimeDistribution
+                colors={colors}
+                items={BLOCKS.map((item) => ({
+                  label: item.label,
+                  minutes: Number.parseInt(String(getDuration(workingPlan, item.key) ?? "0"), 10) || 0,
+                }))}
+              />
+            </View>
           </View>
         ) : null}
-        <Pressable
+        {!periodizationSource ? <Pressable
           onPress={selectPdfContent}
           accessibilityRole="button"
           accessibilityLabel={`${isPdfContentExpanded && isEditing ? "Recolher" : "Editar"} conteúdo pedagógico`}
@@ -997,9 +1005,9 @@ export function ClassPlanPreviewModal({
             size={15}
             color={colors.text}
           />
-        </Pressable>
-        {!splitLayout && isEditing && isPdfContentExpanded ? inlineEditor : null}
-        {BLOCKS.map((item) => {
+        </Pressable> : null}
+        {!periodizationSource && !splitLayout && isEditing && isPdfContentExpanded ? inlineEditor : null}
+        {!periodizationSource ? BLOCKS.map((item) => {
           const block = resolveTrainingPlanBlock(workingPlan, item.key);
           const activitySummary = summarizeClassPlanActivities(block.activities);
           const selected = !isPdfContentExpanded && selectedBlockKey === item.key;
@@ -1051,7 +1059,7 @@ export function ClassPlanPreviewModal({
               {!splitLayout && isEditing && selected ? inlineEditor : null}
             </View>
           );
-        })}
+        }) : null}
       </ScrollView>
       {!isEditing && pdfSize ? (
         <Text style={[styles.fileSize, { color: colors.muted }]}>PDF da aula · {formatFileSize(pdfSize)}</Text>
@@ -1478,7 +1486,7 @@ export function ClassPlanPreviewModal({
                 style={[styles.mobileTab, active ? { borderBottomColor: colors.primaryBg } : null]}
               >
                 <Text style={[styles.mobileTabLabel, { color: active ? colors.text : colors.muted }]}>
-                  {tab === "pdf" ? "PDF" : "Roteiro"}
+                  {tab === "pdf" ? "PDF" : periodizationSource ? "Parâmetros" : "Roteiro"}
                 </Text>
               </Pressable>
             );
@@ -1491,7 +1499,7 @@ export function ClassPlanPreviewModal({
           {splitLayout ? (
             <>
               {preview}
-              {isEditing ? editor : renderOutline()}
+              {isEditing && !periodizationSource ? editor : renderOutline()}
             </>
           ) : mobileView === "pdf" ? (
             preview
@@ -1507,7 +1515,7 @@ export function ClassPlanPreviewModal({
         </View>
       </View>
 
-      {isEditing && !splitLayout ? renderEditFooter(true) : !splitLayout ? (
+      {isEditing && !periodizationSource && !splitLayout ? renderEditFooter(true) : !splitLayout ? (
         <View style={[styles.previewFooter, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
           {phoneLayout ? (
             <Pressable
@@ -1766,7 +1774,8 @@ const styles = StyleSheet.create({
   periodizationSourceFact: { flexGrow: 1, flexBasis: 112, minWidth: 0, borderWidth: 1, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 8, gap: 3 },
   periodizationSourceFactLabel: { fontSize: 9, fontWeight: "700" },
   periodizationSourceFactValue: { fontSize: 11, lineHeight: 15, fontWeight: "800" },
-  periodizationSourceHint: { fontSize: 10, lineHeight: 15 },
+  periodizationTimeDistribution: { borderTopWidth: 1, paddingTop: 11, gap: 9 },
+  periodizationTimeDistributionTitle: { fontSize: 11, fontWeight: "800" },
   outlineAccordionItem: { width: "100%", gap: 8 },
   outlineBlock: { minHeight: 82, borderWidth: 1, borderRadius: 11, padding: 12, flexDirection: "row", alignItems: "flex-start", gap: 10 },
   outlineBlockCopy: { flex: 1, minWidth: 0, gap: 3 },
