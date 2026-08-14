@@ -90,3 +90,20 @@ export const resolvePendingInviteRedirect = ({
   pendingStudentToken.trim() || pendingTrainerCode.trim()
     ? "/pending"
     : defaultTarget;
+
+export const shouldRedirectPendingRole = ({
+  hasSession,
+  role,
+  pathname,
+  isInviteRoute,
+}: {
+  hasSession: boolean;
+  role?: string | null;
+  pathname: string;
+  isInviteRoute: boolean;
+}) =>
+  hasSession &&
+  role === "pending" &&
+  pathname !== "/pending" &&
+  pathname !== "/verify-email" &&
+  !isInviteRoute;

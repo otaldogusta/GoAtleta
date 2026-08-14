@@ -11,6 +11,7 @@ import {
   requiresTrainerInviteEmailVerification,
   savePendingInvite,
   savePendingTrainerInvite,
+  shouldRedirectPendingRole,
 } from "../pending-invite";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
@@ -175,5 +176,30 @@ describe("pending invite storage", () => {
         user_metadata: { requires_email_hybrid_verification: true },
       })
     ).toBe(false);
+  });
+
+  test.each(["/pending", "/verify-email"])(
+    "keeps pending accounts on the %s flow",
+    (pathname) => {
+      expect(
+        shouldRedirectPendingRole({
+          hasSession: true,
+          role: "pending",
+          pathname,
+          isInviteRoute: false,
+        })
+      ).toBe(false);
+    }
+  );
+
+  test("redirects pending accounts away from protected application routes", () => {
+    expect(
+      shouldRedirectPendingRole({
+        hasSession: true,
+        role: "pending",
+        pathname: "/prof/home",
+        isInviteRoute: false,
+      })
+    ).toBe(true);
   });
 });

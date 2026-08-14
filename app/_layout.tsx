@@ -31,6 +31,7 @@ import {
     resolveAuthenticatedTrainerInviteEntry,
     resolvePendingInviteRedirect,
     savePendingTrainerInvite,
+    shouldRedirectPendingRole,
 } from "../src/auth/pending-invite";
 import { buildLoginRedirectHref, sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
 import { RoleProvider, useRole } from "../src/auth/role";
@@ -556,7 +557,14 @@ function RootLayoutContent() {
       return;
     }
 
-    if (session && role === "pending" && normalizedPathname !== "/pending" && !isInviteRoute) {
+    if (
+      shouldRedirectPendingRole({
+        hasSession: Boolean(session),
+        role,
+        pathname: normalizedPathname,
+        isInviteRoute,
+      })
+    ) {
       router.replace("/pending");
       return;
     }
