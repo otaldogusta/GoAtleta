@@ -110,7 +110,7 @@ const publicRoutes = new Set([
 ]);
 
 const categoryLabelById: Record<InsightsCategory, string> = {
-  reports: "Relatórios",
+  reports: "Registros de aula",
   absences: "Faltas consecutivas",
   nfc: "Presença NFC",
   attendance: "Queda de presença",
@@ -198,6 +198,7 @@ const buildContextSignature = (input: CopilotContextData | null) => {
     screen: input.screen ?? "",
     title: input.title ?? "",
     subtitle: input.subtitle ?? "",
+    operationalFacts: input.operationalFacts ?? [],
     activeSignal: signal
       ? {
           id: signal.id,
@@ -429,6 +430,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         screen: state.context?.screen ?? null,
         contextTitle: state.context?.title ?? null,
         contextSubtitle: state.context?.subtitle ?? null,
+        operationalFacts: state.context?.operationalFacts ?? [],
         signals: state.signals,
         selectedSignalId: state.selectedSignalId,
         regulationUpdates: state.regulationUpdates,
@@ -446,6 +448,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       scheduleWindows,
       state.context?.screen,
       state.context?.subtitle,
+      state.context?.operationalFacts,
       state.context?.title,
       state.history,
       state.regulationRuleSets,
@@ -1097,6 +1100,7 @@ export function useCopilotContext(input: CopilotContextData | null) {
       title: input.title,
       subtitle: input.subtitle,
       activeSignal: input.activeSignal ?? undefined,
+      operationalFacts: input.operationalFacts ?? [],
     };
   }, [input]);
 

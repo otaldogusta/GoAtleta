@@ -42,7 +42,7 @@ export const ROLE_TABS: Record<AppRole, TabItemConfig[]> = {
     { key: "classes", routeName: "classes", label: "Turmas", icon: "classes", href: "/prof/classes" },
     COMMON_CENTER_TAB,
     { key: "planning", routeName: "planning", label: "Planejamento", icon: "planning", href: "/prof/planning" },
-    { key: "reports", routeName: "reports", label: "Relatórios", icon: "reports", href: "/prof/reports" },
+    { key: "profile", routeName: "profile", label: "Perfil", icon: "profile", href: "/prof/profile" },
   ],
   student: [
     { key: "home", routeName: "home", label: "Hoje", icon: "home", href: "/student/home" },
@@ -55,7 +55,7 @@ export const ROLE_TABS: Record<AppRole, TabItemConfig[]> = {
     { key: "dashboard", routeName: "dashboard", label: "Painel", icon: "home", href: "/coord/dashboard" },
     { key: "classes", routeName: "classes", label: "Turmas", icon: "classes", href: "/coord/classes" },
     COMMON_CENTER_TAB,
-    { key: "reports", routeName: "reports", label: "Relatórios", icon: "reports", href: "/coord/reports" },
+    { key: "planning", routeName: "planning", label: "Planejamento", icon: "planning", href: "/coord/planning" },
     { key: "management", routeName: "management", label: "Gestão", icon: "management", href: "/coord/management" },
   ],
 };

@@ -9,7 +9,7 @@ import type { CopilotAction, InsightsCategory, InsightsView } from "../types";
 
 
 const categoryLabelById: Record<InsightsCategory, string> = {
-  reports: "Relatórios",
+  reports: "Registros de aula",
   absences: "Faltas consecutivas",
   nfc: "Presença NFC",
   attendance: "Queda de presença",

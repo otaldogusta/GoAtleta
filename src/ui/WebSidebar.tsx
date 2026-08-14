@@ -719,7 +719,9 @@ export function WebSidebar({
     </View>
   );
 
-  const compactTabs = ROLE_TABS[role].filter((tab) => !tab.isCenter);
+  const compactTabs = ROLE_TABS[role].filter(
+    (tab) => !tab.isCenter && !(role === "prof" && tab.key === "profile")
+  );
   const tabItems = compactTabs.map((tab) => ({
     key: tab.key,
     label: tab.label,
@@ -757,7 +759,7 @@ export function WebSidebar({
       },
       {
         key: "absence",
-        label: "Avisos de ausência",
+        label: "Notificações",
         href: "/prof/absence-notices",
         icon: "absenceNotices",
         badge: unreadNotificationBadge,

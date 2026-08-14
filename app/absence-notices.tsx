@@ -55,7 +55,7 @@ const notificationTypeLabels: Record<AppNotification["type"], string> = {
   absence_notice_created: "Ausência",
   absence_notice_status_changed: "Ausência",
   regulation_updated: "Regulamento",
-  generic: "Aviso",
+  generic: "Notificação",
 };
 
 const notificationTypeIcons: Record<AppNotification["type"], GoAtletaIconName> =
@@ -202,7 +202,7 @@ export function NotificationsCenterScreen({
       setStudents([]);
       setClasses([]);
       setLoadError(
-        "Não foi possível carregar os avisos agora. Verifique sua sessão e tente novamente.",
+        "Não foi possível carregar as notificações agora. Verifique sua sessão e tente novamente.",
       );
     } finally {
       setIsLoading(false);
@@ -313,7 +313,9 @@ export function NotificationsCenterScreen({
   ).length;
   const headerSubtitle = showingArchived
     ? `${notifications.length}${hasMoreNotifications ? "+" : ""} ${
-        notifications.length === 1 ? "aviso arquivado" : "avisos arquivados"
+        notifications.length === 1
+          ? "notificação arquivada"
+          : "notificações arquivadas"
       }`
     : unreadCount > 0 || pendingAbsenceCount > 0
       ? [
@@ -408,7 +410,7 @@ export function NotificationsCenterScreen({
         })),
       );
     } catch {
-      setActionError("Não foi possível marcar os avisos como lidos.");
+      setActionError("Não foi possível marcar as notificações como lidas.");
     } finally {
       setIsMarkingAllRead(false);
     }
@@ -435,7 +437,7 @@ export function NotificationsCenterScreen({
       setNotificationOffset(page.nextOffset);
       setHasMoreNotifications(page.hasMore);
     } catch {
-      setActionError("Não foi possível carregar mais avisos.");
+      setActionError("Não foi possível carregar mais notificações.");
     } finally {
       setIsLoadingMore(false);
     }
@@ -450,9 +452,9 @@ export function NotificationsCenterScreen({
   const requestArchiveReadNotifications = useCallback(() => {
     if (isArchivingRead || readActiveCount === 0) return;
     void confirmDialog({
-      title: "Limpar avisos lidos?",
+      title: "Limpar notificações lidas?",
       message:
-        "Os avisos lidos sairão da lista principal e poderão ser recuperados em Arquivados. Chamadas, ausências, planejamentos e outros registros não serão apagados.",
+        "As notificações lidas sairão da lista principal e poderão ser recuperadas em Arquivados. Chamadas, ausências, planejamentos e outros registros não serão apagados.",
       confirmLabel: "Limpar lidos",
       cancelLabel: "Cancelar",
       onConfirm: async () => {
@@ -462,7 +464,7 @@ export function NotificationsCenterScreen({
           await archiveRead(inboxScope);
           await loadNotices();
         } catch {
-          setActionError("Não foi possível arquivar os avisos lidos.");
+          setActionError("Não foi possível arquivar as notificações lidas.");
         } finally {
           setIsArchivingRead(false);
         }
@@ -481,7 +483,7 @@ export function NotificationsCenterScreen({
           current.filter((item) => item.id !== notificationId),
         );
       } catch {
-        setActionError("Não foi possível restaurar este aviso.");
+        setActionError("Não foi possível restaurar esta notificação.");
       } finally {
         setRestoringId(null);
       }
@@ -534,7 +536,7 @@ export function NotificationsCenterScreen({
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ResponsivePage style={{ flex: 1 }} gap={0}>
         <ScreenPageHeader
-          title="Avisos"
+          title="Notificações"
           subtitle={headerSubtitle}
           horizontalBleed={0}
           contentStyle={{ paddingHorizontal: 0, paddingBottom: spacing.md }}
@@ -544,7 +546,7 @@ export function NotificationsCenterScreen({
           right={
             unreadCount > 0 ? (
               <Pressable
-                accessibilityLabel="Marcar todos os avisos como lidos"
+                accessibilityLabel="Marcar todas as notificações como lidas"
                 disabled={isMarkingAllRead}
                 onPress={() => void markAllNotificationsAsRead()}
                 style={{
@@ -646,7 +648,7 @@ export function NotificationsCenterScreen({
           {!showingArchived && readActiveCount > 0 ? (
             <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
               <Pressable
-                accessibilityLabel="Limpar avisos lidos"
+                accessibilityLabel="Limpar notificações lidas"
                 disabled={isArchivingRead}
                 onPress={requestArchiveReadNotifications}
                 style={{
@@ -717,7 +719,7 @@ export function NotificationsCenterScreen({
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "800" }}>
-                Avisos indisponíveis
+                Notificações indisponíveis
               </Text>
               <Text style={{ color: colors.muted }}>{loadError}</Text>
               <Pressable
@@ -776,15 +778,15 @@ export function NotificationsCenterScreen({
                   />
                   <Text style={{ color: colors.text, fontWeight: "800" }}>
                     {listItems.length === 0
-                      ? "Nenhum aviso registrado"
-                      : `Nenhum aviso em ${filterLabels[selectedFilter].toLowerCase()}`}
+                      ? "Nenhuma notificação registrada"
+                      : `Nenhuma notificação em ${filterLabels[selectedFilter].toLowerCase()}`}
                   </Text>
                   <Text style={{ color: colors.muted, textAlign: "center" }}>
                     {selectedFilter === "unread"
-                      ? "Você já revisou todos os avisos."
+                      ? "Você já revisou todas as notificações."
                       : selectedFilter === "archived"
-                        ? "Os avisos limpos poderão ser recuperados aqui."
-                        : "Novos avisos aparecerão aqui quando forem registrados."}
+                        ? "As notificações limpas poderão ser recuperadas aqui."
+                        : "Novas notificações aparecerão aqui quando forem registradas."}
                   </Text>
                 </View>
               }
@@ -806,11 +808,11 @@ export function NotificationsCenterScreen({
                       }}
                     >
                       {notifications.length}
-                      {hasMoreNotifications ? "+" : ""} avisos carregados
+                      {hasMoreNotifications ? "+" : ""} notificações carregadas
                     </Text>
                     {hasMoreNotifications ? (
                       <Pressable
-                        accessibilityLabel="Carregar mais avisos"
+                        accessibilityLabel="Carregar mais notificações"
                         disabled={isLoadingMore}
                         onPress={() => void loadMoreNotifications()}
                         style={{
@@ -890,7 +892,7 @@ export function NotificationsCenterScreen({
                 });
                 const title =
                   notification?.title ??
-                  (notice ? getStudentName(notice.studentId) : "Aviso");
+                  (notice ? getStudentName(notice.studentId) : "Notificação");
                 const body =
                   notification?.body ??
                   (notice
@@ -903,7 +905,7 @@ export function NotificationsCenterScreen({
                   ? "Ausência"
                   : notification
                     ? notificationTypeLabels[notification.type]
-                    : "Aviso";
+                    : "Notificação";
                 const iconName = notice
                   ? "absenceNotices"
                   : notification
@@ -1117,7 +1119,7 @@ export function NotificationsCenterScreen({
                         </View>
                       ) : showingArchived && notification ? (
                         <Pressable
-                          accessibilityLabel={`Restaurar aviso ${title}`}
+                          accessibilityLabel={`Restaurar notificação ${title}`}
                           disabled={restoringId === notification.id}
                           onPress={(event) => {
                             event.stopPropagation();

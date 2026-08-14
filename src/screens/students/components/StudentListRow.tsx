@@ -11,6 +11,7 @@ import { GoAtletaIcon } from "../../../ui/icon-registry";
 
 type StudentListRowProps = {
   student: Student;
+  photoUrl?: string | null;
   classPalette: { bg: string; text: string };
   healthAssessment: ReturnType<typeof deriveStudentHealthAssessment>;
   hasBirthDateWarning: boolean;
@@ -22,6 +23,7 @@ type StudentListRowProps = {
 
 export function StudentListRow({
   student,
+  photoUrl,
   classPalette,
   healthAssessment,
   hasBirthDateWarning,
@@ -36,6 +38,7 @@ export function StudentListRow({
     <StudentListRowContent
       colors={colors}
       student={student}
+      photoUrl={photoUrl}
       classPalette={classPalette}
       healthAssessment={healthAssessment}
       hasBirthDateWarning={hasBirthDateWarning}
@@ -50,6 +53,7 @@ export function StudentListRow({
 export function StudentListRowContent({
   colors,
   student,
+  photoUrl,
   classPalette,
   healthAssessment,
   hasBirthDateWarning,
@@ -119,11 +123,12 @@ export function StudentListRowContent({
                 overflow: "hidden",
               }}
             >
-              {student.photoUrl ? (
+              {photoUrl ? (
                 <Image
-                  source={{ uri: student.photoUrl }}
+                  source={{ uri: photoUrl }}
                   style={{ width: "100%", height: "100%" }}
                   contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               ) : (
                 <GoAtletaIcon name="personSolid" size={18} color={colors.text} />

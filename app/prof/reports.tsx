@@ -1,12 +1,7 @@
-import { MemberPermissionBoundary } from "../../src/auth/MemberPermissionBoundary";
-import ReportsScreen from "../reports/trainer";
+import { Redirect } from "expo-router";
 
 function ProfReportsRoute() {
-  return (
-    <MemberPermissionBoundary permissionKey="reports" redirectTo="/prof/home">
-      <ReportsScreen />
-    </MemberPermissionBoundary>
-  );
+  return <Redirect href="/prof/classes" />;
 }
 
 export default ProfReportsRoute;

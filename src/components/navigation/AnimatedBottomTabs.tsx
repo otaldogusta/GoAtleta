@@ -67,15 +67,14 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
 
     const permissionByRoute: Partial<Record<string, keyof typeof memberPermissions>> =
       role === "prof"
-        ? {
+          ? {
             classes: "classes",
             planning: "training",
-            reports: "reports",
           }
         : role === "coord"
           ? {
               classes: "classes",
-              reports: "reports",
+              planning: "training",
               management: "org_members",
             }
           : {};

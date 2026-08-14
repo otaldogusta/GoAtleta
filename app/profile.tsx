@@ -999,7 +999,7 @@ export default function ProfileScreen() {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: student?.id ? 0.7 : 0.6,
+        quality: student?.id ? 0.85 : 0.6,
         allowsEditing: true,
         aspect: [1, 1],
         base64: false,
@@ -2168,7 +2168,8 @@ export default function ProfileScreen() {
       </ModalSheet>
       <WebCameraCaptureModal
         visible={showCameraCapture}
-        initialFacing="front"
+        captureQuality={student?.id ? 0.85 : 0.7}
+        initialFacing="back"
         title="Foto do perfil"
         subtitle="Posicione-se no centro da imagem."
         onClose={() => setShowCameraCapture(false)}

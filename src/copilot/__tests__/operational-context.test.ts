@@ -145,6 +145,38 @@ describe("operational context builder", () => {
     expect(result.panel.unreadRegulationCount).toBe(1);
   });
 
+  test("keeps organization facts in the assistant snapshot", () => {
+    const result = buildOperationalContext({
+      screen: "coordination_dashboard",
+      contextTitle: "Coordenação",
+      contextSubtitle: "Gestão operacional",
+      signals: [],
+      selectedSignalId: null,
+      regulationUpdates: [],
+      regulationRuleSets: [],
+      history: [],
+      operationalFacts: [
+        {
+          key: "class_records_pending",
+          label: "Registros de aula atrasados",
+          value: 2,
+          status: "attention",
+          details: ["Turma A - 8 dias sem registro"],
+        },
+      ],
+    });
+
+    expect(result.snapshot.operationalFacts).toEqual([
+      {
+        key: "class_records_pending",
+        label: "Registros de aula atrasados",
+        value: 2,
+        status: "attention",
+        details: ["Turma A - 8 dias sem registro"],
+      },
+    ]);
+  });
+
   test("marks day as concluded after last class + 1h grace window", () => {
     const now = new Date(2026, 1, 24, 22, 5, 0, 0);
     const weekday = now.getDay();

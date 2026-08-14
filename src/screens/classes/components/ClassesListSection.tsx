@@ -593,7 +593,12 @@ const styles = StyleSheet.create({
   tableScheduleHeading: { flex: 1.12, minWidth: 112 },
   tableFocusHeading: { flex: 1.24, minWidth: 120 },
   tableStudentsHeading: { flex: 1.05, minWidth: 108 },
-  tableTeacherHeading: { flex: 1.58, minWidth: 170 },
+  tableTeacherHeading: {
+    flex: 1.58,
+    minWidth: 170,
+    justifyContent: "flex-start",
+    paddingLeft: 41,
+  },
   tableActionHeading: { width: 42 },
   classList: {
     flex: 1,

@@ -8,7 +8,7 @@ import type { InsightsCategory, InsightsView } from "../types";
 type SignalInsightsCategory = Exclude<InsightsCategory, "regulation">;
 
 const categoryLabelById: Record<InsightsCategory, string> = {
-  reports: "Relatórios",
+  reports: "Registros de aula",
   absences: "Faltas consecutivas",
   nfc: "Presença NFC",
   attendance: "Queda de presença",

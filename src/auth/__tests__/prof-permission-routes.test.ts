@@ -9,14 +9,20 @@ function readProfessorRoute(route: string) {
 }
 
 describe("professor permission route boundaries", () => {
-  it.each([
-    ["reports", "reports"],
-    ["periodization", "periodization"],
-  ])("blocks %s before rendering when its permission is disabled", (route, permissionKey) => {
+  it.each([["periodization", "periodization"]])(
+    "blocks %s before rendering when its permission is disabled",
+    (route, permissionKey) => {
     const source = readProfessorRoute(route);
 
     expect(source).toContain(
       `<MemberPermissionBoundary permissionKey="${permissionKey}" redirectTo="/prof/home">`
+    );
+    }
+  );
+
+  it("redirects the retired professor reports route to classes", () => {
+    expect(readProfessorRoute("reports")).toContain(
+      '<Redirect href="/prof/classes" />'
     );
   });
 });

@@ -80,7 +80,7 @@ export type TrainerScopedRoutes = {
   profile: "/prof/profile" | "/coord/profile";
   planning: "/prof/planning" | "/coord/planning";
   periodization: "/prof/periodization" | "/coord/periodization";
-  reports: "/prof/reports" | "/coord/reports";
+  reports: "/prof/classes" | "/coord/management";
   nfcAttendance: "/prof/nfc-attendance" | "/coord/nfc-attendance";
   events: "/prof/calendar" | "/coord/events";
 };
@@ -98,7 +98,7 @@ export const getTrainerScopedRoutes = (
         profile: "/coord/profile",
         planning: "/coord/planning",
         periodization: "/coord/periodization",
-        reports: "/coord/reports",
+        reports: "/coord/management",
         nfcAttendance: "/coord/nfc-attendance",
         events: "/coord/events",
       }
@@ -111,7 +111,7 @@ export const getTrainerScopedRoutes = (
         profile: "/prof/profile",
         planning: "/prof/planning",
         periodization: "/prof/periodization",
-        reports: "/prof/reports",
+        reports: "/prof/classes",
         nfcAttendance: "/prof/nfc-attendance",
         events: "/prof/calendar",
       };

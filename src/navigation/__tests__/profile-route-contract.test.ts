@@ -11,7 +11,18 @@ describe("professor and coordination route contract", () => {
     const config = read("src/components/navigation/tab-config.ts");
     expect(config).toContain('href: "/prof/classes"');
     expect(config).toContain('href: "/coord/classes"');
+    expect(config).not.toContain('href: "/prof/reports"');
+    expect(config).not.toContain('href: "/coord/reports"');
+    expect(read("app/prof/reports.tsx")).toContain(
+      '<Redirect href="/prof/classes" />'
+    );
     expect(config).not.toContain('role === "coord" ? "/prof/classes"');
+    expect(read("app/coord/reports.tsx")).toContain(
+      '<Redirect href="/coord/management" />'
+    );
+    expect(read("app/reports/index.tsx")).toContain(
+      '<Redirect href="/coord/management" />'
+    );
   });
 
   it("provides coordination wrappers for shared planning and NFC screens", () => {

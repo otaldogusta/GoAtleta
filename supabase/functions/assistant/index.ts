@@ -115,6 +115,14 @@ type AppSnapshotAction = {
   createdAt: string;
 };
 
+type AppSnapshotFact = {
+  key: string;
+  label: string;
+  value: string | number;
+  status: string;
+  details: string[];
+};
+
 type AppSnapshotPayload = {
   snapshotVersion?: number | null;
   snapshotHash?: string | null;
@@ -123,6 +131,7 @@ type AppSnapshotPayload = {
   activeSignal: AppSnapshotSignal | null;
   signalsTop: AppSnapshotSignal[];
   recentActions: AppSnapshotAction[];
+  operationalFacts: AppSnapshotFact[];
   regulationContext?: {
     activeRuleSetId: string | null;
     pendingRuleSetId: string | null;
@@ -390,6 +399,7 @@ const canUseDebugMode = (user: { id?: string; email?: string | null }) => {
 const APP_SNAPSHOT_TEXT_LIMIT = 180;
 const APP_SNAPSHOT_MAX_SIGNALS = 5;
 const APP_SNAPSHOT_MAX_ACTIONS = 3;
+const APP_SNAPSHOT_MAX_FACTS = 8;
 
 const normalizeSnapshotText = (value: unknown) =>
   String(value ?? "")
@@ -437,6 +447,23 @@ const normalizeAppSnapshotAction = (value: unknown): AppSnapshotAction | null =>
   };
 };
 
+const normalizeAppSnapshotFact = (value: unknown): AppSnapshotFact | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const key = normalizeSnapshotText(record.key);
+  const label = normalizeSnapshotText(record.label);
+  if (!key || !label) return null;
+  const rawValue = record.value;
+  const normalizedValue = typeof rawValue === "number" ? rawValue : normalizeSnapshotText(rawValue);
+  return {
+    key,
+    label,
+    value: normalizedValue,
+    status: normalizeSnapshotText(record.status) || "info",
+    details: normalizeStringList(record.details, 5),
+  };
+};
+
 const normalizeAppSnapshot = (value: unknown): AppSnapshotPayload | null => {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
@@ -452,6 +479,12 @@ const normalizeAppSnapshot = (value: unknown): AppSnapshotPayload | null => {
         .map((item) => normalizeAppSnapshotAction(item))
         .filter((item): item is AppSnapshotAction => Boolean(item))
         .slice(0, APP_SNAPSHOT_MAX_ACTIONS)
+    : [];
+  const operationalFacts = Array.isArray(record.operationalFacts)
+    ? record.operationalFacts
+        .map((item) => normalizeAppSnapshotFact(item))
+        .filter((item): item is AppSnapshotFact => Boolean(item))
+        .slice(0, APP_SNAPSHOT_MAX_FACTS)
     : [];
   const regulationContextRaw =
     record.regulationContext && typeof record.regulationContext === "object"
@@ -481,6 +514,7 @@ const normalizeAppSnapshot = (value: unknown): AppSnapshotPayload | null => {
     !activeSignal &&
     !signalsTop.length &&
     !recentActions.length &&
+    !operationalFacts.length &&
     !regulationContext
   ) {
     return null;
@@ -493,6 +527,7 @@ const normalizeAppSnapshot = (value: unknown): AppSnapshotPayload | null => {
     activeSignal,
     signalsTop,
     recentActions,
+    operationalFacts,
     regulationContext,
   };
 };
@@ -519,6 +554,13 @@ const buildAppSnapshotContext = (snapshot: AppSnapshotPayload | null) => {
     lines.push("recentActions:");
     for (const action of snapshot.recentActions) {
       lines.push(`- ${action.actionTitle} (${action.status})`);
+    }
+  }
+  if (snapshot.operationalFacts.length) {
+    lines.push("operationalFacts (fatos confirmados da organização ativa):");
+    for (const fact of snapshot.operationalFacts) {
+      lines.push(`- ${fact.label}: ${fact.value} [${fact.status}]`);
+      for (const detail of fact.details) lines.push(`  - ${detail}`);
     }
   }
   if (snapshot.regulationContext) {

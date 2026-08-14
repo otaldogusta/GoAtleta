@@ -26,7 +26,13 @@ import {
   type OrgClass,
   type OrgMember,
 } from "../../api/members";
-import type { AdminPendingAttendance, AdminPendingSessionLogs } from "../../api/reports";
+import type {
+  AdminPendingAttendance,
+  AdminPendingSessionLogs,
+  AdminRecentActivity,
+} from "../../api/reports";
+import { useAuth } from "../../auth/auth";
+import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
 import {
   createTrainerInvite,
   revokeTrainerInvite,
@@ -40,6 +46,7 @@ import {
 import { radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
+import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import { useAppTheme } from "../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../ui/ConfirmCloseOverlay";
 import { useConfirmUndo } from "../../ui/confirm-undo";
@@ -72,14 +79,14 @@ import {
   getMemberDeactivationBlockReason,
 } from "./application/member-deactivation";
 import { formatMemberLastAccess } from "./application/member-last-access";
+import { getMemberDisplayLabel } from "./application/member-display-label";
 import {
   inviteNeedsAction,
   resolveInviteLifecycleStatus,
 } from "./application/invite-lifecycle";
 
-type SecondaryModuleKey = "attendance" | "access" | "reports" | "sync";
-type RoleFilter = "all" | "coordination" | "professor" | "intern";
-type StatusFilter = "all" | "active" | "pending";
+type SecondaryModuleKey = "attendance" | "access" | "reports" | "activity";
+type PeopleSortKey = "name" | "role" | "classes" | "attendance" | "lastAccess";
 type ModalMode = "invite" | "edit" | "message" | null;
 type Layout = { x: number; y: number; width: number; height: number };
 type InviteAudience = Exclude<TrainerInviteRole, "collaborator"> | "student";
@@ -93,6 +100,7 @@ type CoordinationPeopleWorkspaceProps = {
   organizationId: string;
   organizationName: string;
   loading: boolean;
+  refreshing: boolean;
   healthScore: number | null;
   members: OrgMember[];
   memberClassHeads: MemberClassHead[];
@@ -101,10 +109,11 @@ type CoordinationPeopleWorkspaceProps = {
   accessRequests: OrganizationAccessRequest[];
   pendingAttendance: AdminPendingAttendance[];
   pendingReports: AdminPendingSessionLogs[];
-  syncHealthy: boolean;
+  recentActivity: AdminRecentActivity[];
   notifySending: boolean;
   onRefresh: () => void | Promise<void>;
   onOpenAttendance: (item: AdminPendingAttendance) => void;
+  onOpenReport: (item: AdminPendingSessionLogs) => void;
   onNotifyAttendance: (item: AdminPendingAttendance, member: OrgMember) => void;
 };
 
@@ -112,14 +121,14 @@ const DEFAULT_MODULE_ORDER: SecondaryModuleKey[] = [
   "attendance",
   "access",
   "reports",
-  "sync",
+  "activity",
 ];
 
 const moduleIcon: Record<SecondaryModuleKey, GoAtletaIconName> = {
   attendance: "attendance",
   access: "communications",
   reports: "document",
-  sync: "sync",
+  activity: "time",
 };
 
 const roleLabel = (roleLevel: number) => {
@@ -487,6 +496,7 @@ export function CoordinationPeopleWorkspace({
   organizationId,
   organizationName,
   loading,
+  refreshing,
   healthScore,
   members,
   memberClassHeads,
@@ -495,13 +505,15 @@ export function CoordinationPeopleWorkspace({
   accessRequests,
   pendingAttendance,
   pendingReports,
-  syncHealthy,
+  recentActivity,
   notifySending,
   onRefresh,
   onOpenAttendance,
+  onOpenReport,
   onNotifyAttendance,
 }: CoordinationPeopleWorkspaceProps) {
   const { colors } = useAppTheme();
+  const { session } = useAuth();
   const router = useRouter();
   const { confirm: confirmUndo } = useConfirmUndo();
   const { showSaveToast } = useSaveToast();
@@ -515,11 +527,11 @@ export function CoordinationPeopleWorkspace({
     [organizationClasses]
   );
   const stackedAccessModalHeight = Math.max(320, Math.min(760, height - 96));
-  const storageKey = `coordination_workspace_order_v1:${organizationId}`;
+  const storageKey = `coordination_workspace_order_v2:${organizationId}`;
 
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [peopleSortKey, setPeopleSortKey] = useState<PeopleSortKey | null>(null);
+  const peopleSortIndicator = useRef(new Animated.Value(0)).current;
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [peopleExpanded, setPeopleExpanded] = useState(true);
   const [organizing, setOrganizing] = useState(false);
@@ -634,23 +646,41 @@ export function CoordinationPeopleWorkspace({
 
   const filteredMembers = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return members.filter((member) => {
+    const matchingMembers = members.filter((member) => {
       const assigned = classesByUser.get(member.userId) ?? [];
-      const roleMatches =
-        roleFilter === "all" ||
-        (roleFilter === "coordination" && member.roleLevel >= 50) ||
-        (roleFilter === "professor" && member.roleLevel >= 10 && member.roleLevel < 50) ||
-        (roleFilter === "intern" && member.roleLevel < 10);
-      const statusMatches = statusFilter !== "pending";
       const haystack = `${member.displayName} ${member.email ?? ""} ${roleLabel(
         member.roleLevel
       )} ${assigned.map((item) => `${item.className} ${item.unit}`).join(" ")}`.toLowerCase();
-      return roleMatches && statusMatches && (!query || haystack.includes(query));
+      return !query || haystack.includes(query);
     });
-  }, [classesByUser, members, roleFilter, search, statusFilter]);
+
+    if (!peopleSortKey) return matchingMembers;
+    return [...matchingMembers].sort((leftMember, rightMember) => {
+      const leftClasses = classesByUser.get(leftMember.userId) ?? [];
+      const rightClasses = classesByUser.get(rightMember.userId) ?? [];
+      if (peopleSortKey === "classes") return leftClasses.length - rightClasses.length;
+      if (peopleSortKey === "attendance") {
+        const leftPending = leftClasses.filter((item) => attendanceByClass.has(item.classId)).length;
+        const rightPending = rightClasses.filter((item) => attendanceByClass.has(item.classId)).length;
+        return leftPending - rightPending;
+      }
+      if (peopleSortKey === "lastAccess") {
+        const leftAccess = leftMember.lastAccessAt ? Date.parse(leftMember.lastAccessAt) : 0;
+        const rightAccess = rightMember.lastAccessAt ? Date.parse(rightMember.lastAccessAt) : 0;
+        return leftAccess - rightAccess;
+      }
+      const leftValue =
+        peopleSortKey === "role" ? roleLabel(leftMember.roleLevel) : leftMember.displayName;
+      const rightValue =
+        peopleSortKey === "role" ? roleLabel(rightMember.roleLevel) : rightMember.displayName;
+      return leftValue.localeCompare(rightValue, "pt-BR", {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
+  }, [attendanceByClass, classesByUser, members, peopleSortKey, search]);
 
   const filteredInvites = useMemo(() => {
-    if (statusFilter === "active" || roleFilter !== "all") return [];
     const query = search.trim().toLowerCase();
     return visibleInvites.filter((invite) => {
       return (
@@ -658,7 +688,25 @@ export function CoordinationPeopleWorkspace({
         (!query || (invite.invited_to ?? "convite pendente").toLowerCase().includes(query))
       );
     });
-  }, [roleFilter, search, statusFilter, visibleInvites]);
+  }, [search, visibleInvites]);
+
+  const selectPeopleSort = useCallback(
+    (key: PeopleSortKey) => {
+      if (peopleSortKey === key) {
+        setPeopleSortKey(null);
+        return;
+      }
+      peopleSortIndicator.setValue(0);
+      setPeopleSortKey(key);
+      Animated.spring(peopleSortIndicator, {
+        toValue: 1,
+        friction: 6,
+        tension: 180,
+        useNativeDriver: true,
+      }).start();
+    },
+    [peopleSortIndicator, peopleSortKey]
+  );
 
   const selectedMember =
     members.find((member) => member.userId === selectedMemberId) ?? members[0] ?? null;
@@ -1094,20 +1142,9 @@ export function CoordinationPeopleWorkspace({
     attendance: { label: "Chamadas pendentes", value: pendingAttendance.length },
     access: { label: "Convites e solicitações", value: pendingAccessCount },
     reports: { label: "Relatórios pendentes", value: pendingReports.length },
-    sync: { label: "Suporte e sincronização", value: syncHealthy ? "Tudo certo" : "Atenção" },
+    activity: { label: "Atividade recente", value: recentActivity.length },
   };
 
-  const roleOptions: Array<{ value: RoleFilter; label: string }> = [
-    { value: "all", label: "Todas as funções" },
-    { value: "coordination", label: "Coordenação" },
-    { value: "professor", label: "Professores" },
-    { value: "intern", label: "Estagiários" },
-  ];
-  const statusOptions: Array<{ value: StatusFilter; label: string }> = [
-    { value: "all", label: "Todos os status" },
-    { value: "active", label: "Ativos" },
-    { value: "pending", label: "Pendentes" },
-  ];
   const border = colors.border;
   const panel = colors.card;
   const inner = colors.secondaryBg;
@@ -1335,108 +1372,113 @@ export function CoordinationPeopleWorkspace({
       return (
         <ScrollView style={{ maxHeight: listMaxHeight }} showsVerticalScrollIndicator>
           {pendingReports.map((report, index) => (
-            <View
+            <Pressable
               key={`${report.classId}:${index}`}
+              onPress={() => onOpenReport(report)}
               style={{
                 paddingHorizontal: 16,
                 paddingVertical: 11,
                 borderBottomWidth: 1,
                 borderBottomColor: border,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>{report.className}</Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>Relatório pendente</Text>
-            </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>{report.className}</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  {report.daysWithoutReport} dias sem registro • {report.unit || "Sem unidade"}
+                </Text>
+              </View>
+              <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>Registrar aula</Text>
+              <GoAtletaIcon name="chevronRight" size={16} color={colors.muted} />
+            </Pressable>
           ))}
+          {!pendingReports.length ? (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 16 }}>
+              Todas as turmas têm registros recentes.
+            </Text>
+          ) : null}
         </ScrollView>
       );
     }
-    return (
-      <Text style={{ color: colors.muted, fontSize: 12, padding: 16 }}>
-        {syncHealthy ? "Tudo sincronizado. Nenhuma ação necessária." : "Há itens que precisam de intervenção."}
-      </Text>
-    );
+    if (key === "activity") {
+      return (
+        <ScrollView style={{ maxHeight: listMaxHeight }} showsVerticalScrollIndicator>
+          {recentActivity.map((activity, index) => (
+            <View
+              key={`${activity.kind}:${activity.classId}:${activity.occurredAt}:${index}`}
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 11,
+                borderBottomWidth: 1,
+                borderBottomColor: border,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <GoAtletaIcon
+                name={activity.kind === "attendance" ? "attendance" : "document"}
+                size={17}
+                color={colors.muted}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {activity.kind === "attendance" ? "Chamada registrada" : "Registro de aula criado"}
+                  {` • ${activity.className}`}
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                  {new Date(activity.occurredAt).toLocaleString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  {activity.affectedRows > 0 ? ` • ${activity.affectedRows} registros` : ""}
+                </Text>
+              </View>
+            </View>
+          ))}
+          {!recentActivity.length ? (
+            <Text style={{ color: colors.muted, fontSize: 12, padding: 16 }}>
+              Nenhuma execução registrada nos últimos 7 dias.
+            </Text>
+          ) : null}
+        </ScrollView>
+      );
+    }
+    return null;
   };
 
   return (
-    <View style={{ gap: 12 }}>
-      <View
-        style={{
-          flexDirection: compact ? "column" : "row",
-          alignItems: compact ? "stretch" : "center",
-          justifyContent: "space-between",
-          gap: 14,
-        }}
-      >
-        <View style={{ flexShrink: 0, width: supportsSplitLayout ? "48%" : undefined }}>
-          <Pressable
-            onPress={() => router.push("/coord/dashboard")}
-            style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" }}
-          >
-            <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
-            <Text style={{ color: colors.text, fontSize: compact ? 24 : 27, fontWeight: "800" }}>
-              Coordenação
-            </Text>
-          </Pressable>
-          <Text style={{ color: colors.muted, fontSize: 13, marginTop: 3, marginLeft: 22 }}>
-            {organizationName} •{" "}
-            {new Date().toLocaleDateString("pt-BR", {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })}
-          </Text>
-        </View>
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 12,
-            width: supportsSplitLayout ? "46%" : undefined,
-            minWidth: 0,
-          }}
-        >
-          <View
-            style={{
-              flex: 1,
-              borderRadius: radius.internal,
-              borderWidth: 1,
-              borderColor: border,
-              backgroundColor: colors.inputBg,
-              flexDirection: "row",
-              alignItems: "center",
-              paddingHorizontal: 12,
-            }}
-          >
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Buscar pessoas e responsabilidades..."
-              placeholderTextColor={colors.placeholder}
-              style={{ color: colors.inputText, flex: 1, paddingVertical: 11 }}
-            />
-            <GoAtletaIcon name="search" size={17} color={colors.muted} />
-          </View>
-          <Pressable
-            onPress={openInvite}
-            style={{
-              borderRadius: radius.internal,
-              borderWidth: 1,
-              borderColor: border,
-              paddingHorizontal: compact ? 13 : 18,
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "row",
-              gap: 8,
-            }}
-          >
-            <GoAtletaIcon name="addStudent" size={18} color={colors.text} />
-            <Text style={{ color: colors.text, fontWeight: "700" }}>
-              {compact ? "Convidar" : "Convidar pessoa"}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
+    <View style={{ flex: 1, minHeight: 0 }}>
+      <ScreenPageHeader
+        title="Coordenação"
+        subtitle={`${organizationName} • ${new Date().toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })}`}
+        onBack={() => router.push("/coord/dashboard")}
+        horizontalBleed={supportsSplitLayout ? 20 : compact ? 12 : 16}
+        contentStyle={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }}
+      />
 
+      <ScrollView
+        style={{ flex: 1, minHeight: 0 }}
+        contentContainerStyle={{ gap: 12, paddingBottom: 28 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <AppRefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={colors.text}
+            colors={[colors.text]}
+          />
+        }
+      >
       <View
         style={{
           borderRadius: radius.internal,
@@ -1513,40 +1555,112 @@ export function CoordinationPeopleWorkspace({
                     paddingHorizontal: 14,
                     paddingBottom: 12,
                     flexDirection: "row",
+                    flexWrap: "wrap",
                     gap: 10,
                   }}
                 >
-                  <DropdownButton
-                    value={roleFilter}
-                    options={roleOptions}
-                    onChange={setRoleFilter}
-                    compact={compact}
-                    density="compact"
-                  />
-                  <DropdownButton
-                    value={statusFilter}
-                    options={statusOptions}
-                    onChange={setStatusFilter}
-                    compact={compact}
-                    density="compact"
-                  />
+                  <View
+                    style={{
+                      flex: 1,
+                      minWidth: compact ? 0 : 220,
+                      borderRadius: radius.internal,
+                      borderWidth: 1,
+                      borderColor: border,
+                      backgroundColor: colors.inputBg,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: 12,
+                    }}
+                  >
+                    <TextInput
+                      value={search}
+                      onChangeText={setSearch}
+                      placeholder="Buscar pessoas..."
+                      placeholderTextColor={colors.placeholder}
+                      style={{ color: colors.inputText, flex: 1, paddingVertical: 10 }}
+                    />
+                    <GoAtletaIcon name="search" size={17} color={colors.muted} />
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Convidar pessoa"
+                    onPress={openInvite}
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: radius.internal,
+                      borderWidth: 1,
+                      borderColor: border,
+                      backgroundColor: colors.secondaryBg,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <GoAtletaIcon name="addStudent" size={20} color={colors.text} />
+                  </Pressable>
                 </View>
 
                 {!compact ? (
                   <View style={{ paddingHorizontal: 18, paddingVertical: 8, flexDirection: "row" }}>
-                    {[
-                      ["Pessoa", 1.35],
-                      ["Função", 1],
-                      ["Turmas", 0.8],
-                      ["Chamadas pendentes", 1.05],
-                      ["Último acesso", 0.9],
-                    ].map(([label, flex]) => (
-                      <Text
-                        key={String(label)}
-                        style={{ color: colors.muted, fontSize: 11, flex: Number(flex) }}
+                    {(
+                      [
+                        ["PESSOA", "name", 1.35],
+                        ["FUNÇÃO", "role", 1],
+                        ["TURMAS", "classes", 0.8],
+                        ["CHAMADAS PENDENTES", "attendance", 1.05],
+                        ["ÚLTIMO ACESSO", "lastAccess", 0.9],
+                      ] as const
+                    ).map(([label, key, flex]) => (
+                      <Pressable
+                        key={key}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Ordenar por ${label}`}
+                        suppressWebHoverFeedback
+                        disableWebPressScale
+                        onPress={() => selectPeopleSort(key)}
+                        style={{
+                          flex,
+                          minHeight: 30,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
                       >
-                        {label}
-                      </Text>
+                        <Text
+                          style={{
+                            color: peopleSortKey === key ? colors.text : colors.muted,
+                            fontSize: 10,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {label}
+                        </Text>
+                        {peopleSortKey === key ? (
+                          <Animated.View
+                            style={{
+                              opacity: peopleSortIndicator,
+                              transform: [
+                                {
+                                  scale: peopleSortIndicator.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [0.78, 1],
+                                  }),
+                                },
+                                {
+                                  translateY: peopleSortIndicator.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [-3, 0],
+                                  }),
+                                },
+                              ],
+                            }}
+                          >
+                            <GoAtletaIcon name="swapVertical" size={13} color={colors.text} />
+                          </Animated.View>
+                        ) : (
+                          <GoAtletaIcon name="swapVertical" size={13} color={colors.muted} />
+                        )}
+                      </Pressable>
                     ))}
                     <View style={{ width: 30 }} />
                   </View>
@@ -1563,6 +1677,7 @@ export function CoordinationPeopleWorkspace({
                       attendanceByClass.has(item.classId)
                     ).length;
                     const selected = member.userId === selectedMember?.userId;
+                    const displayLabel = getMemberDisplayLabel(member, session?.user.id);
                     return (
                       <Pressable
                         key={member.userId}
@@ -1612,7 +1727,7 @@ export function CoordinationPeopleWorkspace({
                             numberOfLines={1}
                             style={{ color: colors.text, fontWeight: "700", flex: 1 }}
                           >
-                            {member.displayName}
+                            {displayLabel}
                           </Text>
                         </View>
                         {!compact ? (
@@ -1782,7 +1897,7 @@ export function CoordinationPeopleWorkspace({
                   </Text>
                   <Text
                     style={{
-                      color: key === "sync" && syncHealthy ? colors.successText : colors.text,
+                      color: colors.text,
                       fontWeight: "700",
                     }}
                   >
@@ -1875,7 +1990,7 @@ export function CoordinationPeopleWorkspace({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
-                    {selectedMember.displayName}
+                    {getMemberDisplayLabel(selectedMember, session?.user.id)}
                   </Text>
                   <Text style={{ color: colors.muted }}>
                     {formatMemberLastAccess(selectedMember.lastAccessAt)}
@@ -2038,6 +2153,7 @@ export function CoordinationPeopleWorkspace({
           )}
         </View>
       </View>
+      </ScrollView>
 
       <ModalSheet
         visible={modalMode === "invite"}

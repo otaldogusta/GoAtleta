@@ -40,12 +40,14 @@ describe("profile route scope", () => {
       home: "/prof/home",
       classes: "/prof/classes",
       planning: "/prof/planning",
+      reports: "/prof/classes",
       nfcAttendance: "/prof/nfc-attendance",
     });
     expect(getTrainerScopedRoutes("coord")).toMatchObject({
       home: "/coord/dashboard",
       classes: "/coord/classes",
       planning: "/coord/planning",
+      reports: "/coord/management",
       nfcAttendance: "/coord/nfc-attendance",
     });
   });

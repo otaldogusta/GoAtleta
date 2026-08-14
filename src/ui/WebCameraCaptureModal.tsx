@@ -21,6 +21,7 @@ type WebCameraCaptureModalProps = {
   visible: boolean;
   onClose: () => void;
   onCapture: (result: WebCameraCaptureResult) => void | Promise<void>;
+  captureQuality?: number;
   initialFacing?: CameraType;
   title?: string;
   subtitle?: string;
@@ -31,7 +32,8 @@ type WebCameraCaptureContentProps = Omit<WebCameraCaptureModalProps, "visible">;
 function WebCameraCaptureContent({
   onClose,
   onCapture,
-  initialFacing = "front",
+  captureQuality = 0.7,
+  initialFacing = "back",
   title = "Tirar foto",
   subtitle = "Posicione o aluno no centro da imagem.",
 }: WebCameraCaptureContentProps) {
@@ -69,7 +71,7 @@ function WebCameraCaptureContent({
     try {
       const picture = await cameraRef.current.takePictureAsync({
         base64: Platform.OS === "web",
-        quality: 0.7,
+        quality: captureQuality,
       });
       await onCapture(normalizeWebCameraPicture(picture));
       onClose();
@@ -261,6 +263,7 @@ export function WebCameraCaptureModal({
   visible,
   onClose,
   onCapture,
+  captureQuality,
   initialFacing,
   title,
   subtitle,
@@ -271,6 +274,7 @@ export function WebCameraCaptureModal({
     <WebCameraCaptureContent
       onClose={onClose}
       onCapture={onCapture}
+      captureQuality={captureQuality}
       initialFacing={initialFacing}
       title={title}
       subtitle={subtitle}

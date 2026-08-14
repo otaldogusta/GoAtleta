@@ -2,6 +2,10 @@ import { getValidAccessToken } from "../auth/session";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 
 const STUDENT_PHOTO_BUCKET = "student-photos";
+const SIGNED_URL_TTL_SECONDS = 60 * 60;
+const SIGNED_URL_CACHE_MS = 50 * 60 * 1000;
+
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
 const encodeObjectPath = (path: string) =>
   path
@@ -18,6 +22,75 @@ const toPublicUrl = (path: string, cacheVersion?: number) => {
   const cacheQuery =
     typeof cacheVersion === "number" ? `?v=${cacheVersion}` : "";
   return `${base}/storage/v1/object/public/${STUDENT_PHOTO_BUCKET}/${encodedPath}${cacheQuery}`;
+};
+
+export const getStudentPhotoObjectPath = (photoUrl: string | null | undefined) => {
+  const value = photoUrl?.trim();
+  if (!value) return null;
+
+  try {
+    const parsed = new URL(value);
+    const base = new URL(SUPABASE_URL);
+    if (parsed.origin !== base.origin) return null;
+
+    const markers = [
+      `/storage/v1/object/public/${STUDENT_PHOTO_BUCKET}/`,
+      `/storage/v1/object/authenticated/${STUDENT_PHOTO_BUCKET}/`,
+      `/storage/v1/object/sign/${STUDENT_PHOTO_BUCKET}/`,
+    ];
+    const marker = markers.find((candidate) => parsed.pathname.startsWith(candidate));
+    if (!marker) return null;
+
+    return parsed.pathname
+      .slice(marker.length)
+      .split("/")
+      .map((segment) => decodeURIComponent(segment))
+      .join("/");
+  } catch {
+    return null;
+  }
+};
+
+export const getStudentPhotoAccessUrl = async (
+  photoUrl: string | null | undefined
+): Promise<string | null> => {
+  const value = photoUrl?.trim();
+  if (!value) return null;
+
+  const objectPath = getStudentPhotoObjectPath(value);
+  if (!objectPath) return value;
+
+  const cached = signedUrlCache.get(value);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+
+  const headers = await getAuthHeaders("application/json");
+  const base = SUPABASE_URL.replace(/\/$/, "");
+  const response = await fetch(
+    `${base}/storage/v1/object/sign/${STUDENT_PHOTO_BUCKET}/${encodeObjectPath(objectPath)}`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),
+    }
+  );
+
+  if (!response.ok) {
+    const text = await readErrorText(response);
+    throw new Error(text || "Failed to authorize student photo");
+  }
+
+  const payload = (await response.json()) as { signedURL?: string; signedUrl?: string };
+  const signedPath = payload.signedURL ?? payload.signedUrl;
+  if (!signedPath) throw new Error("Student photo signed URL was not returned");
+
+  const signedUrl = /^https?:\/\//i.test(signedPath)
+    ? signedPath
+    : `${base}/storage/v1${signedPath.startsWith("/") ? "" : "/"}${signedPath}`;
+  signedUrlCache.set(value, {
+    url: signedUrl,
+    expiresAt: Date.now() + SIGNED_URL_CACHE_MS,
+  });
+  return signedUrl;
 };
 
 const readErrorText = async (res: Response) => {

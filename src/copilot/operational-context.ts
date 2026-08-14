@@ -44,6 +44,14 @@ type ScheduleWindowInput = {
 
 export type DayScheduleStatus = "no_classes" | "in_progress" | "concluded";
 
+type OperationalFact = {
+  key: string;
+  label: string;
+  value: string | number;
+  status?: "ok" | "attention" | "critical" | "info";
+  details?: string[];
+};
+
 type OperationalContextInput = {
   screen: string | null | undefined;
   contextTitle: string | null | undefined;
@@ -53,6 +61,7 @@ type OperationalContextInput = {
   regulationUpdates: (RegulationUpdate | null | undefined)[];
   regulationRuleSets: (RegulationRuleSet | null | undefined)[];
   history: (CopilotHistoryItem | null | undefined)[];
+  operationalFacts?: OperationalFact[];
   scheduleWindows?: ScheduleWindowInput[];
   nowMs?: number;
 };
@@ -88,6 +97,7 @@ export type OperationalSnapshot = {
   activeSignal: SnapshotSignal | null;
   signalsTop: SnapshotSignal[];
   recentActions: SnapshotAction[];
+  operationalFacts: OperationalFact[];
   regulationContext: RegulationSnapshotContext;
   dayScheduleStatus: DayScheduleStatus;
 };
@@ -118,6 +128,7 @@ const severityWeightBySignal: Record<CopilotSignal["severity"], number> = {
 const MAX_ATTENTION_ITEMS = 3;
 const MAX_SIGNALS_TOP = 5;
 const MAX_RECENT_ACTIONS = 3;
+const MAX_OPERATIONAL_FACTS = 8;
 
 const unique = (values: string[]) => Array.from(new Set(values.filter(Boolean)));
 
@@ -349,6 +360,16 @@ export const buildOperationalContext = (
       status: item.status,
       createdAt: item.createdAt,
     }));
+  const operationalFacts = (input.operationalFacts ?? [])
+    .filter((fact) => Boolean(fact?.key && fact?.label))
+    .slice(0, MAX_OPERATIONAL_FACTS)
+    .map((fact) => ({
+      key: fact.key,
+      label: fact.label,
+      value: fact.value,
+      status: fact.status ?? "info",
+      details: (fact.details ?? []).filter(Boolean).slice(0, 5),
+    }));
 
   const snapshot: OperationalSnapshot = {
     snapshotVersion: 2,
@@ -358,6 +379,7 @@ export const buildOperationalContext = (
     activeSignal: activeSignal ? toSnapshotSignal(activeSignal) : null,
     signalsTop: sortedSignals.slice(0, MAX_SIGNALS_TOP).map(toSnapshotSignal),
     recentActions,
+    operationalFacts,
     regulationContext: {
       activeRuleSetId: activeRuleSet?.id ?? null,
       pendingRuleSetId: pendingRuleSet?.id ?? null,
@@ -385,6 +407,7 @@ export const buildOperationalContext = (
       if (byDate !== 0) return byDate;
       return left.actionTitle.localeCompare(right.actionTitle);
     }),
+    operationalFacts: snapshot.operationalFacts,
     regulationContext: snapshot.regulationContext,
     dayScheduleStatus: snapshot.dayScheduleStatus,
   });

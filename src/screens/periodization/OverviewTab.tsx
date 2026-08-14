@@ -37,7 +37,7 @@ type OverviewTabProps = {
   painAlertDates: string[];
   isOrgAdmin: boolean;
   router: { push: (params: any) => void };
-  reportsRoute: "/prof/reports" | "/coord/reports";
+  reportsRoute: "/prof/classes" | "/coord/management";
   classPlans: ClassPlan[];
   hasWeekPlans: boolean;
   isSavingPlans: boolean;
@@ -636,7 +636,7 @@ export function OverviewTab({
 
             ) : null}
 
-            {isOrgAdmin ? (
+            {reportsRoute === "/prof/classes" || isOrgAdmin ? (
             <Pressable
 
               onPress={() => router.push({ pathname: reportsRoute })}
@@ -665,7 +665,7 @@ export function OverviewTab({
 
               <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
 
-                Abrir relatórios
+                {reportsRoute === "/prof/classes" ? "Abrir turma" : "Abrir Gestão"}
 
               </Text>
 

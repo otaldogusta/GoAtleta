@@ -20,7 +20,7 @@ export default function CoordinationTabsLayout() {
         <Tabs.Screen name="students" options={{ href: null }} />
         <Tabs.Screen name="communications" options={{ href: null }} />
         <Tabs.Screen name="periodization" options={{ href: null }} />
-        <Tabs.Screen name="planning" options={{ href: null }} />
+        <Tabs.Screen name="planning" />
         <Tabs.Screen name="nfc-attendance" options={{ href: null }} />
         <Tabs.Screen name="assistant" options={{ href: null }} />
         <Tabs.Screen name="profile" options={{ href: null }} />
@@ -35,7 +35,7 @@ export default function CoordinationTabsLayout() {
             },
           }}
         />
-        <Tabs.Screen name="reports" />
+        <Tabs.Screen name="reports" options={{ href: null }} />
         <Tabs.Screen name="management" />
       </Tabs>
     </AppShell>

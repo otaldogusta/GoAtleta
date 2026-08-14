@@ -160,6 +160,7 @@ export type StudentsListTabProps = {
   renderStudentItem: (args: RenderStudentItemArgs) => ReactElement | null;
   onStudentPress?: (student: Student) => void;
   onPhotoPress?: (student: Student) => void;
+  resolveStudentPhotoUrl?: (student: Student) => string | null;
   onStudentWhatsApp?: (student: Student) => void;
   birthdayStudentIds?: ReadonlySet<string>;
   loading?: boolean;
@@ -186,6 +187,7 @@ export const StudentsListTab = memo(function StudentsListTab({
   unitLabel,
   onStudentPress,
   onPhotoPress,
+  resolveStudentPhotoUrl,
   onStudentWhatsApp,
   birthdayStudentIds,
   loading = false,
@@ -865,7 +867,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                         >
                           <BirthdayAvatar
                             colors={colors}
-                            photoUrl={student.photoUrl}
+                            photoUrl={resolveStudentPhotoUrl?.(student) ?? undefined}
                             isBirthdayToday={birthdayStudentIds?.has(student.id)}
                             size={38}
                           />

@@ -9,7 +9,6 @@ describe("web sidebar navigation", () => {
       { key: "home" },
       { key: "classes" },
       { key: "planning" },
-      { key: "reports" },
       { key: "consultation" },
       { key: "students" },
       { key: "calendar" },
@@ -31,7 +30,6 @@ describe("web sidebar navigation", () => {
       "absence",
       "exercises",
       "periodization",
-      "reports",
       "consultation",
       "assistant",
       "regulation-history",
@@ -39,18 +37,18 @@ describe("web sidebar navigation", () => {
   });
 
   it("keeps permitted subsets ordered without reintroducing hidden items", () => {
-    const items = [{ key: "reports" }, { key: "home" }, { key: "students" }];
+    const items = [{ key: "consultation" }, { key: "home" }, { key: "students" }];
 
     expect(orderWebSidebarItems("prof", items).map((item) => item.key)).toEqual([
       "home",
       "students",
-      "reports",
+      "consultation",
     ]);
   });
 
   it("places coordination students beside classes", () => {
     const items = [
-      { key: "reports" },
+      { key: "management" },
       { key: "events" },
       { key: "students" },
       { key: "classes" },
@@ -61,7 +59,7 @@ describe("web sidebar navigation", () => {
       "dashboard",
       "classes",
       "students",
-      "reports",
+      "management",
       "events",
     ]);
   });

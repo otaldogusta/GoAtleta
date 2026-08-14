@@ -23,8 +23,8 @@ export default function ProfessorTabsLayout() {
         <Tabs.Screen name="exercises" options={{ href: null }} />
         <Tabs.Screen name="periodization" options={{ href: null }} />
         <Tabs.Screen name="assistant" options={{ href: null }} />
-        <Tabs.Screen name="profile" options={{ href: null }} />
         <Tabs.Screen name="regulation-history" options={{ href: null }} />
+        <Tabs.Screen name="reports" options={{ href: null }} />
         <Tabs.Screen name="home" />
         <Tabs.Screen name="classes" />
         <Tabs.Screen
@@ -36,7 +36,7 @@ export default function ProfessorTabsLayout() {
           }}
         />
         <Tabs.Screen name="planning" />
-        <Tabs.Screen name="reports" />
+        <Tabs.Screen name="profile" />
       </Tabs>
     </AppShell>
   );

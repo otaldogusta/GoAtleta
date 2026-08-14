@@ -323,11 +323,11 @@ const buildReportDelaySignals = (params: {
       scope: "class",
       organizationId: params.organizationId,
       classId: item.classId,
-      title: `Relatório em atraso: ${item.className}`,
+      title: `Registro de aula atrasado: ${item.className}`,
       summary:
         daysWithoutReport === null
-          ? "Turma sem relatório recente registrado."
-          : `${daysWithoutReport} dias sem relatório da turma.`,
+          ? "Turma sem registro recente da aula."
+          : `${daysWithoutReport} dias sem registro da aula.`,
       evidence: {
         className: item.className,
         unit: item.unit,

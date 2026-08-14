@@ -268,7 +268,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
 
   const managerActions = useMemo<ManagerAction[]>(
     () => [
-      { id: "reports", label: "Relatórios", route: "/coord/reports", icon: "reports" },
+      { id: "planning", label: "Planejamento", route: "/coord/planning", icon: "planning" },
       { id: "coordination", label: "Coordenação", route: "/coord/management", icon: "management" },
       { id: "events", label: "Eventos", route: "/coord/events", icon: "events" },
       { id: "nfc", label: "NFC", route: "/coord/nfc-attendance", icon: "nfc" },
@@ -654,9 +654,9 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
             {mostCriticalSession.className} está há {mostCriticalSession.daysWithoutReport} dia(s) sem
             relatório.
           </Text>
-          <Pressable onPress={() => navigateTo("/coord/reports")} style={styles.secondaryActionLink}>
+          <Pressable onPress={() => navigateTo("/coord/management")} style={styles.secondaryActionLink}>
             <Text style={[styles.secondaryActionText, { color: colors.muted }]}>
-              Abrir relatórios
+              Abrir na Gestão
             </Text>
           </Pressable>
         </View>

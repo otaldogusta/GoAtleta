@@ -4,11 +4,20 @@ import type { RegulationUpdate } from "../api/regulation-updates";
 
 export type { CopilotSignal };
 
+export type CopilotOperationalFact = {
+  key: string;
+  label: string;
+  value: string | number;
+  status?: "ok" | "attention" | "critical" | "info";
+  details?: string[];
+};
+
 export type CopilotContextData = {
   screen: string;
   title?: string;
   subtitle?: string;
   activeSignal?: CopilotSignal;
+  operationalFacts?: CopilotOperationalFact[];
 };
 
 export type CopilotActionResult = {

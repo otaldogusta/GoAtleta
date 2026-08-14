@@ -132,10 +132,10 @@ function HomeProfessorBelowFoldBase({
         route: "/coord/classes",
       },
       {
-        label: "Relatórios",
-        description: "Indicadores da operação",
-        icon: "reports",
-        route: "/coord/reports",
+        label: "Planejamento",
+        description: "Planos e aulas",
+        icon: "planning",
+        route: "/coord/planning",
       },
       {
         label: "Gestão",
@@ -256,8 +256,8 @@ function HomeProfessorBelowFoldBase({
 
         {canOpenAbsenceNoticesShortcut ? (
           <ShortcutCard
-            label="Avisos de ausência"
-            description="Alunos ausentes"
+            label="Notificações"
+            description="Atualizações e ausências"
             icon="absenceNotices"
             mobile={mobile}
             onPress={() => router.push("/prof/absence-notices")}

@@ -62,6 +62,7 @@ export function BirthdayAvatar({
             zIndex: 1,
           }}
           contentFit="cover"
+          cachePolicy="memory-disk"
         />
       ) : (
         <View

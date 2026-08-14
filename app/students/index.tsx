@@ -30,6 +30,8 @@ import {
   listStudentPendingInvites,
 } from "../../src/api/student-invite";
 import {
+  getStudentPhotoAccessUrl,
+  getStudentPhotoObjectPath,
   removeStudentPhotoObject,
   uploadStudentPhoto,
 } from "../../src/api/student-photo-storage";
@@ -72,6 +74,7 @@ import {
 } from "../../src/screens/students/components/StudentClassDropdownPanel";
 import { StudentSelectOption } from "../../src/screens/students/components/StudentDropdownOptions";
 import { StudentListRow } from "../../src/screens/students/components/StudentListRow";
+import { StudentPhotoViewerModal } from "../../src/screens/students/components/StudentPhotoViewerModal";
 import { StudentsExportSyncMenu } from "../../src/screens/students/components/StudentsExportSyncMenu";
 import {
   filterStudentsForList,
@@ -266,16 +269,15 @@ export default function StudentsScreen() {
     maxHeight: "70%",
     maxWidth: 440,
   });
-  const photoPreviewCardStyle = useModalCardStyle({
-    maxHeight: "70%",
-    maxWidth: 360,
-  });
   const photoSheetCardStyle = useModalCardStyle({
     maxHeight: "55%",
     maxWidth: 320,
   });
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentPhotoAccessUrls, setStudentPhotoAccessUrls] = useState<
+    Record<string, { sourceUrl: string; accessUrl: string }>
+  >({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isMountedRef = useRef(true);
@@ -466,9 +468,9 @@ export default function StudentsScreen() {
   const [editSaving, setEditSaving] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [showCameraCapture, setShowCameraCapture] = useState(false);
-  const [showPhotoPreview, setShowPhotoPreview] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<{
-    uri: string | null;
+    studentId: string;
+    sourceUrl: string | null;
     name: string;
   } | null>(null);
   markRender("screen.students.render.root");
@@ -1199,7 +1201,7 @@ export default function StudentsScreen() {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.65,
+        quality: 0.85,
         allowsEditing: true,
         aspect: [1, 1],
         base64: false,
@@ -1217,9 +1219,62 @@ export default function StudentsScreen() {
     }
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const studentsWithPhoto = students.filter((student) => student.photoUrl?.trim());
+
+    if (studentsWithPhoto.length === 0) {
+      setStudentPhotoAccessUrls({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void Promise.all(
+      studentsWithPhoto.map(async (student) => {
+        const sourceUrl = student.photoUrl!.trim();
+        try {
+          const accessUrl = await getStudentPhotoAccessUrl(sourceUrl);
+          return accessUrl
+            ? ([student.id, { sourceUrl, accessUrl }] as const)
+            : null;
+        } catch (error) {
+          console.warn("StudentsScreen photo authorization failed", {
+            studentId: student.id,
+            error,
+          });
+          return null;
+        }
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setStudentPhotoAccessUrls(
+        Object.fromEntries(entries.filter((entry) => entry !== null)),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [students]);
+
+  const resolveStudentPhotoUrl = useCallback(
+    (student: Pick<Student, "id" | "photoUrl">) => {
+      const sourceUrl = student.photoUrl?.trim();
+      if (!sourceUrl) return null;
+      const resolved = studentPhotoAccessUrls[student.id];
+      if (resolved?.sourceUrl === sourceUrl) return resolved.accessUrl;
+      return getStudentPhotoObjectPath(sourceUrl) ? null : sourceUrl;
+    },
+    [studentPhotoAccessUrls],
+  );
+
   const openPhotoPreview = (student: Student) => {
-    setPhotoPreview({ uri: student.photoUrl ?? null, name: student.name });
-    setShowPhotoPreview(true);
+    setPhotoPreview({
+      studentId: student.id,
+      sourceUrl: student.photoUrl ?? null,
+      name: student.name,
+    });
   };
 
   const reportStudentValidation = (
@@ -2088,6 +2143,7 @@ export default function StudentsScreen() {
     return (
       <StudentListRow
         student={item}
+        photoUrl={resolveStudentPhotoUrl(item)}
         onPress={onEdit}
         onWhatsApp={openStudentWhatsApp}
         onInvite={onGenerateInviteFromList}
@@ -2466,6 +2522,7 @@ export default function StudentsScreen() {
                 renderStudentItem={renderStudentItem}
                 onStudentPress={onEdit}
                 onPhotoPress={openPhotoPreview}
+                resolveStudentPhotoUrl={resolveStudentPhotoUrl}
                 onStudentWhatsApp={openStudentWhatsApp}
                 birthdayStudentIds={birthdayStudentIds}
                 loading={loading}
@@ -2918,68 +2975,27 @@ export default function StudentsScreen() {
         </ModalSheet>
         <WebCameraCaptureModal
           visible={showCameraCapture}
-          initialFacing="front"
+          initialFacing="back"
+          captureQuality={0.85}
           onClose={() => setShowCameraCapture(false)}
           onCapture={({ uri, mimeType }) => {
             setPhotoUrl(uri);
             setPhotoMimeType(mimeType);
           }}
         />
-        <ModalSheet
-          visible={showPhotoPreview}
-          onClose={() => setShowPhotoPreview(false)}
-          cardStyle={photoPreviewCardStyle}
-          position="center"
-          backdropOpacity={0.7}
-        >
-          <View style={{ gap: 12, alignItems: "center" }}>
-            <Text
-              style={{ fontSize: 14, fontWeight: "700", color: colors.text }}
-            >
-              {photoPreview?.name ?? "Foto do aluno"}
-            </Text>
-            <View
-              style={{
-                width: 220,
-                height: 220,
-                borderRadius: 18,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-              }}
-            >
-              {photoPreview?.uri ? (
-                <Image
-                  source={{ uri: photoPreview.uri }}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                />
-              ) : (
-                <Text style={{ color: colors.muted, fontWeight: "600" }}>
-                  Sem foto
-                </Text>
-              )}
-            </View>
-            <Pressable
-              onPress={() => setShowPhotoPreview(false)}
-              style={{
-                paddingVertical: 10,
-                paddingHorizontal: 16,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                Fechar
-              </Text>
-            </Pressable>
-          </View>
-        </ModalSheet>
+        <StudentPhotoViewerModal
+          visible={photoPreview !== null}
+          name={photoPreview?.name}
+          uri={
+            photoPreview
+              ? resolveStudentPhotoUrl({
+                  id: photoPreview.studentId,
+                  photoUrl: photoPreview.sourceUrl ?? undefined,
+                })
+              : null
+          }
+          onClose={() => setPhotoPreview(null)}
+        />
         <DatePickerModal
           visible={showCalendar}
           value={birthDate}

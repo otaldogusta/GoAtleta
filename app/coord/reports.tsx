@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import { Redirect } from "expo-router";
 
-const CoordinationReportsTab = createLazyRoute(
-  () => import("../reports"),
-  createLoadingFallback(ptBR.loading.routes.reports)
-);
-
-export default CoordinationReportsTab;
+export default function RetiredCoordinationReportsRoute() {
+  return <Redirect href="/coord/management" />;
+}

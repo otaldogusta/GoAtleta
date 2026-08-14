@@ -6,6 +6,7 @@ import { Alert, Platform, ScrollView, Text, useWindowDimensions, View } from "re
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { type Signal } from "../src/ai/signal-engine";
+import { buildCoordinationOperationalFacts } from "../src/ai/coordination-operational-facts";
 import {
     classifySyncError,
     generateExecutiveSummary,
@@ -52,6 +53,7 @@ import {
     type CopilotContextData,
 } from "../src/copilot/CopilotProvider";
 import { useSmartSync } from "../src/core/use-smart-sync";
+import type { ActivityCatalogAuditReport } from "../src/core/volleyball/activity-catalog-audit";
 import {
     clearPendingWritesDeadLetterCandidates,
     exportSyncHealthReportJson,
@@ -73,7 +75,6 @@ import { type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel
 import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
 import { resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
 import { useAppTheme } from "../src/ui/app-theme";
-import { AppRefreshControl } from "../src/ui/AppRefreshControl";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
@@ -356,6 +357,7 @@ export default function CoordinationScreen() {
   const [pendingAttendance, setPendingAttendance] = useState<AdminPendingAttendance[]>([]);
   const [pendingReports, setPendingReports] = useState<AdminPendingSessionLogs[]>([]);
   const [recentActivity, setRecentActivity] = useState<AdminRecentActivity[]>([]);
+  const [catalogAuditReport, setCatalogAuditReport] = useState<ActivityCatalogAuditReport | null>(null);
   const [pendingWritesDiagnostics, setPendingWritesDiagnostics] = useState<PendingWritesDiagnostics>({
     total: 0,
     highRetry: 0,
@@ -384,6 +386,7 @@ export default function CoordinationScreen() {
   const [pendingAccessRequests, setPendingAccessRequests] = useState<OrganizationAccessRequest[]>([]);
   const [loadedOrganizationId, setLoadedOrganizationId] = useState<string | null>(null);
   const dashboardRequestRef = useRef(0);
+  const catalogRequestedOrgIdRef = useRef<string | null>(null);
 
   const supportsSplitLayout = responsiveLayout.supportsSplitView;
   const isWideLayout = responsiveLayout.usesWorkspaceShell;
@@ -821,6 +824,49 @@ export default function CoordinationScreen() {
       setRefreshing(false);
     }
   }, [isAdmin, organizationId, organizationLoading]);
+
+  useEffect(() => {
+    catalogRequestedOrgIdRef.current = null;
+    setCatalogAuditReport(null);
+  }, [organizationId]);
+
+  const loadCatalogAudit = useCallback(
+    async () => {
+      if (!organizationId || !isAdmin) return;
+      if (catalogRequestedOrgIdRef.current === organizationId) return;
+
+      catalogRequestedOrgIdRef.current = organizationId;
+      try {
+        const [{ buildActivityCatalogAuditReport }, { getTrainingPlans }] = await Promise.all([
+          import("../src/core/volleyball/activity-catalog-audit"),
+          import("../src/db/seed"),
+        ]);
+        const trainingPlans = await measureAsync(
+          "screen.coordination.load.catalog",
+          () =>
+            getTrainingPlans({
+              organizationId,
+              status: "final",
+              orderBy: "createdat_desc",
+              limit: 300,
+            }),
+          { screen: "coordination", organizationId }
+        );
+        if (catalogRequestedOrgIdRef.current !== organizationId) return;
+        setCatalogAuditReport(buildActivityCatalogAuditReport(trainingPlans));
+      } catch {
+        if (catalogRequestedOrgIdRef.current !== organizationId) return;
+        setCatalogAuditReport(null);
+        catalogRequestedOrgIdRef.current = null;
+      }
+    },
+    [isAdmin, organizationId]
+  );
+
+  useEffect(() => {
+    if (loading || loadedOrganizationId !== organizationId) return;
+    void loadCatalogAudit();
+  }, [loadCatalogAudit, loadedOrganizationId, loading, organizationId]);
 
   const handleReprocessQueueNow = useCallback(async () => {
     setSyncActionLoading(true);
@@ -1311,6 +1357,24 @@ export default function CoordinationScreen() {
     }
   }, [dataFixSuggestions, executiveSummary, organizationName]);
 
+  const coordinationOperationalFacts = useMemo(
+    () =>
+      buildCoordinationOperationalFacts({
+        pendingAttendance,
+        pendingReports,
+        recentActivity,
+        healthScore: coordinationHealthScore,
+        catalogAuditReport,
+      }),
+    [
+      catalogAuditReport,
+      coordinationHealthScore,
+      pendingAttendance,
+      pendingReports,
+      recentActivity,
+    ]
+  );
+
   useCopilotContext(
     useMemo(
       () =>
@@ -1318,14 +1382,15 @@ export default function CoordinationScreen() {
           ? {
               screen: "coordination_dashboard",
               title: "Coordenação",
-              subtitle: "Visão operacional da coordenação",
+              subtitle: "Gestão operacional da organização",
+              operationalFacts: coordinationOperationalFacts,
             }
           : {
               screen: "coordination_members",
               title: "Coordenação - membros",
               subtitle: "Gestao de membros",
             },
-      [ activeTab ]
+      [activeTab, coordinationOperationalFacts]
     )
   );
 
@@ -1515,26 +1580,14 @@ export default function CoordinationScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenBackdrop />
       <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
-      <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: supportsSplitLayout ? 20 : isCompactLayout ? 12 : 16,
-            paddingTop: 12,
-            paddingBottom: 28,
-            gap: 12,
-          }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <AppRefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                void loadDashboard();
-              }}
-              tintColor={colors.text}
-              colors={[colors.text]}
-            />
-          }
+      <View
+        style={{
+          flex: 1,
+          minHeight: 0,
+          paddingHorizontal: supportsSplitLayout ? 20 : isCompactLayout ? 12 : 16,
+          paddingTop: 12,
+          gap: 12,
+        }}
       >
           {error ? (
             <View
@@ -1555,6 +1608,7 @@ export default function CoordinationScreen() {
             organizationId={organizationId ?? ""}
             organizationName={organizationName}
             loading={loading}
+            refreshing={refreshing}
             healthScore={coordinationHealthScore}
             members={organizationMembers}
             memberClassHeads={memberClassHeads}
@@ -1563,17 +1617,22 @@ export default function CoordinationScreen() {
             accessRequests={pendingAccessRequests}
             pendingAttendance={pendingAttendance}
             pendingReports={pendingReports}
-            syncHealthy={
-              syncPausedReason === null &&
-              failedWrites.length === 0 &&
-              pendingWritesDiagnostics.highRetry === 0
-            }
+            recentActivity={recentActivity}
             notifySending={notifySending}
-            onRefresh={loadDashboard}
+            onRefresh={() => {
+              setRefreshing(true);
+              return loadDashboard();
+            }}
             onOpenAttendance={(item) =>
               router.push({
                 pathname: "/class/[id]/attendance",
                 params: { id: item.classId, date: item.targetDate },
+              })
+            }
+            onOpenReport={(item) =>
+              router.push({
+                pathname: "/class/[id]/session",
+                params: { id: item.classId, tab: "relatório", date: item.suggestedDate },
               })
             }
             onNotifyAttendance={(item, member) =>
@@ -1843,7 +1902,7 @@ export default function CoordinationScreen() {
           )}
           </>
           )}
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );

@@ -50,9 +50,9 @@ export function NativeSidebar({ role, visible, canExpand }: NativeSidebarProps) 
     const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
     const permissionByRoute: Partial<Record<string, keyof typeof memberPermissions>> =
       role === "prof"
-        ? { classes: "classes", planning: "training", reports: "reports" }
+        ? { classes: "classes", planning: "training" }
         : role === "coord"
-          ? { classes: "classes", reports: "reports", management: "org_members" }
+          ? { classes: "classes", planning: "training", management: "org_members" }
           : {};
     const primary = ROLE_TABS[role]
       .filter((item) => {

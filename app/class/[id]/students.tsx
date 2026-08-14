@@ -18,8 +18,12 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { uploadStudentPhoto } from "../../../src/api/student-photo-storage";
+import {
+  getStudentPhotoAccessUrl,
+  uploadStudentPhoto,
+} from "../../../src/api/student-photo-storage";
 import { ScreenPageHeader } from "../../../src/components/ui/ScreenPageHeader";
+import { StudentPhotoViewerModal } from "../../../src/screens/students/components/StudentPhotoViewerModal";
 import {
   useCopilotActions,
   useCopilotContext,
@@ -265,6 +269,8 @@ export default function ClassStudentsScreen() {
 
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentPhotoAccessUrls, setStudentPhotoAccessUrls] = useState<Record<string, string>>({});
+  const [photoPreview, setPhotoPreview] = useState<{ uri: string; name: string } | null>(null);
   const [organizationStudents, setOrganizationStudents] = useState<Student[]>([]);
   const [organizationClasses, setOrganizationClasses] = useState<ClassGroup[]>([]);
   const [athleteIntakes, setAthleteIntakes] = useState<AthleteIntake[]>([]);
@@ -672,6 +678,38 @@ export default function ClassStudentsScreen() {
     };
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const studentsWithPhoto = students.filter((student) => Boolean(student.photoUrl));
+    if (!studentsWithPhoto.length) {
+      setStudentPhotoAccessUrls({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void Promise.all(
+      studentsWithPhoto.map(async (student) => {
+        try {
+          const url = await getStudentPhotoAccessUrl(student.photoUrl);
+          return url ? ([student.id, url] as const) : null;
+        } catch (error) {
+          console.warn("Student photo authorization failed", error);
+          return null;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setStudentPhotoAccessUrls(
+        Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry)))
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [students]);
+
   const closeDropdown = useCallback(() => setDropKey(null), []);
 
   const syncLayouts = useCallback(() => {
@@ -806,7 +844,7 @@ export default function ClassStudentsScreen() {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.65,
+        quality: 0.85,
         allowsEditing: true,
         aspect: [1, 1],
         base64: false,
@@ -837,7 +875,7 @@ export default function ClassStudentsScreen() {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.65,
+        quality: 0.85,
         allowsEditing: true,
         aspect: [1, 1],
         base64: false,
@@ -2273,6 +2311,7 @@ export default function ClassStudentsScreen() {
                   const selected = selectedStudentIds.includes(s.id);
                   const duplicateGroup = duplicateGroupByStudentId.get(s.id) ?? null;
                   const missingImportantFields = getMissingImportantStudentFields(s);
+                  const photoAccessUrl = studentPhotoAccessUrls[s.id];
                   return (
                     <Pressable
                       key={s.id}
@@ -2313,7 +2352,16 @@ export default function ClassStudentsScreen() {
                           ) : null}
                         </View>
                       ) : null}
-                      <View
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={photoAccessUrl ? `Ver foto de ${s.name}` : undefined}
+                        disabled={!photoAccessUrl}
+                        onPress={(event) => {
+                          event.stopPropagation?.();
+                          if (photoAccessUrl) {
+                            setPhotoPreview({ uri: photoAccessUrl, name: s.name });
+                          }
+                        }}
                         style={{
                           width: 52,
                           height: 52,
@@ -2326,12 +2374,17 @@ export default function ClassStudentsScreen() {
                           justifyContent: "center",
                         }}
                       >
-                        {s.photoUrl ? (
-                          <Image source={{ uri: s.photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                        {photoAccessUrl ? (
+                          <Image
+                            source={{ uri: photoAccessUrl }}
+                            style={{ width: "100%", height: "100%" }}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                          />
                         ) : (
                           <GoAtletaIcon name="personSolid" size={22} color={colors.muted} />
                         )}
-                      </View>
+                      </Pressable>
                       <View style={{ flex: 1, gap: 2 }}>
                         {duplicateGroup ? (
                           <StudentDuplicateBadge
@@ -2892,8 +2945,14 @@ export default function ClassStudentsScreen() {
                   justifyContent: "center",
                 }}
               >
-                {photoUrl ? (
+                {photoChanged && photoUrl ? (
                   <Image source={{ uri: photoUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                ) : editingStudent && studentPhotoAccessUrls[editingStudent.id] ? (
+                  <Image
+                    source={{ uri: studentPhotoAccessUrls[editingStudent.id] }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
                 ) : (
                   <GoAtletaIcon name="camera" size={24} color={colors.muted} />
                 )}
@@ -3592,7 +3651,8 @@ export default function ClassStudentsScreen() {
 
       <WebCameraCaptureModal
         visible={cameraCaptureTarget !== null}
-        initialFacing="front"
+        initialFacing="back"
+        captureQuality={0.85}
         onClose={() => setCameraCaptureTarget(null)}
         onCapture={({ uri, mimeType }) => {
           if (cameraCaptureTarget === "create") {
@@ -3604,6 +3664,13 @@ export default function ClassStudentsScreen() {
           setPhotoMimeType(mimeType);
           setPhotoChanged(true);
         }}
+      />
+
+      <StudentPhotoViewerModal
+        visible={photoPreview !== null}
+        name={photoPreview?.name}
+        uri={photoPreview?.uri}
+        onClose={() => setPhotoPreview(null)}
       />
 
       <ConfirmCloseOverlay
