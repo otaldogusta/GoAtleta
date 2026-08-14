@@ -4,6 +4,7 @@ import { SectionList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ResponsivePage } from "../src/components/ui/ResponsivePage";
+import { FullscreenLoadingState } from "../src/components/ui/FullscreenLoadingState";
 import { SectionLoadingState } from "../src/components/ui/SectionLoadingState";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
@@ -164,6 +165,8 @@ export function NotificationsCenterScreen({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const showingArchived = selectedFilter === "archived";
+  const noticesContextKey = `${activeOrganization?.id ?? "none"}:${inboxScope}`;
+  const [loadedNoticesContextKey, setLoadedNoticesContextKey] = useState<string | null>(null);
 
   const loadNotices = useCallback(async () => {
     setIsLoading(true);
@@ -211,11 +214,12 @@ export function NotificationsCenterScreen({
     (async () => {
       await loadNotices();
       if (!alive) return;
+      setLoadedNoticesContextKey(noticesContextKey);
     })();
     return () => {
       alive = false;
     };
-  }, [loadNotices]);
+  }, [loadNotices, noticesContextKey]);
 
   const studentsById = useMemo(
     () => new Map(students.map((item) => [item.id, item] as const)),
@@ -521,6 +525,10 @@ export function NotificationsCenterScreen({
     },
     [markRead],
   );
+
+  if (loadedNoticesContextKey !== noticesContextKey) {
+    return <FullscreenLoadingState overlay />;
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>

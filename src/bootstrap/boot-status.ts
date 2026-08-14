@@ -13,6 +13,10 @@ export type BootStatus = {
   blocking: boolean;
 };
 
+export function shouldMaskBootContent(status: BootStatus) {
+  return status.phase !== "ready";
+}
+
 export function resolveBootStatus(params: {
   bootstrapLoading: boolean;
   authLoading: boolean;

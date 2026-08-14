@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
 } from "react";
 import { Platform, useColorScheme as useSystemColorScheme } from "react-native";
@@ -145,6 +146,11 @@ export function AppThemeProvider({ children }: { children: React.ReactNode }) {
     () => (overrideLoaded && overrideMode ? overrideMode : systemScheme),
     [overrideLoaded, overrideMode, systemScheme]
   );
+
+  useEffect(() => {
+    if (!isWeb || !overrideLoaded || typeof document === "undefined") return;
+    document.documentElement.dataset.goatletaTheme = mode;
+  }, [mode, overrideLoaded]);
 
   const setMode = useCallback((next: ThemeMode) => {
     setOverrideMode(next);

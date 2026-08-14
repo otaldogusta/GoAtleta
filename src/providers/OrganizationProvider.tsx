@@ -30,6 +30,7 @@ import {
   extractErrorText,
   isExpectedSessionConnectivityError,
 } from "../ui/error-messages";
+import { resolvePermissionsLoading } from "./organization-loading";
 
 const ACTIVE_ORG_KEY = "active-org-id";
 
@@ -174,13 +175,22 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [memberPermissions, setMemberPermissions] = useState<
     Partial<Record<MemberPermissionKey, boolean>>
   >({});
-  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsFetchLoading, setPermissionsFetchLoading] = useState(false);
+  const [resolvedPermissionsRequestKey, setResolvedPermissionsRequestKey] = useState("");
   const hasLoadedOrganizationsRef = useRef(false);
   const fetchControllerRef = useRef<AbortController | null>(null);
   const permissionsInFlightRef = useRef<Promise<void> | null>(null);
   const permissionsRequestKeyRef = useRef("");
   const lastFetchTokenRef = useRef("");
   const lastFetchErrorAtRef = useRef(0);
+  const currentPermissionsRequestKey = session?.user?.id && activeOrganizationId
+    ? `${session.user.id}:${activeOrganizationId}`
+    : "";
+  const permissionsLoading = resolvePermissionsLoading({
+    currentRequestKey: currentPermissionsRequestKey,
+    resolvedRequestKey: resolvedPermissionsRequestKey,
+    fetchLoading: permissionsFetchLoading,
+  });
 
   useRenderDiagnostic("OrganizationProvider", {
     activeOrganizationId,
@@ -218,7 +228,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     if (!userId || !organizationId) {
       permissionsRequestKeyRef.current = "";
       setMemberPermissions({});
-      setPermissionsLoading(false);
+      setResolvedPermissionsRequestKey("");
+      setPermissionsFetchLoading(false);
       return;
     }
 
@@ -232,7 +243,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
     let requestPromise: Promise<void> = Promise.resolve();
     requestPromise = (async () => {
-      setPermissionsLoading(true);
+      setPermissionsFetchLoading(true);
       try {
         const rows = await getMyMemberPermissions(organizationId);
         if (permissionsRequestKeyRef.current !== requestKey) return;
@@ -255,7 +266,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
           permissionsInFlightRef.current = null;
         }
         if (permissionsRequestKeyRef.current === requestKey) {
-          setPermissionsLoading(false);
+          setResolvedPermissionsRequestKey(requestKey);
+          setPermissionsFetchLoading(false);
         }
       }
     })();
@@ -270,7 +282,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         setMemberPermissions({});
       });
       Promise.resolve().then(() => {
-        setPermissionsLoading(false);
+        setPermissionsFetchLoading(false);
       });
       return;
     }
@@ -280,7 +292,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       setMemberPermissions({});
     });
     Promise.resolve().then(() => {
-      setPermissionsLoading(true);
+      setPermissionsFetchLoading(true);
     });
   }, [activeOrganizationId, session]);
 

@@ -15,7 +15,6 @@ import {
     useState
 } from "react";
 import {
-    ActivityIndicator,
     AppState,
     LogBox,
     Platform, Text,
@@ -42,9 +41,11 @@ import {
     trainerOnlyPrefixes,
 } from "../src/auth/route-permissions";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
-import { resolveBootStatus } from "../src/bootstrap/boot-status";
+import { resolveBootstrapInitialSession } from "../src/bootstrap/bootstrap-auth";
+import { resolveBootStatus, shouldMaskBootContent } from "../src/bootstrap/boot-status";
 import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-context";
 import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
+import { FullscreenLoadingState } from "../src/components/ui/FullscreenLoadingState";
 import { CopilotProvider } from "../src/copilot/CopilotProvider";
 import { useBirthdayNotifications } from "../src/hooks/use-birthday-notifications";
 import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
@@ -238,6 +239,7 @@ function RootLayoutContent() {
     role,
   });
   const isBooting = bootStatus.blocking;
+  const shouldMaskBoot = shouldMaskBootContent(bootStatus);
   useBirthdayNotifications({
     enabled: Boolean(session) && !isBooting,
     organizationId: activeOrganization?.id,
@@ -858,20 +860,9 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
   if (isBooting) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScreenBackdrop variant="boot" />
-        <View
-          style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-          }}
-        >
-          <ActivityIndicator size="large" color={colors.text} />
-          <Text style={{ color: colors.text, fontWeight: "600" }}>
-            {__DEV__ && bootElapsedMs >= 2500 ? bootStatus.label : "Carregando..."}
-          </Text>
-        </View>
+        <FullscreenLoadingState
+          label={__DEV__ && bootElapsedMs >= 2500 ? bootStatus.label : "Carregando..."}
+        />
         <StatusBar
           style={mode === "dark" ? "light" : "dark"}
         />
@@ -970,6 +961,12 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
           />
         </Stack>
       </RootWebShell>
+      {shouldMaskBoot ? (
+        <FullscreenLoadingState
+          label={__DEV__ && bootElapsedMs >= 2500 ? bootStatus.label : "Carregando..."}
+          overlay
+        />
+      ) : null}
     </View>
   );
 }
@@ -1037,7 +1034,7 @@ export default RootLayout;
 function BootstrapAuthProviders() {
   const { data } = useBootstrap();
   return (
-    <AuthProvider initialSession={data?.session ?? null}>
+    <AuthProvider initialSession={resolveBootstrapInitialSession(data)}>
       <BiometricAuthBoundary />
     </AuthProvider>
   );

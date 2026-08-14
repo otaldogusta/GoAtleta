@@ -1,4 +1,4 @@
-import { resolveBootStatus } from "../boot-status";
+import { resolveBootStatus, shouldMaskBootContent } from "../boot-status";
 
 const base = {
   bootstrapLoading: false,
@@ -41,5 +41,17 @@ describe("resolveBootStatus", () => {
 
   it("returns ready when no boot phase is active", () => {
     expect(resolveBootStatus(base)).toMatchObject({ phase: "ready", blocking: false });
+  });
+
+  it("masks every incomplete boot phase while keeping the route tree mounted", () => {
+    expect(shouldMaskBootContent(resolveBootStatus({ ...base, navReady: false }))).toBe(true);
+    expect(shouldMaskBootContent(resolveBootStatus({ ...base, roleLoading: true }))).toBe(true);
+    expect(
+      shouldMaskBootContent(resolveBootStatus({ ...base, organizationLoading: true })),
+    ).toBe(true);
+    expect(
+      shouldMaskBootContent(resolveBootStatus({ ...base, permissionsLoading: true })),
+    ).toBe(true);
+    expect(shouldMaskBootContent(resolveBootStatus(base))).toBe(false);
   });
 });
