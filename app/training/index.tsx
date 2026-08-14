@@ -3316,6 +3316,14 @@ export default function TrainingList() {
     setShowApplyModal(true);
   }, []);
 
+  const handleApplyWorkspacePlan = useCallback(
+    (plan: TrainingPlan) => {
+      setSelectedPlan(plan);
+      handleApplyPlan(plan);
+    },
+    [handleApplyPlan]
+  );
+
   const handleViewPlan = useCallback((plan: TrainingPlan) => {
     setSelectedPlan(plan);
     setClassId(plan.classId);
@@ -3787,10 +3795,7 @@ export default function TrainingList() {
                       onDraftChange={handleWorkspaceDraftChange}
                       onDirtyChange={setWorkspaceHasUnsavedChanges}
                       onWorkspaceControlsChange={setWorkspaceHeaderControls}
-                      onApplyPlan={(plan) => {
-                        setSelectedPlan(plan);
-                        handleApplyPlan(plan);
-                      }}
+                      onApplyPlan={handleApplyWorkspacePlan}
                     />
                   ) : (
                     <View
