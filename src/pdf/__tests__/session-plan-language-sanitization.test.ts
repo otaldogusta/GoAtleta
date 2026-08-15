@@ -158,11 +158,11 @@ describe("session-plan language sanitization", () => {
       ],
     });
 
-    expect(html).toContain("1. Passe para alvo em duplas");
-    expect(html).toContain("2. Manchete com ajuste de pés");
-    expect(html).toContain("1. Duplas a 3 metros com cone como alvo. Um aluno lanca e o outro responde de manchete.");
+    expect(html).toContain("Passe para alvo em duplas");
+    expect(html).toContain("Manchete com ajuste de pés");
+    expect(html).toContain("Duplas a 3 metros com cone como alvo. Um aluno lanca e o outro responde de manchete.");
     expect(html).toContain(
-      "2. Três filas curtas atrás da linha de fundo e alvo na posição 3. O aluno ajusta os pés, chama a bola e faz a manchete para o alvo."
+      "Três filas curtas atrás da linha de fundo e alvo na posição 3. O aluno ajusta os pés, chama a bola e faz a manchete para o alvo."
     );
     expect(html).not.toContain("Foco do professor:");
     expect(html).not.toContain("Meta:");

@@ -29,6 +29,7 @@ const dispatchKeyboardShortcut = (event: Partial<KeyboardEvent>) => {
 
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "class_1" }),
+  usePathname: () => "/class/class_1/visual-tech",
   useRouter: () => ({
     back: jest.fn(),
     canGoBack: jest.fn(() => false),
