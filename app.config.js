@@ -73,7 +73,7 @@ module.exports = {
 	expo: {
 		name: "GoAtleta",
 		slug: "goatleta",
-		version: "1.0.0",
+		version: "1.0.1",
 		orientation: "portrait",
 		icon: "./assets/images/icon.png",
 		scheme: "goatleta",
@@ -146,7 +146,7 @@ module.exports = {
 			url: "https://u.expo.dev/ac21b1cd-e0e3-495f-ba43-e262c8185ef5",
 		},
 		runtimeVersion: {
-			policy: "fingerprint",
+			policy: "appVersion",
 		},
 		experiments: {
 			typedRoutes: true,

@@ -39,6 +39,7 @@
       "channel": "production",
       "distribution": "internal",
       "environment": "production",
+      "autoIncrement": true,
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
