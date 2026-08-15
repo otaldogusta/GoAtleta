@@ -29,6 +29,9 @@ export function BootstrapProvider({ children }: { children: React.ReactNode }) {
       setReady(true);
     } catch (err) {
       const parsed = err instanceof Error ? err : new Error(String(err));
+      // Keep the native release failure observable in adb/logcat. The UI stays
+      // intentionally concise, while Sentry retains the full exception.
+      console.error("[bootstrap] startup failed", parsed);
       setError(parsed);
       setReady(false);
       Sentry.captureException(parsed);

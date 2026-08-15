@@ -88,14 +88,23 @@ const getSecureStore = (): SecureStoreModule | null => {
   return secureStoreModule;
 };
 
+const deleteSecureSessionSafely = async (secureStore: SecureStoreModule | null) => {
+  if (!secureStore) return;
+  try {
+    await secureStore.deleteItemAsync(STORAGE_KEY);
+  } catch (error) {
+    // Android may restore an encrypted payload whose keystore key disappeared
+    // during reinstall. That stale value must never block the whole app boot.
+    console.warn("[session] could not clear native session", error);
+  }
+};
+
 export const loadSession = async (): Promise<AuthSession | null> => {
   const secureStore = getSecureStore();
   const remember = await AsyncStorage.getItem(REMEMBER_KEY);
   if (isNative && remember !== "true") {
     await AsyncStorage.removeItem(STORAGE_KEY);
-    if (secureStore) {
-      await secureStore.deleteItemAsync(STORAGE_KEY);
-    }
+    await deleteSecureSessionSafely(secureStore);
     removeWebKey(STORAGE_KEY);
     accessToken = "";
     currentSession = null;
@@ -103,15 +112,32 @@ export const loadSession = async (): Promise<AuthSession | null> => {
   }
   let raw = "";
   if (isNative && secureStore) {
-    raw = (await secureStore.getItemAsync(STORAGE_KEY)) ?? "";
+    try {
+      raw = (await secureStore.getItemAsync(STORAGE_KEY)) ?? "";
+    } catch (error) {
+      // A restored SecureStore entry cannot be decrypted after Android has
+      // recreated the app keystore. Recover as signed out instead of failing
+      // BootstrapProvider and trapping the user on the startup error screen.
+      console.warn("[session] native session is unreadable; starting signed out", error);
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      await deleteSecureSessionSafely(secureStore);
+      accessToken = "";
+      currentSession = null;
+      return null;
+    }
     if (!raw) {
       const legacyRaw = await AsyncStorage.getItem(STORAGE_KEY);
       if (legacyRaw) {
         raw = legacyRaw;
-        await secureStore.setItemAsync(STORAGE_KEY, legacyRaw, {
-          keychainAccessible: secureStore.WHEN_UNLOCKED,
-        });
-        await AsyncStorage.removeItem(STORAGE_KEY);
+        try {
+          await secureStore.setItemAsync(STORAGE_KEY, legacyRaw, {
+            keychainAccessible: secureStore.WHEN_UNLOCKED,
+          });
+          await AsyncStorage.removeItem(STORAGE_KEY);
+        } catch (error) {
+          // Keep the valid legacy copy available for this and the next launch.
+          console.warn("[session] could not migrate session to native storage", error);
+        }
       }
     }
   } else {
@@ -128,7 +154,7 @@ export const loadSession = async (): Promise<AuthSession | null> => {
     return parsed;
   } catch {
     if (secureStore) {
-      await secureStore.deleteItemAsync(STORAGE_KEY);
+      await deleteSecureSessionSafely(secureStore);
     } else {
       await AsyncStorage.removeItem(STORAGE_KEY);
     }

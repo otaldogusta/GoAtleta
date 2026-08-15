@@ -278,21 +278,6 @@ export function initDb() {
       updatedAt TEXT NOT NULL DEFAULT ''
     );
 
-    CREATE INDEX IF NOT EXISTS idx_monthly_planning_blueprints_class_month
-      ON monthly_planning_blueprints(classId, year, month);
-
-    CREATE INDEX IF NOT EXISTS idx_daily_lesson_plans_class_date
-      ON daily_lesson_plans(classId, date);
-
-    CREATE INDEX IF NOT EXISTS idx_daily_lesson_plans_week
-      ON daily_lesson_plans(weeklyPlanId);
-
-    CREATE INDEX IF NOT EXISTS idx_planning_cycles_class_status
-      ON planning_cycles(organizationId, classId, status);
-
-    CREATE INDEX IF NOT EXISTS idx_class_plans_class_cycle_start
-      ON class_plans(classId, cycleId, startDate);
-
     CREATE TABLE IF NOT EXISTS plan_observability_summaries (
       planId TEXT PRIMARY KEY NOT NULL,
       classId TEXT NOT NULL,
@@ -302,9 +287,6 @@ export function initDb() {
       capturedAt TEXT NOT NULL DEFAULT '',
       computedAt TEXT NOT NULL DEFAULT ''
     );
-
-    CREATE INDEX IF NOT EXISTS idx_plan_obs_class
-      ON plan_observability_summaries(classId, weekNumber);
 
     CREATE TABLE IF NOT EXISTS class_competitive_profiles (
       classId TEXT PRIMARY KEY NOT NULL,
@@ -1161,6 +1143,25 @@ export function initDb() {
   try {
     db.execSync(
       "CREATE INDEX IF NOT EXISTS idx_plan_obs_class ON plan_observability_summaries(classId, weekNumber)"
+    );
+  } catch {}
+  // Indexes stay outside the initial schema batch so an existing database can
+  // receive all additive columns before an index references them. Keeping
+  // these in the CREATE TABLE batch made upgrades fail permanently when an
+  // older table did not yet have organizationId or cycleId.
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_monthly_planning_blueprints_class_month ON monthly_planning_blueprints(classId, year, month)"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_daily_lesson_plans_class_date ON daily_lesson_plans(classId, date)"
+    );
+  } catch {}
+  try {
+    db.execSync(
+      "CREATE INDEX IF NOT EXISTS idx_daily_lesson_plans_week ON daily_lesson_plans(weeklyPlanId)"
     );
   } catch {}
 }

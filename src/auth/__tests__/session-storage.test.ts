@@ -124,4 +124,36 @@ describe("session storage", () => {
     const mod = await loadSessionModuleFor("web");
     await expect(mod.hasStoredSession()).resolves.toBe(false);
   });
+
+  test("native starts signed out when a restored SecureStore payload is unreadable", async () => {
+    const mod = await loadSessionModuleFor("android");
+    asyncStorageMock.getItem.mockResolvedValue("true");
+    secureStoreMock.getItemAsync.mockRejectedValue(
+      new Error("Could not decrypt the item in SecureStore")
+    );
+    secureStoreMock.deleteItemAsync.mockRejectedValue(
+      new Error("Keystore key is unavailable")
+    );
+
+    await expect(mod.loadSession()).resolves.toBeNull();
+    expect(asyncStorageMock.removeItem).toHaveBeenCalledWith("auth_session_v1");
+  });
+
+  test("native keeps a valid legacy session when SecureStore migration fails", async () => {
+    const mod = await loadSessionModuleFor("android");
+    const legacySession = {
+      access_token: "legacy-a",
+      refresh_token: "legacy-r",
+      expires_at: 999999,
+      user: { id: "u4", email: "u4@x.com" },
+    };
+    asyncStorageMock.getItem
+      .mockResolvedValueOnce("true")
+      .mockResolvedValueOnce(JSON.stringify(legacySession));
+    secureStoreMock.getItemAsync.mockResolvedValue(null);
+    secureStoreMock.setItemAsync.mockRejectedValue(new Error("SecureStore unavailable"));
+
+    await expect(mod.loadSession()).resolves.toEqual(legacySession);
+    expect(asyncStorageMock.removeItem).not.toHaveBeenCalledWith("auth_session_v1");
+  });
 });
