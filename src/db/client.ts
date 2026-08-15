@@ -208,8 +208,12 @@ export const supabasePost = async <T>(
   return safeJsonParse<T>(text, [] as T);
 };
 
-export const supabasePatch = async <T>(path: string, body: unknown) => {
-  const text = await supabaseRequest("PATCH", path, body);
+export const supabasePatch = async <T>(
+  path: string,
+  body: unknown,
+  extraHeaders?: Record<string, string>
+) => {
+  const text = await supabaseRequest("PATCH", path, body, extraHeaders);
   if (!text) return [] as T;
   return safeJsonParse<T>(text, [] as T);
 };

@@ -9,6 +9,7 @@ import {
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { ClassGroup, Student } from "../../core/models";
+import { resolveStudentListPrimaryStatus } from "./application/student-list-status";
 import { radius } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
@@ -828,6 +829,7 @@ export const StudentsListTab = memo(function StudentsListTab({
               >
                 {pageRows.map((student) => {
                   const cls = classById.get(student.classId);
+                  const primaryStatus = resolveStudentListPrimaryStatus(student);
                   return (
                     <Pressable
                       key={student.id}
@@ -930,25 +932,33 @@ export const StudentsListTab = memo(function StudentsListTab({
                                 alignSelf: "flex-start",
                                 borderRadius: 999,
                                 borderWidth: 1,
-                                borderColor: student.isExperimental
-                                  ? colors.warningBg
-                                  : colors.successBg,
+                                borderColor:
+                                  primaryStatus === "inactive"
+                                    ? colors.border
+                                    : primaryStatus === "experimental"
+                                      ? colors.warningBg
+                                      : colors.successBg,
                                 paddingHorizontal: 8,
                                 paddingVertical: 3,
                               }}
                             >
                               <Text
                                 style={{
-                                  color: student.isExperimental
-                                    ? colors.warningText
-                                    : colors.successText,
+                                  color:
+                                    primaryStatus === "inactive"
+                                      ? (colors.textMuted ?? colors.muted)
+                                      : primaryStatus === "experimental"
+                                        ? colors.warningText
+                                        : colors.successText,
                                   fontSize: 10,
                                   fontWeight: "800",
                                 }}
                               >
-                                {student.isExperimental
-                                  ? "Experimental"
-                                  : "Ativo"}
+                                {primaryStatus === "inactive"
+                                  ? "Inativo"
+                                  : primaryStatus === "experimental"
+                                    ? "Experimental"
+                                    : "Ativo"}
                               </Text>
                             </View>
                           </View>

@@ -12,9 +12,14 @@ import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
 import { useModalCardStyle } from "./use-modal-card-style";
 import {
+  getDefaultCameraZoom,
   getOppositeCameraFacing,
+  getWebCameraZoomOptions,
   normalizeWebCameraPicture,
+  normalizeCameraZoom,
   type WebCameraCaptureResult,
+  type WebCameraZoomOption,
+  type WebCameraZoomRange,
 } from "./web-camera-capture";
 
 type WebCameraCaptureModalProps = {
@@ -29,6 +34,32 @@ type WebCameraCaptureModalProps = {
 
 type WebCameraCaptureContentProps = Omit<WebCameraCaptureModalProps, "visible">;
 
+type ZoomCapableVideoTrack = {
+  applyConstraints: (constraints: {
+    advanced: Array<{ zoom: number }>;
+  }) => Promise<void>;
+  getCapabilities: () => { zoom?: WebCameraZoomRange };
+};
+
+type CameraVideoElement = {
+  srcObject?: {
+    getVideoTracks?: () => ZoomCapableVideoTrack[];
+  } | null;
+};
+
+type CameraContainerElement = {
+  querySelector?: (selector: string) => CameraVideoElement | null;
+};
+
+const WEB_CAMERA_TRACK_RETRIES = 12;
+const WEB_CAMERA_TRACK_RETRY_MS = 60;
+
+function getZoomCapableVideoTrack(container: unknown): ZoomCapableVideoTrack | null {
+  const cameraContainer = container as CameraContainerElement | null;
+  const video = cameraContainer?.querySelector?.("video");
+  return video?.srcObject?.getVideoTracks?.()[0] ?? null;
+}
+
 function WebCameraCaptureContent({
   onClose,
   onCapture,
@@ -42,9 +73,15 @@ function WebCameraCaptureContent({
   const cameraRef = useRef<CameraView | null>(null);
   const permissionRequestedRef = useRef(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraConfigured, setCameraConfigured] = useState(false);
   const [captureBusy, setCaptureBusy] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [facing, setFacing] = useState<CameraType>(initialFacing);
+  const [normalizedZoom, setNormalizedZoom] = useState(0);
+  const [selectedZoom, setSelectedZoom] = useState(1);
+  const [zoomOptions, setZoomOptions] = useState<WebCameraZoomOption[]>([]);
+  const cameraContainerRef = useRef<unknown>(null);
+  const webVideoTrackRef = useRef<ZoomCapableVideoTrack | null>(null);
   const cardStyle = useModalCardStyle({
     maxHeight: "92%",
     maxWidth: 560,
@@ -63,8 +100,87 @@ function WebCameraCaptureContent({
     });
   }, [permission, requestPermission]);
 
+  useEffect(() => {
+    if (!cameraReady) return;
+
+    if (Platform.OS !== "web" || facing !== "back") {
+      setCameraConfigured(true);
+      return;
+    }
+
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const finishWithoutZoomControls = () => {
+      if (cancelled) return;
+      webVideoTrackRef.current = null;
+      setZoomOptions([]);
+      setSelectedZoom(1);
+      setNormalizedZoom(0);
+      setCameraConfigured(true);
+    };
+
+    const configureRearCamera = async (attempt = 0): Promise<void> => {
+      const track = getZoomCapableVideoTrack(cameraContainerRef.current);
+      if (!track) {
+        if (attempt >= WEB_CAMERA_TRACK_RETRIES) {
+          finishWithoutZoomControls();
+          return;
+        }
+        retryTimer = setTimeout(
+          () => void configureRearCamera(attempt + 1),
+          WEB_CAMERA_TRACK_RETRY_MS,
+        );
+        return;
+      }
+
+      const range = track.getCapabilities?.().zoom;
+      const options = range ? getWebCameraZoomOptions(range) : [];
+      if (!range || options.length === 0) {
+        finishWithoutZoomControls();
+        return;
+      }
+
+      const defaultZoom = getDefaultCameraZoom(range);
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: defaultZoom }] });
+      } catch {
+        finishWithoutZoomControls();
+        return;
+      }
+
+      if (cancelled) return;
+      webVideoTrackRef.current = track;
+      setZoomOptions(options);
+      setSelectedZoom(defaultZoom);
+      setNormalizedZoom(normalizeCameraZoom(defaultZoom, range));
+      setCameraConfigured(true);
+    };
+
+    void configureRearCamera();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [cameraReady, facing]);
+
+  const selectZoom = async (option: WebCameraZoomOption) => {
+    const track = webVideoTrackRef.current;
+    if (!track || Math.abs(option.value - selectedZoom) < 0.01) return;
+
+    try {
+      await track.applyConstraints({ advanced: [{ zoom: option.value }] });
+      setSelectedZoom(option.value);
+      setNormalizedZoom(option.normalized);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setCameraError(detail || "Não foi possível alterar o zoom da câmera.");
+    }
+  };
+
   const capturePhoto = async () => {
-    if (!cameraRef.current || !cameraReady || captureBusy) return;
+    if (!cameraRef.current || !cameraReady || !cameraConfigured || captureBusy) return;
 
     setCaptureBusy(true);
     setCameraError("");
@@ -134,6 +250,9 @@ function WebCameraCaptureContent({
           </View>
         ) : permission.granted ? (
           <View
+            ref={(node) => {
+              cameraContainerRef.current = node;
+            }}
             style={{
               height: 360,
               borderRadius: 18,
@@ -150,9 +269,79 @@ function WebCameraCaptureContent({
               facing={facing}
               mirror={facing === "front"}
               mode="picture"
+              zoom={normalizedZoom}
               onCameraReady={() => setCameraReady(true)}
               onMountError={({ message }) => setCameraError(message)}
             />
+            {!cameraConfigured ? (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  left: 0,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#05080d",
+                }}
+              >
+                <ActivityIndicator color="#ffffff" />
+              </View>
+            ) : null}
+            {cameraConfigured && facing === "back" && zoomOptions.length > 1 ? (
+              <View
+                style={{
+                  position: "absolute",
+                  left: 12,
+                  right: 12,
+                  bottom: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                {zoomOptions.map((option) => {
+                  const active = Math.abs(option.value - selectedZoom) < 0.01;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Usar zoom ${option.label}`}
+                      accessibilityState={{ selected: active }}
+                      onPress={() => void selectZoom(option)}
+                      style={{
+                        minWidth: 42,
+                        height: 34,
+                        paddingHorizontal: 10,
+                        borderRadius: 17,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: active
+                          ? colors.primaryBg
+                          : "rgba(5, 8, 13, 0.72)",
+                        borderWidth: 1,
+                        borderColor: active
+                          ? colors.primaryBg
+                          : "rgba(255, 255, 255, 0.24)",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: active ? colors.primaryText : "#ffffff",
+                          fontSize: 12,
+                          fontWeight: "800",
+                        }}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={
@@ -162,6 +351,11 @@ function WebCameraCaptureContent({
               }
               onPress={() => {
                 setCameraReady(false);
+                setCameraConfigured(false);
+                setZoomOptions([]);
+                setSelectedZoom(1);
+                setNormalizedZoom(0);
+                webVideoTrackRef.current = null;
                 setFacing((current) => getOppositeCameraFacing(current));
               }}
               style={{
@@ -231,14 +425,25 @@ function WebCameraCaptureContent({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Capturar foto"
-            disabled={!permission?.granted || !cameraReady || captureBusy}
+            disabled={
+              !permission?.granted ||
+              !cameraReady ||
+              !cameraConfigured ||
+              captureBusy
+            }
             onPress={() => void capturePhoto()}
             style={{
               paddingVertical: 11,
               paddingHorizontal: 18,
               borderRadius: 12,
               backgroundColor: colors.primaryBg,
-              opacity: !permission?.granted || !cameraReady || captureBusy ? 0.5 : 1,
+              opacity:
+                !permission?.granted ||
+                !cameraReady ||
+                !cameraConfigured ||
+                captureBusy
+                  ? 0.5
+                  : 1,
               flexDirection: "row",
               alignItems: "center",
               gap: 8,

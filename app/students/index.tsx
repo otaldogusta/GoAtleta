@@ -757,30 +757,16 @@ export default function StudentsScreen() {
 
       setOperationalStatusSaving(true);
       try {
-        await updateStudentOperationalStatus(operationalStudent.id, patch, {
-          organizationId: activeOrganization?.id,
-        });
-        const now = new Date().toISOString();
+        const updatedStudent = await updateStudentOperationalStatus(
+          operationalStudent.id,
+          patch,
+          {
+            organizationId: activeOrganization?.id,
+          },
+        );
         setStudents((current) =>
           current.map((student) =>
-            student.id === operationalStudent.id
-              ? {
-                  ...student,
-                  membershipStatus: patch.membershipStatus ?? student.membershipStatus,
-                  financialStatus: patch.financialStatus ?? student.financialStatus,
-                  inactivatedAt: patch.membershipStatus
-                    ? patch.membershipStatus === "inactive"
-                      ? now
-                      : null
-                    : student.inactivatedAt,
-                  inactivatedBy: patch.membershipStatus === "active" ? null : student.inactivatedBy,
-                  inactivationReason: patch.membershipStatus
-                    ? patch.membershipStatus === "inactive"
-                      ? patch.inactivationReason?.trim() || null
-                      : null
-                    : student.inactivationReason,
-                }
-              : student,
+            student.id === updatedStudent.id ? updatedStudent : student,
           ),
         );
         showSaveToast({

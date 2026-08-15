@@ -1203,12 +1203,34 @@ export async function updateStudentOperationalStatus(
   if (patch.financialStatus) {
     payload.financial_status = patch.financialStatus;
   }
-  if (Object.keys(payload).length === 0) return;
+  if (Object.keys(payload).length === 0) {
+    throw new Error("Informe uma situação do aluno para atualizar.");
+  }
 
-  await supabasePatch(
+  const updatedRows = await supabasePatch<StudentRow[]>(
     `/students?id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}`,
-    payload
+    payload,
+    { Prefer: "return=representation" }
   );
+  const updatedRow = updatedRows[0];
+  if (updatedRows.length !== 1 || !updatedRow) {
+    throw new Error(
+      "A situação do aluno não foi atualizada. Atualize a lista e tente novamente."
+    );
+  }
+
+  const updatedStudent = mapStudentRow(updatedRow, activeOrganizationId);
+  if (
+    (patch.membershipStatus &&
+      updatedStudent.membershipStatus !== patch.membershipStatus) ||
+    (patch.financialStatus &&
+      updatedStudent.financialStatus !== patch.financialStatus)
+  ) {
+    throw new Error(
+      "O Supabase não confirmou a nova situação do aluno. Tente novamente."
+    );
+  }
+  return updatedStudent;
 }
 
 export async function deleteStudent(id: string) {
