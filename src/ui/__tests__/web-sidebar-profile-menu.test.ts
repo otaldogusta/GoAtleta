@@ -39,7 +39,7 @@ jest.mock("../../auth/auth", () => ({
 
 jest.mock("../../auth/role", () => ({
   useRole: () => ({
-    availableRoles: ["trainer"],
+    availableRoles: ["trainer", "student"],
     refresh: jest.fn(),
     setActiveRole: jest.fn(),
   }),
@@ -47,7 +47,7 @@ jest.mock("../../auth/role", () => ({
 
 jest.mock("../../providers/OrganizationProvider", () => ({
   useOptionalOrganization: () => ({
-    activeOrganization: { role_level: 10 },
+    activeOrganization: { role_level: 50 },
     memberPermissions: {
       calendar: true,
       classes: true,
@@ -127,6 +127,15 @@ describe("WebSidebar profile menu", () => {
     expect(screen.getAllByLabelText("Menu de perfil")).toHaveLength(1);
     expect(screen.getAllByLabelText("Fechar menu de perfil")).toHaveLength(1);
     expect(screen.getAllByText("Gustavo Ribeiro")).toHaveLength(1);
+
+    fireEvent.press(screen.getByLabelText("Alternar perfil"));
+
+    const profileMenu = screen.getByLabelText("Menu de perfil");
+    const workspaceMenu = screen.getByLabelText("Alternar workspace");
+    expect(workspaceMenu.parent).not.toBe(profileMenu);
+    expect(workspaceMenu.props.style).toEqual(
+      expect.objectContaining({ left: 280 })
+    );
   });
 
   it("allows temporary tablet expansion without persisting it", () => {
@@ -168,5 +177,10 @@ describe("WebSidebar profile menu", () => {
     expect(screen.getByLabelText("Recolher menu")).toBeTruthy();
     expect(screen.queryByLabelText("Navegação principal compacta")).toBeNull();
     expect(window.localStorage.setItem).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByLabelText("Hoje"));
+
+    expect(screen.queryByLabelText("Fechar menu lateral")).toBeNull();
+    expect(screen.queryByLabelText("Recolher menu")).toBeNull();
   });
 });

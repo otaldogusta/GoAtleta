@@ -14,6 +14,8 @@ type CurrentLessonHeroProps = {
   isToday: boolean;
   compact?: boolean;
   mobile?: boolean;
+  currentPosition?: number;
+  totalSlots?: number;
   onOpenLesson: () => void;
   onOpenAttendance: () => void;
 };
@@ -24,11 +26,14 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
   isToday,
   compact = false,
   mobile = false,
+  currentPosition = 0,
+  totalSlots = 0,
   onOpenLesson,
   onOpenAttendance,
 }: CurrentLessonHeroProps) {
   const { colors } = useAppTheme();
   const primaryItem = slot?.items[0] ?? null;
+  const canNavigate = totalSlots > 1;
   const statusLabel = isToday ? "AULA ATUAL" : "PRÓXIMA AÇÃO";
   const title = primaryItem
     ? slot && slot.items.length > 1
@@ -38,6 +43,11 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
 
   return (
     <View
+      accessibilityLabel={
+        canNavigate
+          ? `Aula ${currentPosition + 1} de ${totalSlots}. Arraste para navegar.`
+          : undefined
+      }
       style={{
         backgroundColor: colors.surface,
         borderRadius: radius.container,
@@ -74,13 +84,19 @@ export const CurrentLessonHero = memo(function CurrentLessonHero({
         </View>
 
         <View style={{ flex: 1, minWidth: 0, gap: mobile ? 3 : compact ? 5 : 7 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={{ color: colors.successText, fontSize: mobile ? 10 : 11, fontWeight: "900" }}>
-              {statusLabel}
-            </Text>
-            <Text style={{ color: colors.textMuted, fontSize: mobile ? 12 : compact ? 14 : 16, fontWeight: "700" }}>
-              {slot?.timeLabel ?? selectedDateLabel}
-            </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 }}>
+            <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ color: colors.successText, fontSize: mobile ? 10 : 11, fontWeight: "900" }}>
+                {statusLabel}
+              </Text>
+              <Text
+                style={{ flexShrink: 1, color: colors.textMuted, fontSize: mobile ? 12 : compact ? 14 : 16, fontWeight: "700" }}
+                numberOfLines={1}
+              >
+                {slot?.timeLabel ?? selectedDateLabel}
+              </Text>
+            </View>
+
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 }}>
             <Text

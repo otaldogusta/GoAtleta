@@ -96,7 +96,7 @@ import { markRender, measureAsync } from "../../observability/perf";
 import { useSaveToast } from "../../ui/save-toast";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 import { AgendaCard } from "./components/AgendaCard";
-import { CurrentLessonHero } from "./components/CurrentLessonHero";
+import { CurrentLessonCarousel } from "./components/CurrentLessonCarousel";
 import { TodayScheduleRail } from "./components/TodayScheduleRail";
 import { WeekDaySelector } from "./components/WeekDaySelector";
 import type { HomeScheduleItem } from "./components/homeScheduleTypes";
@@ -235,6 +235,7 @@ export function HomeProfessorScreen({
 
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
   const [manualIndex, setManualIndex] = useState<number | null>(null);
+  const [heroManualIndex, setHeroManualIndex] = useState<number | null>(null);
 
   const didInitialAgendaScroll = useRef(false);
   const hasSeededRef = useRef(false);
@@ -1473,33 +1474,6 @@ export function HomeProfessorScreen({
     [scheduleWindow, todayDateKey]
   );
 
-  const nextScheduleSlot = useMemo(() => {
-    const nextItem =
-      scheduleWindow.find((item) => item.endTime > nowTime) ??
-      scheduleWindow.find((item) => item.dateKey >= todayDateKey) ??
-      null;
-    if (!nextItem) return null;
-
-    const slotItems = scheduleWindow
-      .filter(
-        (item) =>
-          item.dateKey === nextItem.dateKey &&
-          item.startTime === nextItem.startTime &&
-          item.endTime === nextItem.endTime
-      )
-      .sort((a, b) => a.className.localeCompare(b.className));
-
-    return {
-      reference: nextItem,
-      items: slotItems,
-    };
-  }, [scheduleWindow, nowTime, todayDateKey]);
-
-  const currentHeroSlot = useMemo(() => {
-    if (!nextScheduleSlot) return null;
-    return buildScheduleSlots(nextScheduleSlot.items)[0] ?? null;
-  }, [nextScheduleSlot]);
-
   const selectedDayItems = useMemo<HomeScheduleItem[]>(
     () =>
       scheduleWindow.filter(
@@ -1538,6 +1512,86 @@ export function HomeProfessorScreen({
   const selectedDaySummary = useMemo(
     () => weekDaySummaries.find((day) => day.dateKey === selectedDateKey) ?? weekDaySummaries[0] ?? null,
     [selectedDateKey, weekDaySummaries]
+  );
+
+  const heroScheduleSlots = useMemo(() => {
+    const firstDateKey = weekDaySummaries[0]?.dateKey;
+    const lastDateKey = weekDaySummaries[weekDaySummaries.length - 1]?.dateKey;
+    if (!firstDateKey || !lastDateKey) return [];
+
+    return buildScheduleSlots(
+      scheduleWindow.filter(
+        (item) => item.dateKey >= firstDateKey && item.dateKey <= lastDateKey
+      )
+    );
+  }, [scheduleWindow, weekDaySummaries]);
+
+  const heroAutoIndex = useMemo(() => {
+    if (!heroScheduleSlots.length) return 0;
+    const nextIndex = heroScheduleSlots.findIndex((slot) => slot.endTime > nowTime);
+    return nextIndex >= 0 ? nextIndex : heroScheduleSlots.length - 1;
+  }, [heroScheduleSlots, nowTime]);
+
+  const currentHeroIndex = heroScheduleSlots.length
+    ? Math.max(
+        0,
+        Math.min(heroScheduleSlots.length - 1, heroManualIndex ?? heroAutoIndex)
+      )
+    : 0;
+  const nextScheduleSlot = useMemo(() => {
+    const reference =
+      scheduleWindow.find((item) => item.endTime > nowTime) ??
+      scheduleWindow.find((item) => item.dateKey >= todayDateKey) ??
+      null;
+    if (!reference) return null;
+    return {
+      reference,
+      items: scheduleWindow
+        .filter(
+          (item) =>
+            item.dateKey === reference.dateKey &&
+            item.startTime === reference.startTime &&
+            item.endTime === reference.endTime
+        )
+        .sort((a, b) => a.className.localeCompare(b.className)),
+    };
+  }, [nowTime, scheduleWindow, todayDateKey]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setHeroManualIndex(null);
+    });
+  }, [activeOrganization?.id, todayDateKey]);
+
+  useEffect(() => {
+    if (!heroScheduleSlots.length || heroManualIndex !== null) return;
+    const initialDateKey = heroScheduleSlots[heroAutoIndex]?.items[0]?.dateKey;
+    Promise.resolve().then(() => {
+      setHeroManualIndex(heroAutoIndex);
+      if (initialDateKey) setSelectedDateKey(initialDateKey);
+    });
+  }, [heroAutoIndex, heroManualIndex, heroScheduleSlots]);
+
+  const selectHeroIndex = useCallback(
+    (nextIndex: number) => {
+      if (!heroScheduleSlots.length) return;
+      const boundedIndex = Math.max(0, Math.min(heroScheduleSlots.length - 1, nextIndex));
+      setHeroManualIndex(boundedIndex);
+      const nextDateKey = heroScheduleSlots[boundedIndex]?.items[0]?.dateKey;
+      if (nextDateKey) setSelectedDateKey(nextDateKey);
+    },
+    [heroScheduleSlots]
+  );
+
+  const handleSelectWeekDay = useCallback(
+    (dateKey: string) => {
+      setSelectedDateKey(dateKey);
+      const firstSlotIndex = heroScheduleSlots.findIndex(
+        (slot) => slot.items[0]?.dateKey === dateKey
+      );
+      if (firstSlotIndex >= 0) setHeroManualIndex(firstSlotIndex);
+    },
+    [heroScheduleSlots]
   );
 
   const todayScheduleSlots = useMemo(() => buildScheduleSlots(todayAgendaItems), [todayAgendaItems]);
@@ -1945,14 +1999,17 @@ export function HomeProfessorScreen({
                 gap: isUx2CCompact ? 12 : 14,
               }}
             >
-              <CurrentLessonHero
-                slot={currentHeroSlot}
+              <CurrentLessonCarousel
+                slots={heroScheduleSlots}
+                currentIndex={currentHeroIndex}
                 selectedDateLabel={todayLabel}
-                isToday={currentHeroSlot?.items[0]?.dateKey === todayDateKey}
+                todayDateKey={todayDateKey}
+                nowTime={nowTime}
                 compact={isUx2CCompact}
                 mobile={isUx2CMobile}
-                onOpenLesson={() => handleOpenLesson(currentHeroSlot?.items[0] ?? null)}
-                onOpenAttendance={() => handleOpenAttendance(currentHeroSlot?.items[0] ?? null)}
+                onIndexChange={selectHeroIndex}
+                onOpenLesson={handleOpenLesson}
+                onOpenAttendance={handleOpenAttendance}
               />
 
               <WeekDaySelector
@@ -1961,7 +2018,7 @@ export function HomeProfessorScreen({
                 colors={colors}
                 compact={isUx2CCompact}
                 mobile={isUx2CMobile}
-                onSelect={setSelectedDateKey}
+                onSelect={handleSelectWeekDay}
               />
 
               <View

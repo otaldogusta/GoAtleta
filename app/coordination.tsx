@@ -44,7 +44,6 @@ import {
     adminListOrgAccessRequests,
     type OrganizationAccessRequest,
 } from "../src/api/organization-access-requests";
-import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import {
     useCopilotActions,
     useCopilotContext,
@@ -391,6 +390,7 @@ export default function CoordinationScreen() {
   const supportsSplitLayout = responsiveLayout.supportsSplitView;
   const isWideLayout = responsiveLayout.usesWorkspaceShell;
   const isCompactLayout = width < 430;
+  const pageHorizontalGutter = supportsSplitLayout ? 20 : isCompactLayout ? 12 : 16;
 
   const topDelaysByTrainer = useMemo(
     () =>
@@ -1534,8 +1534,7 @@ export default function CoordinationScreen() {
   if (screenPhase === "forbidden") {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <ScreenBackdrop />
-        <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={{ flex: 1, padding: 16 }}>
           <View
             style={{
@@ -1578,13 +1577,12 @@ export default function CoordinationScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenBackdrop />
-      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View
         style={{
           flex: 1,
           minHeight: 0,
-          paddingHorizontal: supportsSplitLayout ? 20 : isCompactLayout ? 12 : 16,
+          paddingHorizontal: pageHorizontalGutter,
           paddingTop: 12,
           gap: 12,
         }}
@@ -1607,6 +1605,7 @@ export default function CoordinationScreen() {
           <CoordinationPeopleWorkspace
             organizationId={organizationId ?? ""}
             organizationName={organizationName}
+            pageHorizontalGutter={pageHorizontalGutter}
             loading={loading}
             refreshing={refreshing}
             healthScore={coordinationHealthScore}

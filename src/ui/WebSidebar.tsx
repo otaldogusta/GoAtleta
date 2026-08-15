@@ -262,6 +262,7 @@ export function WebSidebar({
   const unreadNotificationBadge = formatUnreadNotificationBadge(unreadNotificationCount);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
+  const [profileSwitcherTop, setProfileSwitcherTop] = useState(12);
   const [sidebarExpanded, setSidebarExpandedState] = useState(() => {
     if (!canPersistExpansion || typeof window === "undefined") return false;
     const stored = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
@@ -277,6 +278,7 @@ export function WebSidebar({
     top: number;
   } | null>(null);
   const profileMenuRootRef = useRef<View | null>(null);
+  const profileSwitcherTriggerRef = useRef<View | null>(null);
 
   useEffect(() => {
     if (canPersistExpansion) return;
@@ -488,6 +490,18 @@ export function WebSidebar({
     visibleProfileSwitchIds.includes(option.id)
   );
 
+  const openProfileSwitcher = () => {
+    const triggerElement = profileSwitcherTriggerRef.current as unknown as HTMLElement | null;
+    const triggerRect = triggerElement?.getBoundingClientRect?.();
+    if (triggerRect && typeof window !== "undefined") {
+      const estimatedHeight = 56 + visibleProfileSwitchOptions.length * 54;
+      setProfileSwitcherTop(
+        Math.max(12, Math.min(triggerRect.top, window.innerHeight - estimatedHeight - 12))
+      );
+    }
+    setProfileSwitcherOpen(true);
+  };
+
   const toggleProfileMenu = () => {
     setProfileSwitcherOpen(false);
     setProfileMenuOpen((current) => !current);
@@ -504,7 +518,7 @@ export function WebSidebar({
     await signOut();
   };
 
-  const renderProfileSwitcher = () => (
+  const renderProfileSwitcher = (placement: "compact" | "expanded") => (
     <View
       {...({
         dataSet: { goatletaWorkspaceMenu: "true", goatletaProfileMenu: "true" },
@@ -516,8 +530,8 @@ export function WebSidebar({
         position: "absolute",
         zIndex: 3201,
         width: 236,
-        left: "calc(100% - 2px)",
-        top: 10,
+        left: placement === "expanded" ? SIDEBAR_EXPANDED_WIDTH - 12 : "calc(100% - 2px)",
+        top: placement === "expanded" ? profileSwitcherTop : 10,
         borderRadius: radius.xl,
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.14)",
@@ -619,21 +633,24 @@ export function WebSidebar({
         } as any,
       ]}
     >
-      {canSwitchProfile && isProfileSwitcherOpen ? renderProfileSwitcher() : null}
+      {canSwitchProfile && isProfileSwitcherOpen && placement === "compact"
+        ? renderProfileSwitcher("compact")
+        : null}
 
       {canSwitchProfile ? (
         <>
           <Pressable
+            ref={profileSwitcherTriggerRef}
             {...({
               dataSet: { goatletaWorkspaceTrigger: "true" },
               "data-goatleta-workspace-trigger": "true",
-              onMouseEnter: () => setProfileSwitcherOpen(true),
-              onPointerEnter: () => setProfileSwitcherOpen(true),
+              onMouseEnter: openProfileSwitcher,
+              onPointerEnter: openProfileSwitcher,
             } as any)}
             accessibilityLabel="Alternar perfil"
-            onFocus={() => setProfileSwitcherOpen(true)}
-            onHoverIn={() => setProfileSwitcherOpen(true)}
-            onPress={() => setProfileSwitcherOpen((current) => !current)}
+            onFocus={openProfileSwitcher}
+            onHoverIn={openProfileSwitcher}
+            onPress={openProfileSwitcher}
             style={{
               minHeight: 48,
               borderRadius: radius.card,
@@ -1023,6 +1040,9 @@ export function WebSidebar({
         accessibilityLabel={expanded ? accessibilityLabel : undefined}
         onPress={() => {
           closeProfileMenu();
+          if (!showCompact) {
+            setSidebarExpanded(false);
+          }
           navigateTo(item.href);
         }}
         style={{
@@ -1298,6 +1318,10 @@ export function WebSidebar({
             </View>
           </View>
         </View>
+
+        {expanded && isProfileMenuOpen && isProfileSwitcherOpen
+          ? renderProfileSwitcher("expanded")
+          : null}
       </View>
     </>
   );

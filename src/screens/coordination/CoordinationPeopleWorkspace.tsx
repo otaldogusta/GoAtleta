@@ -99,6 +99,7 @@ type InviteNotice = {
 type CoordinationPeopleWorkspaceProps = {
   organizationId: string;
   organizationName: string;
+  pageHorizontalGutter: number;
   loading: boolean;
   refreshing: boolean;
   healthScore: number | null;
@@ -495,6 +496,7 @@ function InviteActionMenu({
 export function CoordinationPeopleWorkspace({
   organizationId,
   organizationName,
+  pageHorizontalGutter,
   loading,
   refreshing,
   healthScore,
@@ -1453,7 +1455,7 @@ export function CoordinationPeopleWorkspace({
   };
 
   return (
-    <View style={{ flex: 1, minHeight: 0 }}>
+    <View style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}>
       <ScreenPageHeader
         title="Coordenação"
         subtitle={`${organizationName} • ${new Date().toLocaleDateString("pt-BR", {
@@ -1462,12 +1464,22 @@ export function CoordinationPeopleWorkspace({
           year: "numeric",
         })}`}
         onBack={() => router.push("/coord/dashboard")}
-        horizontalBleed={supportsSplitLayout ? 20 : compact ? 12 : 16}
+        horizontalBleed={pageHorizontalGutter}
+        style={
+          Platform.OS === "web" && compact
+            ? {
+                marginLeft: -pageHorizontalGutter,
+                marginRight: -pageHorizontalGutter,
+                paddingLeft: pageHorizontalGutter,
+                paddingRight: pageHorizontalGutter,
+              }
+            : undefined
+        }
         contentStyle={{ paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 }}
       />
 
       <ScrollView
-        style={{ flex: 1, minHeight: 0 }}
+        style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}
         contentContainerStyle={{ gap: 12, paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -1501,8 +1513,8 @@ export function CoordinationPeopleWorkspace({
           <View
             key={String(label)}
             style={{
-              minWidth: compact ? "50%" : 0,
-              width: compact ? undefined : "20%",
+              minWidth: 0,
+              width: compact ? (index === 4 ? "100%" : "50%") : "20%",
               flexDirection: "row",
               justifyContent: "center",
               alignItems: "center",
