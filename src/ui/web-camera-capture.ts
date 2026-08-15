@@ -17,7 +17,68 @@ export type WebCameraZoomOption = {
   value: number;
 };
 
+export type WebCameraDevice = {
+  deviceId: string;
+  kind: string;
+  label: string;
+};
+
 const STANDARD_CAMERA_ZOOM_LEVELS = [1, 2, 3] as const;
+
+const FRONT_CAMERA_LABEL = /\b(front|frontal|selfie|user)\b/i;
+const REAR_CAMERA_LABEL = /\b(back|rear|traseira|environment)\b/i;
+const MAIN_CAMERA_LABEL = /\b(main|primary|principal|standard|wide angle)\b/i;
+const ANDROID_MAIN_CAMERA_LABEL = /\bcamera\s*2?\s*0\b/i;
+const AUXILIARY_CAMERA_LABEL =
+  /\b(ultra[ -]?wide|ultrawide|macro|telephoto|tele|depth|auxiliary|aux|0[.,][56])\b/i;
+
+function getRearCameraScore(device: WebCameraDevice): number {
+  const label = device.label.trim();
+  let score = 0;
+
+  if (REAR_CAMERA_LABEL.test(label)) score += 30;
+  if (MAIN_CAMERA_LABEL.test(label)) score += 80;
+  if (ANDROID_MAIN_CAMERA_LABEL.test(label)) score += 120;
+  if (AUXILIARY_CAMERA_LABEL.test(label)) score -= 160;
+
+  return score;
+}
+
+export function selectPreferredRearCameraDevice(
+  devices: WebCameraDevice[],
+  currentDeviceId?: string,
+): WebCameraDevice | null {
+  const videoDevices = devices.filter(
+    (device) =>
+      device.kind === "videoinput" &&
+      Boolean(device.deviceId) &&
+      !FRONT_CAMERA_LABEL.test(device.label),
+  );
+
+  if (videoDevices.length === 0) return null;
+
+  const currentDevice = videoDevices.find(
+    (device) => device.deviceId === currentDeviceId,
+  );
+  const ranked = videoDevices
+    .map((device, index) => ({
+      device,
+      index,
+      score: getRearCameraScore(device),
+    }))
+    .sort((left, right) => right.score - left.score || left.index - right.index);
+  const preferred = ranked[0];
+
+  if (!preferred || preferred.score <= 0) return currentDevice ?? null;
+  if (
+    currentDevice &&
+    getRearCameraScore(currentDevice) >= preferred.score
+  ) {
+    return currentDevice;
+  }
+
+  return preferred.device;
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));

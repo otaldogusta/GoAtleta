@@ -1,6 +1,3 @@
-import * as XLSX from "@e965/xlsx";
-import * as cptable from "@e965/xlsx/dist/cpexcel";
-
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -243,13 +240,6 @@ type WeekPlan = {
 };
 
 // WeekTemplate is imported from periodization-generator
-
-const xlsxWithCodepage = XLSX as typeof XLSX & {
-  set_cptable?: (value: unknown) => void;
-};
-if (typeof xlsxWithCodepage.set_cptable === "function") {
-  xlsxWithCodepage.set_cptable(cptable);
-}
 
 const volumeToPSE: Record<VolumeLevel, string> = {
   baixo: "PSE 4-5",

@@ -3,7 +3,6 @@ import { useCallback } from "react";
 
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
-import * as XLSX from "@e965/xlsx";
 
 import {
   detectImportDelimiter,
@@ -20,6 +19,7 @@ import {
   assertImportAssetWithinLimits,
   normalizeSpreadsheetMatrixForImport,
 } from "../../../utils/import-file-guards";
+import { loadXlsx } from "../../../utils/load-xlsx";
 
 // ---------------------------------------------------------------------------
 // Local helper (mirrors splitImportList in app/periodization/index.tsx)
@@ -88,6 +88,7 @@ export function useImportPlansFile({
 
       let importedRows: ImportedPlanRow[] = [];
       if (isSpreadsheet) {
+        const XLSX = await loadXlsx();
         const workbook =
           typeof window !== "undefined"
             ? XLSX.read(await (await fetch(asset.uri)).arrayBuffer(), { type: "array" })

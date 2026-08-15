@@ -43,15 +43,19 @@ describe("resolveBootStatus", () => {
     expect(resolveBootStatus(base)).toMatchObject({ phase: "ready", blocking: false });
   });
 
-  it("masks every incomplete boot phase while keeping the route tree mounted", () => {
-    expect(shouldMaskBootContent(resolveBootStatus({ ...base, navReady: false }))).toBe(true);
-    expect(shouldMaskBootContent(resolveBootStatus({ ...base, roleLoading: true }))).toBe(true);
+  it("masks only the blocking bootstrap phases", () => {
+    expect(
+      shouldMaskBootContent(resolveBootStatus({ ...base, bootstrapLoading: true })),
+    ).toBe(true);
+    expect(shouldMaskBootContent(resolveBootStatus({ ...base, authLoading: true }))).toBe(true);
+    expect(shouldMaskBootContent(resolveBootStatus({ ...base, navReady: false }))).toBe(false);
+    expect(shouldMaskBootContent(resolveBootStatus({ ...base, roleLoading: true }))).toBe(false);
     expect(
       shouldMaskBootContent(resolveBootStatus({ ...base, organizationLoading: true })),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldMaskBootContent(resolveBootStatus({ ...base, permissionsLoading: true })),
-    ).toBe(true);
+    ).toBe(false);
     expect(shouldMaskBootContent(resolveBootStatus(base))).toBe(false);
   });
 });

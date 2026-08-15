@@ -1143,6 +1143,7 @@ export function WebSidebar({
       />
 
       <View
+        testID="web-sidebar-expanded-panel"
         {...sidebarRevealEvents}
         accessibilityElementsHidden={!expanded}
         importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
@@ -1150,11 +1151,10 @@ export function WebSidebar({
           ({
             width: SIDEBAR_EXPANDED_WIDTH,
             height: "100vh",
-            maxHeight: "100vh",
+            maxHeight: "100dvh",
             position: "fixed",
             left: 0,
             top: 0,
-            bottom: 0,
             zIndex: 1100,
             opacity: 1,
             pointerEvents: expanded ? "auto" : "none",
@@ -1201,13 +1201,14 @@ export function WebSidebar({
           } as any}
         >
           <View
-            style={{
+            style={({
               width: SIDEBAR_EXPANDED_WIDTH,
               height: "100%",
-              paddingVertical: 18,
+              paddingTop: 18,
+              paddingBottom: "max(18px, env(safe-area-inset-bottom, 0px))",
               paddingHorizontal: 10,
               gap: 18,
-            }}
+            }) as any}
           >
             <View
               style={{

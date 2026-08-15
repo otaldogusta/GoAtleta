@@ -2,8 +2,6 @@ import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
-import * as XLSX from "@e965/xlsx";
-import * as cptable from "@e965/xlsx/dist/cpexcel";
 
 import type { ClassGroup } from "../../../core/models";
 import {
@@ -24,6 +22,7 @@ import {
   assertImportAssetWithinLimits,
   normalizeSpreadsheetMatrixForImport,
 } from "../../../utils/import-file-guards";
+import { loadXlsx } from "../../../utils/load-xlsx";
 
 type StudentsImportModalProps = {
   visible: boolean;
@@ -144,13 +143,6 @@ const RESOLUTION_OPTIONS: Array<{
 ];
 
 const INTERNAL_IMPORT_POLICY: ImportPolicy = "misto";
-
-const xlsxWithCodepage = XLSX as typeof XLSX & {
-  set_cptable?: (value: unknown) => void;
-};
-if (typeof xlsxWithCodepage.set_cptable === "function") {
-  xlsxWithCodepage.set_cptable(cptable);
-}
 
 const HEADER_ALIASES: Record<string, string[]> = {
   externalId: ["externalid", "external_id", "id externo", "id_externo", "id legado"],
@@ -348,6 +340,7 @@ const parseImportedFileSource = async (source: ImportSourceReader): Promise<Load
 
   let rowsMatrix: string[][] = [];
   if (isSpreadsheet) {
+    const XLSX = await loadXlsx();
     const workbook = XLSX.read(await source.readArrayBuffer(), { type: "array" });
     const firstSheetName = workbook.SheetNames[0];
     if (!firstSheetName) throw new Error("Planilha vazia.");

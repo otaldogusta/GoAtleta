@@ -17,6 +17,7 @@ import {
   getWebCameraZoomOptions,
   normalizeWebCameraPicture,
   normalizeCameraZoom,
+  selectPreferredRearCameraDevice,
   type WebCameraCaptureResult,
   type WebCameraZoomOption,
   type WebCameraZoomRange,
@@ -36,28 +37,32 @@ type WebCameraCaptureContentProps = Omit<WebCameraCaptureModalProps, "visible">;
 
 type ZoomCapableVideoTrack = {
   applyConstraints: (constraints: {
-    advanced: Array<{ zoom: number }>;
+    advanced: { zoom: number }[];
   }) => Promise<void>;
   getCapabilities: () => { zoom?: WebCameraZoomRange };
-};
-
-type CameraVideoElement = {
-  srcObject?: {
-    getVideoTracks?: () => ZoomCapableVideoTrack[];
-  } | null;
+  getSettings?: () => {
+    deviceId?: string;
+    height?: number;
+    width?: number;
+  };
 };
 
 type CameraContainerElement = {
-  querySelector?: (selector: string) => CameraVideoElement | null;
+  querySelector?: (selector: string) => HTMLVideoElement | null;
 };
 
 const WEB_CAMERA_TRACK_RETRIES = 12;
 const WEB_CAMERA_TRACK_RETRY_MS = 60;
 
-function getZoomCapableVideoTrack(container: unknown): ZoomCapableVideoTrack | null {
+function getCameraVideoElement(container: unknown): HTMLVideoElement | null {
   const cameraContainer = container as CameraContainerElement | null;
-  const video = cameraContainer?.querySelector?.("video");
-  return video?.srcObject?.getVideoTracks?.()[0] ?? null;
+  return cameraContainer?.querySelector?.("video") ?? null;
+}
+
+function getZoomCapableVideoTrack(container: unknown): ZoomCapableVideoTrack | null {
+  const video = getCameraVideoElement(container);
+  const stream = video?.srcObject as MediaStream | null;
+  return (stream?.getVideoTracks?.()[0] as ZoomCapableVideoTrack | undefined) ?? null;
 }
 
 function WebCameraCaptureContent({
@@ -82,6 +87,7 @@ function WebCameraCaptureContent({
   const [zoomOptions, setZoomOptions] = useState<WebCameraZoomOption[]>([]);
   const cameraContainerRef = useRef<unknown>(null);
   const webVideoTrackRef = useRef<ZoomCapableVideoTrack | null>(null);
+  const customCameraStreamRef = useRef<MediaStream | null>(null);
   const cardStyle = useModalCardStyle({
     maxHeight: "92%",
     maxWidth: 560,
@@ -111,6 +117,80 @@ function WebCameraCaptureContent({
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
+    const stopStream = (stream: MediaStream | null) => {
+      stream?.getTracks().forEach((track) => track.stop());
+    };
+
+    const stopCustomCameraStream = () => {
+      stopStream(customCameraStreamRef.current);
+      customCameraStreamRef.current = null;
+    };
+
+    const selectPreferredRearCameraTrack = async (
+      currentTrack: ZoomCapableVideoTrack,
+    ): Promise<ZoomCapableVideoTrack> => {
+      const video = getCameraVideoElement(cameraContainerRef.current);
+      const mediaDevices = typeof navigator !== "undefined"
+        ? navigator.mediaDevices
+        : undefined;
+      if (!video || !mediaDevices?.enumerateDevices || !mediaDevices.getUserMedia) {
+        return currentTrack;
+      }
+
+      try {
+        const currentSettings = currentTrack.getSettings?.() ?? {};
+        const preferred = selectPreferredRearCameraDevice(
+          await mediaDevices.enumerateDevices(),
+          currentSettings.deviceId,
+        );
+        if (!preferred || preferred.deviceId === currentSettings.deviceId) {
+          return currentTrack;
+        }
+
+        const previousStream = video.srcObject;
+        const nextStream = await mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            deviceId: { exact: preferred.deviceId },
+            facingMode: { ideal: "environment" },
+            ...(currentSettings.width
+              ? { width: { ideal: currentSettings.width } }
+              : {}),
+            ...(currentSettings.height
+              ? { height: { ideal: currentSettings.height } }
+              : {}),
+          },
+        });
+        const nextTrack = nextStream.getVideoTracks()[0] as
+          | ZoomCapableVideoTrack
+          | undefined;
+        if (!nextTrack) {
+          stopStream(nextStream);
+          return currentTrack;
+        }
+
+        try {
+          video.srcObject = nextStream;
+          await video.play();
+        } catch {
+          video.srcObject = previousStream;
+          stopStream(nextStream);
+          return currentTrack;
+        }
+
+        if (cancelled) {
+          stopStream(nextStream);
+          return currentTrack;
+        }
+
+        stopCustomCameraStream();
+        customCameraStreamRef.current = nextStream;
+        return nextTrack;
+      } catch {
+        return currentTrack;
+      }
+    };
+
     const finishWithoutZoomControls = () => {
       if (cancelled) return;
       webVideoTrackRef.current = null;
@@ -121,8 +201,8 @@ function WebCameraCaptureContent({
     };
 
     const configureRearCamera = async (attempt = 0): Promise<void> => {
-      const track = getZoomCapableVideoTrack(cameraContainerRef.current);
-      if (!track) {
+      const initialTrack = getZoomCapableVideoTrack(cameraContainerRef.current);
+      if (!initialTrack) {
         if (attempt >= WEB_CAMERA_TRACK_RETRIES) {
           finishWithoutZoomControls();
           return;
@@ -133,6 +213,9 @@ function WebCameraCaptureContent({
         );
         return;
       }
+
+      const track = await selectPreferredRearCameraTrack(initialTrack);
+      if (cancelled) return;
 
       const range = track.getCapabilities?.().zoom;
       const options = range ? getWebCameraZoomOptions(range) : [];
@@ -162,6 +245,7 @@ function WebCameraCaptureContent({
     return () => {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
+      stopCustomCameraStream();
     };
   }, [cameraReady, facing]);
 
@@ -350,6 +434,10 @@ function WebCameraCaptureContent({
                   : "Usar câmera frontal"
               }
               onPress={() => {
+                customCameraStreamRef.current
+                  ?.getTracks()
+                  .forEach((track) => track.stop());
+                customCameraStreamRef.current = null;
                 setCameraReady(false);
                 setCameraConfigured(false);
                 setZoomOptions([]);

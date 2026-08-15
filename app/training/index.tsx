@@ -72,11 +72,7 @@ import {
   TrainingPlanningWorkspaceLibrary,
   type TrainingPlanningWorkspaceTemplate,
 } from "../../src/screens/training/components/TrainingPlanningWorkspaceLibrary";
-import { TrainingPlanPdfImportModal } from "../../src/screens/training/components/TrainingPlanPdfImportModal";
-import {
-  ClassPlanPreviewModal,
-  type ClassPlanWorkspaceHeaderControls,
-} from "../../src/screens/classes/components/ClassPlanPreviewModal";
+import type { ClassPlanWorkspaceHeaderControls } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { normalizeClassTrainingPlan } from "../../src/screens/classes/application/edit-class-training-plan";
 import {
     addPlanningActivityToBlock,
@@ -124,7 +120,6 @@ import { useOptionalOrganization } from "../../src/providers/OrganizationProvide
 import {  shadow } from "../../src/theme/tokens";
 
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
-import { TrainingSpreadsheetImportModal } from "./import";
 
 const PLANNING_TABS = [
   { id: "formulario" as const, label: "Planejar" },
@@ -170,6 +165,24 @@ const TrainingSessionCreateModalContent = lazy(() =>
       default: module.TrainingSessionCreateModalContent,
     })
   )
+);
+
+const ClassPlanPreviewModal = lazy(() =>
+  import("../../src/screens/classes/components/ClassPlanPreviewModal").then((module) => ({
+    default: module.ClassPlanPreviewModal,
+  }))
+);
+
+const TrainingPlanPdfImportModal = lazy(() =>
+  import("../../src/screens/training/components/TrainingPlanPdfImportModal").then((module) => ({
+    default: module.TrainingPlanPdfImportModal,
+  }))
+);
+
+const TrainingSpreadsheetImportModal = lazy(() =>
+  import("../../src/screens/training/components/TrainingSpreadsheetImportModal").then((module) => ({
+    default: module.TrainingSpreadsheetImportModal,
+  }))
 );
 
 const toLines = (value: string) =>
@@ -3781,22 +3794,24 @@ export default function TrainingList() {
                   }}
                 >
                   {selectedPlan && workspaceClass ? (
-                    <ClassPlanPreviewModal
-                      visible
-                      presentation="workspace"
-                      initialMode="edit"
-                      initialDirty={workspaceDraftRestored}
-                      draftStatus={workspaceDraftStatus}
-                      onClose={() => {}}
-                      plan={selectedPlan}
-                      classGroup={workspaceClass}
-                      lessonDate={workspaceLessonDate}
-                      onSavePlan={handleSaveWorkspacePlan}
-                      onDraftChange={handleWorkspaceDraftChange}
-                      onDirtyChange={setWorkspaceHasUnsavedChanges}
-                      onWorkspaceControlsChange={setWorkspaceHeaderControls}
-                      onApplyPlan={handleApplyWorkspacePlan}
-                    />
+                    <Suspense fallback={<SectionLoadingState />}>
+                      <ClassPlanPreviewModal
+                        visible
+                        presentation="workspace"
+                        initialMode="edit"
+                        initialDirty={workspaceDraftRestored}
+                        draftStatus={workspaceDraftStatus}
+                        onClose={() => {}}
+                        plan={selectedPlan}
+                        classGroup={workspaceClass}
+                        lessonDate={workspaceLessonDate}
+                        onSavePlan={handleSaveWorkspacePlan}
+                        onDraftChange={handleWorkspaceDraftChange}
+                        onDirtyChange={setWorkspaceHasUnsavedChanges}
+                        onWorkspaceControlsChange={setWorkspaceHeaderControls}
+                        onApplyPlan={handleApplyWorkspacePlan}
+                      />
+                    </Suspense>
                   ) : (
                     <View
                       style={{
@@ -4507,28 +4522,32 @@ export default function TrainingList() {
         )}
       </KeyboardAvoidingView>
       {showPlanningPdfImport && activeOrganization?.id ? (
-        <TrainingPlanPdfImportModal
-          visible
-          organizationId={activeOrganization.id}
-          onClose={() => setShowPlanningPdfImport(false)}
-          onCreatePlans={handleImportWorkspacePlans}
-        />
+        <Suspense fallback={null}>
+          <TrainingPlanPdfImportModal
+            visible
+            organizationId={activeOrganization.id}
+            onClose={() => setShowPlanningPdfImport(false)}
+            onCreatePlans={handleImportWorkspacePlans}
+          />
+        </Suspense>
       ) : null}
       {showSpreadsheetImport || importMode === "spreadsheet" ? (
-        <TrainingSpreadsheetImportModal
-          visible
-          classId={selectedPlan?.classId || targetClassId || undefined}
-          unit={workspaceClass?.unit || undefined}
-          onClose={() => {
-            setShowSpreadsheetImport(false);
-            if (importMode === "spreadsheet") {
-              router.replace({ pathname: scopedRoutes.planning });
-            }
-          }}
-          onImported={() => {
-            void reload();
-          }}
-        />
+        <Suspense fallback={null}>
+          <TrainingSpreadsheetImportModal
+            visible
+            classId={selectedPlan?.classId || targetClassId || undefined}
+            unit={workspaceClass?.unit || undefined}
+            onClose={() => {
+              setShowSpreadsheetImport(false);
+              if (importMode === "spreadsheet") {
+                router.replace({ pathname: scopedRoutes.planning });
+              }
+            }}
+            onImported={() => {
+              void reload();
+            }}
+          />
+        </Suspense>
       ) : null}
       {showTrainingSessionCreate ? (
         <Suspense fallback={null}>

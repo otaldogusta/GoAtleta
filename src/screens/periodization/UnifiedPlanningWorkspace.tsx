@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -18,10 +18,7 @@ import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
 import { useCollapsibleAnimation } from "../../ui/use-collapsible";
 import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
-import {
-  ClassPlanPreviewModal,
-  type ClassPlanPeriodizationSource,
-} from "../classes/components/ClassPlanPreviewModal";
+import type { ClassPlanPeriodizationSource } from "../classes/components/ClassPlanPreviewModal";
 import { PlanTimeDistribution } from "../classes/components/PlanTimeDistribution";
 import { regenerateMonthPlans } from "../planning/application/regenerate-month-plans";
 import {
@@ -36,6 +33,12 @@ import {
   monthNeedsRegeneration,
   type MonthCyclePresentation,
 } from "./application/unified-planning-view-model";
+
+const ClassPlanPreviewModal = lazy(() =>
+  import("../classes/components/ClassPlanPreviewModal").then((module) => ({
+    default: module.ClassPlanPreviewModal,
+  }))
+);
 
 type Props = {
   colors: ThemeColors;
@@ -844,28 +847,30 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, onO
       ) : <View style={{ gap: 12, paddingVertical: 12 }}>{monthContent}</View>}
       {needsRegeneration ? <View style={{ flexDirection: width >= 640 ? "row" : "column", alignItems: width >= 640 ? "center" : "stretch", gap: 10, paddingVertical: 11, paddingHorizontal: dense ? 16 : 0, borderTopWidth: 1, borderTopColor: colors.border }}><View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 7 }}><GoAtletaIcon name="warning" size={16} color={colors.warningText} /><Text style={{ color: colors.muted, fontSize: 10 }}>O mês precisa ser atualizado. Planos personalizados e aulas concluídas serão preservados.</Text></View></View> : null}
       {showLesson && sessionPlan.plan && monthly.selectedClass && selectedEvent ? (
-        <ClassPlanPreviewModal
-          visible
-          plan={sessionPlan.plan}
-          classGroup={monthly.selectedClass}
-          lessonDate={sessionPlan.lessonDate || selectedEvent.date}
-          initialMode="preview"
-          periodizationSource={selectedPeriodizationSource}
-          onClose={() => {
-            setShowLesson(false);
-            sessionPlan.clear();
-          }}
-          onSavePlan={async (draft) => {
-            const savedPlan = await sessionPlan.savePlan(draft);
-            await monthly.reload();
-            return savedPlan;
-          }}
-          onRemovePlan={async () => {
-            await sessionPlan.removePlan();
-            setShowLesson(false);
-            await monthly.reload();
-          }}
-        />
+        <Suspense fallback={null}>
+          <ClassPlanPreviewModal
+            visible
+            plan={sessionPlan.plan}
+            classGroup={monthly.selectedClass}
+            lessonDate={sessionPlan.lessonDate || selectedEvent.date}
+            initialMode="preview"
+            periodizationSource={selectedPeriodizationSource}
+            onClose={() => {
+              setShowLesson(false);
+              sessionPlan.clear();
+            }}
+            onSavePlan={async (draft) => {
+              const savedPlan = await sessionPlan.savePlan(draft);
+              await monthly.reload();
+              return savedPlan;
+            }}
+            onRemovePlan={async () => {
+              await sessionPlan.removePlan();
+              setShowLesson(false);
+              await monthly.reload();
+            }}
+          />
+        </Suspense>
       ) : null}
     </View>
   );

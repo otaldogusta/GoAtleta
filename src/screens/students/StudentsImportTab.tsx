@@ -2,7 +2,6 @@
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, Text, View } from "react-native";
-import * as XLSX from "@e965/xlsx";
 
 import type { ClassGroup } from "../../core/models";
 import { markRender } from "../../observability/perf";
@@ -25,6 +24,7 @@ import {
   assertImportAssetWithinLimits,
   normalizeSpreadsheetMatrixForImport,
 } from "../../utils/import-file-guards";
+import { loadXlsx } from "../../utils/load-xlsx";
 
 type Props = {
   organizationId: string | null;
@@ -344,6 +344,7 @@ export function StudentsImportTab({ organizationId, classes, onImportApplied }: 
       let rowsMatrix: string[][] = [];
       if (isSpreadsheet) {
         const base64 = await readAsStringAsync(asset.uri, { encoding: EncodingType.Base64 });
+        const XLSX = await loadXlsx();
         const workbook = XLSX.read(base64, { type: "base64" });
         const firstSheetName = workbook.SheetNames[0];
         if (!firstSheetName) {

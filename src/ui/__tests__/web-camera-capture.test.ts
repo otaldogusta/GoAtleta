@@ -5,6 +5,7 @@ import {
   getWebCameraZoomOptions,
   normalizeCameraZoom,
   normalizeWebCameraPicture,
+  selectPreferredRearCameraDevice,
 } from "../web-camera-capture";
 
 describe("normalizeWebCameraPicture", () => {
@@ -79,5 +80,39 @@ describe("normalizeWebCameraPicture", () => {
   it("formats fractional zoom labels for pt-BR", () => {
     expect(formatCameraZoomLabel(0.5)).toBe("0,5x");
     expect(formatCameraZoomLabel(3)).toBe("3x");
+  });
+
+  it("prefers Android's main rear camera over ultra-wide and front lenses", () => {
+    expect(
+      selectPreferredRearCameraDevice(
+        [
+          { deviceId: "front", kind: "videoinput", label: "camera2 1, facing front" },
+          { deviceId: "ultra", kind: "videoinput", label: "camera2 2, facing back ultra wide" },
+          { deviceId: "main", kind: "videoinput", label: "camera2 0, facing back" },
+        ],
+        "ultra",
+      )?.deviceId,
+    ).toBe("main");
+  });
+
+  it("prefers a named standard rear camera over an ultra-wide lens", () => {
+    expect(
+      selectPreferredRearCameraDevice([
+        { deviceId: "ultra", kind: "videoinput", label: "Back Ultra Wide Camera 0.6" },
+        { deviceId: "main", kind: "videoinput", label: "Back Main Camera" },
+      ])?.deviceId,
+    ).toBe("main");
+  });
+
+  it("does not switch cameras blindly when the browser hides lens labels", () => {
+    expect(
+      selectPreferredRearCameraDevice(
+        [
+          { deviceId: "one", kind: "videoinput", label: "" },
+          { deviceId: "two", kind: "videoinput", label: "" },
+        ],
+        "two",
+      )?.deviceId,
+    ).toBe("two");
   });
 });

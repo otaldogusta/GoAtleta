@@ -6,7 +6,8 @@ import {
 } from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
-import * as XLSX from "@e965/xlsx";
+import type { WorkSheet } from "@e965/xlsx";
+import { loadXlsx } from "./load-xlsx";
 
 export const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -139,8 +140,9 @@ const estimateColumnWidths = (
 };
 
 const applyWorksheetPresentation = (
-  worksheet: XLSX.WorkSheet,
+  worksheet: WorkSheet,
   rows: unknown[][],
+  encodeColumn: (column: number) => string,
   options?: XlsxSheetInput["options"]
 ) => {
   const colCount = rows.reduce((acc, row) => Math.max(acc, row.length), 0);
@@ -169,7 +171,7 @@ const applyWorksheetPresentation = (
 
   if (options?.autoFilterHeaderRow) {
     worksheet["!autofilter"] = {
-      ref: `A1:${XLSX.utils.encode_col(colCount - 1)}1`,
+      ref: `A1:${encodeColumn(colCount - 1)}1`,
     };
   }
 
@@ -207,12 +209,18 @@ export const slugify = (value: string) =>
 export async function exportWorkbookXlsx(
   input: ExportWorkbookInput
 ): Promise<ExportWorkbookResult> {
+  const XLSX = await loadXlsx();
   const workbook = XLSX.utils.book_new();
 
   input.sheets.forEach((sheet, index) => {
     const normalizedRows = normalizeSpreadsheetRows(sheet.rows);
     const worksheet = XLSX.utils.aoa_to_sheet(normalizedRows);
-    applyWorksheetPresentation(worksheet, normalizedRows, sheet.options);
+    applyWorksheetPresentation(
+      worksheet,
+      normalizedRows,
+      XLSX.utils.encode_col,
+      sheet.options
+    );
     XLSX.utils.book_append_sheet(
       workbook,
       worksheet,

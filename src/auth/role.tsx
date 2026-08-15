@@ -164,6 +164,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
   const lastSessionUserIdRef = useRef<string | undefined>(session?.user?.id);
+  const lastAutomaticRefreshKeyRef = useRef("");
 
   if (session?.user?.id !== lastSessionUserIdRef.current) {
     lastSessionUserIdRef.current = session?.user?.id;
@@ -271,10 +272,16 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   }, [session]);
 
   useEffect(() => {
+    const automaticRefreshKey = session
+      ? `${session.user.id}:${session.access_token}`
+      : "signed-out";
+    if (lastAutomaticRefreshKeyRef.current === automaticRefreshKey) return;
+    lastAutomaticRefreshKeyRef.current = automaticRefreshKey;
+
     Promise.resolve().then(() => {
       void refresh();
     });
-  }, [refresh]);
+  }, [refresh, session]);
 
   const setActiveRole = useCallback(
     async (nextRole: SelectableUserRole) => {

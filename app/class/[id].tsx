@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     FlatList,
@@ -69,10 +69,7 @@ import {
     ClassContextStrip,
     ClassOperationsWorkspace,
 } from "../../src/screens/classes/components/ClassOperationsWorkspace";
-import {
-    ClassPlanPreviewModal,
-    type ClassPlanPeriodizationSource,
-} from "../../src/screens/classes/components/ClassPlanPreviewModal";
+import type { ClassPlanPeriodizationSource } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -111,6 +108,12 @@ import { convertPedagogicalPackageToTrainingPlan } from "../../src/screens/sessi
 import { retrieveDocumentSupportForPlan } from "../../src/screens/session/application/retrieve-document-support-for-plan";
 import { resolveClassPlanForSessionDate } from "../../src/screens/session/application/resolve-class-plan-for-session-date";
 import { SessionScreen } from "./[id]/session";
+
+const ClassPlanPreviewModal = lazy(() =>
+  import("../../src/screens/classes/components/ClassPlanPreviewModal").then((module) => ({
+    default: module.ClassPlanPreviewModal,
+  }))
+);
 
 type AvailableContact = {
   studentName: string;
@@ -2319,18 +2322,20 @@ export default function ClassDetails() {
       </ModalSheet>
 
       {appliedPlan && cls ? (
-        <ClassPlanPreviewModal
-          visible={showPlanPreviewModal}
-          onClose={() => setShowPlanPreviewModal(false)}
-          plan={appliedPlan}
-          classGroup={cls}
-          lessonDate={selectedLessonDateKey}
-          coachName={resolvedCoachName}
-          initialMode={planPreviewMode}
-          periodizationSource={appliedPlanPeriodizationSource}
-          onSavePlan={handleSaveAppliedPlan}
-          onRemovePlan={handleRemoveAppliedPlan}
-        />
+        <Suspense fallback={null}>
+          <ClassPlanPreviewModal
+            visible={showPlanPreviewModal}
+            onClose={() => setShowPlanPreviewModal(false)}
+            plan={appliedPlan}
+            classGroup={cls}
+            lessonDate={selectedLessonDateKey}
+            coachName={resolvedCoachName}
+            initialMode={planPreviewMode}
+            periodizationSource={appliedPlanPeriodizationSource}
+            onSavePlan={handleSaveAppliedPlan}
+            onRemovePlan={handleRemoveAppliedPlan}
+          />
+        </Suspense>
       ) : null}
       </KeyboardAvoidingView>
 

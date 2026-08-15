@@ -14,7 +14,7 @@ export type BootStatus = {
 };
 
 export function shouldMaskBootContent(status: BootStatus) {
-  return status.phase !== "ready";
+  return status.blocking;
 }
 
 export function resolveBootStatus(params: {

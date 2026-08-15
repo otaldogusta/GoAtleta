@@ -289,6 +289,13 @@ describe("WebSidebar profile menu", () => {
 
     expect(screen.getByLabelText("Fechar menu lateral")).toBeTruthy();
     expect(screen.getByLabelText("Recolher menu")).toBeTruthy();
+    expect(screen.getByTestId("web-sidebar-expanded-panel").props.style).toEqual(
+      expect.objectContaining({
+        height: "100vh",
+        maxHeight: "100dvh",
+      })
+    );
+    expect(screen.getByLabelText("Abrir menu de perfil")).toBeTruthy();
     expect(screen.queryByLabelText("Navegação principal compacta")).toBeNull();
     expect(window.localStorage.setItem).not.toHaveBeenCalled();
 
