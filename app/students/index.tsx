@@ -739,19 +739,17 @@ export default function StudentsScreen() {
     async (patch: {
       membershipStatus?: Student["membershipStatus"];
       financialStatus?: Student["financialStatus"];
+      inactivationReason?: string | null;
     }) => {
       if (!operationalStudent || operationalStatusSaving) return;
       const nextMembership = patch.membershipStatus;
-      if (nextMembership) {
+      if (nextMembership === "active") {
         const confirmed = await confirmDialog({
-          title: nextMembership === "inactive" ? "Inativar aluno?" : "Reativar aluno?",
-          message:
-            nextMembership === "inactive"
-              ? "O aluno não aparecerá em novas chamadas. Matrícula e histórico serão preservados."
-              : "O aluno voltará a aparecer nas chamadas das turmas vinculadas.",
-          confirmLabel: nextMembership === "inactive" ? "Inativar" : "Reativar",
+          title: "Reativar aluno?",
+          message: "O aluno voltará a aparecer nas chamadas das turmas vinculadas.",
+          confirmLabel: "Reativar",
           cancelLabel: "Cancelar",
-          tone: nextMembership === "inactive" ? "danger" : "default",
+          tone: "default",
           onConfirm: () => undefined,
         });
         if (!confirmed) return;
@@ -775,6 +773,12 @@ export default function StudentsScreen() {
                       ? now
                       : null
                     : student.inactivatedAt,
+                  inactivatedBy: patch.membershipStatus === "active" ? null : student.inactivatedBy,
+                  inactivationReason: patch.membershipStatus
+                    ? patch.membershipStatus === "inactive"
+                      ? patch.inactivationReason?.trim() || null
+                      : null
+                    : student.inactivationReason,
                 }
               : student,
           ),

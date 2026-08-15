@@ -51,6 +51,8 @@ type StudentRow = {
   membership_status?: string | null;
   financial_status?: string | null;
   inactivated_at?: string | null;
+  inactivated_by?: string | null;
+  inactivation_reason?: string | null;
   createdat: string;
 };
 
@@ -79,6 +81,8 @@ const mapStudent = (row: StudentRow): Student => ({
   membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
   financialStatus: row.financial_status === "delinquent" ? "delinquent" : "regular",
   inactivatedAt: row.inactivated_at ?? null,
+  inactivatedBy: row.inactivated_by ?? null,
+  inactivationReason: row.inactivation_reason ?? null,
   createdAt: row.createdat,
 });
 

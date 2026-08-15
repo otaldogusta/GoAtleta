@@ -211,6 +211,7 @@ export type StudentEditModalProps = {
     onUpdateOperationalStatus: (patch: {
         membershipStatus?: Student["membershipStatus"];
         financialStatus?: Student["financialStatus"];
+        inactivationReason?: string | null;
     }) => Promise<void>;
     deleteEditingStudent: () => void;
     editSaving: boolean;
@@ -352,6 +353,15 @@ export function StudentEditModal({
     const nameInputRef = useRef<TextInput | null>(null);
     const birthDateInputRef = useRef<TextInput | null>(null);
     const raInputRef = useRef<TextInput | null>(null);
+    const [showInactivationForm, setShowInactivationForm] = useState(false);
+    const [inactivationReason, setInactivationReason] = useState("");
+
+    useEffect(() => {
+        if (!showEditModal || operationalStudent?.membershipStatus === "inactive") {
+            setShowInactivationForm(false);
+            setInactivationReason("");
+        }
+    }, [operationalStudent?.id, operationalStudent?.membershipStatus, showEditModal]);
 
     useEffect(() => {
         if (!showEditModal || !validationIssue) return undefined;
@@ -554,17 +564,90 @@ export function StudentEditModal({
                                             O financeiro não altera presença. Inativos saem de novas chamadas e mantêm o histórico.
                                         </Text>
                                     </View>
+                                    {showInactivationForm ? (
+                                        <View style={{ gap: 8 }}>
+                                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                                                Motivo (opcional)
+                                            </Text>
+                                            <View
+                                                style={{
+                                                    minHeight: 50,
+                                                    borderRadius: 12,
+                                                    paddingHorizontal: 14,
+                                                    backgroundColor: colors.inputBg,
+                                                    borderWidth: 1,
+                                                    borderColor: colors.border,
+                                                    justifyContent: "center",
+                                                }}
+                                            >
+                                                <TextInput
+                                                    value={inactivationReason}
+                                                    onChangeText={(value) => setInactivationReason(value.slice(0, 240))}
+                                                    placeholder="Pausa, saída ou mudança de rotina"
+                                                    placeholderTextColor={colors.muted}
+                                                    maxLength={240}
+                                                    style={{
+                                                        color: colors.text,
+                                                        fontSize: 13,
+                                                        paddingVertical: 0,
+                                                        borderRadius: 0,
+                                                        outlineStyle: "none",
+                                                    } as any}
+                                                />
+                                            </View>
+                                            <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                                O histórico, as avaliações e as presenças serão preservados.
+                                            </Text>
+                                            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+                                                <Pressable
+                                                    disabled={operationalStatusSaving}
+                                                    onPress={() => {
+                                                        setShowInactivationForm(false);
+                                                        setInactivationReason("");
+                                                    }}
+                                                    style={{ minHeight: 38, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" }}
+                                                    suppressWebHoverFeedback
+                                                >
+                                                    <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Cancelar</Text>
+                                                </Pressable>
+                                                <Pressable
+                                                    disabled={operationalStatusSaving}
+                                                    onPress={() => {
+                                                        void onUpdateOperationalStatus({
+                                                            membershipStatus: "inactive",
+                                                            inactivationReason,
+                                                        }).then(() => {
+                                                            setShowInactivationForm(false);
+                                                            setInactivationReason("");
+                                                        });
+                                                    }}
+                                                    style={{
+                                                        minHeight: 38,
+                                                        borderRadius: 11,
+                                                        backgroundColor: colors.dangerSolidBg,
+                                                        paddingHorizontal: 12,
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        opacity: operationalStatusSaving ? 0.55 : 1,
+                                                    }}
+                                                >
+                                                    <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "800" }}>
+                                                        {operationalStatusSaving ? "Inativando..." : "Confirmar inativação"}
+                                                    </Text>
+                                                </Pressable>
+                                            </View>
+                                        </View>
+                                    ) : (
                                     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                                         <Pressable
                                             disabled={operationalStatusSaving}
-                                            onPress={() =>
-                                                void onUpdateOperationalStatus({
-                                                    membershipStatus:
-                                                        operationalStudent.membershipStatus === "inactive"
-                                                            ? "active"
-                                                            : "inactive",
-                                                })
-                                            }
+                                            onPress={() => {
+                                                if (operationalStudent.membershipStatus === "inactive") {
+                                                    void onUpdateOperationalStatus({ membershipStatus: "active" });
+                                                    return;
+                                                }
+                                                setShowInactivationForm(true);
+                                            }}
                                             style={{
                                                 minHeight: 38,
                                                 borderRadius: 11,
@@ -642,10 +725,18 @@ export function StudentEditModal({
                                             </Text>
                                         </Pressable>
                                     </View>
+                                    )}
                                     {operationalStudent.membershipStatus === "inactive" && operationalStudent.inactivatedAt ? (
-                                        <Text style={{ color: colors.muted, fontSize: 11 }}>
-                                            Inativado em {new Date(operationalStudent.inactivatedAt).toLocaleDateString("pt-BR")}.
-                                        </Text>
+                                        <View style={{ gap: 2 }}>
+                                            <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                                Inativado em {new Date(operationalStudent.inactivatedAt).toLocaleDateString("pt-BR")}.
+                                            </Text>
+                                            {operationalStudent.inactivationReason ? (
+                                                <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                                    Motivo: {operationalStudent.inactivationReason}
+                                                </Text>
+                                            ) : null}
+                                        </View>
                                     ) : null}
                                 </View>
                             ) : null}

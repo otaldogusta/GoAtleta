@@ -29,6 +29,7 @@ type Props = {
   googleAccountConnected: boolean;
   compact?: boolean;
   onImportStudents?: () => void;
+  onExportAttendance?: () => void;
 };
 
 type TriggerLayout = {
@@ -88,6 +89,7 @@ export function ClassesExportSyncMenu({
   googleAccountConnected,
   compact = false,
   onImportStudents,
+  onExportAttendance,
 }: Props) {
   const { showSaveToast } = useSaveToast();
   const triggerRef = useRef<View>(null);
@@ -217,6 +219,12 @@ export function ClassesExportSyncMenu({
     onImportStudents();
   }, [close, onImportStudents, workingAction]);
 
+  const openAttendanceExport = useCallback(() => {
+    if (workingAction || !onExportAttendance) return;
+    close();
+    onExportAttendance();
+  }, [close, onExportAttendance, workingAction]);
+
   const disabled = (workingAction !== null) || (classes.length === 0 && !onImportStudents);
   const iconColor = colors.textMuted ?? colors.muted;
   const rowTextColor = colors.textPrimary ?? colors.text;
@@ -288,6 +296,15 @@ export function ClassesExportSyncMenu({
           colors={colors}
           onPress={exportXlsx}
         />
+        {onExportAttendance ? (
+          <MenuRow
+            icon="document"
+            label="Exportar chamadas"
+            helper="Período, unidade e turma"
+            colors={colors}
+            onPress={openAttendanceExport}
+          />
+        ) : null}
         {onImportStudents ? (
           <MenuRow
             icon="upload"
@@ -352,7 +369,7 @@ function MenuRow({
   colors,
   onPress,
 }: {
-  icon: "download" | "calendar" | "sync" | "upload";
+  icon: "download" | "calendar" | "sync" | "upload" | "document";
   label: string;
   helper?: string;
   colors: ThemeColors;

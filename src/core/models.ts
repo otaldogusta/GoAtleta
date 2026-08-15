@@ -1133,6 +1133,8 @@ export type Student = {
   membershipStatus: "active" | "inactive";
   financialStatus: "regular" | "delinquent";
   inactivatedAt?: string | null;
+  inactivatedBy?: string | null;
+  inactivationReason?: string | null;
   sourcePreRegistrationId?: string | null;
   classId: string;
   age: number;

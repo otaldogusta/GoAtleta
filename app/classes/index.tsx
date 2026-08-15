@@ -85,6 +85,12 @@ const ClassEditModalBody = lazy(() =>
   }))
 );
 
+const AttendanceExportModal = lazy(() =>
+  import("../../src/screens/classes/components/AttendanceExportModal").then((module) => ({
+    default: module.AttendanceExportModal,
+  }))
+);
+
 type SelectOptionValue = string | number;
 
 function SelectOption({
@@ -392,6 +398,9 @@ export default function ClassesScreen() {
   const [showCreateTabConfirm, setShowCreateTabConfirm] = useState(false);
   const [pendingMainTab, setPendingMainTab] = useState<"lista" | "criar" | null>(null);
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
+  const [showAttendanceExportModal, setShowAttendanceExportModal] = useState(false);
+  const openAttendanceExportModal = useCallback(() => setShowAttendanceExportModal(true), []);
+  const closeAttendanceExportModal = useCallback(() => setShowAttendanceExportModal(false), []);
   const mainTabAnim = useRef<Record<"lista" | "criar", Animated.Value>>({
     lista: new Animated.Value(1),
     criar: new Animated.Value(0),
@@ -1907,6 +1916,7 @@ export default function ClassesScreen() {
                   responsiveLayout.isMobile || responsiveLayout.tier === "tablet"
                 }
                 onImportStudents={openStudentsImportModal}
+                onExportAttendance={openAttendanceExportModal}
               />
               <Pressable
                 accessibilityRole="button"
@@ -2500,6 +2510,17 @@ export default function ClassesScreen() {
         onClose={closeStudentsImportModal}
         onImportApplied={handleImportStudentsApplied}
       />
+      {showAttendanceExportModal ? (
+        <Suspense fallback={null}>
+          <AttendanceExportModal
+            visible
+            onClose={closeAttendanceExportModal}
+            classes={classes}
+            organizationId={activeOrganization?.id ?? null}
+            organizationName={activeOrganization?.name ?? "Organização"}
+          />
+        </Suspense>
+      ) : null}
 
       <ConfirmCloseOverlay
         visible={showEditCloseConfirm}

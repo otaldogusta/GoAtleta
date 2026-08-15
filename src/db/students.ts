@@ -183,6 +183,8 @@ const mapStudentRow = (
     membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
     financialStatus: row.financial_status === "delinquent" ? "delinquent" : "regular",
     inactivatedAt: row.inactivated_at ?? null,
+    inactivatedBy: row.inactivated_by ?? null,
+    inactivationReason: row.inactivation_reason ?? null,
     sourcePreRegistrationId: row.source_pre_registration_id ?? null,
     classId: row.classid,
     age: row.age,
@@ -968,6 +970,8 @@ export async function saveStudent(student: Student) {
     membership_status: student.membershipStatus ?? "active",
     financial_status: student.financialStatus ?? "regular",
     inactivated_at: student.inactivatedAt ?? null,
+    inactivated_by: student.inactivatedBy ?? null,
+    inactivation_reason: student.inactivationReason?.trim() || null,
     source_pre_registration_id: student.sourcePreRegistrationId?.trim() || null,
     classid: student.classId,
     age: student.age,
@@ -1040,6 +1044,8 @@ export async function updateStudent(student: Student) {
     membership_status: student.membershipStatus ?? "active",
     financial_status: student.financialStatus ?? "regular",
     inactivated_at: student.inactivatedAt ?? null,
+    inactivated_by: student.inactivatedBy ?? null,
+    inactivation_reason: student.inactivationReason?.trim() || null,
     source_pre_registration_id: student.sourcePreRegistrationId?.trim() || null,
     classid: student.classId,
     age: student.age,
@@ -1171,6 +1177,7 @@ export async function updateStudentOperationalStatus(
   patch: {
     membershipStatus?: Student["membershipStatus"];
     financialStatus?: Student["financialStatus"];
+    inactivationReason?: string | null;
   },
   options: { organizationId?: string | null } = {}
 ) {
@@ -1183,8 +1190,15 @@ export async function updateStudentOperationalStatus(
   const payload: Record<string, unknown> = {};
   if (patch.membershipStatus) {
     payload.membership_status = patch.membershipStatus;
-    payload.inactivated_at =
-      patch.membershipStatus === "inactive" ? new Date().toISOString() : null;
+    if (patch.membershipStatus === "inactive") {
+      payload.inactivated_at = new Date().toISOString();
+      payload.inactivated_by = (await getSessionUserId()) || null;
+      payload.inactivation_reason = patch.inactivationReason?.trim() || null;
+    } else {
+      payload.inactivated_at = null;
+      payload.inactivated_by = null;
+      payload.inactivation_reason = null;
+    }
   }
   if (patch.financialStatus) {
     payload.financial_status = patch.financialStatus;
