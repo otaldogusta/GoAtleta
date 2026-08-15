@@ -24,28 +24,28 @@ const CAROUSEL_SLIDES = [
     tagline1: "Junte sua equipe.",
     tagline2: "Evolua mais atletas.",
     sportLabel: "Vôlei de Quadra",
-    image: require("../assets/images/welcome_carousel_volei_quadra.png"),
+    image: require("../assets/images/welcome_carousel_volei_quadra.jpg"),
   },
   {
     id: "volei-praia",
     tagline1: "Domine a areia.",
     tagline2: "Treinos ao ar livre.",
     sportLabel: "Vôlei de Praia",
-    image: require("../assets/images/welcome_carousel_volei_praia.png"),
+    image: require("../assets/images/welcome_carousel_volei_praia.jpg"),
   },
   {
     id: "futebol",
     tagline1: "Entre em campo.",
     tagline2: "Gestão do futebol.",
     sportLabel: "Futebol & Society",
-    image: require("../assets/images/welcome_carousel_futebol.png"),
+    image: require("../assets/images/welcome_carousel_futebol.jpg"),
   },
   {
     id: "academia",
     tagline1: "Supere seus limites.",
     tagline2: "Alta performance.",
     sportLabel: "Academia & Fit",
-    image: require("../assets/images/welcome_carousel_academia.png"),
+    image: require("../assets/images/welcome_carousel_academia.jpg"),
   },
 ];
 
