@@ -8,6 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "environment": "development",
       "android": {
         "buildType": "apk"
       }
@@ -15,6 +16,7 @@
     "preview": {
       "channel": "preview",
       "distribution": "internal",
+      "environment": "preview",
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
@@ -25,6 +27,7 @@
     "preview-apk": {
       "channel": "preview",
       "distribution": "internal",
+      "environment": "preview",
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
@@ -35,6 +38,7 @@
     "production-apk": {
       "channel": "production",
       "distribution": "internal",
+      "environment": "production",
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
@@ -44,6 +48,7 @@
     },
     "production": {
       "channel": "production",
+      "environment": "production",
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },

@@ -7,10 +7,6 @@ const supabaseAnonKey =
 	process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
 const buildProfile = process.env.EAS_BUILD_PROFILE || "";
 const useDevClient = buildProfile === "development";
-const sentryDsn =
-	process.env.SENTRY_DSN ||
-	process.env.EXPO_PUBLIC_SENTRY_DSN ||
-	"";
 const enableSocialLogin =
 	process.env.EXPO_PUBLIC_ENABLE_SOCIAL_LOGIN || process.env.ENABLE_SOCIAL_LOGIN || "false";
 const enableManualLinking =
@@ -59,20 +55,15 @@ const plugins = [
 	"expo-web-browser",
 	"react-native-nfc-manager",
 	"@react-native-community/datetimepicker",
-];
-
-if (sentryDsn) {
-	plugins.push("@sentry/react-native");
-	plugins.push([
+	[
 		"@sentry/react-native/expo",
 		{
 			url: "https://sentry.io/",
 			project: "react-native",
 			organization: "otaldogustas-company",
-			dsn: sentryDsn,
 		},
-	]);
-}
+	],
+];
 
 if (useDevClient) {
 	plugins.unshift("expo-dev-client");
