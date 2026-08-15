@@ -4,6 +4,7 @@ import { Platform, Text, View } from "react-native";
 
 import { useRouter } from "expo-router";
 
+import { navigateToPrimaryRoute } from "../../navigation/primary-route-navigation";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
@@ -122,6 +123,8 @@ function HomeProfessorBelowFoldBase({
 }: HomeProfessorBelowFoldProps) {
   const { colors } = useAppTheme();
   const router = useRouter();
+  const navigateToShortcut = (href: string) =>
+    navigateToPrimaryRoute({ router, href });
 
   if (variant === "coordination") {
     const coordinationShortcuts = [
@@ -193,7 +196,7 @@ function HomeProfessorBelowFoldBase({
               description={shortcut.description}
               icon={shortcut.icon}
               mobile={mobile}
-              onPress={() => router.push(shortcut.route)}
+              onPress={() => navigateToShortcut(shortcut.route)}
             />
           ))}
         </View>
@@ -212,7 +215,7 @@ function HomeProfessorBelowFoldBase({
             description="Modelos e planejamentos"
             icon="planning"
             mobile={mobile}
-            onPress={() => router.push("/prof/planning")}
+            onPress={() => navigateToShortcut("/prof/planning")}
           />
         ) : null}
 
@@ -221,7 +224,7 @@ function HomeProfessorBelowFoldBase({
           description="Prescrição individual"
           icon="consultation"
           mobile={mobile}
-          onPress={() => router.push("/prof/consultation")}
+          onPress={() => navigateToShortcut("/prof/consultation")}
         />
 
         {canOpenClassesShortcut ? (
@@ -230,7 +233,7 @@ function HomeProfessorBelowFoldBase({
             description="Cadastros e lista"
             icon="classes"
             mobile={mobile}
-            onPress={() => router.push("/prof/classes")}
+            onPress={() => navigateToShortcut("/prof/classes")}
           />
         ) : null}
 
@@ -240,7 +243,7 @@ function HomeProfessorBelowFoldBase({
             description="Lista e chamada"
             icon="students"
             mobile={mobile}
-            onPress={() => router.push("/prof/students")}
+            onPress={() => navigateToShortcut("/prof/students")}
           />
         ) : null}
 
@@ -250,7 +253,7 @@ function HomeProfessorBelowFoldBase({
             description="Aulas e chamada"
             icon="calendar"
             mobile={mobile}
-            onPress={() => router.push("/prof/calendar")}
+            onPress={() => navigateToShortcut("/prof/calendar")}
           />
         ) : null}
 
@@ -260,7 +263,7 @@ function HomeProfessorBelowFoldBase({
             description="Atualizações e ausências"
             icon="absenceNotices"
             mobile={mobile}
-            onPress={() => router.push("/prof/absence-notices")}
+            onPress={() => navigateToShortcut("/prof/absence-notices")}
           />
         ) : null}
 
@@ -270,7 +273,7 @@ function HomeProfessorBelowFoldBase({
             description="Registrar por UID"
             icon="nfc"
             mobile={mobile}
-            onPress={() => router.push("/prof/nfc-attendance")}
+            onPress={() => navigateToShortcut("/prof/nfc-attendance")}
           />
         ) : null}
 
@@ -280,7 +283,7 @@ function HomeProfessorBelowFoldBase({
             description="Biblioteca com vídeos"
             icon="exercises"
             mobile={mobile}
-            onPress={() => router.push("/prof/exercises")}
+            onPress={() => navigateToShortcut("/prof/exercises")}
           />
         ) : null}
 
@@ -290,7 +293,7 @@ function HomeProfessorBelowFoldBase({
             description="Ciclos e cargas"
             icon="periodization"
             mobile={mobile}
-            onPress={() => router.push("/prof/periodization")}
+            onPress={() => navigateToShortcut("/prof/periodization")}
           />
         ) : null}
       </View>

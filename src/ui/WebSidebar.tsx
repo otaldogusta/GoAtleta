@@ -4,13 +4,10 @@ import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
 import { useRole, type UserRole } from "../auth/role";
-import {
-  getTrainerPermissionKey,
-  isTrainerPathAllowed,
-} from "../auth/route-permissions";
+import { isTrainerPathAllowed } from "../auth/route-permissions";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
+import { navigateToPrimaryRoute } from "../navigation/primary-route-navigation";
 import { getScopedProfilePath } from "../navigation/profile-routes";
-import { stripExpoRouterInternalParams } from "../navigation/web-route-state";
 import { formatUnreadNotificationBadge } from "../notifications/unread-notification-count";
 import { useUnreadNotificationCount } from "../notifications/useUnreadNotificationCount";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
@@ -24,10 +21,7 @@ import {
 } from "./profile-switch-options";
 import { useAppTheme } from "./app-theme";
 import { webShellTokens } from "./web-shell-tokens";
-import {
-  orderWebSidebarItems,
-  shouldNavigateAcrossWebShell,
-} from "./web-sidebar-navigation";
+import { orderWebSidebarItems } from "./web-sidebar-navigation";
 
 type WebSidebarProps = {
   role: AppRole;
@@ -343,26 +337,7 @@ export function WebSidebar({
         return;
       }
       closeProfileMenu();
-      const currentPathname =
-        typeof window !== "undefined" ? window.location.pathname : pathname;
-      if (
-        typeof window !== "undefined" &&
-        shouldNavigateAcrossWebShell(currentPathname)
-      ) {
-        router.push(href as never, { withAnchor: true });
-        window.requestAnimationFrame(() => {
-          window.requestAnimationFrame(() => {
-            const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-            const sanitizedHref = stripExpoRouterInternalParams(currentHref);
-            const currentState = window.history.state;
-
-            if (sanitizedHref === currentHref || currentState == null) return;
-            window.history.replaceState(currentState, "", sanitizedHref);
-          });
-        });
-        return;
-      }
-      router.push(href as never);
+      navigateToPrimaryRoute({ router, href: href as never });
     },
     [pathname, router, closeProfileMenu]
   );
@@ -748,7 +723,10 @@ export function WebSidebar({
 
   const canShowItem = (item: SidebarItem) => {
     if (role === "student" || isOrgAdmin) return true;
-    if (permissionsLoading && getTrainerPermissionKey(item.href)) return false;
+    // Keep the navigation stable while permissions are resolving. The route
+    // boundary still blocks unauthorized access, and the item is removed as
+    // soon as an explicit denied permission is available.
+    if (permissionsLoading) return true;
     return isTrainerPathAllowed(item.href, memberPermissions, false);
   };
 

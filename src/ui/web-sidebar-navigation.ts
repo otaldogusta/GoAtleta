@@ -4,11 +4,6 @@ type SidebarItemWithKey = {
   key: string;
 };
 
-export function shouldNavigateAcrossWebShell(pathname: string): boolean {
-  const normalizedPathname = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
-  return /^\/class\/[^/]+(?:\/.*)?$/.test(normalizedPathname);
-}
-
 const PROFESSOR_NAVIGATION_ORDER = [
   "home",
   "planning",

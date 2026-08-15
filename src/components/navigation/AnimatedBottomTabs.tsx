@@ -10,6 +10,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
+import { navigateToPrimaryRoute } from "../../navigation/primary-route-navigation";
 import { useOptionalOrganization } from "../../providers/OrganizationProvider";
 import {
   getTrainerPermissionKey,
@@ -148,7 +149,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
         anchorBottom={48}
         onActionPress={(action) => {
           setMenuOpen(false);
-          router.push(action.href);
+          navigateToPrimaryRoute({ router, href: action.href });
         }}
       />
       <View
@@ -207,7 +208,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
                 });
 
                 if (action.type === "push") {
-                  router.push(action.href);
+                  navigateToPrimaryRoute({ router, href: action.href });
                   return;
                 }
 

@@ -1,7 +1,4 @@
-import {
-  orderWebSidebarItems,
-  shouldNavigateAcrossWebShell,
-} from "../web-sidebar-navigation";
+import { orderWebSidebarItems } from "../web-sidebar-navigation";
 
 describe("web sidebar navigation", () => {
   it("orders the professor navigation by the daily workflow", () => {
@@ -62,23 +59,5 @@ describe("web sidebar navigation", () => {
       "management",
       "events",
     ]);
-  });
-
-  it("navigates across web shells when leaving a class workspace route", () => {
-    expect(shouldNavigateAcrossWebShell("/class/c_123")).toBe(true);
-    expect(shouldNavigateAcrossWebShell("/class/c_123/")).toBe(true);
-    expect(shouldNavigateAcrossWebShell("/class/c_123/attendance")).toBe(
-      true
-    );
-    expect(
-      shouldNavigateAcrossWebShell("/class/c_123/periodization")
-    ).toBe(true);
-    expect(
-      shouldNavigateAcrossWebShell("/class/c_123/periodization/")
-    ).toBe(true);
-    expect(shouldNavigateAcrossWebShell("/class")).toBe(false);
-    expect(shouldNavigateAcrossWebShell("/classes")).toBe(false);
-    expect(shouldNavigateAcrossWebShell("/prof/periodization")).toBe(false);
-    expect(shouldNavigateAcrossWebShell("/prof/home")).toBe(false);
   });
 });

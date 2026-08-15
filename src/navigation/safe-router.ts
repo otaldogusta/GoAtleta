@@ -1,5 +1,3 @@
-import { Platform } from "react-native";
-
 type RouterLike = {
   back: () => void;
   canGoBack?: () => boolean;
@@ -12,11 +10,6 @@ type SafeBackOptions = {
 };
 
 export function navigateBackOrReplace({ router, fallback }: SafeBackOptions) {
-  if (Platform.OS === "web") {
-    router.replace(fallback);
-    return;
-  }
-
   try {
     if (router.canGoBack?.()) {
       router.back();
