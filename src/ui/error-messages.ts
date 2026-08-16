@@ -68,6 +68,17 @@ export const isNetworkConnectionError = (error: unknown) => {
   );
 };
 
+export const isRequestCancellationError = (error: unknown) => {
+  if (error instanceof Error && error.name === "AbortError") return true;
+  const lower = getComparableErrorText(error);
+  return (
+    lower.includes("fetch request has been canceled") ||
+    lower.includes("fetch request has been cancelled") ||
+    lower.includes("operation was aborted") ||
+    lower.trim() === "aborted"
+  );
+};
+
 export const isNotFoundError = (error: unknown) => {
   const lower = getComparableErrorText(error);
   if (lower.includes("pgrst202") || lower.includes("pgrst204")) return false;

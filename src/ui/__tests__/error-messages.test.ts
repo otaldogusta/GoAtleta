@@ -4,6 +4,7 @@ import {
   isExpectedSessionConnectivityError,
   isNetworkConnectionError,
   isNotFoundError,
+  isRequestCancellationError,
 } from "../error-messages";
 
 describe("error-messages", () => {
@@ -21,6 +22,15 @@ describe("error-messages", () => {
     expect(isNetworkConnectionError(error)).toBe(true);
     expect(isExpectedSessionConnectivityError(error)).toBe(true);
     expect(getFriendlyErrorMessage(error)).toBe("Falha de conexão. Verifique sua internet.");
+  });
+
+  it("recognizes React Native fetch cancellation errors", () => {
+    expect(
+      isRequestCancellationError(
+        new TypeError("fetch failed: Fetch request has been canceled")
+      )
+    ).toBe(true);
+    expect(isRequestCancellationError(new DOMException("Aborted", "AbortError"))).toBe(true);
   });
 
   it("classifies missing Supabase RPCs as expected provider availability errors", () => {

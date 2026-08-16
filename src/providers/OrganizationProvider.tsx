@@ -29,6 +29,7 @@ import {
 import {
   extractErrorText,
   isExpectedSessionConnectivityError,
+  isRequestCancellationError,
 } from "../ui/error-messages";
 import { resolvePermissionsLoading } from "./organization-loading";
 
@@ -383,7 +384,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       hasLoadedOrganizationsRef.current = true;
       lastFetchErrorAtRef.current = 0;
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
+      if (isRequestCancellationError(err)) {
         return;
       }
       if (isExpectedSessionConnectivityError(err)) {

@@ -1,6 +1,7 @@
 import { usePathname } from "expo-router";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { Platform } from "react-native";
 
 import { useEffectiveProfile } from "../hooks/use-effective-profile";
 import {
@@ -11,11 +12,22 @@ import {
   WEB_SHELL_LAST_SCOPE_KEY,
 } from "../navigation/profile-route-scope";
 import { AppShell } from "./AppShell";
+import { resolveWebLocalStorage } from "./web-local-storage";
+
+const getWebLocalStorage = () => {
+  if (Platform.OS !== "web" || typeof window === "undefined") return null;
+  try {
+    return resolveWebLocalStorage(Platform.OS, window.localStorage);
+  } catch {
+    return null;
+  }
+};
 
 const getStoredWebScopeRole = () => {
-  if (typeof window === "undefined") return null;
+  const storage = getWebLocalStorage();
+  if (!storage) return null;
   try {
-    const stored = window.localStorage.getItem(WEB_SHELL_LAST_SCOPE_KEY);
+    const stored = storage.getItem(WEB_SHELL_LAST_SCOPE_KEY);
     return isProfileRouteScope(stored) ? stored : null;
   } catch {
     return null;
@@ -26,7 +38,7 @@ export function RootWebShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const effectiveProfile = useEffectiveProfile();
   const explicitRole = getExplicitProfileRouteScope(pathname);
-  const storedRole = typeof window === "undefined" ? null : getStoredWebScopeRole();
+  const storedRole = getStoredWebScopeRole();
   const selectedRole = resolveProfileRouteScope({
     pathname,
     effectiveProfile,
@@ -35,8 +47,14 @@ export function RootWebShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!explicitRole) return;
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(WEB_SHELL_LAST_SCOPE_KEY, explicitRole);
+    const storage = getWebLocalStorage();
+    if (!storage) return;
+    try {
+      storage.setItem(WEB_SHELL_LAST_SCOPE_KEY, explicitRole);
+    } catch {
+      // Storage can be blocked by the browser. Route resolution still works
+      // from the current profile without persistence.
+    }
   }, [explicitRole]);
 
   if (!shouldWrapSharedProfileRoute(pathname)) {
