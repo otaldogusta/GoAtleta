@@ -70,15 +70,42 @@ Deno.serve(async (req) => {
     },
   });
 
-  // Verify access to the student
+  // Verify access without requesting the protected health columns directly.
   const { data: student, error: studentError } = await supabase
     .from("students")
-    .select("*")
+    .select(
+      "id, name, organization_id, photo_url, ra, ra_start_year, external_id, cpf_masked, cpf_hmac, rg, rg_normalized, is_experimental, membership_status, financial_status, inactivated_at, inactivated_by, inactivation_reason, source_pre_registration_id, classid, age, phone, login_email, guardian_name, guardian_phone, guardian_relation, position_primary, position_secondary, athlete_objective, learning_style, birthdate, createdat"
+    )
     .eq("id", studentId)
     .maybeSingle();
 
   if (studentError || !student) {
     return createError(req, 404, "NOT_FOUND", "Student not found or access denied");
+  }
+
+  // Health data must pass through the audited RPC after the boundary migration.
+  // The legacy read keeps this Edge Function compatible during the app-first rollout.
+  let healthProfile: Record<string, unknown> | null = null;
+  const { data: healthRows, error: healthError } = await supabase.rpc(
+    "get_student_health_profiles",
+    {
+      p_student_ids: [studentId],
+      p_reason: "Exportação LGPD solicitada pelo titular",
+      p_source: "lgpd-export",
+    },
+  );
+
+  if (!healthError) {
+    healthProfile = Array.isArray(healthRows) ? (healthRows[0] ?? null) : null;
+  } else if (healthError.code === "PGRST202" || healthError.code === "42883") {
+    const { data: legacyHealth } = await supabase
+      .from("students")
+      .select("health_issue, health_issue_notes, medication_use, medication_notes, health_observations")
+      .eq("id", studentId)
+      .maybeSingle();
+    healthProfile = legacyHealth ?? null;
+  } else {
+    return createError(req, 500, "SERVER_ERROR", "Unable to audit health data export");
   }
 
   // Fetch all related personal data
@@ -114,6 +141,7 @@ Deno.serve(async (req) => {
     generated_at: new Date().toISOString(),
     requested_by: user.id,
     student,
+    health_profile: healthProfile,
     consents: consents ?? [],
     attendance: attendance ?? [],
     sessions: sessions ?? [],

@@ -7,6 +7,7 @@ import type {
     ClassGroup,
     Student,
 } from "../../../core/models";
+import { getStudentById } from "../../../db/students";
 
 export type UseOnEditStudentParams = {
   ageBandOptions: readonly string[];
@@ -140,13 +141,15 @@ export function useOnEditStudent({
   setOpenEditSection,
 }: UseOnEditStudentParams) {
   const onEdit = useCallback(
-    (student: Student) => {
-      // Open first so a bad field doesn't block the modal entirely.
+    async (student: Student) => {
       setShowForm(false);
       setStudentFormError("");
       setStudentDocumentsError({});
-      setShowEditModal(true);
       try {
+        student = (await getStudentById(student.id, {
+          organizationId: student.organizationId,
+        })) ?? student;
+        setShowEditModal(true);
         const safeText = (value: unknown) =>
           typeof value === "string" ? value : value == null ? "" : String(value);
         const cls = classById.get(student.classId) ?? null;
@@ -258,6 +261,7 @@ export function useOnEditStudent({
         setOpenEditSection("studentData");
         closeAllPickers();
       } catch (error) {
+        setShowEditModal(false);
         const detail = error instanceof Error ? error.message : String(error);
         Alert.alert("Erro ao abrir aluno", detail);
       }

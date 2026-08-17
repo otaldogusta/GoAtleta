@@ -101,14 +101,14 @@ describeOrSkip('GoAtleta E2E LGPD Workflow', () => {
 
   it('should verify RLS: Guardian can read their student, but random user cannot', async () => {
     // Guardian tries to read
-    const { data: s1, error: e1 } = await guardianClient.from('students').select('*').eq('id', studentId);
+    const { data: s1, error: e1 } = await guardianClient.from('students').select('id, name').eq('id', studentId);
     expect(e1).toBeNull();
     expect(s1.length).toBe(1);
 
     // Create a random stranger
     const strangerClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } });
     await strangerClient.auth.signUp({ email: `stranger_${Date.now()}@test.com`, password: 'strangerpass' });
-    const { data: s2 } = await strangerClient.from('students').select('*').eq('id', studentId);
+    const { data: s2 } = await strangerClient.from('students').select('id, name').eq('id', studentId);
     expect(s2.length).toBe(0); // RLS Blocks
   });
 
@@ -165,7 +165,11 @@ describeOrSkip('GoAtleta E2E LGPD Workflow', () => {
     }
 
     // After DSR processing, check anonymization
-    const studentCheck = await adminClient.from('students').select('*').eq('id', studentId).single();
+    const studentCheck = await adminClient
+      .from('students')
+      .select('id, name, phone, cpf_encrypted')
+      .eq('id', studentId)
+      .single();
     expect(studentCheck.data.name).toContain('Anonymized');
     expect(studentCheck.data.phone).toBe('00000000000');
     expect(studentCheck.data.cpf_encrypted).toBeNull();

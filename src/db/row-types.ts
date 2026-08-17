@@ -151,6 +151,17 @@ export type StudentRow = {
   createdat: string;
 };
 
+export type StudentHealthProfileRow = {
+  student_id: string;
+  health_issue?: boolean | null;
+  health_issue_notes?: string | null;
+  medication_use?: boolean | null;
+  medication_notes?: string | null;
+  health_observations?: string | null;
+  source_is_legacy?: boolean | null;
+  updated_at?: string | null;
+};
+
 export type StudentClassEnrollmentRow = {
   id: string;
   organization_id?: string | null;

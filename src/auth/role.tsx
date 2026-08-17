@@ -56,6 +56,50 @@ type StudentRow = {
   createdat: string;
 };
 
+type StudentHealthRow = {
+  student_id?: string;
+  id?: string;
+  health_issue?: boolean | null;
+  health_issue_notes?: string | null;
+  medication_use?: boolean | null;
+  medication_notes?: string | null;
+  health_observations?: string | null;
+};
+
+const ROLE_STUDENT_SELECT = [
+  "id",
+  "name",
+  "organization_id",
+  "photo_url",
+  "classid",
+  "age",
+  "phone",
+  "login_email",
+  "guardian_name",
+  "guardian_phone",
+  "guardian_relation",
+  "position_primary",
+  "position_secondary",
+  "athlete_objective",
+  "learning_style",
+  "birthdate",
+  "membership_status",
+  "financial_status",
+  "inactivated_at",
+  "inactivated_by",
+  "inactivation_reason",
+  "createdat",
+].join(",");
+
+const ROLE_STUDENT_HEALTH_SELECT = [
+  "id",
+  "health_issue",
+  "health_issue_notes",
+  "medication_use",
+  "medication_notes",
+  "health_observations",
+].join(",");
+
 const mapStudent = (row: StudentRow): Student => ({
   id: row.id,
   name: row.name,
@@ -110,7 +154,7 @@ const fetchStudentSelf = async (token: string, userId: string) => {
   const base = SUPABASE_URL.replace(/\/$/, "");
   const res = await fetch(
     base +
-      "/rest/v1/students?select=*&student_user_id=eq." +
+      `/rest/v1/students?select=${ROLE_STUDENT_SELECT}&student_user_id=eq.` +
       encodeURIComponent(userId) +
       "&limit=1",
     {
@@ -125,7 +169,61 @@ const fetchStudentSelf = async (token: string, userId: string) => {
   if (!res.ok) throw new Error(text || "Falha ao buscar aluno.");
   const rows = text ? (JSON.parse(text) as StudentRow[]) : [];
   if (!rows.length) return null;
-  return mapStudent(rows[0]);
+  const row = rows[0];
+  let health: StudentHealthRow | null = null;
+
+  const healthResponse = await fetch(base + "/rest/v1/rpc/get_student_health_profiles", {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      p_student_ids: [row.id],
+      p_reason: "Carregar perfil do aluno autenticado",
+      p_source: "role-provider",
+    }),
+  });
+
+  if (healthResponse.ok) {
+    const healthText = await healthResponse.text();
+    health = healthText
+      ? ((JSON.parse(healthText) as StudentHealthRow[])[0] ?? null)
+      : null;
+  } else if (healthResponse.status === 404) {
+    const legacyResponse = await fetch(
+      base +
+        `/rest/v1/students?select=${ROLE_STUDENT_HEALTH_SELECT}&id=eq.` +
+        encodeURIComponent(row.id) +
+        "&limit=1",
+      {
+        method: "GET",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (legacyResponse.ok) {
+      const legacyText = await legacyResponse.text();
+      health = legacyText
+        ? ((JSON.parse(legacyText) as StudentHealthRow[])[0] ?? null)
+        : null;
+    }
+  } else {
+    const healthErrorText = await healthResponse.text();
+    throw new Error(healthErrorText || "Falha ao buscar dados de saúde do aluno.");
+  }
+
+  return mapStudent({
+    ...row,
+    health_issue: health?.health_issue,
+    health_issue_notes: health?.health_issue_notes,
+    medication_use: health?.medication_use,
+    medication_notes: health?.medication_notes,
+    health_observations: health?.health_observations,
+  });
 };
 
 const buildPreviewStudent = (userId: string | null): Student => ({
