@@ -31,7 +31,10 @@ jest.mock("../../auth/session", () => ({
   getSessionUserId: () => mockGetSessionUserId(),
 }));
 
-import { updateStudentOperationalStatus } from "../students";
+import {
+  STUDENT_OPERATIONAL_SELECT,
+  updateStudentOperationalStatus,
+} from "../students";
 
 const inactiveStudentRow = {
   id: "student-1",
@@ -72,7 +75,7 @@ describe("updateStudentOperationalStatus", () => {
     );
 
     expect(mockSupabasePatch).toHaveBeenCalledWith(
-      "/students?id=eq.student-1&organization_id=eq.org-1",
+      `/students?select=${STUDENT_OPERATIONAL_SELECT}&id=eq.student-1&organization_id=eq.org-1`,
       expect.objectContaining({
         membership_status: "inactive",
         inactivated_by: "user-1",

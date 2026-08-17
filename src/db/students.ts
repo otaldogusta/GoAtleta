@@ -52,6 +52,7 @@ import type {
     AthleteIntakeRow,
     AttendanceRow,
     StudentClassEnrollmentRow,
+    StudentHealthProfileRow,
     StudentPreRegistrationRow,
     StudentRow,
 } from "./row-types";
@@ -116,6 +117,49 @@ type AttendanceCacheStore = Record<
 
 const buildStudentsCacheKey = (organizationId: string | null) =>
   organizationId ? `${CACHE_KEYS.students}_${organizationId}` : CACHE_KEYS.students;
+
+export const STUDENT_OPERATIONAL_SELECT = [
+  "id",
+  "name",
+  "organization_id",
+  "photo_url",
+  "ra",
+  "ra_start_year",
+  "external_id",
+  "cpf_masked",
+  "cpf_hmac",
+  "rg",
+  "rg_normalized",
+  "is_experimental",
+  "membership_status",
+  "financial_status",
+  "inactivated_at",
+  "inactivated_by",
+  "inactivation_reason",
+  "source_pre_registration_id",
+  "classid",
+  "age",
+  "phone",
+  "login_email",
+  "guardian_name",
+  "guardian_phone",
+  "guardian_relation",
+  "position_primary",
+  "position_secondary",
+  "athlete_objective",
+  "learning_style",
+  "birthdate",
+  "createdat",
+].join(",");
+
+const STUDENT_HEALTH_SELECT = [
+  "id",
+  "health_issue",
+  "health_issue_notes",
+  "medication_use",
+  "medication_notes",
+  "health_observations",
+].join(",");
 
 const buildAttendanceCacheOrgKey = (organizationId: string | null | undefined) =>
   organizationId?.trim() || "__global__";
@@ -205,6 +249,133 @@ const mapStudentRow = (
     birthDate: row.birthdate ?? "",
     createdAt: row.createdat,
   };
+};
+
+const isHealthProfileRpcUnavailable = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("get_student_health_profiles") ||
+    normalized.includes("upsert_student_health_profile")
+  ) && (
+    normalized.includes("schema cache") ||
+    normalized.includes("could not find") ||
+    normalized.includes("pgrst202") ||
+    normalized.includes("404")
+  );
+};
+
+const applyHealthProfile = (
+  student: Student,
+  health: StudentHealthProfileRow | undefined
+): Student => {
+  if (!health) return student;
+  return {
+    ...student,
+    healthIssue: health.health_issue ?? false,
+    healthIssueNotes: health.health_issue_notes ?? "",
+    medicationUse: health.medication_use ?? false,
+    medicationNotes: health.medication_notes ?? "",
+    healthObservations: health.health_observations ?? "",
+  };
+};
+
+const getStudentHealthRows = async (
+  studentIds: string[],
+  organizationId: string | null | undefined,
+  source: string
+) => {
+  const ids = Array.from(new Set(studentIds.map((id) => id.trim()).filter(Boolean)));
+  if (!ids.length) return [] as StudentHealthProfileRow[];
+
+  try {
+    const rows = await supabasePost<StudentHealthProfileRow[]>(
+      "/rpc/get_student_health_profiles",
+      {
+        p_student_ids: ids,
+        p_reason: "Exibir dados de saúde no cadastro do aluno",
+        p_source: source,
+      }
+    );
+    return Array.isArray(rows) ? rows : [];
+  } catch (error) {
+    if (!isHealthProfileRpcUnavailable(error)) throw error;
+
+    const inFilter = buildStudentsInFilter(ids);
+    const rows = await supabaseGet<(StudentRow & { id: string })[]>(
+      organizationId
+        ? `/students?select=${STUDENT_HEALTH_SELECT}&organization_id=eq.${encodeURIComponent(organizationId)}&id=in.(${inFilter})`
+        : `/students?select=${STUDENT_HEALTH_SELECT}&id=in.(${inFilter})`
+    );
+    return rows.map((row) => ({
+      student_id: row.id,
+      health_issue: row.health_issue,
+      health_issue_notes: row.health_issue_notes,
+      medication_use: row.medication_use,
+      medication_notes: row.medication_notes,
+      health_observations: row.health_observations,
+      source_is_legacy: true,
+    }));
+  }
+};
+
+const enrichStudentsWithHealth = async (
+  students: Student[],
+  organizationId: string | null | undefined,
+  source: string
+) => {
+  if (!students.length) return students;
+  const healthRows = await getStudentHealthRows(
+    students.map((student) => student.id),
+    organizationId,
+    source
+  );
+  const healthByStudentId = new Map(
+    healthRows.map((row) => [row.student_id, row] as const)
+  );
+  return students.map((student) =>
+    applyHealthProfile(student, healthByStudentId.get(student.id))
+  );
+};
+
+const buildStudentHealthPayload = (student: Student) => ({
+  health_issue: student.healthIssue ?? false,
+  health_issue_notes: student.healthIssue
+    ? student.healthIssueNotes?.trim() || null
+    : null,
+  medication_use: student.medicationUse ?? false,
+  medication_notes: student.medicationUse
+    ? student.medicationNotes?.trim() || null
+    : null,
+  health_observations: student.healthObservations?.trim() || null,
+});
+
+const persistStudentHealth = async (
+  student: Student,
+  organizationId: string | null | undefined,
+  source: string
+) => {
+  const health = buildStudentHealthPayload(student);
+  try {
+    await supabasePost("/rpc/upsert_student_health_profile", {
+      p_student_id: student.id,
+      p_health_issue: health.health_issue,
+      p_health_issue_notes: health.health_issue_notes,
+      p_medication_use: health.medication_use,
+      p_medication_notes: health.medication_notes,
+      p_health_observations: health.health_observations,
+      p_reason: "Atualizar dados de saúde do aluno",
+      p_source: source,
+    });
+  } catch (error) {
+    if (!isHealthProfileRpcUnavailable(error)) throw error;
+    await supabasePatch(
+      organizationId
+        ? `/students?id=eq.${encodeURIComponent(student.id)}&organization_id=eq.${encodeURIComponent(organizationId)}`
+        : `/students?id=eq.${encodeURIComponent(student.id)}`,
+      health
+    );
+  }
 };
 
 const buildStudentsInFilter = (ids: string[]) =>
@@ -770,7 +941,7 @@ export async function linkExistingStudentByIdentity(params: {
 
   if (ra) {
     const raRows = await supabaseGet<StudentRow[]>(
-      `/students?select=*&organization_id=eq.${encodeURIComponent(
+      `/students?select=${STUDENT_OPERATIONAL_SELECT}&organization_id=eq.${encodeURIComponent(
         organizationId
       )}&ra=eq.${encodeURIComponent(ra)}&limit=1`
     );
@@ -780,7 +951,7 @@ export async function linkExistingStudentByIdentity(params: {
 
   if (!row && email) {
     const emailRows = await supabaseGet<StudentRow[]>(
-      `/students?select=*&organization_id=eq.${encodeURIComponent(
+      `/students?select=${STUDENT_OPERATIONAL_SELECT}&organization_id=eq.${encodeURIComponent(
         organizationId
       )}&login_email=eq.${encodeURIComponent(email)}&limit=1`
     );
@@ -792,7 +963,11 @@ export async function linkExistingStudentByIdentity(params: {
     return { status: "none", student: null, matchedBy: null };
   }
 
-  const student = mapStudentRow(row, organizationId);
+  const [student] = await enrichStudentsWithHealth(
+    [mapStudentRow(row, organizationId)],
+    organizationId,
+    "link-existing-student"
+  );
   const alreadyLinked = await isAlreadyLinkedToClass(
     student,
     params.classId,
@@ -823,7 +998,7 @@ export async function getStudents(
     if (!activeOrganizationId) return [];
     const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
     const rows = await supabaseGet<StudentRow[]>(
-      `/students?select=*&organization_id=eq.${encodeURIComponent(
+      `/students?select=${STUDENT_OPERATIONAL_SELECT}&organization_id=eq.${encodeURIComponent(
         activeOrganizationId
       )}&order=name.asc`
     );
@@ -858,12 +1033,12 @@ export async function getStudentsByClass(
       options.organizationId ?? (await getActiveOrganizationId());
     const rows = await supabaseGet<StudentRow[]>(
       activeOrganizationId
-        ? "/students?select=*&classid=eq." +
+        ? `/students?select=${STUDENT_OPERATIONAL_SELECT}&classid=eq.` +
             encodeURIComponent(classId) +
             "&organization_id=eq." +
             encodeURIComponent(activeOrganizationId) +
             "&order=name.asc"
-        : "/students?select=*&classid=eq." + encodeURIComponent(classId) + "&order=name.asc"
+        : `/students?select=${STUDENT_OPERATIONAL_SELECT}&classid=eq.` + encodeURIComponent(classId) + "&order=name.asc"
     );
     const directStudents = rows.map((row) => mapStudentRow(row, activeOrganizationId));
     const byId = new Map(directStudents.map((student) => [student.id, student]));
@@ -887,8 +1062,8 @@ export async function getStudentsByClass(
         if (inFilter) {
           const enrolledRows = await supabaseGet<StudentRow[]>(
             activeOrganizationId
-              ? `/students?select=*&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&id=in.(${inFilter})&order=name.asc`
-              : `/students?select=*&id=in.(${inFilter})&order=name.asc`
+              ? `/students?select=${STUDENT_OPERATIONAL_SELECT}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&id=in.(${inFilter})&order=name.asc`
+              : `/students?select=${STUDENT_OPERATIONAL_SELECT}&id=in.(${inFilter})&order=name.asc`
           );
           for (const row of enrolledRows) {
             const mapped = mapStudentRow(row, activeOrganizationId);
@@ -902,9 +1077,14 @@ export async function getStudentsByClass(
       }
     }
 
-    return Array.from(byId.values())
+    const scopedStudents = Array.from(byId.values())
       .filter((student) => options.includeInactive || student.membershipStatus !== "inactive")
       .sort((a, b) => a.name.localeCompare(b.name));
+    return enrichStudentsWithHealth(
+      scopedStudents,
+      activeOrganizationId,
+      "class-students-list"
+    );
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
       const activeOrganizationId =
@@ -932,15 +1112,20 @@ export async function getStudentById(
     options.organizationId ?? (await getActiveOrganizationId());
   const rows = await supabaseGet<StudentRow[]>(
     activeOrganizationId
-      ? "/students?select=*&id=eq." +
+      ? `/students?select=${STUDENT_OPERATIONAL_SELECT}&id=eq.` +
           encodeURIComponent(id) +
           "&organization_id=eq." +
           encodeURIComponent(activeOrganizationId)
-      : "/students?select=*&id=eq." + encodeURIComponent(id)
+      : `/students?select=${STUDENT_OPERATIONAL_SELECT}&id=eq.` + encodeURIComponent(id)
   );
   const row = rows[0];
   if (!row) return null;
-  return mapStudentRow(row, activeOrganizationId);
+  const [student] = await enrichStudentsWithHealth(
+    [mapStudentRow(row, activeOrganizationId)],
+    activeOrganizationId,
+    "student-detail"
+  );
+  return student ?? null;
 }
 
 export async function saveStudent(student: Student) {
@@ -980,11 +1165,6 @@ export async function saveStudent(student: Student) {
     guardian_name: student.guardianName?.trim() || null,
     guardian_phone: student.guardianPhone?.trim() || null,
     guardian_relation: student.guardianRelation?.trim() || null,
-    health_issue: student.healthIssue ?? false,
-    health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
-    medication_use: student.medicationUse ?? false,
-    medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
-    health_observations: student.healthObservations?.trim() || null,
     position_primary: student.positionPrimary ?? "indefinido",
     position_secondary: student.positionSecondary ?? "indefinido",
     athlete_objective: student.athleteObjective ?? "base",
@@ -1006,16 +1186,15 @@ export async function saveStudent(student: Student) {
       const fallbackPayload = { ...payload };
       delete fallbackPayload.college_course;
       await supabasePost("/students", [fallbackPayload]);
-      return;
-    }
-    if (message.includes("students_org_cpf_hmac_uidx")) {
+    } else if (message.includes("students_org_cpf_hmac_uidx")) {
       throw new Error("Já existe um aluno com este CPF nesta organização.");
-    }
-    if (message.includes("students_org_ra_uidx")) {
+    } else if (message.includes("students_org_ra_uidx")) {
       throw new Error("Já existe um aluno com este RA nesta organização.");
+    } else {
+      throw error;
     }
-    throw error;
   }
+  await persistStudentHealth(student, activeOrganizationId, "student-create");
 }
 
 export async function updateStudent(student: Student) {
@@ -1054,11 +1233,6 @@ export async function updateStudent(student: Student) {
     guardian_name: student.guardianName?.trim() || null,
     guardian_phone: student.guardianPhone?.trim() || null,
     guardian_relation: student.guardianRelation?.trim() || null,
-    health_issue: student.healthIssue ?? false,
-    health_issue_notes: student.healthIssue ? student.healthIssueNotes?.trim() || null : null,
-    medication_use: student.medicationUse ?? false,
-    medication_notes: student.medicationUse ? student.medicationNotes?.trim() || null : null,
-    health_observations: student.healthObservations?.trim() || null,
     position_primary: student.positionPrimary ?? "indefinido",
     position_secondary: student.positionSecondary ?? "indefinido",
     athlete_objective: student.athleteObjective ?? "base",
@@ -1100,16 +1274,15 @@ export async function updateStudent(student: Student) {
           : "/students?id=eq." + encodeURIComponent(student.id),
         fallbackPayload
       );
-      return;
-    }
-    if (message.includes("students_org_cpf_hmac_uidx")) {
+    } else if (message.includes("students_org_cpf_hmac_uidx")) {
       throw new Error("Já existe um aluno com este CPF nesta organização.");
-    }
-    if (message.includes("students_org_ra_uidx")) {
+    } else if (message.includes("students_org_ra_uidx")) {
       throw new Error("Já existe um aluno com este RA nesta organização.");
+    } else {
+      throw error;
     }
-    throw error;
   }
+  await persistStudentHealth(student, activeOrganizationId, "student-update");
 }
 
 export async function revealStudentCpf(
@@ -1208,7 +1381,7 @@ export async function updateStudentOperationalStatus(
   }
 
   const updatedRows = await supabasePatch<StudentRow[]>(
-    `/students?id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}`,
+    `/students?select=${STUDENT_OPERATIONAL_SELECT}&id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}`,
     payload,
     { Prefer: "return=representation" }
   );
@@ -1219,7 +1392,14 @@ export async function updateStudentOperationalStatus(
     );
   }
 
-  const updatedStudent = mapStudentRow(updatedRow, activeOrganizationId);
+  const [updatedStudent] = await enrichStudentsWithHealth(
+    [mapStudentRow(updatedRow, activeOrganizationId)],
+    activeOrganizationId,
+    "student-operational-status"
+  );
+  if (!updatedStudent) {
+    throw new Error("A situação do aluno não foi atualizada.");
+  }
   if (
     (patch.membershipStatus &&
       updatedStudent.membershipStatus !== patch.membershipStatus) ||
