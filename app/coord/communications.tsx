@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import CommunicationsScreen from "../communications";
 
-const CoordCommunicationsRoute = createLazyRoute(
-  () => import("../communications"),
-  createLoadingFallback(ptBR.loading.routes.communication)
-);
-
-export default CoordCommunicationsRoute;
+export default function CoordinationCommunicationsRoute() {
+  return <CommunicationsScreen />;
+}

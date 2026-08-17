@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import StudentBadgesScreen from "../student-badges";
 
-const StudentAchievementsTab = createLazyRoute(
-  () => import("../student-badges"),
-  createLoadingFallback(ptBR.loading.routes.achievements)
-);
-
-export default StudentAchievementsTab;
+export default function StudentAchievementsRoute() {
+  return <StudentBadgesScreen />;
+}

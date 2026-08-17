@@ -1016,12 +1016,15 @@ export function HomeProfessorScreen({
 
   const activeItem = activeIndex !== null ? agendaScrollItems[activeIndex] : null;
   const isWebHome = Platform.OS === "web";
-  const isUx2CWebHome = isWebHome;
+  // Web e native compartilham a Home atual. Os componentes internos já tratam
+  // as capacidades de cada plataforma; esta rota não deve cair no painel
+  // legado apenas por estar rodando no Android ou iOS.
+  const usesCurrentHomeExperience = true;
 
   const isUx2CWideDesktop = responsiveLayout.supportsDenseGrid;
   const isUx2CUltraWide = responsiveLayout.tier === "ultrawide";
-  const isUx2CCompact = isUx2CWebHome && !isUx2CWideDesktop;
-  const isUx2CMobile = isUx2CWebHome && responsiveLayout.isMobile;
+  const isUx2CCompact = usesCurrentHomeExperience && !isUx2CWideDesktop;
+  const isUx2CMobile = usesCurrentHomeExperience && responsiveLayout.isMobile;
   const ux2CRailWidth = isUx2CUltraWide ? 420 : isUx2CWideDesktop ? 380 : 320;
   const ux2CGap = isUx2CUltraWide ? 28 : isUx2CWideDesktop ? 24 : 16;
   const ux2CRailHeight = Math.max(
@@ -1051,11 +1054,11 @@ export function HomeProfessorScreen({
   const homeContentContainerStyle = useMemo(
     () =>
       ({
-        padding: isUx2CWebHome ? (isUx2CCompact ? 16 : 22) : isWebHome ? 14 : 16,
-        gap: isUx2CWebHome ? (isUx2CCompact ? 12 : 14) : isWebHome ? 12 : 14,
+        padding: usesCurrentHomeExperience ? (isUx2CCompact ? 16 : 22) : isWebHome ? 14 : 16,
+        gap: usesCurrentHomeExperience ? (isUx2CCompact ? 12 : 14) : isWebHome ? 12 : 14,
         paddingBottom: insets.bottom + (isWebHome ? 280 : 240),
         width: "100%",
-        maxWidth: isUx2CWebHome
+        maxWidth: usesCurrentHomeExperience
           ? (isUx2CUltraWide ? 1600 : isUx2CWideDesktop ? 1460 : undefined)
           : isAdminDashboardContext && isWebHome
             ? (isUx2CUltraWide ? 1600 : isUx2CWideDesktop ? 1460 : 1320)
@@ -1064,7 +1067,7 @@ export function HomeProfessorScreen({
               : undefined,
         alignSelf: "center",
       }) as const,
-    [insets.bottom, isAdminDashboardContext, isUx2CCompact, isUx2CUltraWide, isUx2CWebHome, isUx2CWideDesktop, isWebHome]
+    [insets.bottom, isAdminDashboardContext, isUx2CCompact, isUx2CUltraWide, isUx2CWideDesktop, isWebHome, usesCurrentHomeExperience]
   );
 
   const agendaScrollStyle = useMemo(() => {
@@ -1641,7 +1644,7 @@ export function HomeProfessorScreen({
 
     <SafeAreaView
 
-      style={{ flex: 1, backgroundColor: isUx2CWebHome ? ux2CPageBackground : colors.background }}
+      style={{ flex: 1, backgroundColor: usesCurrentHomeExperience ? ux2CPageBackground : colors.background }}
 
     >
 
@@ -1981,7 +1984,7 @@ export function HomeProfessorScreen({
 
         ) : null}
 
-        {isUx2CWebHome ? (
+        {usesCurrentHomeExperience ? (
           <View
             style={{
               flexDirection: "row",
@@ -2070,7 +2073,7 @@ export function HomeProfessorScreen({
           </View>
         ) : null}
 
-        {!isAdminDashboardContext && !isUx2CWebHome ? (
+        {!isAdminDashboardContext && !usesCurrentHomeExperience ? (
         <View
           style={{
             padding: 14,
@@ -2208,7 +2211,7 @@ export function HomeProfessorScreen({
         </View>
         ) : null}
 
-        {isAdminDashboardContext && !isUx2CWebHome ? (
+        {isAdminDashboardContext && !usesCurrentHomeExperience ? (
         <View
           style={{
             padding: 14,
@@ -2479,7 +2482,7 @@ export function HomeProfessorScreen({
         </View>
         ) : null}
 
-        {!isAdminDashboardContext && !isUx2CWebHome ? (
+        {!isAdminDashboardContext && !usesCurrentHomeExperience ? (
           <Suspense fallback={<HomeProfessorBelowFoldFallback />}>
             <HomeProfessorBelowFold
               canOpenClassesShortcut={canOpenClassesShortcut}

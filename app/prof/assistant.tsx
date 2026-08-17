@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import AssistantScreen from "../assistant";
 
-const ProfAssistantRoute = createLazyRoute(
-  () => import("../assistant"),
-  createLoadingFallback(ptBR.loading.routes.assistant)
-);
-
-export default ProfAssistantRoute;
+export default function ProfessorAssistantRoute() {
+  return <AssistantScreen />;
+}

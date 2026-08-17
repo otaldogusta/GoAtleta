@@ -46,3 +46,13 @@ export function buildLoginRedirectHref(nextValue: unknown): string {
   const next = sanitizePostLoginRedirect(nextValue);
   return next ? `/login?next=${encodeURIComponent(next)}` : "/login";
 }
+
+export function buildProtectedRouteLoginHref({
+  isWeb,
+  currentRoute,
+}: {
+  isWeb: boolean;
+  currentRoute: unknown;
+}): string {
+  return isWeb ? buildLoginRedirectHref(currentRoute) : "/login";
+}

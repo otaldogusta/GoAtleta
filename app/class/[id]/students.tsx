@@ -12,7 +12,6 @@ import {
     ScrollView,
     Text,
     TextInput,
-    UIManager,
     View,
     useWindowDimensions,
 } from "react-native";
@@ -454,12 +453,6 @@ export default function ClassStudentsScreen() {
     }),
     [isCompactForm]
   );
-
-  useEffect(() => {
-    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  }, []);
 
   const runSectionLayoutAnimation = useCallback(() => {
     // LayoutAnimation may be unavailable/unstable on web; keep section toggle functional.

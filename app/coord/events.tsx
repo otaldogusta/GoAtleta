@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import EventsScreen from "../events";
 
-const CoordEventsRoute = createLazyRoute(
-  () => import("../events"),
-  createLoadingFallback(ptBR.loading.routes.events)
-);
-
-export default CoordEventsRoute;
+export default function CoordinationEventsRoute() {
+  return <EventsScreen />;
+}

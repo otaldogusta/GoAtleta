@@ -1,11 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
 import { MemberPermissionBoundary } from "../../src/auth/MemberPermissionBoundary";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
-
-const ProfCalendarScreen = createLazyRoute(
-  () => import("../calendar"),
-  createLoadingFallback(ptBR.loading.routes.calendar)
-);
+import ProfCalendarScreen from "../calendar";
 
 function ProfCalendarRoute() {
   return (

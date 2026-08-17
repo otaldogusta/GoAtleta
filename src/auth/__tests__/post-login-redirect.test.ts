@@ -1,4 +1,8 @@
-import { buildLoginRedirectHref, sanitizePostLoginRedirect } from "../post-login-redirect";
+import {
+  buildLoginRedirectHref,
+  buildProtectedRouteLoginHref,
+  sanitizePostLoginRedirect,
+} from "../post-login-redirect";
 
 describe("post-login redirect", () => {
   it("accepts internal protected routes with query params", () => {
@@ -25,5 +29,14 @@ describe("post-login redirect", () => {
   it("falls back to plain login when target is unsafe", () => {
     expect(buildLoginRedirectHref("https://evil.example")).toBe("/login");
     expect(buildLoginRedirectHref("/login")).toBe("/login");
+  });
+
+  it("does not restore a stale protected route after native login", () => {
+    expect(
+      buildProtectedRouteLoginHref({ isWeb: false, currentRoute: "/prof/calendar" })
+    ).toBe("/login");
+    expect(
+      buildProtectedRouteLoginHref({ isWeb: true, currentRoute: "/prof/calendar" })
+    ).toBe("/login?next=%2Fprof%2Fcalendar");
   });
 });

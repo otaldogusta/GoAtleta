@@ -1,56 +1,43 @@
+import * as Network from "expo-network";
 import { useEffect, useState } from "react";
 
 /**
  * Hook para detectar se o dispositivo está online ou offline.
  * Monitora mudanças de conexão e atualiza o estado em tempo real.
  *
- * Se @react-native-community/netinfo não estiver disponível,
- * assume online por padrão (fallback para app online-first).
+ * Usa expo-network, que já faz parte do runtime nativo do aplicativo.
  */
 export function useIsOnline(): boolean {
   const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
+    let isMounted = true;
+    let subscription: ReturnType<typeof Network.addNetworkStateListener> | null = null;
+
+    const updateConnectionState = (state: Network.NetworkState) => {
+      if (!isMounted) return;
+
+      setIsOnline(state.isConnected !== false && state.isInternetReachable !== false);
+    };
 
     const setupNetworkListener = async () => {
       try {
-        // Try to dynamically import NetInfo - it may not be installed
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const NetInfo: any = await import("@react-native-community/netinfo" as any);
-
-        // Get initial state
-        try {
-          const state = await NetInfo.default.fetch();
-          setIsOnline(state.isConnected !== false);
-        } catch (fetchError) {
-          console.warn("NetInfo.fetch failed", fetchError);
-          setIsOnline(true);
-        }
-
-        // Subscribe to changes
-        try {
-          unsubscribe = NetInfo.default.addEventListener((state: any) => {
-            setIsOnline(state.isConnected !== false);
-          });
-        } catch (subscribeError) {
-          console.warn("NetInfo.addEventListener failed", subscribeError);
-        }
+        subscription = Network.addNetworkStateListener(updateConnectionState);
+        const state = await Network.getNetworkStateAsync();
+        updateConnectionState(state);
       } catch (error) {
-        // NetInfo module not available, assume online (fallback)
-        // This is safe for online-first apps
-        console.warn("NetInfo not available, assuming online", error);
-        setIsOnline(true);
+        console.warn("Network state unavailable, assuming online", error);
+        if (isMounted) setIsOnline(true);
       }
     };
 
     setupNetworkListener();
 
     return () => {
-      unsubscribe?.();
+      isMounted = false;
+      subscription?.remove();
     };
   }, []);
 
   return isOnline;
 }
-

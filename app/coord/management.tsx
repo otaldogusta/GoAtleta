@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import CoordinationScreen from "../coordination";
 
-const CoordinationManagementTab = createLazyRoute(
-  () => import("../coordination"),
-  createLoadingFallback(ptBR.loading.routes.management)
-);
-
-export default CoordinationManagementTab;
+export default function CoordinationManagementRoute() {
+  return <CoordinationScreen />;
+}

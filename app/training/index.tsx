@@ -2357,6 +2357,10 @@ export default function TrainingList() {
     [responsiveLayout.supportsDenseGrid]
   );
   const isPlanningCompact = responsiveLayout.isMobile;
+  // Web e native compartilham a mesma experiência de planejamento. A composição
+  // interna muda conforme a capacidade da plataforma, mas a rota não pode voltar
+  // a escolher o formulário legado por Platform.OS.
+  const usesUnifiedPlanningWorkspace = true;
 
   const savePlan = async () => {
     if (!classId) {
@@ -3581,7 +3585,7 @@ export default function TrainingList() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {Platform.OS === "web" ? (
+        {usesUnifiedPlanningWorkspace ? (
           <>
             <ScreenPageHeader
               title="Planejamento"
@@ -4643,7 +4647,7 @@ export default function TrainingList() {
           />
         </Suspense>
       </ModalSheet>
-      {Platform.OS !== "web" && selectedPlan ? (
+      {!usesUnifiedPlanningWorkspace && Platform.OS !== "web" && selectedPlan ? (
         <ModalSheet
           visible
           onClose={() => setSelectedPlan(null)}

@@ -70,7 +70,9 @@ export function AppRefreshControl(props: AppRefreshControlProps) {
         refreshing={refreshing}
         style={style}
         tintColor={tintColor}
-      />
+      >
+        {children}
+      </RefreshControl>
     );
   }
 

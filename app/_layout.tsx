@@ -32,7 +32,10 @@ import {
     savePendingTrainerInvite,
     shouldRedirectPendingRole,
 } from "../src/auth/pending-invite";
-import { buildLoginRedirectHref, sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
+import {
+  buildProtectedRouteLoginHref,
+  sanitizePostLoginRedirect,
+} from "../src/auth/post-login-redirect";
 import { RoleProvider, useRole } from "../src/auth/role";
 import {
     getTrainerPermissionKey,
@@ -530,7 +533,10 @@ function RootLayoutContent() {
         Platform.OS === "web" && typeof window !== "undefined"
           ? `${window.location.pathname}${window.location.search}${window.location.hash}`
           : normalizedPathname;
-      redirectTo = buildLoginRedirectHref(currentRoute);
+      redirectTo = buildProtectedRouteLoginHref({
+        isWeb: Platform.OS === "web",
+        currentRoute,
+      });
     }
 
     if (redirectTo) {

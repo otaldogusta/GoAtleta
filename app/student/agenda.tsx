@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import StudentAgendaScreen from "../agenda";
 
-const StudentAgendaTab = createLazyRoute(
-  () => import("../agenda"),
-  createLoadingFallback(ptBR.loading.routes.agenda)
-);
-
-export default StudentAgendaTab;
+export default function StudentAgendaRoute() {
+  return <StudentAgendaScreen />;
+}

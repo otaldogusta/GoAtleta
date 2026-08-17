@@ -1339,6 +1339,56 @@ export function ClassPlanPreviewModal({
   if (workspaceMode) {
     if (!visible) return null;
 
+    if (Platform.OS !== "web") {
+      return (
+        <View
+          ref={workspaceRootRef}
+          style={[
+            styles.workspaceRoot,
+            styles.workspaceRootNative,
+            { backgroundColor: colors.backgroundSubtle, borderColor: colors.border },
+          ]}
+        >
+          <View
+            style={[
+              styles.workspaceContextBar,
+              { backgroundColor: colors.card, borderBottomColor: colors.border },
+            ]}
+          >
+            <View style={styles.workspaceContextCopy}>
+              <GoAtletaIcon name="calendar" size={17} color={colors.primaryBg} />
+              <View style={styles.workspaceContextText}>
+                <Text numberOfLines={1} style={[styles.workspaceContextTitle, { color: colors.text }]}>
+                  {classGroup.name || workingPlan.title || "Novo plano"}
+                </Text>
+                <Text numberOfLines={1} style={[styles.workspaceContextMeta, { color: colors.muted }]}>
+                  {formatLessonDate(lessonDate)} · {formatLessonTime(classGroup) || "Horário a definir"}
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={handleWorkspaceUndo}
+              disabled={!undoStackRef.current.length}
+              accessibilityRole="button"
+              accessibilityLabel="Desfazer alteração"
+              style={({ pressed }) => [
+                styles.workspaceIconButton,
+                {
+                  borderColor: colors.border,
+                  opacity: !undoStackRef.current.length ? 0.4 : pressed ? 0.68 : 1,
+                },
+              ]}
+            >
+              <GoAtletaIcon name="restore" size={17} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <View style={styles.workspaceNativeOutline}>{renderOutline(editor)}</View>
+          {isEditing && !periodizationSource ? renderEditFooter(true) : null}
+        </View>
+      );
+    }
+
     return (
       <View ref={workspaceRootRef} style={[styles.workspaceRoot, { backgroundColor: colors.backgroundSubtle, borderColor: colors.border }]}>
         <View
@@ -1592,6 +1642,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     position: "relative",
   },
+  workspaceRootNative: {
+    borderRadius: 12,
+  },
   workspaceFloatingControls: {
     position: "absolute",
     left: 14,
@@ -1669,8 +1722,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
   },
+  workspaceContextText: { flex: 1, minWidth: 0 },
   workspaceContextTitle: { fontSize: 13, fontWeight: "900" },
   workspaceContextMeta: { fontSize: 11 },
+  workspaceNativeOutline: { flex: 1, minHeight: 0 },
   workspaceDuration: {
     minHeight: 32,
     paddingHorizontal: 8,

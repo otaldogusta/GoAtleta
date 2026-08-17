@@ -1,14 +1,8 @@
 import { markRender } from "../../src/observability/perf";
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
-
-const RegulationHistoryScreen = createLazyRoute(
-  () => import("../regulation-history"),
-  createLoadingFallback(ptBR.loading.generic)
-);
+import RegulationHistoryScreen from "../regulation-history";
 
 export default function ProfessorRegulationHistoryTab() {
   markRender("screen.profRegulationHistory.render.root");
-  // perf-check: ignore-measure - wrapper fino, carga delegada para a tela legada.
+  // perf-check: ignore-measure - wrapper fino; a tela compartilhada mede seu carregamento.
   return <RegulationHistoryScreen />;
 }

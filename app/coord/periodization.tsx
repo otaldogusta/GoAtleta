@@ -1,9 +1,5 @@
-import { ptBR } from "../../src/constants/copy/pt-br";
-import { createLazyRoute, createLoadingFallback } from "../../src/ui/lazy-screen";
+import PeriodizationScreen from "../periodization";
 
-const CoordPeriodizationRoute = createLazyRoute(
-  () => import("../periodization"),
-  createLoadingFallback(ptBR.loading.routes.periodization)
-);
-
-export default CoordPeriodizationRoute;
+export default function CoordinationPeriodizationRoute() {
+  return <PeriodizationScreen />;
+}
