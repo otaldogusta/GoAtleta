@@ -68,6 +68,7 @@ import {
   toPlanningGraphFromClassPlans,
 } from "../../src/core/plan-engine";
 import { buildPeriodizationWeekSchedule } from "../../src/screens/periodization/application/build-auto-plan-for-cycle-day";
+import { buildNextCycleDraft } from "../../src/screens/periodization/application/next-cycle-draft";
 import { useAcwrState } from "../../src/screens/periodization/hooks/useAcwrState";
 import { useClassPlansLoader } from "../../src/screens/periodization/hooks/useClassPlansLoader";
 import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useGeneratePlansMode";
@@ -130,7 +131,9 @@ import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-sco
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
 
 import {
+  archivePlanningCycle,
   ensureActiveCycleForYear,
+  getOrCreateInitialActivePlanningCycle,
   getPlanningCycles,
   upsertPlanningCycle,
 } from "../../src/db/cycles";
@@ -160,6 +163,7 @@ import { GoAtletaIcon } from "../../src/ui/icon-registry";
 
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
+import { useSaveToast } from "../../src/ui/save-toast";
 
 import { CycleTab } from "../../src/screens/periodization/CycleTab";
 import { WeekTab } from "../../src/screens/periodization/WeekTab";
@@ -512,12 +516,16 @@ export default function PeriodizationScreen() {
     scopedRoutes.scope === "coord" && (activeOrganization?.role_level ?? 0) >= 50;
 
   const { confirm: confirmDialog } = useConfirmDialog();
+  const { showSaveToast } = useSaveToast();
 
   const modalCardStyle = useModalCardStyle({ maxHeight: "100%" });
 
   const [activeTab, setActiveTab] = useState<PeriodizationTab>("geral");
   const [showPeriodizationManager, setShowPeriodizationManager] =
     useState(false);
+  const [periodizationManagerMode, setPeriodizationManagerMode] = useState<
+    "manage" | "create-next"
+  >("manage");
   useCopilotContext(
     useMemo(
       () => ({
@@ -962,12 +970,34 @@ export default function PeriodizationScreen() {
       return;
     }
     (async () => {
-      const cycles = await getPlanningCycles(
-        currentClass.id,
-        currentClass.organizationId,
-      );
-      if (!alive) return;
-      setPlanningCycles(cycles);
+      try {
+        const configured = isClassPeriodizationConfigured(currentClass);
+        const cycleYear =
+          Number(currentClass.cycleStartDate.slice(0, 4)) ||
+          new Date().getFullYear();
+        const cycles = configured
+          ? (
+              await getOrCreateInitialActivePlanningCycle(
+                currentClass.id,
+                currentClass.organizationId,
+                cycleYear,
+                currentClass.cycleStartDate || null,
+              )
+            ).cycles
+          : await getPlanningCycles(
+              currentClass.id,
+              currentClass.organizationId,
+            );
+        if (!alive) return;
+        setPlanningCycles(cycles);
+      } catch (error) {
+        if (!alive) return;
+        setPlanningCycles([]);
+        logAction("periodization_cycles_load_failed", {
+          classId: currentClass.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     })();
     return () => {
       alive = false;
@@ -1286,6 +1316,46 @@ export default function PeriodizationScreen() {
   const historyCycles = useMemo(
     () => planningCycles.filter((c) => c.status === "archived"),
     [planningCycles],
+  );
+  const managerPeriodizationPolicy = useMemo(() => {
+    if (activeCycle) return activePeriodizationPolicy;
+    const latestArchivedCycle = [...historyCycles].sort((left, right) => {
+      const dateOrder = right.endDate.localeCompare(left.endDate);
+      return dateOrder || right.year - left.year;
+    })[0];
+    return parsePeriodizationPolicy(latestArchivedCycle?.periodizationPolicyJson);
+  }, [activeCycle, activePeriodizationPolicy, historyCycles]);
+  const managerBaseDraft = useMemo<PeriodizationManagerDraft>(
+    () => ({
+      goal: periodizationGoal || selectedClass?.goal || "",
+      mvLevel: periodizationMvLevel || selectedClass?.mvLevel || "",
+      daysOfWeek: selectedClass?.daysOfWeek ?? [],
+      startTime: selectedClass?.startTime ?? "",
+      durationMinutes: selectedClass?.durationMinutes ?? 60,
+      cycleStartDate:
+        periodizationCycleStartDate || selectedClass?.cycleStartDate || "",
+      cycleLengthWeeks:
+        cycleLength || selectedClass?.cycleLengthWeeks || 52,
+      loadModel: managerPeriodizationPolicy.loadModel,
+      recoveryWeeks: managerPeriodizationPolicy.recoveryWeeks,
+      intensityMin: managerPeriodizationPolicy.intensityMin,
+      intensityMax: managerPeriodizationPolicy.intensityMax,
+    }),
+    [
+      cycleLength,
+      managerPeriodizationPolicy,
+      periodizationCycleStartDate,
+      periodizationGoal,
+      periodizationMvLevel,
+      selectedClass,
+    ],
+  );
+  const managerInitialDraft = useMemo(
+    () =>
+      periodizationManagerMode === "create-next"
+        ? buildNextCycleDraft(managerBaseDraft, planningCycles)
+        : managerBaseDraft,
+    [managerBaseDraft, periodizationManagerMode, planningCycles],
   );
 
   const weekSessions = useMemo(() => {
@@ -3441,7 +3511,7 @@ export default function PeriodizationScreen() {
           Number(selectedClass.cycleStartDate.slice(0, 4)) ||
           new Date().getFullYear();
         try {
-          await ensureActiveCycleForYear(
+          const ensuredCycle = await ensureActiveCycleForYear(
             selectedClass.id,
             selectedClass.organizationId,
             year,
@@ -3452,10 +3522,15 @@ export default function PeriodizationScreen() {
             selectedClass.organizationId,
           );
           setPlanningCycles(cycles);
-        } catch {
-          // Non-blocking — cycle creation is best-effort.
+          await handleGenerateMode("auto", ensuredCycle.id);
+        } catch (error) {
+          Alert.alert(
+            "Não foi possível gerar a periodização",
+            error instanceof Error
+              ? error.message
+              : "O ciclo ativo não pôde ser criado. Tente novamente.",
+          );
         }
-        await handleGenerateMode("auto");
       },
     });
   }, [
@@ -3508,6 +3583,50 @@ export default function PeriodizationScreen() {
     refreshPlans,
     selectedClass,
   ]);
+
+  const handleArchiveCycle = useCallback(() => {
+    if (!selectedClass || isSavingPlans) return;
+    if (!activeCycle) {
+      Alert.alert(
+        "Nenhum ciclo ativo",
+        "Esta periodização já foi encerrada ou ainda não possui um ciclo ativo.",
+      );
+      return;
+    }
+
+    confirmDialog({
+      title: "Encerrar periodização ativa?",
+      message:
+        "Ela sairá da operação atual, mas planos, relatórios e aulas concluídas continuarão no histórico da turma.",
+      confirmLabel: "Encerrar periodização",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: async () => {
+        setIsSavingPlans(true);
+        try {
+          await archivePlanningCycle(activeCycle.id, selectedClass.organizationId);
+          const cycles = await getPlanningCycles(
+            selectedClass.id,
+            selectedClass.organizationId,
+          );
+          setPlanningCycles(cycles);
+          setShowPeriodizationManager(false);
+          setActiveTab("geral");
+          Alert.alert(
+            "Periodização encerrada",
+            "O histórico foi preservado. Crie um novo ciclo quando quiser retomar o planejamento da turma.",
+          );
+        } catch (error) {
+          Alert.alert(
+            "Não foi possível encerrar a periodização",
+            error instanceof Error ? error.message : "Tente novamente.",
+          );
+        } finally {
+          setIsSavingPlans(false);
+        }
+      },
+    });
+  }, [activeCycle, confirmDialog, isSavingPlans, selectedClass]);
 
   const handleDuplicateCycleAsClass = useCallback(() => {
     if (!selectedClass) return;
@@ -4070,8 +4189,13 @@ export default function PeriodizationScreen() {
   ) : null;
 
   const openPeriodizationManager = useCallback(
-    (_section: PeriodizationManagerSection = "cycle") => {
+    (
+      _section: PeriodizationManagerSection = "cycle",
+      mode: "manage" | "create-next" = "manage",
+    ) => {
       closeAllPickers();
+      setPeriodizationManagerMode(mode);
+      setPeriodizationSetupError("");
       setShowPeriodizationManager(true);
     },
     [closeAllPickers],
@@ -4201,7 +4325,7 @@ export default function PeriodizationScreen() {
                   alignItems: "center",
                   gap: 5,
                   borderWidth: 1,
-                  borderColor: isPeriodizationConfigured
+                  borderColor: isPeriodizationConfigured && activeCycle
                     ? colors.success
                     : colors.warning,
                   borderRadius: 999,
@@ -4214,21 +4338,25 @@ export default function PeriodizationScreen() {
                     width: 6,
                     height: 6,
                     borderRadius: 3,
-                    backgroundColor: isPeriodizationConfigured
+                    backgroundColor: isPeriodizationConfigured && activeCycle
                       ? colors.success
                       : colors.warning,
                   }}
                 />
                 <Text
                   style={{
-                    color: isPeriodizationConfigured
+                    color: isPeriodizationConfigured && activeCycle
                       ? colors.successText
                       : colors.warningText,
                     fontSize: 10,
                     fontWeight: "700",
                   }}
                 >
-                  {isPeriodizationConfigured ? "Ciclo ativo" : "Configuração pendente"}
+                  {!isPeriodizationConfigured
+                    ? "Configuração pendente"
+                    : activeCycle
+                      ? "Ciclo ativo"
+                      : "Ciclo encerrado"}
                 </Text>
               </View>
             </View>
@@ -4253,10 +4381,11 @@ export default function PeriodizationScreen() {
         >
           {selectedClass ? (
             <UnifiedPlanningWorkspace
+              key={`${selectedClass.id}:${activeCycle?.id ?? "no-active-cycle"}`}
               colors={colors}
               classId={selectedClass.id}
               initialMonthKey={initialMonthParam}
-              onOpenManager={() => openPeriodizationManager("cycle")}
+              onOpenManager={(mode) => openPeriodizationManager("cycle", mode)}
             />
           ) : (
             <View style={[getSectionCardStyle(colors, "neutral"), { gap: 8 }]}>
@@ -4621,26 +4750,11 @@ export default function PeriodizationScreen() {
         {showPeriodizationManager ? (
           <PeriodizationManagerSheet
             visible={showPeriodizationManager}
+            mode={periodizationManagerMode}
             colors={colors}
             className={classNameLabel}
             classSubtitle={`${normalizeText(selectedClass?.ageBand || "idade não definida")} · ${normalizeText(classGenderLabel)}`}
-            initialDraft={{
-              goal: periodizationGoal || selectedClass?.goal || "",
-              mvLevel: periodizationMvLevel || selectedClass?.mvLevel || "",
-              daysOfWeek: selectedClass?.daysOfWeek ?? [],
-              startTime: selectedClass?.startTime ?? "",
-              durationMinutes: selectedClass?.durationMinutes ?? 60,
-              cycleStartDate:
-                periodizationCycleStartDate ||
-                selectedClass?.cycleStartDate ||
-                "",
-              cycleLengthWeeks:
-                cycleLength || selectedClass?.cycleLengthWeeks || 52,
-              loadModel: activePeriodizationPolicy.loadModel,
-              recoveryWeeks: activePeriodizationPolicy.recoveryWeeks,
-              intensityMin: activePeriodizationPolicy.intensityMin,
-              intensityMax: activePeriodizationPolicy.intensityMax,
-            }}
+            initialDraft={managerInitialDraft}
             weekPlans={weekPlans}
             autoPlanCount={
               visibleClassPlans.filter((plan) => plan.source === "AUTO").length
@@ -4652,17 +4766,31 @@ export default function PeriodizationScreen() {
             completedLessonCount={recentSessionSummaries.length}
             currentWeek={currentWeek}
             configured={isPeriodizationConfigured}
+            active={Boolean(activeCycle)}
             saving={isSavingPeriodizationSetup}
             regenerating={isSavingPlans}
             error={periodizationSetupError}
             onClose={() => {
               closeAllPickers();
               setShowPeriodizationManager(false);
+              setPeriodizationManagerMode("manage");
             }}
-            onSave={handleSavePeriodizationSetup}
+            onSave={async (draft) => {
+              const saved = await handleSavePeriodizationSetup(draft);
+              if (saved && periodizationManagerMode === "create-next") {
+                setShowPeriodizationManager(false);
+                setPeriodizationManagerMode("manage");
+                showSaveToast({
+                  message: `Ciclo ${draft.cycleStartDate.slice(0, 4)} criado e ativado. Agora revise ou gere as semanas automáticas.`,
+                  variant: "success",
+                });
+              }
+              return saved;
+            }}
             onRegenerateAutomatic={handleGenerateCycle}
             onDuplicate={handleDuplicateCycleAsClass}
             onResetAutomatic={handleRemoveCycle}
+            onArchiveCycle={handleArchiveCycle}
             advancedContent={
               competitiveAgendaCard ?? (
                 <View style={getSectionCardStyle(colors, "neutral")}>

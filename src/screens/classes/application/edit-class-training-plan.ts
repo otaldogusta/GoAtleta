@@ -10,6 +10,8 @@ import {
 export type ClassPlanBlockDraft = {
   duration: string;
   objective: string;
+  activitiesText?: string;
+  descriptionText?: string;
   activities: TrainingPlanActivity[];
 };
 
@@ -100,6 +102,8 @@ export const appendClassPlanActivity = (
 
   return {
     ...draft,
+    activitiesText: undefined,
+    descriptionText: undefined,
     activities: [...draft.activities, { name, description: "" }],
   };
 };
@@ -118,6 +122,8 @@ export const removeClassPlanActivity = (
 
   return {
     ...draft,
+    activitiesText: undefined,
+    descriptionText: undefined,
     activities: draft.activities.filter(
       (_, activityIndex) => activityIndex !== index
     ),
@@ -223,6 +229,12 @@ const resolveEditableClassPlanBlock = (
   if (storedBlock?.activities?.length) {
     return {
       summary: String(storedBlock.summary ?? ""),
+      ...(typeof storedBlock.activitiesText === "string"
+        ? { activitiesText: storedBlock.activitiesText }
+        : {}),
+      ...(typeof storedBlock.descriptionText === "string"
+        ? { descriptionText: storedBlock.descriptionText }
+        : {}),
       activities: (storedBlock.activities ?? []).map((activity) => ({
         ...activity,
       })),
@@ -232,6 +244,12 @@ const resolveEditableClassPlanBlock = (
   const resolvedBlock = resolveTrainingPlanBlock(plan, blockKey);
   return {
     summary: resolvedBlock.summary,
+    ...(typeof resolvedBlock.activitiesText === "string"
+      ? { activitiesText: resolvedBlock.activitiesText }
+      : {}),
+    ...(typeof resolvedBlock.descriptionText === "string"
+      ? { descriptionText: resolvedBlock.descriptionText }
+      : {}),
     activities: resolvedBlock.activities.map((activity) => ({ ...activity })),
   };
 };
@@ -244,6 +262,12 @@ export const buildClassPlanBlockDraft = (
   return {
     duration: plan[durationFieldByBlock[blockKey]],
     objective: block.summary,
+    ...(typeof block.activitiesText === "string"
+      ? { activitiesText: block.activitiesText }
+      : {}),
+    ...(typeof block.descriptionText === "string"
+      ? { descriptionText: block.descriptionText }
+      : {}),
     activities: block.activities.map((activity) => ({
       ...activity,
       description:
@@ -267,20 +291,44 @@ export const updateClassTrainingPlanBlock = (
   const blocks = {
     warmup: {
       summary: warmup.summary,
+      ...(typeof warmup.activitiesText === "string"
+        ? { activitiesText: warmup.activitiesText }
+        : {}),
+      ...(typeof warmup.descriptionText === "string"
+        ? { descriptionText: warmup.descriptionText }
+        : {}),
       activities: warmup.activities,
     },
     main: {
       summary: main.summary,
+      ...(typeof main.activitiesText === "string"
+        ? { activitiesText: main.activitiesText }
+        : {}),
+      ...(typeof main.descriptionText === "string"
+        ? { descriptionText: main.descriptionText }
+        : {}),
       activities: main.activities,
     },
     cooldown: {
       summary: cooldown.summary,
+      ...(typeof cooldown.activitiesText === "string"
+        ? { activitiesText: cooldown.activitiesText }
+        : {}),
+      ...(typeof cooldown.descriptionText === "string"
+        ? { descriptionText: cooldown.descriptionText }
+        : {}),
       activities: cooldown.activities,
     },
   };
 
   blocks[blockKey] = {
     summary: draft.objective,
+    ...(typeof draft.activitiesText === "string"
+      ? { activitiesText: draft.activitiesText }
+      : {}),
+    ...(typeof draft.descriptionText === "string"
+      ? { descriptionText: draft.descriptionText }
+      : {}),
     activities,
   };
 
@@ -329,6 +377,12 @@ export const normalizeClassTrainingPlan = (plan: TrainingPlan): TrainingPlan => 
     normalizedPlan = updateClassTrainingPlanBlock(normalizedPlan, blockKey, {
       duration: draft.duration.trim(),
       objective: draft.objective.trim(),
+      ...(typeof draft.activitiesText === "string"
+        ? { activitiesText: draft.activitiesText.trim() }
+        : {}),
+      ...(typeof draft.descriptionText === "string"
+        ? { descriptionText: draft.descriptionText.trim() }
+        : {}),
       activities: draft.activities
         .map((activity) => ({
           ...activity,

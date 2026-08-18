@@ -1,6 +1,9 @@
 import type { ClassGroup, TrainingPlan } from "../../../core/models";
 import { resolveTrainingPlanBlock } from "../../../core/training-plan-blocks";
-import type { SessionPlanPdfData } from "../../../pdf/templates/session-plan";
+import type {
+  SessionPlanPdfData,
+  SessionPlanPeriodizationSource,
+} from "../../../pdf/templates/session-plan";
 import { normalizeDisplayText } from "../../../utils/text-normalization";
 import { resolveClassPlanActivityDescription } from "./edit-class-training-plan";
 
@@ -9,6 +12,7 @@ type BuildClassPlanPdfDataInput = {
   plan: TrainingPlan;
   lessonDate: string;
   coachName?: string;
+  periodizationSource?: SessionPlanPeriodizationSource;
 };
 
 const parseMinutes = (value: string | undefined, fallback: number) => {
@@ -63,6 +67,12 @@ const blockData = (
     title,
     ...(durationMinutes === undefined ? {} : { durationMinutes }),
     summary: block.summary,
+    ...(typeof block.activitiesText === "string"
+      ? { activitiesText: block.activitiesText }
+      : {}),
+    ...(typeof block.descriptionText === "string"
+      ? { descriptionText: block.descriptionText }
+      : {}),
     items: block.activities.map((activity) => ({
       ...activity,
       name: normalizeDisplayText(activity.name),
@@ -78,6 +88,7 @@ export const buildClassPlanPdfData = ({
   plan,
   lessonDate,
   coachName,
+  periodizationSource,
 }: BuildClassPlanPdfDataInput): SessionPlanPdfData => {
   const hasAssignedClass = Boolean(plan.classId);
   const totalDuration = classGroup.durationMinutes ?? 60;
@@ -106,6 +117,21 @@ export const buildClassPlanPdfData = ({
     plan.pedagogy?.objective?.description ||
     plan.pedagogy?.sessionObjective ||
     "";
+  const resolvedPeriodizationSource = periodizationSource ?? (periodization
+    ? {
+        weekLabel: periodization.weekNumber
+          ? `Semana ${periodization.weekNumber}`
+          : "Semana do ciclo",
+        phaseLabel: periodization.phase || "Fase do ciclo",
+        focusLabel:
+          periodization.technicalFocus ||
+          periodization.theme ||
+          plan.pedagogy?.sessionObjective ||
+          "Foco da semana",
+        loadLabel: periodization.rpeTarget || "Carga não informada",
+        roleLabel: "Aula planejada",
+      }
+    : undefined);
 
   return {
     className: hasAssignedClass ? normalizeDisplayText(classGroup.name) : "",
@@ -129,6 +155,7 @@ export const buildClassPlanPdfData = ({
         ? ""
         : `${(warmupMinutes ?? 0) + (mainMinutes ?? 0) + (cooldownMinutes ?? 0)} min`,
     preserveEmptyFields,
+    periodizationSource: resolvedPeriodizationSource,
     blocks: [
       blockData(plan, "warmup", "Aquecimento", warmupMinutes),
       blockData(plan, "main", "Parte principal", mainMinutes),

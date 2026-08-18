@@ -301,6 +301,12 @@ export async function updateClassPlan(
   plan: ClassPlan,
   options?: { organizationId?: string | null }
 ) {
+  const cycleId = String(plan.cycleId ?? "").trim();
+  if (!cycleId) {
+    throw new Error(
+      "Plano semanal sem vínculo com o ciclo ativo. Atualize a periodização antes de salvar.",
+    );
+  }
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   const path = organizationId
     ? "/class_plans?id=eq." +
@@ -310,7 +316,7 @@ export async function updateClassPlan(
     : "/class_plans?id=eq." + encodeURIComponent(plan.id);
   const payload = {
     classid: plan.classId,
-    cycle_id: plan.cycleId || null,
+    cycle_id: cycleId,
     startdate: plan.startDate,
     weeknumber: plan.weekNumber,
     phase: plan.phase,
@@ -339,11 +345,17 @@ export async function updateClassPlan(
 
 export async function saveClassPlans(plans: ClassPlan[], options?: { organizationId?: string }) {
   if (!plans.length) return;
+  const planWithoutCycle = plans.find((plan) => !String(plan.cycleId ?? "").trim());
+  if (planWithoutCycle) {
+    throw new Error(
+      "Plano semanal sem vínculo com o ciclo ativo. Atualize a periodização antes de salvar.",
+    );
+  }
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   const payload = plans.map((plan) => ({
     id: plan.id,
     classid: plan.classId,
-    cycle_id: plan.cycleId || null,
+    cycle_id: String(plan.cycleId).trim(),
     organization_id: organizationId ?? undefined,
     startdate: plan.startDate,
     weeknumber: plan.weekNumber,
@@ -405,11 +417,11 @@ export async function deleteClassPlansByClass(
   const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
   const cycleFilter = (options?.cycleId ?? "").trim();
   const cycleYear = typeof options?.cycleYear === "number" ? options.cycleYear : null;
-  const yearPath = cycleYear
+  const yearPath = !cycleFilter && cycleYear
     ? "&startdate=gte." + encodeURIComponent(`${cycleYear}-01-01`) +
       "&startdate=lte." + encodeURIComponent(`${cycleYear}-12-31`)
     : "";
-  const cyclePath = !yearPath && cycleFilter
+  const cyclePath = cycleFilter
     ? "&cycle_id=eq." + encodeURIComponent(cycleFilter)
     : "";
   const sourcePath = options?.source

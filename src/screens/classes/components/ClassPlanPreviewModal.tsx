@@ -19,7 +19,11 @@ import {
   type TrainingPlanBlockKey,
 } from "../../../core/training-plan-blocks";
 import { PdfPreviewFrame } from "../../../pdf/PdfPreviewFrame";
-import { buildSessionMonthlyPlanData, sessionPlanHtml } from "../../../pdf/templates/session-plan";
+import {
+  buildSessionMonthlyPlanData,
+  sessionPlanHtml,
+  type SessionPlanPeriodizationSource,
+} from "../../../pdf/templates/session-plan";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../../ui/app-theme";
@@ -49,14 +53,7 @@ import {
 } from "./class-plan-block-presentation";
 import { PlanTimeDistribution } from "./PlanTimeDistribution";
 
-export type ClassPlanPeriodizationSource = {
-  weekLabel: string;
-  phaseLabel: string;
-  focusLabel: string;
-  loadLabel: string;
-  roleLabel: string;
-  monthlyGameSession?: boolean;
-};
+export type ClassPlanPeriodizationSource = SessionPlanPeriodizationSource;
 
 type ClassPlanPreviewModalProps = {
   visible: boolean;
@@ -138,27 +135,6 @@ const getDuration = (plan: TrainingPlan, blockKey: TrainingPlanBlockKey) =>
     ? plan.mainTime
     : plan.cooldownTime;
 
-const parseMultilineBlockText = (text: string, expectedCount: number): string[] => {
-  const rawLines = text
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^(?:\d+[\.\)]\s*|[-*]\s*)/, "").trim())
-    .filter((line) => line.length > 0);
-
-  if (expectedCount <= 1) {
-    const cleanedFullText = text.replace(/^(?:\d+[\.\)]\s*|[-*]\s*)/, "").trim();
-    return [cleanedFullText];
-  }
-
-  const result: string[] = [];
-  for (let i = 0; i < expectedCount; i++) {
-    result.push(i < rawLines.length ? rawLines[i] : "");
-  }
-  if (rawLines.length > expectedCount) {
-    result[expectedCount - 1] += "\n" + rawLines.slice(expectedCount - 1).join("\n");
-  }
-  return result;
-};
-
 export function ClassPlanPreviewModal({
   visible,
   onClose,
@@ -185,6 +161,7 @@ export function ClassPlanPreviewModal({
   const workspaceMode = presentation === "workspace";
   const splitLayout = Platform.OS === "web" && width >= 980;
   const phoneLayout = Platform.OS === "web" && width < 600;
+  const inlinePdfEditor = Platform.OS === "web";
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle");
   const [pdfUrl, setPdfUrl] = useState("");
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
@@ -302,8 +279,8 @@ export function ClassPlanPreviewModal({
   }, [isDirty, onDirtyChange, onDraftChange, workingPlan]);
 
   const pdfData = useMemo(
-    () => buildClassPlanPdfData({ classGroup, plan: pdfPlan, lessonDate, coachName }),
-    [classGroup, coachName, lessonDate, pdfPlan]
+    () => buildClassPlanPdfData({ classGroup, plan: pdfPlan, lessonDate, coachName, periodizationSource }),
+    [classGroup, coachName, lessonDate, pdfPlan, periodizationSource]
   );
   const previewHtml = useMemo(() => sessionPlanHtml(pdfData, { editable: true }), [pdfData]);
   const fileName = useMemo(() => {
@@ -363,6 +340,13 @@ export function ClassPlanPreviewModal({
 
   const handleDownload = useCallback(async () => {
     if (isDownloading) return;
+    if (isDirty) {
+      showSaveToast({
+        message: "Salve as alterações antes de baixar o PDF.",
+        variant: "warning",
+      });
+      return;
+    }
     setIsDownloading(true);
     try {
       const pdfModule = await import("../../../pdf/export-pdf");
@@ -391,7 +375,7 @@ export function ClassPlanPreviewModal({
     } finally {
       setIsDownloading(false);
     }
-  }, [fileName, isDownloading, pdfBlob, pdfData, showSaveToast]);
+  }, [fileName, isDirty, isDownloading, pdfBlob, pdfData, showSaveToast]);
 
   const updateBlock = useCallback(
     (
@@ -431,7 +415,7 @@ export function ClassPlanPreviewModal({
   ) => {
     setWorkingPlan((current) => {
       const resolvedLesson = buildSessionMonthlyPlanData(
-        buildClassPlanPdfData({ classGroup, plan: current, lessonDate, coachName })
+        buildClassPlanPdfData({ classGroup, plan: current, lessonDate, coachName, periodizationSource })
       ).lessons[0];
       const currentDraft = getClassPlanPdfContentDraft(current);
       const usesManualContent = current.pedagogy?.sessionObjectiveSource === "manual";
@@ -447,7 +431,7 @@ export function ClassPlanPreviewModal({
     });
     setIsDirty(true);
     setPdfStatusLabel("Alterações não salvas");
-  }, [classGroup, coachName, lessonDate]);
+  }, [classGroup, coachName, lessonDate, periodizationSource]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -460,14 +444,14 @@ export function ClassPlanPreviewModal({
         if (blockKey === "warmup" || blockKey === "main" || blockKey === "cooldown") {
           setSelectedBlockKey(blockKey);
           setIsPdfContentExpanded(false);
-          if (splitLayout && !periodizationSource) {
+          if (!inlinePdfEditor && splitLayout) {
             setIsEditing(true);
             setIsEditorExpanded(true);
           }
         }
       } else if (event.data?.type === "GOATLETA_PDF_SECTION_CLICK" && event.data?.section === "pedagogy") {
         setIsPdfContentExpanded(true);
-        if (splitLayout && !periodizationSource) {
+        if (!inlinePdfEditor && splitLayout) {
           setIsEditing(true);
           setIsEditorExpanded(true);
         }
@@ -514,7 +498,7 @@ export function ClassPlanPreviewModal({
             const activities = [...draft.activities];
             const currentActivity = activities[activityIndex] ?? { name: "", description: "" };
             activities[activityIndex] = { ...currentActivity, name: text.trim() };
-            return { ...draft, activities };
+            return { ...draft, activitiesText: undefined, activities };
           });
         } else if (field.startsWith("block-description-item-")) {
           const [, , , blockKeyValue, indexValue] = field.split("-");
@@ -526,26 +510,14 @@ export function ClassPlanPreviewModal({
             const activities = [...draft.activities];
             const currentActivity = activities[activityIndex] ?? { name: "", description: "" };
             activities[activityIndex] = { ...currentActivity, description: text.trim() };
-            return { ...draft, activities };
+            return { ...draft, descriptionText: undefined, activities };
           });
         } else if (field.startsWith("block-description-")) {
           const period = field.replace("block-description-", "");
           const blockKey: TrainingPlanBlockKey =
             period === "Aquecimento" ? "warmup" : period === "Parte principal" ? "main" : "cooldown";
           setSelectedBlockKey(blockKey);
-          updateBlock(blockKey, (draft) => {
-            const expectedCount = Math.max(1, draft.activities.length);
-            const parsedDescriptions = parseMultilineBlockText(text, expectedCount);
-            const activities = draft.activities.length > 0
-              ? draft.activities.map((act, i) => ({
-                  ...act,
-                  description: parsedDescriptions[i] ?? act.description ?? "",
-                }))
-              : text.trim()
-                ? [{ name: "", description: text.trim() }]
-                : [];
-            return { ...draft, activities };
-          });
+          updateBlock(blockKey, (draft) => ({ ...draft, descriptionText: text }));
         } else if (field.startsWith("block-activities-")) {
           const period = field.replace("block-activities-", "");
           const blockKey: TrainingPlanBlockKey =
@@ -556,12 +528,15 @@ export function ClassPlanPreviewModal({
               .split(/\r?\n/)
               .map((line) => line.replace(/^(?:\d+[\.\)]\s*|[-*]\s*)/, "").trim())
               .filter(Boolean);
-            const names = rawNames;
-            const activities: TrainingPlanActivity[] = names.map((name, i) => {
+            const activities: TrainingPlanActivity[] = rawNames.map((name, i) => {
               const existing = draft.activities[i];
               return existing ? { ...existing, name } : { name, description: "" };
             });
-            return { ...draft, activities };
+            return {
+              ...draft,
+              activitiesText: text,
+              activities: activities.length ? activities : draft.activities,
+            };
           });
         } else if (field.startsWith("block-time-")) {
           const period = field.replace("block-time-", "");
@@ -574,12 +549,13 @@ export function ClassPlanPreviewModal({
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [isDirty, keepWorkspaceAtTop, pdfStatusLabel, periodizationSource, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle]);
+  }, [inlinePdfEditor, isDirty, keepWorkspaceAtTop, pdfStatusLabel, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle]);
 
   const persistWorkingPlan = useCallback(async (): Promise<TrainingPlan | null> => {
     if (isSaving) return null;
     if (!isDirty) return workingPlanRef.current;
-    const unnamedActivity = findClassPlanUnnamedActivity(workingPlan);
+    const currentWorkingPlan = workingPlanRef.current;
+    const unnamedActivity = findClassPlanUnnamedActivity(currentWorkingPlan);
     if (unnamedActivity) {
       setSelectedBlockKey(unnamedActivity.blockKey);
       setIsPdfContentExpanded(false);
@@ -595,7 +571,7 @@ export function ClassPlanPreviewModal({
       return null;
     }
 
-    const normalizedPlan = normalizeClassTrainingPlan(workingPlan);
+    const normalizedPlan = normalizeClassTrainingPlan(currentWorkingPlan);
     if (!resolveTrainingPlanBlock(normalizedPlan, "main").activities.length) {
       showSaveToast({
         message: "Mantenha pelo menos uma atividade na parte principal.",
@@ -631,7 +607,6 @@ export function ClassPlanPreviewModal({
     onSavePlan,
     showSaveToast,
     splitLayout,
-    workingPlan,
   ]);
 
   const handleSave = useCallback(() => {
@@ -711,6 +686,22 @@ export function ClassPlanPreviewModal({
     setIsPdfContentExpanded(false);
     setPdfStatusLabel("PDF sincronizado");
   }, [pdfPlan]);
+
+  const requestClose = useCallback(() => {
+    if (!isDirty) {
+      onClose();
+      return;
+    }
+
+    void confirm({
+      title: "Descartar alterações do plano?",
+      message: "As alterações ainda não foram salvas no plano desta aula.",
+      confirmLabel: "Descartar alterações",
+      cancelLabel: "Continuar editando",
+      tone: "danger",
+      onConfirm: onClose,
+    });
+  }, [confirm, isDirty, onClose]);
 
   const handleDeleteActivity = useCallback(
     (index: number) => {
@@ -920,9 +911,7 @@ export function ClassPlanPreviewModal({
         { backgroundColor: colors.card, borderColor: colors.border },
       ]}
     >
-      <Text style={[styles.outlineTitle, { color: colors.text }]}>
-        {periodizationSource ? "Parâmetros da semana" : "Roteiro da aula"}
-      </Text>
+      <Text style={[styles.outlineTitle, { color: colors.text }]}>Roteiro da aula</Text>
       <ScrollView
         style={styles.outlineScroll}
         contentContainerStyle={styles.outlineContent}
@@ -969,6 +958,42 @@ export function ClassPlanPreviewModal({
                 </Text>
               </View>
             </View>
+            {periodizationSource.classLevelLabel || periodizationSource.objectiveLabel || periodizationSource.loadModelLabel ? (
+              <View style={styles.periodizationSourceFacts}>
+                {periodizationSource.classLevelLabel ? (
+                  <View style={[styles.periodizationSourceFact, { borderColor: colors.border }]}>
+                    <Text style={[styles.periodizationSourceFactLabel, { color: colors.muted }]}>Nível da turma</Text>
+                    <Text style={[styles.periodizationSourceFactValue, { color: colors.text }]}>{periodizationSource.classLevelLabel}</Text>
+                  </View>
+                ) : null}
+                {periodizationSource.objectiveLabel ? (
+                  <View style={[styles.periodizationSourceFact, { borderColor: colors.border }]}>
+                    <Text style={[styles.periodizationSourceFactLabel, { color: colors.muted }]}>Objetivo</Text>
+                    <Text style={[styles.periodizationSourceFactValue, { color: colors.text }]}>{periodizationSource.objectiveLabel}</Text>
+                  </View>
+                ) : null}
+                {periodizationSource.loadModelLabel ? (
+                  <View style={[styles.periodizationSourceFact, { borderColor: colors.border }]}>
+                    <Text style={[styles.periodizationSourceFactLabel, { color: colors.muted }]}>Modelo de carga</Text>
+                    <Text style={[styles.periodizationSourceFactValue, { color: colors.text }]}>{periodizationSource.loadModelLabel}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+            {periodizationSource.beforeLabel || workingPlan.pedagogy?.decisionTrace?.teacherFacingSummary ? (
+              <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10, gap: 5 }}>
+                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "900" }}>Por que este plano está assim?</Text>
+                {workingPlan.pedagogy?.decisionTrace?.teacherFacingSummary ? (
+                  <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>{workingPlan.pedagogy.decisionTrace.teacherFacingSummary}</Text>
+                ) : null}
+                {periodizationSource.beforeLabel ? <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}><Text style={{ color: colors.text, fontWeight: "800" }}>Antes: </Text>{periodizationSource.beforeLabel}</Text> : null}
+                {periodizationSource.nowLabel ? <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}><Text style={{ color: colors.text, fontWeight: "800" }}>Agora: </Text>{periodizationSource.nowLabel}</Text> : null}
+                {periodizationSource.afterLabel ? <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}><Text style={{ color: colors.text, fontWeight: "800" }}>Depois: </Text>{periodizationSource.afterLabel}</Text> : null}
+                {workingPlan.pedagogy?.decisionTrace?.influences.reportFeedback.used ? (
+                  <Text style={{ color: colors.successText, fontSize: 10, lineHeight: 15, fontWeight: "700" }}>Relatórios recentes foram considerados nesta decisão.</Text>
+                ) : null}
+              </View>
+            ) : null}
             <View style={[styles.periodizationTimeDistribution, { borderTopColor: colors.border }]}>
               <Text style={[styles.periodizationTimeDistributionTitle, { color: colors.text }]}>Distribuição do tempo</Text>
               <PlanTimeDistribution
@@ -981,7 +1006,7 @@ export function ClassPlanPreviewModal({
             </View>
           </View>
         ) : null}
-        {!periodizationSource ? <Pressable
+        <Pressable
           onPress={selectPdfContent}
           accessibilityRole="button"
           accessibilityLabel={`${isPdfContentExpanded && isEditing ? "Recolher" : "Editar"} conteúdo pedagógico`}
@@ -1005,9 +1030,9 @@ export function ClassPlanPreviewModal({
             size={15}
             color={colors.text}
           />
-        </Pressable> : null}
-        {!periodizationSource && !splitLayout && isEditing && isPdfContentExpanded ? inlineEditor : null}
-        {!periodizationSource ? BLOCKS.map((item) => {
+        </Pressable>
+        {!splitLayout && isEditing && isPdfContentExpanded ? inlineEditor : null}
+        {BLOCKS.map((item) => {
           const block = resolveTrainingPlanBlock(workingPlan, item.key);
           const activitySummary = summarizeClassPlanActivities(block.activities);
           const selected = !isPdfContentExpanded && selectedBlockKey === item.key;
@@ -1059,7 +1084,7 @@ export function ClassPlanPreviewModal({
               {!splitLayout && isEditing && selected ? inlineEditor : null}
             </View>
           );
-        }) : null}
+        })}
       </ScrollView>
       {!isEditing && pdfSize ? (
         <Text style={[styles.fileSize, { color: colors.muted }]}>PDF da aula · {formatFileSize(pdfSize)}</Text>
@@ -1070,7 +1095,7 @@ export function ClassPlanPreviewModal({
   const selectedBlock = buildClassPlanBlockDraft(workingPlan, selectedBlockKey);
   const storedPdfContentDraft = getClassPlanPdfContentDraft(workingPlan);
   const resolvedPdfLesson = buildSessionMonthlyPlanData(
-    buildClassPlanPdfData({ classGroup, plan: workingPlan, lessonDate, coachName })
+    buildClassPlanPdfData({ classGroup, plan: workingPlan, lessonDate, coachName, periodizationSource })
   ).lessons[0];
   const usesManualPdfContent = workingPlan.pedagogy?.sessionObjectiveSource === "manual";
   const pdfContentDraft: ClassPlanPdfContentDraft = {
@@ -1255,6 +1280,7 @@ export function ClassPlanPreviewModal({
                 onChangeText={(name) =>
                   updateSelectedBlock((draft) => ({
                     ...draft,
+                    activitiesText: undefined,
                     activities: draft.activities.map((item, itemIndex) =>
                       itemIndex === index ? { ...item, name } : item
                     ),
@@ -1282,6 +1308,7 @@ export function ClassPlanPreviewModal({
               onChangeText={(description) =>
                 updateSelectedBlock((draft) => ({
                   ...draft,
+                  descriptionText: undefined,
                   activities: draft.activities.map((item, itemIndex) =>
                     itemIndex === index ? { ...item, description } : item
                   ),
@@ -1336,6 +1363,35 @@ export function ClassPlanPreviewModal({
     </View>
   );
 
+  const inlineSaveButton = (
+    <Pressable
+      onPress={handleSave}
+      disabled={!isDirty || isSaving}
+      accessibilityRole="button"
+      accessibilityLabel={isDirty ? "Salvar plano" : "Plano salvo"}
+      style={({ pressed }) => [
+        styles.headerSaveButton,
+        {
+          backgroundColor: colors.primaryBg,
+          opacity: !isDirty || isSaving ? 0.55 : pressed ? 0.8 : 1,
+        },
+      ]}
+    >
+      {isSaving ? (
+        <ActivityIndicator size="small" color={colors.primaryText} />
+      ) : (
+        <GoAtletaIcon
+          name={isDirty ? "save" : "success"}
+          size={17}
+          color={colors.primaryText}
+        />
+      )}
+      <Text style={[styles.headerButtonLabel, { color: colors.primaryText }]}>
+        {isSaving ? "Salvando" : isDirty ? "Salvar plano" : "Salvo"}
+      </Text>
+    </Pressable>
+  );
+
   if (workspaceMode) {
     if (!visible) return null;
 
@@ -1384,7 +1440,7 @@ export function ClassPlanPreviewModal({
           </View>
 
           <View style={styles.workspaceNativeOutline}>{renderOutline(editor)}</View>
-          {isEditing && !periodizationSource ? renderEditFooter(true) : null}
+          {isEditing ? renderEditFooter(true) : null}
         </View>
       );
     }
@@ -1455,7 +1511,7 @@ export function ClassPlanPreviewModal({
   return (
     <ModalSheet
       visible={visible}
-      onClose={onClose}
+      onClose={requestClose}
       position="center"
       containerPadding={splitLayout ? 8 : 0}
       cardStyle={[
@@ -1475,6 +1531,7 @@ export function ClassPlanPreviewModal({
 
         {splitLayout ? (
           <>
+            {inlinePdfEditor ? inlineSaveButton : null}
             <Pressable
               onPress={handleDownload}
               disabled={isDownloading || previewStatus === "loading"}
@@ -1514,7 +1571,7 @@ export function ClassPlanPreviewModal({
           </>
         )}
         <Pressable
-          onPress={onClose}
+          onPress={requestClose}
           accessibilityRole="button"
           accessibilityLabel="Fechar plano"
           style={({ pressed }) => [styles.closeAction, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
@@ -1523,7 +1580,7 @@ export function ClassPlanPreviewModal({
         </Pressable>
       </View>
 
-      {!splitLayout ? (
+      {!splitLayout && !inlinePdfEditor ? (
         <View style={[styles.mobileTabs, { borderBottomColor: colors.border }]}>
           {(["pdf", "outline"] as const).map((tab) => {
             const active = mobileView === tab;
@@ -1536,7 +1593,7 @@ export function ClassPlanPreviewModal({
                 style={[styles.mobileTab, active ? { borderBottomColor: colors.primaryBg } : null]}
               >
                 <Text style={[styles.mobileTabLabel, { color: active ? colors.text : colors.muted }]}>
-                  {tab === "pdf" ? "PDF" : periodizationSource ? "Parâmetros" : "Roteiro"}
+                  {tab === "pdf" ? "PDF" : "Roteiro"}
                 </Text>
               </Pressable>
             );
@@ -1546,10 +1603,12 @@ export function ClassPlanPreviewModal({
 
       <View style={styles.body}>
         <View style={[styles.primaryWorkspace, splitLayout ? styles.primaryWorkspaceDesktop : null]}>
-          {splitLayout ? (
+          {inlinePdfEditor ? (
+            preview
+          ) : splitLayout ? (
             <>
               {preview}
-              {isEditing && !periodizationSource ? editor : renderOutline()}
+              {isEditing ? editor : renderOutline()}
             </>
           ) : mobileView === "pdf" ? (
             preview
@@ -1565,7 +1624,7 @@ export function ClassPlanPreviewModal({
         </View>
       </View>
 
-      {isEditing && !periodizationSource && !splitLayout ? renderEditFooter(true) : !splitLayout ? (
+      {inlinePdfEditor && !splitLayout ? renderEditFooter(true) : isEditing && !splitLayout ? renderEditFooter(true) : !splitLayout ? (
         <View style={[styles.previewFooter, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
           {phoneLayout ? (
             <Pressable
@@ -1786,6 +1845,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerButtonLabel: { fontSize: 13, fontWeight: "800" },
+  headerSaveButton: {
+    minHeight: 40,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
   iconAction: {
     width: 40,
     height: 40,

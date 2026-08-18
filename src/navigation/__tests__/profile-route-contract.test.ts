@@ -63,6 +63,27 @@ describe("professor and coordination route contract", () => {
     expect(home).toContain('route: "/coord/nfc-attendance"');
   });
 
+  it("keeps every professor sidebar destination available from Home shortcuts", () => {
+    const home = read("src/screens/home/HomeProfessorBelowFold.tsx");
+    const professorShortcutRoutes = [
+      "/prof/planning",
+      "/prof/consultation",
+      "/prof/classes",
+      "/prof/students",
+      "/prof/calendar",
+      "/prof/absence-notices",
+      "/prof/nfc-attendance",
+      "/prof/exercises",
+      "/prof/periodization",
+      "/prof/regulation-history",
+      "/prof/assistant",
+    ];
+
+    professorShortcutRoutes.forEach((route) => {
+      expect(home).toContain(`navigateToShortcut("${route}")`);
+    });
+  });
+
   it("makes shared class and student screens use scoped routes", () => {
     expect(read("app/classes/index.tsx")).toContain("useTrainerRouteScope");
     expect(read("app/students/index.tsx")).toContain("useTrainerRouteScope");

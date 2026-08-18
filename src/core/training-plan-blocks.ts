@@ -5,6 +5,8 @@ export type TrainingPlanBlockKey = "warmup" | "main" | "cooldown";
 export type ResolvedTrainingPlanBlock = {
   key: TrainingPlanBlockKey;
   summary: string;
+  activitiesText?: string;
+  descriptionText?: string;
   activities: TrainingPlanActivity[];
   source: "pedagogy" | "legacy";
 };
@@ -46,11 +48,20 @@ export const resolveTrainingPlanBlock = (
   const richActivities = (richBlock?.activities ?? []).filter((activity) =>
     String(activity.name ?? "").trim()
   );
+  const hasManualCellText =
+    typeof richBlock?.activitiesText === "string" ||
+    typeof richBlock?.descriptionText === "string";
 
-  if (richActivities.length) {
+  if (richActivities.length || hasManualCellText) {
     return {
       key,
       summary: String(richBlock?.summary ?? "").trim(),
+      ...(typeof richBlock?.activitiesText === "string"
+        ? { activitiesText: richBlock.activitiesText }
+        : {}),
+      ...(typeof richBlock?.descriptionText === "string"
+        ? { descriptionText: richBlock.descriptionText }
+        : {}),
       activities: richActivities,
       source: "pedagogy",
     };
@@ -76,4 +87,3 @@ export const getResolvedTrainingPlanActivityNames = (
   plan: TrainingPlan | null | undefined,
   key: TrainingPlanBlockKey
 ) => resolveTrainingPlanBlock(plan, key).activities.map((activity) => activity.name);
-

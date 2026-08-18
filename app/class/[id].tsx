@@ -19,6 +19,7 @@ import { InsightCard } from "../../src/components/ui/InsightCard";
 import { type ContextualInsight, useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
 
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
+import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { resolveResponsiveLayout } from "../../src/ui/responsive-layout";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
@@ -1587,7 +1588,7 @@ export default function ClassDetails() {
 
   const handleViewAppliedPlan = useCallback(() => {
     if (!appliedPlan) return;
-    setPlanPreviewMode("preview");
+    setPlanPreviewMode("edit");
     setShowPlanPreviewModal(true);
   }, [appliedPlan]);
 
@@ -1607,8 +1608,13 @@ export default function ClassDetails() {
         "Foco da semana",
       loadLabel: periodization.rpeTarget || "Carga não informada",
       roleLabel: "Aula planejada",
+      classLevelLabel: cls ? ({ 1: "Iniciante", 2: "Intermediária", 3: "Avançada" } as const)[cls.level] : undefined,
+      objectiveLabel: cls?.goal || undefined,
+      beforeLabel: cls ? `${({ 1: "Iniciante", 2: "Intermediária", 3: "Avançada" } as const)[cls.level]} · ${cls.goal || "Objetivo não definido"}` : undefined,
+      nowLabel: `${periodization.phase || "Fase do ciclo"} · ${periodization.technicalFocus || periodization.theme || "Foco da semana"}`,
+      afterLabel: "Edições confirmadas e relatórios orientarão as próximas aulas sem alterar o histórico concluído.",
     };
-  }, [appliedPlan]);
+  }, [appliedPlan, cls]);
 
   const handleSaveAppliedPlan = useCallback(
     async (draft: TrainingPlan) => {
@@ -1752,7 +1758,7 @@ export default function ClassDetails() {
         organizationId: cls.organizationId ?? undefined,
       });
       setAppliedPlan(generatedPlan);
-      setPlanPreviewMode("preview");
+      setPlanPreviewMode("edit");
       setShowPlanPreviewModal(true);
       showSaveToast({ message: "Plano preparado para esta aula.", variant: "success" });
     } catch (error) {
@@ -2322,7 +2328,18 @@ export default function ClassDetails() {
       </ModalSheet>
 
       {appliedPlan && cls ? (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <ModalSheet
+              visible={showPlanPreviewModal}
+              onClose={() => setShowPlanPreviewModal(false)}
+              position="center"
+              cardStyle={reportModalCardStyle}
+            >
+              <SectionLoadingState />
+            </ModalSheet>
+          }
+        >
           <ClassPlanPreviewModal
             visible={showPlanPreviewModal}
             onClose={() => setShowPlanPreviewModal(false)}

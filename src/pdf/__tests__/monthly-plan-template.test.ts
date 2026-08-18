@@ -82,14 +82,14 @@ describe("monthlyPlanHtml", () => {
     expect(html).toContain("height: 18mm;");
     expect(html).toContain("font-style: italic");
     expect(html).toContain('<th class="label-cell period">Volta à calma:</th>');
-    expect(html).toContain('<td colspan="3">Roda de conversa</td>');
+    expect(html).toContain('<td colspan="3"><div class="block-paragraph">Roda de conversa</div></td>');
     expect(html).toContain("<strong>Conceitual:</strong>");
     expect(html).toContain("14h às 15h");
     expect(html).not.toContain("Aula 1 de 1");
     expect(html.match(/class=\"page\"/g)).toHaveLength(1);
   });
 
-  it("renders structured activities as independent rows for A4 pagination", () => {
+  it("groups structured activities in a single period row", () => {
     const html = monthlyPlanHtml({
       className: "Turma 10-12",
       professorName: "Professor",
@@ -116,10 +116,45 @@ describe("monthlyPlanHtml", () => {
       }],
     }, { editable: true });
 
-    expect(html).toContain('data-field="block-activity-main-0"');
-    expect(html).toContain('data-field="block-activity-main-1"');
-    expect(html).toContain('data-field="block-description-item-main-1"');
-    expect(html.match(/class="block-row block-main/g)).toHaveLength(2);
-    expect(html).toContain("block-continuation");
+    expect(html).toContain('data-field="block-activities-Parte principal"');
+    expect(html).toContain('data-field="block-description-Parte principal"');
+    expect(html).not.toContain('data-field="block-activity-main-0"');
+    expect(html).not.toContain('data-field="block-description-item-main-1"');
+    expect(html.match(/class="block-row block-main/g)).toHaveLength(1);
+    expect(html).not.toContain("block-continuation");
+    expect(html).toContain("Atividade um");
+    expect(html).toContain("Descrição dois");
+  });
+
+  it("renders the periodization context in the lesson header", () => {
+    const html = monthlyPlanHtml({
+      className: "Turma 10-12",
+      professorName: "Professor",
+      monthLabel: "Agosto de 2026",
+      generatedAt: "17/08/2026 12:00",
+      totalWeeks: 1,
+      totalSessions: 1,
+      lessons: [{
+        id: "lesson-periodization",
+        weekLabel: "Semana 3",
+        dateLabel: "17/08/2026",
+        generalObjective: "Objetivo",
+        specificObjective: "Objetivo específico",
+        periodizationSource: {
+          weekLabel: "Semana 3",
+          phaseLabel: "Transição",
+          focusLabel: "Continuidade",
+          loadLabel: "RPE 6",
+          roleLabel: "Aula do ciclo",
+        },
+        blocks: [],
+      }],
+    });
+
+    expect(html).toContain("Periodização:");
+    expect(html).toContain("Transição");
+    expect(html).toContain("<strong>Foco:</strong> Continuidade");
+    expect(html).toContain("<strong>Carga:</strong> RPE 6");
+    expect(html).toContain("<strong>Papel:</strong> Aula do ciclo");
   });
 });

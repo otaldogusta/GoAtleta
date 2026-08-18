@@ -118,13 +118,20 @@ export const regenerateMonthPlans = async (
   params: RegenerateMonthPlansParams
 ): Promise<MonthRegenerationResult> => {
   const { classGroup, monthKey, classPlans, activeCycleStartDate, activeCycleEndDate, onProgress } = params;
+  const resolvedCycleId = String(params.activeCycle?.id ?? params.activeCycleId ?? "").trim();
+
+  if (!resolvedCycleId) {
+    throw new Error(
+      "O ciclo ativo ainda não foi vinculado. Revise os parâmetros da periodização antes de atualizar o mês.",
+    );
+  }
 
   let monthlyPlans = filterClassPlansBySessionMonth(
     classPlans,
     classGroup,
     params.calendarExceptions ?? [],
     monthKey
-  );
+  ).map((plan) => ({ ...plan, cycleId: resolvedCycleId }));
 
   if (!monthlyPlans.length) {
     onProgress?.({ stage: "weeklies", message: "Criando semanas do mês..." });
@@ -132,10 +139,10 @@ export const regenerateMonthPlans = async (
       classGroup,
       monthKey,
       classPlans,
-      activeCycleId: params.activeCycleId,
+      activeCycleId: resolvedCycleId,
       activeCycleStartDate,
       calendarExceptions: params.calendarExceptions,
-    });
+    }).map((plan) => ({ ...plan, cycleId: resolvedCycleId }));
 
     if (!monthlyPlans.length) {
       onProgress?.({
@@ -154,7 +161,7 @@ export const regenerateMonthPlans = async (
     classId: classGroup.id,
     year: Number(yearText),
     month: Number(monthText),
-    cycleId: params.activeCycle?.id ?? params.activeCycleId,
+    cycleId: resolvedCycleId,
   });
   const generatedBlueprint = generateMonthlyBlueprint({
     classGroup,
@@ -196,13 +203,16 @@ export const regenerateMonthPlans = async (
       exceptions: params.calendarExceptions,
       monthKey,
     }).sessions.length;
-    const regeneratedWeekly = regenerateWeeklyPlanFromBlueprint({
-      existing: weekPlan,
-      blueprint,
-      cycleLength: classGroup.cycleLengthWeeks,
-      classGroup,
-      weeklySessions,
-    });
+    const regeneratedWeekly = {
+      ...regenerateWeeklyPlanFromBlueprint({
+        existing: weekPlan,
+        blueprint,
+        cycleLength: classGroup.cycleLengthWeeks,
+        classGroup,
+        weeklySessions,
+      }),
+      cycleId: resolvedCycleId,
+    };
 
     await updateClassPlan(regeneratedWeekly);
     monthlyPlans[i] = regeneratedWeekly;

@@ -80,11 +80,36 @@ const normalizeBlock = (block: TrainingPlanSessionBlock | null | undefined) => {
   if (!block) return null;
   return {
     summary: normalizeText(block.summary),
+    activitiesText: normalizeText(block.activitiesText),
+    descriptionText: normalizeText(block.descriptionText),
     activities: (block.activities ?? []).map((activity) => ({
       name: normalizeText(activity.name),
       description: normalizeText(activity.description),
     })),
   };
+};
+
+const countStructuredTextItems = (value: string | null | undefined) => {
+  const text = normalizeText(value);
+  if (!text) return 0;
+  const lines = text.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+  if (lines.length > 1) return lines.length;
+  const numberedItems = text.match(/(?:^|\s)\d+[.)]\s+/g)?.length ?? 0;
+  return Math.max(1, numberedItems);
+};
+
+const resolveActivityCount = (plan: TrainingPlan | null) => {
+  if (!plan) return undefined;
+  const pedagogyBlocks = plan.pedagogy?.blocks;
+  if (pedagogyBlocks) {
+    const count = (["warmup", "main", "cooldown"] as const).reduce((total, key) => {
+      const block = pedagogyBlocks[key];
+      return total + (block.activities?.length || countStructuredTextItems(block.activitiesText || block.summary));
+    }, 0);
+    if (count > 0) return count;
+  }
+  const legacyCount = plan.warmup.length + plan.main.length + plan.cooldown.length;
+  return legacyCount || undefined;
 };
 
 const resolveMethodologyApproach = (plan: TrainingPlan | null | undefined) =>
@@ -521,6 +546,7 @@ export const buildRecentSessionSummary = (
 
       return {
         sessionDate: group.date,
+        activityCount: resolveActivityCount(latestPlan),
         participantsCount,
         reportConclusion: normalizeText(latestSessionLog?.conclusion) || undefined,
         wasPlanned,

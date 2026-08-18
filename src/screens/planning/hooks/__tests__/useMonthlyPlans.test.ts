@@ -7,8 +7,7 @@ import type {
   PlanningCycle,
 } from "../../../../core/models";
 import {
-  ensureActiveCycleForYear,
-  getActivePlanningCycle,
+  getOrCreateInitialActivePlanningCycle,
 } from "../../../../db/cycles";
 import {
   getAttendanceByClass,
@@ -22,8 +21,7 @@ import {
 import { useMonthlyPlans } from "../useMonthlyPlans";
 
 jest.mock("../../../../db/cycles", () => ({
-  ensureActiveCycleForYear: jest.fn(),
-  getActivePlanningCycle: jest.fn(),
+  getOrCreateInitialActivePlanningCycle: jest.fn(),
 }));
 
 jest.mock("../../../../db/seed", () => ({
@@ -105,8 +103,10 @@ describe("useMonthlyPlans", () => {
     })) as ClassPlan[];
 
     (getClassById as jest.Mock).mockResolvedValue(cls);
-    (ensureActiveCycleForYear as jest.Mock).mockResolvedValue(undefined);
-    (getActivePlanningCycle as jest.Mock).mockResolvedValue(cycle);
+    (getOrCreateInitialActivePlanningCycle as jest.Mock).mockResolvedValue({
+      cycles: [cycle],
+      activeCycle: cycle,
+    });
     (getClassPlansByClass as jest.Mock).mockResolvedValue(plans);
     (getClassCalendarExceptions as jest.Mock).mockResolvedValue([]);
     (getStudentsByClass as jest.Mock).mockResolvedValue([]);
@@ -168,8 +168,35 @@ describe("useMonthlyPlans", () => {
 
     expect(latest?.isLoading).toBe(false);
     expect(latest?.isPeriodizationConfigured).toBe(false);
-    expect(ensureActiveCycleForYear).not.toHaveBeenCalled();
-    expect(getActivePlanningCycle).not.toHaveBeenCalled();
+    expect(getOrCreateInitialActivePlanningCycle).not.toHaveBeenCalled();
+    expect(getClassPlansByClass).not.toHaveBeenCalled();
+  });
+
+  it("does not load month plans after the active cycle is archived", async () => {
+    (getOrCreateInitialActivePlanningCycle as jest.Mock).mockResolvedValue({
+      cycles: [
+        {
+          id: "cycle-1",
+          classId: "class-1",
+          organizationId: "org-1",
+          year: 2026,
+          status: "archived",
+        },
+      ],
+      activeCycle: null,
+    });
+    let latest: ReturnType<typeof useMonthlyPlans> | null = null;
+
+    await act(async () => {
+      renderUseMonthlyPlans((snapshot) => {
+        latest = snapshot;
+      });
+    });
+    await flushPromises();
+
+    expect(latest?.isLoading).toBe(false);
+    expect(latest?.activeCycle).toBeNull();
+    expect(latest?.weeklyItems).toHaveLength(0);
     expect(getClassPlansByClass).not.toHaveBeenCalled();
   });
 

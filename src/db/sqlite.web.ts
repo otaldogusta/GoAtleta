@@ -47,7 +47,32 @@ const trainingPlans: {
 const dailyLessonPlans: any[] = [];
 const classPlans: any[] = [];
 const monthlyPlanningBlueprints: any[] = [];
-const planningCycles: any[] = [];
+const PLANNING_CYCLES_STORAGE_KEY = "goatleta:planning-cycles:v1";
+
+const readPersistedPlanningCycles = (): any[] => {
+  try {
+    const raw = globalThis.localStorage?.getItem(PLANNING_CYCLES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const planningCycles: any[] = readPersistedPlanningCycles();
+
+const persistPlanningCycles = () => {
+  try {
+    globalThis.localStorage?.setItem(
+      PLANNING_CYCLES_STORAGE_KEY,
+      JSON.stringify(planningCycles),
+    );
+  } catch {
+    // Storage can be unavailable in private browsing. The in-memory fallback
+    // still keeps the current session functional.
+  }
+};
 
 const normalize = (sql: string) =>
   sql.trim().replace(/\s+/g, " ").toLowerCase();
@@ -426,6 +451,7 @@ export const db = {
       } else {
         planningCycles.push(cycle);
       }
+      persistPlanningCycles();
       return;
     }
 
@@ -450,6 +476,7 @@ export const db = {
           }
         });
       }
+      persistPlanningCycles();
       return;
     }
 

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ScrollView,
   type StyleProp,
@@ -74,6 +74,7 @@ type GraphWeek = {
 
 type Props = {
   visible: boolean;
+  mode?: "manage" | "create-next";
   colors: ThemeColors;
   className: string;
   classSubtitle: string;
@@ -84,6 +85,7 @@ type Props = {
   completedLessonCount: number;
   currentWeek: number;
   configured: boolean;
+  active: boolean;
   saving: boolean;
   regenerating: boolean;
   error: string;
@@ -93,6 +95,7 @@ type Props = {
   onRegenerateAutomatic: () => void;
   onDuplicate: () => void;
   onResetAutomatic: () => void;
+  onArchiveCycle: () => void;
 };
 
 function ManagerBody({
@@ -609,6 +612,7 @@ function LoadPreview({
 
 export function PeriodizationManagerSheet({
   visible,
+  mode = "manage",
   colors,
   className,
   classSubtitle,
@@ -619,6 +623,7 @@ export function PeriodizationManagerSheet({
   completedLessonCount,
   currentWeek,
   configured,
+  active,
   saving,
   regenerating,
   error,
@@ -628,8 +633,16 @@ export function PeriodizationManagerSheet({
   onRegenerateAutomatic,
   onDuplicate,
   onResetAutomatic,
+  onArchiveCycle,
 }: Props) {
   const { width, height } = useWindowDimensions();
+  const menuTriggerRef = useRef<ViewType | null>(null);
+  const [menuLayout, setMenuLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const wide = width >= 1200;
   const compact = width < 760;
   const narrow = width < 980;
@@ -638,7 +651,9 @@ export function PeriodizationManagerSheet({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [cycleDateInput, setCycleDateInput] = useState(() => formatBrazilianDate(initialDraft.cycleStartDate));
+  const creatingNextCycle = mode === "create-next";
   const dirty = !draftsEqual(draft, savedDraft);
+  const saveDisabled = saving || (!creatingNextCycle && !dirty);
   const dayLabel = DAY_OPTIONS.filter((option) =>
     draft.daysOfWeek.includes(option.value),
   )
@@ -652,6 +667,11 @@ export function PeriodizationManagerSheet({
     ? `${String(Math.floor((timeEndMinutes % 1440) / 60)).padStart(2, "0")}:${String(timeEndMinutes % 60).padStart(2, "0")}`
     : "";
   const recommendedRecoveryWeeks = draft.intensityMax >= 8 ? 3 : draft.intensityMax >= 6 ? 4 : 5;
+
+  const closeMenuThenRun = useCallback((action: () => void) => {
+    setMenuOpen(false);
+    setTimeout(action, 0);
+  }, []);
 
   const handleSave = async () => {
     const saved = await onSave(draft);
@@ -706,7 +726,7 @@ export function PeriodizationManagerSheet({
                   fontWeight: "800",
                 }}
               >
-                Gerenciar periodização
+                {creatingNextCycle ? "Criar próximo ciclo" : "Gerenciar periodização"}
               </Text>
               <View
                 style={{
@@ -714,7 +734,7 @@ export function PeriodizationManagerSheet({
                   alignItems: "center",
                   gap: 5,
                   borderWidth: 1,
-                  borderColor: configured
+                  borderColor: configured && active
                     ? colors.successBorder
                     : colors.warningBorder,
                   borderRadius: 999,
@@ -727,21 +747,27 @@ export function PeriodizationManagerSheet({
                     width: 7,
                     height: 7,
                     borderRadius: 4,
-                    backgroundColor: configured
+                    backgroundColor: configured && active
                       ? colors.successText
                       : colors.warningText,
                   }}
                 />
                 <Text
                   style={{
-                    color: configured
+                    color: configured && active
                       ? colors.successText
                       : colors.warningText,
                     fontSize: 11,
                     fontWeight: "700",
                   }}
                 >
-                  {configured ? "Ciclo ativo" : "Configuração pendente"}
+                  {creatingNextCycle
+                    ? "Novo ciclo"
+                    : !configured
+                    ? "Configuração pendente"
+                    : active
+                      ? "Ciclo ativo"
+                      : "Ciclo encerrado"}
                 </Text>
               </View>
             </View>
@@ -753,11 +779,29 @@ export function PeriodizationManagerSheet({
             </Text>
           </View>
 
-          <View style={{ position: "relative" }}>
+          <View
+            ref={menuTriggerRef}
+            style={{ display: creatingNextCycle ? "none" : "flex" }}
+          >
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Mais ações da periodização"
-              onPress={() => setMenuOpen((current) => !current)}
+              onPress={() => {
+                if (menuOpen) {
+                  setMenuOpen(false);
+                  return;
+                }
+                menuTriggerRef.current?.measureInWindow((x, y, triggerWidth, triggerHeight) => {
+                  const menuWidth = Math.min(260, Math.max(180, width - 32));
+                  setMenuLayout({
+                    x: x + triggerWidth - menuWidth,
+                    y,
+                    width: menuWidth,
+                    height: triggerHeight,
+                  });
+                  setMenuOpen(true);
+                });
+              }}
               style={{
                 width: 40,
                 height: 40,
@@ -774,60 +818,84 @@ export function PeriodizationManagerSheet({
                 color={colors.text}
               />
             </Pressable>
-            {menuOpen ? (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 46,
-                  right: 0,
-                  width: 260,
-                  zIndex: 40,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  padding: 6,
-                }}
-              >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Redefinir semanas automáticas"
-                  onPress={() => {
-                    setMenuOpen(false);
-                    onResetAutomatic();
-                  }}
-                  style={{
-                    minHeight: 44,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 9,
-                    borderRadius: 9,
-                    paddingHorizontal: 10,
-                  }}
-                >
-                  <GoAtletaIcon
-                    name="trash"
-                    size={17}
-                    color={colors.dangerText}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        color: colors.dangerText,
-                        fontSize: 12,
-                        fontWeight: "700",
-                      }}
-                    >
-                      Redefinir automáticos
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: 10 }}>
-                      Preserva planos personalizados
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
-            ) : null}
           </View>
+          <AnchoredDropdown
+            visible={menuOpen && !creatingNextCycle}
+            layout={menuLayout}
+            container={null}
+            animationStyle={{}}
+            zIndex={9400}
+            maxHeight={126}
+            nestedScrollEnabled={false}
+            portalToBodyOnWeb
+            density="menu"
+            showVerticalScrollIndicator={false}
+            interactiveRefs={[menuTriggerRef]}
+            onRequestClose={() => setMenuOpen(false)}
+            panelStyle={{ borderRadius: 12 }}
+            scrollContentStyle={{ padding: 6, gap: 0 }}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Redefinir semanas automáticas"
+              onPress={() => {
+                closeMenuThenRun(onResetAutomatic);
+              }}
+              style={{
+                minHeight: 48,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 9,
+                borderRadius: 9,
+                paddingHorizontal: 10,
+              }}
+            >
+              <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "700" }}>
+                  Redefinir automáticos
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 10 }}>
+                  Preserva planos personalizados
+                </Text>
+              </View>
+            </Pressable>
+            <View
+              style={{
+                height: 1,
+                marginHorizontal: 8,
+                marginVertical: 4,
+                backgroundColor: colors.border,
+              }}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Encerrar periodização ativa"
+              disabled={!active || regenerating}
+              onPress={() => {
+                closeMenuThenRun(onArchiveCycle);
+              }}
+              style={{
+                minHeight: 48,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 9,
+                borderRadius: 9,
+                paddingHorizontal: 10,
+                opacity: !active || regenerating ? 0.45 : 1,
+              }}
+            >
+              <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "700" }}>
+                  Encerrar periodização
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 10 }}>
+                  Sai da operação e mantém o histórico
+                </Text>
+              </View>
+            </Pressable>
+          </AnchoredDropdown>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Fechar gerenciamento"
@@ -864,6 +932,34 @@ export function PeriodizationManagerSheet({
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
               Parâmetros do ciclo
             </Text>
+
+            {creatingNextCycle ? (
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  backgroundColor: colors.infoBg,
+                  padding: 12,
+                  flexDirection: "row",
+                  alignItems: "flex-start",
+                  gap: 9,
+                }}
+              >
+                <GoAtletaIcon name="info" size={18} color={colors.infoText} />
+                <Text
+                  style={{
+                    flex: 1,
+                    color: colors.infoText,
+                    fontSize: 11,
+                    lineHeight: 16,
+                  }}
+                >
+                  Agenda e parâmetros foram herdados. Revise a nova data, a
+                  carga e a recuperação antes de criar.
+                </Text>
+              </View>
+            ) : null}
 
             <View style={{ gap: 12 }}>
               <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
@@ -1151,7 +1247,7 @@ export function PeriodizationManagerSheet({
 
             <View style={{ gap: 10 }}>
               <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                O que mudará ao salvar
+                {creatingNextCycle ? "O que será criado" : "O que mudará ao salvar"}
               </Text>
               <View
                 style={{
@@ -1165,7 +1261,13 @@ export function PeriodizationManagerSheet({
                   colors={colors}
                   icon="calendar"
                   label="Agenda"
-                  value={dirty ? "Parâmetros serão atualizados" : "Sem alteração"}
+                  value={
+                    creatingNextCycle
+                      ? `${dayLabel || "Dias não definidos"} · início ${formatBrazilianDate(draft.cycleStartDate)}`
+                      : dirty
+                        ? "Parâmetros serão atualizados"
+                        : "Sem alteração"
+                  }
                 />
                 <ImpactRow
                   colors={colors}
@@ -1177,13 +1279,21 @@ export function PeriodizationManagerSheet({
                   colors={colors}
                   icon="refresh"
                   label="Semanas automáticas"
-                  value={`${autoPlanCount} disponíveis para regerar`}
+                  value={
+                    creatingNextCycle
+                      ? "Serão geradas após a criação"
+                      : `${autoPlanCount} disponíveis para regerar`
+                  }
                 />
                 <ImpactRow
                   colors={colors}
                   icon="students"
                   label="Planos personalizados"
-                  value={`${manualPlanCount} preservados`}
+                  value={
+                    creatingNextCycle
+                      ? `${manualPlanCount} continuam no histórico`
+                      : `${manualPlanCount} preservados`
+                  }
                 />
                 <ImpactRow
                   colors={colors}
@@ -1194,7 +1304,7 @@ export function PeriodizationManagerSheet({
               </View>
             </View>
 
-            <View
+            {!creatingNextCycle ? <View
               style={{
                 flexDirection: narrow ? "column" : "row",
                 gap: 10,
@@ -1240,7 +1350,7 @@ export function PeriodizationManagerSheet({
                   Duplicar em nova turma
                 </Text>
               </Pressable>
-            </View>
+            </View> : null}
 
             <View
               style={{
@@ -1267,8 +1377,9 @@ export function PeriodizationManagerSheet({
                   lineHeight: 16,
                 }}
               >
-                Salvar altera a configuração base. Regerar e redefinir atuam
-                somente nas semanas automáticas; edições manuais são preservadas.
+                {creatingNextCycle
+                  ? "Criar ativa uma nova janela anual. O ciclo encerrado, os planos e as aulas realizadas permanecem no histórico."
+                  : "Salvar altera a configuração base. Regerar e redefinir atuam somente nas semanas automáticas; edições manuais são preservadas."}
               </Text>
             </View>
           </ManagerPane>
@@ -1295,12 +1406,12 @@ export function PeriodizationManagerSheet({
             }}
           >
             <GoAtletaIcon
-              name={error ? "warningCircle" : dirty ? "info" : "checkmarkCircle"}
+              name={error ? "warningCircle" : dirty || creatingNextCycle ? "info" : "checkmarkCircle"}
               size={18}
               color={
                 error
                   ? colors.dangerText
-                  : dirty
+                  : dirty || creatingNextCycle
                     ? colors.warningText
                     : colors.successText
               }
@@ -1311,14 +1422,18 @@ export function PeriodizationManagerSheet({
                 flex: 1,
                 color: error
                   ? colors.dangerText
-                  : dirty
+                  : dirty || creatingNextCycle
                     ? colors.warningText
                     : colors.muted,
                 fontSize: 11,
               }}
             >
               {error ||
-                (dirty ? "Alterações não salvas" : "Configuração sincronizada")}
+                (creatingNextCycle
+                  ? "Pronto para criar com início sugerido"
+                  : dirty
+                    ? "Alterações não salvas"
+                    : "Configuração sincronizada")}
             </Text>
           </View>
           <Pressable
@@ -1334,12 +1449,12 @@ export function PeriodizationManagerSheet({
             }}
           >
             <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-              Descartar rascunho
+              {creatingNextCycle ? "Restaurar sugestão" : "Descartar rascunho"}
             </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            disabled={!dirty || saving}
+            disabled={saveDisabled}
             onPress={() => void handleSave()}
             style={{
               minHeight: 46,
@@ -1349,7 +1464,7 @@ export function PeriodizationManagerSheet({
               borderRadius: 11,
               backgroundColor: colors.primaryBg,
               paddingHorizontal: 20,
-              opacity: !dirty || saving ? 0.55 : 1,
+              opacity: saveDisabled ? 0.55 : 1,
             }}
           >
             <Text
@@ -1359,7 +1474,13 @@ export function PeriodizationManagerSheet({
                 fontWeight: "800",
               }}
             >
-              {saving ? "Salvando..." : "Salvar e aplicar"}
+              {saving
+                ? creatingNextCycle
+                  ? "Criando..."
+                  : "Salvando..."
+                : creatingNextCycle
+                  ? "Criar ciclo"
+                  : "Salvar e aplicar"}
             </Text>
           </Pressable>
         </View>

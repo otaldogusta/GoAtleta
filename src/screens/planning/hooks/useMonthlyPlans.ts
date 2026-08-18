@@ -13,8 +13,7 @@ import type {
 import type { PlannedSession } from "../../../core/session-calendar-engine";
 import { isClassPeriodizationConfigured } from "../../../core/periodization-policy";
 import {
-  ensureActiveCycleForYear,
-  getActivePlanningCycle,
+  getOrCreateInitialActivePlanningCycle,
 } from "../../../db/cycles";
 import {
   listActiveStudentContextsByClass,
@@ -308,19 +307,26 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       }
       const currentYear = new Date().getFullYear();
       const classStartDate = cls?.cycleStartDate || cls?.createdAt || null;
-      await loadRequiredMonthlyData(
+      const { activeCycle } = await loadRequiredMonthlyData(
         "ciclo ativo",
-        ensureActiveCycleForYear(
+        getOrCreateInitialActivePlanningCycle(
           classId,
           cls.organizationId,
           currentYear,
           classStartDate,
         ),
       );
-      const activeCycle = await loadRequiredMonthlyData(
-        "ciclo ativo",
-        getActivePlanningCycle(classId, cls.organizationId),
-      );
+      if (!activeCycle) {
+        setActiveCycle(null);
+        setClassPlans([]);
+        setCalendarExceptions([]);
+        setStudents(undefined);
+        setRecentAttendance([]);
+        setRecentSessionLogs([]);
+        setStudentContexts([]);
+        setDailyPlansByKey({});
+        return;
+      }
       const cycleYear = activeCycle?.year ?? null;
       const plans = await loadRequiredMonthlyData(
         "semanas do ciclo",

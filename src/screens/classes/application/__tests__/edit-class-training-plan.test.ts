@@ -155,6 +155,56 @@ describe("edit-class-training-plan", () => {
     expect(getClassPlanSpecificObjective(normalized)).toBe("Objetivo específico da aula");
   });
 
+  it("preserves whole-cell PDF text without rebuilding the manual description", () => {
+    const longDescription =
+      "Descrição manual extensa, com organização própria, critérios de observação e adaptações que não podem ser substituídos pelo texto automático anterior.";
+    const editedMain = updateClassTrainingPlanBlock(plan, "main", {
+      duration: "45",
+      objective: "Objetivo antigo",
+      activitiesText: "1. Manchete controle e toque\n2. Situação de jogo 6x0",
+      descriptionText: longDescription,
+      activities: [
+        { name: "Manchete controle e toque", description: "Descrição antiga" },
+        { name: "Situação de jogo 6x0", description: "Outra descrição antiga" },
+      ],
+    });
+    const afterAnotherBlockEdit = updateClassTrainingPlanBlock(editedMain, "warmup", {
+      duration: "12",
+      objective: "",
+      activities: [{ name: "Novo aquecimento", description: "" }],
+    });
+    const normalized = normalizeClassTrainingPlan(afterAnotherBlockEdit);
+    const mainDraft = buildClassPlanBlockDraft(normalized, "main");
+
+    expect(mainDraft.activitiesText).toBe(
+      "1. Manchete controle e toque\n2. Situação de jogo 6x0"
+    );
+    expect(mainDraft.descriptionText).toBe(longDescription);
+    expect(normalized.pedagogy?.blocks?.main.descriptionText).toBe(longDescription);
+  });
+
+  it("clears whole-cell overrides when the structured activity list changes", () => {
+    const draft = {
+      ...buildClassPlanBlockDraft(plan, "main"),
+      activitiesText: "Texto manual de atividades",
+      descriptionText: "Texto manual de descrição",
+    };
+
+    expect(appendClassPlanActivity(draft)).toMatchObject({
+      activitiesText: undefined,
+      descriptionText: undefined,
+    });
+    expect(
+      removeClassPlanActivity(
+        { ...draft, activities: [...draft.activities, { name: "Outra", description: "" }] },
+        1
+      )
+    ).toMatchObject({
+      activitiesText: undefined,
+      descriptionText: undefined,
+    });
+  });
+
   it("adds a visible activity with a unique editable name", () => {
     const first = appendClassPlanActivity(buildClassPlanBlockDraft(plan, "main"));
     const second = appendClassPlanActivity(first);

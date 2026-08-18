@@ -341,6 +341,52 @@ describe("buildRecentSessionSummary", () => {
     );
   });
 
+  it("tracks whole-cell PDF edits and exposes the effective activity count", () => {
+    const generated = buildPlan({
+      id: "plan_generated",
+      inputHash: "hash_generated",
+      pedagogy: {
+        focus: { skill: "passe" },
+        progression: { dimension: "consistencia" },
+        load: { intendedRPE: 5, volume: "moderado" },
+        methodology: { approach: "analitico" },
+        blocks: {
+          warmup: { activitiesText: "Controle de bola", descriptionText: "Em duplas", activities: [] },
+          main: { activitiesText: "1. Passe na três 2. Jogo 6x0", descriptionText: "Progressão simples", activities: [] },
+          cooldown: { activitiesText: "Conversa final", descriptionText: "Retomar decisões", activities: [] },
+        },
+      },
+    });
+    const edited = buildPlan({
+      id: "plan_edited",
+      origin: "edited_auto",
+      status: "final",
+      version: 2,
+      previousVersionId: "plan_generated",
+      parentPlanId: "plan_generated",
+      pedagogy: {
+        ...generated.pedagogy,
+        blocks: {
+          ...generated.pedagogy!.blocks!,
+          main: {
+            activitiesText: "1. Manchete controle\n2. Pimentinha\n3. Situação de jogo 6x0",
+            descriptionText: "Turma integrada com iniciantes; reduzir oposição.",
+            activities: [],
+          },
+        },
+      },
+    });
+
+    const [summary] = buildRecentSessionSummary({
+      classId: "class_1",
+      plans: [generated, edited],
+      sessions: [buildSession({ planId: "plan_edited" })],
+    });
+
+    expect(summary.activityCount).toBe(5);
+    expect(summary.teacherEditedFields).toContain("activityStructure");
+  });
+
   it("does not classify manual apply without content changes as teacher edit", () => {
     const sourcePlan = buildPlan({
       id: "plan_saved",

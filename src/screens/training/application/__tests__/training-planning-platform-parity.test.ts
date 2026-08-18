@@ -23,4 +23,11 @@ describe("training planning platform parity", () => {
     expect(classPlanWorkspace).toContain("{renderOutline(editor)}");
     expect(classPlanWorkspace).toContain("renderEditFooter(true)");
   });
+
+  it("keeps the web class plan on the same inline PDF editor used by planning", () => {
+    expect(classPlanWorkspace).toContain('const inlinePdfEditor = Platform.OS === "web";');
+    expect(classPlanWorkspace).toContain("{inlinePdfEditor ? (\n            preview");
+    expect(classPlanWorkspace).toContain("const currentWorkingPlan = workingPlanRef.current;");
+    expect(classPlanWorkspace).toContain("normalizeClassTrainingPlan(currentWorkingPlan)");
+  });
 });

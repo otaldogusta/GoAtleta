@@ -604,6 +604,10 @@ export type LessonBlock = {
 
 export type TrainingPlanSessionBlock = {
   summary?: string;
+  /** Texto manual que ocupa toda a célula de atividades no PDF. */
+  activitiesText?: string;
+  /** Texto manual que ocupa toda a célula de descrição no PDF. */
+  descriptionText?: string;
   activities: TrainingPlanActivity[];
 };
 
@@ -812,6 +816,8 @@ export type TrainingPlan = {
 
 export type RecentSessionSummary = {
   sessionDate: string;
+  /** Quantidade de atividades que o professor efetivamente deixou no plano. */
+  activityCount?: number;
   participantsCount?: number;
   reportConclusion?: string;
   wasPlanned: boolean;

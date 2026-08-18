@@ -65,9 +65,16 @@ function makeSupabaseMock(tableResults: Record<string, QueryResult>) {
 const CYCLE_ROW = {
   id: "pc_class1_2026",
   title: "Temporada 2026",
-  startdate: "2026-01-06",
-  enddate: "2026-12-15",
+  start_date: "2026-01-06",
+  end_date: "2026-12-15",
   year: 2026,
+  periodization_policy_json: {
+    loadModel: "blocos",
+    recoveryWeeks: 5,
+    intensityMin: 3,
+    intensityMax: 8,
+  },
+  policy_version: 4,
 };
 
 const WEEK_ROW = {
@@ -122,10 +129,15 @@ describe("resolveAIPeriodizationContext", () => {
     expect(result!.classId).toBe("class1");
     expect(result!.cycle?.name).toBe("Temporada 2026");
     expect(result!.cycle?.weekIndex).toBeGreaterThan(0);
+    expect(result!.cycle?.policyVersion).toBe(4);
+    expect(result!.cycle?.loadModel).toBe("blocos");
     expect(result!.currentWeek?.focus).toBe("Recepção em deslocamento");
     expect(result!.currentWeek?.technicalPriority).toBe("Controle de plataforma");
     expect(result!.currentWeek?.loadTarget).toBe("moderate"); // rpe_target = 6
     expect(result!.decisionHints.length).toBeGreaterThan(0);
+    expect(result!.decisionHints).toContain(
+      "Parâmetros confirmados (v4): modelo blocos, PSE 3–8, recuperação a cada 5 semanas.",
+    );
   });
 
   // 3. Turma sem periodização → retorna null sem quebrar o assistant

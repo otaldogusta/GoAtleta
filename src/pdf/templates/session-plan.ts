@@ -18,10 +18,27 @@ export type SessionPlanActivity = LessonActivity & {
 export type SessionBlock = Partial<LessonBlock> & {
   title?: string;
   time?: string;
+  activitiesText?: string;
+  descriptionText?: string;
   // Legacy fallback for migration.
   summary?: string;
   activities?: SessionPlanActivity[];
   items?: SessionPlanActivity[];
+};
+
+export type SessionPlanPeriodizationSource = {
+  weekLabel: string;
+  phaseLabel: string;
+  focusLabel: string;
+  loadLabel: string;
+  roleLabel: string;
+  monthlyGameSession?: boolean;
+  classLevelLabel?: string;
+  objectiveLabel?: string;
+  loadModelLabel?: string;
+  beforeLabel?: string;
+  nowLabel?: string;
+  afterLabel?: string;
 };
 
 export type SessionPlanPdfData = {
@@ -45,6 +62,7 @@ export type SessionPlanPdfData = {
   blocks: SessionBlock[];
   coachName?: string;
   preserveEmptyFields?: boolean;
+  periodizationSource?: SessionPlanPeriodizationSource;
 };
 
 const asText = (value: unknown) => sanitizeVolleyballLanguage(toPdfText(value));
@@ -77,10 +95,14 @@ const resolvePeriod = (label: string): MonthlyLessonPlanBlockRow["period"] => {
 };
 
 const formatActivityNames = (
+  block: SessionBlock,
   items: SessionPlanActivity[],
   enumerate: boolean,
   preserveEmptyFields = false
 ) => {
+  if (typeof block.activitiesText === "string") {
+    return asCoachingText(block.activitiesText);
+  }
   const names = items.map((item) => asCoachingText(item?.name).trim()).filter(Boolean);
   if (!names.length) return preserveEmptyFields ? "" : "-";
   if (!enumerate) return names.join("\n");
@@ -93,6 +115,9 @@ const formatDescriptions = (
   enumerate: boolean,
   preserveEmptyFields = false
 ) => {
+  if (typeof block.descriptionText === "string") {
+    return asCoachingText(block.descriptionText);
+  }
   const descriptions = items.map(resolveActivityDescription).filter(Boolean);
   if (descriptions.length) {
     return enumerate
@@ -143,7 +168,7 @@ export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPl
     const enumerate = period === "Parte principal";
     return {
       period,
-      activities: formatActivityNames(items, enumerate, preserveEmptyFields),
+      activities: formatActivityNames(block, items, enumerate, preserveEmptyFields),
       time:
         period === "Volta à calma" ||
         (preserveEmptyFields && block.durationMinutes === undefined && !asText(block.time))
@@ -182,6 +207,23 @@ export const buildSessionMonthlyPlanData = (data: SessionPlanPdfData): MonthlyPl
           (preserveEmptyFields
             ? ""
             : `Como aplicar ${lowerFirst(focus || "o fundamento da aula")} mantendo a continuidade e o controle da bola?`),
+        periodizationSource: data.periodizationSource
+          ? {
+              weekLabel: asText(data.periodizationSource.weekLabel),
+              phaseLabel: asText(data.periodizationSource.phaseLabel),
+              focusLabel: asText(data.periodizationSource.focusLabel),
+              loadLabel: asText(data.periodizationSource.loadLabel),
+              roleLabel: data.periodizationSource.monthlyGameSession
+                ? "Jogo consolidado do mês"
+                : asText(data.periodizationSource.roleLabel),
+              ...(data.periodizationSource.classLevelLabel ? { classLevelLabel: asText(data.periodizationSource.classLevelLabel) } : {}),
+              ...(data.periodizationSource.objectiveLabel ? { objectiveLabel: asText(data.periodizationSource.objectiveLabel) } : {}),
+              ...(data.periodizationSource.loadModelLabel ? { loadModelLabel: asText(data.periodizationSource.loadModelLabel) } : {}),
+              ...(data.periodizationSource.beforeLabel ? { beforeLabel: asText(data.periodizationSource.beforeLabel) } : {}),
+              ...(data.periodizationSource.nowLabel ? { nowLabel: asText(data.periodizationSource.nowLabel) } : {}),
+              ...(data.periodizationSource.afterLabel ? { afterLabel: asText(data.periodizationSource.afterLabel) } : {}),
+            }
+          : undefined,
         blocks,
         observations: asCoachingText(data?.notes),
         preserveEmptyFields,

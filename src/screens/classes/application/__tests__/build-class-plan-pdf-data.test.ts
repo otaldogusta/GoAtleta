@@ -38,6 +38,36 @@ const plan = {
 } as TrainingPlan;
 
 describe("buildClassPlanPdfData", () => {
+  it("leva os parâmetros da periodização ao cabeçalho da aula", () => {
+    const periodizedPlan = {
+      ...plan,
+      pedagogy: {
+        ...plan.pedagogy,
+        periodization: {
+          weekNumber: 3,
+          phase: "Transição",
+          technicalFocus: "Continuidade e controle",
+          rpeTarget: "RPE 6",
+        },
+      },
+    } as TrainingPlan;
+
+    const data = buildClassPlanPdfData({
+      classGroup,
+      plan: periodizedPlan,
+      lessonDate: "2026-08-17",
+    });
+    const lesson = buildSessionMonthlyPlanData(data).lessons[0];
+
+    expect(lesson.periodizationSource).toEqual({
+      weekLabel: "Semana 3",
+      phaseLabel: "Transição",
+      focusLabel: "Continuidade e controle",
+      loadLabel: "RPE 6",
+      roleLabel: "Aula planejada",
+    });
+  });
+
   it("keeps class metadata blank while the document is still unassigned", () => {
     const data = buildClassPlanPdfData({
       classGroup,
@@ -218,5 +248,34 @@ describe("buildClassPlanPdfData", () => {
         items: [{ activity: "Volta à calma editada", description: "Descrição final" }],
       },
     ]);
+  });
+
+  it("usa o texto manual da célula inteira como fonte de verdade no PDF", () => {
+    const longDescription =
+      "Descrição manual extensa com preparação, execução, critérios de sucesso, adaptação por nível e observações finais exatamente como o professor escreveu.";
+    const editedPlan = updateClassTrainingPlanBlock(plan, "main", {
+      duration: "45",
+      objective: "",
+      activitiesText: "1. Manchete controle e toque\n2. Pimentinha\n3. Situação de jogo 6x0",
+      descriptionText: longDescription,
+      activities: [
+        { name: "Manchete controle e toque", description: "Texto gerado antigo" },
+        { name: "Pimentinha", description: "Outro texto gerado" },
+        { name: "Situação de jogo 6x0", description: "Mais um texto gerado" },
+      ],
+    });
+    const lesson = buildSessionMonthlyPlanData(
+      buildClassPlanPdfData({
+        classGroup,
+        plan: editedPlan,
+        lessonDate: "2026-08-17",
+      })
+    ).lessons[0];
+
+    expect(lesson.blocks[1]?.activities).toBe(
+      "1. Manchete controle e toque\n2. Pimentinha\n3. Situação de jogo 6x0"
+    );
+    expect(lesson.blocks[1]?.description).toBe(longDescription);
+    expect(lesson.blocks[1]?.description).not.toContain("Texto gerado antigo");
   });
 });

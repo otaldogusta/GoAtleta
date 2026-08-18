@@ -18,6 +18,8 @@ type HomeProfessorBelowFoldProps = {
   canOpenCalendarShortcut: boolean;
   canOpenAbsenceNoticesShortcut: boolean;
   canOpenPeriodizationShortcut: boolean;
+  canOpenRegulationHistoryShortcut: boolean;
+  canOpenAssistantShortcut: boolean;
 };
 
 type ShortcutCardProps = {
@@ -120,6 +122,8 @@ function HomeProfessorBelowFoldBase({
   canOpenCalendarShortcut,
   canOpenAbsenceNoticesShortcut,
   canOpenPeriodizationShortcut,
+  canOpenRegulationHistoryShortcut,
+  canOpenAssistantShortcut,
 }: HomeProfessorBelowFoldProps) {
   const { colors } = useAppTheme();
   const router = useRouter();
@@ -294,6 +298,26 @@ function HomeProfessorBelowFoldBase({
             icon="periodization"
             mobile={mobile}
             onPress={() => navigateToShortcut("/prof/periodization")}
+          />
+        ) : null}
+
+        {canOpenRegulationHistoryShortcut ? (
+          <ShortcutCard
+            label="Regulamentos"
+            description="Fontes e histórico"
+            icon="regulations"
+            mobile={mobile}
+            onPress={() => navigateToShortcut("/prof/regulation-history")}
+          />
+        ) : null}
+
+        {canOpenAssistantShortcut ? (
+          <ShortcutCard
+            label="Assistente IA"
+            description="Apoio ao professor"
+            icon="assistant"
+            mobile={mobile}
+            onPress={() => navigateToShortcut("/prof/assistant")}
           />
         ) : null}
       </View>

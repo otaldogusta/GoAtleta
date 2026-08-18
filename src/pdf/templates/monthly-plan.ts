@@ -19,6 +19,19 @@ export type MonthlyLessonPlanItem = {
   generalObjective: string;
   specificObjective: string;
   situationProblem?: string;
+  periodizationSource?: {
+    weekLabel: string;
+    phaseLabel: string;
+    focusLabel: string;
+    loadLabel: string;
+    roleLabel: string;
+    classLevelLabel?: string;
+    objectiveLabel?: string;
+    loadModelLabel?: string;
+    beforeLabel?: string;
+    nowLabel?: string;
+    afterLabel?: string;
+  };
   blocks: MonthlyLessonPlanBlockRow[];
   observations?: string;
   preserveEmptyFields?: boolean;
@@ -91,29 +104,13 @@ const lessonCardHtmlWithProfessor = (
     .map((block) => {
       const blockKey = getBlockKey(block.period);
       const bKeyAttr = editable ? `data-block-key="${blockKey}"` : "";
-      const structuredItems = block.items?.filter(
-        (item) => item.activity.trim() || item.description.trim()
-      );
       return block.period === "Volta à calma"
         ? `
         <tr class="block-row block-cooldown">
           <th class="label-cell period">Volta à calma:</th>
-          <td colspan="3"${editAttr(`block-description-${block.period}`, bKeyAttr)}>${esc(block.activities || block.description || emptyValue)}</td>
+          <td colspan="3"${editAttr(`block-activities-${block.period}`, bKeyAttr)}>${multilineBlockHtml(block.activities || block.description, emptyValue)}</td>
         </tr>
       `
-        : structuredItems?.length
-        ? structuredItems
-            .map(
-              (item, itemIndex) => `
-        <tr class="block-row block-${block.period === "Parte principal" ? "main" : "warmup"}${itemIndex > 0 ? " block-continuation" : ""}">
-          <td class="period"${bKeyAttr ? ` ${bKeyAttr}` : ""}>${itemIndex === 0 ? esc(block.period) : ""}</td>
-          <td class="activities"${editAttr(`block-activity-${blockKey}-${itemIndex}`, bKeyAttr)}>${esc(item.activity || emptyValue)}</td>
-          <td class="time"${itemIndex === 0 ? editAttr(`block-time-${block.period}`, bKeyAttr) : ""}>${itemIndex === 0 ? esc(block.time || emptyValue) : ""}</td>
-          <td class="description"${editAttr(`block-description-item-${blockKey}-${itemIndex}`, bKeyAttr)}>${esc(item.description || emptyValue)}</td>
-        </tr>
-      `
-            )
-            .join("")
         : `
         <tr class="block-row block-${block.period === "Parte principal" ? "main" : "warmup"}">
           <td class="period"${bKeyAttr ? ` ${bKeyAttr}` : ""}>${esc(block.period)}</td>
@@ -155,6 +152,28 @@ const lessonCardHtmlWithProfessor = (
             <th class="label-cell label-secondary">Horário:</th>
             <td class="value-cell">${esc(lesson.timeLabel || "-")}</td>
           </tr>
+          ${lesson.periodizationSource ? `
+          <tr class="field-row periodization-row">
+            <th class="label-cell">Periodização:</th>
+            <td class="value-cell" colspan="3">
+              <strong>${esc(lesson.periodizationSource.weekLabel)}</strong>
+              <span class="periodization-separator"> · </span>${esc(lesson.periodizationSource.phaseLabel)}
+              <span class="periodization-separator"> · </span><strong>Foco:</strong> ${esc(lesson.periodizationSource.focusLabel)}
+              <span class="periodization-separator"> · </span><strong>Carga:</strong> ${esc(lesson.periodizationSource.loadLabel)}
+              <span class="periodization-separator"> · </span><strong>Papel:</strong> ${esc(lesson.periodizationSource.roleLabel)}
+            </td>
+          </tr>
+          ` : ""}
+          ${lesson.periodizationSource && (lesson.periodizationSource.classLevelLabel || lesson.periodizationSource.objectiveLabel || lesson.periodizationSource.loadModelLabel) ? `
+          <tr class="field-row periodization-row">
+            <th class="label-cell">Contexto:</th>
+            <td class="value-cell" colspan="3">
+              ${lesson.periodizationSource.classLevelLabel ? `<strong>Nível:</strong> ${esc(lesson.periodizationSource.classLevelLabel)}` : ""}
+              ${lesson.periodizationSource.objectiveLabel ? `<span class="periodization-separator"> · </span><strong>Objetivo:</strong> ${esc(lesson.periodizationSource.objectiveLabel)}` : ""}
+              ${lesson.periodizationSource.loadModelLabel ? `<span class="periodization-separator"> · </span><strong>Modelo:</strong> ${esc(lesson.periodizationSource.loadModelLabel)}` : ""}
+            </td>
+          </tr>
+          ` : ""}
           <tr class="content-row">
             <th class="label-cell">Objetivo geral:</th>
             <td class="value-cell"${editAttr("generalObjective", 'data-section="pedagogy"')} colspan="3">${esc(lesson.generalObjective)}</td>
@@ -272,6 +291,11 @@ export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?:
         }
         .field-row th,
         .field-row td { height: 5.5mm; }
+        .periodization-row th,
+        .periodization-row td { height: auto; min-height: 5.5mm; }
+        .periodization-row .label-cell { background: #eaf5ea; }
+        .periodization-row .value-cell { white-space: normal; }
+        .periodization-separator { color: #6b7280; }
         .label-cell {
           width: 17%;
           background: #f2f2f2;
@@ -317,6 +341,9 @@ export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?:
         .description {
           width: 47%;
         }
+        .structured-list { line-height: 1.25; }
+        .structured-item { display: inline; }
+        .structured-separator { color: #6b7280; white-space: normal; }
         .block-paragraph:not(:last-child) { margin-bottom: 3pt; }
         .block-warmup td {
           height: 12mm;
@@ -325,10 +352,6 @@ export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?:
         .block-cooldown td { height: 7mm; vertical-align: middle; }
         .block-main td {
           height: 18mm;
-        }
-        .block-continuation td {
-          height: auto;
-          min-height: 12mm;
         }
         .observations-row td {
           height: 12mm;

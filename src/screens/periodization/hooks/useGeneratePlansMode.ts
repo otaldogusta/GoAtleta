@@ -72,14 +72,21 @@ export function useGeneratePlansMode({
   setIsSavingPlans,
 }: UseGeneratePlansModeParams) {
   const handleGenerateMode = useCallback(
-    async (mode: "fill" | "auto" | "all") => {
+    async (mode: "fill" | "auto" | "all", cycleIdOverride?: string) => {
       if (!selectedClass) return;
+
+      const resolvedCycleId = String(cycleIdOverride ?? activeCycleId).trim();
+      if (!resolvedCycleId) {
+        throw new Error(
+          "O ciclo ativo ainda não foi vinculado. Salve os parâmetros da periodização e tente novamente.",
+        );
+      }
 
       setIsSavingPlans(true);
 
       try {
         const existing = await getClassPlansByClass(selectedClass.id, {
-          cycleId: activeCycleId || null,
+          cycleId: resolvedCycleId,
           cycleYear: activeCycleYear,
         });
 
@@ -120,14 +127,14 @@ export function useGeneratePlansMode({
 
           await measure("deleteClassPlansByClass", () =>
             deleteClassPlansByClass(selectedClass.id, {
-              cycleId: activeCycleId || null,
+              cycleId: resolvedCycleId,
               cycleYear: activeCycleYear,
             })
           );
 
           const plansWithCycle = plans.map((plan) => ({
             ...plan,
-            cycleId: activeCycleId,
+            cycleId: resolvedCycleId,
           }));
 
           await measure("saveClassPlans", () => saveClassPlans(plansWithCycle));
@@ -152,7 +159,7 @@ export function useGeneratePlansMode({
           if (!existingPlan) {
             const plan = buildAutoPlanForWeek(week);
 
-            if (plan) toCreate.push({ ...plan, cycleId: activeCycleId });
+            if (plan) toCreate.push({ ...plan, cycleId: resolvedCycleId });
 
             continue;
           }
@@ -161,7 +168,7 @@ export function useGeneratePlansMode({
             const plan = buildAutoPlanForWeek(week, existingPlan);
 
             if (plan) {
-              plan.cycleId = activeCycleId;
+              plan.cycleId = resolvedCycleId;
               plan.updatedAt = new Date().toISOString();
 
               toUpdate.push(plan);

@@ -17,6 +17,11 @@ export interface AIPeriodizationSnapshot {
     weekIndex?: number;
     totalWeeks?: number;
     objective?: string;
+    policyVersion?: number;
+    loadModel?: string;
+    recoveryWeeks?: number;
+    intensityMin?: number;
+    intensityMax?: number;
   };
 
   /** Derived from the weekly plan (class_plans row) covering today. */
@@ -94,6 +99,25 @@ function totalWeeksInCycle(startDate: string, endDate: string): number {
   return Math.max(1, Math.round(days / 7));
 }
 
+function readCyclePolicy(value: unknown): {
+  loadModel?: string;
+  recoveryWeeks?: number;
+  intensityMin?: number;
+  intensityMax?: number;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const policy = value as Record<string, unknown>;
+  return {
+    loadModel: typeof policy.loadModel === "string" ? policy.loadModel : undefined,
+    recoveryWeeks:
+      typeof policy.recoveryWeeks === "number" ? policy.recoveryWeeks : undefined,
+    intensityMin:
+      typeof policy.intensityMin === "number" ? policy.intensityMin : undefined,
+    intensityMax:
+      typeof policy.intensityMax === "number" ? policy.intensityMax : undefined,
+  };
+}
+
 // ─── Main resolver ────────────────────────────────────────────────────────────
 
 /**
@@ -119,7 +143,9 @@ export async function resolveAIPeriodizationContext(
     // ── 1. Active planning cycle ─────────────────────────────────────────────
     const { data: cycleRow, error: cycleError } = await supabase
       .from("planning_cycles")
-      .select("id, title, startdate, enddate, year")
+      .select(
+        "id, title, start_date, end_date, year, periodization_policy_json, policy_version"
+      )
       .eq("classid", classId)
       .eq("status", "active")
       .order("year", { ascending: false })
@@ -177,11 +203,17 @@ export async function resolveAIPeriodizationContext(
 
     // ── 5. Build snapshot ────────────────────────────────────────────────────
 
+    const cyclePolicy = readCyclePolicy(cycleRow?.periodization_policy_json);
     const cycle: AIPeriodizationSnapshot["cycle"] = cycleRow
       ? {
           name: cycleRow.title || undefined,
-          weekIndex: weekIndexInCycle(cycleRow.startdate, safeDate),
-          totalWeeks: totalWeeksInCycle(cycleRow.startdate, cycleRow.enddate),
+          weekIndex: weekIndexInCycle(cycleRow.start_date, safeDate),
+          totalWeeks: totalWeeksInCycle(cycleRow.start_date, cycleRow.end_date),
+          policyVersion:
+            typeof cycleRow.policy_version === "number"
+              ? cycleRow.policy_version
+              : undefined,
+          ...cyclePolicy,
         }
       : undefined;
 
@@ -218,6 +250,26 @@ export async function resolveAIPeriodizationContext(
 
     if (currentWeek?.focus) {
       hints.push(`Foco da semana: ${currentWeek.focus}.`);
+    }
+
+    if (
+      cycle?.loadModel ||
+      cycle?.intensityMin !== undefined ||
+      cycle?.intensityMax !== undefined ||
+      cycle?.recoveryWeeks !== undefined
+    ) {
+      const policyParts = [
+        cycle.loadModel ? `modelo ${cycle.loadModel}` : null,
+        cycle.intensityMin !== undefined && cycle.intensityMax !== undefined
+          ? `PSE ${cycle.intensityMin}–${cycle.intensityMax}`
+          : null,
+        cycle.recoveryWeeks !== undefined
+          ? `recuperação a cada ${cycle.recoveryWeeks} semanas`
+          : null,
+      ].filter(Boolean);
+      hints.push(
+        `Parâmetros confirmados${cycle.policyVersion ? ` (v${cycle.policyVersion})` : ""}: ${policyParts.join(", ")}.`
+      );
     }
 
     if (currentWeek?.technicalPriority) {

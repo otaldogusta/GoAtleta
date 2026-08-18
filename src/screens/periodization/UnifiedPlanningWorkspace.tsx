@@ -8,7 +8,8 @@ import {
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
-import type { LessonBlock } from "../../core/models";
+import type { ClassGroup, LessonBlock, PlanningCycle } from "../../core/models";
+import { parsePeriodizationPolicy } from "../../core/periodization-policy";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import type { ThemeColors } from "../../ui/app-theme";
@@ -44,7 +45,7 @@ type Props = {
   colors: ThemeColors;
   classId: string;
   initialMonthKey?: string;
-  onOpenManager: () => void;
+  onOpenManager: (mode?: "manage" | "create-next") => void;
 };
 
 const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -321,6 +322,94 @@ function MonthContextSummary({ colors, events, presentation, compact = false }: 
           </View>
         </View>
       ))}
+    </View>
+  );
+}
+
+const LEVEL_LABELS: Record<number, string> = {
+  1: "Iniciante",
+  2: "Intermediária",
+  3: "Avançada",
+};
+
+const LOAD_MODEL_LABELS = {
+  ondulatorio: "Ondulatório",
+  linear: "Linear",
+  blocos: "Por blocos",
+} as const;
+
+const GOAL_LABELS: Record<string, string> = {
+  ludico: "Lúdico",
+  iniciacao: "Iniciação",
+  base: "Formação de base",
+  formacao: "Formação",
+  rendimento: "Rendimento",
+  competitivo: "Competitivo",
+  hibrido: "Híbrido",
+};
+
+const resolveGoalLabel = (goal: string | null | undefined) => {
+  const normalized = String(goal ?? "").trim();
+  if (!normalized) return "Não definido";
+  return GOAL_LABELS[normalized.toLocaleLowerCase("pt-BR")] ?? normalized;
+};
+
+function CycleContextCard({ colors, classGroup, cycle, events, presentation, onOpenManager, compact = false }: {
+  colors: ThemeColors;
+  classGroup: ClassGroup;
+  cycle?: PlanningCycle | null;
+  events: ProfessorAgendaEvent[];
+  presentation?: MonthCyclePresentation;
+  onOpenManager: () => void;
+  compact?: boolean;
+}) {
+  const policy = parsePeriodizationPolicy(cycle?.periodizationPolicyJson);
+  const representative = events.find((event) => !event.isMonthlyGameSession) ?? events[0];
+  const levelLabel = LEVEL_LABELS[classGroup.level] || classGroup.mvLevel || "Não definido";
+  const goalLabel = resolveGoalLabel(classGroup.goal);
+  const phaseLabel = presentation?.phase || representative?.plan.phase || "Fase ainda não gerada";
+  const focusLabel = representative?.focusLabel || representative?.objective || "Foco ainda não gerado";
+  const loadLabel = presentation?.loadRangeLabel || representative?.loadLabel || "Carga ainda não gerada";
+
+  const facts = [
+    { label: "Nível da turma", value: levelLabel },
+    { label: "Objetivo", value: goalLabel },
+    { label: "Modelo de carga", value: LOAD_MODEL_LABELS[policy.loadModel] },
+    { label: "Intensidade", value: `PSE ${policy.intensityMin}–${policy.intensityMax} · recuperação a cada ${policy.recoveryWeeks} semanas` },
+  ];
+
+  return (
+    <View style={[cardStyle(colors), { padding: compact ? 12 : 14, gap: 12, backgroundColor: colors.backgroundSubtle }]}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>Parâmetros que orientam os planos</Text>
+          <Text style={{ color: colors.muted, fontSize: 10 }}>Turma, ciclo e decisões confirmadas no mesmo contexto.</Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Editar parâmetros da periodização"
+          onPress={onOpenManager}
+          style={{ minHeight: 34, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
+        >
+          <Text style={{ color: colors.text, fontSize: 10, fontWeight: "800" }}>Editar</Text>
+        </Pressable>
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {facts.map((fact) => (
+          <View key={fact.label} style={{ flexGrow: 1, flexBasis: compact ? 128 : 150, minWidth: 0, borderWidth: 1, borderColor: colors.border, borderRadius: 9, padding: 9, gap: 3 }}>
+            <Text style={{ color: colors.muted, fontSize: 9 }}>{fact.label}</Text>
+            <Text style={{ color: colors.text, fontSize: 10, lineHeight: 14, fontWeight: "800" }}>{fact.value}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10, gap: 7 }}>
+        <Text style={{ color: colors.text, fontSize: 10, fontWeight: "900" }}>Antes → agora → depois</Text>
+        <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+          <Text style={{ color: colors.text, fontWeight: "800" }}>Antes: </Text>{levelLabel} · {goalLabel}
+          {"\n"}<Text style={{ color: colors.text, fontWeight: "800" }}>Agora: </Text>{phaseLabel} · {focusLabel} · {loadLabel}
+          {"\n"}<Text style={{ color: colors.text, fontWeight: "800" }}>Depois: </Text>edições confirmadas e relatórios orientam as próximas aulas sem reescrever o histórico concluído.
+        </Text>
+      </View>
     </View>
   );
 }
@@ -634,19 +723,23 @@ function TimeDonut({ colors, blocks }: { colors: ThemeColors; blocks: LessonBloc
   return <PlanTimeDistribution colors={colors} items={resolveDistribution(blocks)} />;
 }
 
-function LessonDetail({ colors, event, classTime, monthEvents, monthPresentation, onOpen, onClear }: {
+function LessonDetail({ colors, event, classTime, monthEvents, monthPresentation, classGroup, cycle, onOpenManager, onOpen, onClear }: {
   colors: ThemeColors;
   event: ProfessorAgendaEvent | null;
   classTime: string;
   monthEvents: ProfessorAgendaEvent[];
   monthPresentation?: MonthCyclePresentation;
+  classGroup: ClassGroup;
+  cycle?: PlanningCycle | null;
+  onOpenManager: () => void;
   onOpen: () => void;
   onClear: () => void;
 }) {
   if (!event) return (
     <View style={{ padding: 18, gap: 14 }}>
       <View style={{ gap: 5 }}><Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Visão do mês</Text><Text style={{ color: colors.muted, fontSize: 11 }}>Selecione uma aula para ver os detalhes.</Text></View>
-      <MonthContextSummary colors={colors} events={monthEvents} presentation={monthPresentation} compact />
+        <MonthContextSummary colors={colors} events={monthEvents} presentation={monthPresentation} compact />
+        <CycleContextCard colors={colors} classGroup={classGroup} cycle={cycle} events={monthEvents} presentation={monthPresentation} onOpenManager={onOpenManager} compact />
     </View>
   );
   const title = event.isMonthlyGameSession ? "Jogo consolidado do mês" : event.title;
@@ -667,7 +760,8 @@ function LessonDetail({ colors, event, classTime, monthEvents, monthPresentation
       <View style={{ height: 1, backgroundColor: colors.border }} />
       <View style={{ gap: 10 }}>
         <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>Visão do mês</Text>
-        <MonthContextSummary colors={colors} events={monthEvents} presentation={monthPresentation} compact />
+      <MonthContextSummary colors={colors} events={monthEvents} presentation={monthPresentation} compact />
+      <CycleContextCard colors={colors} classGroup={classGroup} cycle={cycle} events={monthEvents} presentation={monthPresentation} onOpenManager={onOpenManager} compact />
       </View>
       <View style={{ height: 1, backgroundColor: colors.border }} />
       <View style={{ gap: 7 }}>
@@ -691,6 +785,16 @@ function UnconfiguredGate({ colors, onOpenManager }: { colors: ThemeColors; onOp
       <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: colors.infoBg, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="periodization" size={24} color={colors.infoText} /></View>
       <View style={{ gap: 6 }}><Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>Configure a periodização para liberar o planejamento</Text><Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>A agenda só será exibida depois que nível, início, duração e modelo de carga estiverem definidos. Assim, cada aula nasce vinculada ao ciclo correto.</Text></View>
       <ActionButton colors={colors} label="Configurar periodização" icon="options" primary onPress={onOpenManager} />
+    </View>
+  );
+}
+
+function ArchivedCycleGate({ colors, onOpenManager }: { colors: ThemeColors; onOpenManager: (mode?: "manage" | "create-next") => void }) {
+  return (
+    <View style={[cardStyle(colors), { maxWidth: 720, width: "100%", alignSelf: "center", padding: 24, gap: 14, alignItems: "flex-start" }]}>
+      <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: colors.warningBg, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="periodization" size={24} color={colors.warningText} /></View>
+      <View style={{ gap: 6 }}><Text style={{ color: colors.text, fontSize: 20, fontWeight: "900" }}>Periodização encerrada</Text><Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20 }}>O ciclo saiu da operação. Planos, aulas executadas e relatórios continuam no histórico.</Text></View>
+      <ActionButton colors={colors} label="Criar próximo ciclo" icon="options" primary onPress={() => onOpenManager("create-next")} />
     </View>
   );
 }
@@ -769,9 +873,16 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, onO
   if (monthly.isLoading && !monthly.selectedClass) return <View style={{ minHeight: 360, alignItems: "center", justifyContent: "center", gap: 10 }}><ActivityIndicator color={colors.primary} /><Text style={{ color: colors.muted, fontSize: 12 }}>Carregando ciclo e aulas...</Text></View>;
   if (monthly.error) return <View style={[cardStyle(colors), { maxWidth: 680, alignSelf: "center", padding: 20, gap: 12 }]}><Text style={{ color: colors.dangerText, fontSize: 16, fontWeight: "800" }}>Não foi possível carregar o planejamento</Text><Text style={{ color: colors.muted, fontSize: 12 }}>{monthly.error}</Text><ActionButton colors={colors} label="Tentar novamente" icon="refresh" onPress={() => void monthly.reload()} /></View>;
   if (!monthly.isPeriodizationConfigured) return <UnconfiguredGate colors={colors} onOpenManager={onOpenManager} />;
+  if (!monthly.activeCycle) return <ArchivedCycleGate colors={colors} onOpenManager={onOpenManager} />;
 
   const classTime = [monthly.selectedClass?.startTime, monthly.selectedClass?.endTime].filter(Boolean).join(" – ");
   const durationMinutes = monthly.selectedClass?.durationMinutes ?? 60;
+  const activePolicy = parsePeriodizationPolicy(monthly.activeCycle?.periodizationPolicyJson);
+  const classLevelLabel = monthly.selectedClass
+    ? LEVEL_LABELS[monthly.selectedClass.level] || monthly.selectedClass.mvLevel || "Não definido"
+    : "Não definido";
+  const objectiveLabel = resolveGoalLabel(monthly.selectedClass?.goal);
+  const loadModelLabel = `${LOAD_MODEL_LABELS[activePolicy.loadModel]} · PSE ${activePolicy.intensityMin}–${activePolicy.intensityMax}`;
   const panelHeight = Math.max(590, height - 205);
   const selectMonth = (monthKey: string) => {
     setSelectedMonthKey(monthKey);
@@ -801,13 +912,20 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, onO
         loadLabel: selectedEvent.loadLabel || currentPresentation?.loadRangeLabel || "Carga não informada",
         roleLabel: selectedEvent.roleLabel || "Aula do ciclo",
         monthlyGameSession: selectedEvent.isMonthlyGameSession,
+        classLevelLabel,
+        objectiveLabel,
+        loadModelLabel,
+        beforeLabel: `${classLevelLabel} · ${objectiveLabel}`,
+        nowLabel: `${currentPresentation?.phase || selectedEvent.plan.phase || "Fase do ciclo"} · ${selectedEvent.focusLabel || selectedEvent.title}`,
+        afterLabel: "Edições e relatórios orientarão as próximas aulas; o histórico concluído será preservado.",
       }
     : undefined;
   const monthRail = <MonthRail colors={colors} summaries={visibleSummaries} selectedMonthKey={selectedMonthKey} selectedMonthEvents={monthly.agendaEvents} presentations={monthPresentations} horizontal={!dense} onSelect={selectMonth} />;
-  const detail = <LessonDetail colors={colors} event={selectedEvent} classTime={classTime || "Horário da turma"} monthEvents={monthly.agendaEvents} monthPresentation={currentPresentation} onClear={() => setSelectedEvent(null)} onOpen={() => { if (selectedEvent) void openEventPlan(selectedEvent); }} />;
+  const detail = monthly.selectedClass ? <LessonDetail colors={colors} event={selectedEvent} classTime={classTime || "Horário da turma"} monthEvents={monthly.agendaEvents} monthPresentation={currentPresentation} classGroup={monthly.selectedClass} cycle={monthly.activeCycle} onOpenManager={onOpenManager} onClear={() => setSelectedEvent(null)} onOpen={() => { if (selectedEvent) void openEventPlan(selectedEvent); }} /> : null;
   const monthContent = (
     <View style={{ gap: 11 }}>
       <MonthOverview colors={colors} monthKey={selectedMonthKey} events={monthly.agendaEvents} presentation={currentPresentation} compact={!split} showContext={!split} needsRegeneration={needsRegeneration} isApplying={isApplying} onRegenerate={() => void applyMonth()} />
+      {!split && monthly.selectedClass ? <CycleContextCard colors={colors} classGroup={monthly.selectedClass} cycle={monthly.activeCycle} events={monthly.agendaEvents} presentation={currentPresentation} onOpenManager={onOpenManager} compact /> : null}
       <WeekGroups
         colors={colors}
         events={monthly.agendaEvents}
@@ -823,7 +941,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, onO
 
   return (
     <View ref={containerRef} onLayout={onLayout} style={{ gap: 0, borderTopWidth: layout.usesWorkspaceShell ? 1 : 0, borderTopColor: colors.border }}>
-      {!dense ? <View style={{ paddingVertical: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}><View style={{ gap: 5 }}><View><Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>Ciclo {monthly.activeCycle?.year ?? selectedMonthKey.slice(0, 4)}</Text><Text style={{ color: colors.muted, fontSize: 10 }}>Trilho anual do ciclo</Text></View><PlanningStatusLegend colors={colors} /></View>{mobile ? <ActionButton colors={colors} label="Parâmetros" icon="options" onPress={onOpenManager} /> : null}</View>{monthRail}</View> : null}
+      {!dense ? <View style={{ paddingVertical: 12, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}><View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}><View style={{ gap: 5 }}><View><Text style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>Ciclo {monthly.activeCycle?.year ?? selectedMonthKey.slice(0, 4)}</Text><Text style={{ color: colors.muted, fontSize: 10 }}>Trilho anual do ciclo</Text></View><PlanningStatusLegend colors={colors} /></View>{mobile ? <ActionButton colors={colors} label="Parâmetros" icon="options" onPress={() => onOpenManager("manage")} /> : null}</View>{monthRail}</View> : null}
       {dense ? (
         <View style={{ height: panelHeight, minHeight: 590, flexDirection: "row", backgroundColor: colors.background }}>
           <View style={{ width: "24%", minWidth: 252, maxWidth: 350, padding: 14, gap: 10, borderRightWidth: 1, borderRightColor: colors.border }}>

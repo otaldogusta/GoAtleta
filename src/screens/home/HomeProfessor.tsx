@@ -205,6 +205,12 @@ export function HomeProfessorScreen({
   const canOpenPeriodizationShortcut =
     isOrgAdmin ||
     memberPermissions.periodization === true;
+  const canOpenRegulationHistoryShortcut =
+    isOrgAdmin ||
+    memberPermissions.org_members !== false;
+  const canOpenAssistantShortcut =
+    isOrgAdmin ||
+    memberPermissions.assistant !== false;
   const canOpenReportsShortcut =
     isOrgAdmin ||
     memberPermissions.reports === true;
@@ -2051,6 +2057,8 @@ export function HomeProfessorScreen({
                     canOpenCalendarShortcut={canOpenCalendarShortcut}
                     canOpenAbsenceNoticesShortcut={canOpenAbsenceNoticesShortcut}
                     canOpenPeriodizationShortcut={canOpenPeriodizationShortcut}
+                    canOpenRegulationHistoryShortcut={canOpenRegulationHistoryShortcut}
+                    canOpenAssistantShortcut={canOpenAssistantShortcut}
                   />
                 </Suspense>
               </View>
@@ -2491,6 +2499,8 @@ export function HomeProfessorScreen({
               canOpenCalendarShortcut={canOpenCalendarShortcut}
               canOpenAbsenceNoticesShortcut={canOpenAbsenceNoticesShortcut}
               canOpenPeriodizationShortcut={canOpenPeriodizationShortcut}
+              canOpenRegulationHistoryShortcut={canOpenRegulationHistoryShortcut}
+              canOpenAssistantShortcut={canOpenAssistantShortcut}
             />
           </Suspense>
         ) : null}
