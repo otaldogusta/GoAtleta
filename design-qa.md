@@ -96,3 +96,48 @@ final result: passed
 - Avisos antigos do console foram desconsiderados na leitura final; após a correção do estado vazio, nenhuma nova exceção foi produzida pelo bundle atual.
 
 final result: passed
+
+---
+
+# Design QA — Detalhe compacto da periodização
+
+## Fonte de verdade
+
+- Mockup aprovado: `C:\Users\gusta\.codex\generated_images\01a01208-2d18-7d71-b80e-54e1e07de316\exec-eb7d33f9-b1c3-47f6-9099-da3d8cf70377.png`.
+- Implementação autenticada: `http://localhost:8081/class/c_1784679714555/periodization?classId=c_1784679714555&month=2027-01&unit=Rede%20Esportes%20Pinhais&backTo=%2Fclass%2Fc_1784679714555`.
+- Comparação combinada: `artifacts/design-qa/periodization-reference-vs-localhost.png`.
+- Captura final: `artifacts/design-qa/periodization-final-1209x812.png`.
+- Estados de interação: `artifacts/design-qa/periodization-hover-tooltip-1209x812.png` e `artifacts/design-qa/periodization-curve-scrolled-1209x812.png`.
+
+## Viewport e normalização
+
+- Viewport CSS validado: 1209 × 812 px, tema escuro e sessão autenticada.
+- O navegador local estava com escala de sistema de 90%, por isso a captura física resultou em 1342 × 902 px.
+- A comparação combinada normaliza referência e implementação para a mesma largura de painel; hierarquia, alinhamento e densidade foram comparados no mesmo estado preenchido.
+
+## Comparação e correções
+
+1. A coluna de detalhe foi reduzida a horário, duração, título, vínculo semanal, gráficos, resumo e ação principal.
+2. Os blocos duplicados de contexto e de antes/agora/depois foram removidos.
+3. `Carga da aula` e `Curva do ciclo` ficaram lado a lado, preservando a leitura científica da onda anual.
+4. A legenda fixa do donut foi removida; cada arco exibe rótulo, minutos e percentual em tooltip flutuante no hover.
+5. A curva mantém largura útil de 520 px dentro de um scroll horizontal, sem comprimir as 52 semanas.
+6. `Recalcular mês` foi alinhado à borda interna da tabela e `Regerar ciclo` foi adicionado ao cabeçalho, reaproveitando o fluxo real de confirmação e preservação de aulas concluídas ou personalizadas.
+7. O título e a legenda redundantes acima do trilho anual foram removidos no desktop compacto, aproximando a densidade do mockup aprovado.
+8. Os handlers inválidos do SVG foram substituídos por cálculo de hover no contêiner web; nenhuma nova exceção de console foi gerada após a correção.
+
+## Interações verificadas
+
+- `Regerar ciclo` e `Parâmetros do ciclo` presentes e habilitados no cabeçalho; a ação destrutiva de regeneração não foi confirmada durante o QA.
+- Hover sobre o arco azul exibiu `Aquecimento · 10 min · 17%` sobre a área dos gráficos.
+- Scroll horizontal da curva moveu o recorte das semanas iniciais para as semanas finais e reposicionou o indicador da barra.
+- Seleção de aula, destaque da linha e `Abrir plano completo` permaneceram funcionais.
+- Permaneceram apenas avisos conhecidos do React Native Web sobre `pointerEvents` e `Animated/useNativeDriver`; não houve novo erro após o reload final.
+
+## Diferenças intencionais P3
+
+- A implementação usa a carga real do ciclo e a aula mensal selecionada, enquanto o mockup contém valores demonstrativos e seleciona a primeira aula.
+- A curva real oscila por semana e por política de recuperação; o mockup ilustra uma onda simplificada.
+- O trilho anual mantém os cards e o scroll já existentes, mas omite o cabeçalho redundante no breakpoint compacto.
+
+final result: passed

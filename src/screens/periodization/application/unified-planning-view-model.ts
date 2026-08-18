@@ -16,6 +16,14 @@ export type MonthCyclePresentation = {
   loadRangeLabel: string;
 };
 
+export const UNIFIED_PLANNING_HORIZONTAL_CONTEXT_MIN_WIDTH = 680;
+
+export const resolveUnifiedPlanningContextLayout = (containerWidth: number) => ({
+  horizontalContext:
+    Number.isFinite(containerWidth) &&
+    containerWidth >= UNIFIED_PLANNING_HORIZONTAL_CONTEXT_MIN_WIDTH,
+});
+
 const uniqueSortedNumbers = (values: number[]) =>
   [...new Set(values.filter(Number.isFinite))].sort((a, b) => a - b);
 

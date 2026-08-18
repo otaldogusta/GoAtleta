@@ -4,6 +4,7 @@ import {
   buildMonthCyclePresentations,
   monthNeedsRegeneration,
   parsePseMidpoint,
+  resolveUnifiedPlanningContextLayout,
 } from "../unified-planning-view-model";
 
 const selectedClass = {
@@ -47,6 +48,12 @@ const summary: MonthPlanningSummary = {
 };
 
 describe("unified planning view model", () => {
+  it("uses the horizontal month context only when the container can hold it", () => {
+    expect(resolveUnifiedPlanningContextLayout(679).horizontalContext).toBe(false);
+    expect(resolveUnifiedPlanningContextLayout(680).horizontalContext).toBe(true);
+    expect(resolveUnifiedPlanningContextLayout(Number.NaN).horizontalContext).toBe(false);
+  });
+
   it("uses actual cycle weeks and load targets for the month", () => {
     const presentations = buildMonthCyclePresentations({
       summaries: [summary],

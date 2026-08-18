@@ -28,10 +28,15 @@ import type {
     ClassPlanRow,
 } from "./row-types";
 
-const isCycleIdColumnError = (error: unknown) => {
+const isMissingCycleIdColumnError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const normalized = message.toLowerCase();
-  return normalized.includes("cycle_id") || normalized.includes("cycleid");
+  const mentionsCycleId = normalized.includes("cycle_id") || normalized.includes("cycleid");
+  return mentionsCycleId && (
+    normalized.includes("pgrst204") ||
+    normalized.includes("does not exist") ||
+    normalized.includes("could not find")
+  );
 };
 
 const isClassPlanSnapshotColumnError = (error: unknown) => {
@@ -53,9 +58,8 @@ const isClassPlanSnapshotColumnError = (error: unknown) => {
   ].some((column) => normalized.includes(column));
 };
 
-const stripUnsupportedClassPlanColumns = (payload: Record<string, unknown>) => {
+const stripUnsupportedClassPlanSnapshotColumns = (payload: Record<string, unknown>) => {
   const {
-    cycle_id: _ignoredCycleId,
     blueprint_id: _ignoredBlueprintId,
     generation_version: _ignoredGenerationVersion,
     derived_from_blueprint_version: _ignoredDerivedFromBlueprintVersion,
@@ -86,10 +90,10 @@ const postClassPlansPayload = async (payload: Record<string, unknown>[]) => {
   try {
     await supabasePost("/class_plans", payload);
   } catch (error) {
-    if (!isCycleIdColumnError(error) && !isClassPlanSnapshotColumnError(error)) throw error;
+    if (!isClassPlanSnapshotColumnError(error)) throw error;
     await supabasePost(
       "/class_plans",
-      payload.map(stripUnsupportedClassPlanColumns)
+      payload.map(stripUnsupportedClassPlanSnapshotColumns)
     );
   }
 };
@@ -338,8 +342,8 @@ export async function updateClassPlan(
   try {
     await supabasePatch(path, payload);
   } catch (error) {
-    if (!isCycleIdColumnError(error) && !isClassPlanSnapshotColumnError(error)) throw error;
-    await supabasePatch(path, stripUnsupportedClassPlanColumns(payload));
+    if (!isClassPlanSnapshotColumnError(error)) throw error;
+    await supabasePatch(path, stripUnsupportedClassPlanSnapshotColumns(payload));
   }
 }
 
@@ -437,7 +441,7 @@ export async function deleteClassPlansByClass(
   try {
     await supabaseDelete(basePath);
   } catch (error) {
-    if (!cycleFilter || !isCycleIdColumnError(error)) throw error;
+    if (!cycleFilter || !isMissingCycleIdColumnError(error)) throw error;
     // Legacy fallback: backend without cycle_id column.
     await supabaseDelete(
       "/class_plans?classid=eq." +

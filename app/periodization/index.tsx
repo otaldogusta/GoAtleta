@@ -4271,34 +4271,57 @@ export default function PeriodizationScreen() {
           }
           right={
             selectedClass && !responsiveLayout.isMobile ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Gerenciar periodização"
-                onPress={() => openPeriodizationManager("cycle")}
-                style={{
-                  minHeight: 44,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.card,
-                  paddingHorizontal: 18,
-                }}
-              >
-                <GoAtletaIcon name="options" size={17} color={colors.text} />
-                <Text
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {isPeriodizationConfigured && activeCycle ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Regerar ciclo"
+                    accessibilityState={{ disabled: isSavingPlans }}
+                    disabled={isSavingPlans}
+                    onPress={handleGenerateCycle}
+                    style={{
+                      minHeight: 44,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.card,
+                      paddingHorizontal: 15,
+                      opacity: isSavingPlans ? 0.58 : 1,
+                    }}
+                  >
+                    <GoAtletaIcon name="refresh" size={17} color={colors.text} />
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                      {isSavingPlans ? "Gerando..." : "Regerar ciclo"}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Gerenciar periodização"
+                  onPress={() => openPeriodizationManager("cycle")}
                   style={{
-                    color: colors.text,
-                    fontSize: 13,
-                    fontWeight: "700",
+                    minHeight: 44,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    paddingHorizontal: 18,
                   }}
                 >
-                  Parâmetros do ciclo
-                </Text>
-              </Pressable>
+                  <GoAtletaIcon name="options" size={17} color={colors.text} />
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                    Parâmetros do ciclo
+                  </Text>
+                </Pressable>
+              </View>
             ) : null
           }
         >
