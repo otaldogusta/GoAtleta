@@ -7,6 +7,7 @@ import { GoAtletaIcon } from "../../ui/icon-registry";
 
 type CopilotFabProps = {
   showPulse: boolean;
+  hasBadge?: boolean;
   pulseAnim: Animated.Value;
   primaryBgColor: string;
   fabBottomOffset: number;
@@ -16,57 +17,41 @@ type CopilotFabProps = {
 
 export const CopilotFab = memo(function CopilotFab({
   showPulse,
+  hasBadge = false,
   pulseAnim,
   primaryBgColor,
   fabBottomOffset,
   hintMessage,
   onPress,
 }: CopilotFabProps) {
-  useRenderDiagnostic("CopilotFab", { showPulse, fabBottomOffset, primaryBgColor, hasHintMessage: Boolean(hintMessage) });
+  useRenderDiagnostic("CopilotFab", { showPulse, hasBadge, fabBottomOffset, primaryBgColor, hasHintMessage: Boolean(hintMessage) });
+  const showIndicator = hasBadge || showPulse;
   return (
     <View
-      pointerEvents="box-none"
       style={[
         styles.fabWrapper,
         {
           bottom: fabBottomOffset,
+          pointerEvents: "box-none",
         },
       ]}
     >
       {showPulse ? (
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            bottom: 76,
-            maxWidth: 220,
-            borderRadius: 999,
-            backgroundColor: "rgba(17,17,17,0.92)",
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-          }}
-        >
-          <Text numberOfLines={1} style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "700" }}>
-            {hintMessage ?? "Nova sugestão útil"}
-          </Text>
-        </View>
-      ) : null}
-      {showPulse ? (
         <Animated.View
-          pointerEvents="none"
           style={[
             styles.fabPulseRing,
             {
               borderColor: primaryBgColor,
+              pointerEvents: "none",
               opacity: pulseAnim.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0.28, 0],
+                outputRange: [0.35, 0],
               }),
               transform: [
                 {
                   scale: pulseAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [1, 1.14],
+                    outputRange: [1, 1.18],
                   }),
                 },
               ],
@@ -102,7 +87,7 @@ export const CopilotFab = memo(function CopilotFab({
           size={28}
           color="#FFFFFF"
         />
-        {showPulse ? (
+        {showIndicator ? (
           <View
             style={{
               position: "absolute",

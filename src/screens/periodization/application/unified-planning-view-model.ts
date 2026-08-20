@@ -122,3 +122,24 @@ export const monthNeedsRegeneration = (
     (plan) =>
       plan.syncStatus === "out_of_sync" || plan.syncStatus === "stale_parent",
   );
+
+export function resolveDefaultSelectedAgendaEvent<
+  T extends { id: string; date?: string | null }
+>(
+  events: T[],
+  currentSelectedId?: string | null,
+  referenceDateIso?: string,
+): T | null {
+  if (!events.length) return null;
+  if (currentSelectedId) {
+    const persisted = events.find((event) => event.id === currentSelectedId);
+    if (persisted) return persisted;
+  }
+  const today =
+    referenceDateIso ?? new Date().toISOString().slice(0, 10);
+  const upcomingOrToday = events.find(
+    (event) => typeof event.date === "string" && event.date >= today,
+  );
+  if (upcomingOrToday) return upcomingOrToday;
+  return events[events.length - 1] ?? events[0];
+}

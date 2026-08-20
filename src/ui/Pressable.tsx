@@ -26,15 +26,17 @@ const shouldSkipFeedback = (style: StyleProp<ViewStyle>) => {
     const webItem = item as WebPositionedStyle;
     const fillsViewport =
       (webItem.position === "absolute" || webItem.position === "fixed") &&
-      ((webItem.inset === 0) ||
+      (webItem.inset === 0 ||
         (webItem.top === 0 &&
           webItem.right === 0 &&
           webItem.bottom === 0 &&
-          webItem.left === 0));
+          webItem.left === 0) ||
+        (typeof webItem.width === "string" && webItem.width === "100%" && webItem.height === "100%"));
     const isOverlay =
-      (item.flex === 1 || fillsViewport) &&
-      typeof background === "string" &&
-      (background.includes("rgba(0,0,0") || background.includes("rgba(0, 0, 0"));
+      fillsViewport ||
+      ((item.flex === 1 || fillsViewport) &&
+        typeof background === "string" &&
+        (background.includes("rgba") || background === "transparent"));
     return isOverlay;
   });
 };
@@ -167,6 +169,10 @@ export function Pressable({
             base,
             state.pressed ? { opacity: 0.96 } : null,
           ];
+        }
+
+        if (suppressWebHoverFeedback && disableWebPressScale) {
+          return base;
         }
 
         const isHovered = Boolean((state as typeof state & { hovered?: boolean }).hovered);

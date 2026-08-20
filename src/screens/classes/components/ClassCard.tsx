@@ -99,6 +99,77 @@ function MetaPill({
   );
 }
 
+const StudentAvatarItem = memo(function StudentAvatarItem({
+  avatar,
+  index,
+  borderColor,
+}: {
+  avatar: ClassCardViewModel["visibleStudents"][number];
+  index: number;
+  borderColor: string;
+}) {
+  const [imageError, setImageError] = useState(false);
+  const showImage = Boolean(avatar.photoUrl && !imageError);
+  const initials = (avatar.label || "A").trim() || "A";
+
+  return (
+    <View
+      style={[
+        styles.studentAvatar,
+        {
+          backgroundColor: avatar.color,
+          borderColor,
+          marginLeft: index === 0 ? 0 : -8,
+        },
+      ]}
+    >
+      {showImage ? (
+        <Image
+          source={{ uri: avatar.photoUrl }}
+          style={styles.studentAvatarImage}
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <Text style={styles.studentAvatarText}>{initials}</Text>
+      )}
+    </View>
+  );
+});
+
+const TeacherAvatarItem = memo(function TeacherAvatarItem({
+  teacher,
+  infoBg,
+  infoText,
+  containerStyle,
+  imageStyle,
+  textStyle,
+}: {
+  teacher: ClassCardViewModel["teacher"];
+  infoBg: string;
+  infoText: string;
+  containerStyle: any;
+  imageStyle: any;
+  textStyle: any;
+}) {
+  const [imageError, setImageError] = useState(false);
+  const showImage = Boolean(teacher.photoUrl && !imageError);
+  const initials = (teacher.initials || "PR").trim() || "PR";
+
+  return (
+    <View style={[containerStyle, { backgroundColor: infoBg }]}>
+      {showImage ? (
+        <Image
+          source={{ uri: teacher.photoUrl }}
+          style={imageStyle}
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <Text style={[textStyle, { color: infoText }]}>{initials}</Text>
+      )}
+    </View>
+  );
+});
+
 const getClassInitial = (name: string) => {
   const clean = name.trim();
   if (!clean) return "T";
@@ -376,23 +447,12 @@ export const ClassCard = memo(function ClassCard({
         <View style={[styles.tableCell, styles.tableStudentsCell]}>
           <View style={styles.studentStack}>
             {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
-              <View
+              <StudentAvatarItem
                 key={avatar.id}
-                style={[
-                  styles.studentAvatar,
-                  {
-                    backgroundColor: avatar.color,
-                    borderColor: colors.surface ?? colors.background,
-                    marginLeft: index === 0 ? 0 : -8,
-                  },
-                ]}
-              >
-                {avatar.photoUrl ? (
-                  <Image source={{ uri: avatar.photoUrl }} style={styles.studentAvatarImage} />
-                ) : (
-                  <Text style={styles.studentAvatarText}>{avatar.label}</Text>
-                )}
-              </View>
+                avatar={avatar}
+                index={index}
+                borderColor={colors.surface ?? colors.background}
+              />
             )) : (
               <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
                 Sem alunos
@@ -407,15 +467,14 @@ export const ClassCard = memo(function ClassCard({
         </View>
 
         <View style={[styles.tableCell, styles.tableTeacherCell]}>
-          <View style={[styles.tableTeacherAvatar, { backgroundColor: colors.infoBg }]}>
-            {viewModel.teacher.photoUrl ? (
-              <Image source={{ uri: viewModel.teacher.photoUrl }} style={styles.teacherAvatarImage} />
-            ) : (
-              <Text style={[styles.teacherAvatarText, { color: colors.infoText }]}>
-                {viewModel.teacher.initials}
-              </Text>
-            )}
-          </View>
+          <TeacherAvatarItem
+            teacher={viewModel.teacher}
+            infoBg={colors.infoBg}
+            infoText={colors.infoText}
+            containerStyle={styles.tableTeacherAvatar}
+            imageStyle={styles.teacherAvatarImage}
+            textStyle={styles.teacherAvatarText}
+          />
           <Text numberOfLines={1} style={[styles.tableTeacherName, { color: colors.textPrimary ?? colors.text }]}>
             {viewModel.teacher.name}
           </Text>
@@ -497,85 +556,79 @@ export const ClassCard = memo(function ClassCard({
               },
             ]}
           >
-            <Text style={[styles.classAvatarText, { color: colors.primaryText }]}>
+            <Text style={[styles.classAvatarText, narrowCard ? styles.classAvatarTextNarrow : null, { color: colors.primaryText }]}>
               {classInitial}
             </Text>
           </View>
           <View style={styles.titleWrap}>
             <View style={styles.titleLine}>
-              <Text numberOfLines={1} style={[styles.title, { color: colors.textPrimary ?? colors.text }]}>
+              <Text numberOfLines={1} style={[styles.title, narrowCard ? styles.titleNarrow : null, { color: colors.textPrimary ?? colors.text }]}>
                 {item.name}
               </Text>
               <ClassGenderBadge gender={item.gender} />
             </View>
-            <Text numberOfLines={1} style={[styles.subtitle, { color: colors.textMuted ?? colors.muted }]}>
+            <Text numberOfLines={1} style={[styles.subtitle, narrowCard ? styles.subtitleNarrow : null, { color: colors.textMuted ?? colors.muted }]}>
               {[
                 timeLabel,
                 daysLabel,
                 item.trainingSpace?.trim(),
-                narrowCard ? `${viewModel.studentCount} ${viewModel.studentCount === 1 ? "aluno" : "alunos"}` : null,
               ].filter(Boolean).join(" · ")}
             </Text>
           </View>
         </View>
 
-        {!narrowCard ? <View style={styles.studentStack}>
-          {viewModel.visibleStudents.length ? viewModel.visibleStudents.map((avatar, index) => (
-            <View
-              key={avatar.id}
-              style={[
-                styles.studentAvatar,
-                {
-                  backgroundColor: avatar.color,
-                  borderColor: colors.surface ?? colors.background,
-                  marginLeft: index === 0 ? 0 : -8,
-                },
-              ]}
-            >
-              {avatar.photoUrl ? (
-                <Image source={{ uri: avatar.photoUrl }} style={styles.studentAvatarImage} />
-              ) : (
-                <Text style={styles.studentAvatarText}>{avatar.label}</Text>
-              )}
-            </View>
-          )) : (
-            <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
-              Sem alunos
-            </Text>
-          )}
-          {viewModel.studentCount > 0 ? (
-            <Text numberOfLines={1} style={[styles.studentCount, { color: colors.successText ?? colors.primaryBg }]}>
-              {viewModel.extraStudentCount > 0 ? `+${viewModel.extraStudentCount}` : `${viewModel.studentCount}`}
-            </Text>
-          ) : null}
-        </View> : null}
+        <View style={styles.topRightWrap}>
+          <View style={[styles.studentStack, narrowCard ? styles.studentStackNarrow : null]}>
+            {viewModel.visibleStudents.length ? viewModel.visibleStudents.slice(0, narrowCard ? 2 : 4).map((avatar, index) => (
+              <StudentAvatarItem
+                key={avatar.id}
+                avatar={avatar}
+                index={index}
+                borderColor={colors.surface ?? colors.background}
+              />
+            )) : (
+              !narrowCard ? (
+                <Text numberOfLines={1} style={[styles.noStudentsText, { color: colors.textMuted ?? colors.muted }]}>
+                  Sem alunos
+                </Text>
+              ) : null
+            )}
+            {viewModel.studentCount > 0 ? (
+              <Text numberOfLines={1} style={[styles.studentCount, narrowCard ? styles.studentCountNarrow : null, { color: colors.successText ?? colors.primaryBg }]}>
+                {viewModel.extraStudentCount > 0 || (narrowCard && viewModel.studentCount > 2)
+                  ? `+${viewModel.extraStudentCount > 0 ? viewModel.extraStudentCount : viewModel.studentCount}`
+                  : `${viewModel.studentCount}`}
+              </Text>
+            ) : null}
+          </View>
 
-        <View ref={actionWrapRef} nativeID={actionRootId} style={styles.actionWrap}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Opções de ${item.name}`}
-            onPress={(event) => {
-              event.stopPropagation?.();
-              if (!actionMenuOpen) measureActionMenu();
-              onToggleActionMenu?.(item.id);
-            }}
-            style={(state) => {
-              const isHovered = Boolean((state as typeof state & { hovered?: boolean }).hovered);
-              return [
-                styles.actionButton,
-                {
-                  backgroundColor:
-                    pressedOrHovered(state) || actionMenuOpen
-                      ? colors.secondaryBg
-                      : "transparent",
-                },
-                isHovered || actionMenuOpen ? styles.actionButtonHover : null,
-              ];
-            }}
-          >
-            <GoAtletaIcon name="ellipsisVertical" size={16} color={colors.textMuted ?? colors.muted} />
-          </Pressable>
-          {actionMenuOpen && Platform.OS !== "web" ? actionMenuContent : null}
+          <View ref={actionWrapRef} nativeID={actionRootId} style={styles.actionWrap}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Opções de ${item.name}`}
+              onPress={(event) => {
+                event.stopPropagation?.();
+                if (!actionMenuOpen) measureActionMenu();
+                onToggleActionMenu?.(item.id);
+              }}
+              style={(state) => {
+                const isHovered = Boolean((state as typeof state & { hovered?: boolean }).hovered);
+                return [
+                  styles.actionButton,
+                  {
+                    backgroundColor:
+                      pressedOrHovered(state) || actionMenuOpen
+                        ? colors.secondaryBg
+                        : "transparent",
+                  },
+                  isHovered || actionMenuOpen ? styles.actionButtonHover : null,
+                ];
+              }}
+            >
+              <GoAtletaIcon name="ellipsisVertical" size={16} color={colors.textMuted ?? colors.muted} />
+            </Pressable>
+            {actionMenuOpen && Platform.OS !== "web" ? actionMenuContent : null}
+          </View>
         </View>
         {actionMenuPortal}
       </View>
@@ -635,15 +688,14 @@ export const ClassCard = memo(function ClassCard({
       </View>
 
       <View style={[styles.teacherRow, narrowCard ? styles.teacherRowNarrow : null, { borderTopColor: colors.borderSubtle ?? colors.border }]}>
-        <View style={[styles.teacherAvatar, narrowCard ? styles.teacherAvatarNarrow : null, { backgroundColor: colors.infoBg }]}>
-          {viewModel.teacher.photoUrl ? (
-            <Image source={{ uri: viewModel.teacher.photoUrl }} style={styles.teacherAvatarImage} />
-          ) : (
-            <Text style={[styles.teacherAvatarText, { color: colors.infoText }]}>
-              {viewModel.teacher.initials}
-            </Text>
-          )}
-        </View>
+        <TeacherAvatarItem
+          teacher={viewModel.teacher}
+          infoBg={colors.infoBg}
+          infoText={colors.infoText}
+          containerStyle={[styles.teacherAvatar, narrowCard ? styles.teacherAvatarNarrow : null]}
+          imageStyle={styles.teacherAvatarImage}
+          textStyle={styles.teacherAvatarText}
+        />
         <View style={{ minWidth: 0, flex: 1 }}>
           {!narrowCard ? (
             <Text style={[styles.teacherKicker, { color: colors.textMuted ?? colors.muted }]}>Professor</Text>
@@ -678,26 +730,26 @@ const styles = StyleSheet.create({
   },
   tableIdentityCell: {
     flex: 2.2,
-    minWidth: 210,
+    minWidth: 200,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
   tableScheduleCell: {
-    flex: 1.12,
+    flex: 1.15,
     minWidth: 112,
   },
   tableFocusCell: {
-    flex: 1.24,
-    minWidth: 120,
+    flex: 1.15,
+    minWidth: 115,
   },
   tableStudentsCell: {
-    flex: 1.05,
-    minWidth: 108,
+    flex: 1.15,
+    minWidth: 115,
   },
   tableTeacherCell: {
-    flex: 1.58,
-    minWidth: 170,
+    flex: 1.85,
+    minWidth: 180,
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
@@ -756,15 +808,14 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   container: {
-    minHeight: 132,
+    minHeight: 0,
     padding: 12,
     borderRadius: radius.card,
-    borderWidth: 0,
+    borderWidth: StyleSheet.hairlineWidth,
     position: "relative",
     elevation: 0,
   },
   containerNarrow: {
-    minHeight: 0,
     padding: 10,
   },
   conflictPill: {
@@ -843,12 +894,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   classAvatarNarrow: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
   },
   classAvatarText: {
     fontSize: 17,
     fontWeight: "900",
+  },
+  classAvatarTextNarrow: {
+    fontSize: 13,
+  },
+  topRightWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
   },
   studentStack: {
     flexDirection: "row",
@@ -856,7 +917,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexShrink: 0,
     maxWidth: 118,
-    paddingTop: 7,
+    paddingTop: 2,
+  },
+  studentStackNarrow: {
+    maxWidth: 84,
+    paddingTop: 0,
   },
   studentAvatar: {
     width: 21,
@@ -865,11 +930,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
+    overflow: "hidden",
   },
   studentAvatarText: {
     color: "#0A1322",
     fontSize: 9,
     fontWeight: "900",
+    textAlign: "center",
+    includeFontPadding: false,
+    lineHeight: 11,
   },
   studentAvatarImage: {
     width: "100%",
@@ -881,9 +950,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   studentCount: {
-    marginLeft: 7,
+    marginLeft: 6,
     fontSize: 11,
     fontWeight: "800",
+  },
+  studentCountNarrow: {
+    marginLeft: 4,
+    fontSize: 10,
   },
   actionWrap: {
     position: "relative",
@@ -893,8 +966,8 @@ const styles = StyleSheet.create({
     elevation: ACTION_MENU_Z_INDEX + 1,
   },
   actionButton: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
@@ -952,16 +1025,23 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexShrink: 1,
   },
+  titleNarrow: {
+    fontSize: 13,
+  },
   subtitle: {
     fontSize: 11,
     fontWeight: "600",
     marginTop: 2,
   },
+  subtitleNarrow: {
+    fontSize: 10,
+    marginTop: 1,
+  },
   metaGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginTop: 9,
+    marginTop: 8,
   },
   metaGridNarrow: {
     gap: 4,
@@ -970,46 +1050,46 @@ const styles = StyleSheet.create({
   metaPill: {
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: radius.full,
     borderWidth: 1,
   },
   metaPillCompact: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
   metaPillText: {
     fontSize: 10,
     fontWeight: "700",
   },
   conflictText: {
-    marginTop: 8,
-    fontSize: 12,
+    marginTop: 6,
+    fontSize: 11,
     fontWeight: "700",
   },
   teacherRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 11,
-    paddingTop: 9,
-    borderTopWidth: 1,
+    marginTop: 8,
+    paddingTop: 7,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   teacherRowNarrow: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
   },
   teacherAvatar: {
-    width: 30,
-    height: 30,
+    width: 24,
+    height: 24,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
   },
   teacherAvatarNarrow: {
-    width: 26,
-    height: 26,
+    width: 22,
+    height: 22,
   },
   teacherAvatarImage: {
     width: "100%",
@@ -1017,7 +1097,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   teacherAvatarText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "900",
   },
   teacherKicker: {
@@ -1025,8 +1105,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   teacherName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
-    marginTop: 1,
+    marginTop: 0,
   },
 });

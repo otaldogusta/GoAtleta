@@ -120,7 +120,6 @@ export function PlanTimeDistribution({
       </View> : null}
       {showHoverTooltip && activeItem ? (
         <View
-          pointerEvents="none"
           style={{
             position: "absolute",
             left: size - 5,
@@ -134,6 +133,7 @@ export function PlanTimeDistribution({
             borderColor: colors.border,
             backgroundColor: colors.card,
             gap: 3,
+            pointerEvents: "none",
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

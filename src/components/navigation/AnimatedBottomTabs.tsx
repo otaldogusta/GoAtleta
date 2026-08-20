@@ -1,6 +1,6 @@
 import { usePathname, useRouter } from "expo-router";
 import { memo, useEffect, useMemo, useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, {
     Easing,
     useAnimatedStyle,
@@ -127,54 +127,110 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
     return segments[segments.length - 1] ?? "";
   }, [pathname]);
 
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: iconAnim.value,
+  }));
+
   if (hideNavigation || hideForWorkspaceShell) {
     return null;
   }
 
   return (
     <View
-      accessibilityLabel="Navegação inferior"
-      style={{
-        position: "absolute",
-        left: 12,
-        right: 12,
-        bottom,
-        zIndex: 3000,
-        pointerEvents: "box-none",
-      }}
+      style={[
+        Platform.OS === "web"
+          ? ({
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 9000,
+            } as any)
+          : {
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              top: -1000,
+              zIndex: 9000,
+            },
+        { pointerEvents: "box-none" },
+      ]}
     >
-      <FabRadialMenu
-        visible={menuOpen}
-        actions={radialActions}
-        anchorBottom={48}
-        onActionPress={(action) => {
-          setMenuOpen(false);
-          navigateToPrimaryRoute({ router, href: action.href });
-        }}
-      />
+      {/* 1. Backdrop escurecido cobrindo a tela toda */}
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: "rgba(10, 19, 34, 0.60)",
+            zIndex: 1,
+            pointerEvents: menuOpen ? "auto" : "none",
+            ...(Platform.OS === "web"
+              ? {
+                  backdropFilter: "blur(4px)",
+                  WebkitBackdropFilter: "blur(4px)",
+                }
+              : null),
+          },
+          backdropAnimatedStyle,
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Fechar menu rápido"
+          onPress={() => setMenuOpen(false)}
+          suppressWebHoverFeedback
+          disableWebPressScale
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+
+      {/* 2. Barra inferior e FAB posicionados na base (acima do backdrop) */}
       <View
+        accessibilityLabel="Navegação inferior"
         style={{
-          flexDirection: "row",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
-          borderRadius: radius.full,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          paddingVertical: 6,
-          paddingHorizontal: 8,
-          ...(Platform.OS === "web"
-            ? { boxShadow: "0px 8px 18px rgba(10, 19, 34, 0.10)" }
-            : shadow.elevated),
+          position: "absolute",
+          left: 12,
+          right: 12,
+          bottom,
+          zIndex: 10,
+          pointerEvents: "box-none",
         }}
       >
+        <FabRadialMenu
+          visible={menuOpen}
+          actions={radialActions}
+          anchorBottom={52}
+          onActionPress={(action) => {
+            setMenuOpen(false);
+            navigateToPrimaryRoute({ router, href: action.href });
+          }}
+        />
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            borderRadius: radius.full,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.card,
+            paddingVertical: 6,
+            paddingHorizontal: 8,
+            zIndex: 20,
+            ...(Platform.OS === "web"
+              ? { boxShadow: "0px 8px 18px rgba(10, 19, 34, 0.10)" }
+              : shadow.elevated),
+          }}
+        >
         {tabs.map((tab) => {
           const focused = !tab.isCenter && focusedRouteName === tab.routeName;
           if (tab.isCenter) {
             return (
               <Pressable
                 key={tab.key}
-                accessibilityLabel="Abrir ações rápidas"
+                accessibilityLabel={menuOpen ? "Fechar ações rápidas" : "Abrir ações rápidas"}
                 onPress={() => setMenuOpen((current) => !current)}
                 style={{
                   width: 58,
@@ -186,6 +242,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
                   borderWidth: 1,
                   borderColor: colors.border,
                   marginTop: -20,
+                  zIndex: 4300,
                 }}
               >
                 <Animated.View style={plusIconStyle}>
@@ -256,5 +313,6 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
         })}
       </View>
     </View>
+  </View>
   );
 });

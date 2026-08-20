@@ -354,6 +354,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   }, [activeOrganizationId, state.context, state.open]);
 
   useEffect(() => {
+    const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
     if (!assistantTyping) {
       thinkingPulse.stopAnimation();
       thinkingPulse.setValue(0);
@@ -365,12 +366,12 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
         Animated.timing(thinkingPulse, {
           toValue: 1,
           duration: 700,
-          useNativeDriver: true,
+          useNativeDriver: isNativeAnimation,
         }),
         Animated.timing(thinkingPulse, {
           toValue: 0,
           duration: 700,
-          useNativeDriver: true,
+          useNativeDriver: isNativeAnimation,
         }),
       ])
     );
@@ -876,28 +877,43 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const sheetMaxWidth = Platform.OS === "web" ? Math.max(420, Math.min(viewportWidth - 28, 1100)) : undefined;
   const isWebModal = Platform.OS === "web";
 
+  const [isPulsing, setIsPulsing] = useState(false);
+
+  useEffect(() => {
+    if (!shouldPulseFab) {
+      setIsPulsing(false);
+      return;
+    }
+    setIsPulsing(true);
+    const timer = setTimeout(() => {
+      setIsPulsing(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [shouldPulseFab, fabHint?.message]);
+
   useEffect(() => {
     pulseLoopRef.current?.stop();
     pulseLoopRef.current = null;
 
-    if (Platform.OS === "web" || !shouldPulseFab) {
+    if (!isPulsing) {
       pulseAnim.stopAnimation();
       pulseAnim.setValue(0);
       return;
     }
 
+    const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
     pulseAnim.setValue(0);
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
           toValue: 1,
           duration: 1200,
-          useNativeDriver: true,
+          useNativeDriver: isNativeAnimation,
         }),
         Animated.timing(pulseAnim, {
           toValue: 0,
           duration: 0,
-          useNativeDriver: true,
+          useNativeDriver: isNativeAnimation,
         }),
       ])
     );
@@ -912,7 +928,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       pulseAnim.stopAnimation();
       pulseAnim.setValue(0);
     };
-  }, [pulseAnim, shouldPulseFab]);
+  }, [isPulsing, pulseAnim]);
 
   const submitComposer = useCallback(() => {
     const prompt = composerValue.trim();
@@ -966,7 +982,8 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       {children}
       {showFab && !state.open ? (
         <CopilotFab
-          showPulse={shouldPulseFab}
+          showPulse={isPulsing}
+          hasBadge={shouldPulseFab}
           pulseAnim={pulseAnim}
           primaryBgColor={colors.primaryBg}
           fabBottomOffset={fabBottomOffset}

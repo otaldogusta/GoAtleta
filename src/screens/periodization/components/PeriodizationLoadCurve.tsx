@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Line, Path, Stop } from "react-native-svg";
 
@@ -65,7 +65,7 @@ function smoothPath(points: { x: number; y: number }[]) {
   }, `M ${points[0].x} ${points[0].y}`);
 }
 
-export function PeriodizationLoadCurve({
+export const PeriodizationLoadCurve = memo(function PeriodizationLoadCurve({
   colors,
   weekPlans,
   currentWeek,
@@ -106,46 +106,53 @@ export function PeriodizationLoadCurve({
   }, [previewDraft.cycleLengthWeeks, weekPlans]);
   const maxWeek = Math.max(1, previewDraft.cycleLengthWeeks || source.at(-1)?.week || 52);
   const maxLoad = Math.max(1, ...source.map((item) => item.plannedSessionLoad || 1));
-  const policy = normalizePeriodizationPolicy(previewDraft);
+  const policy = useMemo(() => normalizePeriodizationPolicy(previewDraft), [previewDraft]);
   const xForWeek = (week: number) =>
     plotLeft + ((week - 1) / Math.max(1, maxWeek - 1)) * (plotRight - plotLeft);
-  const points = source.map((item, index) => {
-    const progress = index / Math.max(1, source.length - 1);
-    const load = (item.plannedSessionLoad || maxLoad * loadRatio(item.volume)) / maxLoad;
-    const weekPolicy = resolvePeriodizationWeekPolicy({
-      policy,
-      weekNumber: item.week,
-      cycleLength: maxWeek,
+
+  const { points, techniquePath, intensityPath, recoveryPath } = useMemo(() => {
+    const pts = source.map((item, index) => {
+      const progress = index / Math.max(1, source.length - 1);
+      const load = (item.plannedSessionLoad || maxLoad * loadRatio(item.volume)) / maxLoad;
+      const weekPolicy = resolvePeriodizationWeekPolicy({
+        policy,
+        weekNumber: item.week,
+        cycleLength: maxWeek,
+      });
+      const policyIntensity = weekPolicy.intensity / 10;
+      const loadAdjustment = (load - 0.5) * 0.06;
+      const technique = Math.min(
+        0.94,
+        Math.max(0.08, cycleEnvelope(progress, 0.68, 0.12, 0.9, 0.38) + loadAdjustment * 0.45),
+      );
+      const intensity = Math.min(
+        0.88,
+        Math.max(0.06, policyIntensity * 0.82 + cycleEnvelope(progress, 0.12, 0.02, 0.15, 0.04) + loadAdjustment),
+      );
+      const recovery = Math.min(
+        0.72,
+        Math.max(0.04, cycleEnvelope(progress, 0.65, 0.05, 0.58, 0.16) + (weekPolicy.recoveryWeek ? 0.16 : 0) + (item.volume === "baixo" ? 0.035 : 0)),
+      );
+      return {
+        x: xForWeek(item.week),
+        techniqueY: plotBottom - technique * (plotBottom - plotTop),
+        intensityY: plotBottom - intensity * (plotBottom - plotTop),
+        recoveryY: plotBottom - recovery * (plotBottom - plotTop),
+      };
     });
-    const policyIntensity = weekPolicy.intensity / 10;
-    const loadAdjustment = (load - 0.5) * 0.06;
-    const technique = Math.min(
-      0.94,
-      Math.max(0.08, cycleEnvelope(progress, 0.68, 0.12, 0.9, 0.38) + loadAdjustment * 0.45),
-    );
-    const intensity = Math.min(
-      0.88,
-      Math.max(0.06, policyIntensity * 0.82 + cycleEnvelope(progress, 0.12, 0.02, 0.15, 0.04) + loadAdjustment),
-    );
-    const recovery = Math.min(
-      0.72,
-      Math.max(0.04, cycleEnvelope(progress, 0.65, 0.05, 0.58, 0.16) + (weekPolicy.recoveryWeek ? 0.16 : 0) + (item.volume === "baixo" ? 0.035 : 0)),
-    );
     return {
-      x: xForWeek(item.week),
-      techniqueY: plotBottom - technique * (plotBottom - plotTop),
-      intensityY: plotBottom - intensity * (plotBottom - plotTop),
-      recoveryY: plotBottom - recovery * (plotBottom - plotTop),
+      points: pts,
+      techniquePath: smoothPath(pts.map((point) => ({ x: point.x, y: point.techniqueY }))),
+      intensityPath: smoothPath(pts.map((point) => ({ x: point.x, y: point.intensityY }))),
+      recoveryPath: smoothPath(pts.map((point) => ({ x: point.x, y: point.recoveryY }))),
     };
-  });
-  const techniquePath = smoothPath(points.map((point) => ({ x: point.x, y: point.techniqueY })));
-  const intensityPath = smoothPath(points.map((point) => ({ x: point.x, y: point.intensityY })));
-  const recoveryPath = smoothPath(points.map((point) => ({ x: point.x, y: point.recoveryY })));
+  }, [maxLoad, maxWeek, plotBottom, plotLeft, plotRight, plotTop, policy, source]);
+
   const toAreaPath = (path: string) => points.length
     ? `${path} L ${points.at(-1)?.x ?? plotRight} ${plotBottom} L ${points[0].x} ${plotBottom} Z`
     : "";
   const todayX = xForWeek(Math.min(maxWeek, Math.max(1, currentWeek)));
-  const axisWeeks = [...new Set([1, Math.round(maxWeek * 0.25), Math.round(maxWeek * 0.5), Math.round(maxWeek * 0.75), maxWeek])];
+  const axisWeeks = useMemo(() => [...new Set([1, Math.round(maxWeek * 0.25), Math.round(maxWeek * 0.5), Math.round(maxWeek * 0.75), maxWeek])], [maxWeek]);
 
   return (
     <View
@@ -195,4 +202,4 @@ export function PeriodizationLoadCurve({
       {!compact ? <Text style={{ color: colors.successText, fontSize: 10 }}>Hoje · semana {Math.min(maxWeek, Math.max(1, currentWeek))}</Text> : null}
     </View>
   );
-}
+});

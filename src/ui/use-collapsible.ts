@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Animated } from "react-native";
+import { Animated, Platform } from "react-native";
 
 type CollapsibleOptions = {
   durationIn?: number;
@@ -16,12 +16,13 @@ export function useCollapsibleAnimation(
   const [isMountedVisible, setIsMountedVisible] = useState(open);
 
   useEffect(() => {
+    const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
     if (open) {
       anim.setValue(0);
       Animated.timing(anim, {
         toValue: 1,
         duration: durationIn,
-        useNativeDriver: true,
+        useNativeDriver: isNativeAnimation,
       }).start();
       return;
     }
@@ -29,7 +30,7 @@ export function useCollapsibleAnimation(
     Animated.timing(anim, {
       toValue: 0,
       duration: durationOut,
-      useNativeDriver: true,
+      useNativeDriver: isNativeAnimation,
     }).start(({ finished }) => {
       if (finished) setIsMountedVisible(false);
     });

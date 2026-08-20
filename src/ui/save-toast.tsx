@@ -47,11 +47,12 @@ export function SaveToastProvider({
       timerRef.current = null;
     }
     animationRef.current?.stop();
+    const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
     progressAnimationRef.current?.stop();
     const exitAnimation = Animated.timing(anim, {
       toValue: 0,
       duration: 180,
-      useNativeDriver: true,
+      useNativeDriver: isNativeAnimation,
     });
     animationRef.current = exitAnimation;
     exitAnimation.start(() => {
@@ -76,10 +77,11 @@ export function SaveToastProvider({
       setToast({ ...normalized, message, variant });
       anim.setValue(0);
       progressAnim.setValue(1);
+      const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
       const enterAnimation = Animated.timing(anim, {
         toValue: 1,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: isNativeAnimation,
       });
       const progressAnimation = Animated.timing(progressAnim, {
         toValue: 0,
@@ -141,7 +143,6 @@ export function SaveToastProvider({
 
   const toastContent = toast ? (
     <Animated.View
-      pointerEvents="box-none"
       style={{
         ...(Platform.OS === "web"
           ? ({ position: "fixed", top: toastTop, right: 0, left: 0 } as const)
@@ -150,6 +151,7 @@ export function SaveToastProvider({
         zIndex: 50000,
         elevation: 50000,
         opacity: anim,
+        pointerEvents: "box-none",
         transform: [
           {
             translateY: anim.interpolate({
@@ -194,7 +196,6 @@ export function SaveToastProvider({
         }}
       >
         <View
-          pointerEvents="none"
           style={{
             position: "absolute",
             top: 0,
@@ -202,6 +203,7 @@ export function SaveToastProvider({
             right: 0,
             height: 1,
             backgroundColor: "rgba(255,255,255,0.26)",
+            pointerEvents: "none",
           }}
         />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
@@ -254,7 +256,6 @@ export function SaveToastProvider({
           </Pressable>
         ) : null}
         <View
-          pointerEvents="none"
           style={{
             position: "absolute",
             left: 12,
@@ -264,6 +265,7 @@ export function SaveToastProvider({
             borderRadius: 999,
             backgroundColor: "rgba(255,255,255,0.09)",
             overflow: "hidden",
+            pointerEvents: "none",
           }}
         >
           <Animated.View
@@ -284,7 +286,6 @@ export function SaveToastProvider({
 
   const toastOverlay = toastContent ? (
     <View
-      pointerEvents="box-none"
       style={
         Platform.OS === "web"
           ? ({
@@ -294,6 +295,7 @@ export function SaveToastProvider({
               bottom: 0,
               left: 0,
               zIndex: 2147483647,
+              pointerEvents: "box-none",
             } as unknown as ViewStyle)
           : {
               position: "absolute",
@@ -301,8 +303,9 @@ export function SaveToastProvider({
               right: 0,
               bottom: 0,
               left: 0,
-              zIndex: 99999,
+              zIndex: 2147483647,
               elevation: 99999,
+              pointerEvents: "box-none",
             }
       }
     >

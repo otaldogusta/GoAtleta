@@ -54,13 +54,13 @@ const getShimmerProgress = () => {
 const startShimmerLoop = () => {
   if (shimmerLoop) return;
   const progress = getShimmerProgress();
-  progress.setValue(0);
+  const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
   shimmerLoop = Animated.loop(
     Animated.timing(progress, {
       toValue: 1,
       duration: SHIMMER_DURATION_MS,
       easing: Easing.linear,
-      useNativeDriver: true,
+      useNativeDriver: isNativeAnimation,
     })
   );
   shimmerLoop.start();
@@ -125,6 +125,7 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
       animationTimingFunction: "linear",
       animationIterationCount: "infinite",
       willChange: "transform",
+      pointerEvents: "none",
     } as ViewStyle;
 
     return (
@@ -137,7 +138,7 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
           style,
         ]}
       >
-        <View pointerEvents="none" style={webSheenStyle} />
+        <View style={webSheenStyle} />
       </View>
     );
   }
@@ -161,13 +162,13 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
     >
       {width > 0 ? (
         <Animated.View
-          pointerEvents="none"
           style={{
             position: "absolute",
             top: -6,
             bottom: -6,
             width: shimmerWidth,
             backgroundColor: sheenColor,
+            pointerEvents: "none",
             opacity: 0.18,
             transform: [{ translateX }],
           }}

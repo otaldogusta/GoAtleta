@@ -414,6 +414,12 @@ const unavailableSupport = (
   actionContract: READ_ONLY_ACTION_CONTRACT,
 });
 
+const documentSupportCache = new Map<
+  string,
+  { result: DocumentPlanningSupport; timestamp: number }
+>();
+const DOCUMENT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de cache em memória
+
 export async function retrieveDocumentPlanningSupport(params: {
   organizationId?: string | null;
   classId?: string | null;
@@ -446,12 +452,20 @@ export async function retrieveDocumentPlanningSupport(params: {
     };
   }
 
+  const cacheKey = `${organizationId}::${params.classId || ""}::${params.context.sessionDate || ""}::${queryText}`;
+  const cached = documentSupportCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < DOCUMENT_CACHE_TTL_MS) {
+    return cached.result;
+  }
+
   try {
     const token = await getValidAccessToken();
     if (!token) {
-      return unavailableSupport(
+      const fallback = unavailableSupport(
         "Sessão indisponível para consultar o contexto documental."
       );
+      documentSupportCache.set(cacheKey, { result: fallback, timestamp: Date.now() });
+      return fallback;
     }
     const controller = new AbortController();
     const timeoutId = setTimeout(
@@ -480,7 +494,11 @@ export async function retrieveDocumentPlanningSupport(params: {
     } finally {
       clearTimeout(timeoutId);
     }
-    if (!response.ok) return unavailableSupport();
+    if (!response.ok) {
+      const fallback = unavailableSupport();
+      documentSupportCache.set(cacheKey, { result: fallback, timestamp: Date.now() });
+      return fallback;
+    }
 
     const payload = safeRecord(await response.json());
     const references = Array.isArray(payload.documents)
@@ -495,7 +513,7 @@ export async function retrieveDocumentPlanningSupport(params: {
         )
       : [];
 
-    return {
+    const result: DocumentPlanningSupport = {
       status: references.length ? "available" : "no_relevant_content",
       references,
       warnings: references.length
@@ -506,7 +524,11 @@ export async function retrieveDocumentPlanningSupport(params: {
         textValue(payload.actionDate, 10) || params.context.sessionDate,
       actionContract: READ_ONLY_ACTION_CONTRACT,
     };
+    documentSupportCache.set(cacheKey, { result, timestamp: Date.now() });
+    return result;
   } catch {
-    return unavailableSupport();
+    const fallback = unavailableSupport();
+    documentSupportCache.set(cacheKey, { result: fallback, timestamp: Date.now() });
+    return fallback;
   }
 }

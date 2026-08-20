@@ -1968,9 +1968,9 @@ export default function ClassesScreen() {
           style={{
             flex: 1,
             minHeight: 0,
-            gap: 14,
-            paddingHorizontal: 16,
-            paddingTop: 12,
+            gap: responsiveLayout.isMobile ? 8 : 14,
+            paddingHorizontal: responsiveLayout.isMobile ? 8 : 16,
+            paddingTop: responsiveLayout.isMobile ? 6 : 12,
             backgroundColor: colors.background,
           }}
         >

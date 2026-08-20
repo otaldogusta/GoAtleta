@@ -211,7 +211,7 @@ import {
   type PeriodizationManagerSection,
 } from "../../src/screens/periodization/PeriodizationManagerSheet";
 import { PeriodizationSetupCard } from "../../src/screens/periodization/PeriodizationSetupCard";
-import { UnifiedPlanningWorkspace } from "../../src/screens/periodization/UnifiedPlanningWorkspace";
+import { UnifiedPlanningWorkspace, monthTitle } from "../../src/screens/periodization/UnifiedPlanningWorkspace";
 import { hasRenderableWeekPlans } from "../../src/screens/periodization/has-renderable-week-plans";
 import { resolvePeriodizationScreenContext } from "../../src/screens/periodization/resolve-periodization-screen-context";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
@@ -482,6 +482,132 @@ const normalizeText = (value: string) => {
 const isIsoDateValue = (value: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
 
+function PlanningRegenerateDropdown({
+  colors,
+  isSaving,
+  isMobile,
+  selectedMonthLabel,
+  cycleYearLabel,
+  onRegenerateMonth,
+  onRegenerateCycle,
+}: {
+  colors: ThemeColors;
+  isSaving: boolean;
+  isMobile: boolean;
+  selectedMonthLabel?: string;
+  cycleYearLabel?: string;
+  onRegenerateMonth: () => void;
+  onRegenerateCycle: () => void;
+}) {
+  const triggerRef = useRef<View>(null);
+  const [open, setOpen] = useState(false);
+  const [triggerLayout, setTriggerLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  const toggle = useCallback(() => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    triggerRef.current?.measureInWindow((x, y, width, height) => {
+      const menuWidth = Math.max(240, width);
+      setTriggerLayout({
+        x: Math.max(12, x + width - menuWidth),
+        y,
+        width: menuWidth,
+        height,
+      });
+      setOpen(true);
+    });
+  }, [open]);
+
+  return (
+    <>
+      <View ref={triggerRef} collapsable={false}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ações de recálculo e regeneração"
+          accessibilityState={{ disabled: isSaving }}
+          disabled={isSaving}
+          onPress={toggle}
+          style={{
+            minHeight: 40,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 7,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: open ? colors.primary : colors.border,
+            backgroundColor: colors.card,
+            paddingHorizontal: isMobile ? 11 : 15,
+            opacity: isSaving ? 0.58 : 1,
+          }}
+        >
+          <GoAtletaIcon name="refresh" size={16} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+            {isSaving ? "Gerando..." : isMobile ? "Recalcular" : "Recalcular / Regerar"}
+          </Text>
+          <GoAtletaIcon name="chevronDown" size={13} color={colors.muted} />
+        </Pressable>
+      </View>
+      <AnchoredDropdown
+        visible={open}
+        layout={triggerLayout}
+        container={null}
+        animationStyle={{}}
+        zIndex={9200}
+        maxHeight={220}
+        nestedScrollEnabled
+        portalToBodyOnWeb
+        onRequestClose={() => setOpen(false)}
+        interactiveRefs={[triggerRef]}
+        density="compact"
+      >
+        <AnchoredDropdownOption
+          active={false}
+          density="compact"
+          onPress={() => {
+            setOpen(false);
+            onRegenerateMonth();
+          }}
+        >
+          <View style={{ gap: 2, paddingVertical: 2 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+              <GoAtletaIcon name="calendar" size={14} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                Recalcular mês atual {selectedMonthLabel ? `(${selectedMonthLabel})` : ""}
+              </Text>
+            </View>
+            <Text style={{ color: colors.muted, fontSize: 10 }}>
+              Recalcula apenas as aulas do mês ativo
+            </Text>
+          </View>
+        </AnchoredDropdownOption>
+        <AnchoredDropdownOption
+          active={false}
+          density="compact"
+          onPress={() => {
+            setOpen(false);
+            onRegenerateCycle();
+          }}
+        >
+          <View style={{ gap: 2, paddingVertical: 2 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+              <GoAtletaIcon name="periodization" size={14} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                Regerar ciclo completo {cycleYearLabel ? `(${cycleYearLabel})` : ""}
+              </Text>
+            </View>
+            <Text style={{ color: colors.muted, fontSize: 10 }}>
+              Recalcula todas as semanas do ano
+            </Text>
+          </View>
+        </AnchoredDropdownOption>
+      </AnchoredDropdown>
+    </>
+  );
+}
+
 export default function PeriodizationScreen() {
   markRender("screen.periodization.render.root");
 
@@ -521,6 +647,8 @@ export default function PeriodizationScreen() {
   const modalCardStyle = useModalCardStyle({ maxHeight: "100%" });
 
   const [activeTab, setActiveTab] = useState<PeriodizationTab>("geral");
+  const [currentSelectedMonth, setCurrentSelectedMonth] = useState<string>(initialMonthParam || "");
+  const [regenerateMonthSignal, setRegenerateMonthSignal] = useState<number>(0);
   const [showPeriodizationManager, setShowPeriodizationManager] =
     useState(false);
   const [periodizationManagerMode, setPeriodizationManagerMode] = useState<
@@ -4253,9 +4381,7 @@ export default function PeriodizationScreen() {
         <ScreenPageHeader
           title={normalizeText(
             selectedClass
-              ? responsiveLayout.isMobile
-                ? "Planejamento"
-                : "Planejamento da turma"
+              ? "Planejamento da turma"
               : "Periodização",
           )}
           subtitle={
@@ -4270,55 +4396,39 @@ export default function PeriodizationScreen() {
             })
           }
           right={
-            selectedClass && !responsiveLayout.isMobile ? (
+            selectedClass ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 {isPeriodizationConfigured && activeCycle ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Regerar ciclo"
-                    accessibilityState={{ disabled: isSavingPlans }}
-                    disabled={isSavingPlans}
-                    onPress={handleGenerateCycle}
-                    style={{
-                      minHeight: 44,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.card,
-                      paddingHorizontal: 15,
-                      opacity: isSavingPlans ? 0.58 : 1,
-                    }}
-                  >
-                    <GoAtletaIcon name="refresh" size={17} color={colors.text} />
-                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                      {isSavingPlans ? "Gerando..." : "Regerar ciclo"}
-                    </Text>
-                  </Pressable>
+                  <PlanningRegenerateDropdown
+                    colors={colors}
+                    isSaving={isSavingPlans}
+                    isMobile={responsiveLayout.isMobile}
+                    selectedMonthLabel={currentSelectedMonth ? monthTitle(currentSelectedMonth) : undefined}
+                    cycleYearLabel={String(activeCycle.year ?? activeCycle.startDate?.slice(0, 4) ?? "")}
+                    onRegenerateMonth={() => setRegenerateMonthSignal((prev) => prev + 1)}
+                    onRegenerateCycle={handleGenerateCycle}
+                  />
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Gerenciar periodização"
                   onPress={() => openPeriodizationManager("cycle")}
                   style={{
-                    minHeight: 44,
+                    minHeight: 40,
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 8,
+                    gap: 7,
                     borderRadius: 12,
                     borderWidth: 1,
                     borderColor: colors.border,
                     backgroundColor: colors.card,
-                    paddingHorizontal: 18,
+                    paddingHorizontal: responsiveLayout.isMobile ? 12 : 18,
                   }}
                 >
-                  <GoAtletaIcon name="options" size={17} color={colors.text} />
+                  <GoAtletaIcon name="options" size={16} color={colors.text} />
                   <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-                    Parâmetros do ciclo
+                    {responsiveLayout.isMobile ? "Parâmetros" : "Parâmetros do ciclo"}
                   </Text>
                 </Pressable>
               </View>
@@ -4375,11 +4485,9 @@ export default function PeriodizationScreen() {
                     fontWeight: "700",
                   }}
                 >
-                  {!isPeriodizationConfigured
-                    ? "Configuração pendente"
-                    : activeCycle
-                      ? "Ciclo ativo"
-                      : "Ciclo encerrado"}
+                  {isPeriodizationConfigured && activeCycle
+                    ? "Ciclo ativo"
+                    : "Configuração pendente"}
                 </Text>
               </View>
             </View>
@@ -4387,13 +4495,13 @@ export default function PeriodizationScreen() {
         </ScreenPageHeader>
 
         <ScrollView
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={{
-            gap: selectedClass ? 0 : 16,
             paddingBottom: selectedClass
               ? Math.max(insets.bottom, 8)
               : Math.max(insets.bottom + 120, 144),
-            paddingHorizontal: selectedClass && !responsiveLayout.isMobile ? 0 : 16,
-            paddingTop: selectedClass && !responsiveLayout.isMobile ? 0 : 16,
+            paddingHorizontal: selectedClass ? 0 : 16,
+            paddingTop: selectedClass ? 0 : 16,
           }}
 
           style={{ zIndex: 1, backgroundColor: colors.background }}
@@ -4408,7 +4516,10 @@ export default function PeriodizationScreen() {
               colors={colors}
               classId={selectedClass.id}
               initialMonthKey={initialMonthParam}
+              regenerateMonthSignal={regenerateMonthSignal}
+              onMonthChange={setCurrentSelectedMonth}
               onOpenManager={(mode) => openPeriodizationManager("cycle", mode)}
+              onRegenerateCycle={handleGenerateCycle}
             />
           ) : (
             <View style={[getSectionCardStyle(colors, "neutral"), { gap: 8 }]}>

@@ -50,15 +50,16 @@ const MAX_VISIBLE_STUDENTS = 4;
 const hashString = (value: string) =>
   value.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-export const getInitials = (name: string, fallback = "T") => {
-  const words = name
+export const getInitials = (name: string, fallback = "A") => {
+  const words = (name || "")
     .trim()
     .split(/\s+/)
     .filter(Boolean);
   if (!words.length) return fallback;
   const first = words[0]?.[0] ?? "";
   const second = words.length > 1 ? words[words.length - 1]?.[0] ?? "" : "";
-  return `${first}${second}`.toUpperCase() || fallback;
+  const result = `${first}${second}`.trim().toUpperCase();
+  return result || fallback;
 };
 
 export const groupStudentsByClassId = (students: Student[]) => {
@@ -77,14 +78,18 @@ export function buildClassCardViewModel({
   teacher,
   coverageSummary,
 }: BuildClassCardViewModelParams): ClassCardViewModel {
-  const orderedStudents = [...students].sort((a, b) => a.name.localeCompare(b.name));
+  const orderedStudents = [...students].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   const baseHash = hashString(classGroup.name || classGroup.id || "turma");
-  const visibleStudents = orderedStudents.slice(0, MAX_VISIBLE_STUDENTS).map((student, index) => ({
-    id: student.id,
-    label: getInitials(student.name, "A").slice(0, 2),
-    photoUrl: student.photoUrl || undefined,
-    color: AVATAR_COLORS[(baseHash + index) % AVATAR_COLORS.length],
-  }));
+  const visibleStudents = orderedStudents.slice(0, MAX_VISIBLE_STUDENTS).map((student, index) => {
+    const initials = getInitials(student.name, "A").slice(0, 2) || "A";
+    const photoUrl = student.photoUrl?.trim() || undefined;
+    return {
+      id: student.id,
+      label: initials,
+      photoUrl,
+      color: AVATAR_COLORS[(baseHash + index) % AVATAR_COLORS.length],
+    };
+  });
   const teacherName = teacher?.name?.trim() || FALLBACK_TEACHER_NAME;
 
   return {

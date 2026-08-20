@@ -76,12 +76,15 @@ export function useSessionTrainingPlan({
           orderBy: "createdat_desc",
           limit: 12,
         });
-        const documentSupport = await retrieveDocumentSupportForPlan({
-          classGroup,
-          sessionDate: event.date,
-          classPlan: event.plan,
-          dailyLessonPlan: event.dailyPlan,
-        }).catch(() => undefined);
+        const documentSupport = await Promise.race([
+          retrieveDocumentSupportForPlan({
+            classGroup,
+            sessionDate: event.date,
+            classPlan: event.plan,
+            dailyLessonPlan: event.dailyPlan,
+          }),
+          new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 800)),
+        ]).catch(() => undefined);
         const unifiedContext = buildUnifiedPlanningContext({
           classGroup,
           referenceDate: event.date,

@@ -276,6 +276,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setRecentAttendance([]);
       setRecentSessionLogs([]);
       setStudentContexts([]);
+      setDailyPlansByKey({});
       setError(null);
       setIsLoading(false);
       return;
@@ -389,23 +390,25 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setRecentSessionLogs(sessionLogs);
       setStudentContexts(contexts);
 
-      const monthPlans = filterClassPlansBySessionMonth(
+      const targetMonthPlans = filterClassPlansBySessionMonth(
         scopedPlans,
         cls,
         exceptions,
         monthKey,
       );
-      const weekIds = monthPlans.map((plan) => plan.id);
-      const dailyPlans = await loadOptionalMonthlyData(
-        "daily lesson plans",
-        listDailyLessonPlansByWeekIds(weekIds),
-        [],
-      );
-      const mapped: DailyLessonPlanLookup = {};
-      for (const plan of dailyPlans) {
-        mapped[`${plan.weeklyPlanId}::${plan.date}`] = plan;
+      const weekIds = targetMonthPlans.map((plan) => plan.id);
+      if (weekIds.length > 0) {
+        const dailyPlans = await loadOptionalMonthlyData(
+          "daily lesson plans",
+          listDailyLessonPlansByWeekIds(weekIds),
+          [],
+        );
+        const mapped: DailyLessonPlanLookup = {};
+        for (const plan of dailyPlans) {
+          mapped[`${plan.weeklyPlanId}::${plan.date}`] = plan;
+        }
+        setDailyPlansByKey(mapped);
       }
-      setDailyPlansByKey(mapped);
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -415,13 +418,49 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [classId, monthKey]);
+  }, [classId]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
       void load();
     });
   }, [load]);
+
+  // Carregamento incremental sob demanda de planos diários ao alternar de mês (sem travar a tela)
+  useEffect(() => {
+    if (!selectedClass || !classPlans.length || !monthKey) return;
+    const currentMonthPlans = filterClassPlansBySessionMonth(
+      classPlans,
+      selectedClass,
+      calendarExceptions,
+      monthKey,
+    );
+    const weekIds = currentMonthPlans.map((plan) => plan.id);
+    if (!weekIds.length) return;
+
+    let isMounted = true;
+    listDailyLessonPlansByWeekIds(weekIds)
+      .then((dailyPlans) => {
+        if (!isMounted || !dailyPlans.length) return;
+        setDailyPlansByKey((prev) => {
+          let hasNew = false;
+          const next = { ...prev };
+          for (const plan of dailyPlans) {
+            const key = `${plan.weeklyPlanId}::${plan.date}`;
+            if (!next[key]) {
+              next[key] = plan;
+              hasNew = true;
+            }
+          }
+          return hasNew ? next : prev;
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [calendarExceptions, classPlans, monthKey, selectedClass]);
 
   const monthPlans = useMemo(
     () =>

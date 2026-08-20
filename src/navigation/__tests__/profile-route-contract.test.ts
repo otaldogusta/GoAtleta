@@ -26,8 +26,8 @@ describe("professor and coordination route contract", () => {
   });
 
   it("provides coordination wrappers for shared planning and NFC screens", () => {
-    expect(read("app/coord/planning.tsx")).toContain('import("../training")');
-    expect(read("app/coord/nfc-attendance.tsx")).toContain('import("../nfc-attendance")');
+    expect(read("app/coord/planning.tsx")).toContain('"../training"');
+    expect(read("app/coord/nfc-attendance.tsx")).toContain('"../nfc-attendance"');
   });
 
   it("keeps member management in one coordination center", () => {

@@ -26,8 +26,7 @@ type Conflict = { name: string; day: number; modality?: string; kind: "conflict"
 
 const ALL_UNITS_KEY = "__all_units__";
 const OPEN_MENU_Z_INDEX = 11000;
-const UNIT_PANE_MIN_CONTENT_WIDTH = 1040;
-const TABLE_LAYOUT_MIN_WIDTH = 1040;
+const TABLE_LAYOUT_MIN_WIDTH = 680;
 
 type Props = {
   grouped: GroupedClasses;
@@ -67,7 +66,6 @@ export const ClassesListSection = memo(function ClassesListSection({
   markRender("screen.classes.render.listSection");
   const { containerRef, onLayout, width: availableWidth } =
     useContainerResponsiveLayout("dashboard");
-  const hasPermanentUnitPane = availableWidth >= UNIT_PANE_MIN_CONTENT_WIDTH;
   const showTable = availableWidth >= TABLE_LAYOUT_MIN_WIDTH;
   const [selectedUnitKey, setSelectedUnitKey] = useState(ALL_UNITS_KEY);
   const [unitSearch, setUnitSearch] = useState("");
@@ -75,7 +73,7 @@ export const ClassesListSection = memo(function ClassesListSection({
   const [tableAscending, setTableAscending] = useState(true);
   const [sortKey, setSortKey] = useState<"name" | "time" | "age" | "students" | "teacher" | null>(null);
   const sortIndicator = useRef(new Animated.Value(0)).current;
-  const [mobileUnitsOpen, setMobileUnitsOpen] = useState(false);
+  const [unitDrawerOpen, setUnitDrawerOpen] = useState(false);
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
   const units = useMemo(
@@ -131,7 +129,7 @@ export const ClassesListSection = memo(function ClassesListSection({
         toValue: 1,
         friction: 6,
         tension: 180,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS === "ios" || Platform.OS === "android",
       }).start();
     }
   }, [sortIndicator, sortKey]);
@@ -144,7 +142,7 @@ export const ClassesListSection = memo(function ClassesListSection({
 
   const chooseUnit = useCallback((key: string) => {
     setSelectedUnitKey(key);
-    setMobileUnitsOpen(false);
+    setUnitDrawerOpen(false);
     setOpenActionMenuId(null);
   }, []);
 
@@ -254,8 +252,8 @@ export const ClassesListSection = memo(function ClassesListSection({
         keyExtractor={(item) => item.key}
         renderItem={renderUnitRow}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={hasPermanentUnitPane}
-        style={hasPermanentUnitPane ? styles.unitListDesktop : styles.unitListMobile}
+        showsVerticalScrollIndicator
+        style={styles.unitListDesktop}
         contentContainerStyle={styles.unitListContent}
       />
       <Text style={[styles.unitFooter, { color: colors.textMuted ?? colors.muted }]}>
@@ -318,131 +316,150 @@ export const ClassesListSection = memo(function ClassesListSection({
     );
   }
 
-  const classesPanel = (
-    <View style={[styles.classesPanel, { backgroundColor: colors.background }]}>
-      <View style={[styles.classesHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
-        <View
-          style={[
-            styles.selectedUnitIcon,
-            { backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg },
-          ]}
-        >
-          <GoAtletaIcon name="organization" size={20} color={colors.textMuted ?? colors.muted} />
-        </View>
-        <View style={styles.selectedUnitHeading}>
-          <Text numberOfLines={1} style={[styles.selectedUnitTitle, { color: colors.textPrimary ?? colors.text }]}>
-            {selectedTitle}
-          </Text>
-          <Text style={[styles.selectedUnitCount, { color: colors.textMuted ?? colors.muted }]}>
-            {selectedClasses.length} turma{selectedClasses.length === 1 ? "" : "s"}
-          </Text>
-        </View>
-      </View>
-
-      {showTable ? (
-        <View style={[styles.tableHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
-          {([['TURMA', 'name', styles.tableIdentityHeading], ['HORÁRIO', 'time', styles.tableScheduleHeading], ['IDADE / NÍVEL', 'age', styles.tableFocusHeading], ['ALUNOS', 'students', styles.tableStudentsHeading], ['PROFESSOR', 'teacher', styles.tableTeacherHeading]] as const).map(([label, key, style]) => (
-            <Pressable key={key} accessibilityRole="button" accessibilityLabel={`Ordenar por ${label}`} suppressWebHoverFeedback disableWebPressScale onPress={() => selectSort(key)} style={[styles.tableHeadingButton, style]}>
-              <Text style={[styles.tableHeading, { color: sortKey === key ? colors.text : (colors.textMuted ?? colors.muted) }]}>{label}</Text>
-              {sortKey === key ? <Animated.View style={{ opacity: sortIndicator, transform: [{ scale: sortIndicator.interpolate({ inputRange: [0, 1], outputRange: [0.78, 1] }) }, { translateY: sortIndicator.interpolate({ inputRange: [0, 1], outputRange: [-3, 0] }) }] }}><GoAtletaIcon name="swapVertical" size={13} color={colors.text} /></Animated.View> : <GoAtletaIcon name="swapVertical" size={13} color={colors.textMuted ?? colors.muted} />}
-            </Pressable>
-          ))}
-          <View style={styles.tableActionHeading} />
-        </View>
-      ) : null}
-
-      <FlatList
-        data={selectedClasses}
-        keyExtractor={(item) => item.id}
-        renderItem={renderClass}
-        initialNumToRender={12}
-        maxToRenderPerBatch={12}
-        windowSize={7}
-        removeClippedSubviews={false}
-        style={styles.classList}
-        contentContainerStyle={[
-          !showTable ? styles.mobileClassListContent : null,
-          contentContainerStyle,
-        ]}
-        onScrollBeginDrag={() => {
-          closeActionMenu();
-          onScrollBeginDrag?.();
-        }}
-        onMomentumScrollBegin={closeActionMenu}
-        refreshControl={
-          onRefresh ? (
-            <AppRefreshControl
-              refreshing={Boolean(refreshing)}
-              onRefresh={() => void onRefresh()}
-              tintColor={colors.text}
-              colors={[colors.text]}
-            />
-          ) : undefined
-        }
-      />
-    </View>
-  );
-
   return (
     <View
       ref={containerRef}
       onLayout={onLayout}
       style={[styles.root, { backgroundColor: colors.background }, style]}
     >
-      {hasPermanentUnitPane ? (
+      <View style={[styles.classesPanel, { backgroundColor: colors.background }]}>
+        <View style={[styles.classesHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Filtrar turmas por unidade"
+            onPress={() => setUnitDrawerOpen((current) => !current)}
+            style={(state) => [
+              styles.unitFilterTrigger,
+              {
+                backgroundColor: state.hovered || unitDrawerOpen
+                  ? colors.backgroundSubtle ?? colors.secondaryBg
+                  : "transparent",
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.selectedUnitIcon,
+                { backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg },
+              ]}
+            >
+              <GoAtletaIcon name="organization" size={17} color={colors.primaryBg} />
+            </View>
+            <View style={styles.selectedUnitHeading}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 }}>
+                <Text numberOfLines={1} style={[styles.selectedUnitTitle, { color: colors.textPrimary ?? colors.text }]}>
+                  {selectedTitle}
+                </Text>
+                <View
+                  style={[
+                    styles.unitBadgePill,
+                    {
+                      backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+                      borderColor: colors.borderSubtle ?? colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.unitBadgeText, { color: colors.textMuted ?? colors.muted }]}>
+                    {availableWidth < 420 ? "Filtrar" : "Filtrar unidades"}
+                  </Text>
+                  <GoAtletaIcon
+                    name={unitDrawerOpen ? "chevronUp" : "chevronDown"}
+                    size={12}
+                    color={colors.textMuted ?? colors.muted}
+                  />
+                </View>
+              </View>
+              <Text style={[styles.selectedUnitCount, { color: colors.textMuted ?? colors.muted }]}>
+                {selectedClasses.length} turma{selectedClasses.length === 1 ? "" : "s"}
+              </Text>
+            </View>
+          </Pressable>
+        </View>
+
+        {showTable ? (
+          <View style={[styles.tableHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
+            {([['TURMA', 'name', styles.tableIdentityHeading], ['HORÁRIO', 'time', styles.tableScheduleHeading], ['IDADE / NÍVEL', 'age', styles.tableFocusHeading], ['ALUNOS', 'students', styles.tableStudentsHeading], ['PROFESSOR', 'teacher', styles.tableTeacherHeading]] as const).map(([label, key, style]) => (
+              <Pressable key={key} accessibilityRole="button" accessibilityLabel={`Ordenar por ${label}`} suppressWebHoverFeedback disableWebPressScale onPress={() => selectSort(key)} style={[styles.tableHeadingButton, style]}>
+                <Text style={[styles.tableHeading, { color: sortKey === key ? colors.text : (colors.textMuted ?? colors.muted) }]}>{label}</Text>
+                {sortKey === key ? <Animated.View style={{ opacity: sortIndicator, transform: [{ scale: sortIndicator.interpolate({ inputRange: [0, 1], outputRange: [0.78, 1] }) }, { translateY: sortIndicator.interpolate({ inputRange: [0, 1], outputRange: [-3, 0] }) }] }}><GoAtletaIcon name="swapVertical" size={13} color={colors.text} /></Animated.View> : <GoAtletaIcon name="swapVertical" size={13} color={colors.textMuted ?? colors.muted} />}
+              </Pressable>
+            ))}
+            <View style={styles.tableActionHeading} />
+          </View>
+        ) : null}
+
+        <FlatList
+          data={selectedClasses}
+          keyExtractor={(item) => item.id}
+          renderItem={renderClass}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={7}
+          removeClippedSubviews={false}
+          style={styles.classList}
+          contentContainerStyle={[
+            !showTable ? styles.mobileClassListContent : null,
+            contentContainerStyle,
+          ]}
+          onScrollBeginDrag={() => {
+            closeActionMenu();
+            onScrollBeginDrag?.();
+          }}
+          onMomentumScrollBegin={closeActionMenu}
+          refreshControl={
+            onRefresh ? (
+              <AppRefreshControl
+                refreshing={Boolean(refreshing)}
+                onRefresh={() => void onRefresh()}
+                tintColor={colors.text}
+                colors={[colors.text]}
+              />
+            ) : undefined
+          }
+        />
+      </View>
+
+      {unitDrawerOpen ? (
         <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar gaveta de unidades"
+            onPress={() => setUnitDrawerOpen(false)}
+            suppressWebHoverFeedback
+            disableWebPressScale
+            style={styles.unitDrawerBackdrop}
+          />
           <View
             style={[
-              styles.unitPane,
+              styles.unitDrawer,
               {
                 backgroundColor: colors.background,
                 borderRightColor: colors.borderSubtle ?? colors.border,
               },
             ]}
           >
-            <Text style={[styles.unitPaneTitle, { color: colors.textPrimary ?? colors.text }]}>Unidades</Text>
+            <View style={[styles.unitDrawerHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
+              <Text style={[styles.unitPaneTitle, { color: colors.textPrimary ?? colors.text, marginBottom: 0 }]}>
+                Unidades
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Fechar seleção de unidades"
+                onPress={() => setUnitDrawerOpen(false)}
+                style={(state) => [
+                  styles.unitDrawerCloseButton,
+                  {
+                    backgroundColor: state.hovered ? colors.secondaryBg : "transparent",
+                  },
+                ]}
+              >
+                <GoAtletaIcon name="close" size={18} color={colors.textMuted ?? colors.muted} />
+              </Pressable>
+            </View>
             {unitPicker}
           </View>
-          {classesPanel}
         </>
-      ) : (
-        <View style={styles.stackedLayout}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Selecionar unidade"
-            onPress={() => setMobileUnitsOpen((current) => !current)}
-            style={[
-              styles.mobileUnitToggle,
-              {
-                backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-                borderColor: colors.borderSubtle ?? colors.border,
-              },
-            ]}
-          >
-            <View style={styles.mobileUnitToggleLabel}>
-              <GoAtletaIcon name="organization" size={17} color={colors.textMuted ?? colors.muted} />
-              <Text numberOfLines={1} style={[styles.mobileUnitToggleText, { color: colors.textPrimary ?? colors.text }]}>
-                {selectedTitle}
-              </Text>
-            </View>
-            <GoAtletaIcon name={mobileUnitsOpen ? "chevronUp" : "chevronDown"} size={16} color={colors.textMuted ?? colors.muted} />
-          </Pressable>
-          {mobileUnitsOpen ? (
-            <View
-              style={[
-                styles.mobileUnitPicker,
-                {
-                  backgroundColor: colors.background,
-                  borderColor: colors.borderSubtle ?? colors.border,
-                },
-              ]}
-            >
-              {unitPicker}
-            </View>
-          ) : null}
-          {classesPanel}
-        </View>
-      )}
+      ) : null}
     </View>
   );
 });
@@ -544,22 +561,87 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
+  unitFilterTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.internal,
+  },
+  unitBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  unitBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  unitDrawerBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.52)",
+    zIndex: 12000,
+  },
+  unitDrawer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: 290,
+    zIndex: 12001,
+    borderRightWidth: 1,
+    paddingTop: 14,
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 16px 36px rgba(0, 0, 0, 0.45)" }
+      : {
+          shadowColor: "#000",
+          shadowOpacity: 0.35,
+          shadowRadius: 18,
+          shadowOffset: { width: 4, height: 0 },
+          elevation: 16,
+        }),
+  },
+  unitDrawerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    marginBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  unitDrawerCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   classesPanel: {
     flex: 1,
     minWidth: 0,
     minHeight: 0,
   },
   classesHeader: {
-    minHeight: 86,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 18,
+    gap: 10,
+    paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   selectedUnitIcon: {
-    width: 42,
-    height: 42,
+    width: 32,
+    height: 32,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
@@ -569,12 +651,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   selectedUnitTitle: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "900",
   },
   selectedUnitCount: {
-    marginTop: 3,
-    fontSize: 12,
+    marginTop: 1,
+    fontSize: 11,
     fontWeight: "600",
   },
   tableHeader: {
@@ -589,13 +671,13 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   tableHeadingButton: { justifyContent: "center", alignItems: "center", flexDirection: "row", gap: 4, minHeight: 36 },
-  tableIdentityHeading: { flex: 2.2, minWidth: 210 },
-  tableScheduleHeading: { flex: 1.12, minWidth: 112 },
-  tableFocusHeading: { flex: 1.24, minWidth: 120 },
-  tableStudentsHeading: { flex: 1.05, minWidth: 108 },
+  tableIdentityHeading: { flex: 2.2, minWidth: 200 },
+  tableScheduleHeading: { flex: 1.15, minWidth: 112 },
+  tableFocusHeading: { flex: 1.15, minWidth: 115 },
+  tableStudentsHeading: { flex: 1.15, minWidth: 115 },
   tableTeacherHeading: {
-    flex: 1.58,
-    minWidth: 170,
+    flex: 1.85,
+    minWidth: 180,
     justifyContent: "flex-start",
     paddingLeft: 41,
   },
@@ -619,43 +701,6 @@ const styles = StyleSheet.create({
   mobileClassListContent: {
     padding: 10,
     gap: 8,
-  },
-  stackedLayout: {
-    flex: 1,
-    minHeight: 0,
-    gap: 8,
-  },
-  mobileUnitToggle: {
-    minHeight: 44,
-    marginHorizontal: 10,
-    marginTop: 4,
-    paddingHorizontal: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.internal,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  mobileUnitToggleLabel: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  mobileUnitToggleText: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  mobileUnitPicker: {
-    marginHorizontal: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.internal,
-    overflow: "hidden",
-    maxHeight: 360,
   },
   emptyState: {
     padding: 16,

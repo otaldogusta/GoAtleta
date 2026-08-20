@@ -4,6 +4,7 @@ import {
   buildMonthCyclePresentations,
   monthNeedsRegeneration,
   parsePseMidpoint,
+  resolveDefaultSelectedAgendaEvent,
   resolveUnifiedPlanningContextLayout,
 } from "../unified-planning-view-model";
 
@@ -126,5 +127,40 @@ describe("unified planning view model", () => {
         true,
       ),
     ).toBe(true);
+  });
+
+  describe("resolveDefaultSelectedAgendaEvent", () => {
+    const events = [
+      { id: "e1", date: "2027-01-04" },
+      { id: "e2", date: "2027-01-06" },
+      { id: "e3", date: "2027-01-11" },
+      { id: "e4", date: "2027-01-13" },
+      { id: "e5", date: "2027-01-27" },
+    ];
+
+    it("preserves currently selected event if it still exists in the month", () => {
+      expect(resolveDefaultSelectedAgendaEvent(events, "e3", "2026-08-19")).toEqual(events[2]);
+    });
+
+    it("selects the earliest upcoming session for future months (e.g. week 1/2 instead of last day)", () => {
+      // Reference date is earlier than all events in the month
+      expect(resolveDefaultSelectedAgendaEvent(events, null, "2026-08-19")).toEqual(events[0]);
+    });
+
+    it("selects the upcoming session in the current week when inside the month", () => {
+      // Today is 2027-01-10 -> next session is 2027-01-11 (e3)
+      expect(resolveDefaultSelectedAgendaEvent(events, null, "2027-01-10")).toEqual(events[2]);
+      // Today is exact match 2027-01-06 -> e2
+      expect(resolveDefaultSelectedAgendaEvent(events, null, "2027-01-06")).toEqual(events[1]);
+    });
+
+    it("selects the latest session for past months", () => {
+      // Reference date is after all events
+      expect(resolveDefaultSelectedAgendaEvent(events, null, "2027-02-15")).toEqual(events[4]);
+    });
+
+    it("returns null for empty event lists", () => {
+      expect(resolveDefaultSelectedAgendaEvent([], null, "2026-08-19")).toBeNull();
+    });
   });
 });

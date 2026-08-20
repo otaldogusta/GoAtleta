@@ -292,28 +292,22 @@ export function ClassPlanPreviewModal({
   useEffect(() => {
     if (!visible) return undefined;
     if (Platform.OS !== "web") {
-      Promise.resolve().then(() => {
-        setPreviewStatus("idle");
-      });
+      setPreviewStatus("idle");
       return undefined;
     }
 
     let active = true;
     let generatedUrl = "";
-    Promise.resolve().then(() => {
-      setPreviewStatus("loading");
-    });
-    Promise.resolve().then(() => {
-      setPdfUrl("");
-    });
-    Promise.resolve().then(() => {
-      setPdfBlob(null);
-    });
-    Promise.resolve().then(() => {
-      setPdfSize(null);
-    });
 
-    void (async () => {
+    // O preview HTML já está disponível instantaneamente
+    setPreviewStatus("ready");
+
+    // Gera o blob binário em background para download otimizado
+    const idleCallback = (typeof window !== "undefined" && "requestIdleCallback" in window)
+      ? (window as any).requestIdleCallback
+      : (cb: () => void) => setTimeout(cb, 100);
+
+    const idleHandle = idleCallback(async () => {
       try {
         const [{ SessionPlanDocument }, { createWebPdfBlob }] = await Promise.all([
           import("../../../pdf/session-plan-document"),
@@ -326,14 +320,16 @@ export function ClassPlanPreviewModal({
         setPdfBlob(blob);
         setPdfSize(blob.size);
         setPdfUrl(generatedUrl);
-        setPreviewStatus("ready");
       } catch {
-        if (active) setPreviewStatus("error");
+        // Falha no blob em background não trava o preview visual
       }
-    })();
+    });
 
     return () => {
       active = false;
+      if (typeof window !== "undefined" && "cancelIdleCallback" in window && idleHandle) {
+        (window as any).cancelIdleCallback(idleHandle);
+      }
       if (generatedUrl) URL.revokeObjectURL(generatedUrl);
     };
   }, [pdfData, retryKey, visible]);
@@ -863,10 +859,10 @@ export function ClassPlanPreviewModal({
 
   const preview = (
     <View style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}>
-      {previewStatus === "ready" && pdfUrl ? (
+      {Platform.OS === "web" && previewHtml ? (
         <PdfPreviewFrame
           key={`plan-preview-${previewRevision}`}
-          url={pdfUrl}
+          url={pdfUrl || ""}
           html={previewHtml}
           title={`PDF do plano ${pdfPlan.title}`}
           editable={true}

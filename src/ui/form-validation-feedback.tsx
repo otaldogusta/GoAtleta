@@ -99,8 +99,7 @@ export function FormFieldValidationFeedback({
 
   const feedback = message ? (
     <View
-      pointerEvents="none"
-      style={
+      style={[
         presentation === "floating"
           ? {
               position: "absolute",
@@ -109,8 +108,9 @@ export function FormFieldValidationFeedback({
               marginBottom: 8,
               zIndex: 20,
             }
-          : undefined
-      }
+          : undefined,
+        { pointerEvents: "none" },
+      ]}
     >
       <View
         accessibilityRole="alert"
