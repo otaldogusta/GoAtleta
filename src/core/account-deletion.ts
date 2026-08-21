@@ -1,13 +1,10 @@
-export const normalizeAccountDeletionEmail = (value: string) =>
-  value.trim().toLowerCase();
+export const ACCOUNT_DELETION_CONFIRMATION = "EXCLUIR";
+
+export const normalizeAccountDeletionConfirmation = (value: string) =>
+  value.trim().toLocaleUpperCase("pt-BR");
 
 export const isAccountDeletionConfirmationValid = (
-  confirmationEmail: string,
-  accountEmail: string | null | undefined,
-) => {
-  const normalizedAccountEmail = normalizeAccountDeletionEmail(accountEmail ?? "");
-  return Boolean(
-    normalizedAccountEmail &&
-      normalizeAccountDeletionEmail(confirmationEmail) === normalizedAccountEmail,
-  );
-};
+  confirmationText: string,
+) =>
+  normalizeAccountDeletionConfirmation(confirmationText) ===
+  ACCOUNT_DELETION_CONFIRMATION;

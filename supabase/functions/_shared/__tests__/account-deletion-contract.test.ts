@@ -12,13 +12,42 @@ const migrationSource = readFileSync(
   ),
   "utf8",
 );
+const preservationMigrationSource = readFileSync(
+  resolve(
+    __dirname,
+    "../../../migrations/20260821165648_preserve_classes_notify_account_deletion.sql",
+  ),
+  "utf8",
+);
 
 describe("self-service account deletion contract", () => {
   test("authenticates the caller and only deletes the authenticated user", () => {
     expect(functionSource).toContain("authClient.auth.getUser(token)");
     expect(functionSource).toContain("admin.auth.admin.deleteUser(user.id, false)");
     expect(functionSource).not.toContain("payload.userId");
-    expect(functionSource).toContain("normalizeEmail(payload.confirmationEmail)");
+    expect(functionSource).toContain(
+      'normalizeConfirmation(payload.confirmationText) !== "EXCLUIR"',
+    );
+  });
+
+  test("preserves responsible classes and notifies coordination after Auth deletion", () => {
+    const authDeletion = functionSource.indexOf("auth.admin.deleteUser");
+    const notificationInsert = functionSource.indexOf(
+      '.from("notifications")',
+    );
+
+    expect(preservationMigrationSource).toContain("staff.staff_role = 'head'");
+    expect(preservationMigrationSource).toContain(
+      "from public.organization_members current_membership",
+    );
+    expect(preservationMigrationSource).toContain("'coordinatorUserIds'");
+    expect(preservationMigrationSource).not.toContain(
+      "delete from public.organizations",
+    );
+    expect(functionSource).toContain('inbox_scope: "coord"');
+    expect(functionSource).toContain('? "/coord/classes" : "/coord/management"');
+    expect(functionSource).toContain('"/coord/management"');
+    expect(notificationInsert).toBeGreaterThan(authDeletion);
   });
 
   test("prepares organizations and storage before removing Auth", () => {
@@ -47,5 +76,11 @@ describe("self-service account deletion contract", () => {
       "grant execute on function public.prepare_self_account_deletion(uuid) to service_role",
     );
     expect(migrationSource).toContain("from storage.objects storage_object");
+    expect(preservationMigrationSource).toContain(
+      "ACCOUNT_DELETE_REQUIRES_ADMIN_TRANSFER",
+    );
+    expect(preservationMigrationSource).toContain(
+      "revoke all on function public.prepare_self_account_deletion(uuid)",
+    );
   });
 });

@@ -8,7 +8,7 @@ type DeleteAccountResponse = {
   error?: string;
 };
 
-export const deleteMyAccount = async (confirmationEmail: string) => {
+export const deleteMyAccount = async (confirmationText: string) => {
   const token = await getValidAccessToken();
   if (!token) {
     throw new Error("Sua sessão expirou. Entre novamente para excluir a conta.");
@@ -23,7 +23,7 @@ export const deleteMyAccount = async (confirmationEmail: string) => {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ confirmationEmail }),
+      body: JSON.stringify({ confirmationText }),
     },
   );
   const text = await response.text();

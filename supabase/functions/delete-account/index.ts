@@ -3,7 +3,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 
 type DeleteAccountPayload = {
-  confirmationEmail?: string;
+  confirmationText?: string;
+};
+
+type AffectedOrganization = {
+  organizationId: string;
+  classCount: number;
+  classIds: string[];
+  classNames: string[];
+  memberRole: "Coordenação" | "Professor" | "Estagiário";
+  coordinatorUserIds: string[];
+};
+
+type AccountDeletionPreparation = {
+  affectedOrganizations?: AffectedOrganization[];
 };
 
 type OwnedStorageObject = {
@@ -33,8 +46,69 @@ const bearerToken = (request: Request) => {
   return authorization.slice("Bearer ".length).trim();
 };
 
-const normalizeEmail = (value: unknown) =>
-  typeof value === "string" ? value.trim().toLowerCase() : "";
+const normalizeConfirmation = (value: unknown) =>
+  typeof value === "string" ? value.trim().toLocaleUpperCase("pt-BR") : "";
+
+const deletionDisplayName = (user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}) => {
+  const metadata = user.user_metadata ?? {};
+  for (const key of ["full_name", "display_name", "name"]) {
+    const value = metadata[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return user.email?.split("@")[0]?.trim() || "Um membro";
+};
+
+const classNamesSummary = (classNames: string[]) => {
+  const visibleNames = classNames.filter(Boolean).slice(0, 3);
+  if (!visibleNames.length) return "";
+  const remaining = Math.max(0, classNames.length - visibleNames.length);
+  return `: ${visibleNames.join(", ")}${remaining ? ` e +${remaining}` : ""}`;
+};
+
+const buildCoordinationNotifications = (
+  affectedOrganizations: AffectedOrganization[],
+  memberName: string,
+) =>
+  affectedOrganizations.flatMap((affected) => {
+    const classCount = Math.max(0, Number(affected.classCount) || 0);
+    const classIds = Array.isArray(affected.classIds) ? affected.classIds : [];
+    const classNames = Array.isArray(affected.classNames) ? affected.classNames : [];
+    const recipients = Array.isArray(affected.coordinatorUserIds)
+      ? affected.coordinatorUserIds
+      : [];
+    const memberLabel = `${memberName} (${affected.memberRole})`;
+    const classesLabel = classCount === 1 ? "1 turma ficou" : `${classCount} turmas ficaram`;
+    const body = classCount > 0
+      ? `${memberLabel} excluiu a conta. ${classesLabel} sem professor responsável${classNamesSummary(classNames)}.`
+      : `${memberLabel} excluiu a conta.`;
+    return recipients.map((recipientUserId) => ({
+      organization_id: affected.organizationId,
+      recipient_user_id: recipientUserId,
+      inbox_scope: "coord",
+      actor_user_id: null,
+      type: "generic",
+      title: classCount === 0
+        ? "Membro excluiu a conta"
+        : classCount === 1
+          ? "Turma sem professor responsável"
+          : "Turmas sem professor responsável",
+      body,
+      action_url: classCount > 0 ? "/coord/classes" : "/coord/management",
+      source_type: "account_deletion",
+      source_id: affected.organizationId,
+      metadata: {
+        event: "member_account_deleted",
+        departedMemberName: memberName,
+        departedMemberRole: affected.memberRole,
+        classCount,
+        classIds,
+        classNames,
+      },
+    }));
+  });
 
 const metadataString = (
   metadata: Record<string, unknown> | null | undefined,
@@ -166,14 +240,14 @@ Deno.serve(async (request) => {
       error: "Sua sessão expirou. Entre novamente.",
     });
   }
-  if (normalizeEmail(payload.confirmationEmail) !== normalizeEmail(user.email)) {
+  if (normalizeConfirmation(payload.confirmationText) !== "EXCLUIR") {
     return jsonResponse(request, 400, {
       code: "CONFIRMATION_MISMATCH",
-      error: "Digite o e-mail da conta exatamente para confirmar.",
+      error: "Digite EXCLUIR exatamente para confirmar.",
     });
   }
 
-  const { error: preparationError } = await admin.rpc(
+  const { data: preparationData, error: preparationError } = await admin.rpc(
     "prepare_self_account_deletion",
     { p_user_id: user.id },
   );
@@ -228,5 +302,24 @@ Deno.serve(async (request) => {
     });
   }
 
-  return jsonResponse(request, 200, { deleted: true });
+  const coordinationNotifications = buildCoordinationNotifications(
+    ((preparationData as AccountDeletionPreparation | null)
+      ?.affectedOrganizations ?? []),
+    deletionDisplayName(user),
+  );
+  let notificationsCreated = true;
+  if (coordinationNotifications.length) {
+    const { error: notificationError } = await admin
+      .from("notifications")
+      .insert(coordinationNotifications);
+    if (notificationError) {
+      notificationsCreated = false;
+      console.error("Failed to notify coordination after account deletion", {
+        code: notificationError.code,
+        message: notificationError.message,
+      });
+    }
+  }
+
+  return jsonResponse(request, 200, { deleted: true, notificationsCreated });
 });

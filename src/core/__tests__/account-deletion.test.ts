@@ -1,25 +1,19 @@
 import {
+  ACCOUNT_DELETION_CONFIRMATION,
   isAccountDeletionConfirmationValid,
-  normalizeAccountDeletionEmail,
+  normalizeAccountDeletionConfirmation,
 } from "../account-deletion";
 
 describe("account deletion confirmation", () => {
-  it("normalizes the confirmation email", () => {
-    expect(normalizeAccountDeletionEmail("  Pessoa@Example.COM ")).toBe(
-      "pessoa@example.com",
+  it("normalizes the confirmation text", () => {
+    expect(normalizeAccountDeletionConfirmation("  excluir ")).toBe(
+      ACCOUNT_DELETION_CONFIRMATION,
     );
   });
 
-  it("requires the exact account email and rejects an unavailable account email", () => {
-    expect(
-      isAccountDeletionConfirmationValid(
-        "PESSOA@example.com",
-        "pessoa@example.com",
-      ),
-    ).toBe(true);
-    expect(
-      isAccountDeletionConfirmationValid("outra@example.com", "pessoa@example.com"),
-    ).toBe(false);
-    expect(isAccountDeletionConfirmationValid("", null)).toBe(false);
+  it("requires the explicit deletion word", () => {
+    expect(isAccountDeletionConfirmationValid("excluir")).toBe(true);
+    expect(isAccountDeletionConfirmationValid("confirmar")).toBe(false);
+    expect(isAccountDeletionConfirmationValid("")).toBe(false);
   });
 });

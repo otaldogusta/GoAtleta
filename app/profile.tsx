@@ -38,7 +38,10 @@ import {
     uploadStudentPhoto,
 } from "../src/api/student-photo-storage";
 import { deleteMyAccount } from "../src/api/account-deletion";
-import { isAccountDeletionConfirmationValid } from "../src/core/account-deletion";
+import {
+  ACCOUNT_DELETION_CONFIRMATION,
+  isAccountDeletionConfirmationValid,
+} from "../src/core/account-deletion";
 import { resolveEffectiveProfile } from "../src/core/effective-profile";
 import {
   getPasswordChangeValidationError,
@@ -937,10 +940,19 @@ export default function ProfileScreen() {
   }, [session?.user?.app_metadata?.email_verified_hybrid_at, session?.user?.app_metadata?.provider, session?.user?.app_metadata?.providers, session?.user?.confirmed_at, session?.user?.email, session?.user?.email_confirmed_at, session?.user?.identities, session?.user?.user_metadata]);
 
   const openAccountDeletion = useCallback(() => {
-    setAccountDeletionConfirmation("");
-    setAccountDeletionError(null);
-    setShowAccountDeletion(true);
-  }, []);
+    confirm({
+      title: "Excluir sua conta?",
+      message: "Você realmente quer continuar?",
+      confirmLabel: "Sim, continuar",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: () => {
+        setAccountDeletionConfirmation("");
+        setAccountDeletionError(null);
+        setShowAccountDeletion(true);
+      },
+    });
+  }, [confirm]);
 
   const closeAccountDeletion = useCallback(() => {
     if (deletingAccount) return;
@@ -951,20 +963,12 @@ export default function ProfileScreen() {
 
   const canDeleteAccount = Boolean(
     !deletingAccount &&
-      isAccountDeletionConfirmationValid(
-        accountDeletionConfirmation,
-        accountSecurity.accountEmail,
-      ),
+      isAccountDeletionConfirmationValid(accountDeletionConfirmation),
   );
 
   const handleDeleteAccount = useCallback(async () => {
-    if (
-      !isAccountDeletionConfirmationValid(
-        accountDeletionConfirmation,
-        accountSecurity.accountEmail,
-      )
-    ) {
-      setAccountDeletionError("Digite o e-mail da conta exatamente para confirmar.");
+    if (!isAccountDeletionConfirmationValid(accountDeletionConfirmation)) {
+      setAccountDeletionError("Digite EXCLUIR exatamente para confirmar.");
       return;
     }
     setDeletingAccount(true);
@@ -989,7 +993,6 @@ export default function ProfileScreen() {
     }
   }, [
     accountDeletionConfirmation,
-    accountSecurity.accountEmail,
     biometricsEnabled,
     router,
     setBiometricsEnabled,
@@ -2997,7 +3000,7 @@ export default function ProfileScreen() {
                 Excluir conta
               </Text>
               <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
-                Esta ação é permanente e não pode ser desfeita.
+                Esta ação não pode ser desfeita.
               </Text>
             </View>
             <Pressable
@@ -3019,78 +3022,55 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          <View
-            style={{
-              padding: 14,
-              borderRadius: radius.internal,
-              backgroundColor: colors.dangerBg,
-              borderWidth: 1,
-              borderColor: colors.dangerBorder,
-              gap: 8,
-            }}
-          >
+          <View style={{ gap: 8, overflow: "visible" }}>
             <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-              O que acontece
+              Digite {ACCOUNT_DELETION_CONFIRMATION} para confirmar
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-              Sua conta, perfil, vínculos e dados pessoais serão removidos. Conteúdo institucional compartilhado será preservado sem vínculo com seu perfil.
-            </Text>
-          </View>
-
-          <View style={{ gap: 8 }}>
-            <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-              Digite seu e-mail para confirmar
-            </Text>
-            <View
-              style={{
-                minHeight: 50,
-                borderRadius: 12,
-                paddingHorizontal: 14,
-                backgroundColor: colors.inputBg,
-                borderWidth: 1,
-                borderColor: accountDeletionError ? colors.dangerBorder : colors.border,
-                justifyContent: "center",
-              }}
-            >
-              <TextInput
-                accessibilityLabel="E-mail de confirmação da exclusão"
-                autoCapitalize="none"
-                autoComplete="email"
-                autoCorrect={false}
-                editable={!deletingAccount}
-                placeholder={accountSecurity.accountEmail || "seu@email.com"}
-                placeholderTextColor={colors.muted}
-                returnKeyType="done"
-                value={accountDeletionConfirmation}
-                onChangeText={(value) => {
-                  setAccountDeletionConfirmation(value);
-                  if (accountDeletionError) setAccountDeletionError(null);
-                }}
-                onSubmitEditing={() => {
-                  if (canDeleteAccount) void handleDeleteAccount();
-                }}
+            <View style={{ position: "relative", overflow: "visible" }}>
+              <FloatingFieldError message={accountDeletionError} />
+              <View
                 style={{
-                  color: colors.text,
-                  fontSize: 15,
-                  paddingVertical: 0,
-                  borderRadius: 0,
-                  ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
+                  minHeight: 50,
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  backgroundColor: colors.inputBg,
+                  borderWidth: 1,
+                  borderColor: accountDeletionError ? colors.dangerBorder : colors.border,
+                  justifyContent: "center",
                 }}
-              />
+              >
+                <TextInput
+                  accessibilityLabel="Confirmação da exclusão da conta"
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  autoCorrect={false}
+                  editable={!deletingAccount}
+                  maxLength={ACCOUNT_DELETION_CONFIRMATION.length}
+                  placeholder={ACCOUNT_DELETION_CONFIRMATION}
+                  placeholderTextColor={colors.muted}
+                  returnKeyType="done"
+                  value={accountDeletionConfirmation}
+                  onChangeText={(value) => {
+                    setAccountDeletionConfirmation(value);
+                    if (accountDeletionError) setAccountDeletionError(null);
+                  }}
+                  onSubmitEditing={() => {
+                    if (canDeleteAccount) void handleDeleteAccount();
+                  }}
+                  style={{
+                    color: colors.text,
+                    fontSize: 15,
+                    paddingVertical: 0,
+                    borderRadius: 0,
+                    ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
+                  }}
+                />
+              </View>
             </View>
           </View>
-
-          {accountDeletionError ? (
-            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-              <GoAtletaIcon name="warningCircle" size={16} color={colors.dangerText} />
-              <Text style={{ flex: 1, color: colors.dangerText, fontSize: 12, lineHeight: 17 }}>
-                {accountDeletionError}
-              </Text>
-            </View>
-          ) : null}
 
           <Button
-            label="Excluir minha conta"
+            label="Excluir conta"
             loading={deletingAccount}
             loadingLabel="Excluindo"
             variant="danger"
