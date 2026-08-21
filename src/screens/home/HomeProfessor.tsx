@@ -211,10 +211,10 @@ export function HomeProfessorScreen({
     memberPermissions.periodization === true;
   const canOpenRegulationHistoryShortcut =
     isOrgAdmin ||
-    memberPermissions.org_members !== false;
+    memberPermissions.org_members === true;
   const canOpenAssistantShortcut =
     isOrgAdmin ||
-    memberPermissions.assistant !== false;
+    memberPermissions.assistant === true;
   const canOpenReportsShortcut =
     isOrgAdmin ||
     memberPermissions.reports === true;

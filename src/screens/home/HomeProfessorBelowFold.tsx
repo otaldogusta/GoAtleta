@@ -223,13 +223,15 @@ function HomeProfessorBelowFoldBase({
           />
         ) : null}
 
-        <ShortcutCard
-          label="Consultoria online"
-          description="Prescrição individual"
-          icon="consultation"
-          mobile={mobile}
-          onPress={() => navigateToShortcut("/prof/consultation")}
-        />
+        {canOpenStudentsShortcut ? (
+          <ShortcutCard
+            label="Consultoria online"
+            description="Prescrição individual"
+            icon="consultation"
+            mobile={mobile}
+            onPress={() => navigateToShortcut("/prof/consultation")}
+          />
+        ) : null}
 
         {canOpenClassesShortcut ? (
           <ShortcutCard

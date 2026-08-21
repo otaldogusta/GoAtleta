@@ -4,7 +4,10 @@ import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
 import { useRole, type UserRole } from "../auth/role";
-import { isTrainerPathAllowed } from "../auth/route-permissions";
+import {
+  getTrainerPermissionKey,
+  isTrainerPathAllowed,
+} from "../auth/route-permissions";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import { navigateToPrimaryRoute } from "../navigation/primary-route-navigation";
 import { getScopedProfilePath } from "../navigation/profile-routes";
@@ -724,10 +727,10 @@ export function WebSidebar({
 
   const canShowItem = (item: SidebarItem) => {
     if (role === "student" || isOrgAdmin) return true;
-    // Keep the navigation stable while permissions are resolving. The route
-    // boundary still blocks unauthorized access, and the item is removed as
-    // soon as an explicit denied permission is available.
-    if (permissionsLoading) return true;
+    // Permission-bound destinations stay hidden until the organization RPC
+    // explicitly grants them. This prevents a restricted menu from flashing
+    // while permissions are loading or when the request fails.
+    if (permissionsLoading && getTrainerPermissionKey(item.href)) return false;
     return isTrainerPathAllowed(item.href, memberPermissions, false);
   };
 

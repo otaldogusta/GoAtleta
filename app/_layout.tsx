@@ -621,7 +621,7 @@ function RootLayoutContent() {
     }
     if (session && role === "trainer" && !isAdminProfile) {
       const permissionKey = getTrainerPermissionKey(normalizedPathname);
-      if (permissionKey && memberPermissions[permissionKey] === false) {
+      if (permissionKey && memberPermissions[permissionKey] !== true) {
         router.replace(appHomeHref);
         return;
       }

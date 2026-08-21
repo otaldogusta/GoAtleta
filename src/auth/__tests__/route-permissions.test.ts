@@ -10,6 +10,7 @@ describe("trainer route permissions", () => {
     expect(getTrainerPermissionKey("/coord/students")).toBe("students");
     expect(getTrainerPermissionKey("/coord/planning")).toBe("training");
     expect(getTrainerPermissionKey("/coord/nfc-attendance")).toBe("classes");
+    expect(getTrainerPermissionKey("/prof/consultation")).toBe("students");
     expect(getTrainerPermissionKey("/prof/calendarized")).toBeNull();
   });
 
@@ -23,8 +24,9 @@ describe("trainer route permissions", () => {
     ).toBe(false);
   });
 
-  it("keeps unspecified screens available and bypasses restrictions for org admins", () => {
+  it("fails closed for permission-bound screens and bypasses restrictions for org admins", () => {
     expect(isTrainerPathAllowed("/prof/home", {}, false)).toBe(true);
+    expect(isTrainerPathAllowed("/prof/calendar", {}, false)).toBe(false);
     expect(
       isTrainerPathAllowed("/prof/calendar", { calendar: false }, true)
     ).toBe(true);

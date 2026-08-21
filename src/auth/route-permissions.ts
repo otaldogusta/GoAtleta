@@ -2,6 +2,7 @@ import type { MemberPermissionKey } from "../api/members";
 
 export const trainerPermissionByPrefix = [
   { prefix: "/prof/students", permissionKey: "students" },
+  { prefix: "/prof/consultation", permissionKey: "students" },
   { prefix: "/prof/classes", permissionKey: "classes" },
   { prefix: "/prof/planning", permissionKey: "training" },
   { prefix: "/prof/calendar", permissionKey: "calendar" },
@@ -57,7 +58,7 @@ export const isTrainerPathAllowed = (
 ) => {
   if (isOrgAdmin) return true;
   const permissionKey = getTrainerPermissionKey(pathname);
-  return permissionKey === null || memberPermissions[permissionKey] !== false;
+  return permissionKey === null || memberPermissions[permissionKey] === true;
 };
 
 export const studentOnlyRoutes = [

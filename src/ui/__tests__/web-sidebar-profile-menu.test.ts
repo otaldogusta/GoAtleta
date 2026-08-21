@@ -119,7 +119,7 @@ describe("WebSidebar profile menu", () => {
     });
   });
 
-  it("keeps professor navigation visible while permissions are loading", () => {
+  it("keeps only unrestricted professor navigation visible while permissions are loading", () => {
     mockOrganizationContext.activeOrganization.role_level = 10;
     mockOrganizationContext.memberPermissions = {};
     mockOrganizationContext.permissionsLoading = true;
@@ -134,13 +134,13 @@ describe("WebSidebar profile menu", () => {
     );
 
     expect(screen.getByLabelText("Hoje")).toBeTruthy();
-    expect(screen.getByLabelText("Turmas")).toBeTruthy();
-    expect(screen.getByLabelText("Planejamento")).toBeTruthy();
-    expect(screen.getByLabelText("Alunos")).toBeTruthy();
-    expect(screen.getByLabelText("Notificações")).toBeTruthy();
+    expect(screen.queryByLabelText("Turmas")).toBeNull();
+    expect(screen.queryByLabelText("Planejamento")).toBeNull();
+    expect(screen.queryByLabelText("Alunos")).toBeNull();
+    expect(screen.queryByLabelText("Notificações")).toBeNull();
   });
 
-  it("hides only routes with an explicitly denied permission", () => {
+  it("shows only routes with an explicit granted permission", () => {
     mockOrganizationContext.activeOrganization.role_level = 10;
     mockOrganizationContext.memberPermissions = { classes: false, training: true };
 
@@ -155,6 +155,35 @@ describe("WebSidebar profile menu", () => {
 
     expect(screen.queryByLabelText("Turmas")).toBeNull();
     expect(screen.getByLabelText("Planejamento")).toBeTruthy();
+  });
+
+  it("does not expand the default invite permissions into unrelated areas", () => {
+    mockOrganizationContext.activeOrganization.role_level = 10;
+    mockOrganizationContext.memberPermissions = {
+      classes: true,
+      training: true,
+      calendar: true,
+      absence_notices: true,
+    };
+
+    const screen = render(
+      React.createElement(WebSidebar, {
+        role: "prof",
+        showCompact: true,
+        canExpand: true,
+        canPersistExpansion: true,
+      })
+    );
+
+    expect(screen.getByLabelText("Turmas")).toBeTruthy();
+    expect(screen.getByLabelText("Planejamento")).toBeTruthy();
+    expect(screen.getByLabelText("Calendário mensal")).toBeTruthy();
+    expect(screen.getByLabelText("Notificações")).toBeTruthy();
+    expect(screen.queryByLabelText("Alunos")).toBeNull();
+    expect(screen.queryByLabelText("Consultoria online")).toBeNull();
+    expect(screen.queryByLabelText("Periodização")).toBeNull();
+    expect(screen.queryByLabelText("Regulamentos")).toBeNull();
+    expect(screen.queryByLabelText("Assistente IA")).toBeNull();
   });
 
   it("adds sidebar destinations to browser history when leaving a class workspace", () => {

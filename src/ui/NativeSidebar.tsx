@@ -59,7 +59,7 @@ export function NativeSidebar({ role, visible, canExpand }: NativeSidebarProps) 
         if (item.isCenter) return false;
         if (isOrgAdmin) return true;
         const permissionKey = permissionByRoute[item.routeName];
-        return !permissionKey || memberPermissions[permissionKey] !== false;
+        return !permissionKey || memberPermissions[permissionKey] === true;
       })
       .map((item) => ({
         key: item.key,

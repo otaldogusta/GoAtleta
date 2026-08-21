@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../src/auth/auth";
 import { getPendingTrainerInvite } from "../src/auth/pending-invite";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
+import { markRender } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
@@ -29,7 +30,11 @@ const normalizeVerifyError = (message: string) => {
   return "Não foi possível validar o código agora.";
 };
 
+const normalizeOtpCode = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 6);
+
+// perf-check: ignore-measure -- form state comes from route/auth context; no screen data load runs here.
 export default function VerifyEmailScreen() {
+  markRender("screen.verifyEmail.render.root");
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const router = useRouter();
@@ -159,6 +164,25 @@ export default function VerifyEmailScreen() {
   }, [editingEmail]);
 
   useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    const input = codeInputRef.current as unknown as HTMLInputElement | null;
+    if (!input?.addEventListener) return;
+
+    const handlePaste = (event: ClipboardEvent) => {
+      const pastedCode = normalizeOtpCode(event.clipboardData?.getData("text") ?? "");
+      if (!pastedCode) return;
+
+      event.preventDefault();
+      setCode(pastedCode);
+      setMessage("");
+    };
+
+    input.addEventListener("paste", handlePaste);
+    return () => input.removeEventListener("paste", handlePaste);
+  }, []);
+
+  useEffect(() => {
     if (code.length >= 6) {
       Promise.resolve().then(() => {
         setCursorVisible(false);
@@ -244,8 +268,7 @@ export default function VerifyEmailScreen() {
               </Pressable>
             </View>
 
-            <Pressable
-              onPress={() => codeInputRef.current?.focus()}
+            <View
               style={{
                 minHeight: 74,
                 justifyContent: "center",
@@ -254,7 +277,7 @@ export default function VerifyEmailScreen() {
               <TextInput
                 ref={codeInputRef}
                 value={code}
-                onChangeText={(value) => setCode(value.replace(/[^0-9]/g, "").slice(0, 6))}
+                onChangeText={(value) => setCode(normalizeOtpCode(value))}
                 keyboardType={Platform.OS === "ios" ? "number-pad" : "numeric"}
                 maxLength={6}
                 style={{
@@ -269,18 +292,21 @@ export default function VerifyEmailScreen() {
                   const isActive = code.length === index || (code.length >= 6 && index === 5);
                   const showCursor = isActive && !digit.trim() && cursorVisible;
                   return (
-                    <View
+                    <Pressable
                       key={`otp-${index}`}
-                      style={{
+                      onPress={() => codeInputRef.current?.focus()}
+                      suppressWebHoverFeedback
+                      style={({ hovered, pressed }: any) => ({
                         width: otpSize,
                         height: otpSize,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: isActive ? colors.text : colors.border,
-                        backgroundColor: colors.card,
+                        borderColor: isActive || hovered ? colors.text : colors.border,
+                        backgroundColor: hovered ? colors.inputBg : colors.card,
                         alignItems: "center",
                         justifyContent: "center",
-                      }}
+                        opacity: pressed ? 0.92 : 1,
+                      })}
                     >
                       <Text
                         style={{
@@ -292,11 +318,11 @@ export default function VerifyEmailScreen() {
                       >
                         {digit.trim() ? digit : showCursor ? "|" : " "}
                       </Text>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </View>
-            </Pressable>
+            </View>
 
             {message ? <Text style={{ color: colors.muted }}>{message}</Text> : null}
 

@@ -22,7 +22,7 @@ export function MemberPermissionBoundary({
     permissionsLoading,
   } = useOrganization();
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-  const blocked = !isOrgAdmin && memberPermissions[permissionKey] === false;
+  const blocked = !isOrgAdmin && memberPermissions[permissionKey] !== true;
 
   useEffect(() => {
     if (!permissionsLoading && blocked) {

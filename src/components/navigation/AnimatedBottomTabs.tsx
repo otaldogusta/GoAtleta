@@ -84,7 +84,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
       if (tab.isCenter) return true;
       const permissionKey = permissionByRoute[tab.routeName];
       if (!permissionKey) return true;
-      return memberPermissions[permissionKey] !== false;
+      return memberPermissions[permissionKey] === true;
     });
   }, [activeOrganization?.role_level, memberPermissions, role]);
   const radialActions = useMemo(() => {
