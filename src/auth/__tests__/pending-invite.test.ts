@@ -11,6 +11,7 @@ import {
   requiresTrainerInviteEmailVerification,
   savePendingInvite,
   savePendingTrainerInvite,
+  shouldReturnTrainerInviteToSignup,
   shouldRedirectPendingRole,
 } from "../pending-invite";
 
@@ -104,6 +105,33 @@ describe("pending invite storage", () => {
         storedCode: " stored-code ",
       })
     ).toBe("STORED-CODE");
+  });
+
+  test("returns an unauthenticated stored trainer invite to signup", () => {
+    expect(
+      shouldReturnTrainerInviteToSignup({
+        authLoading: false,
+        hasSession: false,
+        trainerCode: "TRAINER-CODE",
+      })
+    ).toBe(true);
+  });
+
+  test("waits for auth bootstrap before returning an invite to signup", () => {
+    expect(
+      shouldReturnTrainerInviteToSignup({
+        authLoading: true,
+        hasSession: false,
+        trainerCode: "TRAINER-CODE",
+      })
+    ).toBe(false);
+    expect(
+      shouldReturnTrainerInviteToSignup({
+        authLoading: false,
+        hasSession: true,
+        trainerCode: "TRAINER-CODE",
+      })
+    ).toBe(false);
   });
 
   test("preserves a trainer invite entering signup with an active session", () => {

@@ -26,6 +26,7 @@ import {
   forceRefreshAccessToken,
   getValidAccessToken,
   loadSession,
+  loadValidatedSession,
   saveSession,
 } from "./session";
 import { setDevProfilePreview } from "../dev/profile-preview";
@@ -329,7 +330,7 @@ export function AuthProvider({
       };
     }
     (async () => {
-      const stored = await loadSession();
+      const stored = await loadValidatedSession();
       if (!alive) return;
       setSession(stored);
       setLoading(false);

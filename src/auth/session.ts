@@ -163,6 +163,58 @@ export const loadSession = async (): Promise<AuthSession | null> => {
   }
 };
 
+/**
+ * Loads the persisted session and confirms that it still belongs to a live
+ * Supabase Auth user before navigation guards treat it as authenticated.
+ *
+ * Deleting an Auth user can leave a still-unexpired JWT in another browser
+ * tab/device. A local payload alone is therefore not enough evidence that the
+ * session is usable. Transient network/server failures keep the cached session
+ * so an offline startup does not become an involuntary sign-out.
+ */
+export const loadValidatedSession = async (): Promise<AuthSession | null> => {
+  const stored = await loadSession();
+  if (!stored) return null;
+
+  const token = await getValidAccessToken();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(
+      SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user",
+      {
+        method: "GET",
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.status === 401 || response.status === 403) {
+      await saveSession(null, false);
+      return null;
+    }
+    if (!response.ok) return currentSession ?? stored;
+
+    const text = await response.text();
+    const user = safeJsonParse<AuthSession["user"] | null>(text, null);
+    if (!user?.id) return currentSession ?? stored;
+
+    const remember = (await AsyncStorage.getItem(REMEMBER_KEY)) === "true";
+    const next: AuthSession = {
+      ...(currentSession ?? stored),
+      access_token: token,
+      user,
+    };
+    await saveSession(next, remember);
+    return next;
+  } catch {
+    return currentSession ?? stored;
+  }
+};
+
 export const hasStoredSession = async (): Promise<boolean> => {
   if (!isNative) return false;
   const secureStore = getSecureStore();

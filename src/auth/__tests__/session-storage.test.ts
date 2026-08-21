@@ -32,6 +32,10 @@ describe("session storage", () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test("native loads session from SecureStore", async () => {
     const mod = await loadSessionModuleFor("ios");
     asyncStorageMock.getItem.mockResolvedValue("true");
@@ -154,6 +158,100 @@ describe("session storage", () => {
     secureStoreMock.setItemAsync.mockRejectedValue(new Error("SecureStore unavailable"));
 
     await expect(mod.loadSession()).resolves.toEqual(legacySession);
+    expect(asyncStorageMock.removeItem).not.toHaveBeenCalledWith("auth_session_v1");
+  });
+
+  test("clears a deleted user's stored web session before route guards run", async () => {
+    const mod = await loadSessionModuleFor("web");
+    const staleSession = {
+      access_token: "stale-access",
+      refresh_token: "stale-refresh",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "deleted-user", email: "deleted@x.com" },
+    };
+    asyncStorageMock.getItem.mockImplementation((key: string) => {
+      if (key === "auth_session_v1") return Promise.resolve(JSON.stringify(staleSession));
+      if (key === "auth_remember_me") return Promise.resolve("true");
+      return Promise.resolve(null);
+    });
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: false,
+      status: 401,
+    } as Response);
+
+    await expect(mod.loadValidatedSession()).resolves.toBeNull();
+    expect(asyncStorageMock.removeItem).toHaveBeenCalledWith("auth_session_v1");
+    expect(asyncStorageMock.removeItem).toHaveBeenCalledWith("auth_remember_me");
+  });
+
+  test("clears an expired deleted-user session when its refresh token is gone", async () => {
+    const mod = await loadSessionModuleFor("web");
+    const staleSession = {
+      access_token: "expired-access",
+      refresh_token: "deleted-refresh",
+      expires_at: Math.floor(Date.now() / 1000) - 60,
+      user: { id: "deleted-user", email: "deleted@x.com" },
+    };
+    asyncStorageMock.getItem.mockImplementation((key: string) => {
+      if (key === "auth_session_v1") return Promise.resolve(JSON.stringify(staleSession));
+      if (key === "auth_remember_me") return Promise.resolve("true");
+      return Promise.resolve(null);
+    });
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({ error_code: "refresh_token_not_found" }),
+    } as Response);
+
+    await expect(mod.loadValidatedSession()).resolves.toBeNull();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(asyncStorageMock.removeItem).toHaveBeenCalledWith("auth_session_v1");
+  });
+
+  test("keeps a valid stored web session and refreshes its user payload", async () => {
+    const mod = await loadSessionModuleFor("web");
+    const storedSession = {
+      access_token: "valid-access",
+      refresh_token: "valid-refresh",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "live-user", email: "old@x.com" },
+    };
+    asyncStorageMock.getItem.mockImplementation((key: string) => {
+      if (key === "auth_session_v1") return Promise.resolve(JSON.stringify(storedSession));
+      if (key === "auth_remember_me") return Promise.resolve("true");
+      return Promise.resolve(null);
+    });
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ id: "live-user", email: "current@x.com" }),
+    } as Response);
+
+    await expect(mod.loadValidatedSession()).resolves.toMatchObject({
+      access_token: "valid-access",
+      user: { id: "live-user", email: "current@x.com" },
+    });
+  });
+
+  test("preserves a cached session during a transient user endpoint failure", async () => {
+    const mod = await loadSessionModuleFor("web");
+    const storedSession = {
+      access_token: "valid-access",
+      refresh_token: "valid-refresh",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: "live-user", email: "live@x.com" },
+    };
+    asyncStorageMock.getItem.mockImplementation((key: string) => {
+      if (key === "auth_session_v1") return Promise.resolve(JSON.stringify(storedSession));
+      if (key === "auth_remember_me") return Promise.resolve("true");
+      return Promise.resolve(null);
+    });
+    jest.spyOn(global, "fetch").mockResolvedValue({
+      ok: false,
+      status: 503,
+    } as Response);
+
+    await expect(mod.loadValidatedSession()).resolves.toMatchObject(storedSession);
     expect(asyncStorageMock.removeItem).not.toHaveBeenCalledWith("auth_session_v1");
   });
 });

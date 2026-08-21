@@ -13,6 +13,7 @@ import {
   getPendingInvite,
   getPendingTrainerInvite,
   requiresTrainerInviteEmailVerification,
+  shouldReturnTrainerInviteToSignup,
 } from "../src/auth/pending-invite";
 import { useRole } from "../src/auth/role";
 import { markRender, measureAsync } from "../src/observability/perf";
@@ -171,7 +172,7 @@ export default function PendingScreen() {
   markRender("screen.pending.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
-  const { session, signOut } = useAuth();
+  const { session, signOut, loading: authLoading } = useAuth();
   const { refresh, role } = useRole();
   const [inviteBusy, setInviteBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -276,6 +277,20 @@ export default function PendingScreen() {
       setStoredToken(token);
       setStoredTrainerCode(trainerCode);
       if (autoClaimedRef.current) return;
+      if (
+        shouldReturnTrainerInviteToSignup({
+          authLoading,
+          hasSession: Boolean(session),
+          trainerCode,
+        })
+      ) {
+        router.replace({
+          pathname: "/signup",
+          params: { inviteCode: trainerCode },
+        });
+        return;
+      }
+      if (authLoading) return;
       if (!token && !trainerCode) {
         if (role === "trainer" || role === "student") {
           router.replace("/");
@@ -297,7 +312,7 @@ export default function PendingScreen() {
     return () => {
       alive = false;
     };
-  }, [refresh, role, router, session?.user]);
+  }, [authLoading, refresh, role, router, session]);
 
   if ((role === "trainer" || role === "student") && !storedToken && !storedTrainerCode) {
     return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} />;

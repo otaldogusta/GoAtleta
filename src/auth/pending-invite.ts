@@ -91,6 +91,16 @@ export const resolvePendingInviteRedirect = ({
     ? "/pending"
     : defaultTarget;
 
+export const shouldReturnTrainerInviteToSignup = ({
+  authLoading,
+  hasSession,
+  trainerCode,
+}: {
+  authLoading: boolean;
+  hasSession: boolean;
+  trainerCode: string;
+}) => !authLoading && !hasSession && Boolean(trainerCode.trim());
+
 export const shouldRedirectPendingRole = ({
   hasSession,
   role,
