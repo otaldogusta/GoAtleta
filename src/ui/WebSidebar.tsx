@@ -9,6 +9,7 @@ import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import { navigateToPrimaryRoute } from "../navigation/primary-route-navigation";
 import { getScopedProfilePath } from "../navigation/profile-routes";
 import { formatUnreadNotificationBadge } from "../notifications/unread-notification-count";
+import { PROFILE_NAME_FALLBACK, resolveProfileDisplayName } from "../core/profile-name";
 import { useUnreadNotificationCount } from "../notifications/useUnreadNotificationCount";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { brandPalette, radius } from "../theme/tokens";
@@ -98,11 +99,11 @@ const getDisplayName = (session: ReturnType<typeof useAuth>["session"]) => {
     | { email?: string; user_metadata?: Record<string, unknown> }
     | undefined;
   const metadataName = user?.user_metadata?.full_name ?? user?.user_metadata?.name;
-  if (typeof metadataName === "string" && metadataName.trim()) {
-    return metadataName.trim();
-  }
-  if (user?.email) return user.email.split("@")[0] ?? "Professor";
-  return "Professor";
+  return resolveProfileDisplayName({
+    displayName: metadataName,
+    email: user?.email,
+    fallback: PROFILE_NAME_FALLBACK,
+  });
 };
 
 const getInitials = (name: string) => {

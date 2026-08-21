@@ -14,7 +14,7 @@ deve truncar ou quebrar dentro da própria região.
 
 ### `ResponsiveGrid`
 
-Organiza regiões em `1`, `8/4` ou `6/6`. Combina a capacidade global
+Organiza regiões em `1`, `8/4`, `4/8` ou `6/6`. Combina a capacidade global
 `supportsSplitView` com a largura medida do próprio container e não cria
 superfícies automaticamente.
 

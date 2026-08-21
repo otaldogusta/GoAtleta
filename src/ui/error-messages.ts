@@ -1,8 +1,11 @@
 type SupabaseErrorPayload = {
-  code: string | number;
-  message: string;
-  details: string | null;
-  hint: string | null;
+  code?: string | number;
+  error_code?: string;
+  error?: string;
+  message?: string;
+  msg?: string;
+  details?: string | null;
+  hint?: string | null;
 };
 
 export const extractErrorText = (error: unknown): string => {
@@ -10,8 +13,8 @@ export const extractErrorText = (error: unknown): string => {
   if (typeof error === "string") return error;
   if (error instanceof Error) return error.message;
   if (typeof error === "object") {
-    const maybe = error as SupabaseErrorPayload & { error: unknown };
-    if (maybe.message) return maybe.message;
+    const maybe = error as Record<string, unknown>;
+    if (typeof maybe.message === "string" && maybe.message) return maybe.message;
     if (typeof maybe.error === "string") return maybe.error;
     if (maybe.error instanceof Error) return maybe.error.message;
   }
@@ -36,7 +39,9 @@ const parseJsonMessage = (text: string) => {
 const getComparableErrorText = (error: unknown) => {
   const raw = extractErrorText(error).trim();
   const parsed = parseJsonMessage(raw);
-  return `${parsed?.message ?? raw} ${parsed?.code ?? ""}`.toLowerCase();
+  const parsedMessage = parsed?.message || parsed?.msg || parsed?.error || raw;
+  const parsedCode = parsed?.code || parsed?.error_code || "";
+  return `${parsedMessage} ${parsedCode}`.toLowerCase();
 };
 
 export const isAuthSessionError = (error: unknown) => {
@@ -96,7 +101,7 @@ export const getFriendlyErrorMessage = (
   if (!raw) return fallback;
 
   const parsed = parseJsonMessage(raw);
-  const message = parsed?.message || raw;
+  const message = parsed?.message || parsed?.msg || parsed?.error || raw;
   const lower = message.toLowerCase();
   const comparable = getComparableErrorText(error);
 
@@ -117,6 +122,26 @@ export const getFriendlyErrorMessage = (
     return "Falha de conexão. Verifique sua internet.";
   }
 
+  if (comparable.includes("same_password") || lower.includes("same password")) {
+    return "A nova senha precisa ser diferente da anterior.";
+  }
+
+  if (comparable.includes("weak_password") || lower.includes("weak password")) {
+    return "A nova senha não atende aos requisitos de segurança.";
+  }
+
+  if (
+    comparable.includes("current_password")
+    || lower.includes("current password")
+    || lower.includes("senha atual")
+  ) {
+    return "A senha atual está incorreta.";
+  }
+
+  if (comparable.includes("reauthentication") || comparable.includes("reauthenticate")) {
+    return "Por segurança, saia e entre novamente antes de alterar a senha.";
+  }
+
   if (lower.includes("timeout") || lower.includes("timed out")) {
     return "Tempo esgotado. Tente novamente.";
   }
@@ -135,6 +160,10 @@ export const getFriendlyErrorMessage = (
 
   if (lower.includes("member not found")) {
     return "Esta pessoa não está mais disponível nesta organização. Atualize a lista e tente novamente.";
+  }
+
+  if (lower.includes("cannot disable own org_members permission")) {
+    return "Sua própria permissão de Gestão de membros deve permanecer ativa.";
   }
 
   if (isNotFoundError(error)) {

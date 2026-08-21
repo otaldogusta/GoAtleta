@@ -1,5 +1,9 @@
 import type { ClassGroup, Student } from "../../../../core/models";
-import { buildClassCardViewModel, groupStudentsByClassId } from "../class-card-view-model";
+import {
+  buildClassCardViewModel,
+  formatCompactPersonName,
+  groupStudentsByClassId,
+} from "../class-card-view-model";
 
 const buildClass = (overrides: Partial<ClassGroup> = {}): ClassGroup =>
   ({
@@ -78,6 +82,53 @@ describe("class card view model", () => {
     });
 
     expect(viewModel.developmentLevelLabel).toBe("Rendimento");
+  });
+
+  it("keeps compound given names and abbreviates ordinary surnames", () => {
+    expect(formatCompactPersonName("Gustavo Ribeiro")).toBe("Gustavo R.");
+    expect(formatCompactPersonName("Ana Júlia")).toBe("Ana Júlia");
+    expect(formatCompactPersonName("Ana Júlia Souza")).toBe("Ana Júlia S.");
+    expect(formatCompactPersonName("Nome não informado")).toBe("Nome não informado");
+  });
+
+  it("maps assistant and intern identities into the support team", () => {
+    const viewModel = buildClassCardViewModel({
+      classGroup: buildClass(),
+      teacher: { name: "Gustavo Ribeiro", photoUrl: null },
+      staff: [
+        { id: "head-1", name: "Gustavo Ribeiro", role: "head" },
+        { id: "intern-1", name: "Ana Júlia", role: "intern" },
+        {
+          id: "assistant-1",
+          name: "João Martins",
+          photoUrl: "https://example.com/joao.jpg",
+          role: "assistant",
+        },
+      ],
+    });
+
+    expect(viewModel.teacher.compactName).toBe("Gustavo R.");
+    expect(viewModel.supportStaff).toMatchObject([
+      { name: "João Martins", roleLabel: "Auxiliar" },
+      { name: "Ana Júlia", roleLabel: "Estagiário(a)" },
+    ]);
+  });
+
+  it("keeps neutral identity fallbacks readable in the teacher and staff columns", () => {
+    const viewModel = buildClassCardViewModel({
+      classGroup: buildClass(),
+      teacher: { name: "Nome não informado" },
+      staff: [
+        { id: "intern-1", name: "Nome não informado", role: "intern" },
+      ],
+    });
+
+    expect(viewModel.teacher).toMatchObject({
+      compactName: "Nome não informado",
+      initials: "PR",
+      isFallback: true,
+    });
+    expect(viewModel.supportStaff[0]).toMatchObject({ initials: "E" });
   });
 
   it("groups students by class id", () => {

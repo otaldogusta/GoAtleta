@@ -137,6 +137,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
 
   return (
     <View
+      pointerEvents="box-none"
       style={[
         Platform.OS === "web"
           ? ({
@@ -155,17 +156,16 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
               top: -1000,
               zIndex: 9000,
             },
-        { pointerEvents: "box-none" },
       ]}
     >
       {/* 1. Backdrop escurecido cobrindo a tela toda */}
       <Animated.View
+        pointerEvents={menuOpen ? "auto" : "none"}
         style={[
           StyleSheet.absoluteFill,
           {
             backgroundColor: "rgba(10, 19, 34, 0.60)",
             zIndex: 1,
-            pointerEvents: menuOpen ? "auto" : "none",
             ...(Platform.OS === "web"
               ? {
                   backdropFilter: "blur(4px)",
@@ -189,13 +189,13 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
       {/* 2. Barra inferior e FAB posicionados na base (acima do backdrop) */}
       <View
         accessibilityLabel="Navegação inferior"
+        pointerEvents="box-none"
         style={{
           position: "absolute",
           left: 12,
           right: 12,
           bottom,
           zIndex: 10,
-          pointerEvents: "box-none",
         }}
       >
         <FabRadialMenu
@@ -253,62 +253,96 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
           }
 
           return (
-            <Pressable
+            <View
               key={tab.key}
-              onPress={() => {
-                setMenuOpen(false);
-                const action = resolveBottomTabPress({
-                  focused,
-                  href: tab.href,
-                  isWeb: Platform.OS === "web",
-                  routeName: tab.routeName,
-                });
-
-                if (action.type === "push") {
-                  navigateToPrimaryRoute({ router, href: action.href });
-                  return;
-                }
-
-                if (action.type === "navigate") {
-                  navigation.navigate(action.routeName);
-                }
-              }}
               style={{
                 flex: 1,
                 alignItems: "center",
                 justifyContent: "center",
-                paddingVertical: 6,
-                borderRadius: 16,
-                gap: 2,
+                paddingVertical: 4,
               }}
             >
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tab.label}
+                accessibilityState={{ selected: focused }}
+                hitSlop={Platform.OS === "web" ? undefined : 6}
+                suppressWebHoverFeedback
+                disableWebPressScale
+                onPress={() => {
+                  setMenuOpen(false);
+                  const action = resolveBottomTabPress({
+                    focused,
+                    href: tab.href,
+                    isWeb: Platform.OS === "web",
+                    routeName: tab.routeName,
+                  });
+
+                  if (action.type === "push") {
+                    navigateToPrimaryRoute({ router, href: action.href });
+                    return;
+                  }
+
+                  if (action.type === "navigate") {
+                    navigation.navigate(action.routeName);
+                  }
+                }}
+                style={({ pressed }: any) => ({
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: focused ? colors.primaryBg : "transparent",
-                  transform: [{ translateY: focused ? -3 : 0 }],
-                }}
+                  paddingVertical: 2,
+                  paddingHorizontal: 2,
+                  gap: 2,
+                  opacity: pressed ? 0.88 : 1,
+                })}
               >
-                <GoAtletaIcon
-                  name={tab.icon}
-                  size={18}
-                  color={focused ? colors.primaryText : colors.muted}
-                />
-              </View>
-              <Text
-                style={{
-                  fontSize: 10,
-                  fontWeight: focused ? "700" : "600",
-                  color: focused ? colors.text : colors.muted,
-                }}
-              >
-                {tab.label}
-              </Text>
-            </Pressable>
+                {({ hovered, focused: keyboardFocused, pressed }: any) => (
+                  <>
+                    <View
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 17,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: focused
+                          ? colors.primaryBg
+                          : hovered || keyboardFocused
+                            ? colors.successBg
+                            : "transparent",
+                        borderWidth: keyboardFocused ? 2 : 0,
+                        borderColor: focused ? colors.primaryText : colors.primaryBg,
+                        transform: [
+                          { translateY: focused ? -3 : hovered ? -1 : 0 },
+                          { scale: pressed ? 0.94 : 1 },
+                        ],
+                      }}
+                    >
+                      <GoAtletaIcon
+                        name={tab.icon}
+                        size={18}
+                        color={
+                          focused
+                            ? colors.primaryText
+                            : hovered || keyboardFocused
+                              ? colors.success
+                              : colors.muted
+                        }
+                      />
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        fontWeight: focused || hovered || keyboardFocused ? "700" : "600",
+                        color: focused || hovered || keyboardFocused ? colors.text : colors.muted,
+                      }}
+                    >
+                      {tab.label}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
           );
         })}
       </View>

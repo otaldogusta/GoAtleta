@@ -66,4 +66,30 @@ describe("error-messages", () => {
     expect(isExpectedSessionConnectivityError(error)).toBe(false);
     expect(getFriendlyErrorMessage(error)).toBe("Você não tem permissão para essa ação.");
   });
+
+  it("translates the protected own member management permission error", () => {
+    const error = new Error("Cannot disable own org_members permission");
+
+    expect(getFriendlyErrorMessage(error)).toBe(
+      "Sua própria permissão de Gestão de membros deve permanecer ativa."
+    );
+  });
+
+  it("translates Supabase password errors from GoTrue payloads", () => {
+    expect(
+      getFriendlyErrorMessage(
+        new Error('{"error_code":"same_password","msg":"New password should be different"}'),
+      ),
+    ).toBe("A nova senha precisa ser diferente da anterior.");
+    expect(
+      getFriendlyErrorMessage(
+        new Error('{"error_code":"current_password_invalid","msg":"Current password is incorrect"}'),
+      ),
+    ).toBe("A senha atual está incorreta.");
+    expect(
+      getFriendlyErrorMessage(
+        new Error('{"error_code":"reauthentication_needed","msg":"Reauthentication needed"}'),
+      ),
+    ).toBe("Por segurança, saia e entre novamente antes de alterar a senha.");
+  });
 });

@@ -2,7 +2,6 @@ import {
   memo,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactElement,
 } from "react";
@@ -17,11 +16,18 @@ import {
 } from "react-native";
 
 import type { ClassGroup, Student } from "../../core/models";
+import {
+  countStudentFilterExclusions,
+  createEmptyStudentFilterExclusions,
+  matchesStudentFilterExclusions,
+  toggleStudentFilterExclusion,
+  type StudentContactFilter,
+  type StudentFilterExclusions,
+  type StudentProfileFilter,
+} from "./application/student-list-filters";
 import { resolveStudentListPrimaryStatus } from "./application/student-list-status";
 import { radius } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
-import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
-import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
@@ -43,115 +49,6 @@ type FilterOption<T extends string> = {
   value: T;
   label: string;
 };
-
-type FilterSelectProps<T extends string> = {
-  label: string;
-  value: T;
-  options: FilterOption<T>[];
-  onChange: (value: T) => void;
-  minWidth?: number;
-};
-
-function FilterSelect<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-  minWidth = 132,
-}: FilterSelectProps<T>) {
-  const { colors } = useAppTheme();
-  const [open, setOpen] = useState(false);
-  const [layout, setLayout] = useState<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null>(null);
-  const triggerRef = useRef<View>(null);
-  const { animatedStyle, isVisible } = useCollapsibleAnimation(open, {
-    translateY: -4,
-  });
-  const selected = options.find((option) => option.value === value);
-
-  const toggle = () => {
-    triggerRef.current?.measureInWindow((x, y, width, height) => {
-      setLayout({ x, y, width, height });
-      setOpen((current) => !current);
-    });
-  };
-
-  return (
-    <>
-      <View ref={triggerRef}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Filtrar por ${label}`}
-          onPress={toggle}
-          style={{
-            minWidth,
-            minHeight: 38,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: open ? colors.primaryBg : colors.border,
-            borderRadius: radius.internal,
-            backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-            paddingHorizontal: 11,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
-          <Text
-            numberOfLines={1}
-            style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}
-          >
-            {label}: {selected?.label ?? "Todos"}
-          </Text>
-          <GoAtletaIcon
-            name={open ? "chevronUp" : "chevronDown"}
-            size={13}
-            color={colors.muted}
-          />
-        </Pressable>
-      </View>
-      <AnchoredDropdown
-        visible={isVisible}
-        layout={layout}
-        container={null}
-        animationStyle={animatedStyle}
-        zIndex={6400}
-        maxHeight={220}
-        nestedScrollEnabled
-        density="compact"
-        onRequestClose={() => setOpen(false)}
-        interactiveRefs={[triggerRef]}
-      >
-        {options.map((option) => (
-          <AnchoredDropdownOption
-            key={option.value}
-            active={option.value === value}
-            density="compact"
-            onPress={() => {
-              onChange(option.value);
-              setOpen(false);
-            }}
-          >
-            <Text
-              style={{
-                color:
-                  option.value === value ? colors.primaryText : colors.text,
-                fontSize: 11,
-                fontWeight: "700",
-              }}
-            >
-              {option.label}
-            </Text>
-          </AnchoredDropdownOption>
-        ))}
-      </AnchoredDropdown>
-    </>
-  );
-}
 
 export type StudentsListTabProps = {
   studentsUnitOptions: string[];
@@ -179,12 +76,133 @@ export type StudentsListTabProps = {
 
 const PAGE_SIZE = 8;
 
-type StudentProfileFilter = "all" | "regular" | "experimental";
-type StudentMembershipFilter = "all" | Student["membershipStatus"];
-type StudentFinancialFilter = "all" | Student["financialStatus"];
-type StudentGenderFilter = "all" | ClassGroup["gender"];
-type StudentClassFilter = "all" | string;
-type StudentContactFilter = "all" | "with" | "without";
+function StudentFilterToggle({
+  label,
+  selected,
+  onPress,
+  compact = false,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  compact?: boolean;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: selected }}
+      onPress={onPress}
+      style={(state) => ({
+        width: compact ? "48%" : undefined,
+        minWidth: 0,
+        minHeight: 40,
+        paddingHorizontal: compact ? 10 : 12,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: selected ? colors.primaryBg : colors.borderSubtle ?? colors.border,
+        borderRadius: radius.internal,
+        backgroundColor:
+          selected || state.hovered
+            ? colors.backgroundSubtle ?? colors.secondaryBg
+            : colors.background,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: compact ? 6 : 8,
+      })}
+    >
+      <GoAtletaIcon
+        name={selected ? "checkbox" : "square"}
+        size={17}
+        color={selected ? colors.primaryBg : colors.textMuted ?? colors.muted}
+      />
+      <Text
+        numberOfLines={1}
+        style={{
+          color: selected ? colors.textPrimary ?? colors.text : colors.textMuted ?? colors.muted,
+          fontSize: 12,
+          fontWeight: "700",
+          minWidth: 0,
+          flexShrink: 1,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function StudentFilterGroup({
+  title,
+  options,
+  excludedValues,
+  onToggle,
+  compact = false,
+}: {
+  title: string;
+  options: FilterOption<string>[];
+  excludedValues: string[];
+  onToggle: (value: string) => void;
+  compact?: boolean;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={{ gap: 8 }}>
+      <Text
+        style={{
+          color: colors.textPrimary ?? colors.text,
+          fontSize: 13,
+          fontWeight: "900",
+        }}
+      >
+        {title}
+      </Text>
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: 8,
+        }}
+      >
+        {options.map((option) => (
+          <StudentFilterToggle
+            key={option.value}
+            label={option.label}
+            selected={!excludedValues.includes(option.value)}
+            onPress={() => onToggle(option.value)}
+            compact={compact}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const profileFilterOptions: FilterOption<StudentProfileFilter>[] = [
+  { value: "regular", label: "Regular" },
+  { value: "experimental", label: "Experimental" },
+];
+
+const membershipFilterOptions: FilterOption<Student["membershipStatus"]>[] = [
+  { value: "active", label: "Ativo" },
+  { value: "inactive", label: "Inativo" },
+];
+
+const financialFilterOptions: FilterOption<Student["financialStatus"]>[] = [
+  { value: "regular", label: "Regular" },
+  { value: "delinquent", label: "Inadimplente" },
+];
+
+const genderFilterOptions: FilterOption<ClassGroup["gender"]>[] = [
+  { value: "masculino", label: "Masculino" },
+  { value: "feminino", label: "Feminino" },
+  { value: "misto", label: "Misto" },
+];
+
+const contactFilterOptions: FilterOption<StudentContactFilter>[] = [
+  { value: "with", label: "Com contato" },
+  { value: "without", label: "Sem contato" },
+];
 
 type StudentsUnitPickerProps = {
   visibleUnits: string[];
@@ -424,6 +442,7 @@ export const StudentsListTab = memo(function StudentsListTab({
   setStudentsSearch,
   students,
   studentsFiltered,
+  studentsGrouped,
   classById,
   unitLabel,
   onStudentPress,
@@ -437,6 +456,7 @@ export const StudentsListTab = memo(function StudentsListTab({
   const { containerRef, onLayout, width } =
     useContainerResponsiveLayout("dashboard");
   const { showTable, unitPaneMode } = resolveStudentsListLayout(width);
+  const compactFilters = !showTable;
   const hasPermanentUnitPane = unitPaneMode === "permanent";
   const usesUnitDrawer = unitPaneMode === "drawer";
   const [unitSearch, setUnitSearch] = useState("");
@@ -448,16 +468,23 @@ export const StudentsListTab = memo(function StudentsListTab({
       durationOut: 140,
       translateY: -4,
     });
-  const [profileFilter, setProfileFilter] = useState<StudentProfileFilter>("all");
-  const [membershipFilter, setMembershipFilter] = useState<StudentMembershipFilter>("all");
-  const [financialFilter, setFinancialFilter] = useState<StudentFinancialFilter>("all");
-  const [genderFilter, setGenderFilter] = useState<StudentGenderFilter>("all");
-  const [classFilter, setClassFilter] = useState<StudentClassFilter>("all");
-  const [contactFilter, setContactFilter] =
-    useState<StudentContactFilter>("all");
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [filtersModalOpen, setFiltersModalOpen] = useState(false);
+  const [appliedFilterExclusions, setAppliedFilterExclusions] =
+    useState<StudentFilterExclusions>(createEmptyStudentFilterExclusions);
+  const [draftFilterExclusions, setDraftFilterExclusions] =
+    useState<StudentFilterExclusions>(createEmptyStudentFilterExclusions);
   const [page, setPage] = useState(1);
   const hasSearch = studentsSearch.trim().length > 0;
+
+  const classScheduleById = useMemo(() => {
+    const schedules = new Map<string, string>();
+    studentsGrouped.forEach((unitGroup) => {
+      unitGroup.classes.forEach((classGroup) => {
+        schedules.set(classGroup.classId, classGroup.scheduleLabel);
+      });
+    });
+    return schedules;
+  }, [studentsGrouped]);
 
   const unitCounts = useMemo(() => {
     const counts: Record<string, number> = { Todas: students.length };
@@ -489,53 +516,54 @@ export const StudentsListTab = memo(function StudentsListTab({
     return filtered.includes("Todas") ? ["Todas", ...namedUnits] : namedUnits;
   }, [studentsUnitOptions, unitAscending, unitSearch]);
 
-  const classOptions = useMemo<FilterOption<StudentClassFilter>[]>(() => {
+  const classOptions = useMemo<FilterOption<string>[]>(() => {
     const ids = new Set(studentsFiltered.map((student) => student.classId));
-    return [
-      { value: "all", label: "Todas" },
-      ...Array.from(ids)
-        .map((id) => classById.get(id))
-        .filter((value): value is ClassGroup => Boolean(value))
-        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-        .map((cls) => ({ value: cls.id, label: cls.name })),
-    ];
+    return Array.from(ids)
+      .map((id) => classById.get(id))
+      .filter((value): value is ClassGroup => Boolean(value))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+      .map((cls) => ({ value: cls.id, label: cls.name }));
   }, [classById, studentsFiltered]);
+
+  const activeFilterCount = useMemo(
+    () => countStudentFilterExclusions(appliedFilterExclusions),
+    [appliedFilterExclusions],
+  );
+
+  const openFiltersModal = () => {
+    setDraftFilterExclusions({
+      profiles: [...appliedFilterExclusions.profiles],
+      memberships: [...appliedFilterExclusions.memberships],
+      financials: [...appliedFilterExclusions.financials],
+      genders: [...appliedFilterExclusions.genders],
+      classes: [...appliedFilterExclusions.classes],
+      contacts: [...appliedFilterExclusions.contacts],
+    });
+    setFiltersModalOpen(true);
+  };
+
+  const toggleDraftFilter = (
+    key: keyof StudentFilterExclusions,
+    value: string,
+  ) => {
+    setDraftFilterExclusions((current) => ({
+      ...current,
+      [key]: toggleStudentFilterExclusion(current[key] as string[], value),
+    }));
+  };
 
   const filteredRows = useMemo(
     () =>
-      studentsFiltered.filter((student) => {
-        const cls = classById.get(student.classId);
-        if (profileFilter === "regular" && Boolean(student.isExperimental)) {
-          return false;
-        }
-        if (profileFilter === "experimental" && !student.isExperimental) {
-          return false;
-        }
-        if (membershipFilter !== "all" && student.membershipStatus !== membershipFilter) {
-          return false;
-        }
-        if (financialFilter !== "all" && student.financialStatus !== financialFilter) {
-          return false;
-        }
-        if (genderFilter !== "all" && cls?.gender !== genderFilter) {
-          return false;
-        }
-        if (classFilter !== "all" && student.classId !== classFilter) {
-          return false;
-        }
-        const hasContact = Boolean(student.guardianPhone || student.phone);
-        if (contactFilter === "with" && !hasContact) return false;
-        if (contactFilter === "without" && hasContact) return false;
-        return true;
-      }),
+      studentsFiltered.filter((student) =>
+        matchesStudentFilterExclusions({
+          student,
+          classGroup: classById.get(student.classId),
+          exclusions: appliedFilterExclusions,
+        }),
+      ),
     [
+      appliedFilterExclusions,
       classById,
-      classFilter,
-      contactFilter,
-      genderFilter,
-      financialFilter,
-      membershipFilter,
-      profileFilter,
       studentsFiltered,
     ],
   );
@@ -543,24 +571,18 @@ export const StudentsListTab = memo(function StudentsListTab({
   useEffect(() => {
     setPage(1);
   }, [
-    classFilter,
-    contactFilter,
-    genderFilter,
-    financialFilter,
-    membershipFilter,
-    profileFilter,
+    appliedFilterExclusions,
     studentsSearch,
     studentsUnitFilter,
   ]);
 
   useEffect(() => {
-    if (
-      classFilter !== "all" &&
-      !classOptions.some((option) => option.value === classFilter)
-    ) {
-      setClassFilter("all");
-    }
-  }, [classFilter, classOptions]);
+    const availableClassIds = new Set(classOptions.map((option) => option.value));
+    setAppliedFilterExclusions((current) => ({
+      ...current,
+      classes: current.classes.filter((classId) => availableClassIds.has(classId)),
+    }));
+  }, [classOptions]);
 
   useEffect(() => {
     if (hasPermanentUnitPane) setUnitPaneOpen(false);
@@ -671,99 +693,61 @@ export const StudentsListTab = memo(function StudentsListTab({
           backgroundColor: colors.background,
         }}
       >
-        <View
-          style={{
-            minHeight: 86,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-            paddingHorizontal: 18,
-            borderBottomWidth: StyleSheet.hairlineWidth,
-            borderBottomColor: colors.borderSubtle ?? colors.border,
-          }}
-        >
+        {hasPermanentUnitPane ? (
           <View
             style={{
-              width: 42,
-              height: 42,
-              borderRadius: 999,
+              minHeight: 86,
+              flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+              gap: 12,
+              paddingHorizontal: 18,
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: colors.borderSubtle ?? colors.border,
             }}
           >
-            <GoAtletaIcon
-              name="organization"
-              size={20}
-              color={colors.textMuted ?? colors.muted}
-            />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text
-              numberOfLines={1}
+            <View
               style={{
-                color: colors.textPrimary ?? colors.text,
-                fontSize: 17,
-                fontWeight: "900",
-              }}
-            >
-              {studentsUnitFilter === "Todas"
-                ? "Todas as unidades"
-                : studentsUnitFilter}
-            </Text>
-            <Text
-              style={{
-                color: colors.textMuted ?? colors.muted,
-                marginTop: 3,
-                fontSize: 12,
-                fontWeight: "600",
-              }}
-            >
-              {filteredRows.length} aluno
-              {filteredRows.length === 1 ? "" : "s"}
-            </Text>
-          </View>
-          {!hasPermanentUnitPane ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Selecionar unidade"
-              accessibilityState={{ expanded: unitPaneOpen }}
-              onPress={() => setUnitPaneOpen((current) => !current)}
-              style={(state) => ({
-                minWidth: 42,
+                width: 42,
                 height: 42,
-                paddingHorizontal: 11,
-                borderWidth: StyleSheet.hairlineWidth,
-                borderColor: unitPaneOpen
-                  ? colors.primaryBg
-                  : (colors.borderSubtle ?? colors.border),
-                borderRadius: radius.internal,
-                backgroundColor: state.hovered
-                  ? (colors.backgroundSubtle ?? colors.secondaryBg)
-                  : colors.background,
-                flexDirection: "row",
+                borderRadius: 999,
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 7,
-              })}
+                backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+              }}
             >
-              <Text
-                style={{
-                  color: colors.textPrimary ?? colors.text,
-                  fontSize: 11,
-                  fontWeight: "800",
-                }}
-              >
-                Unidades
-              </Text>
               <GoAtletaIcon
-                name={unitPaneOpen ? "chevronUp" : "chevronDown"}
-                size={14}
+                name="organization"
+                size={20}
                 color={colors.textMuted ?? colors.muted}
               />
-            </Pressable>
-          ) : null}
-        </View>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: colors.textPrimary ?? colors.text,
+                  fontSize: 17,
+                  fontWeight: "900",
+                }}
+              >
+                {studentsUnitFilter === "Todas"
+                  ? "Todas as unidades"
+                  : studentsUnitFilter}
+              </Text>
+              <Text
+                style={{
+                  color: colors.textMuted ?? colors.muted,
+                  marginTop: 3,
+                  fontSize: 12,
+                  fontWeight: "600",
+                }}
+              >
+                {filteredRows.length} aluno
+                {filteredRows.length === 1 ? "" : "s"}
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         <View
           style={{
@@ -774,107 +758,87 @@ export const StudentsListTab = memo(function StudentsListTab({
             borderBottomColor: colors.borderSubtle ?? colors.border,
           }}
         >
-          <View
-            style={{
-              height: 38,
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: colors.borderSubtle ?? colors.border,
-              borderRadius: radius.internal,
-              backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-              paddingHorizontal: 10,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 7,
-            }}
-          >
-            <GoAtletaIcon
-              name="search"
-              size={15}
-              color={colors.textMuted ?? colors.muted}
-            />
-            <TextInput
-              value={studentsSearch}
-              onChangeText={setStudentsSearch}
-              placeholder="Buscar aluno, responsável, turma ou unidade"
-              placeholderTextColor={colors.placeholder}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                color: colors.textPrimary ?? colors.text,
-                fontSize: 12,
-              }}
-            />
-          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {!hasPermanentUnitPane ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Selecionar unidade. Atual: ${
+                  studentsUnitFilter === "Todas" ? "Todas as unidades" : studentsUnitFilter
+                }`}
+                accessibilityState={{ expanded: unitPaneOpen }}
+                onPress={() => setUnitPaneOpen((current) => !current)}
+                style={(state) => ({
+                  width: width < 520 ? "46%" : 264,
+                  minWidth: width < 520 ? 180 : 220,
+                  maxWidth: width < 520 ? 240 : 264,
+                  height: 42,
+                  flexShrink: 0,
+                  paddingHorizontal: 12,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: unitPaneOpen
+                    ? colors.primaryBg
+                    : (colors.borderSubtle ?? colors.border),
+                  borderRadius: radius.internal,
+                  backgroundColor:
+                    state.hovered || unitPaneOpen
+                      ? colors.secondaryBg
+                      : (colors.backgroundSubtle ?? colors.secondaryBg),
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 9,
+                })}
+              >
+                <GoAtletaIcon name="organization" size={16} color={colors.primaryBg} />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    color: colors.textPrimary ?? colors.text,
+                    fontSize: 13,
+                    fontWeight: "800",
+                  }}
+                >
+                  {studentsUnitFilter === "Todas"
+                    ? "Todas as unidades"
+                    : studentsUnitFilter}
+                </Text>
+                <Text
+                  style={{
+                    color: colors.textMuted ?? colors.muted,
+                    fontSize: 11,
+                    fontWeight: "700",
+                  }}
+                >
+                  {unitCounts[studentsUnitFilter] ?? 0}
+                </Text>
+                <GoAtletaIcon
+                  name={unitPaneOpen ? "chevronUp" : "chevronDown"}
+                  size={14}
+                  color={colors.textMuted ?? colors.muted}
+                />
+              </Pressable>
+            ) : null}
 
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <FilterSelect
-              label="Vínculo"
-              value={membershipFilter}
-              onChange={setMembershipFilter}
-              options={[
-                { value: "all", label: "Todos" },
-                { value: "active", label: "Ativos" },
-                { value: "inactive", label: "Inativos" },
-              ]}
-            />
-            <FilterSelect
-              label="Financeiro"
-              value={financialFilter}
-              onChange={setFinancialFilter}
-              options={[
-                { value: "all", label: "Todos" },
-                { value: "regular", label: "Regular" },
-                { value: "delinquent", label: "Inadimplente" },
-              ]}
-            />
-            <FilterSelect
-              label="Perfil"
-              value={profileFilter}
-              onChange={setProfileFilter}
-              options={[
-                { value: "all", label: "Todos" },
-                { value: "regular", label: "Regulares" },
-                { value: "experimental", label: "Experimentais" },
-              ]}
-            />
-            <FilterSelect
-              label="Gênero"
-              value={genderFilter}
-              onChange={setGenderFilter}
-              options={[
-                { value: "all", label: "Todos" },
-                { value: "feminino", label: "Feminino" },
-                { value: "masculino", label: "Masculino" },
-                { value: "misto", label: "Misto" },
-              ]}
-            />
-            <FilterSelect
-              label="Turma"
-              value={classFilter}
-              onChange={setClassFilter}
-              options={classOptions}
-              minWidth={150}
-            />
             <Pressable
-              onPress={() => setShowMoreFilters((current) => !current)}
+              accessibilityRole="button"
+              accessibilityLabel="Mais filtros"
+              accessibilityState={{ expanded: filtersModalOpen }}
+              onPress={openFiltersModal}
               style={{
-                minHeight: 38,
-                paddingHorizontal: 12,
+                minWidth: 42,
+                width: compactFilters ? 42 : undefined,
+                height: 42,
+                paddingHorizontal: compactFilters ? 0 : 12,
                 borderWidth: StyleSheet.hairlineWidth,
-                borderColor: showMoreFilters
+                borderColor: filtersModalOpen || activeFilterCount > 0
                   ? colors.primaryBg
                   : (colors.borderSubtle ?? colors.border),
                 borderRadius: radius.internal,
                 backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
                 flexDirection: "row",
                 alignItems: "center",
+                justifyContent: "center",
                 gap: 7,
               }}
             >
@@ -883,30 +847,82 @@ export const StudentsListTab = memo(function StudentsListTab({
                 size={14}
                 color={colors.textMuted ?? colors.muted}
               />
-              <Text
-                style={{
-                  color: colors.textPrimary ?? colors.text,
-                  fontSize: 11,
-                  fontWeight: "700",
-                }}
-              >
-                Mais filtros
-              </Text>
+              {showTable ? (
+                <Text
+                  style={{
+                    color: colors.textPrimary ?? colors.text,
+                    fontSize: 11,
+                    fontWeight: "700",
+                  }}
+                >
+                  Mais filtros
+                </Text>
+              ) : null}
+              {activeFilterCount > 0 ? (
+                <View
+                  style={{
+                    minWidth: 18,
+                    height: 18,
+                    paddingHorizontal: 5,
+                    borderRadius: 9,
+                    backgroundColor: colors.primaryBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: colors.primaryText,
+                      fontSize: 9,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {activeFilterCount}
+                  </Text>
+                </View>
+              ) : null}
             </Pressable>
-            {showMoreFilters ? (
-              <FilterSelect
-                label="Contato"
-                value={contactFilter}
-                onChange={setContactFilter}
-                options={[
-                  { value: "all", label: "Todos" },
-                  { value: "with", label: "Com contato" },
-                  { value: "without", label: "Sem contato" },
-                ]}
-                minWidth={150}
+
+            <View
+              style={{
+                flex: 1,
+                minWidth: 0,
+                height: 42,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.borderSubtle ?? colors.border,
+                borderRadius: radius.internal,
+                backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+                paddingHorizontal: 10,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 7,
+              }}
+            >
+              <GoAtletaIcon
+                name="search"
+                size={15}
+                color={colors.textMuted ?? colors.muted}
               />
-            ) : null}
+              <TextInput
+                value={studentsSearch}
+                onChangeText={setStudentsSearch}
+                placeholder={
+                  width < 520
+                    ? "Buscar aluno"
+                    : "Buscar aluno, responsável, turma ou unidade"
+                }
+                placeholderTextColor={colors.placeholder}
+                accessibilityLabel="Buscar aluno, responsável, turma ou unidade"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  color: colors.textPrimary ?? colors.text,
+                  fontSize: 12,
+                }}
+              />
+            </View>
           </View>
+
         </View>
 
         {loading && students.length === 0 ? (
@@ -1016,6 +1032,7 @@ export const StudentsListTab = memo(function StudentsListTab({
               >
                 {pageRows.map((student) => {
                   const cls = classById.get(student.classId);
+                  const scheduleLabel = classScheduleById.get(student.classId) ?? "";
                   const primaryStatus = resolveStudentListPrimaryStatus(student);
                   return (
                     <Pressable
@@ -1095,18 +1112,36 @@ export const StudentsListTab = memo(function StudentsListTab({
                           >
                             {student.age || "—"} anos
                           </Text>
-                          <Text
-                            numberOfLines={1}
+                          <View
                             style={{
                               flex: 1,
                               minWidth: 100,
                               paddingHorizontal: 10,
-                              color: colors.textMuted ?? colors.muted,
-                              fontSize: 11,
                             }}
                           >
-                            {cls?.name ?? "Turma"}
-                          </Text>
+                            <Text
+                              numberOfLines={1}
+                              style={{
+                                color: colors.textPrimary ?? colors.text,
+                                fontSize: 11,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {cls?.name ?? "Turma"}
+                            </Text>
+                            {scheduleLabel ? (
+                              <Text
+                                numberOfLines={1}
+                                style={{
+                                  color: colors.textMuted ?? colors.muted,
+                                  marginTop: 2,
+                                  fontSize: 10,
+                                }}
+                              >
+                                {scheduleLabel}
+                              </Text>
+                            ) : null}
+                          </View>
                           <View
                             style={{
                               flex: 0.8,
@@ -1319,6 +1354,190 @@ export const StudentsListTab = memo(function StudentsListTab({
           />
         )}
       </View>
+
+      <ModalSheet
+        visible={filtersModalOpen}
+        onClose={() => setFiltersModalOpen(false)}
+        position={compactFilters ? "bottom" : "center"}
+        backdropOpacity={0.62}
+        overlayZIndex={13000}
+        cardStyle={{
+          width: "100%",
+          maxWidth: 660,
+          height: compactFilters ? "82%" : 640,
+          maxHeight: "88%",
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.borderSubtle ?? colors.border,
+          borderRadius: 22,
+          backgroundColor: colors.background,
+          overflow: "hidden",
+        }}
+      >
+        <View
+          style={{
+            minHeight: compactFilters ? 54 : 60,
+            paddingLeft: compactFilters ? 14 : 18,
+            paddingRight: 10,
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: colors.borderSubtle ?? colors.border,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <Text
+            style={{
+              color: colors.textPrimary ?? colors.text,
+              fontSize: compactFilters ? 16 : 17,
+              fontWeight: "900",
+            }}
+          >
+            Filtrar alunos
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar filtros"
+            onPress={() => setFiltersModalOpen(false)}
+            style={(state) => ({
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: state.hovered
+                ? colors.backgroundSubtle ?? colors.secondaryBg
+                : "transparent",
+            })}
+          >
+            <GoAtletaIcon name="close" size={18} color={colors.textMuted ?? colors.muted} />
+          </Pressable>
+        </View>
+
+        <ScrollView
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{
+            padding: compactFilters ? 14 : 18,
+            gap: compactFilters ? 16 : 20,
+          }}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator
+        >
+          <StudentFilterGroup
+            title="Vínculo"
+            options={membershipFilterOptions}
+            excludedValues={draftFilterExclusions.memberships}
+            onToggle={(value) => toggleDraftFilter("memberships", value)}
+            compact={compactFilters}
+          />
+          <StudentFilterGroup
+            title="Financeiro"
+            options={financialFilterOptions}
+            excludedValues={draftFilterExclusions.financials}
+            onToggle={(value) => toggleDraftFilter("financials", value)}
+            compact={compactFilters}
+          />
+          <StudentFilterGroup
+            title="Perfil"
+            options={profileFilterOptions}
+            excludedValues={draftFilterExclusions.profiles}
+            onToggle={(value) => toggleDraftFilter("profiles", value)}
+            compact={compactFilters}
+          />
+          <StudentFilterGroup
+            title="Gênero da turma"
+            options={genderFilterOptions}
+            excludedValues={draftFilterExclusions.genders}
+            onToggle={(value) => toggleDraftFilter("genders", value)}
+            compact={compactFilters}
+          />
+          <StudentFilterGroup
+            title="Contato"
+            options={contactFilterOptions}
+            excludedValues={draftFilterExclusions.contacts}
+            onToggle={(value) => toggleDraftFilter("contacts", value)}
+            compact={compactFilters}
+          />
+          {classOptions.length > 0 ? (
+            <StudentFilterGroup
+              title="Turmas"
+              options={classOptions}
+              excludedValues={draftFilterExclusions.classes}
+              onToggle={(value) => toggleDraftFilter("classes", value)}
+              compact={compactFilters}
+            />
+          ) : null}
+        </ScrollView>
+
+        <View
+          style={{
+            minHeight: compactFilters ? 64 : 68,
+            paddingHorizontal: compactFilters ? 14 : 18,
+            paddingVertical: compactFilters ? 10 : 12,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderTopColor: colors.borderSubtle ?? colors.border,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Restaurar todos os filtros"
+            onPress={() =>
+              setDraftFilterExclusions(createEmptyStudentFilterExclusions())
+            }
+            suppressWebHoverFeedback
+            style={{ minHeight: 42, justifyContent: "center", paddingHorizontal: 4 }}
+          >
+            <Text
+              style={{
+                color: colors.textMuted ?? colors.muted,
+                fontSize: 12,
+                fontWeight: "800",
+              }}
+            >
+              Restaurar tudo
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Aplicar filtros"
+            onPress={() => {
+              setAppliedFilterExclusions({
+                profiles: [...draftFilterExclusions.profiles],
+                memberships: [...draftFilterExclusions.memberships],
+                financials: [...draftFilterExclusions.financials],
+                genders: [...draftFilterExclusions.genders],
+                classes: [...draftFilterExclusions.classes],
+                contacts: [...draftFilterExclusions.contacts],
+              });
+              setFiltersModalOpen(false);
+            }}
+            style={(state) => ({
+              minWidth: compactFilters ? 138 : 150,
+              minHeight: 44,
+              paddingHorizontal: compactFilters ? 14 : 18,
+              borderRadius: radius.internal,
+              backgroundColor: colors.primaryBg,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: state.pressed ? 0.82 : 1,
+            })}
+          >
+            <Text
+              style={{
+                color: colors.primaryText,
+                fontSize: 13,
+                fontWeight: "900",
+              }}
+            >
+              Aplicar filtros
+            </Text>
+          </Pressable>
+        </View>
+      </ModalSheet>
 
       {isUnitDrawerVisible ? (
         <>

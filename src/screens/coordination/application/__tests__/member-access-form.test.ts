@@ -3,6 +3,7 @@ import {
   createMemberAccessFormSnapshot,
   createMemberAccessIdempotencyKey,
   formatMemberAccessSuccessMessage,
+  preserveOwnMemberManagementPermission,
 } from "../member-access-form";
 
 describe("member access form snapshots", () => {
@@ -77,5 +78,32 @@ describe("member access form snapshots", () => {
     ).toBe(
       "Acesso de Angela atualizado: 6 turma(s) e 7 permissão(ões). A notificação já está na caixa de entrada."
     );
+  });
+
+  it("preserves member management when editing the signed-in user", () => {
+    expect(
+      preserveOwnMemberManagementPermission({
+        actorUserId: "user-1",
+        targetUserId: "user-1",
+        permissionKeys: ["classes", "training"],
+      })
+    ).toEqual(["classes", "training", "org_members"]);
+  });
+
+  it("does not change another member permissions or duplicate the protected key", () => {
+    expect(
+      preserveOwnMemberManagementPermission({
+        actorUserId: "user-1",
+        targetUserId: "user-2",
+        permissionKeys: ["classes"],
+      })
+    ).toEqual(["classes"]);
+    expect(
+      preserveOwnMemberManagementPermission({
+        actorUserId: "user-1",
+        targetUserId: "user-1",
+        permissionKeys: ["org_members", "classes"],
+      })
+    ).toEqual(["org_members", "classes"]);
   });
 });

@@ -9,6 +9,23 @@ export type MemberAccessFormSnapshot = {
 const normalizeValues = (values: readonly string[]) =>
   [...new Set(values)].sort((left, right) => left.localeCompare(right));
 
+const MEMBER_MANAGEMENT_PERMISSION = "org_members";
+
+export const preserveOwnMemberManagementPermission = <PermissionKey extends string>({
+  actorUserId,
+  targetUserId,
+  permissionKeys,
+}: {
+  actorUserId?: string | null;
+  targetUserId?: string | null;
+  permissionKeys: readonly PermissionKey[];
+}) => {
+  const protectedPermission = MEMBER_MANAGEMENT_PERMISSION as PermissionKey;
+  if (!actorUserId || actorUserId !== targetUserId) return [...permissionKeys];
+  if (permissionKeys.includes(protectedPermission)) return [...permissionKeys];
+  return [...permissionKeys, protectedPermission];
+};
+
 export const createMemberAccessFormSnapshot = ({
   role,
   classIds,

@@ -28,6 +28,7 @@ export type AuthSession = {
     user_metadata?: {
       full_name?: string | null;
       name?: string | null;
+      security_contact_email?: string | null;
       [key: string]: unknown;
     };
   };

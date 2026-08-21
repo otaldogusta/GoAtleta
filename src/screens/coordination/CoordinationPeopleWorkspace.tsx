@@ -72,6 +72,7 @@ import {
   createMemberAccessIdempotencyKey,
   createMemberAccessFormSnapshot,
   formatMemberAccessSuccessMessage,
+  preserveOwnMemberManagementPermission,
   type MemberAccessFormSnapshot,
 } from "./application/member-access-form";
 import {
@@ -736,9 +737,13 @@ export function CoordinationPeopleWorkspace({
       createMemberAccessFormSnapshot({
         role: editRole,
         classIds: editClassIds,
-        permissionKeys: editPermissionKeys,
+        permissionKeys: preserveOwnMemberManagementPermission({
+          actorUserId: session?.user?.id,
+          targetUserId: modalMember?.userId,
+          permissionKeys: editPermissionKeys,
+        }),
       }),
-    [editClassIds, editPermissionKeys, editRole]
+    [editClassIds, editPermissionKeys, editRole, modalMember?.userId, session?.user?.id]
   );
   const isEditDirty = Boolean(
     editInitialSnapshot &&
@@ -900,9 +905,13 @@ export function CoordinationPeopleWorkspace({
       const initialClassIds = classHeads
         .filter((head) => head.userId === member.userId)
         .map((head) => head.classId);
-      const initialPermissionKeys = permissions
-        .filter((permission) => permission.isAllowed)
-        .map((permission) => permission.permissionKey);
+      const initialPermissionKeys = preserveOwnMemberManagementPermission({
+        actorUserId: session?.user?.id,
+        targetUserId: member.userId,
+        permissionKeys: permissions
+          .filter((permission) => permission.isAllowed)
+          .map((permission) => permission.permissionKey),
+      });
       setEditClassIds(initialClassIds);
       setEditPermissionKeys(initialPermissionKeys);
       setEditInitialSnapshot(
@@ -2801,10 +2810,27 @@ export function CoordinationPeopleWorkspace({
                 ) : (
                   <ScrollView showsVerticalScrollIndicator nestedScrollEnabled>
                     {MEMBER_PERMISSION_OPTIONS.map((option) => {
-                      const checked = editPermissionKeys.includes(option.key);
+                      const protectsOwnMemberManagement =
+                        option.key === "org_members" &&
+                        Boolean(session?.user?.id) &&
+                        modalMember?.userId === session?.user?.id;
+                      const checked =
+                        protectsOwnMemberManagement ||
+                        editPermissionKeys.includes(option.key);
                       return (
                         <Pressable
                           key={option.key}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{
+                            checked,
+                            disabled: protectsOwnMemberManagement,
+                          }}
+                          accessibilityHint={
+                            protectsOwnMemberManagement
+                              ? "Mantida para preservar seu acesso à gestão."
+                              : undefined
+                          }
+                          disabled={protectsOwnMemberManagement}
                           onPress={() =>
                             setEditPermissionKeys((current) =>
                               checked
@@ -2819,6 +2845,7 @@ export function CoordinationPeopleWorkspace({
                             flexDirection: "row",
                             alignItems: "center",
                             gap: 10,
+                            opacity: protectsOwnMemberManagement ? 0.72 : 1,
                           }}
                         >
                           <GoAtletaIcon
@@ -2829,6 +2856,11 @@ export function CoordinationPeopleWorkspace({
                           <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>
                             {option.label}
                           </Text>
+                          {protectsOwnMemberManagement ? (
+                            <Text style={{ color: colors.muted, fontSize: 11 }}>
+                              Seu acesso
+                            </Text>
+                          ) : null}
                         </Pressable>
                       );
                     })}

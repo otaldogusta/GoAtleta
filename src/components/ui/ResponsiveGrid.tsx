@@ -6,7 +6,7 @@ import { canSplitResponsiveGrid } from "../../ui/responsive-layout";
 import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
-export type ResponsiveGridComposition = "1" | "8/4" | "6/6";
+export type ResponsiveGridComposition = "1" | "8/4" | "6/6" | "4/8";
 
 type ResponsiveGridProps = {
   children: ReactNode;
@@ -23,6 +23,7 @@ const splitFlexFor = (
   index: number
 ) => {
   if (composition === "6/6") return 1;
+  if (composition === "4/8") return index === 0 ? 1 : 2;
   return index === 0 ? 2 : 1;
 };
 

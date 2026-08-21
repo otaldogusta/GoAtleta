@@ -65,6 +65,7 @@ export const GOATLETA_ICON_NAMES = {
   apple: "logo-apple",
   facebook: "logo-facebook",
   camera: "camera-outline",
+  gallery: "images-outline",
   compare: "git-compare",
   align: "reorder-three",
   map: "map",

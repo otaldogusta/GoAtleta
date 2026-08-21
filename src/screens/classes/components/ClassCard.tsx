@@ -7,7 +7,9 @@ import type { ClassCardViewModel } from "../application/class-card-view-model";
 import { radius, shadow } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
+import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
+import { ShimmerBlock } from "../../../ui/Shimmer";
 
 type Conflict = {
   name: string;
@@ -108,9 +110,19 @@ const StudentAvatarItem = memo(function StudentAvatarItem({
   index: number;
   borderColor: string;
 }) {
-  const [imageError, setImageError] = useState(false);
-  const showImage = Boolean(avatar.photoUrl && !imageError);
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
+  const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null);
+  const photoUrl = avatar.photoUrl?.trim() || null;
+  const showImage = Boolean(photoUrl && failedPhotoUrl !== photoUrl);
+  const imageLoaded = Boolean(photoUrl && loadedPhotoUrl === photoUrl);
   const initials = (avatar.label || "A").trim() || "A";
+  const handleImageLoad = useCallback(() => {
+    setLoadedPhotoUrl(photoUrl);
+  }, [photoUrl]);
+  const handleImageError = useCallback(() => {
+    setFailedPhotoUrl(photoUrl);
+    setLoadedPhotoUrl(null);
+  }, [photoUrl]);
 
   return (
     <View
@@ -124,11 +136,18 @@ const StudentAvatarItem = memo(function StudentAvatarItem({
       ]}
     >
       {showImage ? (
-        <Image
-          source={{ uri: avatar.photoUrl }}
-          style={styles.studentAvatarImage}
-          onError={() => setImageError(true)}
-        />
+        <>
+          {!imageLoaded ? <ShimmerBlock style={styles.studentAvatarShimmer} /> : null}
+          <Image
+            source={{ uri: photoUrl! }}
+            style={[
+              styles.studentAvatarImage,
+              !imageLoaded ? styles.studentAvatarImageLoading : null,
+            ]}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+          />
+        </>
       ) : (
         <Text style={styles.studentAvatarText}>{initials}</Text>
       )}
@@ -169,6 +188,204 @@ const TeacherAvatarItem = memo(function TeacherAvatarItem({
     </View>
   );
 });
+
+const StaffAvatarItem = memo(function StaffAvatarItem({
+  member,
+  index = 0,
+  borderColor,
+  size = 22,
+}: {
+  member: ClassCardViewModel["supportStaff"][number];
+  index?: number;
+  borderColor: string;
+  size?: number;
+}) {
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
+  const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null);
+  const photoUrl = member.photoUrl?.trim() || null;
+  const showImage = Boolean(photoUrl && failedPhotoUrl !== photoUrl);
+  const imageLoaded = Boolean(photoUrl && loadedPhotoUrl === photoUrl);
+
+  return (
+    <View
+      style={[
+        styles.staffAvatar,
+        {
+          width: size,
+          height: size,
+          backgroundColor: member.color,
+          borderColor,
+          marginLeft: index === 0 ? 0 : -6,
+        },
+      ]}
+    >
+      {showImage ? (
+        <>
+          {!imageLoaded ? <ShimmerBlock style={styles.staffAvatarShimmer} /> : null}
+          <Image
+            source={{ uri: photoUrl! }}
+            style={[styles.staffAvatarImage, !imageLoaded ? styles.staffAvatarImageLoading : null]}
+            onLoad={() => setLoadedPhotoUrl(photoUrl)}
+            onError={() => {
+              setFailedPhotoUrl(photoUrl);
+              setLoadedPhotoUrl(null);
+            }}
+          />
+        </>
+      ) : (
+        <Text style={styles.staffAvatarText}>{member.initials}</Text>
+      )}
+    </View>
+  );
+});
+
+function StaffTeamPill({
+  members,
+  colors,
+  compact = false,
+}: {
+  members: ClassCardViewModel["supportStaff"];
+  colors: Record<string, string>;
+  compact?: boolean;
+}) {
+  const triggerRef = useRef<View | null>(null);
+  const [open, setOpen] = useState(false);
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [triggerLayout, setTriggerLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const visibleMembers = members.slice(0, 2);
+  const extraCount = Math.max(0, members.length - visibleMembers.length);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setPinnedOpen(false);
+  }, []);
+
+  const show = useCallback((pin = false) => {
+    triggerRef.current?.measureInWindow((x, y, width, height) => {
+      const panelWidth = Math.min(248, Math.max(220, Dimensions.get("window").width - 32));
+      const panelX = Math.max(
+        16,
+        Math.min(x + width - panelWidth, Dimensions.get("window").width - panelWidth - 16)
+      );
+      setTriggerLayout({ x: panelX, y, width: panelWidth, height });
+      setOpen(true);
+      if (pin) setPinnedOpen(true);
+    });
+  }, []);
+
+  if (!members.length) return null;
+
+  const details = (
+    <>
+      {members.map((member) => (
+        <View key={`${member.role}:${member.id}`} style={styles.staffPopoverRow}>
+          <StaffAvatarItem
+            member={member}
+            borderColor={colors.surfaceElevated ?? colors.card}
+            size={30}
+          />
+          <Text
+            numberOfLines={1}
+            style={[styles.staffPopoverName, { color: colors.textPrimary ?? colors.text }]}
+          >
+            {member.name}
+            <Text style={[styles.staffPopoverRole, { color: colors.textMuted ?? colors.muted }]}> — {member.roleLabel}</Text>
+          </Text>
+        </View>
+      ))}
+    </>
+  );
+
+  return (
+    <View ref={triggerRef} style={styles.staffPillWrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${members.length} ${members.length === 1 ? "profissional de apoio" : "profissionais de apoio"}`}
+        accessibilityState={{ expanded: open }}
+        disableWebPressScale
+        suppressWebHoverFeedback
+        onHoverIn={() => show(false)}
+        onHoverOut={() => {
+          if (!pinnedOpen) setOpen(false);
+        }}
+        onFocus={() => show(false)}
+        onBlur={() => {
+          if (!pinnedOpen) setOpen(false);
+        }}
+        onPress={(event) => {
+          event.stopPropagation?.();
+          if (open && pinnedOpen) close();
+          else show(true);
+        }}
+        style={(state) => [
+          styles.staffPill,
+          compact ? styles.staffPillCompact : null,
+          {
+            backgroundColor:
+              open || pressedOrHovered(state)
+                ? colors.backgroundSubtle ?? colors.secondaryBg
+                : colors.secondaryBg,
+            borderColor: open
+              ? colors.primaryBg ?? colors.border
+              : colors.borderSubtle ?? colors.border,
+          },
+        ]}
+      >
+        <View style={styles.staffAvatarStack}>
+          {visibleMembers.map((member, index) => (
+            <StaffAvatarItem
+              key={`${member.role}:${member.id}`}
+              member={member}
+              index={index}
+              borderColor={colors.secondaryBg}
+              size={compact ? 19 : 21}
+            />
+          ))}
+        </View>
+        {extraCount > 0 ? (
+          <Text style={[styles.staffExtraCount, { color: colors.textMuted ?? colors.muted }]}>+{extraCount}</Text>
+        ) : null}
+      </Pressable>
+
+      {Platform.OS === "web" ? (
+        <AnchoredDropdown
+          visible={open}
+          layout={triggerLayout}
+          container={null}
+          animationStyle={{ opacity: 1 }}
+          zIndex={12600}
+          maxHeight={Math.min(174, members.length * 48 + 12)}
+          nestedScrollEnabled={false}
+          density="compact"
+          interactiveRefs={[triggerRef]}
+          onRequestClose={close}
+          showVerticalScrollIndicator={false}
+          panelStyle={{ backgroundColor: colors.surfaceElevated ?? colors.card }}
+          scrollContentStyle={styles.staffPopoverContent}
+        >
+          {details}
+        </AnchoredDropdown>
+      ) : open ? (
+        <View
+          style={[
+            styles.staffNativePopover,
+            {
+              backgroundColor: colors.surfaceElevated ?? colors.card,
+              borderColor: colors.borderSubtle ?? colors.border,
+            },
+          ]}
+        >
+          {details}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 const getClassInitial = (name: string) => {
   const clean = name.trim();
@@ -476,8 +693,9 @@ export const ClassCard = memo(function ClassCard({
             textStyle={styles.teacherAvatarText}
           />
           <Text numberOfLines={1} style={[styles.tableTeacherName, { color: colors.textPrimary ?? colors.text }]}>
-            {viewModel.teacher.name}
+            {viewModel.teacher.compactName}
           </Text>
+          <StaffTeamPill members={viewModel.supportStaff} colors={colors} compact />
         </View>
 
         <View ref={actionWrapRef} nativeID={actionRootId} style={styles.tableActionCell}>
@@ -701,9 +919,10 @@ export const ClassCard = memo(function ClassCard({
             <Text style={[styles.teacherKicker, { color: colors.textMuted ?? colors.muted }]}>Professor</Text>
           ) : null}
           <Text numberOfLines={1} style={[styles.teacherName, { color: colors.textPrimary ?? colors.text }]}>
-            {viewModel.teacher.name}
+            {viewModel.teacher.compactName}
           </Text>
         </View>
+        <StaffTeamPill members={viewModel.supportStaff} colors={colors} compact={narrowCard} />
       </View>
 
       {hasConflicts ? (
@@ -752,6 +971,7 @@ const styles = StyleSheet.create({
     minWidth: 180,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-start",
     gap: 9,
   },
   tableActionCell: {
@@ -805,6 +1025,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     minWidth: 0,
+    maxWidth: 116,
     flexShrink: 1,
   },
   container: {
@@ -944,6 +1165,17 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 999,
+  },
+  studentAvatarImageLoading: {
+    opacity: 0,
+  },
+  studentAvatarShimmer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: radius.full,
   },
   noStudentsText: {
     fontSize: 11,
@@ -1108,5 +1340,100 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     marginTop: 0,
+  },
+  staffPillWrap: {
+    position: "relative",
+    flexShrink: 0,
+    zIndex: 4,
+  },
+  staffPill: {
+    minHeight: 30,
+    minWidth: 42,
+    paddingHorizontal: 7,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+  },
+  staffPillCompact: {
+    minHeight: 28,
+    minWidth: 38,
+    paddingHorizontal: 6,
+  },
+  staffAvatarStack: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  staffAvatar: {
+    borderRadius: radius.full,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+  staffAvatarText: {
+    color: "#0A1322",
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: "900",
+    textAlign: "center",
+    includeFontPadding: false,
+  },
+  staffAvatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: radius.full,
+  },
+  staffAvatarImageLoading: {
+    opacity: 0,
+  },
+  staffAvatarShimmer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: radius.full,
+  },
+  staffExtraCount: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  staffPopoverContent: {
+    padding: 6,
+    gap: 2,
+  },
+  staffPopoverRow: {
+    minHeight: 44,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderRadius: radius.internal,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  staffPopoverName: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  staffPopoverRole: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  staffNativePopover: {
+    position: "absolute",
+    top: 34,
+    right: 0,
+    width: 220,
+    padding: 6,
+    borderWidth: 1,
+    borderRadius: 14,
+    zIndex: 12600,
+    elevation: 20,
   },
 });

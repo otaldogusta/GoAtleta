@@ -71,3 +71,6 @@ verify_jwt = true
 # user's Supabase bearer token inside the function.
 [functions.document-drive-oauth]
 verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = true

@@ -24,6 +24,8 @@ export type ClassStaffAssignment = {
   classId: string;
   userId: string;
   staffRole: "head" | "assistant" | "intern";
+  displayName?: string | null;
+  photoUrl?: string | null;
 };
 
 export type OrganizationCoordinator = {
@@ -34,6 +36,8 @@ type ClassStaffAssignmentRow = {
   class_id: string;
   user_id: string;
   staff_role: ClassStaffAssignment["staffRole"];
+  display_name?: string | null;
+  photo_url?: string | null;
 };
 
 type OrganizationCoordinatorRow = {
@@ -93,7 +97,49 @@ export async function listClassStaffByClassIds(params: {
       classId: row.class_id,
       userId: row.user_id,
       staffRole: row.staff_role,
+      displayName: row.display_name ?? null,
+      photoUrl: row.photo_url ?? null,
     }));
+}
+
+const isMissingClassStaffIdentityRpc = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("PGRST202") ||
+    message.includes("list_org_class_staff_for_classes")
+  );
+};
+
+export async function listClassStaffIdentitiesByClassIds(params: {
+  organizationId: string;
+  classIds: string[];
+}): Promise<ClassStaffAssignment[]> {
+  const organizationId = String(params.organizationId ?? "").trim();
+  const classIds = Array.from(
+    new Set((params.classIds ?? []).map((value) => String(value ?? "").trim()).filter(Boolean))
+  );
+  if (!organizationId || !classIds.length) return [];
+
+  try {
+    const rows = await supabaseRestPost<ClassStaffAssignmentRow[]>(
+      "/rpc/list_org_class_staff_for_classes",
+      {
+        p_org_id: organizationId,
+        p_class_ids: classIds,
+      },
+      "return=representation"
+    );
+    return (rows ?? []).map((row) => ({
+      classId: row.class_id,
+      userId: row.user_id,
+      staffRole: row.staff_role,
+      displayName: row.display_name ?? null,
+      photoUrl: row.photo_url ?? null,
+    }));
+  } catch (error) {
+    if (!isMissingClassStaffIdentityRpc(error)) throw error;
+    return listClassStaffByClassIds({ organizationId, classIds });
+  }
 }
 
 export async function listOrganizationCoordinators(

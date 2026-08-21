@@ -22,8 +22,15 @@ import type { ClassSessionCoverage } from "../../src/api/class-session-coverages
 import { listUpcomingClassSessionCoverages } from "../../src/api/class-session-coverages";
 import {
   listClassHeadsByClassIds,
+  listClassStaffIdentitiesByClassIds,
   type ClassResponsible,
+  type ClassStaffAssignment,
 } from "../../src/api/class-responsibles";
+import { adminListOrgMembers, type OrgMember } from "../../src/api/members";
+import {
+  getStudentPhotoAccessUrl,
+  getStudentPhotoObjectPath,
+} from "../../src/api/student-photo-storage";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
 import { CLASS_MODALITY_OPTIONS, resolveClassModality } from "../../src/core/class-modality";
 import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-development-level";
@@ -48,6 +55,10 @@ import {
   buildClassCardViewModel,
   groupStudentsByClassId,
 } from "../../src/screens/classes/application/class-card-view-model";
+import {
+  applyMemberIdentitiesToClassStaff,
+  applyMemberNamesToClassResponsibles,
+} from "../../src/screens/classes/application/class-responsible-identity";
 import {
   getClassScheduleOverlapDays,
   trainingSpacesMayOverlap,
@@ -280,6 +291,7 @@ export default function ClassesScreen() {
 
   const router = useRouter();
   const scopedRoutes = useTrainerRouteScope();
+  const isCoordinationScope = scopedRoutes.classes === "/coord/classes";
   const insets = useSafeAreaInsets();
   const { edit, tab, prefillName, prefillModality, prefillUnit } = useLocalSearchParams<{
     edit?: string | string[];
@@ -302,8 +314,12 @@ export default function ClassesScreen() {
   const { confirm: confirmUndo } = useConfirmUndo();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentPhotoAccessUrls, setStudentPhotoAccessUrls] = useState<
+    Record<string, { sourceUrl: string; accessUrl: string }>
+  >({});
   const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
   const [classHeadsById, setClassHeadsById] = useState<Record<string, ClassResponsible>>({});
+  const [classStaffById, setClassStaffById] = useState<Record<string, ClassStaffAssignment[]>>({});
   const [classCoverageSummariesByClassId, setClassCoverageSummariesByClassId] = useState<
     Record<string, ReturnType<typeof getCoverageSummary> | null>
   >({});
@@ -668,6 +684,66 @@ export default function ClassesScreen() {
   }, [classes]);
 
   const studentsByClassId = useMemo(() => groupStudentsByClassId(students), [students]);
+  const classCardPhotoCandidates = useMemo(() => {
+    const candidatesById = new Map<string, Student>();
+    Object.values(studentsByClassId).forEach((classStudents) => {
+      [...classStudents]
+        .sort((left, right) => (left.name || "").localeCompare(right.name || ""))
+        .slice(0, 4)
+        .forEach((student) => {
+          if (student.photoUrl?.trim()) candidatesById.set(student.id, student);
+        });
+    });
+    return Array.from(candidatesById.values());
+  }, [studentsByClassId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!classCardPhotoCandidates.length) {
+      setStudentPhotoAccessUrls({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void Promise.all(
+      classCardPhotoCandidates.map(async (student) => {
+        const sourceUrl = student.photoUrl!.trim();
+        try {
+          const accessUrl = await getStudentPhotoAccessUrl(sourceUrl);
+          return accessUrl
+            ? ([student.id, { sourceUrl, accessUrl }] as const)
+            : null;
+        } catch (error) {
+          console.warn("ClassesScreen photo authorization failed", {
+            studentId: student.id,
+            error,
+          });
+          return null;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      setStudentPhotoAccessUrls(
+        Object.fromEntries(entries.filter((entry) => entry !== null))
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [classCardPhotoCandidates]);
+
+  const resolveClassCardStudentPhotoUrl = useCallback(
+    (student: Student) => {
+      const sourceUrl = student.photoUrl?.trim();
+      if (!sourceUrl) return undefined;
+      const resolved = studentPhotoAccessUrls[student.id];
+      if (resolved?.sourceUrl === sourceUrl) return resolved.accessUrl;
+      return getStudentPhotoObjectPath(sourceUrl) ? undefined : sourceUrl;
+    },
+    [studentPhotoAccessUrls]
+  );
   const currentTeacher = useMemo(() => {
     const metadata = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
     const getText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -697,15 +773,32 @@ export default function ClassesScreen() {
             : null;
         acc[classGroup.id] = buildClassCardViewModel({
           classGroup,
-          students: studentsByClassId[classGroup.id] ?? [],
+          students: (studentsByClassId[classGroup.id] ?? []).map((student) => {
+            const photoUrl = resolveClassCardStudentPhotoUrl(student);
+            return photoUrl === student.photoUrl ? student : { ...student, photoUrl };
+          }),
           teacher,
+          staff: (classStaffById[classGroup.id] ?? []).map((member) => ({
+            id: member.userId,
+            name: member.displayName,
+            photoUrl: member.photoUrl,
+            role: member.staffRole,
+          })),
           coverageSummary: classCoverageSummariesByClassId[classGroup.id] ?? null,
         });
         return acc;
       },
       {}
     );
-  }, [classCoverageSummariesByClassId, classHeadsById, currentTeacher, displayClasses, studentsByClassId]);
+  }, [
+    classCoverageSummariesByClassId,
+    classHeadsById,
+    classStaffById,
+    currentTeacher,
+    displayClasses,
+    resolveClassCardStudentPhotoUrl,
+    studentsByClassId,
+  ]);
 
   const goalSuggestions = useMemo(() => {
     const key = normalizeUnitKey(newUnit);
@@ -1002,17 +1095,42 @@ export default function ClassesScreen() {
         ),
       ]);
       let classHeads: ClassResponsible[] = [];
+      let classStaff: ClassStaffAssignment[] = [];
       let classCoverageSummariesByClassId: Record<string, ReturnType<typeof getCoverageSummary> | null> = {};
       const organizationId = data.find((item) => item.organizationId)?.organizationId ?? "";
       if (organizationId && data.length > 0) {
-        try {
-          classHeads = await listClassHeadsByClassIds({
+        const classIds = data.map((item) => item.id);
+        const [loadedClassHeads, loadedClassStaff, organizationMembers] = await Promise.all([
+          listClassHeadsByClassIds({
             organizationId,
-            classIds: data.map((item) => item.id),
-          });
-        } catch (error) {
-          console.warn("[ClassesScreen] Failed to load class responsibles", error);
-        }
+            classIds,
+          }).catch((error) => {
+            console.warn("[ClassesScreen] Failed to load class responsibles", error);
+            return [] as ClassResponsible[];
+          }),
+          listClassStaffIdentitiesByClassIds({
+            organizationId,
+            classIds,
+          }).catch((error) => {
+            console.warn("[ClassesScreen] Failed to load class staff identities", error);
+            return [] as ClassStaffAssignment[];
+          }),
+          isCoordinationScope
+            ? adminListOrgMembers(organizationId).catch((error) => {
+                console.warn("[ClassesScreen] Failed to load member identities", error);
+                return [] as OrgMember[];
+              })
+            : Promise.resolve([] as OrgMember[]),
+        ]);
+        classHeads = applyMemberNamesToClassResponsibles(
+          loadedClassHeads,
+          organizationMembers
+        );
+        classStaff = applyMemberIdentitiesToClassStaff({
+          assignments: loadedClassStaff,
+          members: organizationMembers,
+          responsibles: classHeads,
+        });
         try {
           const upcomingCoverages = await listUpcomingClassSessionCoverages(
             organizationId,
@@ -1042,12 +1160,19 @@ export default function ClassesScreen() {
         setClassHeadsById(
           Object.fromEntries(classHeads.map((responsible) => [responsible.classId, responsible]))
         );
+        setClassStaffById(
+          classStaff.reduce<Record<string, ClassStaffAssignment[]>>((acc, member) => {
+            if (!acc[member.classId]) acc[member.classId] = [];
+            acc[member.classId]!.push(member);
+            return acc;
+          }, {})
+        );
         setClassCoverageSummariesByClassId(classCoverageSummariesByClassId);
       }
     } finally {
       if (isAlive()) setLoading(false);
     }
-  }, []);
+  }, [isCoordinationScope]);
 
   useFocusEffect(
     useCallback(() => {

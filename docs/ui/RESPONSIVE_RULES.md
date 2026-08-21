@@ -87,7 +87,7 @@ do limite da tabela, abrem em sheet e os alunos usam o layout compacto.
 ## Páginas, grids e painéis
 
 - `ResponsivePage` controla gutter, largura máxima e centralização.
-- `ResponsiveGrid` organiza composições `1`, `8/4` e `6/6`, mas só abre colunas
+- `ResponsiveGrid` organiza composições `1`, `8/4`, `4/8` e `6/6`, mas só abre colunas
   quando viewport e container têm capacidade.
 - Em workspace compacto, painéis secundários devem recolher, empilhar ou abrir
   sobre o conteúdo. Não reduzir destrutivamente a região principal.

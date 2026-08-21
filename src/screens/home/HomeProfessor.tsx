@@ -97,6 +97,10 @@ import { useSaveToast } from "../../ui/save-toast";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 import { AgendaCard } from "./components/AgendaCard";
 import { CurrentLessonCarousel } from "./components/CurrentLessonCarousel";
+import {
+  resolveHomeScheduleRequestKey,
+  shouldShowInitialHomeLoading,
+} from "./home-loading-state";
 import { TodayScheduleRail } from "./components/TodayScheduleRail";
 import { WeekDaySelector } from "./components/WeekDaySelector";
 import type { HomeScheduleItem } from "./components/homeScheduleTypes";
@@ -166,9 +170,9 @@ export function HomeProfessorScreen({
 
   const insets = useSafeAreaInsets();
 
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
 
-  const { role } = useRole();
+  const { role, loading: roleLoading } = useRole();
   const profileScopePath = adminMode
     ? "/coord/dashboard"
     : role === "student"
@@ -220,6 +224,8 @@ export function HomeProfessorScreen({
   const [inbox, setInbox] = useState<AppNotification[]>([]);
 
   const [showInbox, setShowInbox] = useState(false);
+  const [notificationControlHighlighted, setNotificationControlHighlighted] = useState(false);
+  const [profileControlHighlighted, setProfileControlHighlighted] = useState(false);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -233,11 +239,8 @@ export function HomeProfessorScreen({
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
 
-  const [loadingClasses, setLoadingClasses] = useState(false);
-
   const [upcomingEvents, setUpcomingEvents] = useState<EventListItem[]>([]);
-
-  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [resolvedScheduleRequestKey, setResolvedScheduleRequestKey] = useState<string | null>(null);
 
   const [agendaRefreshToken, setAgendaRefreshToken] = useState(0);
   const [manualIndex, setManualIndex] = useState<number | null>(null);
@@ -255,10 +258,6 @@ export function HomeProfessorScreen({
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const panelWidth = Math.min(screenWidth * 0.85, 360);
-  const inboxPanelSurface =
-    Platform.OS === "web" && mode === "light" ? "rgba(255,255,255,0.92)" : colors.card;
-  const inboxPanelBorder =
-    Platform.OS === "web" && mode === "light" ? "rgba(15,23,42,0.16)" : colors.border;
   const inboxPanelWebGlassStyle =
     Platform.OS === "web"
       ? ({
@@ -275,11 +274,19 @@ export function HomeProfessorScreen({
   const inboxUnreadBorder =
     mode === "dark" ? "#334155" : "rgba(99, 102, 241, 0.34)";
 
-  const showInitialLoading = isAdminDashboardContext
-    ? false
-    : (organizationLoading || loadingClasses || loadingEvents) &&
-      classes.length === 0 &&
-      upcomingEvents.length === 0;
+  const homeContextLoading = authLoading || roleLoading || organizationLoading;
+  const scheduleRequestKey = resolveHomeScheduleRequestKey({
+    userId: session?.user?.id,
+    role,
+    organizationId: activeOrganization?.id,
+    contextLoading: homeContextLoading,
+    adminMode,
+  });
+  const showInitialLoading = shouldShowInitialHomeLoading({
+    contextLoading: homeContextLoading,
+    requestKey: scheduleRequestKey,
+    resolvedRequestKey: resolvedScheduleRequestKey,
+  });
 
   const inboxX = useRef(new Animated.Value(panelWidth)).current;
 
@@ -369,6 +376,31 @@ export function HomeProfessorScreen({
     await seedIfEmpty();
     hasSeededRef.current = true;
   }, []);
+  const loadHomeSchedule = useCallback(async () => {
+    const userId = session?.user?.id;
+    if (!userId || role !== "trainer") {
+      return { classes: [] as ClassGroup[], events: [] as EventListItem[] };
+    }
+
+    if (!adminMode) await ensureSeedData();
+
+    const organizationId = activeOrganization?.id ?? null;
+    const [classListResult, eventsListResult] = await Promise.allSettled([
+      getClasses({ organizationId }),
+      organizationId
+        ? listUpcomingEvents({
+            organizationId,
+            userId,
+            days: upcomingWindowDays,
+          })
+        : Promise.resolve([] as EventListItem[]),
+    ]);
+
+    return {
+      classes: classListResult.status === "fulfilled" ? classListResult.value : [],
+      events: eventsListResult.status === "fulfilled" ? eventsListResult.value : [],
+    };
+  }, [activeOrganization?.id, adminMode, ensureSeedData, role, session?.user?.id, upcomingWindowDays]);
   const loadProfilePhoto = useCallback(
     async (force = false): Promise<string | null> => {
       const nowTs = Date.now();
@@ -403,33 +435,13 @@ export function HomeProfessorScreen({
 
     let alive = true;
 
-    void loadProfilePhoto()
-      .then((uri) => {
-        if (alive) setProfilePhotoUri(uri);
-      })
-      .catch(() => {
-        if (alive) setProfilePhotoUri(null);
-      });
-
     (async () => {
 
-      if (!session || role !== "trainer") {
-        return;
-      }
-
-      if (!isAdminDashboardContext && organizationLoading) {
-        if (alive) {
-          setLoadingClasses(true);
-          setLoadingEvents(true);
-        }
+      if (!scheduleRequestKey) {
         return;
       }
 
       if (alive) {
-        if (!isAdminDashboardContext) {
-          setLoadingClasses(true);
-          setLoadingEvents(true);
-        }
         setClasses([]);
         setUpcomingEvents([]);
         setManualIndex(null);
@@ -444,26 +456,12 @@ export function HomeProfessorScreen({
         await measureAsync(
           "screen.home.load.schedule",
           async () => {
-            if (!isAdminDashboardContext) {
-              await ensureSeedData();
-            }
-
-            const organizationId = activeOrganization?.id ?? null;
-
-            const [classListResult, eventsListResult] = await Promise.allSettled([
-              getClasses({ organizationId }),
-              organizationId
-                ? listUpcomingEvents({
-                    organizationId,
-                    userId: session.user.id,
-                    days: upcomingWindowDays,
-                  })
-                : Promise.resolve([] as EventListItem[]),
-            ]);
+            const result = await loadHomeSchedule();
 
             if (alive) {
-              setClasses(classListResult.status === "fulfilled" ? classListResult.value : []);
-              setUpcomingEvents(eventsListResult.status === "fulfilled" ? eventsListResult.value : []);
+              setClasses(result.classes);
+              setUpcomingEvents(result.events);
+              setResolvedScheduleRequestKey(scheduleRequestKey);
               setAgendaRefreshToken((value) => value + 1);
             }
           },
@@ -478,14 +476,8 @@ export function HomeProfessorScreen({
         if (alive) {
           setClasses([]);
           setUpcomingEvents([]);
+          setResolvedScheduleRequestKey(scheduleRequestKey);
         }
-      } finally {
-
-        if (!isAdminDashboardContext && alive) {
-          setLoadingClasses(false);
-          setLoadingEvents(false);
-        }
-
       }
 
     })();
@@ -507,14 +499,10 @@ export function HomeProfessorScreen({
     };
 
   }, [
-    session,
-    role,
     activeOrganization?.id,
-    organizationLoading,
-    loadProfilePhoto,
-    ensureSeedData,
-    isAdminDashboardContext,
-    upcomingWindowDays,
+    loadHomeSchedule,
+    role,
+    scheduleRequestKey,
   ]);
 
   useEffect(() => {
@@ -566,6 +554,11 @@ export function HomeProfessorScreen({
 
 
   const unreadCount = inbox.filter((item) => !item.read).length;
+  const unreadBadgeLabel = unreadCount > 99 ? "99+" : String(unreadCount);
+  const notificationsAccessibilityLabel =
+    unreadCount > 0
+      ? `Abrir notificações, ${unreadCount} ${unreadCount === 1 ? "não lida" : "não lidas"}`
+      : "Abrir notificações";
 
 
 
@@ -1361,53 +1354,20 @@ export function HomeProfessorScreen({
         .catch(() => setProfilePhotoUri(null))
     );
 
-    if (session && role === "trainer" && !organizationLoading) {
-
-      if (!isAdminDashboardContext) {
-        setLoadingClasses(true);
-        setLoadingEvents(true);
-      }
-
+    if (scheduleRequestKey) {
       tasks.push(
-
-        (isAdminDashboardContext
-          ? getClasses({ organizationId: activeOrganization?.id ?? null })
-          : ensureSeedData().then(() => getClasses({ organizationId: activeOrganization?.id ?? null }))
-        )
-
-          .then(setClasses)
-          .catch(() => setClasses([]))
-
-          .finally(() => {
-            if (!isAdminDashboardContext) setLoadingClasses(false);
+        loadHomeSchedule()
+          .then((result) => {
+            setClasses(result.classes);
+            setUpcomingEvents(result.events);
+            setResolvedScheduleRequestKey(scheduleRequestKey);
           })
-
+          .catch(() => {
+            setClasses([]);
+            setUpcomingEvents([]);
+            setResolvedScheduleRequestKey(scheduleRequestKey);
+          })
       );
-
-      tasks.push(
-        (activeOrganization?.id
-          ? listUpcomingEvents({
-              organizationId: activeOrganization.id,
-              userId: session.user.id,
-              days: upcomingWindowDays,
-            })
-          : Promise.resolve([] as EventListItem[])
-        )
-          .then(setUpcomingEvents)
-          .catch(() => setUpcomingEvents([]))
-          .finally(() => setLoadingEvents(false))
-      );
-
-    } else if (organizationLoading) {
-      if (!isAdminDashboardContext) {
-        setLoadingClasses(true);
-        setLoadingEvents(true);
-      }
-    } else {
-      if (!isAdminDashboardContext) {
-        setLoadingClasses(false);
-        setLoadingEvents(false);
-      }
     }
 
     await measureAsync("screen.home.load.refresh", () => Promise.allSettled(tasks), {
@@ -1728,29 +1688,27 @@ export function HomeProfessorScreen({
             <Pressable
 
               onPress={openInbox}
-
+              suppressWebHoverFeedback
+              accessibilityLabel={notificationsAccessibilityLabel}
+              onHoverIn={() => setNotificationControlHighlighted(true)}
+              onHoverOut={() => setNotificationControlHighlighted(false)}
+              onFocus={() => setNotificationControlHighlighted(true)}
+              onBlur={() => setNotificationControlHighlighted(false)}
               style={{
-
                 width: 44,
-
                 height: 44,
-
-                borderRadius: 999,
-
-                backgroundColor: colors.primaryBg,
                 alignItems: "center",
-
                 justifyContent: "center",
-
+                opacity: notificationControlHighlighted ? 0.78 : 1,
               }}
 
             >
 
-              <GoAtletaIcon name="notifications" size={18} color={colors.primaryText} />
+              <GoAtletaIcon name="notifications" size={24} color={colors.text} />
 
             </Pressable>
 
-            { unreadCount > 0 ? (
+            {unreadCount > 0 ? (
 
               <View
 
@@ -1758,17 +1716,19 @@ export function HomeProfessorScreen({
 
                   position: "absolute",
 
-                  right: -12,
+                  right: 0,
 
-                  top: -12,
+                  top: 0,
 
-                  minWidth: 20,
+                  minWidth: 18,
 
-                  height: 20,
+                  height: 18,
 
-                  borderRadius: 10,
+                  paddingHorizontal: 4,
 
-                  backgroundColor: colors.warningBg,
+                  borderRadius: 9,
+
+                  backgroundColor: colors.dangerSolidBg,
 
                   alignItems: "center",
 
@@ -1776,9 +1736,9 @@ export function HomeProfessorScreen({
 
                   zIndex: 10,
 
-                  borderWidth: 1,
+                  borderWidth: 2,
 
-                  borderColor: "rgba(17, 26, 45, 0.5)",
+                  borderColor: colors.background,
 
                   pointerEvents: "none",
 
@@ -1786,9 +1746,16 @@ export function HomeProfessorScreen({
 
               >
 
-                <Text style={{ color: colors.text, fontSize: 10, fontWeight: "800" }}>
+                <Text
+                  style={{
+                    color: colors.dangerSolidText,
+                    fontSize: 10,
+                    lineHeight: 12,
+                    fontWeight: "800",
+                  }}
+                >
 
-                  !
+                  {unreadBadgeLabel}
 
                 </Text>
 
@@ -1801,31 +1768,19 @@ export function HomeProfessorScreen({
 
             <Pressable
 
-            style={{
-
-              width: 56,
-
-              height: 56,
-
-              borderRadius: 999,
-
-              backgroundColor: inboxPanelSurface,
-              borderWidth: 1,
-              borderColor: inboxPanelBorder,
-              alignItems: "center",
-
-              justifyContent: "center",
-              ...(Platform.OS === "web"
-                ? { boxShadow: "0px 6px 10px rgba(0, 0, 0, 0.1)" }
-                : {
-                    shadowColor: "#000",
-                    shadowOpacity: 0.1,
-                    shadowRadius: 10,
-                    shadowOffset: { width: 0, height: 6 },
-                    elevation: 4,
-                  }),
-
-            }}
+              suppressWebHoverFeedback
+              accessibilityLabel="Abrir perfil"
+              onHoverIn={() => setProfileControlHighlighted(true)}
+              onHoverOut={() => setProfileControlHighlighted(false)}
+              onFocus={() => setProfileControlHighlighted(true)}
+              onBlur={() => setProfileControlHighlighted(false)}
+              style={{
+                width: 44,
+                height: 44,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: profileControlHighlighted ? 0.78 : 1,
+              }}
 
           >
 
@@ -1833,22 +1788,20 @@ export function HomeProfessorScreen({
 
               style={{
 
-                width: 44,
+                width: 28,
 
-                height: 44,
+                height: 28,
 
                 borderRadius: 999,
-
-                backgroundColor: colors.secondaryBg,
-
                 alignItems: "center",
 
                 justifyContent: "center",
+                overflow: "hidden",
               }}
 
             >
 
-              <GoAtletaIcon name="profile" size={22} color={colors.text} />
+              <GoAtletaIcon name="profile" size={24} color={colors.text} />
 
               { profilePhotoUri ? (
 

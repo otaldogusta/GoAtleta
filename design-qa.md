@@ -66,6 +66,86 @@ final result: passed
 
 ---
 
+# Design QA — Perfil responsivo V3
+
+## Fonte de verdade
+
+- Mockup aprovado: `C:\Users\gusta\.codex\generated_images\01a020cf-f134-7351-82bf-f4f14a2da701\exec-a78c9689-926a-4b86-9a78-947e567815e4.png`.
+- Implementação autenticada: `http://localhost:8081/prof/profile`.
+- Comparação combinada: `artifacts/design-qa/profile-v3-2026-08-21/profile-v3-reference-vs-local.png`.
+- Comparação focada da identidade: `artifacts/design-qa/profile-v3-2026-08-21/profile-v3-identity-comparison.png`.
+- Capturas finais normalizadas: `profile-v3-desktop-1440x1024-normalized.png`, `profile-v3-tablet-834x1194-normalized.png` e `profile-v3-mobile-390x844-normalized.png`, na mesma pasta.
+
+## Viewport, estado e normalização
+
+- Referência: 1487 × 1058 px.
+- Desktop solicitado: 1440 × 1024 px; a escala de sistema de 90% produziu viewport CSS de 1600 × 1138 e captura bruta de 1778 × 1263 px.
+- Tablet solicitado: 834 × 1194 px; viewport CSS observado de 926 × 1326.
+- Mobile solicitado: 390 × 844 px; viewport CSS observado de 433 × 938.
+- O capturador local reservou um canvas duplicado vazio; as evidências `-normalized.png` recortam somente a região renderizada no canto superior esquerdo, sem redimensionar o conteúdo útil.
+- Estado: tema escuro, perfil Professor, nome longo real, dois workspaces, Google e Google Drive conectados. Nenhuma informação de conta foi alterada durante o QA.
+
+## Comparação e histórico
+
+1. P2 inicial — a identidade ainda parecia um card compacto isolado e o nome longo ficava limitado a uma única linha no desktop, enquanto a V3 usa um trilho lateral contínuo e até duas linhas.
+2. Correção — em split view, a identidade passou a ocupar a altura da região, perdeu a superfície de card e ganhou o divisor vertical; o nome aceita duas linhas no workspace e permanece em uma linha no mobile.
+3. Pós-correção — as comparações `profile-v3-reference-vs-local.png` e `profile-v3-identity-comparison.png` confirmam a proporção 4/8, o lápis junto ao nome, o perfil/função na mesma faixa e o seletor compacto de workspace.
+
+## Fidelidade visual
+
+- Tipografia: preserva a família e os pesos do GoAtleta; nome, função, títulos de seção e metadados mantêm a hierarquia da V3. Nomes longos truncam sem deslocar ações.
+- Espaçamento: desktop usa trilho 4/8 com divisor; tablet e mobile empilham as regiões. Gaps, raios e alvos interativos usam os tokens existentes.
+- Cores: navy, superfícies graphite, bordas discretas e verde para seleção/estado seguem o tema real.
+- Imagens e ícones: a implementação usa a foto real quando disponível e o ícone cadastrado como fallback; não foi inserida a pessoa fictícia do mockup. Google Drive e os ícones do registro existente foram preservados.
+- Copy: `Preferências`, `Conta`, `Integrações`, `Workspace` e `Sair da conta` reproduzem a organização aprovada sem texto redundante.
+
+## Interações e responsividade verificadas
+
+- Perfil e workspace abrem seus seletores sem mutação de dados; as opções reais permaneceram disponíveis.
+- 1440 × 1024: composição 4/8, divisor contínuo e duas linhas máximas para o nome.
+- 834 × 1194: regiões empilhadas, sidebar compacta e ausência de overflow horizontal.
+- 390 × 844: cabeçalho de identidade horizontal, nome em uma linha, navegação inferior preservada e ausência de overflow horizontal.
+- Uma aba limpa confirmou zero erros de console após o carregamento final.
+
+## Diferenças intencionais P3
+
+- O usuário atual não possui foto carregada; o avatar usa o fallback funcional do produto, enquanto o mockup usa uma pessoa demonstrativa.
+- Preferências e integrações mantêm as superfícies compactas do componente real `SettingsRow`, em vez das linhas totalmente planas da imagem, para preservar consistência com as outras configurações do GoAtleta.
+- A sidebar e o cabeçalho usam os componentes atuais do app; não foram redesenhados fora do escopo da tela de perfil.
+
+final result: passed
+
+---
+
+# Design QA — Equipe da turma na coluna Professor
+
+## Fonte de verdade
+
+- Mockup aprovado: `C:\Users\gusta\.codex\generated_images\01a020cf-f134-7351-82bf-f4f14a2da701\exec-03baafc5-2b42-426f-b3b3-fae40dec2af5.png`.
+- Implementação autenticada: `http://localhost:8081/coord/classes`.
+- Comparação combinada: `C:\Users\gusta\.codex\visualizations\2026\08\20\01a020cf-f134-7351-82bf-f4f14a2da701\class-team-comparison.png`.
+- Capturas finais: `class-team-final-desktop.png` e `class-team-mobile.png`, na mesma pasta da comparação.
+
+## Comparação e correções
+
+1. A coluna preserva o professor principal e usa o nome compacto quando há nome completo, como `Gustavo R.`; nomes compostos curtos, como `Ana Júlia`, permanecem inteiros.
+2. Auxiliares e estagiários aparecem em um pill sem o texto redundante `Equipe`, com até dois avatares e contador `+N`.
+3. Hover, foco ou toque abrem o popover com nome completo e função; o conteúdo foi refinado para uma linha compacta por pessoa.
+4. Fotos usam shimmer durante o carregamento e caem para iniciais apenas quando não existe foto ou a imagem falha.
+5. O pill foi aproximado do nome do professor, preservando a leitura conjunta da equipe e o menu de ações no fim da linha.
+
+## Responsividade e estado real
+
+- Breakpoints conferidos em 390 × 844, 834 × 1194 e 1440 × 1024; não houve overflow horizontal e o pill permaneceu disponível em cards e tabela.
+- A organização autenticada já possui turmas com um e dois estagiários, permitindo verificar o estado real e o popover sem criar dados de teste.
+- Diferença intencional P3: a referência usa pessoas e fotos demonstrativas; a implementação mostra as identidades reais disponíveis. Logins permanecem visíveis quando o cadastro Auth não possui nome completo.
+- A resolução organizacional de fotos depende da migration local `20260821022829_list_org_class_staff_identities.sql`; sem aplicá-la, o fallback seguro mantém nomes e iniciais.
+- Nenhum erro novo apareceu no console; permaneceram apenas os avisos conhecidos do React Native Web sobre `pointerEvents` e propriedades antigas de sombra.
+
+final result: passed
+
+---
+
 # Design QA — Biblioteca hierárquica e cabeçalho do planejamento
 
 ## Fonte de verdade

@@ -1,4 +1,5 @@
 import { supabaseRestPost } from "./rest";
+import { resolveProfileDisplayName } from "../core/profile-name";
 
 export type OrgMember = {
   organizationId: string;
@@ -62,7 +63,10 @@ const mapMember = (row: OrgMemberRow): OrgMember => ({
   userId: row.user_id,
   roleLevel: row.role_level,
   createdAt: row.created_at,
-  displayName: row.display_name || row.email || row.user_id,
+  displayName: resolveProfileDisplayName({
+    displayName: row.display_name,
+    email: row.email,
+  }),
   email: row.email ?? null,
   lastAccessAt: row.last_access_at ?? null,
 });

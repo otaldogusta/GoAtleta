@@ -15,14 +15,18 @@ import { markRender } from "../../../observability/perf";
 import { radius } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { AppRefreshControl } from "../../../ui/AppRefreshControl";
+import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { Pressable } from "../../../ui/Pressable";
+import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
 import { useContainerResponsiveLayout } from "../../../ui/use-container-responsive-layout";
 import type { ClassCardViewModel } from "../application/class-card-view-model";
 import { ClassCard } from "./ClassCard";
 
 type GroupedClasses = [string, ClassGroup[]][];
 type Conflict = { name: string; day: number; modality?: string; kind: "conflict" | "integration" };
+type Layout = { x: number; y: number; width: number; height: number };
 
 const ALL_UNITS_KEY = "__all_units__";
 const OPEN_MENU_Z_INDEX = 11000;
@@ -67,14 +71,22 @@ export const ClassesListSection = memo(function ClassesListSection({
   const { containerRef, onLayout, width: availableWidth } =
     useContainerResponsiveLayout("dashboard");
   const showTable = availableWidth >= TABLE_LAYOUT_MIN_WIDTH;
+  const compactControls = availableWidth < 520;
   const [selectedUnitKey, setSelectedUnitKey] = useState(ALL_UNITS_KEY);
-  const [unitSearch, setUnitSearch] = useState("");
-  const [ascending, setAscending] = useState(true);
+  const [classSearch, setClassSearch] = useState("");
   const [tableAscending, setTableAscending] = useState(true);
   const [sortKey, setSortKey] = useState<"name" | "time" | "age" | "students" | "teacher" | null>(null);
   const sortIndicator = useRef(new Animated.Value(0)).current;
-  const [unitDrawerOpen, setUnitDrawerOpen] = useState(false);
+  const unitTriggerRef = useRef<View | null>(null);
+  const [unitDropdownOpen, setUnitDropdownOpen] = useState(false);
+  const [unitDropdownLayout, setUnitDropdownLayout] = useState<Layout | null>(null);
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const { animatedStyle: unitDropdownAnimationStyle, isVisible: unitDropdownVisible } =
+    useCollapsibleAnimation(unitDropdownOpen, {
+      durationIn: 140,
+      durationOut: 100,
+      translateY: -4,
+    });
 
   const units = useMemo(
     () => grouped.map(([label, items]) => ({ key: unitKey(label), label, items })),
@@ -83,16 +95,10 @@ export const ClassesListSection = memo(function ClassesListSection({
   const allClasses = useMemo(() => units.flatMap((unit) => unit.items), [units]);
   const totalClasses = allClasses.length;
 
-  const visibleUnits = useMemo(() => {
-    const normalizedSearch = unitSearch.trim().toLocaleLowerCase("pt-BR");
-    const filtered = normalizedSearch
-      ? units.filter((unit) => unit.label.toLocaleLowerCase("pt-BR").includes(normalizedSearch))
-      : units;
-    return [...filtered].sort((a, b) => {
-      const comparison = a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" });
-      return ascending ? comparison : -comparison;
-    });
-  }, [ascending, unitSearch, units]);
+  const sortedUnits = useMemo(
+    () => [...units].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" })),
+    [units]
+  );
 
   useEffect(() => {
     if (selectedUnitKey === ALL_UNITS_KEY) return;
@@ -104,8 +110,19 @@ export const ClassesListSection = memo(function ClassesListSection({
   const selectedUnit = units.find((unit) => unit.key === selectedUnitKey) ?? null;
   const selectedClasses = useMemo(() => {
     const items = selectedUnit?.items ?? allClasses;
-    if (!sortKey) return items;
-    return [...items].sort((a, b) => {
+    const normalizedSearch = classSearch.trim().toLocaleLowerCase("pt-BR");
+    const filteredItems = normalizedSearch
+      ? items.filter((item) =>
+          [
+            item.name,
+            item.unit,
+            item.ageBand,
+            classCardViewModelsById[item.id]?.teacher.name,
+          ].some((value) => value?.toLocaleLowerCase("pt-BR").includes(normalizedSearch))
+        )
+      : items;
+    if (!sortKey) return filteredItems;
+    return [...filteredItems].sort((a, b) => {
       let left = "", right = "";
       if (sortKey === "name") { left = a.name; right = b.name; }
       if (sortKey === "time") { left = a.startTime; right = b.startTime; }
@@ -115,7 +132,7 @@ export const ClassesListSection = memo(function ClassesListSection({
       const result = left.localeCompare(right, "pt-BR", { numeric: true, sensitivity: "base" });
       return tableAscending ? result : -result;
     });
-  }, [allClasses, classCardViewModelsById, selectedUnit?.items, sortKey, tableAscending]);
+  }, [allClasses, classCardViewModelsById, classSearch, selectedUnit?.items, sortKey, tableAscending]);
   const selectSort = useCallback((key: Exclude<typeof sortKey, null>) => {
     if (sortKey === key) {
       setSortKey(null);
@@ -142,125 +159,20 @@ export const ClassesListSection = memo(function ClassesListSection({
 
   const chooseUnit = useCallback((key: string) => {
     setSelectedUnitKey(key);
-    setUnitDrawerOpen(false);
+    setUnitDropdownOpen(false);
     setOpenActionMenuId(null);
   }, []);
 
-  const renderUnitRow = useCallback(
-    ({ item }: { item: { key: string; label: string; items: ClassGroup[] } }) => {
-      const active = item.key === selectedUnitKey;
-      return (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Ver turmas de ${item.label}`}
-          onPress={() => chooseUnit(item.key)}
-          style={(state) => [
-            styles.unitRow,
-            {
-              backgroundColor:
-                active || state.hovered ? colors.backgroundSubtle ?? colors.secondaryBg : "transparent",
-              borderLeftColor: active ? colors.primaryBg : "transparent",
-            },
-          ]}
-        >
-          <GoAtletaIcon
-            name="organization"
-            size={15}
-            color={active ? colors.textPrimary ?? colors.text : colors.textMuted ?? colors.muted}
-          />
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.unitName,
-              { color: active ? colors.textPrimary ?? colors.text : colors.textMuted ?? colors.muted },
-            ]}
-          >
-            {item.label}
-          </Text>
-          <Text style={[styles.unitCount, { color: colors.textMuted ?? colors.muted }]}>{item.items.length}</Text>
-        </Pressable>
-      );
-    },
-    [chooseUnit, colors, selectedUnitKey]
-  );
-
-  const unitPicker = (
-    <View style={styles.unitPickerContent}>
-      <View style={styles.unitSearchRow}>
-        <View
-          style={[
-            styles.unitSearchField,
-            {
-              backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-              borderColor: colors.borderSubtle ?? colors.border,
-            },
-          ]}
-        >
-          <GoAtletaIcon name="search" size={15} color={colors.textMuted ?? colors.muted} />
-          <TextInput
-            value={unitSearch}
-            onChangeText={setUnitSearch}
-            placeholder="Buscar unidade"
-            placeholderTextColor={colors.placeholder}
-            accessibilityLabel="Buscar unidade"
-            style={[styles.unitSearchInput, { color: colors.textPrimary ?? colors.text }]}
-          />
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={ascending ? "Ordenar unidades de Z a A" : "Ordenar unidades de A a Z"}
-          onPress={() => setAscending((current) => !current)}
-          style={(state) => [
-            styles.sortButton,
-            {
-              backgroundColor: state.hovered ? colors.secondaryBg : colors.backgroundSubtle ?? colors.secondaryBg,
-              borderColor: colors.borderSubtle ?? colors.border,
-            },
-          ]}
-        >
-          <Text style={[styles.sortButtonText, { color: colors.textMuted ?? colors.muted }]}>
-            {ascending ? "A–Z" : "Z–A"}
-          </Text>
-          <GoAtletaIcon name="swapVertical" size={13} color={colors.textMuted ?? colors.muted} />
-        </Pressable>
-      </View>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Ver turmas de todas as unidades"
-        onPress={() => chooseUnit(ALL_UNITS_KEY)}
-        style={(state) => [
-          styles.unitRow,
-          {
-            backgroundColor:
-              selectedUnitKey === ALL_UNITS_KEY || state.hovered
-                ? colors.backgroundSubtle ?? colors.secondaryBg
-                : "transparent",
-            borderLeftColor: selectedUnitKey === ALL_UNITS_KEY ? colors.primaryBg : "transparent",
-          },
-        ]}
-      >
-        <GoAtletaIcon name="classes" size={15} color={colors.textMuted ?? colors.muted} />
-        <Text numberOfLines={1} style={[styles.unitName, { color: colors.textPrimary ?? colors.text }]}>
-          Todas as unidades
-        </Text>
-        <Text style={[styles.unitCount, { color: colors.textMuted ?? colors.muted }]}>{totalClasses}</Text>
-      </Pressable>
-
-      <FlatList
-        data={visibleUnits}
-        keyExtractor={(item) => item.key}
-        renderItem={renderUnitRow}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator
-        style={styles.unitListDesktop}
-        contentContainerStyle={styles.unitListContent}
-      />
-      <Text style={[styles.unitFooter, { color: colors.textMuted ?? colors.muted }]}>
-        {units.length} unidade{units.length === 1 ? "" : "s"}
-      </Text>
-    </View>
-  );
+  const toggleUnitDropdown = useCallback(() => {
+    if (unitDropdownOpen) {
+      setUnitDropdownOpen(false);
+      return;
+    }
+    unitTriggerRef.current?.measureInWindow((x, y, width, height) => {
+      setUnitDropdownLayout({ x, y, width, height });
+      setUnitDropdownOpen(true);
+    });
+  }, [unitDropdownOpen]);
 
   const renderClass = useCallback(
     ({ item }: { item: ClassGroup }) => (
@@ -323,57 +235,84 @@ export const ClassesListSection = memo(function ClassesListSection({
       style={[styles.root, { backgroundColor: colors.background }, style]}
     >
       <View style={[styles.classesPanel, { backgroundColor: colors.background }]}>
-        <View style={[styles.classesHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Filtrar turmas por unidade"
-            onPress={() => setUnitDrawerOpen((current) => !current)}
-            style={(state) => [
-              styles.unitFilterTrigger,
+        <View
+          style={[
+            styles.classesHeader,
+            { borderBottomColor: colors.borderSubtle ?? colors.border },
+          ]}
+        >
+          <View
+            ref={unitTriggerRef}
+            collapsable={false}
+            style={[
+              styles.unitSelectAnchor,
+              compactControls ? styles.unitSelectAnchorCompact : null,
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Selecionar unidade. Atual: ${selectedTitle}`}
+              onPress={toggleUnitDropdown}
+              style={(state) => [
+                styles.unitSelectTrigger,
+                {
+                  backgroundColor:
+                    state.hovered || unitDropdownOpen
+                      ? colors.secondaryBg
+                      : colors.backgroundSubtle ?? colors.secondaryBg,
+                  borderColor:
+                    unitDropdownOpen ? colors.primaryBg : colors.borderSubtle ?? colors.border,
+                },
+              ]}
+            >
+              <GoAtletaIcon name="organization" size={16} color={colors.primaryBg} />
+              <Text
+                numberOfLines={1}
+                style={[styles.unitSelectText, { color: colors.textPrimary ?? colors.text }]}
+              >
+                {selectedTitle}
+              </Text>
+              <Text style={[styles.unitSelectCount, { color: colors.textMuted ?? colors.muted }]}>
+                {selectedUnit?.items.length ?? totalClasses}
+              </Text>
+              <GoAtletaIcon
+                name={unitDropdownOpen ? "chevronUp" : "chevronDown"}
+                size={14}
+                color={colors.textMuted ?? colors.muted}
+              />
+            </Pressable>
+          </View>
+
+          <View
+            style={[
+              styles.classSearchField,
               {
-                backgroundColor: state.hovered || unitDrawerOpen
-                  ? colors.backgroundSubtle ?? colors.secondaryBg
-                  : "transparent",
+                backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
+                borderColor: colors.borderSubtle ?? colors.border,
               },
             ]}
           >
-            <View
-              style={[
-                styles.selectedUnitIcon,
-                { backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg },
-              ]}
-            >
-              <GoAtletaIcon name="organization" size={17} color={colors.primaryBg} />
-            </View>
-            <View style={styles.selectedUnitHeading}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 }}>
-                <Text numberOfLines={1} style={[styles.selectedUnitTitle, { color: colors.textPrimary ?? colors.text }]}>
-                  {selectedTitle}
-                </Text>
-                <View
-                  style={[
-                    styles.unitBadgePill,
-                    {
-                      backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-                      borderColor: colors.borderSubtle ?? colors.border,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.unitBadgeText, { color: colors.textMuted ?? colors.muted }]}>
-                    {availableWidth < 420 ? "Filtrar" : "Filtrar unidades"}
-                  </Text>
-                  <GoAtletaIcon
-                    name={unitDrawerOpen ? "chevronUp" : "chevronDown"}
-                    size={12}
-                    color={colors.textMuted ?? colors.muted}
-                  />
-                </View>
-              </View>
-              <Text style={[styles.selectedUnitCount, { color: colors.textMuted ?? colors.muted }]}>
-                {selectedClasses.length} turma{selectedClasses.length === 1 ? "" : "s"}
-              </Text>
-            </View>
-          </Pressable>
+            <GoAtletaIcon name="search" size={16} color={colors.textMuted ?? colors.muted} />
+            <TextInput
+              value={classSearch}
+              onChangeText={setClassSearch}
+              placeholder="Buscar turma"
+              placeholderTextColor={colors.placeholder}
+              accessibilityLabel="Buscar turma"
+              style={[styles.classSearchInput, { color: colors.textPrimary ?? colors.text }]}
+            />
+            {classSearch ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Limpar busca"
+                onPress={() => setClassSearch("")}
+                suppressWebHoverFeedback
+                style={styles.clearSearchButton}
+              >
+                <GoAtletaIcon name="close" size={14} color={colors.textMuted ?? colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {showTable ? (
@@ -401,6 +340,13 @@ export const ClassesListSection = memo(function ClassesListSection({
             !showTable ? styles.mobileClassListContent : null,
             contentContainerStyle,
           ]}
+          ListEmptyComponent={
+            <View style={styles.filteredEmptyState}>
+              <Text style={{ color: colors.textMuted ?? colors.muted, fontSize: 13 }}>
+                Nenhuma turma corresponde aos filtros.
+              </Text>
+            </View>
+          }
           onScrollBeginDrag={() => {
             closeActionMenu();
             onScrollBeginDrag?.();
@@ -419,47 +365,79 @@ export const ClassesListSection = memo(function ClassesListSection({
         />
       </View>
 
-      {unitDrawerOpen ? (
-        <>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Fechar gaveta de unidades"
-            onPress={() => setUnitDrawerOpen(false)}
-            suppressWebHoverFeedback
-            disableWebPressScale
-            style={styles.unitDrawerBackdrop}
-          />
-          <View
-            style={[
-              styles.unitDrawer,
-              {
-                backgroundColor: colors.background,
-                borderRightColor: colors.borderSubtle ?? colors.border,
-              },
-            ]}
-          >
-            <View style={[styles.unitDrawerHeader, { borderBottomColor: colors.borderSubtle ?? colors.border }]}>
-              <Text style={[styles.unitPaneTitle, { color: colors.textPrimary ?? colors.text, marginBottom: 0 }]}>
-                Unidades
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Fechar seleção de unidades"
-                onPress={() => setUnitDrawerOpen(false)}
-                style={(state) => [
-                  styles.unitDrawerCloseButton,
-                  {
-                    backgroundColor: state.hovered ? colors.secondaryBg : "transparent",
-                  },
-                ]}
-              >
-                <GoAtletaIcon name="close" size={18} color={colors.textMuted ?? colors.muted} />
-              </Pressable>
-            </View>
-            {unitPicker}
+      <AnchoredDropdown
+        visible={unitDropdownVisible}
+        layout={unitDropdownLayout}
+        container={null}
+        animationStyle={unitDropdownAnimationStyle}
+        zIndex={12500}
+        maxHeight={Math.min(220, (sortedUnits.length + 1) * 42 + 12)}
+        nestedScrollEnabled
+        onRequestClose={() => setUnitDropdownOpen(false)}
+        interactiveRefs={[unitTriggerRef]}
+        density="compact"
+        showVerticalScrollIndicator={sortedUnits.length > 4}
+      >
+        <AnchoredDropdownOption
+          active={selectedUnitKey === ALL_UNITS_KEY}
+          density="compact"
+          onPress={() => chooseUnit(ALL_UNITS_KEY)}
+        >
+          <View style={styles.dropdownOptionContent}>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.dropdownOptionText,
+                {
+                  color:
+                    selectedUnitKey === ALL_UNITS_KEY ? colors.primaryText : colors.textPrimary ?? colors.text,
+                },
+              ]}
+            >
+              Todas as unidades
+            </Text>
+            <Text
+              style={[
+                styles.dropdownOptionCount,
+                { color: selectedUnitKey === ALL_UNITS_KEY ? colors.primaryText : colors.textMuted ?? colors.muted },
+              ]}
+            >
+              {totalClasses}
+            </Text>
           </View>
-        </>
-      ) : null}
+        </AnchoredDropdownOption>
+        {sortedUnits.map((unit) => {
+          const active = unit.key === selectedUnitKey;
+          return (
+            <AnchoredDropdownOption
+              key={unit.key}
+              active={active}
+              density="compact"
+              onPress={() => chooseUnit(unit.key)}
+            >
+              <View style={styles.dropdownOptionContent}>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.dropdownOptionText,
+                    { color: active ? colors.primaryText : colors.textPrimary ?? colors.text },
+                  ]}
+                >
+                  {unit.label}
+                </Text>
+                <Text
+                  style={[
+                    styles.dropdownOptionCount,
+                    { color: active ? colors.primaryText : colors.textMuted ?? colors.muted },
+                  ]}
+                >
+                  {unit.items.length}
+                </Text>
+              </View>
+            </AnchoredDropdownOption>
+          );
+        })}
+      </AnchoredDropdown>
     </View>
   );
 });
@@ -471,193 +449,98 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     overflow: "hidden",
   },
-  unitPane: {
-    width: 256,
-    minWidth: 256,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    paddingTop: 14,
-  },
-  unitPaneTitle: {
-    fontSize: 15,
-    fontWeight: "900",
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  unitPickerContent: {
-    flex: 1,
-    minHeight: 0,
-  },
-  unitSearchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-  },
-  unitSearchField: {
-    height: 38,
-    flex: 1,
-    minWidth: 0,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.internal,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingHorizontal: 10,
-  },
-  unitSearchInput: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 12,
-    paddingVertical: Platform.OS === "web" ? 0 : 7,
-  },
-  sortButton: {
-    height: 38,
-    minWidth: 62,
-    paddingHorizontal: 9,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.internal,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
-  sortButtonText: {
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  unitListDesktop: {
-    flex: 1,
-    minHeight: 0,
-  },
-  unitListMobile: {
-    maxHeight: 260,
-  },
-  unitListContent: {
-    paddingBottom: 6,
-  },
-  unitRow: {
-    minHeight: 42,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 9,
-    paddingLeft: 13,
-    paddingRight: 14,
-    borderLeftWidth: 3,
-  },
-  unitName: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  unitCount: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  unitFooter: {
-    fontSize: 11,
-    fontWeight: "700",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  unitFilterTrigger: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: radius.internal,
-  },
-  unitBadgePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  unitBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  unitDrawerBackdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.52)",
-    zIndex: 12000,
-  },
-  unitDrawer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: 290,
-    zIndex: 12001,
-    borderRightWidth: 1,
-    paddingTop: 14,
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0px 16px 36px rgba(0, 0, 0, 0.45)" }
-      : {
-          shadowColor: "#000",
-          shadowOpacity: 0.35,
-          shadowRadius: 18,
-          shadowOffset: { width: 4, height: 0 },
-          elevation: 16,
-        }),
-  },
-  unitDrawerHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    marginBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  unitDrawerCloseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   classesPanel: {
     flex: 1,
     minWidth: 0,
     minHeight: 0,
   },
   classesHeader: {
-    minHeight: 56,
+    minHeight: 62,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  selectedUnitIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  selectedUnitHeading: {
-    flex: 1,
+  unitSelectAnchor: {
+    width: 264,
     minWidth: 0,
   },
-  selectedUnitTitle: {
-    fontSize: 14,
-    fontWeight: "900",
+  unitSelectAnchorCompact: {
+    width: "46%",
+    minWidth: 180,
+    maxWidth: 240,
+    flexShrink: 0,
   },
-  selectedUnitCount: {
-    marginTop: 1,
+  unitSelectTrigger: {
+    height: 42,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.internal,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  unitSelectText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  unitSelectCount: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  classSearchField: {
+    flex: 1,
+    minWidth: 0,
+    height: 42,
+    minHeight: 42,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.internal,
+    paddingLeft: 12,
+    paddingRight: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  classSearchInput: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    paddingVertical: Platform.OS === "web" ? 0 : 8,
+  },
+  clearSearchButton: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.full,
+  },
+  dropdownOptionContent: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  dropdownOptionText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  dropdownOptionCount: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  filteredEmptyState: {
+    minHeight: 160,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
   },
   tableHeader: {
     height: 42,

@@ -4,14 +4,30 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Platform } from "react-native";
 
 import { clearAiCache } from "../api/ai";
+import { updatePasswordWithAccessToken } from "../api/auth-password";
 import { verifySignupEmailCode } from "../api/email-verification";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
 import { clearSentryUser, setSentryUser } from "../observability/sentry";
 import { safeJsonParse } from "../utils/safe-json";
+import {
+  getProfileNameValidationError,
+  normalizeProfileName,
+} from "../core/profile-name";
+import {
+  SECURITY_CONTACT_EMAIL_METADATA_KEY,
+  getSecurityContactEmailValidationError,
+  normalizeSecurityContactEmail,
+} from "../core/account-security";
 import { canSafelyUnlinkProvider, type LinkedIdentity } from "./identity-linking";
+import { runWithFreshAuthToken } from "./auth-token-retry";
 import { buildOAuthAuthorizeUrl } from "./oauth-url";
 import type { AuthSession } from "./session";
-import { loadSession, saveSession } from "./session";
+import {
+  forceRefreshAccessToken,
+  getValidAccessToken,
+  loadSession,
+  saveSession,
+} from "./session";
 import { setDevProfilePreview } from "../dev/profile-preview";
 
 type AuthContextValue = {
@@ -31,6 +47,9 @@ type AuthContextValue = {
   verifySignupCode: (email: string, code: string) => Promise<AuthSession | null>;
   unlinkIdentityProvider: (provider: "google" | "facebook" | "apple") => Promise<void>;
   refreshUser: () => Promise<void>;
+  updateProfileName: (fullName: string) => Promise<void>;
+  updateSecurityContactEmail: (email: string) => Promise<void>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   resetPassword: (email: string, redirectTo: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -173,6 +192,41 @@ const fetchUser = async (accessToken: string) => {
   } | null>(text, null);
   if (!payload) return null;
   return payload.id ? payload : null;
+};
+
+const updateUserMetadata = async (
+  accessToken: string,
+  data: Record<string, unknown>
+): Promise<AuthSession["user"]> => {
+  const res = await fetch(SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user", {
+    method: "PUT",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ data }),
+  });
+  const text = await res.text();
+  const payload = safeJsonParse<(AuthSession["user"] & {
+    error?: string;
+    error_code?: string;
+    msg?: string;
+    message?: string;
+  }) | null>(text, null);
+  if (!res.ok) {
+    const detail =
+      payload?.msg ||
+      payload?.message ||
+      payload?.error ||
+      payload?.error_code ||
+      text;
+    throw new Error(detail || "Não foi possível atualizar o perfil.");
+  }
+  if (!payload?.id) {
+    throw new Error("O servidor não confirmou a atualização do perfil.");
+  }
+  return payload;
 };
 
 const deleteUserIdentity = async (accessToken: string, identityId: string) => {
@@ -440,6 +494,81 @@ export function AuthProvider({
     await saveSession(next, true);
   }, [session]);
 
+  const updateProfileName = useCallback(async (fullName: string) => {
+    if (!session) {
+      throw new Error("Sessão inválida. Faça login novamente.");
+    }
+    const validationError = getProfileNameValidationError(fullName);
+    if (validationError) throw new Error(validationError);
+    const normalizedName = normalizeProfileName(fullName);
+    const user = await runWithFreshAuthToken({
+      getValidToken: getValidAccessToken,
+      refreshToken: forceRefreshAccessToken,
+      request: (accessToken) =>
+        updateUserMetadata(accessToken, {
+          full_name: normalizedName,
+          name: normalizedName,
+        }),
+    });
+    const activeSession = (await loadSession()) ?? session;
+    const next: AuthSession = {
+      ...activeSession,
+      user,
+    };
+    setSession(next);
+    await saveSession(next, true);
+  }, [session]);
+
+  const updateSecurityContactEmail = useCallback(async (email: string) => {
+    if (!session) {
+      throw new Error("Sessão inválida. Faça login novamente.");
+    }
+    const validationError = getSecurityContactEmailValidationError(
+      email,
+      session.user.email,
+    );
+    if (validationError) throw new Error(validationError);
+    const normalizedEmail = normalizeSecurityContactEmail(email);
+    const user = await runWithFreshAuthToken({
+      getValidToken: getValidAccessToken,
+      refreshToken: forceRefreshAccessToken,
+      sessionExpiredMessage: "Sua sessão expirou. Entre novamente para salvar o e-mail.",
+      request: (accessToken) =>
+        updateUserMetadata(accessToken, {
+          // This is a user-managed contact only. Never trust it for authorization
+          // or password recovery without a separate verification flow.
+          [SECURITY_CONTACT_EMAIL_METADATA_KEY]: normalizedEmail || null,
+        }),
+    });
+    const activeSession = (await loadSession()) ?? session;
+    const next: AuthSession = {
+      ...activeSession,
+      user,
+    };
+    setSession(next);
+    await saveSession(next, true);
+  }, [session]);
+
+  const updatePassword = useCallback(async (
+    currentPassword: string,
+    newPassword: string,
+  ) => {
+    if (!session) {
+      throw new Error("Sessão inválida. Faça login novamente.");
+    }
+    await runWithFreshAuthToken({
+      getValidToken: getValidAccessToken,
+      refreshToken: forceRefreshAccessToken,
+      sessionExpiredMessage: "Sua sessão expirou. Entre novamente para alterar a senha.",
+      request: (accessToken) =>
+        updatePasswordWithAccessToken(
+          accessToken,
+          newPassword,
+          currentPassword || undefined,
+        ),
+    });
+  }, [session]);
+
   const resendSignupCode = useCallback(async (email: string, redirectPath?: string) => {
     const cleanEmail = (email ?? "").trim();
     if (!cleanEmail) {
@@ -563,6 +692,9 @@ export function AuthProvider({
       verifySignupCode,
       unlinkIdentityProvider,
       refreshUser,
+      updateProfileName,
+      updateSecurityContactEmail,
+      updatePassword,
       resetPassword,
       signOut,
     }),
@@ -579,6 +711,9 @@ export function AuthProvider({
       signOut,
       signUp,
       unlinkIdentityProvider,
+      updatePassword,
+      updateProfileName,
+      updateSecurityContactEmail,
       verifySignupCode,
     ]
   );
@@ -600,6 +735,9 @@ export const useAuth = () => {
       verifySignupCode: async () => null,
       unlinkIdentityProvider: async () => {},
       refreshUser: async () => {},
+      updateProfileName: async () => {},
+      updateSecurityContactEmail: async () => {},
+      updatePassword: async () => {},
       resetPassword: async () => {},
       consumeAuthUrl: async () => null,
       signOut: async () => {},

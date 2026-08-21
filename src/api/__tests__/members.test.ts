@@ -4,6 +4,7 @@ jest.mock("../rest", () => ({
 
 import {
   adminApplyMemberAccessChange,
+  adminListOrgMembers,
   adminListOrgMemberClassAssignments,
 } from "../members";
 import { supabaseRestPost } from "../rest";
@@ -118,5 +119,27 @@ describe("members api", () => {
       { p_org_id: "org-1" },
       "return=representation"
     );
+  });
+
+  it("does not expose an email username as the member display name", async () => {
+    mockSupabaseRestPost.mockResolvedValueOnce([
+      {
+        organization_id: "org-1",
+        user_id: "user-1",
+        role_level: 10,
+        created_at: "2026-08-21T00:00:00.000Z",
+        display_name: "brabinha123",
+        email: "brabinha123@gmail.com",
+        last_access_at: null,
+      },
+    ]);
+
+    await expect(adminListOrgMembers("org-1")).resolves.toEqual([
+      expect.objectContaining({
+        userId: "user-1",
+        displayName: "Nome não informado",
+        email: "brabinha123@gmail.com",
+      }),
+    ]);
   });
 });
