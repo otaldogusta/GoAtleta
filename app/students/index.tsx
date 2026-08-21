@@ -1259,6 +1259,16 @@ export default function StudentsScreen() {
     [studentPhotoAccessUrls],
   );
 
+  const editStudentPhotoDisplayUrl = useMemo(() => {
+    const formPhotoUrl = photoUrl?.trim() || null;
+    if (!operationalStudent) return formPhotoUrl;
+
+    const storedPhotoUrl = operationalStudent.photoUrl?.trim() || null;
+    if (formPhotoUrl !== storedPhotoUrl) return formPhotoUrl;
+
+    return resolveStudentPhotoUrl(operationalStudent);
+  }, [operationalStudent, photoUrl, resolveStudentPhotoUrl]);
+
   const openPhotoPreview = (student: Student) => {
     setPhotoPreview({
       studentId: student.id,
@@ -2184,7 +2194,7 @@ export default function StudentsScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Adicionar aluno"
-                  onPress={() => setStudentsTab("cadastro")}
+                  onPress={() => requestSwitchStudentsTab("cadastro")}
                   style={{
                     height: 40,
                     paddingHorizontal: windowWidth < 1040 ? 11 : 15,
@@ -2272,24 +2282,6 @@ export default function StudentsScreen() {
               />
             }
           >
-            <Suspense
-              fallback={
-                <View
-                  style={{
-                    gap: 12,
-                    paddingHorizontal: 16,
-                    paddingTop: 16,
-                    paddingBottom: 24,
-                  }}
-                >
-                  <ShimmerBlock
-                    style={{ height: 28, width: 160, borderRadius: 12 }}
-                  />
-                  <ShimmerBlock style={{ height: 140, borderRadius: 18 }} />
-                  <ShimmerBlock style={{ height: 260, borderRadius: 18 }} />
-                </View>
-              }
-            >
               {isCadastroTab && (
                 <ModalSheet
                   visible={isCadastroTab}
@@ -2354,7 +2346,19 @@ export default function StudentsScreen() {
                     contentContainerStyle={{ padding: 20, paddingBottom: 28 }}
                     keyboardShouldPersistTaps="handled"
                   >
-                    <StudentRegistrationTab
+                    <Suspense
+                      fallback={
+                        <View style={{ gap: 12 }}>
+                          <ShimmerBlock
+                            style={{ height: 120, borderRadius: 16 }}
+                          />
+                          <ShimmerBlock
+                            style={{ height: 220, borderRadius: 16 }}
+                          />
+                        </View>
+                      }
+                    >
+                      <StudentRegistrationTab
                       colors={colors}
                       selectFieldStyle={selectFieldStyle}
                       photoUrl={photoUrl}
@@ -2450,25 +2454,21 @@ export default function StudentsScreen() {
                       isFormDirty={isFormDirty}
                       doResetForm={doResetForm}
                       confirmDialog={confirmDialog}
-                    />
+                      />
+                    </Suspense>
                   </ScrollView>
                   <View
                     style={{
                       padding: 16,
                       borderTopWidth: 1,
-                      borderTopColor: colors.border,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
-                    }}
-                  >
-                    <Text style={{ color: colors.muted, fontSize: 11 }}>
-                      {isFormDirty
-                        ? "Alterações não salvas"
-                        : "Preencha os dados do aluno"}
-                    </Text>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
+    borderTopColor: colors.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 12,
+  }}
+>
+  <View style={{ flexDirection: "row", gap: 8 }}>
                       <Pressable
                         onPress={() => requestSwitchStudentsTab("alunos")}
                         style={{
@@ -2517,7 +2517,6 @@ export default function StudentsScreen() {
                 birthdayStudentIds={birthdayStudentIds}
                 loading={loading}
               />
-            </Suspense>
           </ScrollView>
 
           {false ? (
@@ -2735,6 +2734,7 @@ export default function StudentsScreen() {
           editModalRef={editModalRef}
           setEditContainerWindow={setEditContainerWindow}
           photoUrl={photoUrl}
+          photoDisplayUrl={editStudentPhotoDisplayUrl}
           setShowPhotoSheet={setShowPhotoSheet}
           pickStudentPhoto={pickStudentPhoto}
           openEditSection={openEditSection}
@@ -2893,74 +2893,140 @@ export default function StudentsScreen() {
           position="center"
           backdropOpacity={0.7}
         >
-          <View style={{ gap: 10 }}>
-            <Text
-              style={{ fontSize: 14, fontWeight: "700", color: colors.text }}
-            >
-              Foto do aluno
-            </Text>
-            <Pressable
-              onPress={() => pickStudentPhoto("camera")}
+          <View style={{ gap: 12 }}>
+            <View
               style={{
-                paddingVertical: 10,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
+                flexDirection: "row",
                 alignItems: "center",
+                justifyContent: "space-between",
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                Usar camera
+              <View style={{ width: 36, height: 36 }} />
+              <Text
+                style={{ fontSize: 15, fontWeight: "800", color: colors.text }}
+              >
+                Foto do aluno
               </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => pickStudentPhoto("library")}
-              style={{
-                paddingVertical: 10,
-                borderRadius: 12,
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                Escolher da galeria
-              </Text>
-            </Pressable>
-            {photoUrl ? (
               <Pressable
-                onPress={() => pickStudentPhoto("remove")}
+                accessibilityLabel="Fechar foto do aluno"
+                onPress={() => setShowPhotoSheet(false)}
                 style={{
-                  paddingVertical: 10,
-                  borderRadius: 12,
-                  backgroundColor: colors.dangerSolidBg,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: colors.secondaryBg,
+                  borderWidth: 1,
+                  borderColor: colors.border,
                   alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <Text
-                  style={{ color: colors.dangerSolidText, fontWeight: "700" }}
-                >
-                  Remover foto
-                </Text>
+                <GoAtletaIcon name="close" size={18} color={colors.text} />
               </Pressable>
-            ) : null}
-            <Pressable
-              onPress={() => setShowPhotoSheet(false)}
+            </View>
+            <View
               style={{
-                paddingVertical: 10,
-                borderRadius: 12,
-                backgroundColor: colors.card,
+                width: "100%",
+                aspectRatio: 1,
+                position: "relative",
+                overflow: "hidden",
+                borderRadius: 16,
+                backgroundColor: colors.secondaryBg,
                 borderWidth: 1,
                 borderColor: colors.border,
                 alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              <Text style={{ color: colors.text, fontWeight: "700" }}>
-                Cancelar
-              </Text>
-            </Pressable>
+              {(editingId
+                ? editStudentPhotoDisplayUrl
+                : photoUrl?.trim()) ? (
+                <Image
+                  source={{
+                    uri:
+                      (editingId
+                        ? editStudentPhotoDisplayUrl
+                        : photoUrl?.trim()) ?? undefined,
+                  }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
+              ) : (
+                <GoAtletaIcon
+                  name="personSolid"
+                  size={72}
+                  color={colors.muted}
+                />
+              )}
+              <View
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                }}
+              >
+                {(
+                  [
+                    {
+                      label: "Usar câmera",
+                      icon: "camera",
+                      source: "camera",
+                      danger: false,
+                    },
+                    {
+                      label: "Escolher da galeria",
+                      icon: "gallery",
+                      source: "library",
+                      danger: false,
+                    },
+                    ...(photoUrl
+                      ? ([
+                          {
+                            label: "Remover foto",
+                            icon: "trash",
+                            source: "remove",
+                            danger: true,
+                          },
+                        ] as const)
+                      : []),
+                  ] as const
+                ).map((action) => (
+                  <Pressable
+                    key={action.source}
+                    accessibilityLabel={action.label}
+                    onPress={() => pickStudentPhoto(action.source)}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: action.danger
+                        ? colors.dangerSolidBg
+                        : "rgba(7, 16, 31, 0.82)",
+                      borderWidth: 1,
+                      borderColor: action.danger
+                        ? colors.dangerSolidBg
+                        : "rgba(255,255,255,0.32)",
+                    }}
+                  >
+                    <GoAtletaIcon
+                      name={action.icon}
+                      size={20}
+                      color={
+                        action.danger ? colors.dangerSolidText : "#FFFFFF"
+                      }
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           </View>
         </ModalSheet>
         <WebCameraCaptureModal

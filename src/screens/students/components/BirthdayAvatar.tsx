@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 
 import type { ThemeColors } from "../../../ui/app-theme";
@@ -19,6 +20,12 @@ export function BirthdayAvatar({
 }: BirthdayAvatarProps) {
   const radius = size / 2;
   const hatSize = Math.round(size * 0.72);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const showPhoto = Boolean(photoUrl) && !photoFailed;
+
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [photoUrl]);
 
   return (
     <View
@@ -52,7 +59,7 @@ export function BirthdayAvatar({
         />
       ) : null}
 
-      {photoUrl ? (
+      {showPhoto ? (
         <Image
           source={{ uri: photoUrl }}
           style={{
@@ -63,6 +70,7 @@ export function BirthdayAvatar({
           }}
           contentFit="cover"
           cachePolicy="memory-disk"
+          onError={() => setPhotoFailed(true)}
         />
       ) : (
         <View

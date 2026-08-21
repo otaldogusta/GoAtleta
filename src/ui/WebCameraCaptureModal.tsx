@@ -305,9 +305,11 @@ function WebCameraCaptureContent({
             <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
               {title}
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {subtitle}
-            </Text>
+            {subtitle ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {subtitle}
+              </Text>
+            ) : null}
           </View>
           <Pressable
             accessibilityLabel="Fechar câmera"

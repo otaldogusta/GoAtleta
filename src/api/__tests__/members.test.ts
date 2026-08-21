@@ -121,7 +121,7 @@ describe("members api", () => {
     );
   });
 
-  it("does not expose an email username as the member display name", async () => {
+  it("uses the email username until the member sets a profile name", async () => {
     mockSupabaseRestPost.mockResolvedValueOnce([
       {
         organization_id: "org-1",
@@ -137,7 +137,7 @@ describe("members api", () => {
     await expect(adminListOrgMembers("org-1")).resolves.toEqual([
       expect.objectContaining({
         userId: "user-1",
-        displayName: "Nome não informado",
+        displayName: "brabinha123",
         email: "brabinha123@gmail.com",
       }),
     ]);

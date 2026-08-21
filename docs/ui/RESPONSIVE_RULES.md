@@ -62,11 +62,9 @@ painel de unidades e tabela sem comprimir colunas. Esses limites devem ter nomes
 de capacidade, como `UNIT_PANE_MIN_CONTENT_WIDTH` e
 `TABLE_LAYOUT_MIN_WIDTH`, nunca nomes de dispositivo.
 
-Na lista de alunos, tabela e painel de unidades são capacidades independentes:
-`STUDENT_TABLE_MIN_CONTENT_WIDTH` preserva a tabela a partir de `760 px`, enquanto
-`STUDENT_PERMANENT_UNIT_PANE_MIN_CONTENT_WIDTH` só fixa o painel a partir de
-`1200 px`. Entre esses limites, as unidades abrem em drawer sobre a tabela; abaixo
-do limite da tabela, abrem em sheet e os alunos usam o layout compacto.
+Na lista de alunos, `STUDENT_TABLE_MIN_CONTENT_WIDTH` preserva a tabela a partir
+de `760 px`. O filtro de unidade permanece um dropdown ancorado em todas as
+larguras; abaixo desse limite, os alunos usam o layout compacto.
 
 ## Shell e navegação
 

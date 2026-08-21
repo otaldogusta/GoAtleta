@@ -1,4 +1,3 @@
-import { Image } from "expo-image";
 import {
     type NamedExoticComponent,
     type RefObject,
@@ -38,6 +37,7 @@ import { StudentDocumentsFields } from "../components/StudentDocumentsFields";
 import { StudentMultiSelectOption } from "../components/StudentDropdownOptions";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
+import { BirthdayAvatar } from "../components/BirthdayAvatar";
 
 type CollapsibleAnim = {
     animatedStyle: any;
@@ -81,6 +81,7 @@ export type StudentEditModalProps = {
 
     // Photo
     photoUrl: string | null;
+    photoDisplayUrl: string | null;
     setShowPhotoSheet: (value: boolean) => void;
     pickStudentPhoto: (source: "camera" | "library" | "remove") => Promise<void>;
 
@@ -239,6 +240,7 @@ export function StudentEditModal({
     editModalRef,
     setEditContainerWindow,
     photoUrl,
+    photoDisplayUrl,
     setShowPhotoSheet,
     pickStudentPhoto,
     openEditSection,
@@ -520,15 +522,11 @@ export function StudentEditModal({
                                         overflow: "hidden",
                                     }}
                                 >
-                                    {photoUrl ? (
-                                        <Image
-                                            source={{ uri: photoUrl }}
-                                            style={{ width: "100%", height: "100%" }}
-                                            contentFit="cover"
-                                        />
-                                    ) : (
-                                        <GoAtletaIcon name="camera" size={24} color={colors.text} />
-                                    )}
+                                    <BirthdayAvatar
+                                        colors={colors}
+                                        photoUrl={photoDisplayUrl ?? undefined}
+                                        size={72}
+                                    />
                                 </Pressable>
                                 <View style={{ gap: 6 }}>
                                     <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>

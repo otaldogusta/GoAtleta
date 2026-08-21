@@ -1,5 +1,9 @@
 import { supabaseRestPost } from "./rest";
-import { resolveProfileDisplayName } from "../core/profile-name";
+import {
+  PROFILE_NAME_FALLBACK,
+  normalizeProfileName,
+  resolveProfileDisplayName,
+} from "../core/profile-name";
 
 export type OrgMember = {
   organizationId: string;
@@ -58,6 +62,11 @@ type MemberClassAssignmentRow = MemberClassHeadRow & {
   staff_role: MemberClassAssignment["staffRole"];
 };
 
+const getMemberEmailFallback = (email: unknown) => {
+  const localPart = normalizeProfileName(email).split("@")[0]?.trim();
+  return localPart || PROFILE_NAME_FALLBACK;
+};
+
 const mapMember = (row: OrgMemberRow): OrgMember => ({
   organizationId: row.organization_id,
   userId: row.user_id,
@@ -66,6 +75,7 @@ const mapMember = (row: OrgMemberRow): OrgMember => ({
   displayName: resolveProfileDisplayName({
     displayName: row.display_name,
     email: row.email,
+    fallback: getMemberEmailFallback(row.email),
   }),
   email: row.email ?? null,
   lastAccessAt: row.last_access_at ?? null,

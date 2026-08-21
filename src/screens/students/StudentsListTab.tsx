@@ -2,16 +2,16 @@ import {
   memo,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactElement,
 } from "react";
 import {
-  Animated,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -34,9 +34,14 @@ import { Pressable } from "../../ui/Pressable";
 import { useCollapsibleAnimation } from "../../ui/use-collapsible";
 import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
 import type { StudentListUnitGroup } from "./application/student-list-selectors";
-import { resolveStudentsListLayout } from "./application/students-list-layout";
+import {
+  resolveStudentsFilterModalHeight,
+  resolveStudentsListLayout,
+} from "./application/students-list-layout";
 import { BirthdayAvatar } from "./components/BirthdayAvatar";
 import { StudentsEmptyState } from "./components/StudentsEmptyState";
+import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 
 type RenderStudentItemArgs = {
   item: Student;
@@ -49,6 +54,8 @@ type FilterOption<T extends string> = {
   value: T;
   label: string;
 };
+
+type DropdownLayout = { x: number; y: number; width: number; height: number };
 
 export type StudentsListTabProps = {
   studentsUnitOptions: string[];
@@ -97,13 +104,16 @@ function StudentFilterToggle({
       style={(state) => ({
         width: compact ? "48%" : undefined,
         minWidth: 0,
-        minHeight: 40,
-        paddingHorizontal: compact ? 10 : 12,
-        borderWidth: StyleSheet.hairlineWidth,
+        minHeight: compact ? 34 : 40,
+        paddingHorizontal: compact ? 2 : 12,
+        borderWidth: compact ? 0 : StyleSheet.hairlineWidth,
         borderColor: selected ? colors.primaryBg : colors.borderSubtle ?? colors.border,
-        borderRadius: radius.internal,
-        backgroundColor:
-          selected || state.hovered
+        borderRadius: compact ? 8 : radius.internal,
+        backgroundColor: compact
+          ? state.hovered
+            ? colors.backgroundSubtle ?? colors.secondaryBg
+            : "transparent"
+          : selected || state.hovered
             ? colors.backgroundSubtle ?? colors.secondaryBg
             : colors.background,
         flexDirection: "row",
@@ -204,236 +214,6 @@ const contactFilterOptions: FilterOption<StudentContactFilter>[] = [
   { value: "without", label: "Sem contato" },
 ];
 
-type StudentsUnitPickerProps = {
-  visibleUnits: string[];
-  selectedUnit: string;
-  unitCounts: Record<string, number>;
-  unitSearch: string;
-  unitAscending: boolean;
-  unitCount: number;
-  onUnitSearchChange: (value: string) => void;
-  onToggleSort: () => void;
-  onSelectUnit: (unit: string) => void;
-  showTitle?: boolean;
-  showClose?: boolean;
-  onClose?: () => void;
-};
-
-function StudentsUnitPicker({
-  visibleUnits,
-  selectedUnit,
-  unitCounts,
-  unitSearch,
-  unitAscending,
-  unitCount,
-  onUnitSearchChange,
-  onToggleSort,
-  onSelectUnit,
-  showTitle = true,
-  showClose = false,
-  onClose,
-}: StudentsUnitPickerProps) {
-  const { colors } = useAppTheme();
-
-  return (
-    <View style={{ flex: 1, minHeight: 0 }}>
-      {showTitle ? (
-        <View
-          style={{
-            minHeight: 44,
-            paddingHorizontal: 16,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
-          <Text
-            style={{
-              color: colors.textPrimary ?? colors.text,
-              fontSize: 15,
-              fontWeight: "900",
-            }}
-          >
-            Unidades
-          </Text>
-          {showClose ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Fechar unidades"
-              onPress={onClose}
-              style={(state) => ({
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: state.hovered
-                  ? (colors.backgroundSubtle ?? colors.secondaryBg)
-                  : "transparent",
-              })}
-            >
-              <GoAtletaIcon name="close" size={16} color={colors.textMuted ?? colors.muted} />
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
-
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          paddingHorizontal: 12,
-          marginBottom: 8,
-        }}
-      >
-        <View
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: 38,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: colors.borderSubtle ?? colors.border,
-            borderRadius: radius.internal,
-            backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-            paddingHorizontal: 10,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 7,
-          }}
-        >
-          <GoAtletaIcon name="search" size={15} color={colors.muted} />
-          <TextInput
-            value={unitSearch}
-            onChangeText={onUnitSearchChange}
-            placeholder="Buscar unidade"
-            placeholderTextColor={colors.placeholder}
-            accessibilityLabel="Buscar unidade"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              color: colors.textPrimary ?? colors.text,
-              fontSize: 12,
-            }}
-          />
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            unitAscending ? "Ordenar unidades de Z a A" : "Ordenar unidades de A a Z"
-          }
-          onPress={onToggleSort}
-          style={{
-            minWidth: 62,
-            height: 38,
-            paddingHorizontal: 9,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: colors.borderSubtle ?? colors.border,
-            borderRadius: radius.internal,
-            backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "row",
-            gap: 5,
-          }}
-        >
-          <Text
-            style={{
-              color: colors.textMuted ?? colors.muted,
-              fontSize: 11,
-              fontWeight: "800",
-            }}
-          >
-            {unitAscending ? "A–Z" : "Z–A"}
-          </Text>
-          <GoAtletaIcon name="swapVertical" size={13} color={colors.muted} />
-        </Pressable>
-      </View>
-
-      <ScrollView
-        style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={{ paddingBottom: 4 }}
-        keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled
-        showsVerticalScrollIndicator={false}
-      >
-        {visibleUnits.map((unit) => {
-          const active = selectedUnit === unit;
-          return (
-            <Pressable
-              key={unit}
-              accessibilityRole="button"
-              accessibilityLabel={`Ver alunos de ${
-                unit === "Todas" ? "todas as unidades" : unit
-              }`}
-              onPress={() => onSelectUnit(unit)}
-              style={(state) => ({
-                minHeight: 42,
-                paddingLeft: 13,
-                paddingRight: 14,
-                borderLeftWidth: 3,
-                borderLeftColor: active ? colors.primaryBg : "transparent",
-                backgroundColor:
-                  active || state.hovered
-                    ? (colors.backgroundSubtle ?? colors.secondaryBg)
-                    : "transparent",
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 9,
-              })}
-            >
-              <GoAtletaIcon
-                name={unit === "Todas" ? "classes" : "organization"}
-                size={15}
-                color={
-                  active
-                    ? (colors.textPrimary ?? colors.text)
-                    : (colors.textMuted ?? colors.muted)
-                }
-              />
-              <Text
-                numberOfLines={1}
-                style={{
-                  flex: 1,
-                  color: active
-                    ? (colors.textPrimary ?? colors.text)
-                    : (colors.textMuted ?? colors.muted),
-                  fontSize: 12,
-                  fontWeight: "700",
-                }}
-              >
-                {unit === "Todas" ? "Todas as unidades" : unit}
-              </Text>
-              <Text
-                style={{
-                  color: colors.textMuted ?? colors.muted,
-                  fontSize: 11,
-                  fontWeight: "700",
-                }}
-              >
-                {unitCounts[unit] ?? 0}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <Text
-        style={{
-          color: colors.textMuted ?? colors.muted,
-          fontSize: 11,
-          fontWeight: "700",
-          paddingHorizontal: 16,
-          paddingVertical: 10,
-        }}
-      >
-        {unitCount} unidade{unitCount === 1 ? "" : "s"}
-      </Text>
-    </View>
-  );
-}
-
 export const StudentsListTab = memo(function StudentsListTab({
   studentsUnitOptions,
   studentsUnitFilter,
@@ -453,17 +233,21 @@ export const StudentsListTab = memo(function StudentsListTab({
   loading = false,
 }: StudentsListTabProps) {
   const { colors } = useAppTheme();
+  const { height: viewportHeight } = useWindowDimensions();
   const { containerRef, onLayout, width } =
     useContainerResponsiveLayout("dashboard");
-  const { showTable, unitPaneMode } = resolveStudentsListLayout(width);
+  const { showTable } = resolveStudentsListLayout(width);
   const compactFilters = !showTable;
-  const hasPermanentUnitPane = unitPaneMode === "permanent";
-  const usesUnitDrawer = unitPaneMode === "drawer";
-  const [unitSearch, setUnitSearch] = useState("");
-  const [unitAscending, setUnitAscending] = useState(true);
-  const [unitPaneOpen, setUnitPaneOpen] = useState(false);
-  const { animatedStyle: unitDrawerAnimatedStyle, isVisible: isUnitDrawerVisible } =
-    useCollapsibleAnimation(unitPaneOpen && usesUnitDrawer, {
+  const filtersModalHeight = resolveStudentsFilterModalHeight(
+    viewportHeight,
+    compactFilters,
+  );
+  const unitTriggerRef = useRef<View | null>(null);
+  const [unitDropdownOpen, setUnitDropdownOpen] = useState(false);
+  const [unitDropdownLayout, setUnitDropdownLayout] =
+    useState<DropdownLayout | null>(null);
+  const { animatedStyle: unitDropdownAnimationStyle, isVisible: unitDropdownVisible } =
+    useCollapsibleAnimation(unitDropdownOpen, {
       durationIn: 180,
       durationOut: 140,
       translateY: -4,
@@ -499,22 +283,14 @@ export const StudentsListTab = memo(function StudentsListTab({
     return counts;
   }, [classById, students, studentsUnitOptions, unitLabel]);
 
-  const visibleUnits = useMemo(() => {
-    const query = unitSearch.trim().toLocaleLowerCase("pt-BR");
-    const filtered = studentsUnitOptions.filter((unit) =>
-      (unit === "Todas" ? "Todas as unidades" : unit)
-        .toLocaleLowerCase("pt-BR")
-        .includes(query),
-    );
-    const namedUnits = filtered
+  const sortedUnits = useMemo(() => {
+    const namedUnits = studentsUnitOptions
       .filter((unit) => unit !== "Todas")
-      .sort((a, b) =>
-        unitAscending
-          ? a.localeCompare(b, "pt-BR")
-          : b.localeCompare(a, "pt-BR"),
-      );
-    return filtered.includes("Todas") ? ["Todas", ...namedUnits] : namedUnits;
-  }, [studentsUnitOptions, unitAscending, unitSearch]);
+      .sort((a, b) => a.localeCompare(b, "pt-BR"));
+    return studentsUnitOptions.includes("Todas")
+      ? ["Todas", ...namedUnits]
+      : namedUnits;
+  }, [studentsUnitOptions]);
 
   const classOptions = useMemo<FilterOption<string>[]>(() => {
     const ids = new Set(studentsFiltered.map((student) => student.classId));
@@ -584,30 +360,6 @@ export const StudentsListTab = memo(function StudentsListTab({
     }));
   }, [classOptions]);
 
-  useEffect(() => {
-    if (hasPermanentUnitPane) setUnitPaneOpen(false);
-  }, [hasPermanentUnitPane]);
-
-  useEffect(() => {
-    if (
-      Platform.OS !== "web" ||
-      typeof document === "undefined" ||
-      !unitPaneOpen ||
-      !usesUnitDrawer
-    ) {
-      return undefined;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setUnitPaneOpen(false);
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [unitPaneOpen, usesUnitDrawer]);
-
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageRows = filteredRows.slice(
@@ -636,24 +388,19 @@ export const StudentsListTab = memo(function StudentsListTab({
 
   const selectUnit = (unit: string) => {
     setStudentsUnitFilter(unit);
-    setUnitPaneOpen(false);
+    setUnitDropdownOpen(false);
   };
 
-  const unitPicker = (
-    <StudentsUnitPicker
-      visibleUnits={visibleUnits}
-      selectedUnit={studentsUnitFilter}
-      unitCounts={unitCounts}
-      unitSearch={unitSearch}
-      unitAscending={unitAscending}
-      unitCount={studentsUnitOptions.filter((unit) => unit !== "Todas").length}
-      onUnitSearchChange={setUnitSearch}
-      onToggleSort={() => setUnitAscending((current) => !current)}
-      onSelectUnit={selectUnit}
-      showClose={!hasPermanentUnitPane}
-      onClose={() => setUnitPaneOpen(false)}
-    />
-  );
+  const toggleUnitDropdown = () => {
+    if (unitDropdownOpen) {
+      setUnitDropdownOpen(false);
+      return;
+    }
+    unitTriggerRef.current?.measureInWindow((x, y, measuredWidth, height) => {
+      setUnitDropdownLayout({ x, y, width: measuredWidth, height });
+      setUnitDropdownOpen(true);
+    });
+  };
 
   return (
     <View
@@ -668,22 +415,6 @@ export const StudentsListTab = memo(function StudentsListTab({
         position: "relative",
       }}
     >
-      {hasPermanentUnitPane ? (
-        <View
-          style={{
-            width: 256,
-            minWidth: 256,
-            borderRightWidth: StyleSheet.hairlineWidth,
-            borderRightColor: colors.borderSubtle ?? colors.border,
-            paddingTop: 6,
-            minHeight: 0,
-            backgroundColor: colors.background,
-          }}
-        >
-          {unitPicker}
-        </View>
-      ) : null}
-
       <View
         style={{
           flex: 1,
@@ -693,62 +424,6 @@ export const StudentsListTab = memo(function StudentsListTab({
           backgroundColor: colors.background,
         }}
       >
-        {hasPermanentUnitPane ? (
-          <View
-            style={{
-              minHeight: 86,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-              paddingHorizontal: 18,
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: colors.borderSubtle ?? colors.border,
-            }}
-          >
-            <View
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 999,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.backgroundSubtle ?? colors.secondaryBg,
-              }}
-            >
-              <GoAtletaIcon
-                name="organization"
-                size={20}
-                color={colors.textMuted ?? colors.muted}
-              />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text
-                numberOfLines={1}
-                style={{
-                  color: colors.textPrimary ?? colors.text,
-                  fontSize: 17,
-                  fontWeight: "900",
-                }}
-              >
-                {studentsUnitFilter === "Todas"
-                  ? "Todas as unidades"
-                  : studentsUnitFilter}
-              </Text>
-              <Text
-                style={{
-                  color: colors.textMuted ?? colors.muted,
-                  marginTop: 3,
-                  fontSize: 12,
-                  fontWeight: "600",
-                }}
-              >
-                {filteredRows.length} aluno
-                {filteredRows.length === 1 ? "" : "s"}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
         <View
           style={{
             gap: 8,
@@ -759,28 +434,34 @@ export const StudentsListTab = memo(function StudentsListTab({
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            {!hasPermanentUnitPane ? (
+            <View
+              ref={unitTriggerRef}
+              collapsable={false}
+              style={{
+                width: width < 520 ? "46%" : 264,
+                minWidth: width < 520 ? 180 : 220,
+                maxWidth: width < 520 ? 240 : 264,
+                flexShrink: 0,
+              }}
+            >
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Selecionar unidade. Atual: ${
                   studentsUnitFilter === "Todas" ? "Todas as unidades" : studentsUnitFilter
                 }`}
-                accessibilityState={{ expanded: unitPaneOpen }}
-                onPress={() => setUnitPaneOpen((current) => !current)}
+                accessibilityState={{ expanded: unitDropdownOpen }}
+                onPress={toggleUnitDropdown}
                 style={(state) => ({
-                  width: width < 520 ? "46%" : 264,
-                  minWidth: width < 520 ? 180 : 220,
-                  maxWidth: width < 520 ? 240 : 264,
+                  width: "100%",
                   height: 42,
-                  flexShrink: 0,
                   paddingHorizontal: 12,
                   borderWidth: StyleSheet.hairlineWidth,
-                  borderColor: unitPaneOpen
+                  borderColor: unitDropdownOpen
                     ? colors.primaryBg
                     : (colors.borderSubtle ?? colors.border),
                   borderRadius: radius.internal,
                   backgroundColor:
-                    state.hovered || unitPaneOpen
+                    state.hovered || unitDropdownOpen
                       ? colors.secondaryBg
                       : (colors.backgroundSubtle ?? colors.secondaryBg),
                   flexDirection: "row",
@@ -813,12 +494,12 @@ export const StudentsListTab = memo(function StudentsListTab({
                   {unitCounts[studentsUnitFilter] ?? 0}
                 </Text>
                 <GoAtletaIcon
-                  name={unitPaneOpen ? "chevronUp" : "chevronDown"}
+                  name={unitDropdownOpen ? "chevronUp" : "chevronDown"}
                   size={14}
                   color={colors.textMuted ?? colors.muted}
                 />
               </Pressable>
-            ) : null}
+            </View>
 
             <Pressable
               accessibilityRole="button"
@@ -1364,8 +1045,11 @@ export const StudentsListTab = memo(function StudentsListTab({
         cardStyle={{
           width: "100%",
           maxWidth: 660,
-          height: compactFilters ? "82%" : 640,
-          maxHeight: "88%",
+          height: filtersModalHeight,
+          maxHeight: filtersModalHeight,
+          padding: 0,
+          paddingBottom: 0,
+          gap: 0,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: colors.borderSubtle ?? colors.border,
           borderRadius: 22,
@@ -1539,65 +1223,74 @@ export const StudentsListTab = memo(function StudentsListTab({
         </View>
       </ModalSheet>
 
-      {isUnitDrawerVisible ? (
-        <>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Fechar unidades"
-            suppressWebHoverFeedback
-            onPress={() => setUnitPaneOpen(false)}
-            style={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-              zIndex: 50,
-              backgroundColor: "rgba(2, 8, 23, 0.32)",
-            }}
-          />
-          <Animated.View
-            accessibilityViewIsModal
-            style={[
-              {
-                position: "absolute",
-                top: 0,
-                bottom: 0,
-                left: 0,
-                width: 280,
-                maxWidth: "86%",
-                zIndex: 51,
-                elevation: 12,
-                paddingTop: 6,
-                borderRightWidth: StyleSheet.hairlineWidth,
-                borderRightColor: colors.borderSubtle ?? colors.border,
-                backgroundColor: colors.background,
-              },
-              unitDrawerAnimatedStyle,
-            ]}
-          >
-            {unitPicker}
-          </Animated.View>
-        </>
-      ) : null}
-
-      <ModalSheet
-        visible={unitPaneOpen && unitPaneMode === "sheet"}
-        onClose={() => setUnitPaneOpen(false)}
-        position="bottom"
-        backdropOpacity={0.62}
-        cardStyle={{
-          width: "100%",
-          height: 460,
-          maxHeight: "72%",
-          borderTopLeftRadius: 22,
-          borderTopRightRadius: 22,
-          backgroundColor: colors.background,
-          overflow: "hidden",
-        }}
+      <AnchoredDropdown
+        visible={unitDropdownVisible}
+        layout={unitDropdownLayout}
+        container={null}
+        animationStyle={unitDropdownAnimationStyle}
+        zIndex={12500}
+        maxHeight={Math.min(220, sortedUnits.length * 42 + 12)}
+        nestedScrollEnabled
+        onRequestClose={() => setUnitDropdownOpen(false)}
+        interactiveRefs={[unitTriggerRef]}
+        density="compact"
+        showVerticalScrollIndicator={sortedUnits.length > 4}
       >
-        {unitPicker}
-      </ModalSheet>
+        {sortedUnits.map((unit) => {
+          const active = studentsUnitFilter === unit;
+          return (
+            <AnchoredDropdownOption
+              key={unit}
+              active={active}
+              density="compact"
+              onPress={() => selectUnit(unit)}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <GoAtletaIcon
+                  name={unit === "Todas" ? "classes" : "organization"}
+                  size={15}
+                  color={
+                    active
+                      ? colors.primaryText
+                      : (colors.textMuted ?? colors.muted)
+                  }
+                />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    color: active
+                      ? colors.primaryText
+                      : (colors.textPrimary ?? colors.text),
+                    fontSize: 12,
+                    fontWeight: "800",
+                  }}
+                >
+                  {unit === "Todas" ? "Todas as unidades" : unit}
+                </Text>
+                <Text
+                  style={{
+                    color: active
+                      ? colors.primaryText
+                      : (colors.textMuted ?? colors.muted),
+                    fontSize: 11,
+                    fontWeight: "700",
+                  }}
+                >
+                  {unitCounts[unit] ?? 0}
+                </Text>
+              </View>
+            </AnchoredDropdownOption>
+          );
+        })}
+      </AnchoredDropdown>
     </View>
   );
 });

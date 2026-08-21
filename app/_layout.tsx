@@ -24,6 +24,7 @@ import { Pressable } from "../src/ui/Pressable";
 
 import * as Sentry from '@sentry/react-native';
 import { AuthProvider, useAuth } from "../src/auth/auth";
+import { FirstAccessProfileGate } from "../src/auth/FirstAccessProfileGate";
 import {
     getPendingInvite,
     getPendingTrainerInvite,
@@ -70,6 +71,7 @@ import { RootWebShell } from "../src/ui/RootWebShell";
 import { SaveToastProvider } from "../src/ui/save-toast";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 import { ptBR } from "../src/constants/copy/pt-br";
+import { requiresFirstAccessProfile } from "../src/core/profile-name";
 
 const enableSentryPii = __DEV__;
 const enableSentryLogs = __DEV__;
@@ -301,6 +303,16 @@ function RootLayoutContent() {
       (prefix) =>
         normalizedPathname === prefix || normalizedPathname.startsWith(`${prefix}/`)
     );
+  const shouldShowFirstAccessProfile =
+    Boolean(session) &&
+    (role === "trainer" || role === "student") &&
+    !isPublicRoute &&
+    !isInviteRoute &&
+    normalizedPathname !== "/pending" &&
+    requiresFirstAccessProfile({
+      metadata: session?.user?.user_metadata,
+      email: session?.user?.email,
+    });
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -874,6 +886,10 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
         />
       </View>
     );
+  }
+
+  if (shouldShowFirstAccessProfile) {
+    return <FirstAccessProfileGate />;
   }
 
   return (

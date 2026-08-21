@@ -141,11 +141,9 @@ export function useOnEditStudent({
 }: UseOnEditStudentParams) {
   const onEdit = useCallback(
     (student: Student) => {
-      // Open first so a bad field doesn't block the modal entirely.
       setShowForm(false);
       setStudentFormError("");
       setStudentDocumentsError({});
-      setShowEditModal(true);
       try {
         const safeText = (value: unknown) =>
           typeof value === "string" ? value : value == null ? "" : String(value);
@@ -257,6 +255,7 @@ export function useOnEditStudent({
         setHealthObservations(healthObservationsValue);
         setOpenEditSection("studentData");
         closeAllPickers();
+        setShowEditModal(true);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         Alert.alert("Erro ao abrir aluno", detail);

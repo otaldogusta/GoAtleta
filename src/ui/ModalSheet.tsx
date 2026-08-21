@@ -123,26 +123,37 @@ export function ModalSheet({
   const baseCardStyle = useModalCardStyle();
   const resolvedCardStyle = [baseCardStyle, cardStyle];
 
+  useLayoutEffect(() => {
+    if (!visible) return;
+    anim.stopAnimation();
+    anim.setValue(0);
+    setIsMounted(true);
+  }, [anim, visible]);
+
   useEffect(() => {
-    if (visible) {
-      anim.setValue(0);
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: 240,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
-      return;
-    }
-    if (!isMounted) return;
-    Animated.timing(anim, {
+    if (!visible) return undefined;
+    const animation = Animated.timing(anim, {
+      toValue: 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [anim, visible]);
+
+  useEffect(() => {
+    if (visible || !isMounted) return undefined;
+    const animation = Animated.timing(anim, {
       toValue: 0,
       duration: 180,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
-    }).start(({ finished }) => {
+    });
+    animation.start(({ finished }) => {
       if (finished) setIsMounted(false);
     });
+    return () => animation.stop();
   }, [anim, isMounted, visible]);
 
   useLayoutEffect(() => {
