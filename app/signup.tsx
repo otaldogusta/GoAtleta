@@ -36,7 +36,7 @@ const hasValidEmailFormat = (value: string) =>
 export default function SignupScreen() {
   markRender("screen.signup.render.root");
   const { colors, mode } = useAppTheme();
-  const { signUp, signInWithOAuth } = useAuth();
+  const { signUp, signInWithOAuth, resendSignupCode } = useAuth();
   const { inviteCode: inviteCodeParam } = useLocalSearchParams<{
     inviteCode?: string;
   }>();
@@ -223,17 +223,32 @@ export default function SignupScreen() {
     setMessage("");
     setBusy(true);
     try {
-      const session = await signUp(email.trim(), password, "login", "");
+      const session = await signUp(normalizedEmail, password, "login", "");
+      let initialCodeDeliveryFailed = false;
+      if (session) {
+        try {
+          await resendSignupCode(normalizedEmail, "verify-email");
+        } catch {
+          initialCodeDeliveryFailed = true;
+        }
+      }
+      const verifyEmailRoute = {
+        pathname: "/verify-email" as const,
+        params: {
+          email: normalizedEmail,
+          delivery: initialCodeDeliveryFailed ? "failed" : undefined,
+        },
+      };
       if (inviteCode.trim()) {
         await savePendingTrainerInvite(inviteCode.trim());
         if (session) {
-          router.replace(`/verify-email?email=${encodeURIComponent(email.trim())}`);
+          router.replace(verifyEmailRoute);
         } else {
           router.replace("/login");
         }
       } else {
         if (session) {
-          router.replace("/pending");
+          router.replace(verifyEmailRoute);
         } else {
           router.replace("/login");
         }

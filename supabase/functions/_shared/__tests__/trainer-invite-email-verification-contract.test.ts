@@ -36,4 +36,12 @@ describe("trainer invite email verification contract", () => {
     expect(verifyScreenSource).toContain('router.replace("/pending")');
     expect(verifyScreenSource).not.toContain("claimTrainerInvite");
   });
+
+  test("sends the first hybrid verification code during signup", () => {
+    expect(signupSource).toContain("resendSignupCode");
+    expect(signupSource).toContain(
+      'await resendSignupCode(normalizedEmail, "verify-email")'
+    );
+    expect(signupSource).toContain('delivery: initialCodeDeliveryFailed ? "failed" : undefined');
+  });
 });

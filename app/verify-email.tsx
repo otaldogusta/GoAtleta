@@ -34,7 +34,7 @@ export default function VerifyEmailScreen() {
   const { width } = useWindowDimensions();
   const router = useRouter();
   const { session, resendSignupCode, verifySignupCode, refreshUser } = useAuth();
-  const params = useLocalSearchParams<{ email?: string }>();
+  const params = useLocalSearchParams<{ email?: string; delivery?: string }>();
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -67,6 +67,13 @@ export default function VerifyEmailScreen() {
       });
     }
   }, [params.email, session?.user?.email]);
+
+  useEffect(() => {
+    if (params.delivery !== "failed") return;
+    Promise.resolve().then(() => {
+      setMessage("Não foi possível enviar o código. Toque em Reenviar.");
+    });
+  }, [params.delivery]);
 
   const isWideLayout = width >= 900;
   const contentPadding = isWideLayout ? 32 : 20;
