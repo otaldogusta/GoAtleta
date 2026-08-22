@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import {
     useCallback,
     useEffect,
@@ -48,6 +48,7 @@ import { Button } from "../../../src/ui/Button";
 import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
 import { DateInput } from "../../../src/ui/DateInput";
 import { DatePickerModal } from "../../../src/ui/DatePickerModal";
+import { ConfirmCloseOverlay } from "../../../src/ui/ConfirmCloseOverlay";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
 import { ResponsivePage } from "../../../src/components/ui/ResponsivePage";
@@ -307,6 +308,7 @@ export default function AttendanceScreen() {
     date: string;
   }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [rosterClassId, setRosterClassId] = useState<string | null>(null);
@@ -338,10 +340,14 @@ export default function AttendanceScreen() {
     Record<string, boolean>
   >(id ? `attendance_${id}_expanded_v1` : null, {});
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
   const loadMessageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoadKey = useRef<string | null>(null);
   const manuallySelectedDateClassId = useRef<string | null>(null);
   const loadRequestId = useRef(0);
+  const pendingProtectedAction = useRef<(() => void) | null>(null);
+  const allowNavigation = useRef(false);
+  const allowNavigationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { showSaveToast } = useSaveToast();
   const isOnline = useIsOnline();
   const parseTime = (value: string) => {
@@ -745,7 +751,7 @@ export default function AttendanceScreen() {
     }
   };
 
-  const handleDateChange = (value: string) => {
+  const applyDateChange = (value: string) => {
     setSavePhase("idle");
     if (cls) {
       manuallySelectedDateClassId.current = cls.id;
@@ -791,6 +797,80 @@ export default function AttendanceScreen() {
     return false;
   }, [baseline, contextDecisionById, noteById, painById, statusById]);
 
+  const releaseNavigationGuard = useCallback(() => {
+    if (allowNavigationTimer.current) {
+      clearTimeout(allowNavigationTimer.current);
+    }
+    allowNavigationTimer.current = setTimeout(() => {
+      allowNavigation.current = false;
+      allowNavigationTimer.current = null;
+    }, 0);
+  }, []);
+
+  const runPendingProtectedAction = useCallback(() => {
+    const action = pendingProtectedAction.current;
+    pendingProtectedAction.current = null;
+    setShowUnsavedConfirm(false);
+    if (!action) return;
+    allowNavigation.current = true;
+    action();
+    releaseNavigationGuard();
+  }, [releaseNavigationGuard]);
+
+  const requestProtectedAction = useCallback(
+    (action: () => void) => {
+      if (!hasChanges || allowNavigation.current) {
+        action();
+        return;
+      }
+      pendingProtectedAction.current = action;
+      setShowUnsavedConfirm(true);
+    },
+    [hasChanges]
+  );
+
+  const cancelProtectedAction = useCallback(() => {
+    pendingProtectedAction.current = null;
+    setShowUnsavedConfirm(false);
+  }, []);
+
+  const handleDateChange = useCallback(
+    (value: string) => {
+      if (value === date) return;
+      requestProtectedAction(() => applyDateChange(value));
+    },
+    [date, requestProtectedAction]
+  );
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (event) => {
+      if (!hasChanges || allowNavigation.current) return;
+      event.preventDefault();
+      pendingProtectedAction.current = () => navigation.dispatch(event.data.action);
+      setShowUnsavedConfirm(true);
+    });
+    return unsubscribe;
+  }, [hasChanges, navigation]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || !hasChanges) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasChanges]);
+
+  useEffect(
+    () => () => {
+      if (allowNavigationTimer.current) {
+        clearTimeout(allowNavigationTimer.current);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     if (hasChanges && !isSavingAttendance && savePhase !== "idle") {
       Promise.resolve().then(() => {
@@ -822,13 +902,15 @@ export default function AttendanceScreen() {
 
   const openReport = () => {
     if (!canOpenReport) return;
-    router.push({
-      pathname: "/class/[id]/session",
-      params: {
-        id: cls.id,
-        date,
-        tab: "relatorio",
-      },
+    requestProtectedAction(() => {
+      router.push({
+        pathname: "/class/[id]/session",
+        params: {
+          id: cls.id,
+          date,
+          tab: "relatorio",
+        },
+      });
     });
   };
 
@@ -904,10 +986,12 @@ export default function AttendanceScreen() {
             <BackTitleHeader
               title="Chamada"
               onBack={() =>
-                navigateBackOrReplace({
-                  router,
-                  fallback: { pathname: "/class/[id]", params: { id: cls.id } },
-                })
+                requestProtectedAction(() =>
+                  navigateBackOrReplace({
+                    router,
+                    fallback: { pathname: "/class/[id]", params: { id: cls.id } },
+                  })
+                )
               }
               style={{ marginBottom: 0, flexShrink: 1 }}
             />
@@ -1357,6 +1441,18 @@ export default function AttendanceScreen() {
           onChange={handleDateChange}
           onClose={() => setShowCalendar(false)}
           closeOnSelect
+        />
+        <ConfirmCloseOverlay
+          visible={showUnsavedConfirm}
+          title="Chamada não salva"
+          message="Descarte as alterações ou continue editando."
+          cancelLabel="Continuar editando"
+          discardLabel="Descartar"
+          showConfirmAction={false}
+          onConfirm={runPendingProtectedAction}
+          onCancel={cancelProtectedAction}
+          onDiscard={runPendingProtectedAction}
+          overlayZIndex={90}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>

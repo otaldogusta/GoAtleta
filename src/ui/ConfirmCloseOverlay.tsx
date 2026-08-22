@@ -13,6 +13,7 @@ type ConfirmCloseOverlayProps = {
   confirmLabel?: string;
   cancelLabel?: string;
   discardLabel?: string;
+  showConfirmAction?: boolean;
   overlayZIndex?: number;
   onConfirm: () => void;
   onCancel: () => void;
@@ -26,6 +27,7 @@ export function ConfirmCloseOverlay({
   confirmLabel = "Descartar",
   cancelLabel = "Continuar",
   discardLabel,
+  showConfirmAction = true,
   overlayZIndex = 20000,
   onConfirm,
   onCancel,
@@ -95,19 +97,21 @@ export function ConfirmCloseOverlay({
               {cancelLabel}
             </Text>
           </Pressable>
-          <Pressable
-            onPress={onConfirm}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 14,
-              borderRadius: 12,
-              backgroundColor: colors.primaryBg,
-            }}
-          >
-            <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
-              {confirmLabel}
-            </Text>
-          </Pressable>
+          {showConfirmAction ? (
+            <Pressable
+              onPress={onConfirm}
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 12,
+                backgroundColor: colors.primaryBg,
+              }}
+            >
+              <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
+                {confirmLabel}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
     </ModalSheet>
   );
