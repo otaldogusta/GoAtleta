@@ -15,6 +15,8 @@ export type UseClassPlansLoaderParams = {
   selectedClass: ClassGroup | null;
   activeCycle: PlanningCycle | null;
   activeCycleYear: number | null;
+  loadPlans?: boolean;
+  loadAcwr?: boolean;
   acwrLimits: { high: string; low: string };
   setClassPlans: (plans: ClassPlan[]) => void;
   setCycleLength: (length: (typeof cycleOptions)[number]) => void;
@@ -47,12 +49,19 @@ const formatDisplayDate = (value: string | null) => {
 // ---------------------------------------------------------------------------
 
 function useClassPlansEffect(params: UseClassPlansLoaderParams) {
-  const { selectedClassId, activeCycle, activeCycleYear, setClassPlans, setCycleLength } = params;
+  const {
+    selectedClassId,
+    activeCycle,
+    activeCycleYear,
+    loadPlans = true,
+    setClassPlans,
+    setCycleLength,
+  } = params;
 
   useEffect(() => {
     let alive = true;
 
-    if (!selectedClassId) {
+    if (!loadPlans || !selectedClassId) {
       setClassPlans([]);
       return;
     }
@@ -81,7 +90,7 @@ function useClassPlansEffect(params: UseClassPlansLoaderParams) {
       alive = false;
     };
 
-  }, [activeCycle?.id, activeCycle?.year, activeCycleYear, selectedClassId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeCycle?.id, activeCycle?.year, activeCycleYear, loadPlans, selectedClassId]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // ---------------------------------------------------------------------------
@@ -92,6 +101,7 @@ function useAcwrLoaderEffect(params: UseClassPlansLoaderParams) {
   const {
     selectedClassId,
     selectedClass,
+    loadAcwr = true,
     acwrLimits,
     setAcwrRatio,
     setAcwrMessage,
@@ -102,7 +112,7 @@ function useAcwrLoaderEffect(params: UseClassPlansLoaderParams) {
   useEffect(() => {
     let alive = true;
 
-    if (!selectedClassId || !selectedClass) {
+    if (!loadAcwr || !selectedClassId || !selectedClass) {
       setAcwrRatio(null);
       setAcwrMessage("");
       setPainAlert("");
@@ -226,7 +236,7 @@ function useAcwrLoaderEffect(params: UseClassPlansLoaderParams) {
       alive = false;
     };
 
-  }, [acwrLimits.high, acwrLimits.low, selectedClassId, selectedClass]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [acwrLimits.high, acwrLimits.low, loadAcwr, selectedClassId, selectedClass]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // ---------------------------------------------------------------------------

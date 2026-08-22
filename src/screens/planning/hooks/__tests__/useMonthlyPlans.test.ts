@@ -44,9 +44,10 @@ const flushPromises = async () => {
 
 function renderUseMonthlyPlans(
   onSnapshot: (snapshot: ReturnType<typeof useMonthlyPlans>) => void,
+  monthKey = "2026-06",
 ) {
   function Harness() {
-    const snapshot = useMonthlyPlans("class-1", "2026-06");
+    const snapshot = useMonthlyPlans("class-1", monthKey);
     onSnapshot(snapshot);
     return null;
   }
@@ -133,18 +134,87 @@ describe("useMonthlyPlans", () => {
     });
     await flushPromises();
 
-    expect(latest?.isLoading).toBe(true);
-
-    await act(async () => {
-      jest.advanceTimersByTime(6000);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
     expect(latest?.isLoading).toBe(false);
+    expect(latest?.isInitialLoading).toBe(false);
     expect(latest?.error).toBeNull();
     expect(latest?.weeklyItems).toHaveLength(4);
     expect(latest?.dailyPlansByKey).toEqual({});
+  });
+
+  it("keeps the initial view loading until the cycle state is resolved", async () => {
+    const cycle = {
+      id: "cycle-1",
+      classId: "class-1",
+      organizationId: "org-1",
+      year: 2026,
+      title: "Jan-Dez 2026",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      status: "active",
+    } as PlanningCycle;
+    let resolveCycle: ((value: {
+      cycles: PlanningCycle[];
+      activeCycle: PlanningCycle;
+    }) => void) | undefined;
+    (getOrCreateInitialActivePlanningCycle as jest.Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCycle = resolve;
+        }),
+    );
+    let latest: ReturnType<typeof useMonthlyPlans> | null = null;
+
+    await act(async () => {
+      renderUseMonthlyPlans((snapshot) => {
+        latest = snapshot;
+      });
+    });
+    await flushPromises();
+
+    expect(latest?.selectedClass?.id).toBe("class-1");
+    expect(latest?.activeCycle).toBeNull();
+    expect(latest?.isLoading).toBe(true);
+    expect(latest?.isInitialLoading).toBe(true);
+
+    await act(async () => {
+      resolveCycle?.({ cycles: [cycle], activeCycle: cycle });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await flushPromises();
+
+    expect(latest?.activeCycle?.id).toBe("cycle-1");
+    expect(latest?.isLoading).toBe(false);
+    expect(latest?.isInitialLoading).toBe(false);
+  });
+
+  it("shows the monthly plan before optional context finishes loading", async () => {
+    let resolveStudents: ((value: []) => void) | undefined;
+    (getStudentsByClass as jest.Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStudents = resolve;
+        }),
+    );
+    let latest: ReturnType<typeof useMonthlyPlans> | null = null;
+
+    await act(async () => {
+      renderUseMonthlyPlans((snapshot) => {
+        latest = snapshot;
+      });
+    });
+    await flushPromises();
+
+    expect(latest?.isInitialLoading).toBe(false);
+    expect(latest?.isLoading).toBe(true);
+    expect(latest?.activeCycle?.id).toBe("cycle-1");
+    expect(latest?.weeklyItems).toHaveLength(4);
+
+    await act(async () => {
+      resolveStudents?.([]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
   });
 
   it("does not create or load a cycle before periodization is configured", async () => {
@@ -172,19 +242,54 @@ describe("useMonthlyPlans", () => {
     expect(getClassPlansByClass).not.toHaveBeenCalled();
   });
 
-  it("does not load month plans after the active cycle is archived", async () => {
+  it("loads the cycle that belongs to the selected historical year", async () => {
+    const archivedCycle = {
+      id: "cycle-2026",
+      classId: "class-1",
+      organizationId: "org-1",
+      year: 2026,
+      title: "Jan-Dez 2026",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      status: "archived",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-12-31T00:00:00.000Z",
+    } as PlanningCycle;
+    const activeCycle = {
+      ...archivedCycle,
+      id: "cycle-2027",
+      year: 2027,
+      title: "Jan-Dez 2027",
+      startDate: "2027-01-01",
+      endDate: "2027-12-31",
+      status: "active",
+    } as PlanningCycle;
     (getOrCreateInitialActivePlanningCycle as jest.Mock).mockResolvedValue({
-      cycles: [
-        {
-          id: "cycle-1",
-          classId: "class-1",
-          organizationId: "org-1",
-          year: 2026,
-          status: "archived",
-        },
-      ],
-      activeCycle: null,
+      cycles: [activeCycle, archivedCycle],
+      activeCycle,
     });
+    (getClassPlansByClass as jest.Mock).mockResolvedValue([
+      {
+        id: "historical-week",
+        classId: "class-1",
+        cycleId: "cycle-2026",
+        startDate: "2026-06-06",
+        weekNumber: 23,
+        phase: "Consolidação",
+        theme: "Histórico",
+        technicalFocus: "Passe",
+        physicalFocus: "Controle",
+        constraints: "[]",
+        mvFormat: "",
+        warmupProfile: "",
+        jumpTarget: "",
+        rpeTarget: "",
+        source: "MANUAL",
+        weeklySessions: 1,
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+      },
+    ] as ClassPlan[]);
     let latest: ReturnType<typeof useMonthlyPlans> | null = null;
 
     await act(async () => {
@@ -195,8 +300,46 @@ describe("useMonthlyPlans", () => {
     await flushPromises();
 
     expect(latest?.isLoading).toBe(false);
+    expect(latest?.activeCycle).toMatchObject({
+      id: "cycle-2026",
+      status: "archived",
+    });
+    expect(latest?.isHistoricalCycle).toBe(true);
+    expect(latest?.weeklyItems).toHaveLength(1);
+    expect(getClassPlansByClass).toHaveBeenCalledWith("class-1", {
+      cycleId: "cycle-2026",
+      cycleYear: 2026,
+    });
+  });
+
+  it("does not fall back to another year when the selected year has no cycle", async () => {
+    const activeCycle = {
+      id: "cycle-2027",
+      classId: "class-1",
+      organizationId: "org-1",
+      year: 2027,
+      title: "Jan-Dez 2027",
+      startDate: "2027-01-01",
+      endDate: "2027-12-31",
+      status: "active",
+      createdAt: "2027-01-01T00:00:00.000Z",
+      updatedAt: "2027-01-01T00:00:00.000Z",
+    } as PlanningCycle;
+    (getOrCreateInitialActivePlanningCycle as jest.Mock).mockResolvedValue({
+      cycles: [activeCycle],
+      activeCycle,
+    });
+    let latest: ReturnType<typeof useMonthlyPlans> | null = null;
+
+    await act(async () => {
+      renderUseMonthlyPlans((snapshot) => {
+        latest = snapshot;
+      }, "2028-06");
+    });
+    await flushPromises();
+
+    expect(latest?.isLoading).toBe(false);
     expect(latest?.activeCycle).toBeNull();
-    expect(latest?.weeklyItems).toHaveLength(0);
     expect(getClassPlansByClass).not.toHaveBeenCalled();
   });
 

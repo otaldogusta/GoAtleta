@@ -3,6 +3,7 @@ import {
   isTrainingPlanAlignedWithClassPlan,
   resolveClassPlanSkills,
   shouldRegenerateInconsistentAutomaticPlan,
+  shouldRegenerateRepeatedAutomaticPlan,
 } from "../volleyball-skill-signals";
 
 const classPlan = {
@@ -128,6 +129,78 @@ describe("volleyball skill consistency", () => {
         plan,
         classPlan,
         dailyLessonPlan: { syncStatus: "overridden" } as DailyLessonPlan,
+      })
+    ).toBe(false);
+  });
+
+  it("repairs an automatic plan that cloned the complete activity set of an earlier lesson", () => {
+    const repeatedPlan = {
+      ...plan,
+      id: "plan_repeated",
+      applyDate: "2026-08-08",
+      warmup: ["Caça da bola jogável"],
+      main: ["Passe em duplas para voltar jogável", "Desafio dos 3 passes"],
+      cooldown: ["Roda de feedback"],
+    } as TrainingPlan;
+    const earlierPlan = {
+      ...repeatedPlan,
+      id: "plan_earlier",
+      applyDate: "2026-08-01",
+    } as TrainingPlan;
+
+    expect(
+      shouldRegenerateRepeatedAutomaticPlan({
+        plan: repeatedPlan,
+        recentPlans: [earlierPlan],
+      })
+    ).toBe(true);
+  });
+
+  it.each(["manual", "manual_apply", "edited_auto", "imported", "assistant"] as const)(
+    "never replaces a repeated %s plan automatically",
+    (origin) => {
+      const repeatedPlan = {
+        ...plan,
+        id: "plan_repeated_manual",
+        origin,
+        applyDate: "2026-08-08",
+        warmup: ["Aquecimento personalizado"],
+        main: ["Jogo personalizado"],
+        cooldown: ["Fechamento personalizado"],
+      } as TrainingPlan;
+
+      expect(
+        shouldRegenerateRepeatedAutomaticPlan({
+          plan: repeatedPlan,
+          recentPlans: [
+            {
+              ...repeatedPlan,
+              id: "plan_earlier_manual",
+              applyDate: "2026-08-01",
+            },
+          ],
+        })
+      ).toBe(false);
+    }
+  );
+
+  it("does not compare a lesson with plans from the same date or the future", () => {
+    const currentPlan = {
+      ...plan,
+      id: "plan_current",
+      applyDate: "2026-08-08",
+      warmup: ["Aquecimento"],
+      main: ["Jogo"],
+      cooldown: ["Fechamento"],
+    } as TrainingPlan;
+
+    expect(
+      shouldRegenerateRepeatedAutomaticPlan({
+        plan: currentPlan,
+        recentPlans: [
+          { ...currentPlan, id: "plan_same_day" },
+          { ...currentPlan, id: "plan_future", applyDate: "2026-08-15" },
+        ],
       })
     ).toBe(false);
   });

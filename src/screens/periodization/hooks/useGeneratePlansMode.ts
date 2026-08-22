@@ -8,6 +8,7 @@ import type {
     ClassCompetitiveProfile,
     ClassGroup,
     ClassPlan,
+    PlanningCycle,
 } from "../../../core/models";
 import type { PeriodizationModel, SportProfile } from "../../../core/periodization-basics";
 import {
@@ -49,6 +50,11 @@ export type UseGeneratePlansModeParams = {
   setIsSavingPlans: (value: boolean) => void;
 };
 
+export type GenerationCycleIdentity = Pick<
+  PlanningCycle,
+  "id" | "year" | "startDate"
+>;
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -72,13 +78,25 @@ export function useGeneratePlansMode({
   setIsSavingPlans,
 }: UseGeneratePlansModeParams) {
   const handleGenerateMode = useCallback(
-    async (mode: "fill" | "auto" | "all", cycleIdOverride?: string) => {
+    async (
+      mode: "fill" | "auto" | "all",
+      cycleOverride?: GenerationCycleIdentity,
+    ) => {
       if (!selectedClass) return;
 
-      const resolvedCycleId = String(cycleIdOverride ?? activeCycleId).trim();
+      const resolvedCycleId = String(cycleOverride?.id ?? activeCycleId).trim();
+      const resolvedCycleYear = cycleOverride?.year ?? activeCycleYear;
+      const resolvedCycleStartDate = String(
+        cycleOverride?.startDate ?? activeCycleStartDate,
+      ).trim();
       if (!resolvedCycleId) {
         throw new Error(
           "O ciclo ativo ainda não foi vinculado. Salve os parâmetros da periodização e tente novamente.",
+        );
+      }
+      if (!resolvedCycleYear || !resolvedCycleStartDate) {
+        throw new Error(
+          "O ciclo ativo está incompleto. Revise o ano e a data de início antes de gerar a periodização.",
         );
       }
 
@@ -87,7 +105,7 @@ export function useGeneratePlansMode({
       try {
         const existing = await getClassPlansByClass(selectedClass.id, {
           cycleId: resolvedCycleId,
-          cycleYear: activeCycleYear,
+          cycleYear: resolvedCycleYear,
         });
 
         const byWeek = new Map(existing.map((plan) => [plan.weekNumber, plan]));
@@ -97,7 +115,7 @@ export function useGeneratePlansMode({
             ? toCompetitiveClassPlans({
                 classId: selectedClass.id,
                 cycleLength,
-                cycleStartDate: activeCycleStartDate,
+                cycleStartDate: resolvedCycleStartDate,
                 daysOfWeek: selectedClass.daysOfWeek ?? [],
                 exceptions: calendarExceptions,
                 // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -108,7 +126,7 @@ export function useGeneratePlansMode({
                   classId: selectedClass.id,
                   ageBand,
                   cycleLength,
-                  startDate: activeCycleStartDate,
+                  startDate: resolvedCycleStartDate,
                   mvLevel: selectedClass.mvLevel,
                   model: periodizationModel,
                   sessionsPerWeek: weeklySessions,
@@ -118,7 +136,7 @@ export function useGeneratePlansMode({
                 classId: selectedClass.id,
                 ageBand,
                 cycleLength,
-                startDate: activeCycleStartDate,
+                startDate: resolvedCycleStartDate,
                 mvLevel: selectedClass.mvLevel,
                 model: periodizationModel,
                 sessionsPerWeek: weeklySessions,
@@ -128,7 +146,7 @@ export function useGeneratePlansMode({
           await measure("deleteClassPlansByClass", () =>
             deleteClassPlansByClass(selectedClass.id, {
               cycleId: resolvedCycleId,
-              cycleYear: activeCycleYear,
+              cycleYear: resolvedCycleYear,
             })
           );
 

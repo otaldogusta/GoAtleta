@@ -37,6 +37,7 @@ import {
   buildProfessorAgendaEvents,
   buildProfessorMonthCalendar,
 } from "../application/professor-agenda-events";
+import { resolvePlanningCycleForMonth } from "../application/planning-cycle-selection";
 
 export type WeeklyPlanningItem = {
   plan: ClassPlan;
@@ -264,6 +265,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     {},
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [hasCompletedInitialLoad, setHasCompletedInitialLoad] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -279,6 +281,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setDailyPlansByKey({});
       setError(null);
       setIsLoading(false);
+      setHasCompletedInitialLoad(true);
       return;
     }
 
@@ -306,18 +309,32 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
         setDailyPlansByKey({});
         return;
       }
-      const currentYear = new Date().getFullYear();
       const classStartDate = cls?.cycleStartDate || cls?.createdAt || null;
-      const { activeCycle } = await loadRequiredMonthlyData(
+      const requestedYear = Number.parseInt(monthKey.slice(0, 4), 10);
+      const configuredYear = Number.parseInt(
+        String(classStartDate ?? "").slice(0, 4),
+        10,
+      );
+      const initialCycleYear = Number.isFinite(configuredYear)
+        ? configuredYear
+        : Number.isFinite(requestedYear)
+          ? requestedYear
+          : new Date().getFullYear();
+      const cycleResult = await loadRequiredMonthlyData(
         "ciclo ativo",
         getOrCreateInitialActivePlanningCycle(
           classId,
           cls.organizationId,
-          currentYear,
+          initialCycleYear,
           classStartDate,
         ),
       );
-      if (!activeCycle) {
+      const selectedCycle = resolvePlanningCycleForMonth(
+        cycleResult.cycles,
+        cycleResult.activeCycle,
+        monthKey,
+      );
+      if (!selectedCycle) {
         setActiveCycle(null);
         setClassPlans([]);
         setCalendarExceptions([]);
@@ -328,14 +345,32 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
         setDailyPlansByKey({});
         return;
       }
-      const cycleYear = activeCycle?.year ?? null;
+      const cycleYear = selectedCycle.year;
       const plans = await loadRequiredMonthlyData(
         "semanas do ciclo",
         getClassPlansByClass(classId, {
-          cycleId: activeCycle?.id ?? null,
+          cycleId: selectedCycle.id,
           cycleYear,
         }),
       );
+
+      const windowStart = toIsoDate(selectedCycle.startDate);
+      const windowEnd = toIsoDate(selectedCycle.endDate);
+      const scopedPlans = dedupeWeeklyPlans(
+        filterPlansByCycleWindow(plans, {
+          activeCycleId: selectedCycle.id,
+          startDate: windowStart,
+          endDate: windowEnd,
+        }),
+      );
+
+      // A turma, o ciclo e as semanas formam a carga crítica da tela. Os
+      // contextos auxiliares enriquecem o planejamento, mas não devem manter
+      // o usuário preso no shimmer enquanto chegam.
+      setActiveCycle(selectedCycle);
+      setClassPlans(scopedPlans);
+      setHasCompletedInitialLoad(true);
+
       const [exceptions, classStudents, attendance, sessionLogs, contexts] =
         await Promise.all([
           loadOptionalMonthlyData(
@@ -372,43 +407,11 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
           ),
         ]);
 
-      const windowStart = toIsoDate(activeCycle?.startDate);
-      const windowEnd = toIsoDate(activeCycle?.endDate);
-      const scopedPlans = dedupeWeeklyPlans(
-        filterPlansByCycleWindow(plans, {
-          activeCycleId: String(activeCycle?.id ?? ""),
-          startDate: windowStart,
-          endDate: windowEnd,
-        }),
-      );
-
-      setActiveCycle(activeCycle);
-      setClassPlans(scopedPlans);
       setCalendarExceptions(exceptions);
       setStudents(classStudents);
       setRecentAttendance(attendance);
       setRecentSessionLogs(sessionLogs);
       setStudentContexts(contexts);
-
-      const targetMonthPlans = filterClassPlansBySessionMonth(
-        scopedPlans,
-        cls,
-        exceptions,
-        monthKey,
-      );
-      const weekIds = targetMonthPlans.map((plan) => plan.id);
-      if (weekIds.length > 0) {
-        const dailyPlans = await loadOptionalMonthlyData(
-          "daily lesson plans",
-          listDailyLessonPlansByWeekIds(weekIds),
-          [],
-        );
-        const mapped: DailyLessonPlanLookup = {};
-        for (const plan of dailyPlans) {
-          mapped[`${plan.weeklyPlanId}::${plan.date}`] = plan;
-        }
-        setDailyPlansByKey(mapped);
-      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -417,6 +420,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       );
     } finally {
       setIsLoading(false);
+      setHasCompletedInitialLoad(true);
     }
   }, [classId]);
 
@@ -512,6 +516,8 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
     monthCalendarDays,
     dailyPlansByKey,
     isPeriodizationConfigured: isClassPeriodizationConfigured(selectedClass),
+    isHistoricalCycle: activeCycle?.status === "archived",
+    isInitialLoading: !hasCompletedInitialLoad,
     isLoading,
     error,
     reload: load,

@@ -66,6 +66,28 @@ final result: passed
 
 ---
 
+# Chamada responsiva — 2026-08-22
+
+## Referência e implementação
+
+- Referência aprovada: `C:/Users/gusta/AppData/Local/Temp/codex-clipboard-5720d554-9c53-46d5-8d63-8d84145fa858.png`.
+- Rota verificada: `/class/c_1775903848643/attendance`, com sessão autenticada e dados reais da turma.
+- Desktop: cabeçalho compacto, data e ações na mesma faixa, lista densa e status segmentado.
+- Mobile: título e turma no cabeçalho, data em faixa própria, contagem com relatório e salvar persistente após a lista.
+
+## Correções aplicadas
+
+1. Restaurados o botão de voltar e o título `Chamada` com o `BackTitleHeader` compartilhado pelas demais telas.
+2. Removidos os cards altos e os metadados redundantes de unidade e faixa etária.
+3. Adicionados avatar com iniciais/foto, status `Presente`/`Faltou` e chevron de detalhes por aluno.
+4. Mantidos os detalhes operacionais existentes em expansão, sem perder contexto, observação ou alertas.
+5. Corrigido o seletor de data para não colapsar no desktop.
+6. Validado encaixe em 390 px: controles de status permanecem dentro do viewport e o botão de salvar ocupa a largura útil.
+
+final result: passed
+
+---
+
 # Design QA — Perfil responsivo V3
 
 ## Fonte de verdade

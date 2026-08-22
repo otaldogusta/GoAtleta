@@ -8,6 +8,34 @@ const normalizeText = (value: unknown) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const resolveTrainingPlanDate = (plan: TrainingPlan) => {
+  const applyDate = String(plan.applyDate ?? "").slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(applyDate)) return applyDate;
+  const createdDate = String(plan.createdAt ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(createdDate) ? createdDate : "";
+};
+
+const resolveTrainingPlanActivitySignature = (plan: TrainingPlan) =>
+  normalizeText(
+    [
+      ...(plan.warmup ?? []),
+      "::main::",
+      ...(plan.main ?? []),
+      "::cooldown::",
+      ...(plan.cooldown ?? []),
+    ].join(" | ")
+  );
+
+const hasAutomaticGenerationEvidence = (plan: TrainingPlan) =>
+  plan.origin === "auto" ||
+  (!plan.origin &&
+    Boolean(
+      plan.generatedAt ||
+        plan.inputHash ||
+        plan.pedagogy?.decisionTrace ||
+        plan.pedagogy?.generationExplanation
+    ));
+
 const SKILL_SIGNALS: { skill: VolleyballSkill; pattern: RegExp }[] = [
   { skill: "passe", pattern: /\b(passe|passes|recep\w*|manchete|primeiro contato)\b/ },
   { skill: "levantamento", pattern: /\b(levant\w*|segundo contato|toque)\b/ },
@@ -83,14 +111,27 @@ export const shouldRegenerateInconsistentAutomaticPlan = (params: {
   const { plan } = params;
   if (!plan) return false;
   if (params.dailyLessonPlan?.syncStatus === "overridden") return false;
-  const hasLegacyAutomaticEvidence =
-    !plan.origin &&
-    Boolean(
-      plan.generatedAt ||
-        plan.inputHash ||
-        plan.pedagogy?.decisionTrace ||
-        plan.pedagogy?.generationExplanation
-    );
-  const isReplaceableAutomaticPlan = plan.origin === "auto" || hasLegacyAutomaticEvidence;
+  const isReplaceableAutomaticPlan = hasAutomaticGenerationEvidence(plan);
   return isReplaceableAutomaticPlan && !isTrainingPlanAlignedWithClassPlan(params);
+};
+
+export const shouldRegenerateRepeatedAutomaticPlan = (params: {
+  plan?: TrainingPlan | null;
+  recentPlans?: TrainingPlan[] | null;
+  dailyLessonPlan?: DailyLessonPlan | null;
+}) => {
+  const { plan } = params;
+  if (!plan || !hasAutomaticGenerationEvidence(plan)) return false;
+  if (params.dailyLessonPlan?.syncStatus === "overridden") return false;
+
+  const planDate = resolveTrainingPlanDate(plan);
+  const signature = resolveTrainingPlanActivitySignature(plan);
+  if (!planDate || !signature) return false;
+
+  return (params.recentPlans ?? []).some((candidate) => {
+    if (candidate.id === plan.id) return false;
+    const candidateDate = resolveTrainingPlanDate(candidate);
+    if (!candidateDate || candidateDate >= planDate) return false;
+    return resolveTrainingPlanActivitySignature(candidate) === signature;
+  });
 };

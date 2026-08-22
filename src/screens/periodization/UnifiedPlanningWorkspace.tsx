@@ -16,8 +16,10 @@ import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import type { ThemeColors } from "../../ui/app-theme";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
+import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
+import { ShimmerBlock } from "../../ui/Shimmer";
 import { useCollapsibleAnimation } from "../../ui/use-collapsible";
 import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
 import type { ClassPlanPeriodizationSource } from "../classes/components/ClassPlanPreviewModal";
@@ -48,11 +50,109 @@ const ClassPlanPreviewModal = lazy(() =>
   }))
 );
 
+type ClassPlanModalHostProps = {
+  colors: ThemeColors;
+  className: string;
+  lessonDate: string;
+  onClose: () => void;
+  children?: ReactNode;
+};
+
+function ClassPlanLoadingContent({ colors, className, lessonDate, onClose }: Omit<ClassPlanModalHostProps, "children">) {
+  const formattedDate = lessonDate.split("-").reverse().join("/");
+
+  return (
+    <>
+      <View
+        style={{
+          minHeight: 72,
+          paddingHorizontal: 18,
+          paddingVertical: 11,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ color: colors.text, fontSize: 19, fontWeight: "800" }}>
+            Plano da aula
+          </Text>
+          <Text numberOfLines={1} style={{ color: colors.muted, marginTop: 3, fontSize: 12 }}>
+            {className} · {formattedDate}
+          </Text>
+        </View>
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Fechar plano"
+          style={({ pressed }) => ({
+            width: 42,
+            height: 42,
+            borderRadius: 21,
+            borderWidth: 1,
+            borderColor: colors.border,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: pressed ? 0.72 : 1,
+          })}
+        >
+          <GoAtletaIcon name="close" size={20} color={colors.text} />
+        </Pressable>
+      </View>
+      <View
+        accessibilityLiveRegion="polite"
+        accessibilityRole="progressbar"
+        style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: colors.backgroundSubtle }}
+      >
+        <ActivityIndicator size="small" color={colors.primaryBg} />
+        <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>Carregando plano…</Text>
+      </View>
+    </>
+  );
+}
+
+function ClassPlanModalHost({ colors, className, lessonDate, onClose, children }: ClassPlanModalHostProps) {
+  const { width } = useWindowDimensions();
+  const compact = width < 980;
+
+  return (
+    <ModalSheet
+      visible
+      onClose={onClose}
+      position="center"
+      containerPadding={compact ? 0 : 8}
+      cardStyle={{
+        width: compact ? "100%" : "94%",
+        maxWidth: compact ? "100%" : 1200,
+        height: compact ? "100%" : "90%",
+        maxHeight: compact ? "100%" : 840,
+        borderRadius: compact ? 0 : 18,
+        borderWidth: compact ? 0 : 1,
+        borderColor: colors.border,
+        padding: 0,
+        overflow: "hidden",
+      }}
+    >
+      {children ?? (
+        <ClassPlanLoadingContent
+          colors={colors}
+          className={className}
+          lessonDate={lessonDate}
+          onClose={onClose}
+        />
+      )}
+    </ModalSheet>
+  );
+}
+
 type Props = {
   colors: ThemeColors;
   classId: string;
   initialMonthKey?: string;
   regenerateMonthSignal?: number;
+  refreshSignal?: number;
   onMonthChange?: (monthKey: string) => void;
   onOpenManager: (mode?: "manage" | "create-next") => void;
   onRegenerateCycle?: () => void;
@@ -188,9 +288,20 @@ const MonthRail = memo(function MonthRail({ colors, summaries, selectedMonthKey,
   onSelect: (monthKey: string) => void;
 }) {
   const activeCurrentMonth = referenceMonthKey ?? currentMonthKey();
+  const horizontalRailRef = useRef<ScrollView>(null);
+  const selectedMonthIndex = summaries.findIndex((summary) => summary.monthKey === selectedMonthKey);
+
+  useEffect(() => {
+    if (!horizontal || selectedMonthIndex < 0) return;
+    const frame = requestAnimationFrame(() => {
+      horizontalRailRef.current?.scrollTo({ x: selectedMonthIndex * 146, animated: false });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [horizontal, selectedMonthIndex]);
+
   if (horizontal) {
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+      <ScrollView ref={horizontalRailRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
         {summaries.map((summary) => {
           const presentation = presentations.get(summary.monthKey);
           const phase = presentation?.phase ?? "Sem semanas geradas";
@@ -348,31 +459,6 @@ const resolveGoalLabel = (goal?: string) => {
   if (!normalized) return "Desenvolvimento geral";
   return GOAL_LABELS[normalized.toLocaleLowerCase("pt-BR")] ?? normalized;
 };
-
-const MonthOverview = memo(function MonthOverview({ colors, monthKey, events, presentation, compact, horizontalContext, showContext }: {
-  colors: ThemeColors;
-  monthKey: string;
-  events: ProfessorAgendaEvent[];
-  presentation?: MonthCyclePresentation;
-  compact?: boolean;
-  horizontalContext?: boolean;
-  showContext?: boolean;
-}) {
-  const stackHeader = compact && !horizontalContext;
-  return (
-    <View style={[cardStyle(colors), { padding: 13, gap: 10 }]}>
-      <View style={{ flexDirection: stackHeader ? "column" : "row", alignItems: stackHeader ? "flex-start" : "center", justifyContent: "space-between", gap: 8 }}>
-        <View style={{ gap: 2 }}>
-          <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>{monthTitle(monthKey)}</Text>
-          <Text style={{ color: colors.muted, fontSize: 10 }}>
-            {presentation?.weekNumbers.length ? `Semanas ${presentation.weekRangeLabel}` : "Sem semanas geradas"}{presentation?.phase ? ` · ${presentation.phase}` : ""}
-          </Text>
-        </View>
-      </View>
-      {showContext ? <MonthContextSummary colors={colors} events={events} presentation={presentation} compact={!!compact} horizontal={!!horizontalContext} /> : null}
-    </View>
-  );
-});
 
 type LessonActionsLayout = {
   x: number;
@@ -651,7 +737,7 @@ function resolveDistribution(blocks: LessonBlock[]) {
   ];
 }
 function TimeDonut({ colors, blocks }: { colors: ThemeColors; blocks: LessonBlock[] }) {
-  return <PlanTimeDistribution colors={colors} items={resolveDistribution(blocks)} compact showLegend={false} showHoverTooltip />;
+  return <PlanTimeDistribution colors={colors} items={resolveDistribution(blocks)} compact emphasized showLegend={false} showHoverTooltip />;
 }
 
 const LessonDetail = memo(function LessonDetail({ colors, event, classTime, monthPresentation, classGroup, cycle, onOpen, onClear, showClose }: {
@@ -671,9 +757,6 @@ const LessonDetail = memo(function LessonDetail({ colors, event, classTime, mont
     </View>
   );
   const title = event.isMonthlyGameSession ? "Jogo consolidado do mês" : event.title;
-  const summary = event.isMonthlyGameSession
-    ? "Aplicação da regra mensal em jogo formal, com aquecimento breve, tomada de decisão, comunicação e execução coletiva."
-    : event.objective || event.guidance.subtitle || "Plano alinhado ao foco da semana.";
   const policy = parsePeriodizationPolicy(cycle?.periodizationPolicyJson);
   const cycleLengthWeeks = Math.max(1, classGroup.cycleLengthWeeks || 52);
   const curveDraft: PeriodizationLoadCurveDraft = {
@@ -705,7 +788,7 @@ const LessonDetail = memo(function LessonDetail({ colors, event, classTime, mont
       </View>
       <View style={{ height: 1, backgroundColor: colors.border }} />
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, overflow: "visible" }}>
-        <View style={{ width: 96, gap: 8, zIndex: 10, overflow: "visible" }}>
+        <View style={{ width: 112, gap: 8, zIndex: 10, overflow: "visible" }}>
           <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>Carga da aula</Text>
           <TimeDonut colors={colors} blocks={event.blocks} />
         </View>
@@ -728,8 +811,6 @@ const LessonDetail = memo(function LessonDetail({ colors, event, classTime, mont
           </ScrollView>
         </View>
       </View>
-      <View style={{ height: 1, backgroundColor: colors.border }} />
-      <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>{summary}</Text>
       <ActionButton colors={colors} label="Abrir plano completo" icon="document" primary onPress={onOpen} />
     </View>
   );
@@ -755,7 +836,92 @@ function ArchivedCycleGate({ colors, onOpenManager }: { colors: ThemeColors; onO
   );
 }
 
-export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, regenerateMonthSignal, onMonthChange, onOpenManager, onRegenerateCycle }: Props) {
+function PlanningWorkspaceLoadingState({
+  colors,
+  dense,
+  split,
+  panelHeight,
+}: {
+  colors: ThemeColors;
+  dense: boolean;
+  split: boolean;
+  panelHeight: number;
+}) {
+  const contentSkeleton = (
+    <View style={{ flex: 1, minWidth: 0, gap: 12 }}>
+      <ShimmerBlock style={{ height: 92, width: "100%", borderRadius: 14 }} />
+      <ShimmerBlock style={{ height: 228, width: "100%", borderRadius: 14 }} />
+    </View>
+  );
+
+  if (dense) {
+    return (
+      <View
+        accessibilityLabel="Carregando planejamento"
+        style={{
+          minHeight: 590,
+          height: panelHeight,
+          flexDirection: "row",
+          backgroundColor: colors.background,
+        }}
+      >
+        <View
+          style={{
+            width: "24%",
+            minWidth: 252,
+            maxWidth: 350,
+            padding: 14,
+            gap: 10,
+            borderRightWidth: 1,
+            borderRightColor: colors.border,
+          }}
+        >
+          <ShimmerBlock style={{ height: 24, width: 118, borderRadius: 8 }} />
+          {Array.from({ length: 8 }).map((_, index) => (
+            <ShimmerBlock
+              key={`planning-month-loading-${index}`}
+              style={{ height: 44, width: "100%", borderRadius: 10 }}
+            />
+          ))}
+        </View>
+        <View style={{ flex: 1, minWidth: 0, padding: 14 }}>
+          {contentSkeleton}
+        </View>
+        <View
+          style={{
+            width: "27%",
+            minWidth: 286,
+            maxWidth: 380,
+            padding: 14,
+            borderLeftWidth: 1,
+            borderLeftColor: colors.border,
+          }}
+        >
+          <ShimmerBlock style={{ height: 184, width: "100%", borderRadius: 14 }} />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      accessibilityLabel="Carregando planejamento"
+      style={{ gap: 12, paddingVertical: 12 }}
+    >
+      <ShimmerBlock style={{ height: 82, width: "100%", borderRadius: 14 }} />
+      <View style={{ flexDirection: split ? "row" : "column", gap: 12 }}>
+        {contentSkeleton}
+        {split ? (
+          <ShimmerBlock
+            style={{ height: 320, width: "38%", minWidth: 270, borderRadius: 14 }}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, regenerateMonthSignal, refreshSignal = 0, onMonthChange, onOpenManager, onRegenerateCycle }: Props) {
   const { height } = useWindowDimensions();
   const { containerRef, layout, onLayout, width } = useContainerResponsiveLayout("dashboard");
   const mobile = layout.isMobile;
@@ -769,6 +935,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const monthly = useMonthlyPlans(classId, selectedMonthKey);
+  const lastRefreshSignalRef = useRef(refreshSignal);
   const sessionPlan = useSessionTrainingPlan({
     classGroup: monthly.selectedClass,
     students: monthly.students,
@@ -778,12 +945,12 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
     studentContexts: monthly.studentContexts,
   });
   const summaries = useMemo(() => buildMonthPlanningSummaries(monthly.classPlans, monthly.selectedClass, monthly.activeCycle, monthly.calendarExceptions), [monthly.activeCycle, monthly.calendarExceptions, monthly.classPlans, monthly.selectedClass]);
-  const activeCycleYear = String(
+  const selectedCycleYear = String(
     monthly.activeCycle?.year ||
     monthly.activeCycle?.startDate?.slice(0, 4) ||
     new Date().getFullYear()
   );
-  const [selectedYear, setSelectedYear] = useState<string>(() => selectedMonthKey.slice(0, 4) || activeCycleYear);
+  const [selectedYear, setSelectedYear] = useState<string>(() => selectedMonthKey.slice(0, 4) || selectedCycleYear);
 
   useEffect(() => {
     if (selectedMonthKey && selectedMonthKey.slice(0, 4) !== selectedYear) {
@@ -841,6 +1008,12 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   }, [onMonthChange, selectedMonthKey]);
 
   useEffect(() => {
+    if (lastRefreshSignalRef.current === refreshSignal) return;
+    lastRefreshSignalRef.current = refreshSignal;
+    void monthly.reload();
+  }, [monthly.reload, refreshSignal]);
+
+  useEffect(() => {
     if (!visibleSummaries.length) return;
     if (visibleSummaries.some((summary) => summary.monthKey === selectedMonthKey)) return;
     const fallback = visibleSummaries.find((summary) => summary.hasPlans) ?? visibleSummaries[0];
@@ -855,7 +1028,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   }, [contextualTodayIso, monthly.agendaEvents, selectedMonthKey, split]);
 
   const applyMonth = useCallback(async () => {
-    if (!monthly.selectedClass || isApplying) return;
+    if (!monthly.selectedClass || monthly.isHistoricalCycle || isApplying) return;
     const confirmed = await confirmDialog({ title: `Atualizar ${monthTitle(selectedMonthKey)}?`, message: "As aulas automáticas serão recalculadas a partir da periodização. Planos personalizados e aulas concluídas serão preservados.", confirmLabel: "Atualizar mês", cancelLabel: "Continuar revisando", onConfirm: async () => { } });
     if (!confirmed) return;
     setIsApplying(true);
@@ -898,6 +1071,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
     try {
       await sessionPlan.loadOrGenerate(event);
     } catch (error) {
+      setShowLesson(false);
       showSaveToast({
         variant: "error",
         message: "Não foi possível abrir o plano completo desta aula.",
@@ -905,6 +1079,35 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
       });
     }
   };
+
+  const panelHeight = Math.max(590, height - 205);
+
+  if (monthly.isInitialLoading) {
+    return (
+      <ResponsivePage
+        variant="dashboard"
+        gap={0}
+        style={{ paddingHorizontal: layout.gutter }}
+      >
+        <View
+          ref={containerRef}
+          onLayout={onLayout}
+          style={{
+            gap: 0,
+            borderTopWidth: layout.usesWorkspaceShell ? 1 : 0,
+            borderTopColor: colors.border,
+          }}
+        >
+          <PlanningWorkspaceLoadingState
+            colors={colors}
+            dense={dense}
+            split={split}
+            panelHeight={panelHeight}
+          />
+        </View>
+      </ResponsivePage>
+    );
+  }
 
   if (!monthly.isPeriodizationConfigured) return <UnconfiguredGate colors={colors} onOpenManager={onOpenManager} />;
   if (!monthly.activeCycle) return <ArchivedCycleGate colors={colors} onOpenManager={onOpenManager} />;
@@ -917,7 +1120,6 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
     : "Não definido";
   const objectiveLabel = resolveGoalLabel(monthly.selectedClass?.goal);
   const loadModelLabel = `${LOAD_MODEL_LABELS[activePolicy.loadModel]} · PSE ${activePolicy.intensityMin}–${activePolicy.intensityMax}`;
-  const panelHeight = Math.max(590, height - 205);
 
   const selectedPeriodizationSource: ClassPlanPeriodizationSource | undefined = selectedEvent
     ? {
@@ -940,15 +1142,15 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   const isStackedMobile = width < 560;
   const monthContent = (
     <View style={{ gap: 11 }}>
-      <MonthOverview
-        colors={colors}
-        monthKey={selectedMonthKey}
-        events={monthly.agendaEvents}
-        presentation={currentPresentation}
-        compact={!split}
-        horizontalContext={contextLayout.horizontalContext}
-        showContext={!split}
-      />
+      {!split ? (
+        <MonthContextSummary
+          colors={colors}
+          events={monthly.agendaEvents}
+          presentation={currentPresentation}
+          compact
+          horizontal={contextLayout.horizontalContext}
+        />
+      ) : null}
       <WeekGroups
         colors={colors}
         events={monthly.agendaEvents}
@@ -995,7 +1197,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
                   </Pressable>
                 </View>
               </View>
-              {selectedYear !== activeCycleYear ? (
+              {monthly.isHistoricalCycle ? (
                 <View style={{ backgroundColor: colors.card, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: colors.border }}>
                   <Text style={{ color: colors.muted, fontSize: 9, fontWeight: "700" }}>Histórico</Text>
                 </View>
@@ -1031,7 +1233,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
                       </Pressable>
                     </View>
                   </View>
-                  {selectedYear !== activeCycleYear ? (
+                  {monthly.isHistoricalCycle ? (
                     <View style={{ backgroundColor: colors.card, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: colors.border }}>
                       <Text style={{ color: colors.muted, fontSize: 9, fontWeight: "700" }}>Histórico</Text>
                     </View>
@@ -1056,32 +1258,57 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
             </View>
           </View>
         ) : <View style={{ gap: 12, paddingVertical: 12 }}>{monthContent}</View>}
-        {needsRegeneration ? <View style={{ flexDirection: width >= 640 ? "row" : "column", alignItems: width >= 640 ? "center" : "stretch", gap: 10, paddingVertical: 11, paddingHorizontal: dense ? 16 : 0, borderTopWidth: 1, borderTopColor: colors.border }}><View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 7 }}><GoAtletaIcon name="warning" size={16} color={colors.warningText} /><Text style={{ color: colors.muted, fontSize: 10 }}>O mês precisa ser atualizado. Planos personalizados e aulas concluídas serão preservados.</Text></View></View> : null}
-        {showLesson && sessionPlan.plan && monthly.selectedClass && selectedEvent ? (
-          <Suspense fallback={null}>
-            <ClassPlanPreviewModal
-              visible
-              plan={sessionPlan.plan}
-              classGroup={monthly.selectedClass}
-              lessonDate={sessionPlan.lessonDate || selectedEvent.date}
-              initialMode="preview"
-              periodizationSource={selectedPeriodizationSource}
-              onClose={() => {
-                setShowLesson(false);
-                sessionPlan.clear();
-              }}
-              onSavePlan={async (draft) => {
-                const savedPlan = await sessionPlan.savePlan(draft);
-                await monthly.reload();
-                return savedPlan;
-              }}
-              onRemovePlan={async () => {
-                await sessionPlan.removePlan();
-                setShowLesson(false);
-                await monthly.reload();
-              }}
-            />
-          </Suspense>
+        {needsRegeneration && !monthly.isHistoricalCycle ? <View style={{ flexDirection: width >= 640 ? "row" : "column", alignItems: width >= 640 ? "center" : "stretch", gap: 10, paddingVertical: 11, paddingHorizontal: dense ? 16 : 0, borderTopWidth: 1, borderTopColor: colors.border }}><View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 7 }}><GoAtletaIcon name="warning" size={16} color={colors.warningText} /><Text style={{ color: colors.muted, fontSize: 10 }}>O mês precisa ser atualizado. Planos personalizados e aulas concluídas serão preservados.</Text></View></View> : null}
+        {showLesson && monthly.selectedClass && selectedEvent ? (
+          <ClassPlanModalHost
+            colors={colors}
+            className={monthly.selectedClass.name}
+            lessonDate={selectedEvent.date}
+            onClose={() => {
+              setShowLesson(false);
+              sessionPlan.clear();
+            }}
+          >
+            {sessionPlan.plan ? (
+            <Suspense
+              fallback={(
+                <ClassPlanLoadingContent
+                  colors={colors}
+                  className={monthly.selectedClass.name}
+                  lessonDate={selectedEvent.date}
+                  onClose={() => {
+                    setShowLesson(false);
+                    sessionPlan.clear();
+                  }}
+                />
+              )}
+            >
+              <ClassPlanPreviewModal
+                visible
+                plan={sessionPlan.plan}
+                classGroup={monthly.selectedClass}
+                lessonDate={sessionPlan.lessonDate || selectedEvent.date}
+                initialMode="preview"
+                presentation="embedded"
+                periodizationSource={selectedPeriodizationSource}
+                onClose={() => {
+                  setShowLesson(false);
+                  sessionPlan.clear();
+                }}
+                onSavePlan={async (draft) => {
+                  const savedPlan = await sessionPlan.savePlan(draft);
+                  await monthly.reload();
+                  return savedPlan;
+                }}
+                onRemovePlan={async () => {
+                  await sessionPlan.removePlan();
+                  setShowLesson(false);
+                  await monthly.reload();
+                }}
+              />
+            </Suspense>
+            ) : null}
+          </ClassPlanModalHost>
         ) : null}
       </View>
     </ResponsivePage>

@@ -7,7 +7,9 @@ import {
     useState
 } from "react";
 import {
+    ActivityIndicator,
     FlatList,
+    Image,
     KeyboardAvoidingView,
     Platform,
     Text,
@@ -41,18 +43,22 @@ import { isAuthError, isNetworkError } from "../../../src/db/client";
 import { logAction } from "../../../src/observability/breadcrumbs";
 import { measure } from "../../../src/observability/perf";
 import { useAppTheme } from "../../../src/ui/app-theme";
-import { radius, shadow } from "../../../src/theme/tokens";
+import { radius } from "../../../src/theme/tokens";
 import { Button } from "../../../src/ui/Button";
-import { ClassContextHeader } from "../../../src/ui/ClassContextHeader";
+import { ClassGenderBadge } from "../../../src/ui/ClassGenderBadge";
 import { DateInput } from "../../../src/ui/DateInput";
 import { DatePickerModal } from "../../../src/ui/DatePickerModal";
-import { FadeHorizontalScroll } from "../../../src/ui/FadeHorizontalScroll";
 import { useSaveToast } from "../../../src/ui/save-toast";
 import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingState";
+import { ResponsivePage } from "../../../src/components/ui/ResponsivePage";
+import { BackTitleHeader } from "../../../src/components/ui/BackTitleHeader";
 import { GoAtletaIcon } from "../../../src/ui/icon-registry";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
 import { useIsOnline } from "../../../src/hooks/use-is-online";
+import { getClassPalette } from "../../../src/ui/class-colors";
+import { useResponsiveLayout } from "../../../src/ui/use-responsive-layout";
 import { SyncStatusBadge } from "../../../src/ui/SyncStatusBadge";
+import { navigateBackOrReplace } from "../../../src/navigation/safe-router";
 import {
   resolveAttendanceSaveIndicator,
   type AttendanceSavePhase,
@@ -83,6 +89,117 @@ const getDayIndex = (value: string) => {
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.getDay();
 };
+
+const shiftIsoDate = (value: string, amount: number) => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return value;
+  const next = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12);
+  if (Number.isNaN(next.getTime())) return value;
+  next.setDate(next.getDate() + amount);
+  return formatDate(next);
+};
+
+const getInitials = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  return `${first}${last}`.toUpperCase();
+};
+
+function StudentAvatar({ student, compact }: { student: Student; compact: boolean }) {
+  const { colors } = useAppTheme();
+  const size = compact ? 34 : 36;
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null);
+  const photoFailed = Boolean(student.photoUrl && failedPhotoUrl === student.photoUrl);
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        overflow: "hidden",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: colors.surfaceElevated,
+        borderWidth: 1,
+        borderColor: colors.borderSubtle,
+        flexShrink: 0,
+      }}
+    >
+      {student.photoUrl && !photoFailed ? (
+        <Image
+          source={{ uri: student.photoUrl }}
+          style={{ width: size, height: size }}
+          resizeMode="cover"
+          onError={() => setFailedPhotoUrl(student.photoUrl ?? null)}
+        />
+      ) : (
+        <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: "900" }}>
+          {getInitials(student.name)}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function AttendanceAction({
+  label,
+  onPress,
+  disabled = false,
+  loading = false,
+  compact = false,
+  variant = "secondary",
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  compact?: boolean;
+  variant?: "secondary" | "success" | "text";
+}) {
+  const { colors } = useAppTheme();
+  const isSuccess = variant === "success";
+  const isText = variant === "text";
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      disabled={disabled || loading}
+      suppressWebHoverFeedback={isText}
+      style={({ pressed, hovered }) => ({
+        minHeight: compact ? 40 : 42,
+        minWidth: isText ? 0 : compact ? 128 : 142,
+        paddingHorizontal: isText ? 0 : compact ? 14 : 18,
+        borderRadius: isText ? 0 : 10,
+        borderWidth: isText || isSuccess ? 0 : 1,
+        borderColor: colors.borderSubtle,
+        backgroundColor: isSuccess ? colors.success : "transparent",
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: disabled || loading ? 0.55 : pressed ? 0.86 : 1,
+        ...(isText && hovered ? { borderBottomWidth: 1, borderBottomColor: colors.textPrimary } : {}),
+      })}
+    >
+      {loading ? (
+        <ActivityIndicator size="small" color={isSuccess ? colors.backgroundSubtle : colors.textPrimary} />
+      ) : (
+        <Text
+          style={{
+            color: isSuccess ? colors.backgroundSubtle : colors.textPrimary,
+            fontSize: compact ? 13 : 14,
+            fontWeight: "900",
+          }}
+        >
+          {label}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
 
 type StudentContextDecision = "confirmed" | "ignored";
 
@@ -182,6 +299,8 @@ function AttendanceContextSuggestion({
 // perf-check: ignore-measure
 export default function AttendanceScreen() {
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout("content");
+  const isMobile = responsiveLayout.isMobile;
   const { signOut } = useAuth();
   const { id, date: dateParam } = useLocalSearchParams<{
     id: string;
@@ -694,14 +813,43 @@ export default function AttendanceScreen() {
     parsedStart && cls.durationMinutes
       ? formatRange(parsedStart.hour, parsedStart.minute, cls.durationMinutes)
       : "";
+  const classPalette = getClassPalette(cls.colorKey, colors, cls.unit ?? "");
+  const markedCount = items.filter(
+    (item) => item.status === "presente" || item.status === "faltou"
+  ).length;
+  const canOpenReport = isClassDay && hasSaved && !isSavingAttendance;
+  const canSave = isClassDay && hasChanges && !isSavingAttendance;
+
+  const openReport = () => {
+    if (!canOpenReport) return;
+    router.push({
+      pathname: "/class/[id]/session",
+      params: {
+        id: cls.id,
+        date,
+        tab: "relatorio",
+      },
+    });
+  };
+
+  const changeDay = (amount: number) => {
+    handleDateChange(shiftIsoDate(date, amount));
+  };
+
+  const toggleStatus = (studentId: string, status: "presente" | "faltou") => {
+    resetContextDecision(studentId);
+    setStatusById((current) => ({
+      ...current,
+      [studentId]: current[studentId] === status ? undefined : status,
+    }));
+  };
+
   const attendanceEmptyState = !isClassDay ? (
     <View
       style={{
         padding: 16,
-        borderRadius: 16,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.border,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderSubtle,
       }}
     >
       <Text style={{ color: colors.text, fontWeight: "700" }}>
@@ -715,10 +863,8 @@ export default function AttendanceScreen() {
     <View
       style={{
         padding: 16,
-        borderRadius: 16,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.border,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderSubtle,
       }}
     >
       <Text style={{ color: colors.text, fontWeight: "700" }}>
@@ -730,79 +876,81 @@ export default function AttendanceScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
-        style={{ flex: 1, padding: 16 }}
+        style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <ClassContextHeader
-        title="Chamada"
-        className={cls.name}
-        unit={cls.unit}
-        ageBand={cls.ageBand}
-        gender={cls.gender}
-        classColorKey={cls.colorKey}
-        dateLabel={dateLabel}
-        timeLabel={timeLabel}
-        notice={loadMessage}
-        backFallback={{ pathname: "/class/[id]", params: { id: cls.id } }}
-      />
-
-      <View
-        style={{
-          gap: 8,
-          padding: 14,
-          borderRadius: radius.container,
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: colors.borderSubtle,
-          ...shadow.card,
-          marginBottom: 12,
-        }}
-      >
-        <Text style={{ fontSize: 14, fontWeight: "900", color: colors.textPrimary }}>
-          Data da aula
-        </Text>
-        <DateInput
-          value={date}
-          onChange={handleDateChange}
-          placeholder="Selecione a data"
-          onOpenCalendar={() => setShowCalendar(true)}
-        />
-        { loadMessage ? (
+        <ResponsivePage
+          variant="content"
+          gap={0}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            paddingTop: isMobile ? 8 : 14,
+            paddingBottom: isMobile ? 0 : 12,
+          }}
+        >
           <View
             style={{
               flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              marginTop: 2,
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 14,
+              minHeight: isMobile ? 72 : 78,
+              paddingBottom: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.borderSubtle,
             }}
           >
-            <GoAtletaIcon
-              name="warningCircle"
-              size={14}
-              color={colors.warningText}
+            <BackTitleHeader
+              title="Chamada"
+              onBack={() =>
+                navigateBackOrReplace({
+                  router,
+                  fallback: { pathname: "/class/[id]", params: { id: cls.id } },
+                })
+              }
+              style={{ marginBottom: 0, flexShrink: 1 }}
             />
-            <Text style={{ color: colors.warningText, fontSize: 12 }}>
-              {loadMessage}
-            </Text>
-          </View>
-        ) : null}
-      </View>
 
-      <FlatList
-        style={{ flex: 1, minHeight: 0 }}
-        data={isClassDay ? items : []}
-        keyExtractor={(item) => item.student.id}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
-        renderItem={({ item }) => (
+            <View style={{ alignItems: "flex-end", gap: 5, minWidth: 0, maxWidth: isMobile ? "55%" : 360 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 7, minWidth: 0 }}>
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: isOnline ? classPalette.bg : colors.borderStrong,
+                    flexShrink: 0,
+                  }}
+                />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: colors.textPrimary,
+                    fontSize: isMobile ? 14 : 17,
+                    fontWeight: "900",
+                    minWidth: 0,
+                    flexShrink: 1,
+                  }}
+                >
+                  {cls.name}
+                </Text>
+                <ClassGenderBadge gender={cls.gender} />
+              </View>
+              {timeLabel ? (
+                <Text style={{ color: colors.textSecondary, fontSize: isMobile ? 12 : 14, fontWeight: "600" }}>
+                  {timeLabel}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
           <View
             style={{
-              borderRadius: radius.container,
-              padding: 14,
-              backgroundColor: colors.surface,
-              borderWidth: 1,
-              borderColor: colors.borderSubtle,
-              ...shadow.card,
+              gap: isMobile ? 10 : 12,
+              paddingVertical: isMobile ? 10 : 12,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.borderSubtle,
             }}
           >
             <View
@@ -810,180 +958,268 @@ export default function AttendanceScreen() {
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: 12,
+                gap: 14,
               }}
             >
-              <FadeHorizontalScroll
-                containerStyle={{ flex: 1, minWidth: 0 }}
-                fadeColor={colors.card}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  ...(isMobile ? { flex: 1, minWidth: 0 } : {}),
+                }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text
-                    style={{ fontSize: 16, fontWeight: "900", color: colors.textPrimary }}
-                    numberOfLines={1}
-                  >
-                    {item.student.name}
-                  </Text>
-                  {item.student.isExperimental ? (
-                    <View
-                      style={{
-                        borderRadius: radius.full,
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                        backgroundColor: colors.warningBg,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: colors.warningText,
-                          fontSize: 11,
-                          fontWeight: "700",
-                        }}
-                      >
-                        Experimental
-                      </Text>
-                    </View>
-                  ) : null}
-                  {item.student.financialStatus === "delinquent" ? (
-                    <View
-                      style={{
-                        borderRadius: radius.full,
-                        borderWidth: 1,
-                        borderColor: colors.warningBg,
-                        backgroundColor: colors.warningBg,
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                      }}
-                    >
-                      <Text style={{ color: colors.warningText, fontSize: 10, fontWeight: "800" }}>
-                        Inadimplente
-                      </Text>
-                    </View>
-                  ) : null}
-                  {item.activeContexts.length ? (
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 5,
-                        borderRadius: radius.full,
-                        paddingHorizontal: 8,
-                        paddingVertical: 3,
-                        backgroundColor:
-                          item.activeContexts[0].severity === "urgent"
-                            ? colors.dangerBg
-                            : colors.warningBg,
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name="warningCircle"
-                        size={13}
-                        color={
-                          item.activeContexts[0].severity === "urgent"
-                            ? colors.dangerText
-                            : colors.warningText
-                        }
-                      />
-                      <Text
-                        style={{
-                          color:
-                            item.activeContexts[0].severity === "urgent"
-                              ? colors.dangerText
-                              : colors.warningText,
-                          fontSize: 11,
-                          fontWeight: "800",
-                        }}
-                      >
-                        Acompanhamento ativo
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </FadeHorizontalScroll>
-              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                 <Pressable
-                  onPress={() => {
-                    resetContextDecision(item.student.id);
-                    setStatusById((prev) => ({
-                      ...prev,
-                      [item.student.id]:
-                        prev[item.student.id] === "presente" ? undefined : "presente",
-                    }));
-                  }}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    borderRadius: radius.full,
-                    borderWidth: 1,
-                    borderColor: item.status === "presente" ? colors.successBorder : colors.borderSubtle,
-                    backgroundColor:
-                      item.status === "presente" ? colors.successBg : colors.backgroundSubtle,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: item.status === "presente" ? colors.successText : colors.textPrimary,
-                      fontWeight: "800",
-                    }}
-                  >
-                    Presente
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    resetContextDecision(item.student.id);
-                    setStatusById((prev) => ({
-                      ...prev,
-                      [item.student.id]:
-                        prev[item.student.id] === "faltou" ? undefined : "faltou",
-                    }));
-                  }}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    borderRadius: radius.full,
-                    borderWidth: 1,
-                    borderColor: item.status === "faltou" ? colors.dangerBorder : colors.borderSubtle,
-                    backgroundColor:
-                      item.status === "faltou" ? colors.dangerBg : colors.backgroundSubtle,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: item.status === "faltou" ? colors.dangerText : colors.textPrimary,
-                      fontWeight: "800",
-                    }}
-                  >
-                    Faltou
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    setExpandedById((prev) => ({
-                      ...prev,
-                      [item.student.id]: !prev[item.student.id],
-                    }));
-                  }}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 10,
-                    borderRadius: radius.full,
-                    backgroundColor: colors.backgroundSubtle,
+                  accessibilityRole="button"
+                  accessibilityLabel="Dia anterior"
+                  onPress={() => changeDay(-1)}
+                  style={({ pressed }) => ({
+                    width: isMobile ? 50 : 48,
+                    height: 46,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: pressed ? colors.surfaceElevated : colors.surface,
                     borderWidth: 1,
                     borderColor: colors.borderSubtle,
-                  }}
+                  })}
                 >
-                  <GoAtletaIcon
-                    name={expandedById[item.student.id] ? "chevronDown" : "chevronForward"}
-                    size={16}
-                    color={colors.textMuted}
+                  <GoAtletaIcon name="chevronBack" size={20} color={colors.textPrimary} />
+                </Pressable>
+                <View style={isMobile ? { flex: 1, minWidth: 0 } : { width: 188, flexShrink: 0 }}>
+                  <DateInput
+                    value={date}
+                    onChange={handleDateChange}
+                    placeholder="Selecione a data"
+                    onOpenCalendar={() => setShowCalendar(true)}
+                    accessibilityLabel={`Data da chamada: ${dateLabel}`}
                   />
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Próximo dia"
+                  onPress={() => changeDay(1)}
+                  style={({ pressed }) => ({
+                    width: isMobile ? 50 : 48,
+                    height: 46,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: pressed ? colors.surfaceElevated : colors.surface,
+                    borderWidth: 1,
+                    borderColor: colors.borderSubtle,
+                  })}
+                >
+                  <GoAtletaIcon name="chevronForward" size={20} color={colors.textPrimary} />
                 </Pressable>
               </View>
+
+              {!isMobile ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                    <Text style={{ color: markedCount ? colors.success : colors.textPrimary, fontWeight: "900" }}>
+                      {markedCount}
+                    </Text>{" "}
+                    de {items.length} marcados
+                  </Text>
+                  <View style={{ width: 1, height: 28, backgroundColor: colors.borderSubtle }} />
+                  <AttendanceAction label="Abrir relatório" onPress={openReport} disabled={!canOpenReport} />
+                  <AttendanceAction
+                    label={isSavingAttendance ? "Salvando..." : "Salvar chamada"}
+                    onPress={handleSave}
+                    disabled={!canSave}
+                    loading={isSavingAttendance}
+                    variant="success"
+                  />
+                </View>
+              ) : null}
             </View>
 
-            { expandedById[item.student.id] ? (
-              <View style={{ marginTop: 10, gap: 8 }}>
+            {isMobile ? (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                  <Text style={{ color: markedCount ? colors.success : colors.textPrimary, fontWeight: "900" }}>
+                    {markedCount}
+                  </Text>{" "}
+                  de {items.length} marcados
+                </Text>
+                <AttendanceAction
+                  label="Abrir relatório"
+                  onPress={openReport}
+                  disabled={!canOpenReport}
+                  compact
+                  variant="text"
+                />
+              </View>
+            ) : null}
+
+            {loadMessage ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <GoAtletaIcon name="warningCircle" size={14} color={colors.warningText} />
+                <Text numberOfLines={2} style={{ color: colors.warningText, fontSize: 12 }}>
+                  {loadMessage}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {!isMobile && isClassDay && items.length ? (
+            <View
+              style={{
+                minHeight: 42,
+                flexDirection: "row",
+                alignItems: "center",
+                paddingHorizontal: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.borderSubtle,
+              }}
+            >
+              <Text style={{ flex: 1, color: colors.textSecondary, fontSize: 12, fontWeight: "900" }}>
+                Aluno(a)
+              </Text>
+              <Text style={{ width: 248, color: colors.textSecondary, fontSize: 12, fontWeight: "900" }}>
+                Status
+              </Text>
+              <View style={{ width: 30 }} />
+            </View>
+          ) : null}
+
+          <FlatList
+            style={{ flex: 1, minHeight: 0 }}
+            data={isClassDay ? items : []}
+            keyExtractor={(item) => item.student.id}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: isMobile ? 12 : 20 }}
+            renderItem={({ item }) => (
+              <View
+                style={{
+                  paddingVertical: isMobile ? 8 : 7,
+                  paddingHorizontal: isMobile ? 2 : 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.borderSubtle,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: isMobile ? 8 : 10, minHeight: isMobile ? 46 : 48 }}>
+                  <StudentAvatar student={item.student} compact={isMobile} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <Text
+                        numberOfLines={isMobile ? 2 : 1}
+                        style={{
+                          color: colors.textPrimary,
+                          fontSize: isMobile ? 13 : 14,
+                          lineHeight: isMobile ? 17 : 20,
+                          fontWeight: "800",
+                          flexShrink: 1,
+                        }}
+                      >
+                        {item.student.name}
+                      </Text>
+                      {item.activeContexts.length ? (
+                        <GoAtletaIcon
+                          name="warningCircle"
+                          size={14}
+                          color={item.activeContexts[0].severity === "urgent" ? colors.dangerText : colors.warningText}
+                        />
+                      ) : null}
+                    </View>
+                    {!isMobile && (item.student.isExperimental || item.student.financialStatus === "delinquent") ? (
+                      <Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                        {[
+                          item.student.isExperimental ? "Experimental" : null,
+                          item.student.financialStatus === "delinquent" ? "Inadimplente" : null,
+                        ].filter(Boolean).join(" · ")}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <View
+                    accessibilityRole="radiogroup"
+                    style={{
+                      width: isMobile ? 140 : 248,
+                      flexDirection: "row",
+                      borderWidth: 1,
+                      borderColor: colors.borderSubtle,
+                      borderRadius: 9,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {(["presente", "faltou"] as const).map((status) => {
+                      const selected = item.status === status;
+                      const backgroundColor = selected
+                        ? status === "presente"
+                          ? colors.success
+                          : colors.danger
+                        : "transparent";
+                      return (
+                        <Pressable
+                          key={status}
+                          accessibilityRole="radio"
+                          accessibilityLabel={`${status === "presente" ? "Presente" : "Faltou"}: ${item.student.name}`}
+                          accessibilityState={{ checked: selected }}
+                          onPress={() => toggleStatus(item.student.id, status)}
+                          style={({ pressed }) => ({
+                            flex: 1,
+                            minHeight: isMobile ? 34 : 36,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor,
+                            borderRightWidth: status === "presente" ? 1 : 0,
+                            borderRightColor: colors.borderSubtle,
+                            opacity: pressed ? 0.84 : 1,
+                          })}
+                        >
+                          <Text
+                            style={{
+                              color: selected ? colors.backgroundSubtle : colors.textPrimary,
+                              fontSize: isMobile ? 11 : 12,
+                              fontWeight: "900",
+                            }}
+                          >
+                            {status === "presente" ? "Presente" : "Faltou"}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${expandedById[item.student.id] ? "Fechar" : "Abrir"} detalhes de ${item.student.name}`}
+                    onPress={() =>
+                      setExpandedById((current) => ({
+                        ...current,
+                        [item.student.id]: !current[item.student.id],
+                      }))
+                    }
+                    style={({ pressed }) => ({
+                      width: 28,
+                      height: 36,
+                      borderRadius: 8,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: pressed ? colors.surfaceElevated : "transparent",
+                    })}
+                  >
+                    <GoAtletaIcon
+                      name={expandedById[item.student.id] ? "chevronDown" : "chevronForward"}
+                      size={18}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                </View>
+
+                {expandedById[item.student.id] ? (
+                  <View
+                    style={{
+                      marginTop: 10,
+                      marginLeft: isMobile ? 0 : 46,
+                      gap: 8,
+                      padding: 12,
+                      borderRadius: radius.internal,
+                      backgroundColor: colors.backgroundSubtle,
+                    }}
+                  >
                 <Text style={{ color: colors.textSecondary }}>
                   Idade: {item.student.age} | Tel: {item.student.phone}
                 </Text>
@@ -1080,53 +1316,48 @@ export default function AttendanceScreen() {
                     }
                   />
                 ) : null}
+                  </View>
+                ) : null}
               </View>
-            ) : null}
-          </View>
-        )}
-        ListEmptyComponent={attendanceEmptyState}
-        ListFooterComponent={
-          <View style={{ marginTop: 8, gap: 8 }}>
-            {saveIndicator ? (
-              <SyncStatusBadge
-                status={saveIndicator.status}
-                message={saveIndicator.message}
-              />
-            ) : null}
-            <Button
-              label={isSavingAttendance ? "Salvando chamada..." : "Salvar chamada"}
-              onPress={handleSave}
-              disabled={!isClassDay || !hasChanges || isSavingAttendance}
-              loading={isSavingAttendance}
-            />
-            <Button
-              label="Abrir relatório"
-              variant="secondary"
-              disabled={!isClassDay || !hasSaved || isSavingAttendance}
-              onPress={() => {
-                router.push({
-                  pathname: "/class/[id]/session",
-                  params: {
-                    id: cls.id,
-                    date,
-                    tab: "relatorio",
-                  },
-                });
+            )}
+            ListEmptyComponent={attendanceEmptyState}
+          />
+
+          {saveIndicator ? (
+            <View style={{ paddingTop: 8 }}>
+              <SyncStatusBadge status={saveIndicator.status} message={saveIndicator.message} />
+            </View>
+          ) : null}
+
+          {isMobile ? (
+            <View
+              style={{
+                paddingTop: 10,
+                paddingBottom: 10,
+                borderTopWidth: 1,
+                borderTopColor: colors.borderSubtle,
+                backgroundColor: colors.background,
               }}
-            />
-          </View>
-        }
-      />
+            >
+              <AttendanceAction
+                label={isSavingAttendance ? "Salvando chamada..." : "Salvar chamada"}
+                onPress={handleSave}
+                disabled={!canSave}
+                loading={isSavingAttendance}
+                compact
+                variant="success"
+              />
+            </View>
+          ) : null}
+        </ResponsivePage>
 
-      <DatePickerModal
-        visible={showCalendar}
-        value={date}
-        onChange={handleDateChange}
-        onClose={() => setShowCalendar(false)}
-        closeOnSelect
-      />
-
-
+        <DatePickerModal
+          visible={showCalendar}
+          value={date}
+          onChange={handleDateChange}
+          onClose={() => setShowCalendar(false)}
+          closeOnSelect
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -3748,53 +3748,48 @@ export default function TrainingList() {
                 position: "relative",
               }}
             >
-              <View style={{ flex: 1, minHeight: 0, flexDirection: "row", gap: 10 }}>
-                <View
-                  style={[
-                    {
+              <View style={{ flex: 1, minHeight: 0, position: "relative" }}>
+                {!workspaceLibraryCollapsed || !selectedPlan ? (
+                  <View
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      zIndex: 40,
                       minHeight: 0,
-                      alignSelf: "stretch",
                       overflow: "hidden",
-                    },
-                    responsiveLayout.isMobile
-                      ? {
-                          position: "absolute",
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          zIndex: 40,
-                        }
-                      : { flexShrink: 0 },
-                  ]}
-                >
-                  <TrainingPlanningWorkspaceLibrary
-                    collapsed={workspaceLibraryCollapsed}
-                    plans={items}
-                    templates={templates}
-                    classes={classes}
-                    selectedPlanId={selectedPlan?.id}
-                    onToggleCollapsed={() => setWorkspaceLibraryCollapsed((current) => !current)}
-                    onSelectPlan={(plan) => {
-                      void confirmWorkspaceReplacement(() => {
-                        handleViewPlan(plan);
-                        if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
-                      });
+                      boxShadow: "10px 0 28px rgba(10, 19, 34, 0.26)",
                     }}
-                    onUseTemplate={(template) => {
-                      void confirmWorkspaceReplacement(() => {
-                        handleUseWorkspaceTemplate(template);
-                        if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
-                      });
-                    }}
-                  />
-                </View>
+                  >
+                    <TrainingPlanningWorkspaceLibrary
+                      collapsed={!selectedPlan ? workspaceLibraryCollapsed : false}
+                      plans={items}
+                      templates={templates}
+                      classes={classes}
+                      selectedPlanId={selectedPlan?.id}
+                      onToggleCollapsed={() => setWorkspaceLibraryCollapsed((current) => !current)}
+                      onSelectPlan={(plan) => {
+                        void confirmWorkspaceReplacement(() => {
+                          handleViewPlan(plan);
+                          if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+                        });
+                      }}
+                      onUseTemplate={(template) => {
+                        void confirmWorkspaceReplacement(() => {
+                          handleUseWorkspaceTemplate(template);
+                          if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+                        });
+                      }}
+                    />
+                  </View>
+                ) : null}
 
                 <View
                   style={{
                     flex: 1,
                     minWidth: 0,
                     minHeight: 0,
-                    paddingLeft: responsiveLayout.isMobile && workspaceLibraryCollapsed ? 64 : 0,
                   }}
                 >
                   {selectedPlan && workspaceClass ? (
@@ -3814,6 +3809,8 @@ export default function TrainingList() {
                         onDirtyChange={setWorkspaceHasUnsavedChanges}
                         onWorkspaceControlsChange={setWorkspaceHeaderControls}
                         onApplyPlan={handleApplyWorkspacePlan}
+                        workspaceLibraryExpanded={!workspaceLibraryCollapsed}
+                        onToggleWorkspaceLibrary={() => setWorkspaceLibraryCollapsed((current) => !current)}
                       />
                     </Suspense>
                   ) : (

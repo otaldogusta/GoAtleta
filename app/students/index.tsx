@@ -276,7 +276,7 @@ export default function StudentsScreen() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [studentPhotoAccessUrls, setStudentPhotoAccessUrls] = useState<
-    Record<string, { sourceUrl: string; accessUrl: string }>
+    Record<string, { sourceUrl: string; accessUrl: string | null }>
   >({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1225,22 +1225,18 @@ export default function StudentsScreen() {
         const sourceUrl = student.photoUrl!.trim();
         try {
           const accessUrl = await getStudentPhotoAccessUrl(sourceUrl);
-          return accessUrl
-            ? ([student.id, { sourceUrl, accessUrl }] as const)
-            : null;
+          return [student.id, { sourceUrl, accessUrl }] as const;
         } catch (error) {
           console.warn("StudentsScreen photo authorization failed", {
             studentId: student.id,
             error,
           });
-          return null;
+          return [student.id, { sourceUrl, accessUrl: null }] as const;
         }
       }),
     ).then((entries) => {
       if (cancelled) return;
-      setStudentPhotoAccessUrls(
-        Object.fromEntries(entries.filter((entry) => entry !== null)),
-      );
+      setStudentPhotoAccessUrls(Object.fromEntries(entries));
     });
 
     return () => {
@@ -1255,6 +1251,15 @@ export default function StudentsScreen() {
       const resolved = studentPhotoAccessUrls[student.id];
       if (resolved?.sourceUrl === sourceUrl) return resolved.accessUrl;
       return getStudentPhotoObjectPath(sourceUrl) ? null : sourceUrl;
+    },
+    [studentPhotoAccessUrls],
+  );
+
+  const isStudentPhotoResolving = useCallback(
+    (student: Pick<Student, "id" | "photoUrl">) => {
+      const sourceUrl = student.photoUrl?.trim();
+      if (!sourceUrl || !getStudentPhotoObjectPath(sourceUrl)) return false;
+      return studentPhotoAccessUrls[student.id]?.sourceUrl !== sourceUrl;
     },
     [studentPhotoAccessUrls],
   );
@@ -3049,6 +3054,14 @@ export default function StudentsScreen() {
                   photoUrl: photoPreview.sourceUrl ?? undefined,
                 })
               : null
+          }
+          loading={
+            photoPreview
+              ? isStudentPhotoResolving({
+                  id: photoPreview.studentId,
+                  photoUrl: photoPreview.sourceUrl ?? undefined,
+                })
+              : false
           }
           onClose={() => setPhotoPreview(null)}
         />

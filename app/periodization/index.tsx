@@ -155,6 +155,7 @@ import { periodizationHtml } from "../../src/pdf/templates/periodization";
 import { monthlyPlanHtml } from "../../src/pdf/templates/monthly-plan";
 
 import { buildWeeklyPlanExportData } from "../../src/screens/planning/application/monthly-plan-export";
+import { isMonthWithinPlanningCycle } from "../../src/screens/planning/application/planning-cycle-selection";
 
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 
@@ -749,6 +750,10 @@ export default function PeriodizationScreen() {
 
   const [classPlans, setClassPlans] = useState<ClassPlan[]>([]);
   const [planningCycles, setPlanningCycles] = useState<PlanningCycle[]>([]);
+  const [resolvedPlanningCyclesClassId, setResolvedPlanningCyclesClassId] =
+    useState("");
+  const [planningWorkspaceRefreshSignal, setPlanningWorkspaceRefreshSignal] =
+    useState(0);
   const [recentDailyLessonPlans, setRecentDailyLessonPlans] = useState<
     DailyLessonPlan[]
   >([]);
@@ -1094,9 +1099,13 @@ export default function PeriodizationScreen() {
     if (!currentClass?.id) {
       Promise.resolve().then(() => {
         setPlanningCycles([]);
+        setResolvedPlanningCyclesClassId("");
       });
       return;
     }
+    Promise.resolve().then(() => {
+      if (alive) setResolvedPlanningCyclesClassId("");
+    });
     (async () => {
       try {
         const configured = isClassPeriodizationConfigured(currentClass);
@@ -1118,9 +1127,11 @@ export default function PeriodizationScreen() {
             );
         if (!alive) return;
         setPlanningCycles(cycles);
+        setResolvedPlanningCyclesClassId(currentClass.id);
       } catch (error) {
         if (!alive) return;
         setPlanningCycles([]);
+        setResolvedPlanningCyclesClassId(currentClass.id);
         logAction("periodization_cycles_load_failed", {
           classId: currentClass.id,
           message: error instanceof Error ? error.message : String(error),
@@ -1405,6 +1416,13 @@ export default function PeriodizationScreen() {
     () => planningCycles.find((c) => c.status === "active") ?? null,
     [planningCycles],
   );
+  const isViewingActiveCycle = useMemo(() => {
+    return Boolean(
+      activeCycle &&
+        (!currentSelectedMonth ||
+          isMonthWithinPlanningCycle(activeCycle, currentSelectedMonth)),
+    );
+  }, [activeCycle, currentSelectedMonth]);
   const activePeriodizationPolicy = useMemo(
     () => parsePeriodizationPolicy(activeCycle?.periodizationPolicyJson),
     [activeCycle?.periodizationPolicyJson],
@@ -2005,6 +2023,8 @@ export default function PeriodizationScreen() {
     activeCycle,
     activeCycleYear:
       activeCycle?.year ?? (Number(activeCycleStartDate.slice(0, 4)) || null),
+    loadPlans: resolvedPlanningCyclesClassId === selectedClassId,
+    loadAcwr: false,
     acwrLimits,
     setClassPlans,
     setCycleLength,
@@ -3523,6 +3543,18 @@ export default function PeriodizationScreen() {
         intensityMax,
       });
 
+      const cycleYear =
+        Number(cycleStartDate.slice(0, 4)) || new Date().getFullYear();
+      const archivedTargetCycle = planningCycles.find(
+        (cycle) => cycle.year === cycleYear && cycle.status === "archived",
+      );
+      if (archivedTargetCycle) {
+        setPeriodizationSetupError(
+          `O ciclo de ${cycleYear} está arquivado. Escolha uma data de início em outro ano para preservar o histórico.`,
+        );
+        return false;
+      }
+
       setPeriodizationSetupError("");
       setIsSavingPeriodizationSetup(true);
       try {
@@ -3542,8 +3574,6 @@ export default function PeriodizationScreen() {
           cycleStartDate,
           cycleLengthWeeks,
         });
-        const cycleYear =
-          Number(cycleStartDate.slice(0, 4)) || new Date().getFullYear();
         const ensuredCycle = await ensureActiveCycleForYear(
           selectedClass.id,
           selectedClass.organizationId,
@@ -3569,6 +3599,7 @@ export default function PeriodizationScreen() {
           updatedCycle,
           ...current.filter((cycle) => cycle.id !== updatedCycle.id),
         ]);
+        setPlanningWorkspaceRefreshSignal((current) => current + 1);
         setPeriodizationGoal(goal);
         setPeriodizationMvLevel(mvLevel);
         setPeriodizationCycleStartDate(cycleStartDate);
@@ -3613,6 +3644,7 @@ export default function PeriodizationScreen() {
       periodizationMvLevel,
       selectedClass,
       activePeriodizationPolicy,
+      planningCycles,
     ],
   );
 
@@ -3623,7 +3655,7 @@ export default function PeriodizationScreen() {
       );
       return;
     }
-    if (!selectedClass) return;
+    if (!selectedClass || !activeCycle) return;
 
     confirmDialog({
       title: hasWeekPlans
@@ -3635,22 +3667,9 @@ export default function PeriodizationScreen() {
       confirmLabel: hasWeekPlans ? "Regerar automáticos" : "Gerar ciclo",
       cancelLabel: "Cancelar",
       onConfirm: async () => {
-        const year =
-          Number(selectedClass.cycleStartDate.slice(0, 4)) ||
-          new Date().getFullYear();
         try {
-          const ensuredCycle = await ensureActiveCycleForYear(
-            selectedClass.id,
-            selectedClass.organizationId,
-            year,
-            selectedClass.cycleStartDate || null,
-          );
-          const cycles = await getPlanningCycles(
-            selectedClass.id,
-            selectedClass.organizationId,
-          );
-          setPlanningCycles(cycles);
-          await handleGenerateMode("auto", ensuredCycle.id);
+          await handleGenerateMode("auto", activeCycle);
+          setPlanningWorkspaceRefreshSignal((current) => current + 1);
         } catch (error) {
           Alert.alert(
             "Não foi possível gerar a periodização",
@@ -3666,6 +3685,7 @@ export default function PeriodizationScreen() {
     handleGenerateMode,
     hasWeekPlans,
     isPeriodizationConfigured,
+    activeCycle,
     selectedClass,
   ]);
 
@@ -3692,6 +3712,7 @@ export default function PeriodizationScreen() {
             }),
           );
           await refreshPlans();
+          setPlanningWorkspaceRefreshSignal((current) => current + 1);
           setActiveTab("geral");
           Alert.alert(
             "Estrutura redefinida",
@@ -3738,6 +3759,7 @@ export default function PeriodizationScreen() {
             selectedClass.organizationId,
           );
           setPlanningCycles(cycles);
+          setPlanningWorkspaceRefreshSignal((current) => current + 1);
           setShowPeriodizationManager(false);
           setActiveTab("geral");
           Alert.alert(
@@ -4398,7 +4420,7 @@ export default function PeriodizationScreen() {
           right={
             selectedClass ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                {isPeriodizationConfigured && activeCycle ? (
+                {isPeriodizationConfigured && activeCycle && isViewingActiveCycle ? (
                   <PlanningRegenerateDropdown
                     colors={colors}
                     isSaving={isSavingPlans}
@@ -4512,11 +4534,12 @@ export default function PeriodizationScreen() {
         >
           {selectedClass ? (
             <UnifiedPlanningWorkspace
-              key={`${selectedClass.id}:${activeCycle?.id ?? "no-active-cycle"}`}
+              key={selectedClass.id}
               colors={colors}
               classId={selectedClass.id}
               initialMonthKey={initialMonthParam}
               regenerateMonthSignal={regenerateMonthSignal}
+              refreshSignal={planningWorkspaceRefreshSignal}
               onMonthChange={setCurrentSelectedMonth}
               onOpenManager={(mode) => openPeriodizationManager("cycle", mode)}
               onRegenerateCycle={handleGenerateCycle}

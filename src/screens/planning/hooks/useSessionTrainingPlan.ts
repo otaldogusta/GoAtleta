@@ -11,7 +11,10 @@ import type {
 import type { StudentPlanningContextInput } from "../application/build-unified-planning-context";
 import { buildUnifiedPlanningContext } from "../application/build-unified-planning-context";
 import { createTrainingPlanVersion } from "../../../core/training-plan-factory";
-import { shouldRegenerateInconsistentAutomaticPlan } from "../../../core/cycle-day-planning/volleyball-skill-signals";
+import {
+  shouldRegenerateInconsistentAutomaticPlan,
+  shouldRegenerateRepeatedAutomaticPlan,
+} from "../../../core/cycle-day-planning/volleyball-skill-signals";
 import {
   deleteTrainingPlan,
   deleteTrainingPlansByClassAndDate,
@@ -58,9 +61,37 @@ export function useSessionTrainingPlan({
           limit: 1,
         });
         const existingPlan = existingPlans[0] ?? null;
+        const isReplaceableAutomaticPlan =
+          existingPlan?.origin === "auto" ||
+          (!existingPlan?.origin &&
+            Boolean(
+              existingPlan?.generatedAt ||
+                existingPlan?.inputHash ||
+                existingPlan?.pedagogy?.decisionTrace ||
+                existingPlan?.pedagogy?.generationExplanation
+            ));
+        if (existingPlan && !isReplaceableAutomaticPlan) {
+          setPlan(existingPlan);
+          setLessonDate(event.date);
+          return existingPlan;
+        }
+
+        // Automatic plans are valid planning history too. Excluding `generated`
+        // plans makes every lesson look like the first one and repeats the same
+        // activity set across the month.
+        const recentPlans = await getTrainingPlans({
+          organizationId: classGroup.organizationId,
+          classId: classGroup.id,
+          orderBy: "createdat_desc",
+          limit: 24,
+        });
         const shouldRegenerate = shouldRegenerateInconsistentAutomaticPlan({
           plan: existingPlan,
           classPlan: event.plan,
+          dailyLessonPlan: event.dailyPlan,
+        }) || shouldRegenerateRepeatedAutomaticPlan({
+          plan: existingPlan,
+          recentPlans,
           dailyLessonPlan: event.dailyPlan,
         });
         if (existingPlan && !shouldRegenerate) {
@@ -68,14 +99,6 @@ export function useSessionTrainingPlan({
           setLessonDate(event.date);
           return existingPlan;
         }
-
-        const recentPlans = await getTrainingPlans({
-          organizationId: classGroup.organizationId,
-          classId: classGroup.id,
-          status: "final",
-          orderBy: "createdat_desc",
-          limit: 12,
-        });
         const documentSupport = await Promise.race([
           retrieveDocumentSupportForPlan({
             classGroup,

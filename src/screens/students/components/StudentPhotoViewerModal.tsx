@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Modal, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -10,16 +11,41 @@ type StudentPhotoViewerModalProps = {
   visible: boolean;
   name?: string | null;
   uri?: string | null;
+  loading?: boolean;
   onClose: () => void;
 };
+
+export type StudentPhotoViewerState = "photo" | "loading" | "empty";
+
+export function resolveStudentPhotoViewerState({
+  uri,
+  loading,
+  imageFailed,
+}: {
+  uri?: string | null;
+  loading: boolean;
+  imageFailed: boolean;
+}): StudentPhotoViewerState {
+  if (uri && !imageFailed) return "photo";
+  if (loading && !imageFailed) return "loading";
+  return "empty";
+}
 
 export function StudentPhotoViewerModal({
   visible,
   name,
   uri,
+  loading = false,
   onClose,
 }: StudentPhotoViewerModalProps) {
   const { colors } = useAppTheme();
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [uri, visible]);
+
+  const viewerState = resolveStudentPhotoViewerState({ uri, loading, imageFailed });
 
   return (
     <Modal
@@ -79,18 +105,39 @@ export function StudentPhotoViewerModal({
             backgroundColor: colors.background,
           }}
         >
-          {uri ? (
+          {viewerState === "photo" ? (
             <Image
-              source={{ uri }}
+              source={{ uri: uri! }}
               style={{ width: "100%", height: "100%" }}
               contentFit="contain"
               cachePolicy="memory-disk"
+              onError={() => setImageFailed(true)}
             />
-          ) : (
+          ) : viewerState === "loading" ? (
             <View style={{ alignItems: "center", gap: 10 }}>
               <ActivityIndicator color={colors.primaryBg} />
               <Text style={{ color: colors.muted, fontWeight: "600" }}>
                 Carregando foto...
+              </Text>
+            </View>
+          ) : (
+            <View style={{ alignItems: "center", gap: 12 }}>
+              <View
+                style={{
+                  width: 112,
+                  height: 112,
+                  borderRadius: 56,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.surface,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <GoAtletaIcon name="profile" size={54} color={colors.muted} />
+              </View>
+              <Text style={{ color: colors.muted, fontWeight: "700" }}>
+                Sem foto
               </Text>
             </View>
           )}

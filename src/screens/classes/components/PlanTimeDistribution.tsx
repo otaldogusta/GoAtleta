@@ -15,12 +15,14 @@ export function PlanTimeDistribution({
   colors,
   items,
   compact = false,
+  emphasized = false,
   showLegend = true,
   showHoverTooltip = false,
 }: {
   colors: ThemeColors;
   items: PlanTimeDistributionItem[];
   compact?: boolean;
+  emphasized?: boolean;
   showLegend?: boolean;
   showHoverTooltip?: boolean;
 }) {
@@ -28,10 +30,10 @@ export function PlanTimeDistribution({
   const visibleItems = items.filter((item) => item.minutes > 0);
   const totalMinutes = visibleItems.reduce((sum, item) => sum + item.minutes, 0);
   const total = Math.max(1, totalMinutes);
-  const size = compact ? 84 : 112;
+  const size = emphasized ? 104 : compact ? 84 : 112;
   const center = size / 2;
-  const radius = compact ? 31 : 42;
-  const strokeWidth = compact ? 8 : 10;
+  const radius = emphasized ? 38 : compact ? 31 : 42;
+  const strokeWidth = emphasized ? 9 : compact ? 8 : 10;
   const circumference = 2 * Math.PI * radius;
   const segments = visibleItems.map((item, index) => ({
     ...item,
@@ -70,7 +72,7 @@ export function PlanTimeDistribution({
     <View style={{ position: "relative", flexDirection: "row", alignItems: "center", gap: compact ? 10 : 18, overflow: "visible" }}>
       <View
         {...webHoverProps}
-        style={{ width: size, height: size, alignItems: "center", justifyContent: "center", overflow: "visible" }}
+        style={{ width: size, height: size, alignItems: "center", justifyContent: "center", paddingTop: emphasized ? 26 : 0, columnGap: emphasized ? 0 : undefined, overflow: "visible" }}
       >
         <Svg
           width={size}
@@ -94,8 +96,8 @@ export function PlanTimeDistribution({
             />
           ))}
         </Svg>
-        <Text style={{ color: colors.text, fontSize: compact ? 15 : 17, fontWeight: "900" }}>{totalMinutes}</Text>
-        <Text style={{ color: colors.muted, fontSize: compact ? 9 : 10 }}>min</Text>
+        <Text style={{ color: colors.text, fontSize: emphasized ? 18 : compact ? 15 : 17, fontWeight: "900" }}>{totalMinutes}</Text>
+        <Text style={{ color: colors.muted, fontSize: emphasized ? 10 : compact ? 9 : 10 }}>min</Text>
       </View>
       {showLegend ? <View style={{ flex: 1, gap: 8 }}>
         {visibleItems.map((item, index) => (

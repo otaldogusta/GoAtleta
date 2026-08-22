@@ -64,7 +64,7 @@ type ClassPlanPreviewModalProps = {
   coachName?: string;
   initialMode?: "preview" | "edit";
   initialDirty?: boolean;
-  presentation?: "modal" | "workspace";
+  presentation?: "modal" | "workspace" | "embedded";
   draftStatus?: "idle" | "saving" | "saved" | "restored" | "error";
   periodizationSource?: ClassPlanPeriodizationSource;
   onSavePlan: (plan: TrainingPlan) => Promise<TrainingPlan>;
@@ -73,6 +73,8 @@ type ClassPlanPreviewModalProps = {
   onRemovePlan?: () => Promise<void>;
   onApplyPlan?: (plan: TrainingPlan) => void | Promise<void>;
   onWorkspaceControlsChange?: (controls: ClassPlanWorkspaceHeaderControls | null) => void;
+  workspaceLibraryExpanded?: boolean;
+  onToggleWorkspaceLibrary?: () => void;
 };
 
 export type ClassPlanWorkspaceHeaderControls = {
@@ -153,16 +155,20 @@ export function ClassPlanPreviewModal({
   onRemovePlan,
   onApplyPlan,
   onWorkspaceControlsChange,
+  workspaceLibraryExpanded = false,
+  onToggleWorkspaceLibrary,
 }: ClassPlanPreviewModalProps) {
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
   const { confirm } = useConfirmDialog();
   const { width } = useWindowDimensions();
   const workspaceMode = presentation === "workspace";
+  const embeddedMode = presentation === "embedded";
   const splitLayout = Platform.OS === "web" && width >= 980;
   const phoneLayout = Platform.OS === "web" && width < 600;
   const inlinePdfEditor = Platform.OS === "web";
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle");
+  const [previewHtml, setPreviewHtml] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfSize, setPdfSize] = useState<number | null>(null);
@@ -282,7 +288,6 @@ export function ClassPlanPreviewModal({
     () => buildClassPlanPdfData({ classGroup, plan: pdfPlan, lessonDate, coachName, periodizationSource }),
     [classGroup, coachName, lessonDate, pdfPlan, periodizationSource]
   );
-  const previewHtml = useMemo(() => sessionPlanHtml(pdfData, { editable: true }), [pdfData]);
   const fileName = useMemo(() => {
     const date = lessonDate || pdfPlan.applyDate || "aula";
     const className = classGroup.name || "turma";
@@ -298,16 +303,22 @@ export function ClassPlanPreviewModal({
 
     let active = true;
     let generatedUrl = "";
+    let firstFrame = 0;
+    let secondFrame = 0;
+    let idleHandle: number | undefined;
 
-    // O preview HTML já está disponível instantaneamente
-    setPreviewStatus("ready");
+    setPreviewStatus("loading");
+    setPreviewHtml("");
+    setPdfBlob(null);
+    setPdfSize(null);
+    setPdfUrl("");
 
     // Gera o blob binário em background para download otimizado
     const idleCallback = (typeof window !== "undefined" && "requestIdleCallback" in window)
       ? (window as any).requestIdleCallback
       : (cb: () => void) => setTimeout(cb, 100);
 
-    const idleHandle = idleCallback(async () => {
+    const prepareDownload = () => idleCallback(async () => {
       try {
         const [{ SessionPlanDocument }, { createWebPdfBlob }] = await Promise.all([
           import("../../../pdf/session-plan-document"),
@@ -325,8 +336,28 @@ export function ClassPlanPreviewModal({
       }
     });
 
+    const preparePreview = () => {
+      if (!active) return;
+      try {
+        setPreviewHtml(sessionPlanHtml(pdfData, { editable: true }));
+        idleHandle = prepareDownload();
+      } catch {
+        if (active) setPreviewStatus("error");
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      firstFrame = window.requestAnimationFrame(() => {
+        secondFrame = window.requestAnimationFrame(preparePreview);
+      });
+    } else {
+      preparePreview();
+    }
+
     return () => {
       active = false;
+      if (firstFrame && typeof window !== "undefined") window.cancelAnimationFrame(firstFrame);
+      if (secondFrame && typeof window !== "undefined") window.cancelAnimationFrame(secondFrame);
       if (typeof window !== "undefined" && "cancelIdleCallback" in window && idleHandle) {
         (window as any).cancelIdleCallback(idleHandle);
       }
@@ -435,7 +466,9 @@ export function ClassPlanPreviewModal({
       if (typeof event.data?.type === "string" && event.data.type.startsWith("GOATLETA_PDF_")) {
         keepWorkspaceAtTop();
       }
-      if (event.data?.type === "GOATLETA_PDF_BLOCK_CLICK") {
+      if (event.data?.type === "GOATLETA_PDF_READY") {
+        setPreviewStatus("ready");
+      } else if (event.data?.type === "GOATLETA_PDF_BLOCK_CLICK") {
         const { blockKey } = event.data;
         if (blockKey === "warmup" || blockKey === "main" || blockKey === "cooldown") {
           setSelectedBlockKey(blockKey);
@@ -859,15 +892,48 @@ export function ClassPlanPreviewModal({
 
   const preview = (
     <View style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}>
-      {Platform.OS === "web" && previewHtml ? (
-        <PdfPreviewFrame
-          key={`plan-preview-${previewRevision}`}
-          url={pdfUrl || ""}
-          html={previewHtml}
-          title={`PDF do plano ${pdfPlan.title}`}
-          editable={true}
-          zoom={workspaceMode ? previewZoom : 100}
-        />
+      {Platform.OS === "web" ? (
+        <>
+          {previewHtml ? (
+            <View
+              pointerEvents={previewStatus === "ready" ? "auto" : "none"}
+              style={[
+                StyleSheet.absoluteFill,
+                { opacity: previewStatus === "ready" ? 1 : 0 },
+              ]}
+            >
+              <PdfPreviewFrame
+                key={`plan-preview-${previewRevision}`}
+                url={pdfUrl || ""}
+                html={previewHtml}
+                title={`PDF do plano ${pdfPlan.title}`}
+                editable={true}
+                zoom={workspaceMode ? previewZoom : 100}
+              />
+            </View>
+          ) : null}
+          {previewStatus === "error" ? (
+            <View style={styles.previewState} accessibilityLiveRegion="polite">
+              <GoAtletaIcon name="document" size={30} color={colors.muted} />
+              <Text style={[styles.previewStateTitle, { color: colors.text }]}>Não foi possível preparar a prévia</Text>
+              <Pressable
+                onPress={() => setRetryKey((current) => current + 1)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.retryAction,
+                  { borderColor: colors.border, opacity: pressed ? 0.72 : 1 },
+                ]}
+              >
+                <Text style={[styles.retryActionLabel, { color: colors.text }]}>Tentar novamente</Text>
+              </Pressable>
+            </View>
+          ) : previewStatus !== "ready" ? (
+            <View style={styles.previewState} accessibilityLiveRegion="polite" accessibilityRole="progressbar">
+              <ActivityIndicator size="small" color={colors.primaryBg} />
+              <Text style={[styles.previewStateTitle, { color: colors.text }]}>Carregando plano…</Text>
+            </View>
+          ) : null}
+        </>
       ) : previewStatus === "error" ? (
         <View style={styles.previewState} accessibilityLiveRegion="polite">
           <GoAtletaIcon name="document" size={30} color={colors.muted} />
@@ -883,17 +949,11 @@ export function ClassPlanPreviewModal({
             <Text style={[styles.retryActionLabel, { color: colors.text }]}>Tentar novamente</Text>
           </Pressable>
         </View>
-      ) : Platform.OS !== "web" ? (
+      ) : (
         <View style={styles.previewState}>
           <GoAtletaIcon name="document" size={30} color={colors.muted} />
           <Text style={[styles.previewStateTitle, { color: colors.text }]}>Prévia disponível no navegador</Text>
           <Text style={[styles.previewStateText, { color: colors.muted }]}>Baixe o PDF para ver o plano completo.</Text>
-        </View>
-      ) : (
-        <View style={styles.previewState} accessibilityLiveRegion="polite">
-          <ActivityIndicator size="small" color={colors.primaryBg} />
-          <Text style={[styles.previewStateTitle, { color: colors.text }]}>Preparando o PDF</Text>
-          <Text style={[styles.previewStateText, { color: colors.muted }]}>Organizando o plano completo desta aula.</Text>
         </View>
       )}
     </View>
@@ -1449,6 +1509,24 @@ export function ClassPlanPreviewModal({
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
+            {onToggleWorkspaceLibrary ? (
+              <Pressable
+                onPress={onToggleWorkspaceLibrary}
+                accessibilityRole="button"
+                accessibilityLabel={workspaceLibraryExpanded ? "Recolher biblioteca" : "Expandir biblioteca"}
+                accessibilityState={{ expanded: workspaceLibraryExpanded }}
+                style={({ pressed }) => [
+                  styles.workspaceIconButton,
+                  { borderColor: colors.border, opacity: pressed ? 0.68 : 1 },
+                ]}
+              >
+                <GoAtletaIcon
+                  name={workspaceLibraryExpanded ? "chevronBack" : "chevronForward"}
+                  size={17}
+                  color={colors.text}
+                />
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={handleWorkspaceUndo}
               disabled={!undoStackRef.current.length}
@@ -1504,19 +1582,8 @@ export function ClassPlanPreviewModal({
     );
   }
 
-  return (
-    <ModalSheet
-      visible={visible}
-      onClose={requestClose}
-      position="center"
-      containerPadding={splitLayout ? 8 : 0}
-      cardStyle={[
-        cardStyle,
-        styles.modalCard,
-        splitLayout ? styles.modalCardDesktop : styles.modalCardCompact,
-        !splitLayout ? { borderColor: colors.border, borderWidth: 0 } : null,
-      ]}
-    >
+  const modalContent = (
+    <>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={styles.headerCopy}>
           <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>Plano da aula</Text>
@@ -1683,6 +1750,27 @@ export function ClassPlanPreviewModal({
           </View>
         </AnchoredDropdownOption>
       </AnchoredDropdown>
+    </>
+  );
+
+  if (embeddedMode) {
+    return <View style={{ flex: 1, minHeight: 0 }}>{modalContent}</View>;
+  }
+
+  return (
+    <ModalSheet
+      visible={visible}
+      onClose={requestClose}
+      position="center"
+      containerPadding={splitLayout ? 8 : 0}
+      cardStyle={[
+        cardStyle,
+        styles.modalCard,
+        splitLayout ? styles.modalCardDesktop : styles.modalCardCompact,
+        !splitLayout ? { borderColor: colors.border, borderWidth: 0 } : null,
+      ]}
+    >
+      {modalContent}
     </ModalSheet>
   );
 }
