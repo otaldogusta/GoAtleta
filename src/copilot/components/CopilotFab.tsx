@@ -5,6 +5,18 @@ import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 
+export const COPILOT_FAB_SIZE = 58;
+export const COPILOT_FAB_RIGHT = 16;
+export const COPILOT_FAB_STACK_GAP = 12;
+
+export function resolveCopilotFabBottom(insetBottom: number) {
+  return Math.max(insetBottom + 92, 108);
+}
+
+export function resolveCopilotCompanionFabBottom(insetBottom: number) {
+  return resolveCopilotFabBottom(insetBottom) + COPILOT_FAB_SIZE + COPILOT_FAB_STACK_GAP;
+}
+
 type CopilotFabProps = {
   showPulse: boolean;
   hasBadge?: boolean;
@@ -30,6 +42,7 @@ export const CopilotFab = memo(function CopilotFab({
     <View
       style={[
         styles.fabWrapper,
+        Platform.OS === "web" ? ({ position: "fixed" } as any) : null,
         {
           bottom: fabBottomOffset,
           pointerEvents: "box-none",
@@ -66,8 +79,8 @@ export const CopilotFab = memo(function CopilotFab({
         accessibilityHint={hintMessage ?? "Abre o copiloto com o contexto da tela atual."}
         style={{
           borderRadius: 999,
-          width: 58,
-          height: 58,
+          width: COPILOT_FAB_SIZE,
+          height: COPILOT_FAB_SIZE,
           backgroundColor: "#111111",
           alignItems: "center",
           justifyContent: "center",
@@ -108,7 +121,7 @@ export const CopilotFab = memo(function CopilotFab({
 const styles = StyleSheet.create({
   fabWrapper: {
     position: "absolute",
-    right: 16,
+    right: COPILOT_FAB_RIGHT,
     bottom: 24,
     zIndex: 5200,
     alignItems: "center",

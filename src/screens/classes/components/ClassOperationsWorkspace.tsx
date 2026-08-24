@@ -3,6 +3,7 @@ import { ActivityIndicator, Animated, Easing, Platform, ScrollView, StyleSheet, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { TrainingPlan } from "../../../core/models";
+import { COPILOT_FAB_RIGHT, COPILOT_FAB_SIZE, resolveCopilotCompanionFabBottom } from "../../../copilot/components/CopilotFab";
 import { radius, spacing } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
@@ -10,6 +11,7 @@ import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useContainerResponsiveLayout } from "../../../ui/use-container-responsive-layout";
 import { CLASS_PLAN_BLOCK_PRESENTATION } from "./class-plan-block-presentation";
+import { ClassLessonDateNavigator } from "./ClassLessonDateNavigator";
 
 const COMFORTABLE_CLASS_WORKSPACE_WIDTH = 1160;
 
@@ -40,7 +42,6 @@ type ClassOperationsWorkspaceProps = {
   onViewPlan: () => void;
   onGeneratePlan: () => void;
   isGeneratingPlan: boolean;
-  contextualInsight?: ReactNode;
   attendanceContent?: ReactNode | ((options: { dense: boolean }) => ReactNode);
   activeSection?: ClassWorkspaceSection;
   onSelectSection?: (section: ClassWorkspaceSection) => void;
@@ -295,61 +296,6 @@ function PlanBlockRow({
   );
 }
 
-function LessonDateNavigator({
-  colors,
-  dateLabel,
-  onPrevious,
-  onNext,
-  onOpenCalendar,
-  isLoading,
-}: {
-  colors: ThemeColors;
-  dateLabel: string;
-  onPrevious: () => void;
-  onNext: () => void;
-  onOpenCalendar: () => void;
-  isLoading: boolean;
-}) {
-  return (
-    <View style={[styles.lessonDateNavigator, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <Pressable
-        onPress={onPrevious}
-        disabled={isLoading}
-        accessibilityRole="button"
-        accessibilityLabel="Aula anterior"
-        style={({ pressed }) => [styles.lessonDateButton, { borderColor: colors.border, opacity: isLoading ? 0.45 : pressed ? 0.7 : 1 }]}
-      >
-        <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
-      </Pressable>
-      <Pressable
-        onPress={onOpenCalendar}
-        disabled={isLoading}
-        accessibilityRole="button"
-        accessibilityLabel="Selecionar data da aula"
-        accessibilityHint="Abre o calendário de aulas"
-        style={({ pressed }) => [
-          styles.lessonDateCopy,
-          styles.lessonDatePickerButton,
-          { opacity: isLoading ? 0.55 : pressed ? 0.72 : 1 },
-        ]}
-      >
-        <GoAtletaIcon name="calendar" size={16} color={colors.muted} />
-        <Text style={[styles.lessonDateLabel, { color: colors.text }]}>{dateLabel}</Text>
-        {isLoading ? <ActivityIndicator size="small" color={colors.primaryBg} style={styles.lessonDateLoader} /> : null}
-      </Pressable>
-      <Pressable
-        onPress={onNext}
-        disabled={isLoading}
-        accessibilityRole="button"
-        accessibilityLabel="Próxima aula"
-        style={({ pressed }) => [styles.lessonDateButton, { borderColor: colors.border, opacity: isLoading ? 0.45 : pressed ? 0.7 : 1 }]}
-      >
-        <GoAtletaIcon name="chevronRight" size={18} color={colors.text} />
-      </Pressable>
-    </View>
-  );
-}
-
 export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   colors,
   compact,
@@ -363,7 +309,6 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   onViewPlan,
   onGeneratePlan,
   isGeneratingPlan,
-  contextualInsight,
   attendanceContent,
   activeSection = "overview",
   onSelectSection,
@@ -380,7 +325,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   const insets = useSafeAreaInsets();
   const lessonContentAnim = useRef(new Animated.Value(1)).current;
   const [isCompactNavigationOpen, setIsCompactNavigationOpen] = useState(false);
-  const compactNavigationBottom = Math.max(insets.bottom + 162, 178);
+  const compactNavigationBottom = resolveCopilotCompanionFabBottom(insets.bottom);
   const { containerRef, onLayout, width: workspaceWidth } = useContainerResponsiveLayout("dashboard");
   const dense = resolveDenseClassWorkspace(workspaceWidth, compact);
 
@@ -498,24 +443,6 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
     action.onPress();
   }, []);
 
-  const renderOverviewSection = (stacked = false) => {
-    if (!contextualInsight) return null;
-
-    return (
-      <View style={[styles.overviewSection, stacked ? styles.overviewSectionSide : null]}>
-        <View
-          style={[
-            styles.contextualInsight,
-            stacked ? styles.contextualInsightSide : null,
-            { backgroundColor: colors.secondaryBg, borderColor: colors.border },
-          ]}
-        >
-          {contextualInsight}
-        </View>
-      </View>
-    );
-  };
-
   const isAttendanceSection = activeSection === "attendance" && attendanceContent;
   const resolvedAttendanceContent = typeof attendanceContent === "function"
     ? attendanceContent({ dense })
@@ -523,13 +450,15 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
 
   const planSection = (
     <View style={styles.planSection}>
-      <LessonDateNavigator
+      <ClassLessonDateNavigator
         colors={colors}
         dateLabel={lessonDateLabel}
         onPrevious={onPreviousLesson}
         onNext={onNextLesson}
         onOpenCalendar={onOpenLessonCalendar}
+        disabled={isLoadingLessonPlan}
         isLoading={isLoadingLessonPlan}
+        calendarAccessibilityHint="Abre o calendário de aulas"
       />
       <View style={[styles.planPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.planHeader}>
@@ -651,8 +580,35 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
     </View>
   );
 
+  const compactNavigationFab = compact && !isCompactNavigationOpen ? (
+    <Pressable
+      onPress={() => setIsCompactNavigationOpen(true)}
+      accessibilityRole="button"
+      accessibilityLabel="Abrir menu da turma"
+      style={({ pressed }) => [
+        styles.compactNavigationFab,
+        Platform.OS === "web"
+          ? ({ position: "fixed", right: COPILOT_FAB_RIGHT, bottom: compactNavigationBottom } as any)
+          : { position: "absolute", right: COPILOT_FAB_RIGHT, bottom: compactNavigationBottom },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          opacity: pressed ? 0.76 : 1,
+        },
+      ]}
+    >
+      <GoAtletaIcon name="list" size={24} color={colors.primaryBg} />
+    </Pressable>
+  ) : null;
+
+  const compactNavigationFabPortal =
+    Platform.OS === "web" && compactNavigationFab && typeof document !== "undefined"
+      ? require("react-dom").createPortal(compactNavigationFab, document.body)
+      : null;
+
   return (
     <>
+      {compactNavigationFabPortal}
       <View
         ref={containerRef}
         onLayout={onLayout}
@@ -685,40 +641,17 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
         ) : null}
 
         <View style={[styles.mainColumn, dense ? styles.mainColumnDense : null]}>
-          {compact && !isCompactNavigationOpen ? (
-            <Pressable
-              onPress={() => setIsCompactNavigationOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Abrir menu da turma"
-              style={({ pressed }) => [
-                styles.compactNavigationFab,
-                Platform.OS === "web"
-                  ? ({ position: "fixed", right: 0, bottom: compactNavigationBottom } as any)
-                  : { position: "absolute", right: 0, bottom: compactNavigationBottom },
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.76 : 1,
-                },
-              ]}
-            >
-              <GoAtletaIcon name="list" size={24} color={colors.primaryBg} />
-            </Pressable>
-          ) : null}
+          {Platform.OS === "web" ? null : compactNavigationFab}
 
           {isAttendanceSection ? (
             resolvedAttendanceContent
           ) : compact ? (
-            <>
-              {planSection}
-              {renderOverviewSection()}
-            </>
+            planSection
           ) : (
             <View style={styles.desktopWorkspace}>
               <View style={styles.desktopContentColumn}>
                 {planSection}
               </View>
-              {renderOverviewSection(true)}
             </View>
           )}
         </View>
@@ -802,8 +735,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   compactNavigationFab: {
-    width: 50,
-    height: 50,
+    width: COPILOT_FAB_SIZE,
+    height: COPILOT_FAB_SIZE,
     borderWidth: 1,
     borderRadius: radius.full,
     alignItems: "center",
@@ -954,47 +887,6 @@ const styles = StyleSheet.create({
   planSection: {
     gap: 12,
   },
-  lessonDateNavigator: {
-    minHeight: 68,
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  lessonDateButton: {
-    width: 36,
-    height: 36,
-    borderWidth: 1,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lessonDateCopy: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: "center",
-  },
-  lessonDatePickerButton: {
-    minHeight: 36,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-  },
-  lessonDateLoader: {
-    marginTop: 4,
-  },
-  lessonDateLabel: {
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  lessonDateTime: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "600",
-  },
   planPanel: {
     borderWidth: 1,
     borderRadius: 18,
@@ -1138,22 +1030,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     textAlign: "center",
-  },
-  contextualInsight: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingBottom: 6,
-  },
-  contextualInsightSide: {
-    marginTop: -4,
-  },
-  overviewSection: {
-    gap: 12,
-  },
-  overviewSectionSide: {
-    width: 278,
-    flexShrink: 0,
   },
   overviewPanel: {
     minHeight: 108,

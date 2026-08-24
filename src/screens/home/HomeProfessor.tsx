@@ -104,6 +104,7 @@ import {
 import { TodayScheduleRail } from "./components/TodayScheduleRail";
 import { WeekDaySelector } from "./components/WeekDaySelector";
 import type { HomeScheduleItem } from "./components/homeScheduleTypes";
+import { buildClassAttendanceWorkspaceHref } from "../classes/class-workspace-route";
 const HomeProfessorBelowFold = lazy(() =>
   import("./HomeProfessorBelowFold").then((module) => ({
     default: module.HomeProfessorBelowFold,
@@ -1249,13 +1250,7 @@ export function HomeProfessorScreen({
       return;
     }
 
-    router.push({
-      pathname: "/class/[id]/attendance",
-      params: {
-        id: activeAttendanceTarget.classId,
-        date: activeAttendanceTarget.date,
-      },
-    });
+    router.push(buildClassAttendanceWorkspaceHref(activeAttendanceTarget.classId, activeAttendanceTarget.date));
   }, [activeAttendanceTarget, router, showSaveToast]);
 
   const handleOpenReportsForActiveClass = useCallback(() => {
@@ -1299,13 +1294,7 @@ export function HomeProfessorScreen({
         return;
       }
 
-      router.push({
-        pathname: "/class/[id]/attendance",
-        params: {
-          id: item.classId,
-          date: item.dateKey,
-        },
-      });
+      router.push(buildClassAttendanceWorkspaceHref(item.classId, item.dateKey));
     },
     [router, showSaveToast]
   );

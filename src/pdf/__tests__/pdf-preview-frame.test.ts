@@ -28,6 +28,18 @@ describe("buildPreviewHtml", () => {
     expect(buildPreviewHtml(source, true, 180)).toContain("requestedZoom = 1.4;");
   });
 
+  it("keeps a readable mobile page width with touch-friendly horizontal panning", () => {
+    const source = "<html><head><style></style></head><body><div class=\"page\"></div></body></html>";
+    const html = buildPreviewHtml(source, true, 100, 620);
+
+    expect(html).toContain("overflow-x: auto;");
+    expect(html).toContain("touch-action: pan-x pan-y;");
+    expect(html).toContain("scrollbar-width: none;");
+    expect(html).toContain("body::-webkit-scrollbar");
+    expect(html).toContain("minimumScale = 620 > 0 ? 620 / a4WidthPx : 0");
+    expect(html).toContain("Math.max(minimumScale, fitScale * requestedZoom)");
+  });
+
   it("marks the active lesson block without treating a plain blur as an edit", () => {
     const html = buildPreviewHtml(
       "<html><head><style></style></head><body><div class=\"page\"></div></body></html>",

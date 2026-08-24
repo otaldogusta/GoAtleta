@@ -1,59 +1,23 @@
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    Vibration,
-    View,
-    useWindowDimensions
-} from "react-native";
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, Vibration, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
-import { InsightCard } from "../../src/components/ui/InsightCard";
-import { type ContextualInsight, useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
+import { useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
 
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { resolveResponsiveLayout } from "../../src/ui/responsive-layout";
-import { useCopilotContext } from "../../src/copilot/CopilotProvider";
+import { useCopilotActions, useCopilotContext } from "../../src/copilot/CopilotProvider";
+import type { CopilotAction, CopilotOperationalFact } from "../../src/copilot/types";
 import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
 import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-development-level";
 import type { ClassGroup, ScoutingLog, TrainingPlan } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
-import {
-    ROSTER_FUNDAMENTALS,
-    buildRosterFundamentalsByDay,
-    buildRosterMonthEntries,
-    getBlockForToday,
-    getSuggestedFundamentalsForClass,
-    type RosterFundamental,
-} from "../../src/core/periodization";
-import {
-    deleteClassCascade,
-    deleteTrainingPlan,
-    deleteTrainingPlansByClassAndDate,
-    getAttendanceByClass,
-    getClassById,
-    getClassCalendarExceptions,
-    getClassPlansByClass,
-    getClasses,
-    getDailyLessonPlanByWeekAndDate,
-    getLatestScoutingLog,
-    getLatestTrainingPlanByClass,
-    getStudentsByClass,
-    getTrainingPlans,
-    saveTrainingPlan,
-    updateClass,
-    updateClassColor,
-} from "../../src/db/seed";
+import { ROSTER_FUNDAMENTALS, buildRosterFundamentalsByDay, buildRosterMonthEntries, getBlockForToday, getSuggestedFundamentalsForClass, type RosterFundamental } from "../../src/core/periodization";
+import { deleteClassCascade, deleteTrainingPlan, deleteTrainingPlansByClassAndDate, getAttendanceByClass, getClassById, getClassCalendarExceptions, getClassPlansByClass, getClasses, getDailyLessonPlanByWeekAndDate, getLatestScoutingLog, getLatestTrainingPlanByClass, getStudentsByClass, getTrainingPlans, saveTrainingPlan, updateClass, updateClassColor } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { logAction } from "../../src/observability/breadcrumbs";
@@ -61,18 +25,12 @@ import { markRender, measure, measureAsync } from "../../src/observability/perf"
 import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 import { classRosterHtml } from "../../src/pdf/templates/class-roster";
-import {
-    ClassEditModalBody,
-    ClassEditModalPickers,
-} from "../../src/screens/classes/components/ClassEditModalBody";
+import { ClassEditModalBody, ClassEditModalPickers } from "../../src/screens/classes/components/ClassEditModalBody";
 import { getClassScheduleOverlapDays } from "../../src/screens/classes/application/class-schedule-conflicts";
-import {
-    ClassContextStrip,
-    ClassOperationsWorkspace,
-    type ClassWorkspaceSection,
-} from "../../src/screens/classes/components/ClassOperationsWorkspace";
+import { ClassContextStrip, ClassOperationsWorkspace, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
 import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
+import { parseClassWorkspaceRouteDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
 import type { ClassPlanPeriodizationSource } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -91,22 +49,8 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
 import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
-import {
-    buildWaMeLink,
-    getContactPhone,
-    getDefaultMessage,
-    openWhatsApp,
-} from "../../src/utils/whatsapp";
-import {
-    WHATSAPP_TEMPLATES,
-    WhatsAppTemplateId,
-    calculateAdjacentClassDate,
-    calculateCurrentOrNextClassDate,
-    calculateNextClassDate,
-    formatNextClassDate,
-    getSuggestedTemplate,
-    renderTemplate
-} from "../../src/utils/whatsapp-templates";
+import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
+import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
 import { buildAutoPlanForCycleDay } from "../../src/screens/session/application/build-auto-plan-for-cycle-day";
 import { convertPedagogicalPackageToTrainingPlan } from "../../src/screens/session/application/convert-pedagogical-package-to-training-plan";
 import { retrieveDocumentSupportForPlan } from "../../src/screens/session/application/retrieve-document-support-for-plan";
@@ -175,25 +119,7 @@ const ROSTER_COLUMN_OPTIONS = [
   },
 ] as const;
 
-const WhatsAppContactRow = memo(function WhatsAppContactRow({
-  contact,
-  index,
-  isSelected,
-  onSelect,
-  colors,
-  subtleSurface,
-  borderColor,
-  mutedColor,
-}: {
-  contact: AvailableContact;
-  index: number;
-  isSelected: boolean;
-  onSelect: (index: number) => void;
-  colors: ReturnType<typeof useAppTheme>["colors"];
-  subtleSurface: string;
-  borderColor: string;
-  mutedColor: string;
-}) {
+const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, isSelected, onSelect, colors, subtleSurface, borderColor, mutedColor }: { contact: AvailableContact; index: number; isSelected: boolean; onSelect: (index: number) => void; colors: ReturnType<typeof useAppTheme>["colors"]; subtleSurface: string; borderColor: string; mutedColor: string }) {
   return (
     <Pressable
       onPress={() => onSelect(index)}
@@ -226,15 +152,10 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({
             marginTop: 2,
           }}
         >
-          {contact.source === "guardian" ? "Responsável" : "Aluno"} •{" "}
-          {contact.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
+          {contact.source === "guardian" ? "Responsável" : "Aluno"} • {contact.phone.replace(/^55/, "").replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")}
         </Text>
       </View>
-      <GoAtletaIcon
-        name={isSelected ? "checkmarkCircle" : "circleOutline"}
-        size={18}
-        color={isSelected ? colors.primaryText : mutedColor}
-      />
+      <GoAtletaIcon name={isSelected ? "checkmarkCircle" : "circleOutline"} size={18} color={isSelected ? colors.primaryText : mutedColor} />
     </Pressable>
   );
 });
@@ -242,7 +163,7 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({
 export default function ClassDetails() {
   markRender("screen.classDetails.render.root");
 
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, section, date } = useLocalSearchParams<{ id: string; section?: string; date?: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const scopedRoutes = useTrainerRouteScope();
@@ -252,14 +173,7 @@ export default function ClassDetails() {
   const insets = useSafeAreaInsets();
   useConfirmDialog();
   const { confirm } = useConfirmUndo();
-  const {
-    defaultMessageEnabled,
-    setDefaultMessageEnabled,
-    coachName,
-    coachNameByClass,
-    setCoachNameForClass,
-    groupInviteLinks,
-  } = useWhatsAppSettings();
+  const { defaultMessageEnabled, setDefaultMessageEnabled, coachName, coachNameByClass, setCoachNameForClass, groupInviteLinks } = useWhatsAppSettings();
   const whatsappModalCardStyle = useModalCardStyle({
     maxHeight: "82%",
     maxWidth: 520,
@@ -314,18 +228,11 @@ export default function ClassDetails() {
     const month = String(now.getMonth() + 1).padStart(2, "0");
     return `${year}-${month}-01`;
   });
-  const [rosterExportOptions, setRosterExportOptions] = useState<RosterExportOptions>(() =>
-    buildRosterExportOptions()
-  );
+  const [rosterExportOptions, setRosterExportOptions] = useState<RosterExportOptions>(() => buildRosterExportOptions());
   const [rosterPlans, setRosterPlans] = useState<TrainingPlan[]>([]);
-  const [rosterFundamentalOverrides, setRosterFundamentalOverrides] =
-    useState<RosterFundamentalOverrides>({});
-  const [rosterFundamentalLabels, setRosterFundamentalLabels] = useState<string[]>(() => [
-    ...ROSTER_FUNDAMENTALS,
-  ]);
-  const [editingRosterFundamentalIndex, setEditingRosterFundamentalIndex] = useState<number | null>(
-    null
-  );
+  const [rosterFundamentalOverrides, setRosterFundamentalOverrides] = useState<RosterFundamentalOverrides>({});
+  const [rosterFundamentalLabels, setRosterFundamentalLabels] = useState<string[]>(() => [...ROSTER_FUNDAMENTALS]);
+  const [editingRosterFundamentalIndex, setEditingRosterFundamentalIndex] = useState<number | null>(null);
   const [editingRosterFundamentalValue, setEditingRosterFundamentalValue] = useState("");
   const [showRosterMonthPicker, setShowRosterMonthPicker] = useState(false);
   const [showRosterExportModal, setShowRosterExportModal] = useState(false);
@@ -348,12 +255,13 @@ export default function ClassDetails() {
   const [showPlanPreviewModal, setShowPlanPreviewModal] = useState(false);
   const [planPreviewMode, setPlanPreviewMode] = useState<"preview" | "edit">("preview");
   const [showReportModal, setShowReportModal] = useState(false);
-  const [workspaceSection, setWorkspaceSection] = useState<ClassWorkspaceSection>("overview");
+  const requestedWorkspaceSection = resolveClassWorkspaceRouteSection(section);
+  const requestedLessonDate = parseClassWorkspaceRouteDate(date);
+  const [workspaceSection, setWorkspaceSection] = useState<ClassWorkspaceSection>(() => requestedWorkspaceSection);
   const [showAttendanceCloseConfirm, setShowAttendanceCloseConfirm] = useState(false);
   const pendingAttendanceAction = useRef<(() => void) | null>(null);
   const allowAttendanceNavigation = useRef(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-  const [isOperationalInsightDismissed, setIsOperationalInsightDismissed] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showEditCycleLengthPicker, setShowEditCycleLengthPicker] = useState(false);
@@ -441,9 +349,7 @@ export default function ClassDetails() {
   const [duration, setDuration] = useState("60");
   const [mvLevel, setMvLevel] = useState("MV1");
   const [cycleStartDate, setCycleStartDate] = useState("");
-  const [cycleLengthWeeks, setCycleLengthWeeks] = useState<number>(
-    annualCycleOptions[annualCycleOptions.length - 1]
-  );
+  const [cycleLengthWeeks, setCycleLengthWeeks] = useState<number>(annualCycleOptions[annualCycleOptions.length - 1]);
   const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
   const [latestScouting, setLatestScouting] = useState<ScoutingLog | null>(null);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
@@ -457,117 +363,48 @@ export default function ClassDetails() {
   if (showWhatsAppSettingsModal) {
     markRender("screen.classDetails.render.whatsappModal");
   }
-  const {
-    animatedStyle: editCycleLengthPickerAnimStyle,
-    isVisible: showEditCycleLengthPickerContent,
-  } = useCollapsibleAnimation(showEditCycleLengthPicker, { translateY: -6 });
-  const {
-    animatedStyle: editMvLevelPickerAnimStyle,
-    isVisible: showEditMvLevelPickerContent,
-  } = useCollapsibleAnimation(showEditMvLevelPicker, { translateY: -6 });
-  const {
-    animatedStyle: editAgeBandPickerAnimStyle,
-    isVisible: showEditAgeBandPickerContent,
-  } = useCollapsibleAnimation(showEditAgeBandPicker, { translateY: -6 });
-  const {
-    animatedStyle: editGenderPickerAnimStyle,
-    isVisible: showEditGenderPickerContent,
-  } = useCollapsibleAnimation(showEditGenderPicker, { translateY: -6 });
-  const {
-    animatedStyle: editModalityPickerAnimStyle,
-    isVisible: showEditModalityPickerContent,
-  } = useCollapsibleAnimation(showEditModalityPicker, { translateY: -6 });
-  const {
-    animatedStyle: editGoalPickerAnimStyle,
-    isVisible: showEditGoalPickerContent,
-  } = useCollapsibleAnimation(showEditGoalPicker, { translateY: -6 });
-  const dayNames = useMemo(
-    () => ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"],
-    []
-  );
-  const monthNames = [
-    "Janeiro",
-    "Fevereiro",
-    "Março",
-    "Abril",
-    "Maio",
-    "Junho",
-    "Julho",
-    "Agosto",
-    "Setembro",
-    "Outubro",
-    "Novembro",
-    "Dezembro",
-  ];
-  const ageBandOptions = useMemo(
-    () => ["06-08", "08-09", "08-11", "09-11", "10-12", "12-14", "13-15", "16-18"],
-    []
-  );
-  const goals = useMemo<ClassGroup["goal"][]>(
-    () => [
-      "Fundamentos",
-      "Força Geral",
-      "Potência/Agilidade",
-      "Força+Potência",
-      "Velocidade",
-      "Agilidade",
-      "Resistência",
-      "Potência",
-      "Mobilidade",
-      "Coordenação",
-      "Prevenção de lesões",
-    ],
-    []
-  );
+  const { animatedStyle: editCycleLengthPickerAnimStyle, isVisible: showEditCycleLengthPickerContent } = useCollapsibleAnimation(showEditCycleLengthPicker, { translateY: -6 });
+  const { animatedStyle: editMvLevelPickerAnimStyle, isVisible: showEditMvLevelPickerContent } = useCollapsibleAnimation(showEditMvLevelPicker, { translateY: -6 });
+  const { animatedStyle: editAgeBandPickerAnimStyle, isVisible: showEditAgeBandPickerContent } = useCollapsibleAnimation(showEditAgeBandPicker, { translateY: -6 });
+  const { animatedStyle: editGenderPickerAnimStyle, isVisible: showEditGenderPickerContent } = useCollapsibleAnimation(showEditGenderPicker, { translateY: -6 });
+  const { animatedStyle: editModalityPickerAnimStyle, isVisible: showEditModalityPickerContent } = useCollapsibleAnimation(showEditModalityPicker, { translateY: -6 });
+  const { animatedStyle: editGoalPickerAnimStyle, isVisible: showEditGoalPickerContent } = useCollapsibleAnimation(showEditGoalPicker, { translateY: -6 });
+  const dayNames = useMemo(() => ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"], []);
+  const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const ageBandOptions = useMemo(() => ["06-08", "08-09", "08-11", "09-11", "10-12", "12-14", "13-15", "16-18"], []);
+  const goals = useMemo<ClassGroup["goal"][]>(() => ["Fundamentos", "Força Geral", "Potência/Agilidade", "Força+Potência", "Velocidade", "Agilidade", "Resistência", "Potência", "Mobilidade", "Coordenação", "Prevenção de lesões"], []);
   const genderOptions: ClassGroup["gender"][] = ["feminino", "masculino", "misto"];
   const DEFAULT_CLASS_CYCLE_LENGTH_WEEKS = annualCycleOptions[annualCycleOptions.length - 1];
   const cycleLengthOptions = useMemo(() => [...annualCycleOptions], []);
   const modalityOptions = [...CLASS_MODALITY_OPTIONS];
   const mvLevelOptions = [...CLASS_DEVELOPMENT_LEVEL_OPTIONS];
-  const parseCycleLength = useCallback((value: number) => {
+  const parseCycleLength = useCallback(
+    (value: number) => {
     if (!Number.isFinite(value) || !Number.isInteger(value)) return null;
-    return cycleLengthOptions.includes(value as (typeof annualCycleOptions)[number])
-      ? value
-      : null;
-  }, [cycleLengthOptions]);
-  const formatDays = (days: number[]) =>
-    days.length ? days.map((day) => dayNames[day]).join(", ") : "-";
+      return cycleLengthOptions.includes(value as (typeof annualCycleOptions)[number]) ? value : null;
+    },
+    [cycleLengthOptions],
+  );
+  const formatDays = (days: number[]) => (days.length ? days.map((day) => dayNames[day]).join(", ") : "-");
   const chipBaseStyle = useMemo(
     () => ({
       paddingVertical: 6,
       paddingHorizontal: 10,
       borderRadius: 999,
     }),
-    []
+    [],
   );
   const chipTextBaseStyle = useMemo(
     () => ({
       fontWeight: "600" as const,
       fontSize: 12,
     }),
-    []
+    [],
   );
-  const chipInactiveStyle = useMemo(
-    () => ({ backgroundColor: colors.secondaryBg }),
-    [colors.secondaryBg]
-  );
+  const chipInactiveStyle = useMemo(() => ({ backgroundColor: colors.secondaryBg }), [colors.secondaryBg]);
   const chipInactiveTextStyle = useMemo(() => ({ color: colors.text }), [colors.text]);
-  useCallback(
-    (active: boolean, palette?: { bg: string; text: string }) => [
-      chipBaseStyle,
-      active
-        ? { backgroundColor: palette?.bg ?? colors.primaryBg }
-        : chipInactiveStyle,
-    ],
-    [chipBaseStyle, chipInactiveStyle, colors.primaryBg]
-  );
-  useCallback(
-    (active: boolean, palette?: { bg: string; text: string }) => [
-      chipTextBaseStyle,
-      active ? { color: palette?.text ?? colors.primaryText } : chipInactiveTextStyle,
-    ],
-    [chipInactiveTextStyle, chipTextBaseStyle, colors.primaryText]
-  );
+  useCallback((active: boolean, palette?: { bg: string; text: string }) => [chipBaseStyle, active ? { backgroundColor: palette?.bg ?? colors.primaryBg } : chipInactiveStyle], [chipBaseStyle, chipInactiveStyle, colors.primaryBg]);
+  useCallback((active: boolean, palette?: { bg: string; text: string }) => [chipTextBaseStyle, active ? { color: palette?.text ?? colors.primaryText } : chipInactiveTextStyle], [chipInactiveTextStyle, chipTextBaseStyle, colors.primaryText]);
   useMemo(
     () => ({
       paddingVertical: 10,
@@ -581,7 +418,7 @@ export default function ClassDetails() {
       justifyContent: "space-between" as const,
       gap: 8,
     }),
-    [colors.border, colors.inputBg]
+    [colors.border, colors.inputBg],
   );
   const normalizeTimeInput = (value: string) => {
     const digits = value.replace(/[^\d]/g, "").slice(0, 4);
@@ -609,19 +446,7 @@ export default function ClassDetails() {
     const pad = (value: number) => String(value).padStart(2, "0");
     return `${pad(hour)}:${pad(minute)} - ${pad(endHour)}:${pad(endMinute)}`;
   };
-  const formatShortDate = (value: string) =>
-    value.includes("-") ? value.split("-").reverse().join("/") : value;
-
-  useCopilotContext(
-    useMemo(
-      () => ({
-        screen: "class_detail",
-        title: cls?.name?.trim() || "Detalhes da turma",
-        subtitle: cls?.unit?.trim() || "Turma",
-      }),
-      [cls?.name, cls?.unit]
-    )
-  );
+  const formatShortDate = (value: string) => (value.includes("-") ? value.split("-").reverse().join("/") : value);
 
   // Proactive AI contextual insight — silent request after screen loads
   const classSnapshotForInsight = useMemo(
@@ -636,42 +461,59 @@ export default function ClassDetails() {
             mvLevel: cls.mvLevel,
           }
         : null,
-    [cls]
+    [cls],
   );
-  const {
-    insight: contextualInsight,
-    dismiss: dismissContextualInsight,
-  } = useContextualInsight(
-    cls?.organizationId,
-    cls?.id,
-    classSnapshotForInsight
-  );
-  const contactCoverageInsight = useMemo<ContextualInsight | null>(() => {
-    if (!cls || !missingContactCount) return null;
-    const studentsLabel = missingContactCount === 1 ? "aluno está" : "alunos estão";
-    return {
-      insight: `${missingContactCount} ${studentsLabel} sem contato cadastrado. Atualize antes da próxima aula.`,
-      confidence: 1,
-      based_on: [`${missingContactCount} ${studentsLabel} sem telefone de responsável ou aluno.`],
-      action: null,
-    };
-  }, [cls, missingContactCount]);
-  const displayedInsight = contextualInsight ?? (
-    isOperationalInsightDismissed ? null : contactCoverageInsight
-  );
-  const dismissDisplayedInsight = useCallback(() => {
-    if (contextualInsight) {
-      dismissContextualInsight();
-      return;
+  const { insight: contextualInsight } = useContextualInsight(cls?.organizationId, cls?.id, classSnapshotForInsight);
+  const classCopilotFacts = useMemo<CopilotOperationalFact[]>(() => {
+    const facts: CopilotOperationalFact[] = [];
+    if (missingContactCount) {
+      facts.push({
+        key: "class_missing_contacts",
+        label: "Alunos sem contato",
+        value: missingContactCount,
+        status: "attention",
+        details: ["Atualize o telefone do aluno ou responsável antes da próxima aula."],
+      });
     }
-    setIsOperationalInsightDismissed(true);
-  }, [contextualInsight, dismissContextualInsight]);
+    if (contextualInsight?.insight) {
+      facts.push({
+        key: "class_contextual_insight",
+        label: "Atenção da turma",
+        value: contextualInsight.insight,
+        status: "info",
+        details: contextualInsight.based_on,
+      });
+    }
+    return facts;
+  }, [contextualInsight, missingContactCount]);
 
-  useEffect(() => {
-    Promise.resolve().then(() => {
-      setIsOperationalInsightDismissed(false);
-    });
-  }, [id]);
+  useCopilotContext(
+    useMemo(
+      () => ({
+        screen: "class_detail",
+        title: cls?.name?.trim() || "Detalhes da turma",
+        subtitle: cls?.unit?.trim() || "Turma",
+        operationalFacts: classCopilotFacts,
+      }),
+      [classCopilotFacts, cls?.name, cls?.unit],
+    ),
+  );
+
+  const classCopilotActions = useMemo<CopilotAction[]>(() => {
+    if (!missingContactCount) return [];
+    return [
+      {
+        id: "class_update_missing_contacts",
+        title: "Atualizar contatos pendentes",
+        description: `${missingContactCount} ${missingContactCount === 1 ? "aluno sem contato" : "alunos sem contato"}`,
+        run: () => {
+          router.push({ pathname: "/class/[id]/students", params: { id } });
+          return { message: "Abrindo a lista de alunos para atualizar os contatos pendentes." };
+        },
+      },
+    ];
+  }, [id, missingContactCount, router]);
+  useCopilotActions(classCopilotActions);
   const parseIsoDate = (value?: string) => {
     if (!value) return null;
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -689,8 +531,7 @@ export default function ClassDetails() {
     const date = parseIsoDate(value) ?? new Date();
     return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
   };
-  const formatBirthDate = (value?: string | null) =>
-    value ? formatShortDate(value) : "-";
+  const formatBirthDate = (value?: string | null) => (value ? formatShortDate(value) : "-");
   const formatMonthKey = (value: string) => {
     const date = parseIsoDate(value) ?? new Date();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -716,37 +557,38 @@ export default function ClassDetails() {
     }
     return `(${ddd}) ${rest}`;
   };
-  const toMinutes = useCallback((value: string) => {
+  const toMinutes = useCallback(
+    (value: string) => {
     if (!isValidTime(value)) return null;
     const [hour, minute] = value.split(":").map(Number);
     return hour * 60 + minute;
-  }, [isValidTime]);
-  const computeEndTimeFromDuration = useCallback((value: string, durationMinutes: number) => {
+    },
+    [isValidTime],
+  );
+  const computeEndTimeFromDuration = useCallback(
+    (value: string, durationMinutes: number) => {
     const start = toMinutes(value.trim());
     if (start === null) return "";
     const total = start + durationMinutes;
     const endHour = Math.floor(total / 60) % 24;
     const endMinute = total % 60;
     return `${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}`;
-  }, [toMinutes]);
-  const parseDurationFromTimeRange = useCallback((startValue: string, endValue: string) => {
+    },
+    [toMinutes],
+  );
+  const parseDurationFromTimeRange = useCallback(
+    (startValue: string, endValue: string) => {
     const start = toMinutes(startValue.trim());
     const end = toMinutes(endValue.trim());
     if (start === null || end === null) return null;
     const durationMinutes = end - start;
     if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return null;
     return durationMinutes;
-  }, [toMinutes]);
-  const resolveEndTime = useCallback((
-    startValue: string,
-    endValue: string | undefined,
-    durationMinutes: number
-  ) =>
-    endValue && isValidTime(endValue)
-      ? endValue
-      : computeEndTimeFromDuration(startValue, durationMinutes), [computeEndTimeFromDuration, isValidTime]);
-  const normalizeDaysKey = (days: number[]) =>
-    JSON.stringify([...days].sort((a, b) => a - b));
+    },
+    [toMinutes],
+  );
+  const resolveEndTime = useCallback((startValue: string, endValue: string | undefined, durationMinutes: number) => (endValue && isValidTime(endValue) ? endValue : computeEndTimeFromDuration(startValue, durationMinutes)), [computeEndTimeFromDuration, isValidTime]);
+  const normalizeDaysKey = (days: number[]) => JSON.stringify([...days].sort((a, b) => a - b));
 
   useEffect(() => {
     const durationMinutes = parseDurationFromTimeRange(startTime, endTime);
@@ -756,14 +598,8 @@ export default function ClassDetails() {
   }, [endTime, parseDurationFromTimeRange, startTime]);
 
   const rosterMonthKey = formatMonthKey(rosterMonthValue);
-  const rosterMonthEntries = useMemo(
-    () => (cls ? buildRosterMonthEntries(rosterMonthKey, cls.daysOfWeek) : []),
-    [cls, rosterMonthKey]
-  );
-  const rosterPreviewDays = useMemo(
-    () => rosterMonthEntries.map((entry) => entry.day),
-    [rosterMonthEntries]
-  );
+  const rosterMonthEntries = useMemo(() => (cls ? buildRosterMonthEntries(rosterMonthKey, cls.daysOfWeek) : []), [cls, rosterMonthKey]);
+  const rosterPreviewDays = useMemo(() => rosterMonthEntries.map((entry) => entry.day), [rosterMonthEntries]);
   const selectedRosterColumnsLabel =
     ROSTER_COLUMN_OPTIONS.filter((option) => rosterExportOptions[option.key])
       .map((option) => option.label)
@@ -778,7 +614,7 @@ export default function ClassDetails() {
             fallback: [],
           })
         : {},
-    [cls, rosterMonthEntries, rosterPlans]
+    [cls, rosterMonthEntries, rosterPlans],
   );
   const rosterFundamentalsByDay = useMemo(
     () =>
@@ -787,25 +623,20 @@ export default function ClassDetails() {
             const auto = rosterAutoFundamentalsByDay[day] ?? [];
             const overrides = rosterFundamentalOverrides[day] ?? {};
             const selected = new Set<RosterFundamental>(auto as RosterFundamental[]);
-            (Object.entries(overrides) as Array<[RosterFundamental, boolean]>).forEach(
-              ([fundamental, value]) => {
+            (Object.entries(overrides) as Array<[RosterFundamental, boolean]>).forEach(([fundamental, value]) => {
                 if (value) {
                   selected.add(fundamental);
                 } else {
                   selected.delete(fundamental);
                 }
-              }
-            );
+            });
             acc[day] = Array.from(selected);
             return acc;
           }, {})
         : {},
-    [cls, rosterAutoFundamentalsByDay, rosterFundamentalOverrides, rosterPreviewDays]
+    [cls, rosterAutoFundamentalsByDay, rosterFundamentalOverrides, rosterPreviewDays],
   );
-  const hasRosterFundamentalOverrides = useMemo(
-    () => Object.keys(rosterFundamentalOverrides).length > 0,
-    [rosterFundamentalOverrides]
-  );
+  const hasRosterFundamentalOverrides = useMemo(() => Object.keys(rosterFundamentalOverrides).length > 0, [rosterFundamentalOverrides]);
   const clsId = cls?.id ?? "";
   const clsUnit = cls?.unit ?? "";
   const currentUnit = unit.trim() || clsUnit || "Sem unidade";
@@ -821,29 +652,28 @@ export default function ClassDetails() {
   const compactClassWorkspace = !classResponsiveLayout.supportsSplitView;
   const mobileClassWorkspace = classResponsiveLayout.isMobile;
   const scheduleDayLabels = classDays.map((day) => dayNames[day]).filter(Boolean);
-  const scheduleDaysLabel = scheduleDayLabels.length <= 1
-    ? scheduleDayLabels[0] ?? "Sem dias definidos"
-    : `${scheduleDayLabels.slice(0, -1).join(", ")} e ${scheduleDayLabels.at(-1)}`;
+  const scheduleDaysLabel = scheduleDayLabels.length <= 1 ? (scheduleDayLabels[0] ?? "Sem dias definidos") : `${scheduleDayLabels.slice(0, -1).join(", ")} e ${scheduleDayLabels.at(-1)}`;
   const scheduleLabel = `${scheduleDaysLabel} · ${classStartTime}`;
   const nextClassDate = calculateCurrentOrNextClassDate(classDays, classStartTime, classDuration);
   const nextClassLabel = nextClassDate ? formatNextClassDate(nextClassDate) : "Não definida";
-  const selectedLessonDate = lessonDate ?? nextClassDate;
-  const selectedLessonDateKey = selectedLessonDate
-    ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}`
-    : "";
+  const selectedLessonDate = lessonDate ?? requestedLessonDate ?? nextClassDate;
+  const selectedLessonDateKey = selectedLessonDate ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}` : "";
   const embeddedAttendance = useEmbeddedClassAttendance({
     classId: cls?.id ?? String(id ?? ""),
     date: selectedLessonDateKey,
     enabled: workspaceSection === "attendance",
   });
-  const requestAttendanceAction = useCallback((action: () => void) => {
+  const requestAttendanceAction = useCallback(
+    (action: () => void) => {
     if (workspaceSection === "attendance" && embeddedAttendance.hasChanges) {
       pendingAttendanceAction.current = action;
       setShowAttendanceCloseConfirm(true);
       return;
     }
     action();
-  }, [embeddedAttendance.hasChanges, workspaceSection]);
+    },
+    [embeddedAttendance.hasChanges, workspaceSection],
+  );
   const discardAttendanceAndContinue = useCallback(() => {
     const action = pendingAttendanceAction.current;
     pendingAttendanceAction.current = null;
@@ -880,27 +710,14 @@ export default function ClassDetails() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [embeddedAttendance.hasChanges, workspaceSection]);
-  const selectedLessonWeekday = selectedLessonDate
-    ? selectedLessonDate.getDay() === 0
-      ? 7
-      : selectedLessonDate.getDay()
-    : undefined;
-  const lessonDateLabel = selectedLessonDate
-    ? `${String(selectedLessonDate.getDate()).padStart(2, "0")}/${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}/${selectedLessonDate.getFullYear()}`
-    : "Próxima aula";
-  const contactStatusValue = missingContactCount === null
-    ? "—"
-    : missingContactCount > 0
-      ? `${missingContactCount} pendentes`
-      : "Em dia";
-  const contactStatusLabel = missingContactCount === null
-    ? "contatos a verificar"
-    : missingContactCount > 0
-      ? "contatos para atualizar"
-      : "contatos atualizados";
+  const selectedLessonWeekday = selectedLessonDate ? (selectedLessonDate.getDay() === 0 ? 7 : selectedLessonDate.getDay()) : undefined;
+  const lessonDateLabel = selectedLessonDate ? `${String(selectedLessonDate.getDate()).padStart(2, "0")}/${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}/${selectedLessonDate.getFullYear()}` : "Próxima aula";
+  const contactStatusValue = missingContactCount === null ? "—" : missingContactCount > 0 ? `${missingContactCount} pendentes` : "Em dia";
+  const contactStatusLabel = missingContactCount === null ? "contatos a verificar" : missingContactCount > 0 ? "contatos para atualizar" : "contatos atualizados";
   const reportStatusValue = latestScouting ? formatShortDate(latestScouting.date) : "Pendente";
   const reportStatusLabel = latestScouting ? "último relatório" : "registre a última aula";
-  const handleShiftLessonDate = useCallback((direction: -1 | 1) => {
+  const handleShiftLessonDate = useCallback(
+    (direction: -1 | 1) => {
     requestAttendanceAction(() => {
       const baseDate = lessonDate ?? nextClassDate;
       if (!baseDate || classDays.length === 0) return;
@@ -910,7 +727,9 @@ export default function ClassDetails() {
         setLessonDate(nextDate);
       }
     });
-  }, [classDays, lessonDate, nextClassDate, requestAttendanceAction]);
+    },
+    [classDays, lessonDate, nextClassDate, requestAttendanceAction],
+  );
   const handleLessonDateChange = (value: string) => {
     requestAttendanceAction(() => {
       const nextDate = parseIsoDate(value);
@@ -919,14 +738,10 @@ export default function ClassDetails() {
       setLessonDate(nextDate);
     });
   };
-  const classCoachName = clsId ? coachNameByClass[clsId] ?? "" : "";
+  const classCoachName = clsId ? (coachNameByClass[clsId] ?? "") : "";
   const resolvedCoachName = classCoachName || coachName;
 
-
-  const colorOptions = useMemo(
-    () => getClassColorOptions(colors, currentUnit),
-    [colors, currentUnit]
-  );
+  const colorOptions = useMemo(() => getClassColorOptions(colors, currentUnit), [colors, currentUnit]);
   useMemo(() => {
     if (!clsId) return [];
     const durationValue = parseDurationFromTimeRange(startTime, endTime);
@@ -940,7 +755,10 @@ export default function ClassDetails() {
     };
     return allClasses
       .filter((item) => item.id !== clsId)
-      .map((item) => ({ item, sharedDays: getClassScheduleOverlapDays(editedSchedule, item) }))
+      .map((item) => ({
+        item,
+        sharedDays: getClassScheduleOverlapDays(editedSchedule, item),
+      }))
       .filter(({ sharedDays }) => sharedDays.length > 0)
       .map(({ item, sharedDays }) => {
         return `${item.name} (${sharedDays.map((day) => dayNames[day]).join(", ")})`;
@@ -969,11 +787,7 @@ export default function ClassDetails() {
     (async () => {
       setLoading(true);
       try {
-        const dataResult = await measureAsync(
-          "screen.classDetails.load.initial",
-          () => getClassById(id),
-          { screen: "classDetails", classId: id }
-        );
+        const dataResult = await measureAsync("screen.classDetails.load.initial", () => getClassById(id), { screen: "classDetails", classId: id });
         if (alive) {
           const data = dataResult;
           const nextStartTime = data?.startTime ?? "14:00";
@@ -997,25 +811,16 @@ export default function ClassDetails() {
           setGoal(data?.goal ?? "Fundamentos");
           setMvLevel(data?.mvLevel ?? "MV1");
           setCycleStartDate(data?.cycleStartDate ?? "");
-          setCycleLengthWeeks(
-            parseCycleLength(data?.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS
-          );
+          setCycleLengthWeeks(parseCycleLength(data?.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS);
           setClassColorKey(data?.colorKey ?? null);
-          setCoachNameOverride(
-            data?.id ? coachNameByClass[data.id] ?? "" : ""
-          );
+          setCoachNameOverride(data?.id ? (coachNameByClass[data.id] ?? "") : "");
           setLoading(false);
         }
-        void Promise.all([
-          getLatestScoutingLog(id).catch(() => null),
-          getStudentsByClass(id).catch(() => []),
-        ]).then(([scouting, students]) => {
+        void Promise.all([getLatestScoutingLog(id).catch(() => null), getStudentsByClass(id).catch(() => [])]).then(([scouting, students]) => {
           if (!alive) return;
           setLatestScouting(scouting);
           setStudentCount(students.length);
-          setMissingContactCount(
-            students.filter((student) => getContactPhone(student).status !== "ok").length
-          );
+          setMissingContactCount(students.filter((student) => getContactPhone(student).status !== "ok").length);
         });
       } finally {
         if (alive) setLoading(false);
@@ -1133,9 +938,7 @@ export default function ClassDetails() {
     setDaysOfWeek(cls.daysOfWeek ?? []);
     setMvLevel(cls.mvLevel ?? "MV1");
     setCycleStartDate(cls.cycleStartDate ?? "");
-    setCycleLengthWeeks(
-      parseCycleLength(cls.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS
-    );
+    setCycleLengthWeeks(parseCycleLength(cls.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS);
     const nextAgeBand = cls.ageBand ?? "08-09";
     const nextGoal = cls.goal ?? "Fundamentos";
     const customAgeBandSelected = nextAgeBand.trim().length > 0 && !ageBandOptions.includes(nextAgeBand);
@@ -1163,18 +966,7 @@ export default function ClassDetails() {
       closeEditPickers();
 
       const measureAndOpen = (attempt = 0) => {
-        const measureRef =
-          target === "cycle"
-            ? editCycleLengthTriggerRef.current
-            : target === "level"
-              ? editMvLevelTriggerRef.current
-              : target === "age"
-                ? editAgeBandTriggerRef.current
-                : target === "gender"
-                  ? editGenderTriggerRef.current
-                  : target === "modality"
-                    ? editModalityTriggerRef.current
-                    : editGoalTriggerRef.current;
+        const measureRef = target === "cycle" ? editCycleLengthTriggerRef.current : target === "level" ? editMvLevelTriggerRef.current : target === "age" ? editAgeBandTriggerRef.current : target === "gender" ? editGenderTriggerRef.current : target === "modality" ? editModalityTriggerRef.current : editGoalTriggerRef.current;
 
         measureRef?.measureInWindow((x, y, width, height) => {
           const isReady = width > 0 && height > 0;
@@ -1209,26 +1001,12 @@ export default function ClassDetails() {
 
       requestAnimationFrame(() => requestAnimationFrame(() => measureAndOpen()));
     },
-    [
-      closeEditPickers,
-      editCycleLengthTriggerRef,
-      editMvLevelTriggerRef,
-      editAgeBandTriggerRef,
-      editGenderTriggerRef,
-      editModalityTriggerRef,
-      editGoalTriggerRef,
-    ]
+    [closeEditPickers, editCycleLengthTriggerRef, editMvLevelTriggerRef, editAgeBandTriggerRef, editGenderTriggerRef, editModalityTriggerRef, editGoalTriggerRef],
   );
 
   const toggleEditPicker = useCallback(
     (target: "cycle" | "level" | "age" | "gender" | "modality" | "goal") => {
-      const isOpen =
-        (target === "cycle" && showEditCycleLengthPicker) ||
-        (target === "level" && showEditMvLevelPicker) ||
-        (target === "age" && showEditAgeBandPicker) ||
-        (target === "gender" && showEditGenderPicker) ||
-        (target === "modality" && showEditModalityPicker) ||
-        (target === "goal" && showEditGoalPicker);
+      const isOpen = (target === "cycle" && showEditCycleLengthPicker) || (target === "level" && showEditMvLevelPicker) || (target === "age" && showEditAgeBandPicker) || (target === "gender" && showEditGenderPicker) || (target === "modality" && showEditModalityPicker) || (target === "goal" && showEditGoalPicker);
 
       if (isOpen) {
         closeEditPickers();
@@ -1237,56 +1015,47 @@ export default function ClassDetails() {
 
       openEditPicker(target);
     },
-    [
-      closeEditPickers,
-      openEditPicker,
-      showEditCycleLengthPicker,
-      showEditMvLevelPicker,
-      showEditAgeBandPicker,
-      showEditGenderPicker,
-      showEditModalityPicker,
-      showEditGoalPicker,
-    ]
+    [closeEditPickers, openEditPicker, showEditCycleLengthPicker, showEditMvLevelPicker, showEditAgeBandPicker, showEditGenderPicker, showEditModalityPicker, showEditGoalPicker],
   );
 
-  const handleEditSelectCycleLength = useCallback((value: string | number) => {
+  const handleEditSelectCycleLength = useCallback(
+    (value: string | number) => {
     const parsed = typeof value === "number" ? value : Number(value);
     const nextCycleLength = parseCycleLength(parsed);
     if (nextCycleLength) setCycleLengthWeeks(nextCycleLength);
     closeEditPickers();
-  }, [closeEditPickers, parseCycleLength]);
+    },
+    [closeEditPickers, parseCycleLength],
+  );
 
-  const handleEditSelectMvLevel = useCallback((value: string | number) => {
+  const handleEditSelectMvLevel = useCallback(
+    (value: string | number) => {
     setMvLevel(String(value));
     closeEditPickers();
-  }, [closeEditPickers]);
+    },
+    [closeEditPickers],
+  );
 
-  const handleEditSelectModality = useCallback((value: string | number) => {
+  const handleEditSelectModality = useCallback(
+    (value: string | number) => {
     setModality(String(value) as ClassGroup["modality"]);
     closeEditPickers();
-  }, [closeEditPickers]);
+    },
+    [closeEditPickers],
+  );
 
   const editBaselineSnapshot = useMemo(() => {
     if (!cls) return null;
     const baselineStartTime = cls.startTime ?? "14:00";
     const baselineDuration = cls.durationMinutes ?? 60;
-    const baselineEndTime = resolveEndTime(
-      baselineStartTime,
-      cls.endTime,
-      baselineDuration
-    );
+    const baselineEndTime = resolveEndTime(baselineStartTime, cls.endTime, baselineDuration);
     return {
       ageBand: cls.ageBand ?? "08-09",
       coachName: classCoachName.trim(),
-      cycleLengthWeeks:
-        parseCycleLength(cls.cycleLengthWeeks ?? Number.NaN) ??
-        DEFAULT_CLASS_CYCLE_LENGTH_WEEKS,
+      cycleLengthWeeks: parseCycleLength(cls.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS,
       cycleStartDate: cls.cycleStartDate ?? "",
       daysOfWeek: normalizeDaysKey(cls.daysOfWeek ?? []),
-      duration: String(
-        parseDurationFromTimeRange(baselineStartTime, baselineEndTime) ??
-          baselineDuration
-      ),
+      duration: String(parseDurationFromTimeRange(baselineStartTime, baselineEndTime) ?? baselineDuration),
       endTime: baselineEndTime,
       gender: cls.gender ?? "misto",
       goal: cls.goal ?? "Fundamentos",
@@ -1317,27 +1086,7 @@ export default function ClassDetails() {
       trainingSpace,
       unit,
     }),
-    [
-      ageBand,
-      coachNameOverride,
-      cycleLengthWeeks,
-      cycleStartDate,
-      daysOfWeek,
-      duration,
-      editCustomAgeBand,
-      editCustomGoal,
-      endTime,
-      gender,
-      goal,
-      modality,
-      mvLevel,
-      name,
-      showEditCustomAgeBand,
-      showEditCustomGoal,
-      startTime,
-      trainingSpace,
-      unit,
-    ]
+    [ageBand, coachNameOverride, cycleLengthWeeks, cycleStartDate, daysOfWeek, duration, editCustomAgeBand, editCustomGoal, endTime, gender, goal, modality, mvLevel, name, showEditCustomAgeBand, showEditCustomGoal, startTime, trainingSpace, unit],
   );
 
   const isEditDirty = useMemo(() => {
@@ -1396,8 +1145,11 @@ export default function ClassDetails() {
     const applyScrollbarStyles = () => {
       if (cancelled) return;
 
-      const scrollNode = (editScrollRef.current as unknown as { getScrollableNode?: () => unknown } | null)
-        ?.getScrollableNode?.();
+      const scrollNode = (
+        editScrollRef.current as unknown as {
+          getScrollableNode?: () => unknown;
+        } | null
+      )?.getScrollableNode?.();
       const element = (scrollNode ?? editScrollRef.current) as unknown as HTMLElement | null;
 
       if (!element || typeof element.addEventListener !== "function") {
@@ -1405,7 +1157,9 @@ export default function ClassDetails() {
         return;
       }
 
-      const style = element.style as CSSStyleDeclaration & { scrollbarGutter?: string };
+      const style = element.style as CSSStyleDeclaration & {
+        scrollbarGutter?: string;
+      };
       const previous = {
         overflowX: style.overflowX,
         overflowY: style.overflowY,
@@ -1441,9 +1195,7 @@ export default function ClassDetails() {
   }, [colors.border, showEditModal, editContainerWindow]);
 
   const toggleDay = (value: number) => {
-    setDaysOfWeek((prev) =>
-      prev.includes(value) ? prev.filter((day) => day !== value) : [...prev, value]
-    );
+    setDaysOfWeek((prev) => (prev.includes(value) ? prev.filter((day) => day !== value) : [...prev, value]));
   };
 
   const saveUnit = useCallback(async (): Promise<boolean> => {
@@ -1533,21 +1285,12 @@ export default function ClassDetails() {
     }
   }, [saveUnit]);
 
-  const toggleRosterBooleanOption = useCallback(
-    (
-      key:
-        | "includeAttendance"
-        | "includeBirthDate"
-        | "includeCourse"
-        | "includeContact"
-    ) => {
+  const toggleRosterBooleanOption = useCallback((key: "includeAttendance" | "includeBirthDate" | "includeCourse" | "includeContact") => {
       setRosterExportOptions((prev) => ({
         ...prev,
         [key]: !prev[key],
       }));
-    },
-    []
-  );
+  }, []);
 
   const toggleRosterFundamentalsExport = useCallback(() => {
     setRosterExportOptions((prev) => {
@@ -1618,16 +1361,14 @@ export default function ClassDetails() {
         return nextState;
       });
     },
-    [rosterAutoFundamentalsByDay, rosterFundamentalsByDay]
+    [rosterAutoFundamentalsByDay, rosterFundamentalsByDay],
   );
   const beginRosterFundamentalEdit = useCallback(
     (index: number) => {
       setEditingRosterFundamentalIndex(index);
-      setEditingRosterFundamentalValue(
-        rosterFundamentalLabels[index] ?? ROSTER_FUNDAMENTALS[index] ?? ""
-      );
+      setEditingRosterFundamentalValue(rosterFundamentalLabels[index] ?? ROSTER_FUNDAMENTALS[index] ?? "");
     },
-    [rosterFundamentalLabels]
+    [rosterFundamentalLabels],
   );
   const saveRosterFundamentalLabel = useCallback(() => {
     if (editingRosterFundamentalIndex === null) return;
@@ -1681,15 +1422,9 @@ export default function ClassDetails() {
     if (!periodization) return undefined;
 
     return {
-      weekLabel: periodization.weekNumber
-        ? `Semana ${periodization.weekNumber}`
-        : "Semana do ciclo",
+      weekLabel: periodization.weekNumber ? `Semana ${periodization.weekNumber}` : "Semana do ciclo",
       phaseLabel: periodization.phase || "Fase do ciclo",
-      focusLabel:
-        periodization.technicalFocus ||
-        periodization.theme ||
-        appliedPlan?.pedagogy?.sessionObjective ||
-        "Foco da semana",
+      focusLabel: periodization.technicalFocus || periodization.theme || appliedPlan?.pedagogy?.sessionObjective || "Foco da semana",
       loadLabel: periodization.rpeTarget || "Carga não informada",
       roleLabel: "Aula planejada",
       classLevelLabel: cls ? ({ 1: "Iniciante", 2: "Intermediária", 3: "Avançada" } as const)[cls.level] : undefined,
@@ -1741,7 +1476,7 @@ export default function ClassDetails() {
       setAppliedPlan(nextPlan);
       return nextPlan;
     },
-    [cls, selectedLessonDateKey]
+    [cls, selectedLessonDateKey],
   );
 
   const handleRemoveAppliedPlan = useCallback(async () => {
@@ -1778,16 +1513,8 @@ export default function ClassDetails() {
           organizationId: cls.organizationId ?? null,
         }),
       ]);
-      const currentClassPlan = resolveClassPlanForSessionDate(
-        classPlans,
-        selectedLessonDateKey
-      );
-      const currentDailyLessonPlan = currentClassPlan
-        ? await getDailyLessonPlanByWeekAndDate(
-            currentClassPlan.id,
-            selectedLessonDateKey
-          )
-        : null;
+      const currentClassPlan = resolveClassPlanForSessionDate(classPlans, selectedLessonDateKey);
+      const currentDailyLessonPlan = currentClassPlan ? await getDailyLessonPlanByWeekAndDate(currentClassPlan.id, selectedLessonDateKey) : null;
       const documentSupport = await retrieveDocumentSupportForPlan({
         classGroup: cls,
         sessionDate: selectedLessonDateKey,
@@ -1804,10 +1531,7 @@ export default function ClassDetails() {
         documentSupport,
         calendarExceptions,
       });
-      const latestVersion = recentPlans.reduce(
-        (max, plan) => Math.max(max, plan.version ?? 0),
-        0
-      );
+      const latestVersion = recentPlans.reduce((max, plan) => Math.max(max, plan.version ?? 0), 0);
       const generatedPlan = {
         ...convertPedagogicalPackageToTrainingPlan({
           pkg: autoPlanResult.package,
@@ -1845,7 +1569,10 @@ export default function ClassDetails() {
       setAppliedPlan(generatedPlan);
       setPlanPreviewMode("edit");
       setShowPlanPreviewModal(true);
-      showSaveToast({ message: "Plano preparado para esta aula.", variant: "success" });
+      showSaveToast({
+        message: "Plano preparado para esta aula.",
+        variant: "success",
+      });
     } catch (error) {
       showSaveToast({
         error,
@@ -1863,18 +1590,11 @@ export default function ClassDetails() {
 
   if (!cls) {
     return (
-      <SafeAreaView
-        style={{ flex: 1, padding: 16, backgroundColor: colors.background }}
-      >
-        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>
-          Turma não encontrada
-        </Text>
+      <SafeAreaView style={{ flex: 1, padding: 16, backgroundColor: colors.background }}>
+        <Text style={{ fontSize: 18, fontWeight: "700", color: colors.text }}>Turma não encontrada</Text>
       </SafeAreaView>
     );
   }
-
-
-
 
   const onDelete = () => {
     if (!cls) return;
@@ -1884,8 +1604,7 @@ export default function ClassDetails() {
     setShowEditCloseConfirm(false);
     confirm({
       title: "Excluir turma?",
-      message:
-        "Isso remove planejamentos, chamadas e alunos da turma. Deseja excluir?",
+      message: "Isso remove planejamentos, chamadas e alunos da turma. Deseja excluir?",
       confirmLabel: "Excluir",
       cancelLabel: "Cancelar",
       undoLabel: "Desfazer",
@@ -1936,18 +1655,13 @@ export default function ClassDetails() {
     }
   };
 
-  const exportRosterPdf = async (
-    monthValue = rosterMonthValue,
-    options: RosterExportOptions = rosterExportOptions
-  ) => {
+  const exportRosterPdf = async (monthValue = rosterMonthValue, options: RosterExportOptions = rosterExportOptions) => {
     if (!cls) return;
     try {
       const list = await getStudentsByClass(cls.id, { includeInactive: true });
       const exportDate = new Date().toLocaleDateString("pt-BR");
       const timeParts = parseTime(classStartTime);
-      const timeLabel = timeParts
-        ? formatTimeRange(timeParts.hour, timeParts.minute, classDuration)
-        : classStartTime;
+      const timeLabel = timeParts ? formatTimeRange(timeParts.hour, timeParts.minute, classDuration) : classStartTime;
       const monthKey = formatMonthKey(monthValue);
       const monthLabel = formatMonthLabel(monthValue);
       const monthEntries = buildRosterMonthEntries(monthKey, classDays);
@@ -1972,8 +1686,7 @@ export default function ClassDetails() {
             if (!attendanceByStudentDay[record.studentId]) {
               attendanceByStudentDay[record.studentId] = {};
             }
-            attendanceByStudentDay[record.studentId][day] =
-              record.status === "presente" ? "P" : "F";
+            attendanceByStudentDay[record.studentId][day] = record.status === "presente" ? "P" : "F";
           });
       }
       const periodizationLabel = getBlockForToday(cls);
@@ -2004,40 +1717,22 @@ export default function ClassDetails() {
       }, {});
       const rows = list.map((student, index) => {
         const contact = getContactPhone(student);
-        const contactLabel =
-          contact.status === "ok"
-            ? contact.source === "guardian"
-              ? "Resp."
-              : "Aluno"
-            : contact.status === "missing"
-              ? "Sem tel"
-              : "Telefone inválido";
-        const contactPhone =
-          contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "";
-        const dayAttendance = options.includeAttendance
-          ? attendanceByStudentDay[student.id] ?? {}
-          : undefined;
-        const total = options.includeAttendance
-          ? monthDays.reduce(
-              (acc, day) => acc + (dayAttendance?.[day] === "P" ? 1 : 0),
-              0
-            )
-          : undefined;
+        const contactLabel = contact.status === "ok" ? (contact.source === "guardian" ? "Resp." : "Aluno") : contact.status === "missing" ? "Sem tel" : "Telefone inválido";
+        const contactPhone = contact.status === "ok" ? formatPhoneDisplay(contact.phoneDigits) : "";
+        const dayAttendance = options.includeAttendance ? (attendanceByStudentDay[student.id] ?? {}) : undefined;
+        const total = options.includeAttendance ? monthDays.reduce((acc, day) => acc + (dayAttendance?.[day] === "P" ? 1 : 0), 0) : undefined;
         const studentCreatedAt = student.createdAt?.split("T")[0];
-        const firstAttendanceDate = options.includeAttendance
-          ? firstAttendanceByStudent[student.id]
-          : undefined;
+        const firstAttendanceDate = options.includeAttendance ? firstAttendanceByStudent[student.id] : undefined;
         const startDateKey = firstAttendanceDate || studentCreatedAt || "";
         return {
           index: index + 1,
           studentName: student.name,
           birthDate: formatBirthDate(student.birthDate),
-          collegeCourse: options.includeCourse ? student.collegeCourse ?? "" : "",
+          collegeCourse: options.includeCourse ? (student.collegeCourse ?? "") : "",
           contactLabel: options.includeContact ? contactLabel : "",
           contactPhone: options.includeContact ? contactPhone : "",
           attendance: options.includeAttendance
-            ? monthDays.reduce<Record<number, "P" | "F" | "-" | "">>(
-                (acc, day) => {
+            ? monthDays.reduce<Record<number, "P" | "F" | "-" | "">>((acc, day) => {
                   const dateKey = `${monthKey}-${String(day).padStart(2, "0")}`;
                   if (startDateKey && dateKey < startDateKey) {
                     acc[day] = "-";
@@ -2049,9 +1744,7 @@ export default function ClassDetails() {
                   }
                   acc[day] = dayAttendance?.[day] ?? "-";
                   return acc;
-                },
-                {}
-              )
+              }, {})
             : undefined,
           total,
         };
@@ -2084,9 +1777,7 @@ export default function ClassDetails() {
 
       const fileDate = exportDate.replaceAll("/", "-");
       const genderCode = getGenderCode(cls.gender);
-      const fileName = options.includeAttendance
-        ? `lista_chamada_presencas_${safeFileName(className)}_${genderCode}_${fileDate}.pdf`
-        : `lista_chamada_${safeFileName(className)}_${genderCode}_${fileDate}.pdf`;
+      const fileName = options.includeAttendance ? `lista_chamada_presencas_${safeFileName(className)}_${genderCode}_${fileDate}.pdf` : `lista_chamada_${safeFileName(className)}_${genderCode}_${fileDate}.pdf`;
 
       await exportPdf({
         html: classRosterHtml(data),
@@ -2107,24 +1798,14 @@ export default function ClassDetails() {
     if (!cls) return;
     try {
       const monthKey = formatMonthKey(monthValue);
-      const [list, records] = await Promise.all([
-        getStudentsByClass(cls.id, { includeInactive: true }),
-        getAttendanceByClass(cls.id),
-      ]);
+      const [list, records] = await Promise.all([getStudentsByClass(cls.id, { includeInactive: true }), getAttendanceByClass(cls.id)]);
       const studentById = new Map(list.map((student) => [student.id, student]));
       const periodRows = records
         .filter((record) => record.date.startsWith(monthKey))
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((record) => {
           const student = studentById.get(record.studentId);
-          return [
-            record.date.split("-").reverse().join("/"),
-            cls.name,
-            student?.name ?? "Aluno não localizado",
-            student?.membershipStatus === "inactive" ? "Inativo" : "Ativo",
-            student?.financialStatus === "delinquent" ? "Inadimplente" : "Regular",
-            record.status === "presente" ? "Presente" : "Faltou",
-          ];
+          return [record.date.split("-").reverse().join("/"), cls.name, student?.name ?? "Aluno não localizado", student?.membershipStatus === "inactive" ? "Inativo" : "Ativo", student?.financialStatus === "delinquent" ? "Inadimplente" : "Regular", record.status === "presente" ? "Presente" : "Faltou"];
         });
 
       const fileName = `chamada-${slugify(cls.name)}-${monthKey}.xlsx`;
@@ -2134,10 +1815,7 @@ export default function ClassDetails() {
         sheets: [
           {
             name: "Chamadas",
-            rows: [
-              ["Data", "Turma", "Atleta", "Situação", "Financeiro", "Presença"],
-              ...periodRows,
-            ],
+            rows: [["Data", "Turma", "Atleta", "Situação", "Financeiro", "Presença"], ...periodRows],
             options: {
               freezeHeaderRow: true,
               autoFilterHeaderRow: true,
@@ -2190,10 +1868,7 @@ export default function ClassDetails() {
       }));
 
     if (validContacts.length === 0) {
-      Alert.alert(
-        "Nenhum telefone válido encontrado",
-        "Adicione telefones dos responsáveis ou alunos (com DDD) para usar o WhatsApp."
-      );
+      Alert.alert("Nenhum telefone válido encontrado", "Adicione telefones dos responsáveis ou alunos (com DDD) para usar o WhatsApp.");
       return;
     }
 
@@ -2236,7 +1911,11 @@ export default function ClassDetails() {
     // Usar mensagem customizada se fornecida, se não usar padrão
     let messageText = customWhatsAppMessage.trim();
     if (!messageText) {
-      messageText = getDefaultMessage("global", { className, unitLabel, enabledOverride: defaultMessageEnabled });
+      messageText = getDefaultMessage("global", {
+        className,
+        unitLabel,
+        enabledOverride: defaultMessageEnabled,
+      });
     }
 
     const url = buildWaMeLink(selectedContact.phone, messageText);
@@ -2274,9 +1953,7 @@ export default function ClassDetails() {
       const result = await embeddedAttendance.save();
       if (!result) return;
       showSaveToast({
-        message: result.status === "queued"
-          ? "Chamada salva no dispositivo. Será enviada quando a internet voltar."
-          : "Chamada sincronizada.",
+        message: result.status === "queued" ? "Chamada salva no dispositivo. Será enviada quando a internet voltar." : "Chamada sincronizada.",
         variant: result.status === "queued" ? "warning" : "success",
       });
     } catch (error) {
@@ -2300,7 +1977,10 @@ export default function ClassDetails() {
 
   const handleOpenVisualTech = () => {
     if (!cls) return;
-    router.push({ pathname: "/class/[id]/visual-tech", params: { id: cls.id } });
+    router.push({
+      pathname: "/class/[id]/visual-tech",
+      params: { id: cls.id },
+    });
   };
 
   const handleOpenScouting = () => {
@@ -2312,20 +1992,9 @@ export default function ClassDetails() {
     router.push({ pathname: "/class/[id]/students", params: { id } });
   };
 
-  const handleOpenAssistant = () => {
-    if (!displayedInsight) return;
-    router.push({
-      pathname: scopedRoutes.assistant,
-      params: { classId: id, prefilledInsight: displayedInsight.insight },
-    });
-  };
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScreenPageHeader
           title={className}
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
@@ -2355,57 +2024,25 @@ export default function ClassDetails() {
             paddingBottom: mobileClassWorkspace ? 6 : 8,
           }}
         >
-          <ClassContextStrip
-            colors={colors}
-            compact={compactClassWorkspace}
-            mobile={mobileClassWorkspace}
-            unitLabel={unitLabel}
-            scheduleLabel={scheduleLabel}
-            studentCount={studentCount}
-            nextClassLabel={nextClassLabel}
-          />
+          <ClassContextStrip colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} unitLabel={unitLabel} scheduleLabel={scheduleLabel} studentCount={studentCount} nextClassLabel={nextClassLabel} />
         </ScreenPageHeader>
 
       <ScrollView
         ref={editScrollRef}
         contentContainerStyle={{
           gap: mobileClassWorkspace ? 10 : 16,
-          paddingBottom: mobileClassWorkspace
-            ? Math.max(insets.bottom + 132, 148)
-            : Math.max(insets.bottom + 220, 236),
+            paddingBottom: mobileClassWorkspace ? Math.max(insets.bottom + 132, 148) : Math.max(insets.bottom + 220, 236),
           paddingHorizontal: 16,
           paddingTop: 0,
         }}
         keyboardShouldPersistTaps="handled"
       >
-
         <ClassOperationsWorkspace
           colors={colors}
           compact={compactClassWorkspace}
           activeSection={workspaceSection}
           onSelectSection={handleSelectWorkspaceSection}
-          attendanceContent={({ dense }) => (
-            <ClassAttendanceWorkspacePanel
-              colors={colors}
-              compact={compactClassWorkspace}
-              mobile={mobileClassWorkspace}
-              dense={dense}
-              dateLabel={lessonDateLabel}
-              students={embeddedAttendance.students}
-              statusById={embeddedAttendance.statusById}
-              markedCount={embeddedAttendance.markedCount}
-              hasChanges={embeddedAttendance.hasChanges}
-              isLoading={embeddedAttendance.isLoading}
-              isSaving={embeddedAttendance.isSaving}
-              error={embeddedAttendance.error}
-              onPrevious={() => handleShiftLessonDate(-1)}
-              onNext={() => handleShiftLessonDate(1)}
-              onOpenCalendar={() => setShowLessonDatePicker(true)}
-              onOpenReport={handleOpenReport}
-              onSetStatus={embeddedAttendance.setStudentStatus}
-              onSave={() => void handleSaveEmbeddedAttendance()}
-            />
-          )}
+            attendanceContent={({ dense }) => <ClassAttendanceWorkspacePanel colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} dense={dense} dateLabel={lessonDateLabel} students={embeddedAttendance.students} statusById={embeddedAttendance.statusById} detailsById={embeddedAttendance.detailsById} markedCount={embeddedAttendance.markedCount} hasChanges={embeddedAttendance.hasChanges} isLoading={embeddedAttendance.isLoading} isSaving={embeddedAttendance.isSaving} error={embeddedAttendance.error} onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)} onOpenCalendar={() => setShowLessonDatePicker(true)} onOpenReport={handleOpenReport} onSetStatus={embeddedAttendance.setStudentStatus} onSetDetails={embeddedAttendance.setStudentDetails} onSave={() => void handleSaveEmbeddedAttendance()} />}
           scheduleLabel={scheduleLabel}
           lessonDateLabel={lessonDateLabel}
           appliedPlan={appliedPlan}
@@ -2416,15 +2053,6 @@ export default function ClassDetails() {
           onViewPlan={handleViewAppliedPlan}
           onGeneratePlan={handleGeneratePlan}
           isGeneratingPlan={isGeneratingPlan}
-          contextualInsight={displayedInsight ? (
-            <InsightCard
-              compact
-              embedded
-              insight={displayedInsight}
-              onDismiss={dismissDisplayedInsight}
-              onOpenAssistant={handleOpenAssistant}
-            />
-          ) : null}
           studentCount={studentCount}
           contactStatusValue={contactStatusValue}
           contactStatusLabel={contactStatusLabel}
@@ -2440,20 +2068,9 @@ export default function ClassDetails() {
           onExportRoster={handleExportRoster}
           onOpenWhatsApp={handleWhatsAppGroup}
         />
-
       </ScrollView>
 
-      <ConfirmCloseOverlay
-        visible={showAttendanceCloseConfirm}
-        title="Chamada não salva"
-        message="Descarte as alterações ou continue editando."
-        cancelLabel="Continuar editando"
-        discardLabel="Descartar"
-        showConfirmAction={false}
-        onConfirm={discardAttendanceAndContinue}
-        onDiscard={discardAttendanceAndContinue}
-        onCancel={keepEditingAttendance}
-      />
+        <ConfirmCloseOverlay visible={showAttendanceCloseConfirm} title="Chamada não salva" message="Descarte as alterações ou continue editando." cancelLabel="Continuar editando" discardLabel="Descartar" showConfirmAction={false} onConfirm={discardAttendanceAndContinue} onDiscard={discardAttendanceAndContinue} onCancel={keepEditingAttendance} />
 
       <ModalSheet
         visible={showReportModal}
@@ -2467,13 +2084,7 @@ export default function ClassDetails() {
           },
         ]}
       >
-        {showReportModal ? (
-          <SessionScreen
-            embeddedReport
-            embeddedDate={selectedLessonDateKey}
-            onCloseEmbeddedReport={() => setShowReportModal(false)}
-          />
-        ) : null}
+          {showReportModal ? <SessionScreen embeddedReport embeddedDate={selectedLessonDateKey} onCloseEmbeddedReport={() => setShowReportModal(false)} /> : null}
       </ModalSheet>
 
       {appliedPlan && cls ? (
@@ -2514,7 +2125,14 @@ export default function ClassDetails() {
                   gap: 10,
                 }}
               >
-                <Text style={{ flex: 1, color: colors.text, fontSize: 19, fontWeight: "800" }}>
+                  <Text
+                    style={{
+                      flex: 1,
+                      color: colors.text,
+                      fontSize: 19,
+                      fontWeight: "800",
+                    }}
+                  >
                   Plano da aula
                 </Text>
                 <Pressable
@@ -2549,35 +2167,25 @@ export default function ClassDetails() {
                 }}
               >
                 <ActivityIndicator size="small" color={colors.primaryBg} />
-                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 15,
+                      fontWeight: "800",
+                    }}
+                  >
                   Abrindo plano…
                 </Text>
               </View>
             </ModalSheet>
           }
         >
-          <ClassPlanPreviewModal
-            visible={showPlanPreviewModal}
-            onClose={() => setShowPlanPreviewModal(false)}
-            plan={appliedPlan}
-            classGroup={cls}
-            lessonDate={selectedLessonDateKey}
-            coachName={resolvedCoachName}
-            initialMode={planPreviewMode}
-            periodizationSource={appliedPlanPeriodizationSource}
-            onSavePlan={handleSaveAppliedPlan}
-            onRemovePlan={handleRemoveAppliedPlan}
-          />
+            <ClassPlanPreviewModal visible={showPlanPreviewModal} onClose={() => setShowPlanPreviewModal(false)} plan={appliedPlan} classGroup={cls} lessonDate={selectedLessonDateKey} coachName={resolvedCoachName} initialMode={planPreviewMode} periodizationSource={appliedPlanPeriodizationSource} onSavePlan={handleSaveAppliedPlan} onRemovePlan={handleRemoveAppliedPlan} />
         </Suspense>
       ) : null}
       </KeyboardAvoidingView>
 
-      <ModalSheet
-        visible={showEditModal}
-        onClose={requestCloseEditModal}
-        position="center"
-        cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}
-      >
+      <ModalSheet visible={showEditModal} onClose={requestCloseEditModal} position="center" cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}>
         <View
           ref={editContainerRef}
           onLayout={() => {
@@ -2587,11 +2195,7 @@ export default function ClassDetails() {
           }}
           style={{ flex: 1, minHeight: 0, gap: 12, position: "relative" }}
         >
-          <ConfirmCloseOverlay
-            visible={showEditCloseConfirm}
-            onCancel={() => setShowEditCloseConfirm(false)}
-            onConfirm={closeEditModal}
-          />
+          <ConfirmCloseOverlay visible={showEditCloseConfirm} onCancel={() => setShowEditCloseConfirm(false)} onConfirm={closeEditModal} />
           <View
             style={{
               flexDirection: "row",
@@ -2600,12 +2204,8 @@ export default function ClassDetails() {
             }}
           >
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-              <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>
-                Editar turma
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {cls?.name ? cls.name : "Ajuste os dados, agenda e perfil da turma."}
-              </Text>
+              <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>Editar turma</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>{cls?.name ? cls.name : "Ajuste os dados, agenda e perfil da turma."}</Text>
             </View>
             <Pressable
               onPress={requestCloseEditModal}
@@ -2638,7 +2238,11 @@ export default function ClassDetails() {
                     } as any)
                   : null,
               ]}
-              contentContainerStyle={{ gap: 10, paddingBottom: 24, paddingRight: 8 }}
+              contentContainerStyle={{
+                gap: 10,
+                paddingBottom: 24,
+                paddingRight: 8,
+              }}
               keyboardShouldPersistTaps="handled"
               onScrollBeginDrag={closeEditPickers}
               showsVerticalScrollIndicator
@@ -2726,12 +2330,12 @@ export default function ClassDetails() {
                 ageBandOptions,
                 genderOptions: genderOptions.map((value) => ({
                   value,
-                  label: value === 'misto' ? 'Misto' : value === 'feminino' ? 'Feminino' : 'Masculino',
+                    label: value === "misto" ? "Misto" : value === "feminino" ? "Feminino" : "Masculino",
                 })),
                 modalityOptions,
                 mvLevelOptions,
                 goalOptions,
-                customOptionLabel: 'Personalizar',
+                  customOptionLabel: "Personalizar",
               }}
               actions={{
                 closeAllPickers: closeEditPickers,
@@ -2751,7 +2355,7 @@ export default function ClassDetails() {
                   closeEditPickers();
                 },
                 handleEditSelectGender: (value) => {
-                  setGender(String(value) as ClassGroup['gender']);
+                    setGender(String(value) as ClassGroup["gender"]);
                   closeEditPickers();
                 },
                 handleEditSelectModality,
@@ -2786,21 +2390,10 @@ export default function ClassDetails() {
           >
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View style={{ flex: 1 }}>
-                <Button
-                  label={saving ? "Salvando..." : "Salvar alterações"}
-                  onPress={handleSaveEdit}
-                  disabled={saving || !name.trim() || !isEditDirty}
-                  loading={saving}
-                />
+                <Button label={saving ? "Salvando..." : "Salvar alterações"} onPress={handleSaveEdit} disabled={saving || !name.trim() || !isEditDirty} loading={saving} />
               </View>
               <View style={{ flex: 1 }}>
-                <Button
-                  label="Excluir turma"
-                  variant="danger"
-                  onPress={onDelete}
-                  disabled={saving}
-                  loading={false}
-                />
+                <Button label="Excluir turma" variant="danger" onPress={onDelete} disabled={saving} loading={false} />
               </View>
             </View>
           </View>
@@ -2934,26 +2527,11 @@ export default function ClassDetails() {
             }}
           />
         </View>
-
       </ModalSheet>
 
-      <DatePickerModal
-        visible={showLessonDatePicker}
-        value={selectedLessonDateKey}
-        onChange={handleLessonDateChange}
-        onClose={() => setShowLessonDatePicker(false)}
-        closeOnSelect
-        initialViewMode="day"
-      />
+      <DatePickerModal visible={showLessonDatePicker} value={selectedLessonDateKey} onChange={handleLessonDateChange} onClose={() => setShowLessonDatePicker(false)} closeOnSelect initialViewMode="day" />
 
-      <DatePickerModal
-        visible={showEditCycleCalendar}
-        value={cycleStartDate}
-        onChange={(value) => setCycleStartDate(value)}
-        onClose={() => setShowEditCycleCalendar(false)}
-        closeOnSelect={false}
-        initialViewMode="day"
-      />
+      <DatePickerModal visible={showEditCycleCalendar} value={cycleStartDate} onChange={(value) => setCycleStartDate(value)} onClose={() => setShowEditCycleCalendar(false)} closeOnSelect={false} initialViewMode="day" />
 
       <ModalSheet
         visible={showRosterExportModal}
@@ -2981,9 +2559,7 @@ export default function ClassDetails() {
             }}
           >
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Exportar lista de chamada
-              </Text>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Exportar lista de chamada</Text>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <View ref={rosterColumnsTriggerRef} style={{ width: rosterColumnsHeaderWidth }}>
@@ -3004,18 +2580,20 @@ export default function ClassDetails() {
                   }}
                 >
                   <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                    <Text
+                      style={{
+                        color: colors.text,
+                        fontSize: 12,
+                        fontWeight: "700",
+                      }}
+                    >
                       Colunas do PDF
                     </Text>
                     <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 10 }}>
                       {selectedRosterColumnsLabel}
                     </Text>
                   </View>
-                  <GoAtletaIcon
-                    name={showRosterColumnsPicker ? "chevronUp" : "chevronDown"}
-                    size={16}
-                    color={colors.muted}
-                  />
+                  <GoAtletaIcon name={showRosterColumnsPicker ? "chevronUp" : "chevronDown"} size={16} color={colors.muted} />
                 </Pressable>
               </View>
               <Pressable
@@ -3042,13 +2620,14 @@ export default function ClassDetails() {
             style={{ flex: 1, minHeight: 0 }}
             showsVerticalScrollIndicator
             onScrollBeginDrag={() => setShowRosterColumnsPicker(false)}
-            contentContainerStyle={{ gap: 14, paddingBottom: 18, paddingTop: 14 }}
+            contentContainerStyle={{
+              gap: 14,
+              paddingBottom: 18,
+              paddingTop: 14,
+            }}
           >
-
           <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>
-              Mês da lista
-            </Text>
+              <Text style={{ fontSize: 12, color: colors.muted, fontWeight: "600" }}>Mês da lista</Text>
             <View
               style={{
                 flexDirection: "row",
@@ -3090,7 +2669,13 @@ export default function ClassDetails() {
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700", textAlign: "center" }}>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontWeight: "700",
+                      textAlign: "center",
+                    }}
+                  >
                   {formatMonthLabel(rosterMonthValue)}
                 </Text>
               </Pressable>
@@ -3128,7 +2713,13 @@ export default function ClassDetails() {
                   borderColor: colors.border,
                 }}
               >
-                <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 11,
+                      fontWeight: "700",
+                    }}
+                  >
                   Limpar ajustes
                 </Text>
               </Pressable>
@@ -3154,19 +2745,23 @@ export default function ClassDetails() {
               }}
             >
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
                   Matriz de fundamentos
                 </Text>
-                <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>
-                  {rosterExportOptions.includeFundamentals
-                    ? "Vai para o PDF e pode ser editada."
-                    : "Fora do PDF e bloqueada para edição."}
-                </Text>
+                  <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>{rosterExportOptions.includeFundamentals ? "Vai para o PDF e pode ser editada." : "Fora do PDF e bloqueada para edição."}</Text>
               </View>
               <Pressable
                 onPress={toggleRosterFundamentalsExport}
                 accessibilityRole="switch"
-                accessibilityState={{ checked: rosterExportOptions.includeFundamentals }}
+                  accessibilityState={{
+                    checked: rosterExportOptions.includeFundamentals,
+                  }}
                 accessibilityLabel="Incluir matriz de fundamentos no PDF"
                 style={{
                   width: 54,
@@ -3175,13 +2770,9 @@ export default function ClassDetails() {
                   justifyContent: "center",
                   padding: 3,
                   borderRadius: 999,
-                  backgroundColor: rosterExportOptions.includeFundamentals
-                    ? colors.primaryBg
-                    : colors.secondaryBg,
+                    backgroundColor: rosterExportOptions.includeFundamentals ? colors.primaryBg : colors.secondaryBg,
                   borderWidth: 1,
-                  borderColor: rosterExportOptions.includeFundamentals
-                    ? colors.primaryBg
-                    : colors.border,
+                    borderColor: rosterExportOptions.includeFundamentals ? colors.primaryBg : colors.border,
                 }}
               >
                 <View
@@ -3189,14 +2780,16 @@ export default function ClassDetails() {
                     width: 24,
                     height: 24,
                     borderRadius: 999,
-                    backgroundColor: rosterExportOptions.includeFundamentals
-                      ? colors.primaryText
-                      : colors.muted,
+                      backgroundColor: rosterExportOptions.includeFundamentals ? colors.primaryText : colors.muted,
                   }}
                 />
               </Pressable>
             </View>
-            <View style={{ opacity: rosterExportOptions.includeFundamentals ? 1 : 0.42 }}>
+              <View
+                style={{
+                  opacity: rosterExportOptions.includeFundamentals ? 1 : 0.42,
+                }}
+              >
               <View
                 style={{
                   borderWidth: 1,
@@ -3250,17 +2843,14 @@ export default function ClassDetails() {
 
                 {rosterFundamentalLabels.map((fundamentalLabel, index) => {
                   const fundamentalKey = ROSTER_FUNDAMENTALS[index] ?? fundamentalLabel;
-                  const isEditing =
-                    rosterExportOptions.includeFundamentals &&
-                    editingRosterFundamentalIndex === index;
+                    const isEditing = rosterExportOptions.includeFundamentals && editingRosterFundamentalIndex === index;
                   return (
                     <View
                       key={`matrix-row-${fundamentalKey}`}
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        borderBottomWidth:
-                          index === rosterFundamentalLabels.length - 1 ? 0 : 1,
+                          borderBottomWidth: index === rosterFundamentalLabels.length - 1 ? 0 : 1,
                         borderBottomColor: colors.border,
                       }}
                     >
@@ -3361,7 +2951,6 @@ export default function ClassDetails() {
               </View>
             </View>
           </View>
-
         </ScrollView>
         <View
           style={{
@@ -3385,7 +2974,13 @@ export default function ClassDetails() {
               alignItems: "center",
             }}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 14 }}>
+              <Text
+                style={{
+                  color: colors.primaryText,
+                  fontWeight: "700",
+                  fontSize: 14,
+                }}
+              >
               Baixar PDF
             </Text>
           </Pressable>
@@ -3404,25 +2999,18 @@ export default function ClassDetails() {
               alignItems: "center",
             }}
           >
-            <Text style={{ color: colors.successText, fontWeight: "700", fontSize: 14 }}>
+              <Text
+                style={{
+                  color: colors.successText,
+                  fontWeight: "700",
+                  fontSize: 14,
+                }}
+              >
               Baixar XLSX
             </Text>
           </Pressable>
         </View>
-        <AnchoredDropdown
-          visible={showRosterColumnsPicker}
-          layout={rosterColumnsTriggerLayout}
-          container={null}
-          animationStyle={{ opacity: 1 }}
-          zIndex={5000}
-          maxHeight={240}
-          nestedScrollEnabled
-          onRequestClose={() => setShowRosterColumnsPicker(false)}
-          interactiveRefs={[rosterColumnsTriggerRef]}
-          portalToBodyOnWeb
-          panelStyle={{ borderRadius: 14 }}
-          scrollContentStyle={{ padding: 6, gap: 4 }}
-        >
+          <AnchoredDropdown visible={showRosterColumnsPicker} layout={rosterColumnsTriggerLayout} container={null} animationStyle={{ opacity: 1 }} zIndex={5000} maxHeight={240} nestedScrollEnabled onRequestClose={() => setShowRosterColumnsPicker(false)} interactiveRefs={[rosterColumnsTriggerRef]} portalToBodyOnWeb panelStyle={{ borderRadius: 14 }} scrollContentStyle={{ padding: 6, gap: 4 }}>
           {ROSTER_COLUMN_OPTIONS.map((option) => {
             const active = rosterExportOptions[option.key];
             return (
@@ -3443,11 +3031,7 @@ export default function ClassDetails() {
                   borderColor: active ? colors.primaryBg : colors.border,
                 }}
               >
-                <GoAtletaIcon
-                  name={active ? "checkbox" : "square"}
-                  size={18}
-                  color={active ? colors.primaryText : colors.text}
-                />
+                  <GoAtletaIcon name={active ? "checkbox" : "square"} size={18} color={active ? colors.primaryText : colors.text} />
                 <Text
                   numberOfLines={1}
                   style={{
@@ -3477,26 +3061,26 @@ export default function ClassDetails() {
         ]}
         position="center"
       >
-        <ScrollView
-          style={{ maxHeight: "100%" }}
-          contentContainerStyle={{ gap: 12, paddingBottom: 6 }}
-          showsVerticalScrollIndicator
-        >
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Configurar WhatsApp
-          </Text>
+        <ScrollView style={{ maxHeight: "100%" }} contentContainerStyle={{ gap: 12, paddingBottom: 6 }} showsVerticalScrollIndicator>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Configurar WhatsApp</Text>
 
           {/* Template Selector */}
           <View style={{ gap: 6 }}>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: whatsappModalMuted }}>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "600",
+                color: whatsappModalMuted,
+              }}
+            >
               Modelo de mensagem:
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Pressable
                 onPress={() => {
                   if (Platform.OS !== "web" || typeof document === "undefined") return;
-                  const scrollView = document.querySelector('[data-template-scroll-class]');
-                  if (scrollView) scrollView.scrollBy({ left: -200, behavior: 'smooth' });
+                  const scrollView = document.querySelector("[data-template-scroll-class]");
+                  if (scrollView) scrollView.scrollBy({ left: -200, behavior: "smooth" });
                 }}
                 style={{
                   padding: 6,
@@ -3508,13 +3092,7 @@ export default function ClassDetails() {
               >
                 <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
               </Pressable>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={{ flex: 1 }}
-                contentContainerStyle={{ paddingRight: 8 }}
-                {...(Platform.OS === "web" ? { "data-template-scroll-class": true } : {})}
-              >
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingRight: 8 }} {...(Platform.OS === "web" ? { "data-template-scroll-class": true } : {})}>
               {Object.values(WHATSAPP_TEMPLATES)
                 .filter((template) => template.id !== "student_invite")
                 .map((template) => {
@@ -3575,15 +3153,23 @@ export default function ClassDetails() {
                       opacity: canUse ? 1 : 0.4,
                     }}
                   >
-                    <Text style={{
+                        <Text
+                          style={{
                       fontSize: 12,
                       fontWeight: "600",
-                      color: isSelected ? whatsappSelectedText : colors.text
-                    }}>
+                            color: isSelected ? whatsappSelectedText : colors.text,
+                          }}
+                        >
                       {template.title}
                     </Text>
                     {!canUse && (
-                      <Text style={{ fontSize: 9, color: colors.dangerText, marginTop: 2 }}>
+                          <Text
+                            style={{
+                              fontSize: 9,
+                              color: colors.dangerText,
+                              marginTop: 2,
+                            }}
+                          >
                         Aviso: {missingRequirement}
                       </Text>
                     )}
@@ -3594,8 +3180,8 @@ export default function ClassDetails() {
               <Pressable
                 onPress={() => {
                   if (Platform.OS !== "web" || typeof document === "undefined") return;
-                  const scrollView = document.querySelector('[data-template-scroll-class]');
-                  if (scrollView) scrollView.scrollBy({ left: 200, behavior: 'smooth' });
+                  const scrollView = document.querySelector("[data-template-scroll-class]");
+                  if (scrollView) scrollView.scrollBy({ left: 200, behavior: "smooth" });
                 }}
                 style={{
                   padding: 6,
@@ -3623,7 +3209,14 @@ export default function ClassDetails() {
 
                 return (
                   <View key={field}>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: whatsappModalMuted, marginBottom: 4 }}>
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: "600",
+                        color: whatsappModalMuted,
+                        marginBottom: 4,
+                      }}
+                    >
                       {labels[field] || field}
                     </Text>
                     <TextInput
@@ -3669,12 +3262,16 @@ export default function ClassDetails() {
           {availableContacts.length > 0 && (
             <View style={{ gap: 8 }}>
               <View style={{ gap: 2 }}>
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: "700",
+                    color: colors.text,
+                  }}
+                >
                   Lista da turma
                 </Text>
-                <Text style={{ fontSize: 11, color: whatsappModalMuted }}>
-                  Selecione quem vai receber a mensagem.
-                </Text>
+                <Text style={{ fontSize: 11, color: whatsappModalMuted }}>Selecione quem vai receber a mensagem.</Text>
               </View>
               <TextInput
                 placeholder="Buscar por nome ou telefone"
@@ -3711,23 +3308,12 @@ export default function ClassDetails() {
                   nestedScrollEnabled
                   ListEmptyComponent={
                     <View style={{ padding: 12 }}>
-                      <Text style={{ color: whatsappModalMuted, fontSize: 12 }}>
-                        Nenhum contato encontrado.
-                      </Text>
+                      <Text style={{ color: whatsappModalMuted, fontSize: 12 }}>Nenhum contato encontrado.</Text>
                     </View>
                   }
                   renderItem={({ item: { contact, index } }) => (
                     <View style={{ marginBottom: 6 }}>
-                      <WhatsAppContactRow
-                        contact={contact}
-                        index={index}
-                        isSelected={selectedContactIndex === index}
-                        onSelect={handleSelectContact}
-                        colors={colors}
-                        subtleSurface={whatsappModalSubtleSurface}
-                        borderColor={whatsappModalBorder}
-                        mutedColor={whatsappModalMuted}
-                      />
+                      <WhatsAppContactRow contact={contact} index={index} isSelected={selectedContactIndex === index} onSelect={handleSelectContact} colors={colors} subtleSurface={whatsappModalSubtleSurface} borderColor={whatsappModalBorder} mutedColor={whatsappModalMuted} />
                     </View>
                   )}
                 />
@@ -3736,14 +3322,17 @@ export default function ClassDetails() {
           )}
 
           {/* Toggle */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.text }}>
-                Mensagem padrão
-              </Text>
-              <Text style={{ fontSize: 12, color: whatsappModalMuted }}>
-                {defaultMessageEnabled ? "Ativada" : "Desativada"}
-              </Text>
+              <Text style={{ fontSize: 14, fontWeight: "600", color: colors.text }}>Mensagem padrão</Text>
+              <Text style={{ fontSize: 12, color: whatsappModalMuted }}>{defaultMessageEnabled ? "Ativada" : "Desativada"}</Text>
             </View>
             <Pressable
               onPress={() => setDefaultMessageEnabled(!defaultMessageEnabled)}
@@ -3771,7 +3360,13 @@ export default function ClassDetails() {
 
           {/* Message Input */}
           <View style={{ gap: 6, marginTop: 4 }}>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: whatsappModalMuted }}>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "600",
+                color: whatsappModalMuted,
+              }}
+            >
               {defaultMessageEnabled ? "Mensagem (deixe em branco para usar padrão):" : "Mensagem personalizada:"}
             </Text>
             <TextInput
@@ -3793,7 +3388,13 @@ export default function ClassDetails() {
               }}
             />
             {defaultMessageEnabled && !customWhatsAppMessage.trim() && (
-              <Text style={{ fontSize: 10, color: whatsappModalMuted, fontStyle: "italic" }}>
+              <Text
+                style={{
+                  fontSize: 10,
+                  color: whatsappModalMuted,
+                  fontStyle: "italic",
+                }}
+              >
                 {`Mensagem padrão: "Olá! Sou o professor Gustavo da turma ${className} (${unitLabel})."`}
               </Text>
             )}
@@ -3813,7 +3414,13 @@ export default function ClassDetails() {
               opacity: selectedContactIndex >= 0 ? 1 : 0.6,
             }}
           >
-            <Text style={{ color: selectedContactIndex >= 0 ? colors.primaryText : whatsappModalMuted, fontWeight: "700", fontSize: 14 }}>
+            <Text
+              style={{
+                color: selectedContactIndex >= 0 ? colors.primaryText : whatsappModalMuted,
+                fontWeight: "700",
+                fontSize: 14,
+              }}
+            >
               Enviar via WhatsApp
             </Text>
           </Pressable>
@@ -3828,9 +3435,7 @@ export default function ClassDetails() {
               alignItems: "center",
             }}
           >
-            <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>
-              Fechar
-            </Text>
+            <Text style={{ color: colors.text, fontWeight: "600", fontSize: 13 }}>Fechar</Text>
           </Pressable>
         </ScrollView>
       </ModalSheet>

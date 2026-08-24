@@ -39,6 +39,22 @@ describe("training planning platform parity", () => {
     expect(classPlanWorkspace).toContain("normalizeClassTrainingPlan(currentWorkingPlan)");
   });
 
+  it("keeps compact web plan actions in the header and above page FABs", () => {
+    expect(classPlanWorkspace).toContain("{inlinePdfEditor ? inlineSaveButton : null}");
+    expect(classPlanWorkspace).toContain("{menuButton}\n          </>");
+    expect(classPlanWorkspace).toContain("overlayZIndex={6000}");
+    expect(classPlanWorkspace).toContain("minimumPageWidth={phoneLayout ? 620 : undefined}");
+    expect(classPlanWorkspace).toContain("containerPadding={8}");
+    expect(classPlanWorkspace).toContain("radius: 18");
+    expect(classPlanWorkspace).toContain("flushBottom: false");
+    expect(classPlanWorkspace).not.toContain("radius: splitLayout ? 18 : 0");
+    expect(classPlanWorkspace).toContain('modalCardCentered: {\n    width: "94%"');
+    expect(classPlanWorkspace).toContain('height: "90%"');
+    expect(classPlanWorkspace).not.toContain(
+      "inlinePdfEditor && !splitLayout ? renderEditFooter(true)"
+    );
+  });
+
   it("keeps the library trigger in the PDF toolbar and opens the library as an overlay", () => {
     expect(classPlanWorkspace).toContain("onToggleWorkspaceLibrary");
     expect(classPlanWorkspace).toContain('accessibilityLabel={workspaceLibraryExpanded ? "Recolher biblioteca" : "Expandir biblioteca"}');

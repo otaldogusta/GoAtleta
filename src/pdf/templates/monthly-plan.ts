@@ -276,6 +276,8 @@ export const monthlyPlanHtml = (data: MonthlyPlanPdfData, options?: { editable?:
           vertical-align: top;
           line-height: 1.1;
           white-space: pre-wrap;
+          overflow-wrap: anywhere;
+          word-break: normal;
           background: #fff;
         }
         th {

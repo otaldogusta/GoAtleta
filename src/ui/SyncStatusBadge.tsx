@@ -3,9 +3,10 @@ import { useAppTheme } from "./app-theme";
 import { GoAtletaIcon } from "./icon-registry";
 
 type SyncStatusBadgeProps = {
-  status: "saving" | "saved_local" | "synced" | "error" | "offline";
+  status: "saving" | "saved_local" | "synced" | "pending" | "error" | "offline";
   message?: string;
   size?: "sm" | "md";
+  iconOnly?: boolean;
 };
 
 /**
@@ -15,6 +16,7 @@ export function SyncStatusBadge({
   status,
   message,
   size = "md",
+  iconOnly = false,
 }: SyncStatusBadgeProps) {
   const { colors } = useAppTheme();
 
@@ -41,6 +43,12 @@ export function SyncStatusBadge({
       bg: colors.primaryBg,
       color: colors.primaryText,
     },
+    pending: {
+      icon: "sync" as const,
+      text: message || "Alterações pendentes",
+      bg: colors.secondaryBg,
+      color: colors.muted,
+    },
     error: {
       icon: "warningCircle" as const,
       text: message || "Erro ao sincronizar",
@@ -59,28 +67,35 @@ export function SyncStatusBadge({
 
   return (
     <View
+      accessible
+      accessibilityLabel={text}
       accessibilityLiveRegion="polite"
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        paddingVertical: padding,
-        paddingHorizontal: padding + 4,
+        justifyContent: "center",
+        gap: iconOnly ? 0 : 6,
+        width: iconOnly ? 32 : undefined,
+        height: iconOnly ? 32 : undefined,
+        paddingVertical: iconOnly ? 0 : padding,
+        paddingHorizontal: iconOnly ? 0 : padding + 4,
         borderRadius: 999,
         backgroundColor: bg,
         alignSelf: "flex-start",
       }}
     >
       <GoAtletaIcon name={icon} size={iconSize} color={textColor} />
-      <Text
-        style={{
-          color: textColor,
-          fontWeight: "600",
-          fontSize,
-        }}
-      >
-        {text}
-      </Text>
+      {iconOnly ? null : (
+        <Text
+          style={{
+            color: textColor,
+            fontWeight: "600",
+            fontSize,
+          }}
+        >
+          {text}
+        </Text>
+      )}
     </View>
   );
 }

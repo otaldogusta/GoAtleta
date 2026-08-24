@@ -6,10 +6,12 @@ type PdfPreviewFrameProps = {
   html?: string;
   editable?: boolean;
   zoom?: number;
+  minimumPageWidth?: number;
 };
 
-export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100) => {
+export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, minimumPageWidth = 0) => {
   const normalizedZoom = Math.max(70, Math.min(140, Math.round(zoom)));
+  const normalizedMinimumPageWidth = Math.max(0, Math.min(900, Math.round(minimumPageWidth)));
   const stylesAndScript = `
       ${
         editable
@@ -46,8 +48,23 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100) =
       body {
         min-height: 100%;
         padding: 18px;
-        overflow-x: hidden;
+        overflow-x: auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        touch-action: pan-x pan-y;
+        -webkit-overflow-scrolling: touch;
         background: #e9edf2;
+      }
+      html,
+      body {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      html::-webkit-scrollbar,
+      body::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        display: none;
       }
       .page {
         width: 210mm;
@@ -61,7 +78,7 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100) =
         background: #fff;
         box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
         zoom: var(--goatleta-page-scale, 1);
-        transform-origin: top center;
+        transform-origin: top left;
       }
       .page:last-child { margin-bottom: 0; }
       .goatleta-page-number {
@@ -269,7 +286,8 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100) =
         var a4WidthPx = 210 * 96 / 25.4;
         var fitScale = Math.min(1, Math.max(0.2, (window.innerWidth - horizontalPadding) / a4WidthPx));
         var requestedZoom = ${normalizedZoom / 100};
-        var effectiveScale = fitScale * requestedZoom;
+        var minimumScale = ${normalizedMinimumPageWidth} > 0 ? ${normalizedMinimumPageWidth} / a4WidthPx : 0;
+        var effectiveScale = Math.min(1.4, Math.max(minimumScale, fitScale * requestedZoom));
         document.documentElement.style.setProperty('--goatleta-page-scale', String(effectiveScale));
         var scaledWidth = a4WidthPx * effectiveScale;
         var availableWidth = window.innerWidth - horizontalPadding;
@@ -294,7 +312,14 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100) =
   return html.replace("</style>", stylesAndScript);
 };
 
-export const PdfPreviewFrame = memo(function PdfPreviewFrame({ url, title, html, editable, zoom = 100 }: PdfPreviewFrameProps) {
+export const PdfPreviewFrame = memo(function PdfPreviewFrame({
+  url,
+  title,
+  html,
+  editable,
+  zoom = 100,
+  minimumPageWidth = 0,
+}: PdfPreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const style: CSSProperties = {
     width: "100%",
@@ -303,7 +328,10 @@ export const PdfPreviewFrame = memo(function PdfPreviewFrame({ url, title, html,
     display: "block",
     background: "#ffffff",
   };
-  const previewHtml = useMemo(() => (html ? buildPreviewHtml(html, editable, zoom) : undefined), [html, editable, zoom]);
+  const previewHtml = useMemo(
+    () => (html ? buildPreviewHtml(html, editable, zoom, minimumPageWidth) : undefined),
+    [editable, html, minimumPageWidth, zoom]
+  );
   const lastHtmlRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {

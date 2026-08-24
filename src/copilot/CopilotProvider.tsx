@@ -29,7 +29,7 @@ import { getScopedAssistantPath, isAssistantRoutePath } from "../navigation/prof
 import { markRender, measureAsync } from "../observability/perf";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { useAppTheme } from "../ui/app-theme";
-import { CopilotFab } from "./components/CopilotFab";
+import { CopilotFab, resolveCopilotFabBottom } from "./components/CopilotFab";
 import {
   buildDefaultContextReply,
   buildNfcQuickActionReply,
@@ -864,7 +864,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       setState((prev) => (prev.open ? { ...prev, open: false } : prev));
     });
   }, [normalizedPath, session]);
-  const fabBottomOffset = Math.max(insets.bottom + 92, 108);
+  const fabBottomOffset = resolveCopilotFabBottom(insets.bottom);
   const sheetContentBottomPadding = Math.max(
     insets.bottom + 10,
     Platform.OS === "web" ? 16 : 14

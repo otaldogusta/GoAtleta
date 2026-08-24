@@ -998,6 +998,14 @@ export default function AttendanceScreen() {
 
             <View style={{ alignItems: "flex-end", gap: 5, minWidth: 0, maxWidth: isMobile ? "55%" : 360 }}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 7, minWidth: 0 }}>
+                {saveIndicator ? (
+                  <SyncStatusBadge
+                    status={saveIndicator.status}
+                    message={saveIndicator.message}
+                    size="sm"
+                    iconOnly
+                  />
+                ) : null}
                 <View
                   style={{
                     width: 8,
@@ -1406,12 +1414,6 @@ export default function AttendanceScreen() {
             )}
             ListEmptyComponent={attendanceEmptyState}
           />
-
-          {saveIndicator ? (
-            <View style={{ paddingTop: 8 }}>
-              <SyncStatusBadge status={saveIndicator.status} message={saveIndicator.message} />
-            </View>
-          ) : null}
 
           {isMobile ? (
             <View

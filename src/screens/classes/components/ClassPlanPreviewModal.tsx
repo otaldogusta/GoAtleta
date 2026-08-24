@@ -226,12 +226,12 @@ export function ClassPlanPreviewModal({
   }, [workspaceMode]);
 
   const cardStyle = useModalCardStyle({
-    maxHeight: "100%",
-    maxWidth: splitLayout ? 1160 : undefined,
-    fullWidth: !splitLayout,
+    maxHeight: "90%",
+    maxWidth: 1200,
+    fullWidth: false,
     padding: 0,
-    radius: splitLayout ? 18 : 0,
-    flushBottom: !splitLayout,
+    radius: 18,
+    flushBottom: false,
   });
 
   useEffect(() => {
@@ -909,6 +909,7 @@ export function ClassPlanPreviewModal({
                 title={`PDF do plano ${pdfPlan.title}`}
                 editable={true}
                 zoom={workspaceMode ? previewZoom : 100}
+                minimumPageWidth={phoneLayout ? 620 : undefined}
               />
             </View>
           ) : null}
@@ -1407,6 +1408,7 @@ export function ClassPlanPreviewModal({
         accessibilityLabel="Mais opções do plano"
         style={({ pressed }) => [
           styles.iconAction,
+          phoneLayout ? styles.iconActionPhone : null,
           { borderColor: colors.border, opacity: isRemoving ? 0.5 : pressed ? 0.72 : 1 },
         ]}
       >
@@ -1427,6 +1429,7 @@ export function ClassPlanPreviewModal({
       accessibilityLabel={isDirty ? "Salvar plano" : "Plano salvo"}
       style={({ pressed }) => [
         styles.headerSaveButton,
+        phoneLayout ? styles.headerSaveButtonPhone : null,
         {
           backgroundColor: colors.primaryBg,
           opacity: !isDirty || isSaving ? 0.55 : pressed ? 0.8 : 1,
@@ -1443,7 +1446,13 @@ export function ClassPlanPreviewModal({
         />
       )}
       <Text style={[styles.headerButtonLabel, { color: colors.primaryText }]}>
-        {isSaving ? "Salvando" : isDirty ? "Salvar plano" : "Salvo"}
+        {isSaving
+          ? "Salvando"
+          : isDirty
+            ? (phoneLayout ? "Salvar" : "Salvar plano")
+            : phoneLayout
+              ? "Salvar"
+              : "Salvo"}
       </Text>
     </Pressable>
   );
@@ -1584,10 +1593,10 @@ export function ClassPlanPreviewModal({
 
   const modalContent = (
     <>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+      <View style={[styles.header, phoneLayout ? styles.headerPhone : null, { borderBottomColor: colors.border }]}>
         <View style={styles.headerCopy}>
-          <Text numberOfLines={1} style={[styles.title, { color: colors.text }]}>Plano da aula</Text>
-          <Text numberOfLines={1} style={[styles.subtitle, { color: colors.muted }]}>
+          <Text numberOfLines={1} style={[styles.title, phoneLayout ? styles.titlePhone : null, { color: colors.text }]}>Plano da aula</Text>
+          <Text numberOfLines={1} style={[styles.subtitle, phoneLayout ? styles.subtitlePhone : null, { color: colors.muted }]}>
             {classGroup.name} · {formatLessonDate(lessonDate)} · {formatLessonTime(classGroup)}
           </Text>
         </View>
@@ -1619,6 +1628,7 @@ export function ClassPlanPreviewModal({
           </>
         ) : (
           <>
+            {inlinePdfEditor ? inlineSaveButton : null}
             {!phoneLayout ? (
               <Pressable
                 onPress={handleDownload}
@@ -1630,14 +1640,18 @@ export function ClassPlanPreviewModal({
                 <GoAtletaIcon name="download" size={18} color={colors.text} />
               </Pressable>
             ) : null}
-            {!isEditing ? menuButton : null}
+            {menuButton}
           </>
         )}
         <Pressable
           onPress={requestClose}
           accessibilityRole="button"
           accessibilityLabel="Fechar plano"
-          style={({ pressed }) => [styles.closeAction, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}
+          style={({ pressed }) => [
+            styles.closeAction,
+            phoneLayout ? styles.closeActionPhone : null,
+            { borderColor: colors.border, opacity: pressed ? 0.72 : 1 },
+          ]}
         >
           <GoAtletaIcon name="close" size={20} color={colors.text} />
         </Pressable>
@@ -1687,7 +1701,7 @@ export function ClassPlanPreviewModal({
         </View>
       </View>
 
-      {inlinePdfEditor && !splitLayout ? renderEditFooter(true) : isEditing && !splitLayout ? renderEditFooter(true) : !splitLayout ? (
+      {!inlinePdfEditor && isEditing && !splitLayout ? renderEditFooter(true) : !inlinePdfEditor && !splitLayout ? (
         <View style={[styles.previewFooter, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
           {phoneLayout ? (
             <Pressable
@@ -1762,12 +1776,13 @@ export function ClassPlanPreviewModal({
       visible={visible}
       onClose={requestClose}
       position="center"
-      containerPadding={splitLayout ? 8 : 0}
+      overlayZIndex={6000}
+      containerPadding={8}
       cardStyle={[
         cardStyle,
         styles.modalCard,
-        splitLayout ? styles.modalCardDesktop : styles.modalCardCompact,
-        !splitLayout ? { borderColor: colors.border, borderWidth: 0 } : null,
+        styles.modalCardCentered,
+        { borderColor: colors.border, borderWidth: 1 },
       ]}
     >
       {modalContent}
@@ -1891,20 +1906,13 @@ const styles = StyleSheet.create({
   workspaceDurationSuffix: { fontSize: 11, fontWeight: "700" },
   workspacePreview: { flex: 1, minHeight: 0, paddingTop: 68 },
   modalCard: { overflow: "hidden", paddingBottom: 0, marginBottom: 0, gap: 0 },
-  modalCardDesktop: {
+  modalCardCentered: {
     width: "94%",
     maxWidth: 1200,
     height: "90%",
     maxHeight: 840,
     borderRadius: 18,
     borderWidth: 1,
-  },
-  modalCardCompact: {
-    width: "100%",
-    maxWidth: "100%",
-    height: "100%",
-    maxHeight: "100%",
-    borderRadius: 0,
   },
   header: {
     minHeight: 72,
@@ -1915,9 +1923,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
+  headerPhone: {
+    minHeight: 60,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
   headerCopy: { flex: 1, minWidth: 0 },
   title: { fontSize: 19, fontWeight: "800" },
+  titlePhone: { fontSize: 17 },
   subtitle: { marginTop: 3, fontSize: 12 },
+  subtitlePhone: { marginTop: 1, fontSize: 11 },
   headerButton: {
     minHeight: 40,
     borderWidth: 1,
@@ -1938,6 +1954,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
+  headerSaveButtonPhone: {
+    minHeight: 38,
+    paddingHorizontal: 10,
+    gap: 5,
+  },
   iconAction: {
     width: 40,
     height: 40,
@@ -1946,6 +1967,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconActionPhone: { width: 38, height: 38, borderRadius: 9 },
   closeAction: {
     width: 42,
     height: 42,
@@ -1954,6 +1976,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  closeActionPhone: { width: 38, height: 38, borderRadius: 19 },
   mobileTabs: { minHeight: 46, flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth },
   mobileTab: { flex: 1, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
   mobileTabLabel: { fontSize: 13, fontWeight: "800" },

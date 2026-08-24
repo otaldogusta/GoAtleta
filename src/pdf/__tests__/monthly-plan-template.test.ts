@@ -74,6 +74,7 @@ describe("monthlyPlanHtml", () => {
     expect(html).toContain(">Tempo</th>");
     expect(html).toContain(">Descrição / condução da situação-problema</th>");
     expect(html).toContain("font-size: 9.5pt");
+    expect(html).toContain("overflow-wrap: anywhere");
     expect(html).toContain("margin: 15mm 8mm 8mm");
     expect(html).toContain("padding: 6px 5px");
     expect(html).toContain("width: 100%");
