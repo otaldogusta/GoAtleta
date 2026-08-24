@@ -1,6 +1,7 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     KeyboardAvoidingView,
@@ -19,7 +20,6 @@ import { InsightCard } from "../../src/components/ui/InsightCard";
 import { type ContextualInsight, useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
 
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
-import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { resolveResponsiveLayout } from "../../src/ui/responsive-layout";
 import { useCopilotContext } from "../../src/copilot/CopilotProvider";
@@ -69,7 +69,10 @@ import { getClassScheduleOverlapDays } from "../../src/screens/classes/applicati
 import {
     ClassContextStrip,
     ClassOperationsWorkspace,
+    type ClassWorkspaceSection,
 } from "../../src/screens/classes/components/ClassOperationsWorkspace";
+import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
+import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
 import type { ClassPlanPeriodizationSource } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -110,11 +113,20 @@ import { retrieveDocumentSupportForPlan } from "../../src/screens/session/applic
 import { resolveClassPlanForSessionDate } from "../../src/screens/session/application/resolve-class-plan-for-session-date";
 import { SessionScreen } from "./[id]/session";
 
-const ClassPlanPreviewModal = lazy(() =>
-  import("../../src/screens/classes/components/ClassPlanPreviewModal").then((module) => ({
+let classPlanPreviewModalPromise: ReturnType<typeof importClassPlanPreviewModal> | null = null;
+
+function importClassPlanPreviewModal() {
+  return import("../../src/screens/classes/components/ClassPlanPreviewModal").then((module) => ({
     default: module.ClassPlanPreviewModal,
-  }))
-);
+  }));
+}
+
+function preloadClassPlanPreviewModal() {
+  classPlanPreviewModalPromise ??= importClassPlanPreviewModal();
+  return classPlanPreviewModalPromise;
+}
+
+const ClassPlanPreviewModal = lazy(preloadClassPlanPreviewModal);
 
 type AvailableContact = {
   studentName: string;
@@ -232,6 +244,7 @@ export default function ClassDetails() {
 
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const scopedRoutes = useTrainerRouteScope();
   const { width: windowWidth } = useWindowDimensions();
   const { colors, mode } = useAppTheme();
@@ -271,6 +284,15 @@ export default function ClassDetails() {
     maxWidth: 720,
     padding: 0,
     radius: 18,
+  });
+  const splitPlanPreviewLayout = Platform.OS === "web" && windowWidth >= 980;
+  const planPreviewLoadingCardStyle = useModalCardStyle({
+    maxHeight: splitPlanPreviewLayout ? "90%" : "100%",
+    maxWidth: splitPlanPreviewLayout ? 1200 : undefined,
+    padding: 0,
+    radius: splitPlanPreviewLayout ? 18 : 0,
+    fullWidth: !splitPlanPreviewLayout,
+    flushBottom: !splitPlanPreviewLayout,
   });
   const [showWhatsAppSettingsModal, setShowWhatsAppSettingsModal] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<WhatsAppTemplateId | null>(null);
@@ -326,6 +348,10 @@ export default function ClassDetails() {
   const [showPlanPreviewModal, setShowPlanPreviewModal] = useState(false);
   const [planPreviewMode, setPlanPreviewMode] = useState<"preview" | "edit">("preview");
   const [showReportModal, setShowReportModal] = useState(false);
+  const [workspaceSection, setWorkspaceSection] = useState<ClassWorkspaceSection>("overview");
+  const [showAttendanceCloseConfirm, setShowAttendanceCloseConfirm] = useState(false);
+  const pendingAttendanceAction = useRef<(() => void) | null>(null);
+  const allowAttendanceNavigation = useRef(false);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [isOperationalInsightDismissed, setIsOperationalInsightDismissed] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -791,10 +817,9 @@ export default function ClassDetails() {
   const classStartTime = cls?.startTime || "-";
   const classDuration = cls?.durationMinutes ?? 60;
 
-  const compactClassWorkspace = !resolveResponsiveLayout(
-    windowWidth,
-    "dashboard"
-  ).supportsSplitView;
+  const classResponsiveLayout = resolveResponsiveLayout(windowWidth, "dashboard");
+  const compactClassWorkspace = !classResponsiveLayout.supportsSplitView;
+  const mobileClassWorkspace = classResponsiveLayout.isMobile;
   const scheduleDayLabels = classDays.map((day) => dayNames[day]).filter(Boolean);
   const scheduleDaysLabel = scheduleDayLabels.length <= 1
     ? scheduleDayLabels[0] ?? "Sem dias definidos"
@@ -806,6 +831,55 @@ export default function ClassDetails() {
   const selectedLessonDateKey = selectedLessonDate
     ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}`
     : "";
+  const embeddedAttendance = useEmbeddedClassAttendance({
+    classId: cls?.id ?? String(id ?? ""),
+    date: selectedLessonDateKey,
+    enabled: workspaceSection === "attendance",
+  });
+  const requestAttendanceAction = useCallback((action: () => void) => {
+    if (workspaceSection === "attendance" && embeddedAttendance.hasChanges) {
+      pendingAttendanceAction.current = action;
+      setShowAttendanceCloseConfirm(true);
+      return;
+    }
+    action();
+  }, [embeddedAttendance.hasChanges, workspaceSection]);
+  const discardAttendanceAndContinue = useCallback(() => {
+    const action = pendingAttendanceAction.current;
+    pendingAttendanceAction.current = null;
+    setShowAttendanceCloseConfirm(false);
+    embeddedAttendance.discardChanges();
+    allowAttendanceNavigation.current = true;
+    action?.();
+    setTimeout(() => {
+      allowAttendanceNavigation.current = false;
+    }, 0);
+  }, [embeddedAttendance.discardChanges]);
+  const keepEditingAttendance = useCallback(() => {
+    pendingAttendanceAction.current = null;
+    setShowAttendanceCloseConfirm(false);
+  }, []);
+
+  useEffect(() => {
+    if (workspaceSection !== "attendance" || !embeddedAttendance.hasChanges) return;
+    const unsubscribe = navigation.addListener("beforeRemove", (event: any) => {
+      if (allowAttendanceNavigation.current) return;
+      event.preventDefault();
+      pendingAttendanceAction.current = () => navigation.dispatch(event.data.action);
+      setShowAttendanceCloseConfirm(true);
+    });
+    return unsubscribe;
+  }, [embeddedAttendance.hasChanges, navigation, workspaceSection]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || workspaceSection !== "attendance" || !embeddedAttendance.hasChanges) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [embeddedAttendance.hasChanges, workspaceSection]);
   const selectedLessonWeekday = selectedLessonDate
     ? selectedLessonDate.getDay() === 0
       ? 7
@@ -827,19 +901,23 @@ export default function ClassDetails() {
   const reportStatusValue = latestScouting ? formatShortDate(latestScouting.date) : "Pendente";
   const reportStatusLabel = latestScouting ? "último relatório" : "registre a última aula";
   const handleShiftLessonDate = useCallback((direction: -1 | 1) => {
-    const baseDate = lessonDate ?? nextClassDate;
-    if (!baseDate || classDays.length === 0) return;
-    const nextDate = calculateAdjacentClassDate(classDays, baseDate, direction);
-    if (nextDate) {
+    requestAttendanceAction(() => {
+      const baseDate = lessonDate ?? nextClassDate;
+      if (!baseDate || classDays.length === 0) return;
+      const nextDate = calculateAdjacentClassDate(classDays, baseDate, direction);
+      if (nextDate) {
+        setIsLoadingLessonPlan(true);
+        setLessonDate(nextDate);
+      }
+    });
+  }, [classDays, lessonDate, nextClassDate, requestAttendanceAction]);
+  const handleLessonDateChange = (value: string) => {
+    requestAttendanceAction(() => {
+      const nextDate = parseIsoDate(value);
+      if (!nextDate) return;
       setIsLoadingLessonPlan(true);
       setLessonDate(nextDate);
-    }
-  }, [classDays, lessonDate, nextClassDate]);
-  const handleLessonDateChange = (value: string) => {
-    const nextDate = parseIsoDate(value);
-    if (!nextDate) return;
-    setIsLoadingLessonPlan(true);
-    setLessonDate(nextDate);
+    });
   };
   const classCoachName = clsId ? coachNameByClass[clsId] ?? "" : "";
   const resolvedCoachName = classCoachName || coachName;
@@ -1586,8 +1664,14 @@ export default function ClassDetails() {
     }
   }, [cancelRosterFundamentalLabelEdit, showRosterExportModal]);
 
+  useEffect(() => {
+    if (!appliedPlan) return;
+    void preloadClassPlanPreviewModal();
+  }, [appliedPlan]);
+
   const handleViewAppliedPlan = useCallback(() => {
     if (!appliedPlan) return;
+    void preloadClassPlanPreviewModal();
     setPlanPreviewMode("edit");
     setShowPlanPreviewModal(true);
   }, [appliedPlan]);
@@ -1676,6 +1760,7 @@ export default function ClassDetails() {
 
   const handleGeneratePlan = useCallback(async () => {
     if (!cls || !selectedLessonDateKey || isGeneratingPlan) return;
+    void preloadClassPlanPreviewModal();
     setIsGeneratingPlan(true);
     try {
       const [students, recentPlans, classPlans, calendarExceptions] = await Promise.all([
@@ -2161,20 +2246,42 @@ export default function ClassDetails() {
   };
 
   const handleOpenSession = () => {
-    if (appliedPlan) {
-      setPlanPreviewMode("edit");
-      setShowPlanPreviewModal(true);
-      return;
-    }
-    router.push({ pathname: "/class/[id]/planning", params: { id } });
+    requestAttendanceAction(() => {
+      if (appliedPlan) {
+        setPlanPreviewMode("edit");
+        setShowPlanPreviewModal(true);
+        return;
+      }
+      router.push({ pathname: "/class/[id]/planning", params: { id } });
+    });
   };
 
   const handleOpenAttendance = () => {
-    router.push({ pathname: "/class/[id]/attendance", params: { id } });
+    setWorkspaceSection("attendance");
+  };
+
+  const handleSelectWorkspaceSection = (section: ClassWorkspaceSection) => {
+    if (section === workspaceSection) return;
+    requestAttendanceAction(() => setWorkspaceSection(section));
   };
 
   const handleOpenReport = () => {
-    setShowReportModal(true);
+    requestAttendanceAction(() => setShowReportModal(true));
+  };
+
+  const handleSaveEmbeddedAttendance = async () => {
+    try {
+      const result = await embeddedAttendance.save();
+      if (!result) return;
+      showSaveToast({
+        message: result.status === "queued"
+          ? "Chamada salva no dispositivo. Será enviada quando a internet voltar."
+          : "Chamada sincronizada.",
+        variant: result.status === "queued" ? "warning" : "success",
+      });
+    } catch (error) {
+      showSaveToast({ error, variant: "error" });
+    }
   };
 
   const handleOpenPlanning = () => {
@@ -2222,7 +2329,7 @@ export default function ClassDetails() {
         <ScreenPageHeader
           title={className}
           titleAccessory={<ClassGenderBadge gender={classGender} size="md" />}
-          onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.classes })}
+          onBack={() => requestAttendanceAction(() => navigateBackOrReplace({ router, fallback: scopedRoutes.classes }))}
           right={
             <Pressable
               onPress={() => {
@@ -2243,11 +2350,15 @@ export default function ClassDetails() {
               <GoAtletaIcon name="pencil" size={18} color={colors.text} />
             </Pressable>
           }
-          contentStyle={{ paddingTop: 16, paddingBottom: 8 }}
+          contentStyle={{
+            paddingTop: mobileClassWorkspace ? 8 : 16,
+            paddingBottom: mobileClassWorkspace ? 6 : 8,
+          }}
         >
           <ClassContextStrip
             colors={colors}
             compact={compactClassWorkspace}
+            mobile={mobileClassWorkspace}
             unitLabel={unitLabel}
             scheduleLabel={scheduleLabel}
             studentCount={studentCount}
@@ -2258,8 +2369,10 @@ export default function ClassDetails() {
       <ScrollView
         ref={editScrollRef}
         contentContainerStyle={{
-          gap: 16,
-          paddingBottom: Math.max(insets.bottom + 220, 236),
+          gap: mobileClassWorkspace ? 10 : 16,
+          paddingBottom: mobileClassWorkspace
+            ? Math.max(insets.bottom + 132, 148)
+            : Math.max(insets.bottom + 220, 236),
           paddingHorizontal: 16,
           paddingTop: 0,
         }}
@@ -2269,6 +2382,30 @@ export default function ClassDetails() {
         <ClassOperationsWorkspace
           colors={colors}
           compact={compactClassWorkspace}
+          activeSection={workspaceSection}
+          onSelectSection={handleSelectWorkspaceSection}
+          attendanceContent={({ dense }) => (
+            <ClassAttendanceWorkspacePanel
+              colors={colors}
+              compact={compactClassWorkspace}
+              mobile={mobileClassWorkspace}
+              dense={dense}
+              dateLabel={lessonDateLabel}
+              students={embeddedAttendance.students}
+              statusById={embeddedAttendance.statusById}
+              markedCount={embeddedAttendance.markedCount}
+              hasChanges={embeddedAttendance.hasChanges}
+              isLoading={embeddedAttendance.isLoading}
+              isSaving={embeddedAttendance.isSaving}
+              error={embeddedAttendance.error}
+              onPrevious={() => handleShiftLessonDate(-1)}
+              onNext={() => handleShiftLessonDate(1)}
+              onOpenCalendar={() => setShowLessonDatePicker(true)}
+              onOpenReport={handleOpenReport}
+              onSetStatus={embeddedAttendance.setStudentStatus}
+              onSave={() => void handleSaveEmbeddedAttendance()}
+            />
+          )}
           scheduleLabel={scheduleLabel}
           lessonDateLabel={lessonDateLabel}
           appliedPlan={appliedPlan}
@@ -2306,6 +2443,18 @@ export default function ClassDetails() {
 
       </ScrollView>
 
+      <ConfirmCloseOverlay
+        visible={showAttendanceCloseConfirm}
+        title="Chamada não salva"
+        message="Descarte as alterações ou continue editando."
+        cancelLabel="Continuar editando"
+        discardLabel="Descartar"
+        showConfirmAction={false}
+        onConfirm={discardAttendanceAndContinue}
+        onDiscard={discardAttendanceAndContinue}
+        onCancel={keepEditingAttendance}
+      />
+
       <ModalSheet
         visible={showReportModal}
         onClose={() => setShowReportModal(false)}
@@ -2334,9 +2483,76 @@ export default function ClassDetails() {
               visible={showPlanPreviewModal}
               onClose={() => setShowPlanPreviewModal(false)}
               position="center"
-              cardStyle={reportModalCardStyle}
+              containerPadding={splitPlanPreviewLayout ? 8 : 0}
+              cardStyle={[
+                planPreviewLoadingCardStyle,
+                {
+                  width: splitPlanPreviewLayout ? "94%" : "100%",
+                  maxWidth: splitPlanPreviewLayout ? 1200 : "100%",
+                  height: splitPlanPreviewLayout ? "90%" : "100%",
+                  maxHeight: splitPlanPreviewLayout ? 840 : "100%",
+                  borderRadius: splitPlanPreviewLayout ? 18 : 0,
+                  borderWidth: splitPlanPreviewLayout ? 1 : 0,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  overflow: "hidden",
+                  paddingBottom: 0,
+                  marginBottom: 0,
+                  gap: 0,
+                },
+              ]}
             >
-              <SectionLoadingState />
+              <View
+                style={{
+                  minHeight: 72,
+                  paddingHorizontal: 18,
+                  paddingVertical: 11,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.border,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <Text style={{ flex: 1, color: colors.text, fontSize: 19, fontWeight: "800" }}>
+                  Plano da aula
+                </Text>
+                <Pressable
+                  onPress={() => setShowPlanPreviewModal(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Fechar plano"
+                  style={({ pressed }) => ({
+                    width: 42,
+                    height: 42,
+                    borderRadius: 21,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: pressed ? 0.72 : 1,
+                  })}
+                >
+                  <GoAtletaIcon name="close" size={20} color={colors.text} />
+                </Pressable>
+              </View>
+              <View
+                accessibilityLiveRegion="polite"
+                accessibilityRole="progressbar"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.backgroundSubtle,
+                  gap: 10,
+                  padding: 24,
+                }}
+              >
+                <ActivityIndicator size="small" color={colors.primaryBg} />
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                  Abrindo plano…
+                </Text>
+              </View>
             </ModalSheet>
           }
         >

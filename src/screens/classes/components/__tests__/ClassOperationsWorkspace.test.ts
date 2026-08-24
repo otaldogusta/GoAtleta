@@ -1,7 +1,12 @@
 import React from "react";
 import { fireEvent, render } from "@testing-library/react-native";
+import { Text } from "react-native";
 
-import { ClassOperationsWorkspace } from "../ClassOperationsWorkspace";
+import { ClassOperationsWorkspace, resolveDenseClassWorkspace } from "../ClassOperationsWorkspace";
+import {
+  ClassAttendanceWorkspacePanel,
+  resolveStackedAttendancePanel,
+} from "../ClassAttendanceWorkspacePanel";
 
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -37,9 +42,16 @@ const colors = {
   primaryText: "#0A1322",
   text: "#F1F4F9",
   secondaryBg: "#0A1322",
+  dangerBg: "#4A2530",
+  dangerText: "#FFB4BC",
+  dangerBorder: "#7F1D1D",
 } as any;
 
-function renderWorkspace(compact: boolean, appliedPlan: any = null) {
+function renderWorkspace(
+  compact: boolean,
+  appliedPlan: any = null,
+  overrides: Record<string, unknown> = {}
+) {
   const onOpenPlanning = jest.fn();
   const onOpenLessonCalendar = jest.fn();
   const onGeneratePlan = jest.fn();
@@ -71,6 +83,7 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null) {
       onOpenStudents: jest.fn(),
       onExportRoster: jest.fn(),
       onOpenWhatsApp: jest.fn(),
+      ...overrides,
     })
   );
 
@@ -78,6 +91,56 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null) {
 }
 
 describe("ClassOperationsWorkspace responsive navigation", () => {
+  it("uses the dense workspace only when the permanent rail has limited room", () => {
+    expect(resolveDenseClassWorkspace(1159, false)).toBe(true);
+    expect(resolveDenseClassWorkspace(1160, false)).toBe(false);
+    expect(resolveDenseClassWorkspace(800, true)).toBe(false);
+  });
+
+  it("stacks attendance only when the compact panel is actually narrow", () => {
+    expect(resolveStackedAttendancePanel(359, true)).toBe(true);
+    expect(resolveStackedAttendancePanel(360, true)).toBe(false);
+    expect(resolveStackedAttendancePanel(620, true)).toBe(false);
+    expect(resolveStackedAttendancePanel(320, false)).toBe(false);
+    expect(resolveStackedAttendancePanel(0, true)).toBe(false);
+  });
+
+  it("keeps student rows inside the embedded attendance list without legacy navigation", () => {
+    const onOpenReport = jest.fn();
+    const screen = render(
+      React.createElement(ClassAttendanceWorkspacePanel, {
+        colors,
+        compact: false,
+        mobile: false,
+        dense: false,
+        dateLabel: "27/08/2026",
+        students: [
+          { id: "student-1", name: "Alexsandra Pinheiro", photoUrl: null },
+          { id: "student-2", name: "Ana Caroline", photoUrl: null },
+        ],
+        statusById: {},
+        markedCount: 0,
+        hasChanges: false,
+        isLoading: false,
+        isSaving: false,
+        error: null,
+        onPrevious: jest.fn(),
+        onNext: jest.fn(),
+        onOpenCalendar: jest.fn(),
+        onOpenReport,
+        onSetStatus: jest.fn(),
+        onSave: jest.fn(),
+      })
+    );
+
+    expect(screen.getByText("Alexsandra Pinheiro")).toBeTruthy();
+    expect(screen.getByText("Ana Caroline")).toBeTruthy();
+    expect(screen.queryByLabelText("Abrir detalhes de Alexsandra Pinheiro")).toBeNull();
+
+    fireEvent.press(screen.getByLabelText("Abrir relatório"));
+    expect(onOpenReport).toHaveBeenCalledTimes(1);
+  });
+
   it("opens the complete class navigation from the compact trigger", () => {
     const { screen, onOpenPlanning } = renderWorkspace(true);
 
@@ -105,6 +168,25 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(screen.getByLabelText("Chamada")).toBeTruthy();
     expect(screen.getByLabelText("Relatório")).toBeTruthy();
     expect(screen.queryByLabelText("Periodização da turma")).toBeNull();
+  });
+
+  it("switches to the embedded attendance section without leaving the class workspace", () => {
+    const onSelectSection = jest.fn();
+    const firstRender = renderWorkspace(false, null, { onSelectSection });
+
+    fireEvent.press(firstRender.screen.getByLabelText("Chamada"));
+
+    expect(onSelectSection).toHaveBeenCalledWith("attendance");
+    firstRender.screen.unmount();
+
+    const attendanceRender = renderWorkspace(false, null, {
+      activeSection: "attendance",
+      attendanceContent: React.createElement(Text, null, "Chamada incorporada"),
+      onSelectSection,
+    });
+
+    expect(attendanceRender.screen.getByText("Chamada incorporada")).toBeTruthy();
+    expect(attendanceRender.screen.queryByText("Plano da aula")).toBeNull();
   });
 
   it("opens the lesson calendar from the centered date", () => {

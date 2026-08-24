@@ -8,7 +8,14 @@ import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
+import { useContainerResponsiveLayout } from "../../../ui/use-container-responsive-layout";
 import { CLASS_PLAN_BLOCK_PRESENTATION } from "./class-plan-block-presentation";
+
+const COMFORTABLE_CLASS_WORKSPACE_WIDTH = 1160;
+
+export function resolveDenseClassWorkspace(width: number, compact: boolean) {
+  return !compact && width < COMFORTABLE_CLASS_WORKSPACE_WIDTH;
+}
 
 type WorkspaceAction = {
   key: string;
@@ -17,6 +24,8 @@ type WorkspaceAction = {
   icon: GoAtletaIconName;
   onPress: () => void;
 };
+
+export type ClassWorkspaceSection = "overview" | "attendance";
 
 type ClassOperationsWorkspaceProps = {
   colors: ThemeColors;
@@ -32,6 +41,9 @@ type ClassOperationsWorkspaceProps = {
   onGeneratePlan: () => void;
   isGeneratingPlan: boolean;
   contextualInsight?: ReactNode;
+  attendanceContent?: ReactNode | ((options: { dense: boolean }) => ReactNode);
+  activeSection?: ClassWorkspaceSection;
+  onSelectSection?: (section: ClassWorkspaceSection) => void;
   studentCount: number | null;
   contactStatusValue: string;
   contactStatusLabel: string;
@@ -51,6 +63,7 @@ type ClassOperationsWorkspaceProps = {
 type ClassContextStripProps = {
   colors: ThemeColors;
   compact: boolean;
+  mobile?: boolean;
   unitLabel: string;
   scheduleLabel: string;
   studentCount: number | null;
@@ -65,8 +78,13 @@ function ContextItem({ icon, label, colors, compact = false }: {
 }) {
   return (
     <View style={[styles.contextItem, compact ? styles.contextItemCompact : null]}>
-      <GoAtletaIcon name={icon} size={18} color={colors.muted} />
-      <Text numberOfLines={compact ? 2 : 1} style={[styles.contextLabel, { color: colors.text }]}>{label}</Text>
+      <GoAtletaIcon name={icon} size={compact ? 16 : 18} color={colors.muted} />
+      <Text
+        numberOfLines={compact ? 2 : 1}
+        style={[styles.contextLabel, compact ? styles.contextLabelCompact : null, { color: colors.text }]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -74,6 +92,7 @@ function ContextItem({ icon, label, colors, compact = false }: {
 export const ClassContextStrip = memo(function ClassContextStrip({
   colors,
   compact,
+  mobile = false,
   unitLabel,
   scheduleLabel,
   studentCount,
@@ -84,6 +103,7 @@ export const ClassContextStrip = memo(function ClassContextStrip({
       style={[
         styles.contextStrip,
         compact ? styles.contextStripCompact : null,
+        mobile ? styles.contextStripMobile : null,
         { backgroundColor: colors.card, borderColor: colors.border },
       ]}
     >
@@ -103,10 +123,11 @@ export const ClassContextStrip = memo(function ClassContextStrip({
   );
 });
 
-function RailAction({ action, colors, selected = false, onSelect }: {
+function RailAction({ action, colors, selected = false, dense = false, onSelect }: {
   action: WorkspaceAction;
   colors: ThemeColors;
   selected?: boolean;
+  dense?: boolean;
   onSelect?: (action: WorkspaceAction) => void;
 }) {
   return (
@@ -114,6 +135,7 @@ function RailAction({ action, colors, selected = false, onSelect }: {
       onPress={onSelect ? () => onSelect(action) : action.onPress}
       style={({ pressed }) => [
         styles.railAction,
+        dense ? styles.railActionDense : null,
         selected ? { backgroundColor: colors.successBg } : null,
         { opacity: pressed ? 0.72 : 1 },
       ]}
@@ -122,12 +144,16 @@ function RailAction({ action, colors, selected = false, onSelect }: {
     >
       <GoAtletaIcon
         name={action.icon}
-        size={18}
+        size={dense ? 16 : 18}
         color={selected ? colors.successText : colors.muted}
       />
       <Text
         numberOfLines={1}
-        style={[styles.railActionLabel, { color: selected ? colors.successText : colors.text }]}
+        style={[
+          styles.railActionLabel,
+          dense ? styles.railActionLabelDense : null,
+          { color: selected ? colors.successText : colors.text },
+        ]}
       >
         {action.label}
       </Text>
@@ -136,18 +162,19 @@ function RailAction({ action, colors, selected = false, onSelect }: {
   );
 }
 
-function RailSection({ title, actions, colors, onSelect }: {
+function RailSection({ title, actions, colors, dense = false, onSelect }: {
   title: string;
   actions: WorkspaceAction[];
   colors: ThemeColors;
+  dense?: boolean;
   onSelect?: (action: WorkspaceAction) => void;
 }) {
   return (
-    <View style={styles.railSection}>
-      <Text style={[styles.railSectionTitle, { color: colors.muted }]}>{title}</Text>
-      <View style={[styles.railDivider, { backgroundColor: colors.border }]} />
+    <View style={[styles.railSection, dense ? styles.railSectionDense : null]}>
+      <Text style={[styles.railSectionTitle, dense ? styles.railSectionTitleDense : null, { color: colors.muted }]}>{title}</Text>
+      <View style={[styles.railDivider, dense ? styles.railDividerDense : null, { backgroundColor: colors.border }]} />
       {actions.map((action) => (
-        <RailAction key={action.key} action={action} colors={colors} onSelect={onSelect} />
+        <RailAction key={action.key} action={action} colors={colors} dense={dense} onSelect={onSelect} />
       ))}
     </View>
   );
@@ -159,12 +186,14 @@ function CompactClassNavigation({
   actions,
   colors,
   onSelect,
+  activeSection,
 }: {
   visible: boolean;
   onClose: () => void;
   actions: Record<string, WorkspaceAction>;
   colors: ThemeColors;
   onSelect: (action: WorkspaceAction) => void;
+  activeSection: ClassWorkspaceSection;
 }) {
   return (
     <ModalSheet
@@ -207,8 +236,8 @@ function CompactClassNavigation({
         showsVerticalScrollIndicator
       >
         <Text style={[styles.railHeading, { color: colors.muted }]}>Hoje</Text>
-        <RailAction action={actions.overview} colors={colors} selected onSelect={onSelect} />
-        <RailAction action={actions.attendance} colors={colors} onSelect={onSelect} />
+        <RailAction action={actions.overview} colors={colors} selected={activeSection === "overview"} onSelect={onSelect} />
+        <RailAction action={actions.attendance} colors={colors} selected={activeSection === "attendance"} onSelect={onSelect} />
         <RailAction action={actions.report} colors={colors} onSelect={onSelect} />
         <RailSection
           title="Planejamento"
@@ -335,6 +364,9 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   onGeneratePlan,
   isGeneratingPlan,
   contextualInsight,
+  attendanceContent,
+  activeSection = "overview",
+  onSelectSection,
   onOpenSession,
   onOpenAttendance,
   onOpenReport,
@@ -349,6 +381,8 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   const lessonContentAnim = useRef(new Animated.Value(1)).current;
   const [isCompactNavigationOpen, setIsCompactNavigationOpen] = useState(false);
   const compactNavigationBottom = Math.max(insets.bottom + 162, 178);
+  const { containerRef, onLayout, width: workspaceWidth } = useContainerResponsiveLayout("dashboard");
+  const dense = resolveDenseClassWorkspace(workspaceWidth, compact);
 
   useEffect(() => {
     if (isLoadingLessonPlan) {
@@ -377,7 +411,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       label: "Visão geral",
       description: "Resumo operacional da turma",
       icon: "dashboard",
-      onPress: () => undefined,
+      onPress: onSelectSection ? () => onSelectSection("overview") : () => undefined,
     },
     session: {
       key: "session",
@@ -391,7 +425,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       label: "Chamada",
       description: "Registrar presença da turma",
       icon: "attendance",
-      onPress: onOpenAttendance,
+      onPress: onSelectSection ? () => onSelectSection("attendance") : onOpenAttendance,
     },
     report: {
       key: "report",
@@ -444,6 +478,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
     },
   }), [
     onExportRoster,
+    onSelectSection,
     onOpenAttendance,
     onOpenPlanning,
     onOpenReport,
@@ -480,6 +515,11 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       </View>
     );
   };
+
+  const isAttendanceSection = activeSection === "attendance" && attendanceContent;
+  const resolvedAttendanceContent = typeof attendanceContent === "function"
+    ? attendanceContent({ dense })
+    : attendanceContent;
 
   const planSection = (
     <View style={styles.planSection}>
@@ -613,28 +653,38 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
 
   return (
     <>
-      <View style={[styles.workspace, compact ? styles.workspaceCompact : null]}>
+      <View
+        ref={containerRef}
+        onLayout={onLayout}
+        style={[
+          styles.workspace,
+          compact ? styles.workspaceCompact : null,
+          dense ? styles.workspaceDense : null,
+        ]}
+      >
         {!compact ? (
-          <View style={[styles.rail, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.railHeading, { color: colors.muted }]}>Hoje</Text>
-            <RailAction action={actions.overview} colors={colors} selected />
-            <RailAction action={actions.attendance} colors={colors} />
-            <RailAction action={actions.report} colors={colors} />
+          <View style={[styles.rail, dense ? styles.railDense : null, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.railHeading, dense ? styles.railHeadingDense : null, { color: colors.muted }]}>Hoje</Text>
+            <RailAction action={actions.overview} colors={colors} dense={dense} selected={activeSection === "overview"} />
+            <RailAction action={actions.attendance} colors={colors} dense={dense} selected={activeSection === "attendance"} />
+            <RailAction action={actions.report} colors={colors} dense={dense} />
             <RailSection
               title="Planejamento"
               actions={[actions.planning, actions.visual]}
               colors={colors}
+              dense={dense}
             />
-            <RailSection title="Desempenho" actions={[actions.scouting]} colors={colors} />
+            <RailSection title="Desempenho" actions={[actions.scouting]} colors={colors} dense={dense} />
             <RailSection
               title="Gestão"
               actions={[actions.students, actions.export, actions.whatsapp]}
               colors={colors}
+              dense={dense}
             />
           </View>
         ) : null}
 
-        <View style={styles.mainColumn}>
+        <View style={[styles.mainColumn, dense ? styles.mainColumnDense : null]}>
           {compact && !isCompactNavigationOpen ? (
             <Pressable
               onPress={() => setIsCompactNavigationOpen(true)}
@@ -656,7 +706,9 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
             </Pressable>
           ) : null}
 
-          {compact ? (
+          {isAttendanceSection ? (
+            resolvedAttendanceContent
+          ) : compact ? (
             <>
               {planSection}
               {renderOverviewSection()}
@@ -679,6 +731,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           actions={actions}
           colors={colors}
           onSelect={handleCompactNavigationAction}
+          activeSection={activeSection}
         />
       ) : null}
     </>
@@ -697,11 +750,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   contextStripCompact: {
-    flexWrap: "wrap",
-    alignItems: "flex-start",
-    rowGap: 10,
-    columnGap: 12,
-    paddingHorizontal: 14,
+    minHeight: 44,
+    flexWrap: "nowrap",
+    alignItems: "center",
+    rowGap: 0,
+    columnGap: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  contextStripMobile: {
+    minHeight: 44,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    rowGap: 0,
+    columnGap: 8,
+    borderRadius: 12,
   },
   contextItem: {
     flex: 1,
@@ -712,15 +775,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   contextItemCompact: {
-    flexGrow: 0,
-    flexBasis: "47%",
+    flex: 1,
+    flexBasis: 0,
     minWidth: 0,
     justifyContent: "flex-start",
+    gap: 6,
   },
   contextLabel: {
     minWidth: 0,
     fontSize: 13,
     fontWeight: "600",
+  },
+  contextLabelCompact: {
+    fontSize: 12,
   },
   workspace: {
     width: "100%",
@@ -731,9 +798,12 @@ const styles = StyleSheet.create({
   workspaceCompact: {
     flexDirection: "column",
   },
+  workspaceDense: {
+    gap: 12,
+  },
   compactNavigationFab: {
-    width: 58,
-    height: 58,
+    width: 50,
+    height: 50,
     borderWidth: 1,
     borderRadius: radius.full,
     alignItems: "center",
@@ -795,25 +865,46 @@ const styles = StyleSheet.create({
     gap: 8,
     flexShrink: 0,
   },
+  railDense: {
+    width: 222,
+    padding: 10,
+    gap: 4,
+  },
   railHeading: {
     fontSize: 13,
     fontWeight: "700",
     paddingHorizontal: 10,
     paddingTop: 4,
   },
+  railHeadingDense: {
+    fontSize: 12,
+    paddingHorizontal: 8,
+    paddingTop: 2,
+  },
   railSection: {
     gap: 3,
     marginTop: 10,
+  },
+  railSectionDense: {
+    gap: 2,
+    marginTop: 6,
   },
   railSectionTitle: {
     fontSize: 12,
     fontWeight: "700",
     paddingHorizontal: 10,
   },
+  railSectionTitleDense: {
+    fontSize: 11,
+    paddingHorizontal: 8,
+  },
   railDivider: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: 10,
     marginBottom: 2,
+  },
+  railDividerDense: {
+    marginHorizontal: 8,
   },
   railAction: {
     minHeight: 42,
@@ -823,11 +914,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 9,
   },
+  railActionDense: {
+    minHeight: 36,
+    paddingHorizontal: 8,
+    gap: 8,
+  },
   railActionLabel: {
     flex: 1,
     minWidth: 0,
     fontSize: 13,
     fontWeight: "600",
+  },
+  railActionLabelDense: {
+    fontSize: 12,
   },
   selectedDot: {
     width: 6,
@@ -838,6 +937,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: 22,
+  },
+  mainColumnDense: {
+    gap: 14,
   },
   desktopWorkspace: {
     flexDirection: "row",
