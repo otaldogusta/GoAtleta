@@ -122,7 +122,14 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
       },
     });
     expect(resolveClassWorkspaceRouteSection("attendance")).toBe("attendance");
+    expect(resolveClassWorkspaceRouteSection("nfc")).toBe("attendance");
     expect(parseClassWorkspaceRouteDate("2026-08-24")).toEqual(new Date(2026, 7, 24));
+  });
+
+  it("keeps NFC out of the class navigation", () => {
+    const { screen } = renderWorkspace(false);
+
+    expect(screen.queryByLabelText("Chamada NFC")).toBeNull();
   });
 
   it("keeps student rows inside the embedded attendance list without legacy navigation", () => {
@@ -194,8 +201,8 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     );
 
     expect(screen.getAllByLabelText("Salvar chamada")).toHaveLength(1);
-    expect(screen.queryByText("Salvar chamada")).toBeNull();
-    expect(screen.getByText("save")).toBeTruthy();
+    expect(screen.getByText("Salvar chamada")).toBeTruthy();
+    expect(screen.queryByText("save")).toBeNull();
     expect(screen.queryByLabelText("Alterações da chamada pendentes")).toBeNull();
     fireEvent.press(screen.getByLabelText("Abrir relatório"));
     fireEvent.press(screen.getByLabelText("Salvar chamada"));
@@ -270,7 +277,13 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     );
 
     fireEvent.press(screen.getByLabelText("Abrir dor e observações de Alexsandra Pinheiro"));
-    fireEvent.press(screen.getByLabelText("Dor 2"));
+    expect(screen.getByText("Dor agora")).toBeTruthy();
+    expect(screen.queryByText("Dor (0-3)")).toBeNull();
+    expect(screen.getByLabelText("Dor: Sem dor")).toBeTruthy();
+    expect(screen.getByLabelText("Dor: Leve")).toBeTruthy();
+    expect(screen.getByLabelText("Dor: Moderada")).toBeTruthy();
+    expect(screen.getByLabelText("Dor: Intensa")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Dor: Moderada"));
     fireEvent.changeText(screen.getByPlaceholderText("Observação (opcional)"), "Dor no ombro");
     fireEvent.press(screen.getByText("Concluir"));
 
@@ -278,6 +291,41 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
       note: "Dor no ombro",
       painScore: 2,
     });
+  });
+
+  it("starts the selected student's NFC binding from the attendance modal", () => {
+    const student = { id: "student-1", name: "Alexsandra Pinheiro", photoUrl: null };
+    const onBindStudentNfc = jest.fn();
+    const screen = render(
+      React.createElement(ClassAttendanceWorkspacePanel, {
+        colors,
+        compact: true,
+        mobile: true,
+        dense: false,
+        dateLabel: "27/08/2026",
+        students: [student],
+        statusById: { "student-1": "presente" },
+        detailsById: { "student-1": { note: "", painScore: 0 } },
+        markedCount: 1,
+        hasChanges: false,
+        isLoading: false,
+        isSaving: false,
+        error: null,
+        onPrevious: jest.fn(),
+        onNext: jest.fn(),
+        onOpenCalendar: jest.fn(),
+        onOpenReport: jest.fn(),
+        onSetStatus: jest.fn(),
+        onSetDetails: jest.fn(),
+        onSave: jest.fn(),
+        onBindStudentNfc,
+      }),
+    );
+
+    fireEvent.press(screen.getByLabelText("Abrir dor e observações de Alexsandra Pinheiro"));
+    fireEvent.press(screen.getByLabelText("Cadastrar tag NFC de Alexsandra Pinheiro"));
+
+    expect(onBindStudentNfc).toHaveBeenCalledWith(student);
   });
 
   it("falls back to student initials when the photo cannot be displayed", () => {
@@ -374,6 +422,7 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
 
     expect(screen.queryByLabelText("Abrir menu da turma")).toBeNull();
     expect(screen.getByLabelText("Chamada")).toBeTruthy();
+    expect(screen.queryByLabelText("Chamada NFC")).toBeNull();
     expect(screen.getByLabelText("Relatório")).toBeTruthy();
     expect(screen.queryByLabelText("Periodização da turma")).toBeNull();
   });

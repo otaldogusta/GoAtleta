@@ -46,6 +46,22 @@ export async function getBinding(
   return mapBindingRow(rows[0]);
 }
 
+export async function getStudentBinding(
+  organizationId: string,
+  studentId: string
+): Promise<NfcTagBinding | null> {
+  if (!organizationId || !studentId) return null;
+  const rows = await supabaseRestGet<NfcTagBindingRow[]>(
+    "/nfc_tag_bindings?select=*&organization_id=eq." +
+      encodeURIComponent(organizationId) +
+      "&student_id=eq." +
+      encodeURIComponent(studentId) +
+      "&order=created_at.desc&limit=1"
+  );
+  if (!rows.length) return null;
+  return mapBindingRow(rows[0]);
+}
+
 export async function listBindings(organizationId: string): Promise<NfcTagBinding[]> {
   if (!organizationId) return [];
   const rows = await supabaseRestGet<NfcTagBindingRow[]>(

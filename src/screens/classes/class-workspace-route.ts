@@ -18,7 +18,9 @@ export function buildClassAttendanceWorkspaceHref(classId: string, date?: string
 }
 
 export function resolveClassWorkspaceRouteSection(section: RouteParam): ClassWorkspaceSection {
-  return firstRouteParam(section) === "attendance" ? "attendance" : "overview";
+  const resolvedSection = firstRouteParam(section);
+  if (resolvedSection === "attendance" || resolvedSection === "nfc") return "attendance";
+  return "overview";
 }
 
 export function parseClassWorkspaceRouteDate(value: RouteParam) {

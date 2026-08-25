@@ -12,7 +12,7 @@ export const GOATLETA_ICON_NAMES = {
   organization: "business-outline",
   students: "people-outline",
   members: "people-outline",
-  planning: "clipboard-outline",
+  planning: "reader-outline",
   reports: "stats-chart-outline",
   calendar: "calendar-outline",
   agenda: "today-outline",

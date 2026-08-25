@@ -97,7 +97,12 @@ const getSyncLabel = (status: LiveCheckin["syncStatus"]) => {
   return "Erro";
 };
 
-export default function NfcAttendanceScreen() {
+type NfcAttendanceScreenProps = {
+  embedded?: boolean;
+  lockedClassId?: string;
+};
+
+export default function NfcAttendanceScreen({ embedded = false, lockedClassId = "" }: NfcAttendanceScreenProps) {
   markRender("screen.nfc.render.root");
 
   const { colors } = useAppTheme();
@@ -123,7 +128,8 @@ export default function NfcAttendanceScreen() {
   const [supportMessage, setSupportMessage] = useState("");
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState("");
+  const normalizedLockedClassId = lockedClassId.trim();
+  const [selectedClassId, setSelectedClassId] = useState(normalizedLockedClassId);
   const [feedback, setFeedback] = useState("");
   const [liveCheckins, setLiveCheckins] = useState<LiveCheckin[]>([]);
   const [pendingUid, setPendingUid] = useState("");
@@ -136,6 +142,10 @@ export default function NfcAttendanceScreen() {
   const [bindings, setBindings] = useState<NfcTagBinding[]>([]);
   const [removingBindingId, setRemovingBindingId] = useState("");
   const [webPreviewScanning, setWebPreviewScanning] = useState(false);
+
+  useEffect(() => {
+    if (normalizedLockedClassId) setSelectedClassId(normalizedLockedClassId);
+  }, [normalizedLockedClassId]);
 
   const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const shouldResumeAfterBindRef = useRef(false);
@@ -239,6 +249,16 @@ export default function NfcAttendanceScreen() {
         setFeedback("Aluno não encontrado para esta tag.");
         showSaveToast({ variant: "error", message: "Aluno da tag não encontrado." });
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+
+      if (selectedClassId && student.classId !== selectedClassId) {
+        setFeedback(`A tag de ${student.name} pertence a outra turma.`);
+        showSaveToast({
+          variant: "warning",
+          message: `${student.name} não pertence à turma ativa.`,
+        });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
 
@@ -520,7 +540,9 @@ export default function NfcAttendanceScreen() {
         setClasses(classRows);
         setStudents(studentRows);
         setBindings(bindingRows);
-        if (!selectedClassId && classRows.length) {
+        if (normalizedLockedClassId && classRows.some((item) => item.id === normalizedLockedClassId)) {
+          setSelectedClassId(normalizedLockedClassId);
+        } else if (!selectedClassId && classRows.length) {
           setSelectedClassId(classRows[0].id);
         }
       } catch (error) {
@@ -533,7 +555,7 @@ export default function NfcAttendanceScreen() {
     return () => {
       alive = false;
     };
-  }, [activeOrganization?.id, selectedClassId, showSaveToast]);
+  }, [activeOrganization?.id, normalizedLockedClassId, selectedClassId, showSaveToast]);
 
   useEffect(() => {
     if (!showBindModal) return;
@@ -1049,17 +1071,22 @@ export default function NfcAttendanceScreen() {
   } as const;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 30 }} stickyHeaderIndices={[0]}>
-        <ScreenPageHeader
+    <SafeAreaView style={{ flex: embedded ? 0 : 1, backgroundColor: colors.background }}>
+      <ScrollView
+        scrollEnabled={!embedded}
+        nestedScrollEnabled
+        contentContainerStyle={{ padding: embedded ? 0 : 16, paddingBottom: embedded ? 0 : 30 }}
+        stickyHeaderIndices={embedded ? undefined : [0]}
+      >
+        {embedded ? null : <ScreenPageHeader
           title="Presença NFC"
           subtitle={organizationLabel}
           onBack={() => {
             void stopScanning().finally(() => navigateBackOrReplace({ router, fallback: scopedRoutes.home }));
           }}
-        />
+        />}
 
-        <View style={{ width: "100%", maxWidth: 980, alignSelf: "center", gap: 14 }}>
+        <View style={{ width: "100%", maxWidth: embedded ? "100%" : 980, alignSelf: "center", gap: 14 }}>
         <LinearGradient
           colors={
             uiScanState === "scanning"
@@ -1284,7 +1311,7 @@ export default function NfcAttendanceScreen() {
           </View>
         </View>
 
-        <View
+        {normalizedLockedClassId ? null : <View
           style={{
             gap: 8,
             borderRadius: 16,
@@ -1318,7 +1345,7 @@ export default function NfcAttendanceScreen() {
               );
             })}
           </ScrollView>
-        </View>
+        </View>}
 
         <View
           style={{

@@ -507,7 +507,18 @@ export function StudentEditModal({
                         onScrollBeginDrag={closeAllEditPickers}
                     >
                         <View style={{ gap: 10 }}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 4 }}>
+                            <View style={{ flexDirection: "row", alignItems: "stretch", flexWrap: "wrap", gap: 12 }}>
+                            <View
+                                style={{
+                                    flexBasis: 190,
+                                    minWidth: 190,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 12,
+                                    paddingHorizontal: 4,
+                                }}
+                            >
                                 <Pressable
                                     onPress={() => setShowPhotoSheet(true)}
                                     style={{
@@ -552,6 +563,8 @@ export function StudentEditModal({
                                         backgroundColor: colors.card,
                                         padding: 12,
                                         gap: 10,
+                                        flex: 1,
+                                        minWidth: 280,
                                     }}
                                 >
                                     <View style={{ gap: 2 }}>
@@ -738,6 +751,7 @@ export function StudentEditModal({
                                     ) : null}
                                 </View>
                             ) : null}
+                            </View>
 
                             <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.card, overflow: "hidden" }}>
                                 <Pressable

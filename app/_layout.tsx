@@ -787,6 +787,7 @@ html, body {
   scrollbar-width: thin;
   scrollbar-color: ${colors.border} transparent;
   scrollbar-gutter: auto;
+  overscroll-behavior-y: auto;
 }
 * {
   scrollbar-gutter: auto;

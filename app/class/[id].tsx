@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Scr
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
+import { useAuth } from "../../src/auth/auth";
 import { useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
 
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
@@ -30,6 +31,7 @@ import { getClassScheduleOverlapDays } from "../../src/screens/classes/applicati
 import { ClassContextStrip, ClassOperationsWorkspace, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
 import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
+import { useStudentNfcBinding } from "../../src/screens/attendance/use-student-nfc-binding";
 import { parseClassWorkspaceRouteDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
 import type { ClassPlanPeriodizationSource } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -48,6 +50,7 @@ import { toRgba } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
+import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
 import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
 import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
@@ -169,6 +172,8 @@ export default function ClassDetails() {
   const scopedRoutes = useTrainerRouteScope();
   const { width: windowWidth } = useWindowDimensions();
   const { colors, mode } = useAppTheme();
+  const { session } = useAuth();
+  const { activeOrganization } = useOrganization();
   const { showSaveToast } = useSaveToast();
   const insets = useSafeAreaInsets();
   useConfirmDialog();
@@ -662,6 +667,12 @@ export default function ClassDetails() {
     classId: cls?.id ?? String(id ?? ""),
     date: selectedLessonDateKey,
     enabled: workspaceSection === "attendance",
+  });
+  const canManageStudentNfc = (activeOrganization?.role_level ?? 0) >= 50;
+  const studentNfcBinding = useStudentNfcBinding({
+    organizationId: activeOrganization?.id,
+    userId: session?.user?.id,
+    canManage: canManageStudentNfc,
   });
   const requestAttendanceAction = useCallback(
     (action: () => void) => {
@@ -2042,7 +2053,7 @@ export default function ClassDetails() {
           compact={compactClassWorkspace}
           activeSection={workspaceSection}
           onSelectSection={handleSelectWorkspaceSection}
-            attendanceContent={({ dense }) => <ClassAttendanceWorkspacePanel colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} dense={dense} dateLabel={lessonDateLabel} students={embeddedAttendance.students} statusById={embeddedAttendance.statusById} detailsById={embeddedAttendance.detailsById} markedCount={embeddedAttendance.markedCount} hasChanges={embeddedAttendance.hasChanges} isLoading={embeddedAttendance.isLoading} isSaving={embeddedAttendance.isSaving} error={embeddedAttendance.error} onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)} onOpenCalendar={() => setShowLessonDatePicker(true)} onOpenReport={handleOpenReport} onSetStatus={embeddedAttendance.setStudentStatus} onSetDetails={embeddedAttendance.setStudentDetails} onSave={() => void handleSaveEmbeddedAttendance()} />}
+            attendanceContent={({ dense }) => <ClassAttendanceWorkspacePanel colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} dense={dense} dateLabel={lessonDateLabel} students={embeddedAttendance.students} statusById={embeddedAttendance.statusById} detailsById={embeddedAttendance.detailsById} markedCount={embeddedAttendance.markedCount} hasChanges={embeddedAttendance.hasChanges} isLoading={embeddedAttendance.isLoading} isSaving={embeddedAttendance.isSaving} error={embeddedAttendance.error} onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)} onOpenCalendar={() => setShowLessonDatePicker(true)} onOpenReport={handleOpenReport} onSetStatus={embeddedAttendance.setStudentStatus} onSetDetails={embeddedAttendance.setStudentDetails} onSave={() => void handleSaveEmbeddedAttendance()} onBindStudentNfc={canManageStudentNfc ? studentNfcBinding.bindStudentTag : undefined} nfcBindingStudentId={studentNfcBinding.scanningStudentId} />}
           scheduleLabel={scheduleLabel}
           lessonDateLabel={lessonDateLabel}
           appliedPlan={appliedPlan}

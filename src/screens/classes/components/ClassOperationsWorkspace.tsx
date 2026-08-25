@@ -383,7 +383,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
       key: "planning",
       label: "Planejamentos da turma",
       description: "Ver mês, semana e aulas",
-      icon: "planning",
+      icon: "calendar",
       onPress: onOpenPlanning,
     },
     visual: {
