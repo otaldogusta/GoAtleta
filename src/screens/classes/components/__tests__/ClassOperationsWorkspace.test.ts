@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 import { Text } from "react-native";
 
 import { COPILOT_FAB_SIZE, COPILOT_FAB_STACK_GAP, resolveCopilotCompanionFabBottom, resolveCopilotFabBottom } from "../../../../copilot/components/CopilotFab";
@@ -28,6 +28,17 @@ jest.mock("../../../../ui/ModalSheet", () => {
   return {
     ModalSheet: ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (visible ? ReactModule.createElement(ReactModule.Fragment, null, children) : null),
   };
+});
+
+beforeEach(() => {
+  jest.useFakeTimers();
+});
+
+afterEach(() => {
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+  jest.useRealTimers();
 });
 
 const colors = {
@@ -204,6 +215,14 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(screen.getByText("Salvar chamada")).toBeTruthy();
     expect(screen.queryByText("save")).toBeNull();
     expect(screen.queryByLabelText("Alterações da chamada pendentes")).toBeNull();
+    fireEvent(screen.getByTestId("embedded-attendance-section"), "layout", {
+      nativeEvent: { layout: { width: 340, height: 600, x: 0, y: 0 } },
+    });
+    expect(screen.getByText("1 de 1 marcados")).toHaveStyle({
+      width: "100%",
+      flexShrink: 0,
+      flexBasis: "auto",
+    });
     fireEvent.press(screen.getByLabelText("Abrir relatório"));
     fireEvent.press(screen.getByLabelText("Salvar chamada"));
 

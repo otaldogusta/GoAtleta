@@ -187,7 +187,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
 
   return (
     <>
-    <View ref={containerRef} onLayout={onLayout} style={styles.attendanceSection}>
+    <View ref={containerRef} onLayout={onLayout} testID="embedded-attendance-section" style={styles.attendanceSection}>
       <ClassLessonDateNavigator
         colors={colors}
         dateLabel={dateLabel}
@@ -481,12 +481,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
   },
-  syncSummaryStacked: { width: "100%", flex: 0 },
+  syncSummaryStacked: { width: "100%", flexGrow: 0, flexShrink: 0, flexBasis: "auto" },
   markedLabel: { fontSize: 13, fontWeight: "600" },
   markedLabelCompact: { minWidth: 0, flex: 1, fontSize: 12 },
   markedLabelDense: { fontSize: 12, flexShrink: 0 },
   markedLabelMobile: { minWidth: 0, flex: 1, fontSize: 12 },
-  markedLabelStacked: { width: "100%", flex: 0 },
+  markedLabelStacked: { width: "100%", flexGrow: 0, flexShrink: 0, flexBasis: "auto" },
   toolbarButtons: { flexDirection: "row", alignItems: "center", gap: 8 },
   toolbarButtonsMobile: { flexShrink: 0 },
   toolbarButtonsStacked: { width: "100%" },
