@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
 const fs = require("fs");
 const path = require("path");
 
@@ -42,9 +41,7 @@ const functions = parseFunctions(content);
 
 const requiredJwtTrue = [
   "assistant",
-  "create-student-invite",
-  "claim-student-invite",
-  "revoke-student-access",
+  "request-access-review",
   "rules-sync",
   "rules-sync-admin",
   "students-import",
@@ -57,8 +54,34 @@ const intentionallyPublic = [
 ];
 
 const selfAuthenticated = [
-  "claim-trainer-invite",
+  { name: "claim-trainer-invite", strategy: "direct" },
+  { name: "create-trainer-invite", strategy: "direct" },
+  { name: "list-trainer-invites", strategy: "direct" },
+  { name: "revoke-trainer-invite", strategy: "direct" },
+  { name: "create-student-invite", strategy: "request-helper" },
+  { name: "claim-student-invite", strategy: "request-helper" },
+  { name: "list-student-invites", strategy: "framework" },
+  { name: "revoke-student-invite", strategy: "request-helper" },
+  { name: "revoke-student-access", strategy: "request-helper" },
 ];
+
+const authMiddlewarePath = path.resolve(
+  process.cwd(),
+  "supabase",
+  "functions",
+  "_shared",
+  "middlewares",
+  "auth.ts"
+);
+const frameworkPath = path.resolve(
+  process.cwd(),
+  "supabase",
+  "functions",
+  "_shared",
+  "framework.ts"
+);
+const authMiddlewareSource = fs.readFileSync(authMiddlewarePath, "utf8");
+const frameworkSource = fs.readFileSync(frameworkPath, "utf8");
 
 const errors = [];
 for (const fnName of requiredJwtTrue) {
@@ -83,7 +106,7 @@ for (const fnName of intentionallyPublic) {
   }
 }
 
-for (const fnName of selfAuthenticated) {
+for (const { name: fnName, strategy } of selfAuthenticated) {
   if (!Object.prototype.hasOwnProperty.call(functions, fnName)) {
     errors.push(`Missing section [functions.${fnName}]`);
     continue;
@@ -106,10 +129,24 @@ for (const fnName of selfAuthenticated) {
     continue;
   }
   const functionSource = fs.readFileSync(functionPath, "utf8");
-  if (
-    !/headers\.get\(["']Authorization["']\)/.test(functionSource)
-    || !/auth\.getUser\(token\)/.test(functionSource)
-  ) {
+  const directlyValidates =
+    /headers\.get\(["']Authorization["']\)/.test(functionSource)
+    && /auth\.getUser\(token\)/.test(functionSource);
+  const usesRequestHelper =
+    /authenticateRequest\(req\)/.test(functionSource)
+    && /authClient\.auth\.getUser\(token\)/.test(authMiddlewareSource);
+  const usesAuthenticatedFramework =
+    /createEdgeFunction/.test(functionSource)
+    && /requireAuth:\s*true/.test(functionSource)
+    && /validateAuth\(supabase, token, !!config\.requireAuth\)/.test(frameworkSource)
+    && /supabase\.auth\.getUser\(token\)/.test(authMiddlewareSource);
+
+  const hasExpectedValidation =
+    (strategy === "direct" && directlyValidates)
+    || (strategy === "request-helper" && usesRequestHelper)
+    || (strategy === "framework" && usesAuthenticatedFramework);
+
+  if (!hasExpectedValidation) {
     errors.push(
       `[functions.${fnName}] must validate the bearer token with auth.getUser(token)`
     );

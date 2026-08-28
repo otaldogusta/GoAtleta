@@ -1,6 +1,7 @@
 import type { ClassGroup, Student } from "../../../../core/models";
 import {
   createEmptyStudentFilterExclusions,
+  matchesStudentMembershipScope,
   matchesStudentFilterExclusions,
   toggleStudentFilterExclusion,
 } from "../student-list-filters";
@@ -62,5 +63,22 @@ describe("student list filter exclusions", () => {
   it("toggles an option between selected and excluded", () => {
     expect(toggleStudentFilterExclusion([], "masculino")).toEqual(["masculino"]);
     expect(toggleStudentFilterExclusion(["masculino"], "masculino")).toEqual([]);
+  });
+
+  it("keeps active, inactive and all lifecycle scopes explicit", () => {
+    expect(matchesStudentMembershipScope(student(), "active")).toBe(true);
+    expect(
+      matchesStudentMembershipScope(
+        student({ membershipStatus: "inactive" }),
+        "active",
+      ),
+    ).toBe(false);
+    expect(
+      matchesStudentMembershipScope(
+        student({ membershipStatus: "inactive" }),
+        "inactive",
+      ),
+    ).toBe(true);
+    expect(matchesStudentMembershipScope(student(), "all")).toBe(true);
   });
 });

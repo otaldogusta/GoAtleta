@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 import { stripExpoRouterInternalParams } from "./web-route-state";
 
 type RouterLike = {
@@ -12,9 +14,19 @@ type PrimaryRouteNavigationOptions = {
 
 const anchoredNavigationOptions = { withAnchor: true } as const;
 
+function hasBrowserNavigationState() {
+  return (
+    Platform.OS === "web" &&
+    typeof window !== "undefined" &&
+    typeof window.location?.pathname === "string" &&
+    typeof window.history?.pushState === "function" &&
+    typeof window.history?.replaceState === "function"
+  );
+}
+
 function scheduleAnchoredUrlCleanup() {
   if (
-    typeof window === "undefined" ||
+    !hasBrowserNavigationState() ||
     typeof window.requestAnimationFrame !== "function"
   ) {
     return;
@@ -41,7 +53,7 @@ export function navigateToPrimaryRoute({
   router,
   href,
 }: PrimaryRouteNavigationOptions) {
-  if (typeof window === "undefined") {
+  if (!hasBrowserNavigationState()) {
     router.push(href);
     return;
   }

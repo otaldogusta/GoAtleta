@@ -125,7 +125,13 @@ export type StudentRow = {
   college_course?: string | null;
   is_experimental?: boolean | null;
   membership_status?: "active" | "inactive" | null;
-  financial_status?: "regular" | "delinquent" | null;
+  financial_status?:
+    | "regular"
+    | "delinquent"
+    | "exempt"
+    | "pending"
+    | "unknown"
+    | null;
   inactivated_at?: string | null;
   inactivated_by?: string | null;
   inactivation_reason?: string | null;
@@ -151,6 +157,14 @@ export type StudentRow = {
   createdat: string;
 };
 
+export type StudentFinancialStatusRow = {
+  student_id: string;
+  organization_id: string;
+  status: "regular" | "delinquent" | "exempt" | "pending" | "unknown";
+  updated_at?: string | null;
+  updated_by?: string | null;
+};
+
 export type StudentClassEnrollmentRow = {
   id: string;
   organization_id?: string | null;
@@ -160,6 +174,35 @@ export type StudentClassEnrollmentRow = {
   status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+export type StudentMembershipEventRow = {
+  id: string;
+  organization_id: string;
+  student_id: string;
+  previous_status?: "active" | "inactive" | null;
+  status: "active" | "inactive";
+  reason?: string | null;
+  source: "baseline" | "created" | "status_change" | "reason_change";
+  changed_at: string;
+  changed_by?: string | null;
+};
+
+export type StudentFinancialEventRow = {
+  id: string;
+  organization_id: string;
+  student_id: string;
+  previous_status?:
+    | "regular"
+    | "delinquent"
+    | "exempt"
+    | "pending"
+    | "unknown"
+    | null;
+  status: "regular" | "delinquent" | "exempt" | "pending" | "unknown";
+  source: "baseline" | "created" | "status_change";
+  changed_at: string;
+  changed_by?: string | null;
 };
 
 export type StudentPreRegistrationRow = {

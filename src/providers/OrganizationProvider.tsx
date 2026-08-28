@@ -148,6 +148,7 @@ type Organization = {
   name: string;
   role_level: number;
   created_at: string;
+  timezone?: string | null;
 };
 
 type OrganizationContextValue = {

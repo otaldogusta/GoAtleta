@@ -77,10 +77,10 @@ export {
 } from "./planning";
 
 export {
-    convertStudentPreRegistration, createAbsenceNotice, deleteStudent, deleteStudentPreRegistration, deleteStudents, getAbsenceNotices, getAthleteIntakesByClass, getAttendanceAll, getAttendanceByClass,
+    convertStudentPreRegistration, createAbsenceNotice, deleteStudentPreRegistration, getAbsenceNotices, getAthleteIntakesByClass, getAttendanceAll, getAttendanceByClass,
     getAttendanceByDate,
-    getAttendanceByStudent, getStudentById, getStudentPreRegistrations, getStudents,
-    getStudentClassIds, getStudentsByClass, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, setStudentClassIds, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentOperationalStatus, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
+    getAttendanceByStudent, getStudentById, getStudentOperationalHistory, getStudentPreRegistrations, getStudents,
+    getStudentClassIds, getStudentsByClass, inactivateStudents, linkExistingStudentByIdentity, listWeeklyAutopilotProposals, moveStudentsToClass, revealStudentCpf, saveAttendanceRecords, saveStudent, saveStudentPreRegistration, saveWeeklyAutopilotProposal, setStudentClassIds, syncGoogleFormsAthleteIntakes, updateAbsenceNoticeStatus, updateStudent, updateStudentOperationalStatus, updateStudentPhoto, updateStudentPreRegistration, updateWeeklyAutopilotProposalStatus, type LinkExistingStudentByIdentityResult, type SyncGoogleFormsAthleteIntakesResult
 } from "./students";
 
 export {

@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Redirect, useFocusEffect, usePathname, useRouter } from "expo-router";
 import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -335,7 +335,7 @@ const IndicatorCard = memo(function IndicatorCard({
   );
 });
 
-export default function CoordinationScreen() {
+function CoordinationScreenContent() {
   markRender("screen.coordination.render.root");
 
   const router = useRouter();
@@ -709,7 +709,7 @@ export default function CoordinationScreen() {
                 .catch(() => [] as MemberClassHead[]),
               adminListOrgClasses(organizationId).catch(() => [] as OrgClass[]),
               listTrainerInvites(organizationId)
-                .then((result) => result.invites.filter((invite) => !invite.revoked))
+                .then((result) => result.invites)
                 .catch(() => [] as TrainerInviteItem[]),
               adminListOrgAccessRequests(organizationId)
                 .catch(() => [] as OrganizationAccessRequest[]),
@@ -1905,4 +1905,16 @@ export default function CoordinationScreen() {
       </SafeAreaView>
     </View>
   );
+}
+
+// Mantém o componente compartilhado para a rota oficial e aposenta a URL legada
+// sem duplicar a implementação da Gestão.
+export default function CoordinationScreen() {
+  const pathname = usePathname();
+
+  if (pathname === "/coordination") {
+    return <Redirect href="/coord/management" />;
+  }
+
+  return <CoordinationScreenContent />;
 }

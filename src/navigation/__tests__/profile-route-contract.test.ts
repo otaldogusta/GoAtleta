@@ -43,6 +43,31 @@ describe("professor and coordination route contract", () => {
     expect(read("app/org-members.tsx")).toContain(
       '<Redirect href="/coord/management" />'
     );
+    expect(sidebar).toContain('href: "/coord/management/athletes"');
+    expect(read("app/coord/students.tsx")).toContain(
+      '"/coord/management/athletes"'
+    );
+    expect(read("app/coord/management/athletes.tsx")).toContain(
+      '"../../students"'
+    );
+    expect(read("app/coordination.tsx")).toContain(
+      '<Redirect href="/coord/management" />'
+    );
+  });
+
+  it("keeps athlete management reachable from the compact coordination header", () => {
+    const workspace = read("src/screens/coordination/CoordinationPeopleWorkspace.tsx");
+    const headerStart = workspace.indexOf("<ScreenPageHeader");
+    const headerEnd = workspace.indexOf("<ScrollView", headerStart);
+    const header = workspace.slice(headerStart, headerEnd);
+
+    expect(headerStart).toBeGreaterThan(-1);
+    expect(headerEnd).toBeGreaterThan(headerStart);
+    expect(header).toMatch(/right=\{\s*compact\s*\?\s*\(/);
+    expect(header).toContain('accessibilityLabel="Abrir gestão de atletas"');
+    expect(header).toContain('router.push("/coord/management/athletes" as never)');
+    expect(header).toContain("height: 44");
+    expect(header).toContain("Atletas");
   });
 
   it("does not send coordination shortcuts into the professor shell", () => {

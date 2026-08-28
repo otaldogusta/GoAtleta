@@ -1,5 +1,8 @@
 ﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { hasTrustedInviteIdentity } from "../_shared/invite-email-verification.ts";
+import { validateObjectPayload } from "../_shared/input-validation.ts";
+import { authenticateRequest } from "../_shared/middlewares/auth.ts";
 
 
 const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
@@ -18,25 +21,6 @@ const sha256 = async (value: string) => {
   return toHex(hash);
 };
 
-const createAnonClient = () => {
-  const url = Deno.env.get("SUPABASE_URL") ?? "";
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  if (!url || !anonKey) return null;
-  return createClient(url, anonKey, { auth: { persistSession: false } });
-};
-
-const requireUser = async (req: Request) => {
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.slice("Bearer ".length).trim();
-  if (!token) return null;
-  const supabase = createAnonClient();
-  if (!supabase) return null;
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user;
-};
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return corsPreflight(req);
@@ -45,20 +29,29 @@ Deno.serve(async (req) => {
     return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
-  const user = await requireUser(req);
-  if (!user) {
+  const auth = await authenticateRequest(req);
+  if (!auth) {
     return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
+  const user = auth.user;
 
-  let payload: { token: string } = {};
+  if (!hasTrustedInviteIdentity(user)) {
+    return createError(req, 403, "EMAIL_NOT_VERIFIED", "Email verification required");
+  }
+
+  let payload: { token: string } = { token: "" };
   try {
-    payload = (await req.json()) as { token: string };
+    const parsed = validateObjectPayload(await req.json());
+    if (!parsed.ok || !parsed.data) {
+      return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
+    }
+    payload = parsed.data as { token: string };
   } catch {
     return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
 
-  const token = (payload.token ?? "").trim();
-  if (!token) {
+  const token = String(payload.token ?? "").trim();
+  if (!token || token.length > 128) {
     return createError(req, 400, "INVALID_REQUEST", "Missing token");
   }
 
@@ -74,96 +67,58 @@ Deno.serve(async (req) => {
 
   const tokenHash = await sha256(token);
 
-  const { data: invite, error: inviteError } = await supabase
-    .from("student_invites")
-    .select("id, student_id, expires_at, used_at, claimed_by, revoked")
-    .eq("token_hash", tokenHash)
-    .maybeSingle();
-
-  if (inviteError) {
-    console.error("claim-student-invite: lookup failed", inviteError.message);
-    return createError(req, 500, "SERVER_ERROR", "Invite lookup failed");
-  }
-
-  if (!invite) {
-    return createError(req, 400, "INVITE_INVALID", "Invalid invite");
-  }
-
-  if (invite.revoked) {
-    return createError(req, 400, "INVITE_REVOKED", "Invite revoked");
-  }
-
-  if (invite.used_at) {
-    if (invite.claimed_by === user.id) {
-      return new Response(JSON.stringify({ status: "ok", student_id: invite.student_id }), {
-        headers: makeJsonHeaders(req),
-      });
+  const { data: claim, error: claimError } = await supabase.rpc(
+    "claim_student_invite_access",
+    {
+      p_token_hash: tokenHash,
+      p_user_id: user.id,
+      p_user_email: String(user.email ?? "").trim().toLowerCase() || null,
     }
-    return createError(req, 400, "INVITE_ALREADY_USED", "Invite already used");
-  }
+  );
 
-  if (invite.expires_at) {
-    const expiresAt = new Date(invite.expires_at);
-    if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-      return createError(req, 400, "INVITE_EXPIRED", "Invite expired");
+  if (claimError) {
+    const message = claimError.message ?? "";
+    const knownError = [
+      "INVITE_ALREADY_USED",
+      "INVITE_REVOKED",
+      "INVITE_EXPIRED",
+      "INVITE_INVALID",
+      "INVITE_EMAIL_MISMATCH",
+      "STUDENT_ALREADY_LINKED",
+      "STUDENT_NOT_FOUND",
+    ].find((code) => message.includes(code));
+
+    if (knownError === "INVITE_ALREADY_USED") {
+      return createError(req, 409, knownError, "Invite already used");
     }
+    if (knownError === "INVITE_EMAIL_MISMATCH") {
+      return createError(req, 403, knownError, "Invite belongs to another email");
+    }
+    if (knownError === "STUDENT_ALREADY_LINKED") {
+      return createError(req, 409, knownError, "Student already linked");
+    }
+    if (knownError === "STUDENT_NOT_FOUND") {
+      return createError(req, 404, knownError, "Student not found");
+    }
+    if (knownError) {
+      return createError(req, 400, knownError, "Invite is not available");
+    }
+
+    console.error("claim-student-invite: atomic claim failed");
+    return createError(req, 500, "SERVER_ERROR", "Failed to apply invite access");
   }
 
-  const { data: student, error: studentError } = await supabase
-    .from("students")
-    .select("student_user_id, login_email")
-    .eq("id", invite.student_id)
-    .maybeSingle();
-
-  if (studentError) {
-    console.error("claim-student-invite: student lookup failed", studentError.message);
-    return createError(req, 500, "SERVER_ERROR", "Student lookup failed");
-  }
-
-  if (!student) {
-    return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
-  }
-
-  if (student.student_user_id && student.student_user_id !== user.id) {
-    return createError(req, 409, "STUDENT_ALREADY_LINKED", "Student already linked");
-  }
-
-  const normalizedEmail = (user.email ?? "").trim().toLowerCase();
-  const updates: Record<string, unknown> = {
-    student_user_id: user.id,
-  };
-  if (!student.login_email && normalizedEmail) {
-    updates.login_email = normalizedEmail;
-  }
-
-  const nowIso = new Date().toISOString();
-  const { data: updatedInvite, error: inviteUpdateError } = await supabase
-    .from("student_invites")
-    .update({ used_at: nowIso, claimed_by: user.id })
-    .eq("id", invite.id)
-    .is("used_at", null)
-    .select()
-    .maybeSingle();
-
-  if (inviteUpdateError || !updatedInvite) {
-    console.warn("claim-student-invite: invite update failed or already used (TOCTOU prevention)");
-    return createError(req, 409, "INVITE_ALREADY_USED", "Invite already used or conflict");
-  }
-
-  const { error: studentUpdateError } = await supabase
-    .from("students")
-    .update(updates)
-    .eq("id", invite.student_id);
-
-  if (studentUpdateError) {
-    console.error("claim-student-invite: student update failed", studentUpdateError.message);
-    // Note: We've already claimed the invite, but failed to link the student.
-    // We should ideally rollback or use a postgres function, but returning 500 is safe.
-    return createError(req, 500, "SERVER_ERROR", "Failed to link student");
+  const claimPayload = claim && typeof claim === "object"
+    ? claim as { student_id?: unknown }
+    : null;
+  const studentId = String(claimPayload?.student_id ?? "").trim();
+  if (!studentId) {
+    console.error("claim-student-invite: atomic claim returned no student id");
+    return createError(req, 500, "SERVER_ERROR", "Failed to apply invite access");
   }
 
   return new Response(
-    JSON.stringify({ status: "ok", student_id: invite.student_id }),
+    JSON.stringify({ status: "ok", student_id: studentId }),
     { headers: makeJsonHeaders(req) }
   );
 });

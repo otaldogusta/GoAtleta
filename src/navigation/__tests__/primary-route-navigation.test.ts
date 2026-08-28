@@ -1,6 +1,9 @@
+import { Platform } from "react-native";
+
 import { navigateToPrimaryRoute } from "../primary-route-navigation";
 
 describe("navigateToPrimaryRoute", () => {
+  const originalPlatformOS = Platform.OS;
   let historyState: unknown;
   const pushState = jest.fn();
   const replaceState = jest.fn((state: unknown) => {
@@ -8,6 +11,10 @@ describe("navigateToPrimaryRoute", () => {
   });
 
   beforeEach(() => {
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      value: "web",
+    });
     historyState = null;
     pushState.mockClear();
     replaceState.mockClear();
@@ -32,6 +39,13 @@ describe("navigateToPrimaryRoute", () => {
     Object.defineProperty(window, "requestAnimationFrame", {
       configurable: true,
       value: undefined,
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      value: originalPlatformOS,
     });
   });
 
@@ -62,5 +76,20 @@ describe("navigateToPrimaryRoute", () => {
       withAnchor: true,
     });
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it("does not treat React Native's global window as a browser", () => {
+    const router = { push: jest.fn(), replace: jest.fn() };
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      value: "android",
+    });
+
+    navigateToPrimaryRoute({ router, href: "/coord/classes" });
+
+    expect(router.push).toHaveBeenCalledWith("/coord/classes");
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(pushState).not.toHaveBeenCalled();
+    expect(replaceState).not.toHaveBeenCalled();
   });
 });

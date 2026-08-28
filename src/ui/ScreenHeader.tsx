@@ -19,6 +19,7 @@ export function ScreenHeader({
   return (
     <View style={{ gap: 6, paddingTop: withSafeArea ? insets.top : 0 }}>
       <Text
+        accessibilityRole="header"
         style={{
           fontSize: density.pageTitleFontSize,
           lineHeight: density.pageTitleLineHeight,

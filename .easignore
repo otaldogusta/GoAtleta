@@ -1,0 +1,74 @@
+# Dependencies and generated Expo output
+node_modules/
+.expo/
+.expo-web-build-check/
+.expo-web-build-check2/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native local build output and signing material
+.kotlin/
+*.orig.*
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+/ios
+/android
+
+# Local environment files
+.env
+.env*.local
+
+# Local caches, logs and temporary output
+*.tsbuildinfo
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.expo-web.log
+tmp/
+/.tmp/
+output/
+coverage/
+.codex-web-*.log
+.codex-*.log
+.codex-artifacts/
+.codex/tmp/
+.codex/*.log
+.codex-expo-*.log
+tmp-*.log
+
+# Repository and tooling metadata not needed by the Android build
+.git/
+.github/
+.vercel/
+.tools/
+.codex/
+.vscode/
+storybook-static/
+artifacts/
+docs/status/
+outputs/
+/.codex-doc-build/
+/.codex-runtime/
+
+# Supabase local state; migrations and functions remain included
+supabase/.temp/
+supabase/.branches/
+
+# One-off local helpers and fixtures
+app-example/
+scripts/preview-roster.ts
+tmp-*-check.ts
+tatus
+testvoleiapp
+tools/build_e2e_report.py
+tools/build_e2e_workbook.mjs
+
+# OS metadata
+.DS_Store

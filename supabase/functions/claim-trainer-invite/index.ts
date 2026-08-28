@@ -1,6 +1,10 @@
 ﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { validateStringField } from "../_shared/input-validation.ts";
+import { hasTrustedInviteIdentity } from "../_shared/invite-email-verification.ts";
+import {
+  validateObjectPayload,
+  validateStringField,
+} from "../_shared/input-validation.ts";
 
 
 const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
@@ -56,26 +60,17 @@ Deno.serve(async (req) => {
     return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
-  const appMetadata = user.app_metadata ?? {};
-  const providers = [
-    ...(Array.isArray(appMetadata.providers) ? appMetadata.providers : []),
-    appMetadata.provider,
-  ]
-    .map((value) => String(value ?? "").trim().toLowerCase())
-    .filter(Boolean);
-  const hasTrustedExternalProvider = providers.some(
-    (provider) => provider !== "email" && provider !== "phone"
-  );
-  if (
-    !hasTrustedExternalProvider &&
-    typeof appMetadata.email_verified_hybrid_at !== "string"
-  ) {
+  if (!hasTrustedInviteIdentity(user)) {
     return createError(req, 403, "EMAIL_NOT_VERIFIED", "Email verification required");
   }
 
   let payload: { code: string } = { code: "" };
   try {
-    payload = (await req.json()) as { code: string };
+    const parsed = validateObjectPayload(await req.json());
+    if (!parsed.ok || !parsed.data) {
+      return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
+    }
+    payload = parsed.data as { code: string };
   } catch {
     return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
@@ -107,7 +102,7 @@ Deno.serve(async (req) => {
 
   const { data: invite, error: inviteError } = await supabase
     .from("trainer_invites")
-    .select("id, uses, max_uses, expires_at, revoked, organization_id, target_role_level, initial_permissions, invited_to, claimed_by, claimed_at, created_by")
+    .select("id, uses, max_uses, expires_at, revoked, organization_id, target_role_level, initial_permissions, invited_via, invited_to, claimed_by, claimed_at, created_by")
     .eq("code_hash", codeHash)
     .maybeSingle();
 
@@ -119,35 +114,31 @@ Deno.serve(async (req) => {
     return createError(req, 400, "INVITE_INVALID", "Invalid invite");
   }
 
-  if (invite.claimed_by === user.id) {
-    return new Response(JSON.stringify({ status: "ok" }), {
-      headers: makeJsonHeaders(req),
-    });
-  }
-
-  if (invite.claimed_by) {
+  if (invite.claimed_by && invite.claimed_by !== user.id) {
     return createError(req, 400, "INVITE_ALREADY_USED", "Invite already used");
   }
 
-  if (invite.revoked) {
-    return createError(req, 400, "INVITE_REVOKED", "Invite revoked");
-  }
-
-  if (invite.expires_at) {
-    const expiresAt = new Date(invite.expires_at);
-    if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
-      return createError(req, 400, "INVITE_EXPIRED", "Invite expired");
+  if (!invite.claimed_by) {
+    if (invite.revoked) {
+      return createError(req, 400, "INVITE_REVOKED", "Invite revoked");
     }
-  }
 
-  if (invite.uses >= invite.max_uses) {
-    return createError(req, 400, "INVITE_LIMIT_REACHED", "Invite limit reached");
-  }
+    if (invite.expires_at) {
+      const expiresAt = new Date(invite.expires_at);
+      if (Number.isFinite(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+        return createError(req, 400, "INVITE_EXPIRED", "Invite expired");
+      }
+    }
 
-  const invitedEmail = String(invite.invited_to ?? "").trim().toLowerCase();
-  const authenticatedEmail = String(user.email ?? "").trim().toLowerCase();
-  if (invitedEmail && invitedEmail !== authenticatedEmail) {
-    return createError(req, 403, "INVITE_EMAIL_MISMATCH", "Invite belongs to another email");
+    if (invite.uses >= invite.max_uses) {
+      return createError(req, 400, "INVITE_LIMIT_REACHED", "Invite limit reached");
+    }
+
+    const invitedEmail = String(invite.invited_to ?? "").trim().toLowerCase();
+    const authenticatedEmail = String(user.email ?? "").trim().toLowerCase();
+    if (invite.invited_via === "email" && invitedEmail && invitedEmail !== authenticatedEmail) {
+      return createError(req, 403, "INVITE_EMAIL_MISMATCH", "Invite belongs to another email");
+    }
   }
 
   const { error: claimError } = await supabase.rpc("claim_trainer_invite_access", {
@@ -162,7 +153,9 @@ Deno.serve(async (req) => {
         ? "INVITE_REVOKED"
         : message.includes("INVITE_EXPIRED")
           ? "INVITE_EXPIRED"
-          : "SERVER_ERROR";
+          : message.includes("INVITE_EMAIL_MISMATCH")
+            ? "INVITE_EMAIL_MISMATCH"
+            : "SERVER_ERROR";
     await supabase
       .from("trainer_invites")
       .update({
@@ -178,6 +171,9 @@ Deno.serve(async (req) => {
     }
     if (message.includes("INVITE_EXPIRED")) {
       return createError(req, 400, "INVITE_EXPIRED", "Invite expired");
+    }
+    if (message.includes("INVITE_EMAIL_MISMATCH")) {
+      return createError(req, 403, "INVITE_EMAIL_MISMATCH", "Invite belongs to another email");
     }
     return createError(req, 500, "SERVER_ERROR", "Failed to apply invite access");
   }

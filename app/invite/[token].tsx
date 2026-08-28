@@ -17,8 +17,13 @@ import { claimStudentInvite, validateStudentInvite } from "../../src/api/student
 import { useAuth } from "../../src/auth/auth";
 import {
     clearPendingInvite,
+    requiresInviteEmailVerification,
     savePendingInvite,
 } from "../../src/auth/pending-invite";
+import {
+  canSubmitStudentInviteAuth,
+  getStudentInviteAuthValidationMessage,
+} from "../../src/auth/student-invite-auth";
 import { useRole } from "../../src/auth/role";
 import { Pressable } from "../../src/ui/Pressable";
 import { ScreenBackdrop } from "../../src/components/ui/ScreenBackdrop";
@@ -33,7 +38,14 @@ export default function StudentInviteScreen() {
   const router = useRouter();
   const { token } = useLocalSearchParams<{ token: string | string[] }>();
   const tokenValue = Array.isArray(token) ? token[0] : token;
-  const { session, signIn, signUp, signInWithOAuth, signOut } = useAuth();
+  const {
+    session,
+    signIn,
+    signUp,
+    signInWithOAuth,
+    signOut,
+    resendSignupCode,
+  } = useAuth();
   const { role, loading: roleLoading, refresh } = useRole();
   const [mode, setMode] = useState<"signup" | "login">("signup");
   const [email, setEmail] = useState("");
@@ -44,9 +56,10 @@ export default function StudentInviteScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [inviteState, setInviteState] = useState<"checking" | "valid" | "invalid">("checking");
-  const strengthAnim = useRef(new Animated.Value(0)).current;
-  const enterAnim = useRef(new Animated.Value(0)).current;
+  const [strengthAnim] = useState(() => new Animated.Value(0));
+  const [enterAnim] = useState(() => new Animated.Value(0));
   const lastClaimUserRef = useRef<string | null>(null);
+  const verificationRedirectUserRef = useRef<string | null>(null);
   const claimInFlightRef = useRef(false);
 
   const passwordChecks = useMemo(() => {
@@ -81,8 +94,11 @@ export default function StudentInviteScreen() {
     const code = getInviteErrorCode(error);
     if (code === "INVITE_EXPIRED") return "Convite expirado.";
     if (code === "INVITE_ALREADY_USED") return "Esse link já foi usado por outra conta. Peça um novo link.";
-    if (code === "INVITE_INVALID" || code === "INVITE_REVOKED") return "Convite inválido.";
+    if (code === "INVITE_REVOKED") return "Convite cancelado. Peça um novo link.";
+    if (code === "INVITE_INVALID") return "Convite inválido.";
     if (code === "STUDENT_ALREADY_LINKED") return "Este aluno já está vinculado a outra conta.";
+    if (code === "INVITE_EMAIL_MISMATCH") return "Este convite foi enviado para outro e-mail.";
+    if (code === "EMAIL_NOT_VERIFIED") return "Confirme seu e-mail para concluir o convite.";
     if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") return "Sessão expirada. Entre novamente.";
     if (code === "FORBIDDEN") return "Sem permissão para validar o convite.";
     return "Não foi possível validar o convite.";
@@ -174,16 +190,36 @@ export default function StudentInviteScreen() {
       });
       return;
     }
+    if (requiresInviteEmailVerification(session.user)) {
+      const userId = session.user.id ?? "unknown";
+      if (verificationRedirectUserRef.current === userId) return;
+      verificationRedirectUserRef.current = userId;
+      void (async () => {
+        let deliveryFailed = false;
+        const sessionEmail = String(session.user.email ?? email).trim().toLowerCase();
+        try {
+          await resendSignupCode(sessionEmail, "verify-email");
+        } catch {
+          deliveryFailed = true;
+        }
+        router.replace({
+          pathname: "/verify-email",
+          params: {
+            email: sessionEmail,
+            delivery: deliveryFailed ? "failed" : undefined,
+          },
+        });
+      })();
+      return;
+    }
     const userId = session.user.id ?? "unknown";
     if (lastClaimUserRef.current === userId) return;
     lastClaimUserRef.current = userId;
     void handleClaim();
-  }, [handleClaim, inviteState, role, roleLoading, session, tokenValue]);
+  }, [email, handleClaim, inviteState, resendSignupCode, role, roleLoading, router, session, tokenValue]);
 
   const canSubmit = useMemo(() => {
-    if (!email.trim() || !password.trim()) return false;
-    if (mode === "signup" && confirm && confirm !== password) return false;
-    return true;
+    return canSubmitStudentInviteAuth({ mode, email, password, confirm });
   }, [confirm, email, mode, password]);
 
   const handleAuth = async () => {
@@ -191,20 +227,14 @@ export default function StudentInviteScreen() {
       setMessage("Convite inválido.");
       return;
     }
-    if (!email.trim()) {
-      setMessage("Informe seu email.");
-      return;
-    }
-    if (!password.trim()) {
-      setMessage("Informe sua senha.");
-      return;
-    }
-    if (mode === "signup" && password.trim().length < 6) {
-      setMessage("A senha precisa ter pelo menos 6 caracteres.");
-      return;
-    }
-    if (mode === "signup" && confirm && confirm !== password) {
-      setMessage("As senhas não conferem.");
+    const validationMessage = getStudentInviteAuthValidationMessage({
+      mode,
+      email,
+      password,
+      confirm,
+    });
+    if (validationMessage) {
+      setMessage(validationMessage);
       return;
     }
     setBusy(true);
@@ -217,7 +247,20 @@ export default function StudentInviteScreen() {
       }
       const sessionData = await signUp(email.trim(), password, `invite/${tokenValue}`);
       if (sessionData) {
-        setMessage("Validando convite...");
+        verificationRedirectUserRef.current = sessionData.user.id ?? "unknown";
+        let deliveryFailed = false;
+        try {
+          await resendSignupCode(email.trim(), "verify-email");
+        } catch {
+          deliveryFailed = true;
+        }
+        router.replace({
+          pathname: "/verify-email",
+          params: {
+            email: email.trim().toLowerCase(),
+            delivery: deliveryFailed ? "failed" : undefined,
+          },
+        });
         return;
       }
       setMessage(
@@ -275,9 +318,13 @@ export default function StudentInviteScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View
+              role="main"
               style={{
                 flex: 1,
                 justifyContent: "center",
+                maxWidth: 440,
+                width: "100%",
+                alignSelf: "center",
                 gap: 24,
                 opacity: enterAnim,
                 transform: [
@@ -291,14 +338,17 @@ export default function StudentInviteScreen() {
               }}
             >
               <Pressable
+                accessibilityLabel="Voltar para entrar"
+                accessibilityRole="button"
                 onPress={() => router.replace("/login")}
+                suppressWebHoverFeedback
                 style={{ alignSelf: "flex-start" }}
               >
                 <View
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 17,
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
                     backgroundColor: colors.secondaryBg,
                     alignItems: "center",
                     justifyContent: "center",
@@ -319,14 +369,16 @@ export default function StudentInviteScreen() {
               />
 
               {inviteState === "invalid" ? (
-                <View style={{ gap: 14 }}>
-                  <Text style={{ color: colors.dangerSolidBg }}>{message}</Text>
+                <View accessibilityRole="alert" style={{ gap: 14 }}>
+                  <Text style={{ color: colors.dangerText }}>{message}</Text>
                   <Text style={{ color: colors.muted }}>
                     Solicite ao professor que gere e envie um novo convite.
                   </Text>
                 </View>
               ) : inviteState === "checking" ? (
-                <Text style={{ color: colors.muted }}>Verificando convite...</Text>
+                <Text accessibilityLiveRegion="polite" style={{ color: colors.muted }}>
+                  Verificando convite...
+                </Text>
               ) : <View
                 style={{
                   padding: 18,
@@ -342,7 +394,7 @@ export default function StudentInviteScreen() {
                   elevation: 5,
                 }}
               >
-                <View style={{ flexDirection: "row", gap: 8 }}>
+                <View role="tablist" style={{ flexDirection: "row", gap: 8 }}>
                   {[
                     { id: "signup" as const, label: "Criar conta" },
                     { id: "login" as const, label: "Entrar" },
@@ -350,6 +402,8 @@ export default function StudentInviteScreen() {
                     const active = mode === option.id;
                     return (
                       <Pressable
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: active }}
                         key={option.id}
                         onPress={() => setMode(option.id)}
                         style={{
@@ -379,23 +433,30 @@ export default function StudentInviteScreen() {
                 style={{
                   borderWidth: 1,
                   borderColor: colors.border,
-                  borderRadius: 14,
+                  borderRadius: 12,
                   backgroundColor: colors.inputBg,
-                  overflow: "hidden",
+                  overflow: "visible",
+                  minHeight: 50,
+                  paddingHorizontal: 14,
+                  justifyContent: "center",
                 }}
               >
                 <TextInput
+                  accessibilityLabel="E-mail"
                   placeholder="Email"
                   value={email}
                   onChangeText={setEmail}
                   placeholderTextColor={colors.placeholder}
                   keyboardType="email-address"
+                  autoComplete="email"
                   autoCapitalize="none"
                   style={{
-                    padding: 12,
+                    minHeight: 50,
+                    paddingVertical: 0,
                     color: colors.inputText,
                     backgroundColor: "transparent",
                     borderWidth: 0,
+                    borderRadius: 0,
                   }}
                 />
               </View>
@@ -406,12 +467,14 @@ export default function StudentInviteScreen() {
                   alignItems: "center",
                   borderWidth: 1,
                   borderColor: colors.border,
-                  paddingHorizontal: 12,
-                  borderRadius: 14,
+                  minHeight: 50,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
                   backgroundColor: colors.inputBg,
                 }}
               >
                 <TextInput
+                  accessibilityLabel="Senha"
                   placeholder="Senha"
                   value={password}
                   onChangeText={setPassword}
@@ -422,9 +485,13 @@ export default function StudentInviteScreen() {
                     paddingVertical: 12,
                     color: colors.inputText,
                     backgroundColor: "transparent",
+                    borderRadius: 0,
                   }}
                 />
                 <Pressable
+                  accessibilityElementsHidden={password.length === 0}
+                  accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  accessibilityRole="button"
                   onPress={() => setShowPassword((prev) => !prev)}
                   disabled={password.length === 0}
                   style={{
@@ -452,12 +519,14 @@ export default function StudentInviteScreen() {
                     alignItems: "center",
                     borderWidth: 1,
                     borderColor: colors.border,
-                    paddingHorizontal: 12,
-                    borderRadius: 14,
+                    minHeight: 50,
+                    paddingHorizontal: 14,
+                    borderRadius: 12,
                     backgroundColor: colors.inputBg,
                   }}
                 >
                   <TextInput
+                    accessibilityLabel="Confirmar senha"
                     placeholder="Confirmar senha"
                     value={confirm}
                     onChangeText={setConfirm}
@@ -468,9 +537,13 @@ export default function StudentInviteScreen() {
                       paddingVertical: 12,
                       color: colors.inputText,
                       backgroundColor: "transparent",
+                      borderRadius: 0,
                     }}
                   />
                   <Pressable
+                    accessibilityElementsHidden={confirm.length === 0}
+                    accessibilityLabel={showConfirm ? "Ocultar confirmação de senha" : "Mostrar confirmação de senha"}
+                    accessibilityRole="button"
                     onPress={() => setShowConfirm((prev) => !prev)}
                     disabled={confirm.length === 0}
                     style={{
@@ -569,7 +642,10 @@ export default function StudentInviteScreen() {
               ) : null}
 
               { message ? (
-                <Text style={{ color: message.startsWith("!") ? colors.dangerSolidBg : colors.muted }}>
+                <Text
+                  accessibilityLiveRegion="polite"
+                  style={{ color: message.startsWith("!") ? colors.dangerText : colors.muted }}
+                >
                   {message.startsWith("!") ? message.slice(1) : message}
                 </Text>
               ) : null}
@@ -580,6 +656,7 @@ export default function StudentInviteScreen() {
                 message.toLowerCase().includes("usado") ||
                 message.toLowerCase().includes("vinculado")) ? (
                 <Pressable
+                  accessibilityRole="button"
                   onPress={() => void signOut()}
                   style={{
                     paddingVertical: 10,
@@ -597,14 +674,25 @@ export default function StudentInviteScreen() {
               ) : null}
 
               <Pressable
+                accessibilityLabel={
+                  busy
+                    ? "Validando convite"
+                    : mode === "signup"
+                      ? "Criar conta e vincular convite"
+                      : "Entrar e vincular convite"
+                }
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy || !canSubmit, busy }}
                 onPress={handleAuth}
                 disabled={busy || !canSubmit}
                 style={{
-                  paddingVertical: 12,
-                  borderRadius: 14,
+                  minHeight: 50,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
                   backgroundColor:
                     busy || !canSubmit ? colors.primaryDisabledBg : colors.primaryBg,
                   alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 <Text style={{ color: colors.primaryText, fontWeight: "700" }}>
@@ -630,6 +718,14 @@ export default function StudentInviteScreen() {
                       { id: "apple" as const, icon: "apple" as const },
                     ].map((provider) => (
                       <Pressable
+                        accessibilityLabel={`Continuar com ${
+                          provider.id === "google"
+                            ? "Google"
+                            : provider.id === "facebook"
+                              ? "Facebook"
+                              : "Apple"
+                        }`}
+                        accessibilityRole="button"
                         key={provider.id}
                         onPress={() => handleOAuth(provider.id)}
                         style={{

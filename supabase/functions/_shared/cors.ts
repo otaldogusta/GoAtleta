@@ -56,8 +56,18 @@ export const resolveCorsOrigin = (req: Request): string => {
 
 export const buildCorsHeaders = (req: Request) => ({
   "Access-Control-Allow-Origin": resolveCorsOrigin(req),
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+  "Access-Control-Allow-Headers": [
+    "authorization",
+    "content-type",
+    "apikey",
+    "x-client-info",
+    "x-retry-count",
+    "traceparent",
+    "tracestate",
+    "baggage",
+  ].join(", "),
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+  "Vary": "Origin",
 });
 
 /** Returns a ready-made 200 preflight response. */

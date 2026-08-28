@@ -65,7 +65,11 @@ import { notificationScopeForEffectiveProfile } from "../../src/notifications/in
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
 import { TrainingAnchoredDropdownOption } from "../../src/screens/training/components/TrainingAnchoredDropdownOption";
-import { TrainingFabMenu } from "../../src/screens/training/components/TrainingFabMenu";
+import {
+  resolveTrainingFabMenuLayout,
+  TrainingFabMenu,
+  type TrainingFabMenuLayout,
+} from "../../src/screens/training/components/TrainingFabMenu";
 import { PlanningBlockActivityCards } from "../../src/screens/training/components/PlanningBlockActivityCards";
 import { PlanningLibraryBridgeSheet } from "../../src/screens/training/components/PlanningLibraryBridgeSheet";
 import {
@@ -89,6 +93,7 @@ import {
     type PlanningBlockActivities,
 } from "../../src/screens/training/application/planning-library-bridge";
 import { formatTrainingPlanDisplayText } from "../../src/screens/training/application/training-plan-display-text";
+import { buildTrainingPlanWorkspaceExitConfirmation } from "../../src/screens/training/application/training-plan-workspace-exit";
 import {
   buildTrainingPlanWorkspaceDraftKey,
   loadTrainingPlanWorkspaceLibrary,
@@ -527,6 +532,21 @@ export default function TrainingList() {
     clearDraft: clearWorkspaceDraft,
     consumeRestoredDraft,
   } = useTrainingPlanWorkspaceDraft(workspaceDraftKey);
+  const previousWorkspaceDraftStatusRef = useRef(workspaceDraftStatus);
+  useEffect(() => {
+    const previousStatus = previousWorkspaceDraftStatusRef.current;
+    previousWorkspaceDraftStatusRef.current = workspaceDraftStatus;
+    if (
+      responsiveLayout.isMobile &&
+      workspaceDraftStatus === "error" &&
+      previousStatus !== "error"
+    ) {
+      showSaveToast({
+        message: "Não foi possível salvar o rascunho.",
+        variant: "error",
+      });
+    }
+  }, [responsiveLayout.isMobile, showSaveToast, workspaceDraftStatus]);
   const [workspaceHasUnsavedChanges, setWorkspaceHasUnsavedChanges] = useState(false);
   const [workspaceHeaderControls, setWorkspaceHeaderControls] =
     useState<ClassPlanWorkspaceHeaderControls | null>(null);
@@ -769,6 +789,9 @@ export default function TrainingList() {
   const [showPlanActions, setShowPlanActions] = useState(false);
   const [actionPlan, setActionPlan] = useState<TrainingPlan | null>(null);
   const [showTrainingFabMenu, setShowTrainingFabMenu] = useState(false);
+  const [trainingFabMenuLayout, setTrainingFabMenuLayout] =
+    useState<TrainingFabMenuLayout | null>(null);
+  const trainingFabTriggerRef = useRef<View>(null);
   const [showTrainingSessionCreate, setShowTrainingSessionCreate] = useState(false);
   const [handledCreateSessionRequestRaw, setHandledCreateSessionRequestRaw] = useState<string | null>(null);
   const [trainingFabAnim] = useState(() => new Animated.Value(0));
@@ -818,6 +841,20 @@ export default function TrainingList() {
       }),
     [trainingFabAnim]
   );
+
+  const handleTrainingFabPress = useCallback(() => {
+    if (showTrainingFabMenu) {
+      setShowTrainingFabMenu(false);
+      return;
+    }
+
+    trainingFabTriggerRef.current?.measureInWindow((x, y, width, height) => {
+      const nextLayout = resolveTrainingFabMenuLayout(x, y, width, height);
+      if (!nextLayout) return;
+      setTrainingFabMenuLayout(nextLayout);
+      setShowTrainingFabMenu(true);
+    });
+  }, [showTrainingFabMenu]);
 
   useEffect(() => {
     Animated.timing(trainingFabAnim, {
@@ -3355,13 +3392,13 @@ export default function TrainingList() {
         action();
         return;
       }
-      await flushWorkspaceDraft();
+      const flushResult = await flushWorkspaceDraft();
+      const confirmation = buildTrainingPlanWorkspaceExitConfirmation({
+        intent: "replace",
+        draftPersisted: flushResult.persisted,
+      });
       const accepted = await confirmDialog({
-        title: "Trocar de plano?",
-        message: "O rascunho atual está salvo neste dispositivo. Ao trocar, ele será descartado.",
-        confirmLabel: "Descartar e trocar",
-        cancelLabel: "Continuar editando",
-        tone: "danger",
+        ...confirmation,
         onConfirm: () => {},
       });
       if (!accepted) return;
@@ -3376,12 +3413,13 @@ export default function TrainingList() {
 
   const handleWorkspaceBack = useCallback(async () => {
     if (workspaceHasUnsavedChanges) {
-      await flushWorkspaceDraft();
+      const flushResult = await flushWorkspaceDraft();
+      const confirmation = buildTrainingPlanWorkspaceExitConfirmation({
+        intent: "leave",
+        draftPersisted: flushResult.persisted,
+      });
       const accepted = await confirmDialog({
-        title: "Sair do planejamento?",
-        message: "Seu rascunho está salvo neste dispositivo e será restaurado quando você voltar.",
-        confirmLabel: "Sair",
-        cancelLabel: "Continuar editando",
+        ...confirmation,
         onConfirm: () => {},
       });
       if (!accepted) return;
@@ -3597,13 +3635,13 @@ export default function TrainingList() {
                     alignItems: "center",
                     justifyContent: "flex-end",
                     gap: responsiveLayout.isMobile ? 5 : 8,
-                    flexWrap: "wrap",
+                    flexWrap: "nowrap",
                     maxWidth: responsiveLayout.isMobile ? 178 : undefined,
                   }}
                 >
                   {selectedPlan && workspaceHeaderControls ? (
                     <>
-                      <View style={{ minHeight: 40, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      {!responsiveLayout.isMobile ? <View style={{ minHeight: 40, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
                         {workspaceHeaderControls.status === "saving" ? (
                           <ActivityIndicator size="small" color={colors.warningText} />
                         ) : (
@@ -3633,7 +3671,7 @@ export default function TrainingList() {
                                 : "Salvo"}
                           </Text>
                         ) : null}
-                      </View>
+                      </View> : null}
                       <Pressable
                         onPress={workspaceHeaderControls.onDownload}
                         disabled={workspaceHeaderControls.downloadDisabled}
@@ -3658,8 +3696,9 @@ export default function TrainingList() {
                           accessibilityRole="button"
                           accessibilityLabel={workspaceHeaderControls.applyLabel}
                           style={({ pressed }) => ({
+                            width: responsiveLayout.isMobile ? 40 : undefined,
                             minHeight: 40,
-                            paddingHorizontal: 13,
+                            paddingHorizontal: responsiveLayout.isMobile ? 0 : 13,
                             borderWidth: 1,
                             borderColor: colors.primaryBg,
                             borderRadius: 9,
@@ -3687,8 +3726,9 @@ export default function TrainingList() {
                     accessibilityRole="button"
                     accessibilityLabel="Criar novo plano"
                     style={({ pressed }) => ({
+                      width: responsiveLayout.isMobile ? 40 : undefined,
                       minHeight: 40,
-                      paddingHorizontal: responsiveLayout.isMobile ? 11 : 14,
+                      paddingHorizontal: responsiveLayout.isMobile ? 0 : 14,
                       borderWidth: 1,
                       borderColor: colors.primaryBg,
                       borderRadius: 9,
@@ -3709,8 +3749,9 @@ export default function TrainingList() {
                     accessibilityRole="button"
                     accessibilityLabel="Importar PDF"
                     style={({ pressed }) => ({
+                      width: responsiveLayout.isMobile ? 40 : undefined,
                       minHeight: 40,
-                      paddingHorizontal: responsiveLayout.isMobile ? 11 : 14,
+                      paddingHorizontal: responsiveLayout.isMobile ? 0 : 14,
                       borderRadius: 9,
                       backgroundColor: colors.secondaryBg,
                       flexDirection: "row",
@@ -4475,38 +4516,47 @@ export default function TrainingList() {
 
       {planningTab !== "formulario" ? (
         <>
-          <Pressable
-            onPress={() => setShowTrainingFabMenu((current) => !current)}
+          <View
+            ref={trainingFabTriggerRef}
+            collapsable={false}
             style={{
               position: "absolute" as const,
               right: trainingFabRight,
               bottom: trainingFabBottom,
               width: 56,
               height: 56,
-              borderRadius: 28,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.primaryBg,
-              borderWidth: 1,
-              borderColor: colors.border,
               zIndex: 3200,
-              ...shadow.elevated,
             }}
           >
-            <Animated.View
+            <Pressable
+              onPress={handleTrainingFabPress}
               style={{
-                transform: [{ rotate: trainingFabRotate }, { scale: trainingFabScale }],
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.primaryBg,
+                borderWidth: 1,
+                borderColor: colors.border,
+                ...shadow.elevated,
               }}
             >
-              <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
-            </Animated.View>
-          </Pressable>
+              <Animated.View
+                style={{
+                  transform: [{ rotate: trainingFabRotate }, { scale: trainingFabScale }],
+                }}
+              >
+                <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
+              </Animated.View>
+            </Pressable>
+          </View>
 
           <TrainingFabMenu
             visible={showTrainingFabMenu}
             importBusy={false}
-            anchorRight={trainingFabRight}
-            anchorBottom={trainingFabBottom}
+            anchorRef={trainingFabTriggerRef}
+            layout={trainingFabMenuLayout}
             onClose={() => setShowTrainingFabMenu(false)}
             onCreatePress={() => {
               setShowTrainingFabMenu(false);

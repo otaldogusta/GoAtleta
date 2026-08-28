@@ -164,6 +164,7 @@ describe("pending invite storage", () => {
   test("blocks trainer invite claim until hybrid email verification finishes", () => {
     expect(
       requiresTrainerInviteEmailVerification({
+        email: "trainer@example.com",
         app_metadata: {
           provider: "email",
         },
@@ -174,6 +175,7 @@ describe("pending invite storage", () => {
     ).toBe(true);
     expect(
       requiresTrainerInviteEmailVerification({
+        email: "trainer@example.com",
         app_metadata: {
           provider: "email",
           email_verified_hybrid_at: "2026-08-13T12:00:00.000Z",
@@ -188,6 +190,7 @@ describe("pending invite storage", () => {
   test("does not trust a verification timestamp written in user metadata", () => {
     expect(
       requiresTrainerInviteEmailVerification({
+        email: "trainer@example.com",
         app_metadata: { provider: "email" },
         user_metadata: {
           requires_email_hybrid_verification: true,
@@ -200,10 +203,27 @@ describe("pending invite storage", () => {
   test("accepts an external identity provider as the verified identity source", () => {
     expect(
       requiresTrainerInviteEmailVerification({
+        email: "trainer@example.com",
         app_metadata: { provider: "google", providers: ["google"] },
         user_metadata: { requires_email_hybrid_verification: true },
       })
     ).toBe(false);
+  });
+
+  test("rejects anonymous and unknown identity providers", () => {
+    expect(
+      requiresTrainerInviteEmailVerification({
+        email: "trainer@example.com",
+        is_anonymous: true,
+        app_metadata: { provider: "google" },
+      })
+    ).toBe(true);
+    expect(
+      requiresTrainerInviteEmailVerification({
+        email: "trainer@example.com",
+        app_metadata: { provider: "unknown-provider" },
+      })
+    ).toBe(true);
   });
 
   test.each(["/pending", "/verify-email"])(

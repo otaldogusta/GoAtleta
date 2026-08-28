@@ -45,6 +45,30 @@ const extractRecord = (payload: unknown) => {
   return null;
 };
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? value as Record<string, unknown> : {};
+
+const hasTrustedEmailProof = (record: Record<string, unknown>) => {
+  if (record.is_anonymous === true) return false;
+  const appMetadata = asRecord(
+    record.raw_app_meta_data ?? record.app_metadata
+  );
+  const providers = [
+    ...(Array.isArray(appMetadata.providers) ? appMetadata.providers : []),
+    appMetadata.provider,
+  ]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  const hasTrustedExternalProvider = providers.some((provider) =>
+    ["google", "apple", "facebook"].includes(provider)
+  );
+  return hasTrustedExternalProvider
+    || (
+      typeof appMetadata.email_verified_hybrid_at === "string"
+      && Boolean(appMetadata.email_verified_hybrid_at.trim())
+    );
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return corsPreflight(req);
@@ -76,7 +100,7 @@ Deno.serve(async (req) => {
   let payload: unknown;
   try {
     payload = await req.json();
-  } catch (_error) {
+  } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
       status: 400,
       headers: makeJsonHeaders(req),
@@ -100,6 +124,13 @@ Deno.serve(async (req) => {
   if (!userId || !normalizedEmail) {
     return new Response(
       JSON.stringify({ status: "skipped", reason: "missing_user_or_email" }),
+      { headers: makeJsonHeaders(req) }
+    );
+  }
+
+  if (!recordObj || !hasTrustedEmailProof(recordObj)) {
+    return new Response(
+      JSON.stringify({ status: "skipped", reason: "email_not_verified" }),
       { headers: makeJsonHeaders(req) }
     );
   }

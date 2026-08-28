@@ -1,9 +1,14 @@
 import {
   areInviteFormSnapshotsEqual,
   createInviteFormSnapshot,
+  DEFAULT_INVITE_PERMISSION_KEYS,
 } from "../invite-form";
 
 describe("invite form snapshots", () => {
+  it("keeps financial access out of the default invitation permissions", () => {
+    expect(DEFAULT_INVITE_PERMISSION_KEYS).not.toContain("financial");
+  });
+
   it("ignores e-mail casing, surrounding spaces and permission ordering", () => {
     const initial = createInviteFormSnapshot({
       email: "PESSOA@EXEMPLO.COM",

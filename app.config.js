@@ -73,7 +73,7 @@ module.exports = {
 	expo: {
 		name: "GoAtleta",
 		slug: "goatleta",
-		version: "1.0.1",
+		version: "1.0.2",
 		orientation: "portrait",
 		icon: "./assets/images/icon.png",
 		scheme: "goatleta",
@@ -109,6 +109,7 @@ module.exports = {
 			},
 		},
 		android: {
+			versionCode: 3,
 			adaptiveIcon: {
 				backgroundColor: "#F5F0E8",
 				foregroundImage: "./assets/images/android-icon-foreground.png",

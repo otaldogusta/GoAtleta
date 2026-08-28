@@ -3,7 +3,10 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
 import type { TrainingPlan } from "../../../../core/models";
-import { useTrainingPlanWorkspaceDraft } from "../useTrainingPlanWorkspaceDraft";
+import {
+  useTrainingPlanWorkspaceDraft,
+  type TrainingPlanWorkspaceDraftFlushResult,
+} from "../useTrainingPlanWorkspaceDraft";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: jest.fn(),
@@ -71,6 +74,84 @@ describe("useTrainingPlanWorkspaceDraft", () => {
       expect.stringContaining("Título digitado no PDF")
     );
     expect(latest!.status).toBe("saved");
+  });
+
+  it("returns an explicit success result when a queued draft is persisted", async () => {
+    let latest: DraftHook | null = null;
+    let flushResult: TrainingPlanWorkspaceDraftFlushResult | null = null;
+    function Harness() {
+      latest = useTrainingPlanWorkspaceDraft("draft-key");
+      return null;
+    }
+
+    await act(async () => {
+      TestRenderer.create(React.createElement(Harness));
+      await flushPromises();
+    });
+
+    act(() => {
+      latest!.queueDraft(plan, "2026-08-10");
+    });
+    await act(async () => {
+      flushResult = await latest!.flushDraft();
+    });
+
+    expect(flushResult).toEqual({ persisted: true, reason: "saved" });
+    await expect(latest!.flushDraft()).resolves.toEqual({
+      persisted: true,
+      reason: "already_saved",
+    });
+    expect(latest!.status).toBe("saved");
+  });
+
+  it("returns a failure result and preserves the error state when storage rejects", async () => {
+    (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(new Error("storage unavailable"));
+    let latest: DraftHook | null = null;
+    let flushResult: TrainingPlanWorkspaceDraftFlushResult | null = null;
+    function Harness() {
+      latest = useTrainingPlanWorkspaceDraft("draft-key");
+      return null;
+    }
+
+    await act(async () => {
+      TestRenderer.create(React.createElement(Harness));
+      await flushPromises();
+    });
+
+    act(() => {
+      latest!.queueDraft(plan, "2026-08-10");
+    });
+    await act(async () => {
+      flushResult = await latest!.flushDraft();
+    });
+
+    expect(flushResult).toEqual({ persisted: false, reason: "write_failed" });
+    expect(latest!.status).toBe("error");
+  });
+
+  it("does not claim persistence when a draft key is unavailable", async () => {
+    let latest: DraftHook | null = null;
+    let flushResult: TrainingPlanWorkspaceDraftFlushResult | null = null;
+    function Harness() {
+      latest = useTrainingPlanWorkspaceDraft(null);
+      return null;
+    }
+
+    await act(async () => {
+      TestRenderer.create(React.createElement(Harness));
+      await flushPromises();
+    });
+
+    act(() => {
+      latest!.queueDraft(plan, "2026-08-10");
+    });
+    await act(async () => {
+      flushResult = await latest!.flushDraft();
+    });
+
+    expect(flushResult).toEqual({ persisted: false, reason: "unavailable" });
+    expect(latest!.status).toBe("error");
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
   });
 
   it("restores a valid local draft when the workspace opens again", async () => {

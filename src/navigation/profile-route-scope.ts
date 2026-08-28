@@ -75,7 +75,7 @@ export type TrainerScopedRoutes = {
   scope: TrainerRouteScope;
   home: "/prof/home" | "/coord/dashboard";
   classes: "/prof/classes" | "/coord/classes";
-  students: "/prof/students" | "/coord/students";
+  students: "/prof/students" | "/coord/management/athletes";
   assistant: "/prof/assistant" | "/coord/assistant";
   profile: "/prof/profile" | "/coord/profile";
   planning: "/prof/planning" | "/coord/planning";
@@ -93,7 +93,7 @@ export const getTrainerScopedRoutes = (
         scope,
         home: "/coord/dashboard",
         classes: "/coord/classes",
-        students: "/coord/students",
+        students: "/coord/management/athletes",
         assistant: "/coord/assistant",
         profile: "/coord/profile",
         planning: "/coord/planning",

@@ -8,9 +8,11 @@ import {
     useState,
 } from "react";
 import { Animated, Easing, Platform, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
+import { supportsUndoKeyboardShortcut } from "./confirm-undo-keyboard";
 
 export type ConfirmUndoOptions = {
   title: string;
@@ -44,6 +46,7 @@ export function ConfirmUndoProvider({
   children: React.ReactNode;
 }) {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [confirmOptions, setConfirmOptions] = useState<ConfirmUndoOptions | null>(null);
   const [pending, setPending] = useState<PendingState | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
@@ -118,7 +121,8 @@ export function ConfirmUndoProvider({
   }, [pending, undoProgressAnim]);
 
   useEffect(() => {
-    if (!pending || typeof window === "undefined") return;
+    const keyboardHost = typeof window === "undefined" ? null : window;
+    if (!pending || !supportsUndoKeyboardShortcut(Platform.OS, keyboardHost)) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
       const target = event.target as HTMLElement | null;
@@ -127,8 +131,8 @@ export function ConfirmUndoProvider({
       event.preventDefault();
       void handleUndo();
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    keyboardHost?.addEventListener("keydown", handleKeyDown);
+    return () => keyboardHost?.removeEventListener("keydown", handleKeyDown);
   }, [handleUndo, pending]);
 
   useEffect(() => {
@@ -230,7 +234,7 @@ export function ConfirmUndoProvider({
             position: "absolute",
             left: 0,
             right: 0,
-            top: 16,
+            top: Math.max(16, insets.top + 12),
             alignItems: "center",
             paddingHorizontal: 16,
             zIndex: 9999,

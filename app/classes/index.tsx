@@ -67,6 +67,7 @@ import {
   getCoverageSummary,
   toLocalDateKey,
 } from "../../src/screens/classes/application/class-session-coverage";
+import { canAccessAttendanceExport } from "../../src/screens/classes/application/attendance-export";
 import { ClassesListSection } from "../../src/screens/classes/components/ClassesListSection";
 import { ClassUnitAutocomplete } from "../../src/screens/classes/components/ClassUnitAutocomplete";
 import { ClassesExportSyncMenu } from "../../src/screens/classes/components/ClassesExportSyncMenu";
@@ -308,7 +309,16 @@ export default function ClassesScreen() {
   const { colors } = useAppTheme();
   const responsiveLayout = useResponsiveLayout("content");
   const { session } = useAuth();
-  const { activeOrganization } = useOrganization();
+  const {
+    activeOrganization,
+    memberPermissions,
+    permissionsLoading,
+  } = useOrganization();
+  const canExportAttendance = canAccessAttendanceExport({
+    roleLevel: activeOrganization?.role_level,
+    reportsAllowed: memberPermissions.reports,
+    permissionsLoading,
+  });
   const bottomScrollPadding = insets.bottom + 112;
   const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm: confirmUndo } = useConfirmUndo();
@@ -329,8 +339,9 @@ export default function ClassesScreen() {
     setItems: setClasses,
     getId: getClassId,
     confirm: confirmUndo,
-    title: "Excluir turma?",
-    message: "Isso remove a turma e todos os dados relacionados.",
+    title: "Excluir turma vazia?",
+    message:
+      "A turma e seus dados relacionados serão removidos. Cadastros de atletas nunca são apagados por esta ação.",
     confirmLabel: "Excluir",
     cancelLabel: "Cancelar",
     undoLabel: "Desfazer",
@@ -347,6 +358,31 @@ export default function ClassesScreen() {
       logAction("Excluir turma", { classId: target.id });
     },
   });
+  const requestDeleteClass = useCallback(
+    (target: ClassGroup, defer = false) => {
+      const linkedStudents = students.filter(
+        (student) => student.classId === target.id
+      );
+      if (linkedStudents.length > 0) {
+        void confirmDialog({
+          title: "Turma com atletas vinculados",
+          message: `${linkedStudents.length} atleta(s) permanecem nesta turma. Mova-os para outra turma ou mantenha a turma como histórico. Nenhum cadastro foi excluído.`,
+          confirmLabel: "Entendi",
+          cancelLabel: "Voltar",
+          tone: "default",
+          onConfirm: () => undefined,
+        });
+        return false;
+      }
+      if (defer) {
+        setTimeout(() => undoableClassDelete.deleteOne(target), 10);
+      } else {
+        undoableClassDelete.deleteOne(target);
+      }
+      return true;
+    },
+    [confirmDialog, students, undoableClassDelete]
+  );
 
   useCopilotContext(
     useMemo(
@@ -415,7 +451,9 @@ export default function ClassesScreen() {
   const [pendingMainTab, setPendingMainTab] = useState<"lista" | "criar" | null>(null);
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
   const [showAttendanceExportModal, setShowAttendanceExportModal] = useState(false);
-  const openAttendanceExportModal = useCallback(() => setShowAttendanceExportModal(true), []);
+  const openAttendanceExportModal = useCallback(() => {
+    if (canExportAttendance) setShowAttendanceExportModal(true);
+  }, [canExportAttendance]);
   const closeAttendanceExportModal = useCallback(() => setShowAttendanceExportModal(false), []);
   const mainTabAnim = useRef<Record<"lista" | "criar", Animated.Value>>({
     lista: new Animated.Value(1),
@@ -1643,11 +1681,9 @@ export default function ClassesScreen() {
   const handleDeleteClass = () => {
     const target = editingClass;
     if (!target) return;
+    if (!requestDeleteClass(target, true)) return;
     setShowEditModal(false);
     setEditingClass(null);
-    setTimeout(() => {
-      undoableClassDelete.deleteOne(target);
-    }, 10);
   };
 
   const closeAllPickers = useCallback(() => {
@@ -2000,9 +2036,9 @@ export default function ClassesScreen() {
   const handleDeleteClassFromCard = useCallback(
     (item: ClassGroup) => {
       if (item.id.startsWith("preview_")) return;
-      undoableClassDelete.deleteOne(item);
+      requestDeleteClass(item);
     },
-    [undoableClassDelete]
+    [requestDeleteClass]
   );
 
   useCallback((value: string | null) => {
@@ -2014,7 +2050,7 @@ export default function ClassesScreen() {
 
   if (loading && !classes.length) {
     return (
-      <SafeAreaView style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <ScreenLoadingState />
       </SafeAreaView>
     );
@@ -2041,7 +2077,7 @@ export default function ClassesScreen() {
                   responsiveLayout.isMobile || responsiveLayout.tier === "tablet"
                 }
                 onImportStudents={openStudentsImportModal}
-                onExportAttendance={openAttendanceExportModal}
+                onExportAttendance={canExportAttendance ? openAttendanceExportModal : undefined}
               />
               <Pressable
                 accessibilityRole="button"
@@ -2073,20 +2109,6 @@ export default function ClassesScreen() {
             </View>
           }
           contentStyle={{ paddingBottom: 8 }}
-        />
-
-        <ConfirmCloseOverlay
-          visible={showCreateTabConfirm}
-          onCancel={() => {
-            setShowCreateTabConfirm(false);
-            setPendingMainTab(null);
-          }}
-          onConfirm={() => {
-            setShowCreateTabConfirm(false);
-            resetCreateForm();
-            setMainTab(pendingMainTab ?? "lista");
-            setPendingMainTab(null);
-          }}
         />
 
         <View
@@ -2137,8 +2159,8 @@ export default function ClassesScreen() {
               width: responsiveLayout.isMobile ? responsiveLayout.contentWidth : "100%",
               maxWidth: responsiveLayout.isMobile ? responsiveLayout.contentWidth : 720,
               paddingBottom: 0,
-              maxHeight: "88%",
-              height: "auto",
+              maxHeight: responsiveLayout.isMobile ? "92%" : "88%",
+              height: responsiveLayout.isMobile ? "92%" : "88%",
               minHeight: 0,
               overflow: "hidden",
             },
@@ -2470,6 +2492,20 @@ export default function ClassesScreen() {
         </View>
         </ModalDialogFrame>
 
+        <ConfirmCloseOverlay
+          visible={showCreateTabConfirm}
+          onCancel={() => {
+            setShowCreateTabConfirm(false);
+            setPendingMainTab(null);
+          }}
+          onConfirm={() => {
+            setShowCreateTabConfirm(false);
+            resetCreateForm();
+            setMainTab(pendingMainTab ?? "lista");
+            setPendingMainTab(null);
+          }}
+        />
+
         <AnchoredDropdown
           visible={showCycleLengthPickerContent}
           layout={cycleLengthTriggerLayout}
@@ -2635,26 +2671,22 @@ export default function ClassesScreen() {
         onClose={closeStudentsImportModal}
         onImportApplied={handleImportStudentsApplied}
       />
-      {showAttendanceExportModal ? (
+      {showAttendanceExportModal && canExportAttendance ? (
         <Suspense fallback={null}>
           <AttendanceExportModal
             visible
             onClose={closeAttendanceExportModal}
             classes={classes}
+            classStaffAssignments={Object.values(classStaffById).flat()}
             organizationId={activeOrganization?.id ?? null}
             organizationName={activeOrganization?.name ?? "Organização"}
+            organizationTimeZone={activeOrganization?.timezone ?? null}
+            allowed={canExportAttendance}
+            isOrgAdmin={(activeOrganization?.role_level ?? 0) >= 50}
           />
         </Suspense>
       ) : null}
 
-      <ConfirmCloseOverlay
-        visible={showEditCloseConfirm}
-        onCancel={() => setShowEditCloseConfirm(false)}
-        onConfirm={() => {
-          setShowEditCloseConfirm(false);
-          closeEditModal();
-        }}
-      />
       <ModalDialogFrame
         visible={showEditModal}
         onClose={requestCloseEditModal}
@@ -2684,7 +2716,7 @@ export default function ClassesScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Button
-                label="Excluir turma"
+                label="Excluir turma vazia"
                 variant="danger"
                 onPress={handleDeleteClass}
                 disabled={editSaving}
@@ -2806,6 +2838,14 @@ export default function ClassesScreen() {
           />
         </Suspense>
       </ModalDialogFrame>
+      <ConfirmCloseOverlay
+        visible={showEditCloseConfirm}
+        onCancel={() => setShowEditCloseConfirm(false)}
+        onConfirm={() => {
+          setShowEditCloseConfirm(false);
+          closeEditModal();
+        }}
+      />
       <DatePickerModal
         visible={showNewCycleCalendar}
         value={newCycleStartDate}

@@ -6,12 +6,13 @@ import {
 } from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Linking, Platform, Text, View } from "react-native";
+import { Linking, Platform, ScrollView, Text, View } from "react-native";
 
 import type { ClassGroup } from "../../../core/models";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
+import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
 import { useSaveToast } from "../../../ui/save-toast";
@@ -123,6 +124,10 @@ export function ClassesExportSyncMenu({
       close();
       return;
     }
+    if (Platform.OS !== "web") {
+      setOpen(true);
+      return;
+    }
     triggerRef.current?.measureInWindow((x, y, width, height) => {
       const menuWidth = compact ? Math.min(286, Math.max(240, width)) : 296;
       setTriggerLayout({
@@ -228,6 +233,80 @@ export function ClassesExportSyncMenu({
   const disabled = (workingAction !== null) || (classes.length === 0 && !onImportStudents);
   const iconColor = colors.textMuted ?? colors.muted;
   const rowTextColor = colors.textPrimary ?? colors.text;
+  const menuContent = (
+    <>
+      <MenuRow
+        icon="download"
+        label="Exportar lista (.xlsx)"
+        colors={colors}
+        onPress={exportXlsx}
+      />
+      {onExportAttendance ? (
+        <MenuRow
+          icon="document"
+          label="Exportar chamadas"
+          helper="Período, unidade e turma"
+          colors={colors}
+          onPress={openAttendanceExport}
+        />
+      ) : null}
+      {onImportStudents ? (
+        <MenuRow
+          icon="upload"
+          label="Importar alunos"
+          helper="Planilha para atualizar lista da turma"
+          colors={colors}
+          onPress={openImportStudents}
+        />
+      ) : null}
+      <MenuRow
+        icon="calendar"
+        label="Exportar agenda (.ics)"
+        colors={colors}
+        onPress={exportIcs}
+      />
+      <View
+        style={{
+          height: 1,
+          marginVertical: 5,
+          backgroundColor: colors.borderSubtle ?? colors.border,
+        }}
+      />
+      <MenuRow
+        icon="sync"
+        label="Sincronizar com Google Agenda"
+        helper="Baixar agenda e abrir importação"
+        colors={colors}
+        onPress={openGoogleCalendar}
+      />
+      <View
+        accessibilityLabel={
+          googleAccountConnected ? "Google conectado" : "Google não conectado"
+        }
+        style={{
+          minHeight: 30,
+          paddingHorizontal: 10,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <View
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: googleAccountConnected
+              ? colors.success
+              : colors.textMuted ?? colors.muted,
+          }}
+        />
+        <Text style={{ color: iconColor, fontSize: 11, fontWeight: "600" }}>
+          {googleAccountConnected ? "Google conectado" : "Google não conectado"}
+        </Text>
+      </View>
+    </>
+  );
 
   return (
     <>
@@ -275,89 +354,81 @@ export function ClassesExportSyncMenu({
         </Pressable>
       </View>
 
-      <AnchoredDropdown
-        visible={isVisible}
-        layout={triggerLayout}
-        container={null}
-        animationStyle={animatedStyle}
-        zIndex={1300}
-        maxHeight={248}
-        nestedScrollEnabled
-        density="menu"
-        interactiveRefs={[triggerRef]}
-        onRequestClose={close}
-        showVerticalScrollIndicator={false}
-        panelStyle={{ backgroundColor: colors.surfaceElevated ?? colors.card }}
-        scrollContentStyle={{ padding: 8, gap: 2 }}
-      >
-        <MenuRow
-          icon="download"
-          label="Exportar lista (.xlsx)"
-          colors={colors}
-          onPress={exportXlsx}
-        />
-        {onExportAttendance ? (
-          <MenuRow
-            icon="document"
-            label="Exportar chamadas"
-            helper="Período, unidade e turma"
-            colors={colors}
-            onPress={openAttendanceExport}
-          />
-        ) : null}
-        {onImportStudents ? (
-          <MenuRow
-            icon="upload"
-            label="Importar alunos"
-            helper="Planilha para atualizar lista da turma"
-            colors={colors}
-            onPress={openImportStudents}
-          />
-        ) : null}
-        <MenuRow
-          icon="calendar"
-          label="Exportar agenda (.ics)"
-          colors={colors}
-          onPress={exportIcs}
-        />
-        <View
-          style={{
-            height: 1,
-            marginVertical: 5,
-            backgroundColor: colors.borderSubtle ?? colors.border,
-          }}
-        />
-        <MenuRow
-          icon="sync"
-          label="Sincronizar com Google Agenda"
-          helper="Baixar agenda e abrir importação"
-          colors={colors}
-          onPress={openGoogleCalendar}
-        />
-        <View
-          style={{
-            minHeight: 30,
-            paddingHorizontal: 10,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
+      {Platform.OS === "web" ? (
+        <AnchoredDropdown
+          visible={isVisible}
+          layout={triggerLayout}
+          container={null}
+          animationStyle={animatedStyle}
+          zIndex={1300}
+          maxHeight={248}
+          nestedScrollEnabled
+          density="menu"
+          interactiveRefs={[triggerRef]}
+          onRequestClose={close}
+          showVerticalScrollIndicator={false}
+          panelStyle={{ backgroundColor: colors.surfaceElevated ?? colors.card }}
+          scrollContentStyle={{ padding: 8, gap: 2 }}
+        >
+          {menuContent}
+        </AnchoredDropdown>
+      ) : (
+        <ModalSheet
+          visible={open}
+          onClose={close}
+          position="bottom"
+          cardStyle={{
+            width: "100%",
+            maxHeight: "82%",
+            padding: 0,
+            overflow: "hidden",
           }}
         >
           <View
             style={{
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: googleAccountConnected
-                ? colors.success
-                : colors.textMuted ?? colors.muted,
+              minHeight: 56,
+              paddingHorizontal: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.borderSubtle ?? colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
             }}
-          />
-          <Text style={{ color: iconColor, fontSize: 11, fontWeight: "600" }}>
-            {googleAccountConnected ? "Google conectado" : "Google não conectado"}
-          </Text>
-        </View>
-      </AnchoredDropdown>
+          >
+            <Text
+              accessibilityRole="header"
+              style={{
+                flex: 1,
+                color: rowTextColor,
+                fontSize: 16,
+                fontWeight: "800",
+              }}
+            >
+              Exportar e sincronizar
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Fechar ações de exportação"
+              onPress={close}
+              style={{
+                width: 44,
+                height: 44,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <GoAtletaIcon name="close" size={20} color={rowTextColor} />
+            </Pressable>
+          </View>
+          <ScrollView
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: 8, gap: 2, paddingBottom: 12 }}
+          >
+            {menuContent}
+          </ScrollView>
+        </ModalSheet>
+      )}
     </>
   );
 }
@@ -375,15 +446,17 @@ function MenuRow({
   colors: ThemeColors;
   onPress: () => void;
 }) {
+  const isNative = Platform.OS !== "web";
+
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       style={(state) => ({
-        minHeight: helper ? 52 : 40,
+        minHeight: isNative ? (helper ? 56 : 48) : helper ? 52 : 40,
         paddingHorizontal: 10,
-        paddingVertical: helper ? 7 : 5,
+        paddingVertical: isNative ? 8 : helper ? 7 : 5,
         borderRadius: 9,
         flexDirection: "row",
         alignItems: "center",
@@ -403,7 +476,7 @@ function MenuRow({
           numberOfLines={1}
           style={{
             color: colors.textPrimary ?? colors.text,
-            fontSize: 11,
+            fontSize: isNative ? 14 : 11,
             fontWeight: "700",
           }}
         >
@@ -415,7 +488,7 @@ function MenuRow({
             style={{
               marginTop: 2,
               color: colors.textMuted ?? colors.muted,
-              fontSize: 9.5,
+              fontSize: isNative ? 11 : 9.5,
               fontWeight: "500",
             }}
           >

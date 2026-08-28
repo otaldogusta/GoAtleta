@@ -32,18 +32,22 @@ describe("invite lifecycle", () => {
   });
 
   it.each([
+    [{ revoked: true, revoked_at: "2026-08-12T11:30:00.000Z" }, "revoked"],
     [{ claim_failed_at: "2026-08-12T11:00:00.000Z" }, "claim_failed"],
     [{ delivery_status: "delivery_failed" }, "delivery_failed"],
     [{ expires_at: "2026-08-11T10:00:00.000Z" }, "expired"],
     [{}, "sent"],
-  ] as Array<[Partial<TrainerInviteItem>, string]>)
-  ("maps operational invitation states", (overrides, expected) => {
-    expect(resolveInviteLifecycleStatus(invite(overrides), now)).toBe(expected);
-  });
+  ] as [Partial<TrainerInviteItem>, string][])(
+    "maps operational invitation states",
+    (overrides, expected) => {
+      expect(resolveInviteLifecycleStatus(invite(overrides), now)).toBe(expected);
+    }
+  );
 
   it("keeps only actionable invitation states in the pending count", () => {
     expect(inviteNeedsAction(invite(), now)).toBe(true);
     expect(inviteNeedsAction(invite({ claimed_by: "user-1" }), now)).toBe(false);
+    expect(inviteNeedsAction(invite({ revoked: true }), now)).toBe(false);
     expect(inviteNeedsAction(invite({ expires_at: "2026-08-11T10:00:00.000Z" }), now)).toBe(false);
   });
 });

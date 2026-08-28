@@ -49,7 +49,6 @@ type StudentRow = {
   learning_style?: string | null;
   birthdate: string | null;
   membership_status?: string | null;
-  financial_status?: string | null;
   inactivated_at?: string | null;
   inactivated_by?: string | null;
   inactivation_reason?: string | null;
@@ -79,7 +78,8 @@ const mapStudent = (row: StudentRow): Student => ({
   learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
   birthDate: row.birthdate ?? "",
   membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
-  financialStatus: row.financial_status === "delinquent" ? "delinquent" : "regular",
+  // Student self/role resolution never loads protected financial data.
+  financialStatus: "unknown",
   inactivatedAt: row.inactivated_at ?? null,
   inactivatedBy: row.inactivated_by ?? null,
   inactivationReason: row.inactivation_reason ?? null,

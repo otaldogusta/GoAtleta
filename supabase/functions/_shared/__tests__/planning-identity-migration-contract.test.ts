@@ -14,6 +14,34 @@ const migrationSource = readFileSync(
 );
 
 describe("planning identity migration contract", () => {
+  test("repairs the canonical planning columns before reconciling rows", () => {
+    const compatibilityStart = migrationSource.indexOf(
+      "alter table public.planning_cycles"
+    );
+    const reconciliationStart = migrationSource.indexOf(
+      "insert into public.planning_cycles"
+    );
+
+    expect(compatibilityStart).toBeGreaterThanOrEqual(0);
+    expect(compatibilityStart).toBeLessThan(reconciliationStart);
+    expect(migrationSource).toContain("add column if not exists start_date date");
+    expect(migrationSource).toContain("add column if not exists end_date date");
+    expect(migrationSource).toContain("add column if not exists cycle_id text");
+    expect(migrationSource).toContain("add column if not exists created_at timestamptz");
+  });
+
+  test("creates the workspace cycle identity used by ON CONFLICT", () => {
+    expect(migrationSource).toContain(
+      "on public.planning_cycles (organization_id, classid, year)"
+    );
+    expect(migrationSource).toContain(
+      "on conflict (organization_id, classid, year) do nothing"
+    );
+    expect(migrationSource).toContain(
+      "planning_cycles contains duplicate organization/class/year identities"
+    );
+  });
+
   test("audits losing weekly plans before deleting true duplicates", () => {
     expect(migrationSource).toContain("private.planning_reconciliation_audit");
     expect(migrationSource).toContain("to_jsonb(losers)");

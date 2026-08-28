@@ -6,6 +6,7 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { useAuth } from "../../src/auth/auth";
 import { useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
+import { COPILOT_FAB_RIGHT, COPILOT_FAB_SIZE, resolveCopilotCompanionFabBottom } from "../../src/copilot/components/CopilotFab";
 
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
@@ -14,11 +15,11 @@ import { useCopilotActions, useCopilotContext } from "../../src/copilot/CopilotP
 import type { CopilotAction, CopilotOperationalFact } from "../../src/copilot/types";
 import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
 import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-development-level";
-import type { ClassGroup, ScoutingLog, TrainingPlan } from "../../src/core/models";
+import type { ClassGroup, SessionLog, TrainingPlan } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import { ROSTER_FUNDAMENTALS, buildRosterFundamentalsByDay, buildRosterMonthEntries, getBlockForToday, getSuggestedFundamentalsForClass, type RosterFundamental } from "../../src/core/periodization";
-import { deleteClassCascade, deleteTrainingPlan, deleteTrainingPlansByClassAndDate, getAttendanceByClass, getClassById, getClassCalendarExceptions, getClassPlansByClass, getClasses, getDailyLessonPlanByWeekAndDate, getLatestScoutingLog, getLatestTrainingPlanByClass, getStudentsByClass, getTrainingPlans, saveTrainingPlan, updateClass, updateClassColor } from "../../src/db/seed";
+import { deleteClassCascade, deleteTrainingPlan, deleteTrainingPlansByClassAndDate, getAttendanceByClass, getAttendanceByDate, getClassById, getClassCalendarExceptions, getClassPlansByClass, getClasses, getDailyLessonPlanByWeekAndDate, getLatestTrainingPlanByClass, getSessionLogByDate, getSessionLogsByClass, getStudentsByClass, getTrainingPlans, saveTrainingPlan, updateClass, updateClassColor } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { logAction } from "../../src/observability/breadcrumbs";
@@ -28,11 +29,11 @@ import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 import { classRosterHtml } from "../../src/pdf/templates/class-roster";
 import { ClassEditModalBody, ClassEditModalPickers } from "../../src/screens/classes/components/ClassEditModalBody";
 import { getClassScheduleOverlapDays } from "../../src/screens/classes/application/class-schedule-conflicts";
-import { ClassContextStrip, ClassOperationsWorkspace, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
+import { ClassContextStrip, ClassOperationsWorkspace, type ClassOperationalStatus, type ClassRecentTrainingSummary, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
 import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
 import { useStudentNfcBinding } from "../../src/screens/attendance/use-student-nfc-binding";
-import { parseClassWorkspaceRouteDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
+import { parseClassWorkspaceRouteDate, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
 import type { ClassPlanPeriodizationSource } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
@@ -191,6 +192,7 @@ export default function ClassDetails() {
   });
   const rosterModalHeight = Platform.OS === "web" ? "82%" : "90%";
   const rosterColumnsHeaderWidth = Math.min(260, Math.max(170, windowWidth * 0.34));
+  const stackRosterExportActions = windowWidth < 620;
   const isCompactEditModal = Platform.OS !== "web" && windowWidth <= 760;
   const editModalCardStyle = useModalCardStyle({
     maxHeight: Platform.OS === "web" ? "92%" : "96%",
@@ -263,9 +265,21 @@ export default function ClassDetails() {
   const requestedWorkspaceSection = resolveClassWorkspaceRouteSection(section);
   const requestedLessonDate = parseClassWorkspaceRouteDate(date);
   const [workspaceSection, setWorkspaceSection] = useState<ClassWorkspaceSection>(() => requestedWorkspaceSection);
+  const [classNavigationOpen, setClassNavigationOpen] = useState(false);
   const [showAttendanceCloseConfirm, setShowAttendanceCloseConfirm] = useState(false);
   const pendingAttendanceAction = useRef<(() => void) | null>(null);
   const allowAttendanceNavigation = useRef(false);
+  const lessonOperationalLoadRequestId = useRef(0);
+  const recentTrainingLoadRequestId = useRef(0);
+  const [lessonOperationalSnapshot, setLessonOperationalSnapshot] = useState<{
+    dateKey: string;
+    activeStudentCount: number;
+    markedStudentCount: number;
+    hasReport: boolean;
+  } | null>(null);
+  const [lessonOperationalLoading, setLessonOperationalLoading] = useState(true);
+  const [lessonOperationalUnavailable, setLessonOperationalUnavailable] = useState(false);
+  const [recentSessionLogs, setRecentSessionLogs] = useState<SessionLog[] | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
@@ -356,7 +370,6 @@ export default function ClassDetails() {
   const [cycleStartDate, setCycleStartDate] = useState("");
   const [cycleLengthWeeks, setCycleLengthWeeks] = useState<number>(annualCycleOptions[annualCycleOptions.length - 1]);
   const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
-  const [latestScouting, setLatestScouting] = useState<ScoutingLog | null>(null);
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([]);
   const [goal, setGoal] = useState<ClassGroup["goal"]>("Fundamentos");
   const [editCustomGoal, setEditCustomGoal] = useState("");
@@ -661,8 +674,101 @@ export default function ClassDetails() {
   const scheduleLabel = `${scheduleDaysLabel} · ${classStartTime}`;
   const nextClassDate = calculateCurrentOrNextClassDate(classDays, classStartTime, classDuration);
   const nextClassLabel = nextClassDate ? formatNextClassDate(nextClassDate) : "Não definida";
-  const selectedLessonDate = lessonDate ?? requestedLessonDate ?? nextClassDate;
+  const selectedLessonDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, nextClassDate);
   const selectedLessonDateKey = selectedLessonDate ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}` : "";
+  const operationalClassId = cls?.id ?? String(id ?? "");
+  const operationalOrganizationId = activeOrganization?.id ?? null;
+  const loadLessonOperationalSnapshot = useCallback(async () => {
+    const requestId = lessonOperationalLoadRequestId.current + 1;
+    lessonOperationalLoadRequestId.current = requestId;
+
+    if (!operationalClassId || !selectedLessonDateKey) {
+      setLessonOperationalSnapshot(null);
+      setLessonOperationalLoading(false);
+      setLessonOperationalUnavailable(false);
+      return;
+    }
+
+    setLessonOperationalLoading(true);
+    setLessonOperationalUnavailable(false);
+    try {
+      const [students, attendance, report] = await Promise.all([
+        getStudentsByClass(operationalClassId, { organizationId: operationalOrganizationId }),
+        getAttendanceByDate(operationalClassId, selectedLessonDateKey, { organizationId: operationalOrganizationId }),
+        getSessionLogByDate(operationalClassId, selectedLessonDateKey, { organizationId: operationalOrganizationId }),
+      ]);
+      if (lessonOperationalLoadRequestId.current !== requestId) return;
+
+      const activeStudentIds = new Set(students.map((student) => student.id));
+      const markedStudentIds = new Set(
+        attendance
+          .filter((record) => activeStudentIds.has(record.studentId))
+          .map((record) => record.studentId),
+      );
+      setLessonOperationalSnapshot({
+        dateKey: selectedLessonDateKey,
+        activeStudentCount: activeStudentIds.size,
+        markedStudentCount: markedStudentIds.size,
+        hasReport: Boolean(report),
+      });
+    } catch {
+      if (lessonOperationalLoadRequestId.current !== requestId) return;
+      setLessonOperationalSnapshot(null);
+      setLessonOperationalUnavailable(true);
+    } finally {
+      if (lessonOperationalLoadRequestId.current === requestId) {
+        setLessonOperationalLoading(false);
+      }
+    }
+  }, [operationalClassId, operationalOrganizationId, selectedLessonDateKey]);
+
+  const loadRecentTrainingHistory = useCallback(async () => {
+    const requestId = recentTrainingLoadRequestId.current + 1;
+    recentTrainingLoadRequestId.current = requestId;
+    if (!operationalClassId) {
+      setRecentSessionLogs([]);
+      return;
+    }
+
+    try {
+      const logs = await getSessionLogsByClass(operationalClassId, {
+        organizationId: operationalOrganizationId,
+        limit: 12,
+      });
+      if (recentTrainingLoadRequestId.current === requestId) {
+        setRecentSessionLogs(logs);
+      }
+    } catch {
+      if (recentTrainingLoadRequestId.current === requestId) {
+        setRecentSessionLogs([]);
+      }
+    }
+  }, [operationalClassId, operationalOrganizationId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) return loadLessonOperationalSnapshot();
+      return undefined;
+    });
+    return () => {
+      cancelled = true;
+      lessonOperationalLoadRequestId.current += 1;
+    };
+  }, [loadLessonOperationalSnapshot]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) return loadRecentTrainingHistory();
+      return undefined;
+    });
+    return () => {
+      cancelled = true;
+      recentTrainingLoadRequestId.current += 1;
+    };
+  }, [loadRecentTrainingHistory]);
+
   const embeddedAttendance = useEmbeddedClassAttendance({
     classId: cls?.id ?? String(id ?? ""),
     date: selectedLessonDateKey,
@@ -723,14 +829,87 @@ export default function ClassDetails() {
   }, [embeddedAttendance.hasChanges, workspaceSection]);
   const selectedLessonWeekday = selectedLessonDate ? (selectedLessonDate.getDay() === 0 ? 7 : selectedLessonDate.getDay()) : undefined;
   const lessonDateLabel = selectedLessonDate ? `${String(selectedLessonDate.getDate()).padStart(2, "0")}/${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}/${selectedLessonDate.getFullYear()}` : "Próxima aula";
-  const contactStatusValue = missingContactCount === null ? "—" : missingContactCount > 0 ? `${missingContactCount} pendentes` : "Em dia";
-  const contactStatusLabel = missingContactCount === null ? "contatos a verificar" : missingContactCount > 0 ? "contatos para atualizar" : "contatos atualizados";
-  const reportStatusValue = latestScouting ? formatShortDate(latestScouting.date) : "Pendente";
-  const reportStatusLabel = latestScouting ? "último relatório" : "registre a última aula";
+  const currentLessonOperationalSnapshot =
+    lessonOperationalSnapshot?.dateKey === selectedLessonDateKey
+      ? lessonOperationalSnapshot
+      : null;
+  const attendanceOperationalStatus = useMemo<ClassOperationalStatus>(() => {
+    if (!selectedLessonDateKey) {
+      return { state: "pending", label: "Pendente", detail: "Selecione a data da aula." };
+    }
+    if (lessonOperationalUnavailable) {
+      return { state: "unavailable", label: "Não verificada", detail: "Não foi possível verificar a chamada." };
+    }
+    if (lessonOperationalLoading || !currentLessonOperationalSnapshot) {
+      return { state: "loading", label: "Verificando", detail: "Consultando os registros da aula." };
+    }
+    if (currentLessonOperationalSnapshot.activeStudentCount === 0) {
+      return { state: "pending", label: "Pendente", detail: "Sem atletas ativos para registrar." };
+    }
+    if (
+      currentLessonOperationalSnapshot.markedStudentCount ===
+      currentLessonOperationalSnapshot.activeStudentCount
+    ) {
+      return {
+        state: "completed",
+        label: "Concluída",
+        detail: "Todos os atletas ativos possuem registro.",
+      };
+    }
+    const remaining =
+      currentLessonOperationalSnapshot.activeStudentCount -
+      currentLessonOperationalSnapshot.markedStudentCount;
+    return {
+      state: "pending",
+      label: "Pendente",
+      detail: `${remaining} ${remaining === 1 ? "atleta ainda está" : "atletas ainda estão"} sem registro.`,
+    };
+  }, [
+    currentLessonOperationalSnapshot,
+    lessonOperationalLoading,
+    lessonOperationalUnavailable,
+    selectedLessonDateKey,
+  ]);
+  const reportOperationalStatus = useMemo<ClassOperationalStatus>(() => {
+    if (!selectedLessonDateKey) {
+      return { state: "pending", label: "Pendente", detail: "Selecione a data da aula." };
+    }
+    if (lessonOperationalUnavailable) {
+      return { state: "unavailable", label: "Não verificado", detail: "Não foi possível verificar o relatório." };
+    }
+    if (lessonOperationalLoading || !currentLessonOperationalSnapshot) {
+      return { state: "loading", label: "Verificando", detail: "Consultando os registros da aula." };
+    }
+    return currentLessonOperationalSnapshot.hasReport
+      ? { state: "completed", label: "Concluído", detail: "Relatório desta aula registrado." }
+      : { state: "pending", label: "Pendente", detail: "Registre o treino realizado." };
+  }, [
+    currentLessonOperationalSnapshot,
+    lessonOperationalLoading,
+    lessonOperationalUnavailable,
+    selectedLessonDateKey,
+  ]);
+  const recentTrainingSummaries = useMemo<ClassRecentTrainingSummary[] | null>(() => {
+    if (recentSessionLogs === null) return null;
+    const seenDates = new Set<string>();
+    const summaries: ClassRecentTrainingSummary[] = [];
+    recentSessionLogs.forEach((log, index) => {
+      const dateKey = String(log.createdAt ?? "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || seenDates.has(dateKey)) return;
+      seenDates.add(dateKey);
+      summaries.push({
+        id: log.id ?? log.clientId ?? `${dateKey}-${index}`,
+        dateKey,
+        dateLabel: formatShortDate(dateKey),
+        title: log.activity.trim() || log.conclusion.trim() || "Treino registrado",
+      });
+    });
+    return summaries.slice(0, 3);
+  }, [recentSessionLogs]);
   const handleShiftLessonDate = useCallback(
     (direction: -1 | 1) => {
     requestAttendanceAction(() => {
-      const baseDate = lessonDate ?? nextClassDate;
+      const baseDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, nextClassDate);
       if (!baseDate || classDays.length === 0) return;
       const nextDate = calculateAdjacentClassDate(classDays, baseDate, direction);
       if (nextDate) {
@@ -739,7 +918,7 @@ export default function ClassDetails() {
       }
     });
     },
-    [classDays, lessonDate, nextClassDate, requestAttendanceAction],
+    [classDays, lessonDate, nextClassDate, requestAttendanceAction, requestedLessonDate],
   );
   const handleLessonDateChange = (value: string) => {
     requestAttendanceAction(() => {
@@ -827,9 +1006,8 @@ export default function ClassDetails() {
           setCoachNameOverride(data?.id ? (coachNameByClass[data.id] ?? "") : "");
           setLoading(false);
         }
-        void Promise.all([getLatestScoutingLog(id).catch(() => null), getStudentsByClass(id).catch(() => [])]).then(([scouting, students]) => {
+        void getStudentsByClass(id).catch(() => []).then((students) => {
           if (!alive) return;
-          setLatestScouting(scouting);
           setStudentCount(students.length);
           setMissingContactCount(students.filter((student) => getContactPhone(student).status !== "ok").length);
         });
@@ -1607,15 +1785,35 @@ export default function ClassDetails() {
     );
   }
 
-  const onDelete = () => {
+  const onDelete = async () => {
     if (!cls) return;
     const targetClassId = cls.id;
+    try {
+      const linkedStudents = await measure("deleteClassStudentPreflight", () =>
+        getStudentsByClass(targetClassId, { includeInactive: true })
+      );
+      if (linkedStudents.length > 0) {
+        showSaveToast({
+          variant: "error",
+          message: `${linkedStudents.length} atleta(s) permanecem vinculados. Mova-os para outra turma ou mantenha esta turma como histórico.`,
+        });
+        return;
+      }
+    } catch (error) {
+      showSaveToast({
+        error,
+        variant: "error",
+        message: "Não foi possível confirmar se a turma está vazia.",
+      });
+      return;
+    }
     Vibration.vibrate([0, 80, 60, 80]);
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
     confirm({
-      title: "Excluir turma?",
-      message: "Isso remove planejamentos, chamadas e alunos da turma. Deseja excluir?",
+      title: "Excluir turma vazia?",
+      message:
+        "Isso remove planejamentos e chamadas da turma. Cadastros de atletas não são apagados por esta ação.",
       confirmLabel: "Excluir",
       cancelLabel: "Cancelar",
       undoLabel: "Desfazer",
@@ -1816,7 +2014,7 @@ export default function ClassDetails() {
         .sort((a, b) => a.date.localeCompare(b.date))
         .map((record) => {
           const student = studentById.get(record.studentId);
-          return [record.date.split("-").reverse().join("/"), cls.name, student?.name ?? "Aluno não localizado", student?.membershipStatus === "inactive" ? "Inativo" : "Ativo", student?.financialStatus === "delinquent" ? "Inadimplente" : "Regular", record.status === "presente" ? "Presente" : "Faltou"];
+          return [record.date.split("-").reverse().join("/"), cls.name, student?.name ?? "Aluno não localizado", student ? (student.membershipStatus === "inactive" ? "Inativo" : "Ativo") : "Não localizado", record.status === "presente" ? "Presente" : "Faltou"];
         });
 
       const fileName = `chamada-${slugify(cls.name)}-${monthKey}.xlsx`;
@@ -1826,11 +2024,11 @@ export default function ClassDetails() {
         sheets: [
           {
             name: "Chamadas",
-            rows: [["Data", "Turma", "Atleta", "Situação", "Financeiro", "Presença"], ...periodRows],
+            rows: [["Data", "Turma", "Atleta", "Situação", "Presença"], ...periodRows],
             options: {
               freezeHeaderRow: true,
               autoFilterHeaderRow: true,
-              columnWidths: [13, 24, 28, 14, 16, 14],
+              columnWidths: [13, 24, 28, 16, 14],
             },
           },
         ],
@@ -1959,10 +2157,26 @@ export default function ClassDetails() {
     requestAttendanceAction(() => setShowReportModal(true));
   };
 
+  const handleCloseReport = () => {
+    setShowReportModal(false);
+    void loadLessonOperationalSnapshot();
+    void loadRecentTrainingHistory();
+  };
+
+  const handleOpenRecentTraining = (dateKey: string) => {
+    requestAttendanceAction(() => {
+      const trainingDate = parseIsoDate(dateKey);
+      if (!trainingDate) return;
+      setLessonDate(trainingDate);
+      setShowReportModal(true);
+    });
+  };
+
   const handleSaveEmbeddedAttendance = async () => {
     try {
       const result = await embeddedAttendance.save();
       if (!result) return;
+      await loadLessonOperationalSnapshot();
       showSaveToast({
         message: result.status === "queued" ? "Chamada salva no dispositivo. Será enviada quando a internet voltar." : "Chamada sincronizada.",
         variant: result.status === "queued" ? "warning" : "success",
@@ -2051,9 +2265,12 @@ export default function ClassDetails() {
         <ClassOperationsWorkspace
           colors={colors}
           compact={compactClassWorkspace}
+          compactNavigationOpen={classNavigationOpen}
+          onCompactNavigationOpenChange={setClassNavigationOpen}
+          showCompactNavigationFab={false}
           activeSection={workspaceSection}
           onSelectSection={handleSelectWorkspaceSection}
-            attendanceContent={({ dense }) => <ClassAttendanceWorkspacePanel colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} dense={dense} dateLabel={lessonDateLabel} students={embeddedAttendance.students} statusById={embeddedAttendance.statusById} detailsById={embeddedAttendance.detailsById} markedCount={embeddedAttendance.markedCount} hasChanges={embeddedAttendance.hasChanges} isLoading={embeddedAttendance.isLoading} isSaving={embeddedAttendance.isSaving} error={embeddedAttendance.error} onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)} onOpenCalendar={() => setShowLessonDatePicker(true)} onOpenReport={handleOpenReport} onSetStatus={embeddedAttendance.setStudentStatus} onSetDetails={embeddedAttendance.setStudentDetails} onSave={() => void handleSaveEmbeddedAttendance()} onBindStudentNfc={canManageStudentNfc ? studentNfcBinding.bindStudentTag : undefined} nfcBindingStudentId={studentNfcBinding.scanningStudentId} />}
+            attendanceContent={({ dense }) => <ClassAttendanceWorkspacePanel colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} dense={dense} dateLabel={lessonDateLabel} students={embeddedAttendance.students} statusById={embeddedAttendance.statusById} detailsById={embeddedAttendance.detailsById} markedCount={embeddedAttendance.markedCount} hasChanges={embeddedAttendance.hasChanges} isLoading={embeddedAttendance.isLoading} isSaving={embeddedAttendance.isSaving} loadFailed={embeddedAttendance.loadFailed} error={embeddedAttendance.error} onRetry={embeddedAttendance.loadFailed ? () => void embeddedAttendance.reload() : undefined} onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)} onOpenCalendar={() => setShowLessonDatePicker(true)} onOpenReport={handleOpenReport} onSetStatus={embeddedAttendance.setStudentStatus} onSetDetails={embeddedAttendance.setStudentDetails} onSave={() => void handleSaveEmbeddedAttendance()} onBindStudentNfc={canManageStudentNfc ? studentNfcBinding.bindStudentTag : undefined} nfcBindingStudentId={studentNfcBinding.scanningStudentId} />}
           scheduleLabel={scheduleLabel}
           lessonDateLabel={lessonDateLabel}
           appliedPlan={appliedPlan}
@@ -2064,14 +2281,13 @@ export default function ClassDetails() {
           onViewPlan={handleViewAppliedPlan}
           onGeneratePlan={handleGeneratePlan}
           isGeneratingPlan={isGeneratingPlan}
-          studentCount={studentCount}
-          contactStatusValue={contactStatusValue}
-          contactStatusLabel={contactStatusLabel}
-          reportStatusValue={reportStatusValue}
-          reportStatusLabel={reportStatusLabel}
+          attendanceStatus={attendanceOperationalStatus}
+          reportStatus={reportOperationalStatus}
+          recentTrainings={recentTrainingSummaries}
           onOpenSession={handleOpenSession}
           onOpenAttendance={handleOpenAttendance}
           onOpenReport={handleOpenReport}
+          onOpenRecentTraining={handleOpenRecentTraining}
           onOpenPlanning={handleOpenPlanning}
           onOpenVisualTech={handleOpenVisualTech}
           onOpenScouting={handleOpenScouting}
@@ -2081,11 +2297,37 @@ export default function ClassDetails() {
         />
       </ScrollView>
 
+        {compactClassWorkspace && !classNavigationOpen ? (
+          <Pressable
+            onPress={() => setClassNavigationOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir menu da turma"
+            style={({ pressed }) => ({
+              position: "absolute",
+              right: COPILOT_FAB_RIGHT,
+              bottom: resolveCopilotCompanionFabBottom(insets.bottom),
+              width: COPILOT_FAB_SIZE,
+              height: COPILOT_FAB_SIZE,
+              borderWidth: 1,
+              borderColor: colors.border,
+              borderRadius: 999,
+              backgroundColor: colors.card,
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 5100,
+              elevation: 12,
+              opacity: pressed ? 0.76 : 1,
+            })}
+          >
+            <GoAtletaIcon name="list" size={24} color={colors.primaryBg} />
+          </Pressable>
+        ) : null}
+
         <ConfirmCloseOverlay visible={showAttendanceCloseConfirm} title="Chamada não salva" message="Descarte as alterações ou continue editando." cancelLabel="Continuar editando" discardLabel="Descartar" showConfirmAction={false} onConfirm={discardAttendanceAndContinue} onDiscard={discardAttendanceAndContinue} onCancel={keepEditingAttendance} />
 
       <ModalSheet
         visible={showReportModal}
-        onClose={() => setShowReportModal(false)}
+        onClose={handleCloseReport}
         position="center"
         cardStyle={[
           reportModalCardStyle,
@@ -2095,7 +2337,7 @@ export default function ClassDetails() {
           },
         ]}
       >
-          {showReportModal ? <SessionScreen embeddedReport embeddedDate={selectedLessonDateKey} onCloseEmbeddedReport={() => setShowReportModal(false)} /> : null}
+          {showReportModal ? <SessionScreen embeddedReport embeddedDate={selectedLessonDateKey} onCloseEmbeddedReport={handleCloseReport} /> : null}
       </ModalSheet>
 
       {appliedPlan && cls ? (
@@ -2404,7 +2646,7 @@ export default function ClassDetails() {
                 <Button label={saving ? "Salvando..." : "Salvar alterações"} onPress={handleSaveEdit} disabled={saving || !name.trim() || !isEditDirty} loading={saving} />
               </View>
               <View style={{ flex: 1 }}>
-                <Button label="Excluir turma" variant="danger" onPress={onDelete} disabled={saving} loading={false} />
+                <Button label="Excluir turma vazia" variant="danger" onPress={() => void onDelete()} disabled={saving} loading={false} />
               </View>
             </View>
           </View>
@@ -2968,23 +3210,33 @@ export default function ClassDetails() {
             paddingTop: 12,
             borderTopWidth: 1,
             borderTopColor: colors.border,
-            flexDirection: windowWidth < 620 ? "column" : "row",
+            flexDirection: stackRosterExportActions ? "column" : "row",
+            alignItems: "stretch",
+            flexShrink: 0,
             gap: 10,
           }}
         >
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Baixar PDF"
             onPress={() => {
               closeRosterExportModal();
               void exportRosterPdf(rosterMonthValue, rosterExportOptions);
             }}
             style={{
-              flex: 1,
-              paddingVertical: 13,
+              flex: stackRosterExportActions ? undefined : 1,
+              minHeight: 48,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
               borderRadius: 12,
               backgroundColor: colors.primaryBg,
+              flexDirection: "row",
               alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
             }}
           >
+            <GoAtletaIcon name="download" size={17} color={colors.primaryText} />
               <Text
                 style={{
                   color: colors.primaryText,
@@ -2996,20 +3248,28 @@ export default function ClassDetails() {
             </Text>
           </Pressable>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Baixar XLSX"
             onPress={() => {
               closeRosterExportModal();
               void exportAttendancePeriodXlsx(rosterMonthValue);
             }}
             style={{
-              flex: 1,
-              paddingVertical: 13,
+              flex: stackRosterExportActions ? undefined : 1,
+              minHeight: 48,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
               borderRadius: 12,
               borderWidth: 1,
               borderColor: colors.primaryBg,
               backgroundColor: colors.card,
+              flexDirection: "row",
               alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
             }}
           >
+            <GoAtletaIcon name="download" size={17} color={colors.successText} />
               <Text
                 style={{
                   color: colors.successText,

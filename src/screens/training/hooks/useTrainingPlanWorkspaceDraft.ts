@@ -22,6 +22,13 @@ type PendingWorkspaceDraft = {
   signature: string;
 };
 
+export type TrainingPlanWorkspaceDraftFlushResult =
+  | { persisted: true; reason: "saved" | "already_saved" }
+  | {
+      persisted: false;
+      reason: "missing_draft" | "unavailable" | "write_failed" | "newer_draft_pending";
+    };
+
 const draftSignature = (plan: TrainingPlan, lessonDate: string) =>
   JSON.stringify({ plan, lessonDate });
 
@@ -33,9 +40,16 @@ export function useTrainingPlanWorkspaceDraft(key: string | null) {
   const persistedSignatureRef = useRef("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const persistCurrentDraft = useCallback(async () => {
+  const persistCurrentDraft = useCallback(async (): Promise<TrainingPlanWorkspaceDraftFlushResult> => {
     const current = pendingRef.current;
-    if (!key || !current || current.signature === persistedSignatureRef.current) return;
+    if (!current) return { persisted: false, reason: "missing_draft" };
+    if (!key) {
+      setStatus("error");
+      return { persisted: false, reason: "unavailable" };
+    }
+    if (current.signature === persistedSignatureRef.current) {
+      return { persisted: true, reason: "already_saved" };
+    }
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -43,11 +57,19 @@ export function useTrainingPlanWorkspaceDraft(key: string | null) {
     setStatus("saving");
     try {
       const saved = await saveTrainingPlanWorkspaceDraft(key, current.plan, current.lessonDate);
-      if (!saved) return;
+      if (!saved) {
+        if (pendingRef.current?.signature === current.signature) setStatus("error");
+        return { persisted: false, reason: "write_failed" };
+      }
       persistedSignatureRef.current = current.signature;
-      if (pendingRef.current?.signature === current.signature) setStatus("saved");
+      if (pendingRef.current?.signature !== current.signature) {
+        return { persisted: false, reason: "newer_draft_pending" };
+      }
+      setStatus("saved");
+      return { persisted: true, reason: "saved" };
     } catch {
       if (pendingRef.current?.signature === current.signature) setStatus("error");
+      return { persisted: false, reason: "write_failed" };
     }
   }, [key]);
 

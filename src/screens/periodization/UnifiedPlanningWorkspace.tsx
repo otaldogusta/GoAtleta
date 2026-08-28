@@ -6,6 +6,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
@@ -39,6 +40,7 @@ import {
   resolveUnifiedPlanningContextLayout,
   type MonthCyclePresentation,
 } from "./application/unified-planning-view-model";
+import { resolveClassPlanModalSafeAreaPadding } from "./application/class-plan-modal-safe-area";
 import {
   PeriodizationLoadCurve,
   type PeriodizationLoadCurveDraft,
@@ -115,7 +117,13 @@ function ClassPlanLoadingContent({ colors, className, lessonDate, onClose }: Omi
 
 function ClassPlanModalHost({ colors, className, lessonDate, onClose, children }: ClassPlanModalHostProps) {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const compact = width < 980;
+  const modalContentSafeAreaStyle = {
+    flex: 1,
+    minHeight: 0,
+    ...resolveClassPlanModalSafeAreaPadding(compact, insets),
+  } as const;
 
   return (
     <ModalSheet
@@ -135,14 +143,16 @@ function ClassPlanModalHost({ colors, className, lessonDate, onClose, children }
         overflow: "hidden",
       }}
     >
-      {children ?? (
-        <ClassPlanLoadingContent
-          colors={colors}
-          className={className}
-          lessonDate={lessonDate}
-          onClose={onClose}
-        />
-      )}
+      <View style={modalContentSafeAreaStyle}>
+        {children ?? (
+          <ClassPlanLoadingContent
+            colors={colors}
+            className={className}
+            lessonDate={lessonDate}
+            onClose={onClose}
+          />
+        )}
+      </View>
     </ModalSheet>
   );
 }

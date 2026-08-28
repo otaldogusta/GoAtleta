@@ -330,13 +330,15 @@ function OverflowSummary({
   );
 }
 
-function MemberActionMenu({
+export function MemberActionMenu({
   member,
+  viewportHeight,
   onEdit,
   onMessage,
   onDeactivate,
 }: {
   member: OrgMember;
+  viewportHeight: number;
   onEdit: (member: OrgMember) => void;
   onMessage: (member: OrgMember) => void;
   onDeactivate: (member: OrgMember) => void;
@@ -361,69 +363,158 @@ function MemberActionMenu({
       onPress: () => onDeactivate(member),
     },
   ];
+  const nativeMenuMaxHeight = Math.min(
+    360,
+    Math.max(160, viewportHeight - 96),
+    Math.max(0, viewportHeight - 16)
+  );
+
+  const close = () => setOpen(false);
+  const toggle = () => {
+    if (open) {
+      close();
+      return;
+    }
+    if (Platform.OS !== "web") {
+      setOpen(true);
+      return;
+    }
+    triggerRef.current?.measureInWindow((x, y, width, height) => {
+      setLayout({ x: x - 188 + width, y, width: 188, height });
+      setOpen(true);
+    });
+  };
 
   return (
     <>
       <View ref={triggerRef}>
         <Pressable
+          accessibilityRole="button"
           accessibilityLabel={`Ações de ${member.displayName}`}
-          onPress={() => {
-          if (open) {
-            setOpen(false);
-            return;
-          }
-          triggerRef.current?.measureInWindow((x, y, width, height) => {
-            setLayout({ x: x - 188 + width, y, width: 188, height });
-            setOpen(true);
-          });
-          }}
-          style={{ width: 30, height: 30, alignItems: "center", justifyContent: "center" }}
+          accessibilityState={{ expanded: open }}
+          onPress={toggle}
+          style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
         >
           <GoAtletaIcon name="ellipsisHorizontal" size={19} color={colors.text} />
         </Pressable>
       </View>
-      <AnchoredDropdown
-        visible={open}
-        layout={layout}
-        container={null}
-        animationStyle={{}}
-        zIndex={4300}
-        maxHeight={166}
-        nestedScrollEnabled
-        density="compact"
-        showVerticalScrollIndicator={false}
-        onRequestClose={() => setOpen(false)}
-        interactiveRefs={[triggerRef]}
-      >
-        {actions.map((action) => (
-          <AnchoredDropdownOption
-            key={action.label}
-            active={false}
-            density="compact"
-            onPress={() => {
-              setOpen(false);
-              action.onPress();
+      {Platform.OS === "web" ? (
+        <AnchoredDropdown
+          visible={open}
+          layout={layout}
+          container={null}
+          animationStyle={{}}
+          zIndex={4300}
+          maxHeight={166}
+          nestedScrollEnabled
+          density="compact"
+          showVerticalScrollIndicator={false}
+          onRequestClose={close}
+          interactiveRefs={[triggerRef]}
+        >
+          {actions.map((action) => (
+            <AnchoredDropdownOption
+              key={action.label}
+              active={false}
+              density="compact"
+              onPress={() => {
+                close();
+                action.onPress();
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <GoAtletaIcon
+                  name={action.icon}
+                  size={15}
+                  color={action.destructive ? colors.dangerText : colors.text}
+                />
+                <Text
+                  style={{
+                    color: action.destructive ? colors.dangerText : colors.text,
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  {action.label}
+                </Text>
+              </View>
+            </AnchoredDropdownOption>
+          ))}
+        </AnchoredDropdown>
+      ) : (
+        <ModalSheet
+          visible={open}
+          onClose={close}
+          position="bottom"
+          cardStyle={{ width: "100%", maxHeight: nativeMenuMaxHeight, padding: 12, gap: 4 }}
+        >
+          <View
+            style={{
+              minHeight: 48,
+              paddingLeft: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <GoAtletaIcon
-                name={action.icon}
-                size={15}
-                color={action.destructive ? colors.dangerText : colors.text}
-              />
-              <Text
+            <Text
+              accessibilityRole="header"
+              numberOfLines={1}
+              style={{ flex: 1, color: colors.text, fontSize: 16, fontWeight: "800" }}
+            >
+              Ações de {member.displayName.split(" ")[0]}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Fechar ações de ${member.displayName}`}
+              onPress={close}
+              style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+            >
+              <GoAtletaIcon name="close" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+          <ScrollView
+            style={{ flexShrink: 1 }}
+            contentContainerStyle={{ gap: 4, paddingBottom: 4 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {actions.map((action) => (
+              <Pressable
+                key={action.label}
+                accessibilityRole="button"
+                accessibilityLabel={`${action.label} de ${member.displayName}`}
+                onPress={() => {
+                  close();
+                  action.onPress();
+                }}
                 style={{
-                  color: action.destructive ? colors.dangerText : colors.text,
-                  fontSize: 13,
-                  fontWeight: "600",
+                  minHeight: 48,
+                  paddingHorizontal: 12,
+                  borderRadius: radius.internal,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
                 }}
               >
-                {action.label}
-              </Text>
-            </View>
-          </AnchoredDropdownOption>
-        ))}
-      </AnchoredDropdown>
+                <GoAtletaIcon
+                  name={action.icon}
+                  size={18}
+                  color={action.destructive ? colors.dangerText : colors.text}
+                />
+                <Text
+                  style={{
+                    color: action.destructive ? colors.dangerText : colors.text,
+                    fontSize: 14,
+                    fontWeight: "700",
+                  }}
+                >
+                  {action.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </ModalSheet>
+      )}
     </>
   );
 }
@@ -456,7 +547,7 @@ function InviteActionMenu({
               setOpen(true);
             });
           }}
-          style={{ width: 30, height: 30, alignItems: "center", justifyContent: "center" }}
+          style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
         >
           <GoAtletaIcon name="ellipsisHorizontal" size={19} color={colors.text} />
         </Pressable>
@@ -593,11 +684,11 @@ export function CoordinationPeopleWorkspace({
     getId: getPendingInviteId,
     confirm: confirmUndo,
     title: "Cancelar convite?",
-    message: "O link deixará de funcionar e o convite será removido desta lista.",
+    message: "O link deixará de funcionar e ficará registrado como cancelado.",
     confirmLabel: "Cancelar convite",
     cancelLabel: "Manter convite",
     undoLabel: "Desfazer",
-    undoMessage: "Convite removido. Deseja desfazer?",
+    undoMessage: "Cancelamento agendado. Deseja desfazer?",
     delayMs: 4500,
     deleteItems: async (ids) => {
       await Promise.all(ids.map((inviteId) => revokeTrainerInvite(inviteId, organizationId)));
@@ -994,7 +1085,7 @@ export function CoordinationPeopleWorkspace({
 
   const submitInvite = async (channel: "email" | "link") => {
     if (inviteRole === "student") {
-      router.push("/coord/students" as never);
+      router.push("/coord/management/athletes" as never);
       closeInviteModal();
       return;
     }
@@ -1330,13 +1421,15 @@ export function CoordinationPeopleWorkspace({
             const status =
               lifecycleStatus === "accepted"
                 ? "Aceito automaticamente"
-                : lifecycleStatus === "claim_failed"
-                  ? "Falha no vínculo"
-                  : lifecycleStatus === "delivery_failed"
-                    ? "Falha no envio"
-                    : lifecycleStatus === "expired"
-                      ? "Expirado"
-                      : "Convite enviado";
+                : lifecycleStatus === "revoked"
+                  ? "Cancelado"
+                  : lifecycleStatus === "claim_failed"
+                    ? "Falha no vínculo"
+                    : lifecycleStatus === "delivery_failed"
+                      ? "Falha no envio"
+                      : lifecycleStatus === "expired"
+                        ? "Expirado"
+                        : "Convite enviado";
             const statusColor =
               lifecycleStatus === "accepted"
                 ? colors.successText
@@ -1473,6 +1566,32 @@ export function CoordinationPeopleWorkspace({
           year: "numeric",
         })}`}
         onBack={() => router.push("/coord/dashboard")}
+        right={
+          compact ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Abrir gestão de atletas"
+              onPress={() => router.push("/coord/management/athletes" as never)}
+              style={{
+                height: 44,
+                paddingHorizontal: 12,
+                borderRadius: radius.internal,
+                borderWidth: 1,
+                borderColor: border,
+                backgroundColor: colors.secondaryBg,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+              }}
+            >
+              <GoAtletaIcon name="students" size={17} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                Atletas
+              </Text>
+            </Pressable>
+          ) : undefined
+        }
         horizontalBleed={pageHorizontalGutter}
         style={
           Platform.OS === "web" && compact
@@ -1506,10 +1625,11 @@ export function CoordinationPeopleWorkspace({
           borderWidth: 1,
           borderColor: border,
           backgroundColor: panel,
-          paddingVertical: 15,
+          paddingVertical: compact ? 12 : 15,
           paddingHorizontal: 18,
           flexDirection: "row",
           flexWrap: compact ? "wrap" : "nowrap",
+          rowGap: compact ? 6 : 0,
         }}
       >
         {[
@@ -1524,20 +1644,33 @@ export function CoordinationPeopleWorkspace({
             style={{
               minWidth: 0,
               width: compact ? (index === 4 ? "100%" : "50%") : "20%",
-              flexDirection: "row",
+              minHeight: compact ? (index === 4 ? 42 : 60) : undefined,
+              flexDirection: compact ? (index === 4 ? "row" : "column") : "row",
               justifyContent: "center",
               alignItems: "center",
-              gap: 10,
+              gap: compact ? (index === 4 ? 8 : 3) : 10,
+              paddingHorizontal: compact ? 8 : 0,
               borderLeftWidth: !compact && index > 0 ? 1 : 0,
               borderLeftColor: border,
             }}
           >
             <GoAtletaIcon name={icon as GoAtletaIconName} size={21} color={colors.muted} />
-            <View>
-              <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
+            <View
+              style={
+                compact
+                  ? {
+                      alignItems: "center",
+                      minWidth: 0,
+                      flexDirection: index === 4 ? "row" : "column",
+                      gap: index === 4 ? 6 : 0,
+                    }
+                  : undefined
+              }
+            >
+              <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800", textAlign: compact ? "center" : "left" }}>
                 {loading ? "..." : value}
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
+              <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 11, textAlign: compact ? "center" : "left" }}>{label}</Text>
             </View>
           </View>
         ))}
@@ -1607,8 +1740,8 @@ export function CoordinationPeopleWorkspace({
                     accessibilityLabel="Convidar pessoa"
                     onPress={openInvite}
                     style={{
-                      width: 42,
-                      height: 42,
+                      width: 44,
+                      height: 44,
                       borderRadius: radius.internal,
                       borderWidth: 1,
                       borderColor: border,
@@ -1683,7 +1816,7 @@ export function CoordinationPeopleWorkspace({
                         )}
                       </Pressable>
                     ))}
-                    <View style={{ width: 30 }} />
+                    <View style={{ width: 44 }} />
                   </View>
                 ) : null}
 
@@ -1700,9 +1833,8 @@ export function CoordinationPeopleWorkspace({
                     const selected = member.userId === selectedMember?.userId;
                     const displayLabel = getMemberDisplayLabel(member, session?.user.id);
                     return (
-                      <Pressable
+                      <View
                         key={member.userId}
-                        onPress={() => setSelectedMemberId(member.userId)}
                         style={{
                           marginHorizontal: 12,
                           marginBottom: 1,
@@ -1716,97 +1848,131 @@ export function CoordinationPeopleWorkspace({
                           alignItems: "center",
                         }}
                       >
-                        <View
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Selecionar ${displayLabel}`}
+                          accessibilityState={{ selected }}
+                          onPress={() => setSelectedMemberId(member.userId)}
                           style={{
-                            flex: compact ? 1 : 1.35,
+                            flex: 1,
+                            minWidth: 0,
                             flexDirection: "row",
                             alignItems: "center",
-                            gap: 10,
                           }}
                         >
                           <View
                             style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 16,
+                              flex: compact ? 1 : 1.35,
+                              flexDirection: "row",
                               alignItems: "center",
-                              justifyContent: "center",
-                              backgroundColor: selected ? colors.primaryBg : inner,
+                              gap: 10,
                             }}
                           >
-                            <Text
-                              style={{
-                                color: selected ? colors.primaryText : colors.text,
-                                fontWeight: "800",
-                                fontSize: 11,
-                              }}
-                            >
-                              {initials(member.displayName)}
-                            </Text>
-                          </View>
-                          <Text
-                            numberOfLines={1}
-                            style={{ color: colors.text, fontWeight: "700", flex: 1 }}
-                          >
-                            {displayLabel}
-                          </Text>
-                        </View>
-                        {!compact ? (
-                          <>
-                            <Text style={{ color: colors.text, flex: 1, fontSize: 12 }}>
-                              {roleLabel(member.roleLevel)}
-                            </Text>
-                            <Text style={{ color: colors.text, flex: 0.8, fontSize: 12 }}>
-                              {assigned.length ? `${assigned.length} turmas` : "—"}
-                            </Text>
-                            <Text
-                              style={{
-                                color: attendanceCount ? colors.warningText : colors.muted,
-                                flex: 1.05,
-                                fontSize: 12,
-                              }}
-                            >
-                              {attendanceCount ? `${attendanceCount} chamadas` : "—"}
-                            </Text>
                             <View
                               style={{
-                                flex: 0.9,
-                                flexDirection: "row",
+                                width: 32,
+                                height: 32,
+                                borderRadius: 16,
                                 alignItems: "center",
-                                gap: 6,
+                                justifyContent: "center",
+                                backgroundColor: selected ? colors.primaryBg : inner,
                               }}
                             >
-                              <GoAtletaIcon
-                                name="time"
-                                size={14}
-                                color={member.lastAccessAt ? colors.secondaryText : colors.muted}
-                              />
+                              <Text
+                                style={{
+                                  color: selected ? colors.primaryText : colors.text,
+                                  fontWeight: "800",
+                                  fontSize: 11,
+                                }}
+                              >
+                                {initials(member.displayName)}
+                              </Text>
+                            </View>
+                            <View style={{ flex: 1, minWidth: 0, gap: compact ? 3 : 0 }}>
                               <Text
                                 numberOfLines={1}
+                                style={{ color: colors.text, fontWeight: "700" }}
+                              >
+                                {displayLabel}
+                              </Text>
+                              {compact ? (
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    flexWrap: "wrap",
+                                    alignItems: "center",
+                                    columnGap: 6,
+                                    rowGap: 2,
+                                  }}
+                                >
+                                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                    {roleLabel(member.roleLevel)}
+                                  </Text>
+                                  <Text style={{ color: colors.muted, fontSize: 11 }}>
+                                    {assigned.length
+                                      ? `${assigned.length} ${assigned.length === 1 ? "turma" : "turmas"}`
+                                      : "Sem turma"}
+                                  </Text>
+                                  {attendanceCount ? (
+                                    <Text style={{ color: colors.warningText, fontSize: 11 }}>
+                                      {attendanceCount} {attendanceCount === 1 ? "chamada" : "chamadas"}
+                                    </Text>
+                                  ) : null}
+                                </View>
+                              ) : null}
+                            </View>
+                          </View>
+                          {!compact ? (
+                            <>
+                              <Text style={{ color: colors.text, flex: 1, fontSize: 12 }}>
+                                {roleLabel(member.roleLevel)}
+                              </Text>
+                              <Text style={{ color: colors.text, flex: 0.8, fontSize: 12 }}>
+                                {assigned.length ? `${assigned.length} turmas` : "—"}
+                              </Text>
+                              <Text
                                 style={{
-                                  color: member.lastAccessAt ? colors.text : colors.muted,
+                                  color: attendanceCount ? colors.warningText : colors.muted,
+                                  flex: 1.05,
                                   fontSize: 12,
                                 }}
                               >
-                                {formatMemberLastAccess(member.lastAccessAt)}
+                                {attendanceCount ? `${attendanceCount} chamadas` : "—"}
                               </Text>
-                            </View>
-                            <MemberActionMenu
-                              member={member}
-                              onEdit={(value) => void openEdit(value)}
-                              onMessage={openMessage}
-                              onDeactivate={openDeactivateMember}
-                            />
-                          </>
-                        ) : (
-                          <MemberActionMenu
-                            member={member}
-                            onEdit={(value) => void openEdit(value)}
-                            onMessage={openMessage}
-                            onDeactivate={openDeactivateMember}
-                          />
-                        )}
-                      </Pressable>
+                              <View
+                                style={{
+                                  flex: 0.9,
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                <GoAtletaIcon
+                                  name="time"
+                                  size={14}
+                                  color={member.lastAccessAt ? colors.secondaryText : colors.muted}
+                                />
+                                <Text
+                                  numberOfLines={1}
+                                  style={{
+                                    color: member.lastAccessAt ? colors.text : colors.muted,
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  {formatMemberLastAccess(member.lastAccessAt)}
+                                </Text>
+                              </View>
+                            </>
+                          ) : null}
+                        </Pressable>
+                        <MemberActionMenu
+                          member={member}
+                          viewportHeight={height}
+                          onEdit={(value) => void openEdit(value)}
+                          onMessage={openMessage}
+                          onDeactivate={openDeactivateMember}
+                        />
+                      </View>
                     );
                   })}
 
@@ -2018,14 +2184,18 @@ export function CoordinationPeopleWorkspace({
                   </Text>
                 </View>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Editar perfil e permissões de ${selectedMember.displayName}`}
                   onPress={() => void openEdit(selectedMember)}
                   style={{
+                    minHeight: 44,
                     borderRadius: radius.internal,
                     borderWidth: 1,
                     borderColor: border,
                     paddingHorizontal: 12,
                     paddingVertical: 9,
                     flexDirection: "row",
+                    alignItems: "center",
                     gap: 7,
                   }}
                 >
@@ -2046,7 +2216,11 @@ export function CoordinationPeopleWorkspace({
                   <View style={{ flex: 1 }}>
                     <OverflowSummary labels={selectedClasses.map((item) => item.className)} />
                   </View>
-                  <Pressable onPress={() => void openEdit(selectedMember)}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ver todas as turmas de ${selectedMember.displayName}`}
+                    onPress={() => void openEdit(selectedMember)}
+                  >
                     <Text style={{ color: colors.infoText, fontSize: 12 }}>Ver todas</Text>
                   </Pressable>
                 </View>
@@ -2067,7 +2241,11 @@ export function CoordinationPeopleWorkspace({
                       />
                     )}
                   </View>
-                  <Pressable onPress={() => void openEdit(selectedMember)}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ver todas as permissões de ${selectedMember.displayName}`}
+                    onPress={() => void openEdit(selectedMember)}
+                  >
                     <Text style={{ color: colors.infoText, fontSize: 12 }}>Ver todas</Text>
                   </Pressable>
                 </View>
@@ -2199,6 +2377,7 @@ export function CoordinationPeopleWorkspace({
             accessibilityRole="button"
             accessibilityLabel="Fechar convite"
             onPress={requestCloseInviteModal}
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
           >
             <GoAtletaIcon name="close" size={22} color={colors.text} />
           </Pressable>
@@ -2363,7 +2542,7 @@ export function CoordinationPeopleWorkspace({
                 <Pressable
                   onPress={() => {
                     closeInviteModal();
-                    router.push("/coord/students" as never);
+                    router.push("/coord/management/athletes" as never);
                   }}
                   style={{
                     borderRadius: radius.internal,
@@ -2577,11 +2756,11 @@ export function CoordinationPeopleWorkspace({
             accessibilityLabel="Fechar perfil e permissões"
             onPress={requestCloseEditModal}
             style={{
-              width: 36,
-              height: 36,
+              width: 44,
+              height: 44,
               flexShrink: 0,
               marginLeft: 12,
-              borderRadius: 18,
+              borderRadius: 22,
               alignItems: "center",
               justifyContent: "center",
             }}
@@ -2940,7 +3119,7 @@ export function CoordinationPeopleWorkspace({
             accessibilityLabel="Fechar aviso de desativação"
             disabled={deactivateBusy}
             onPress={closeDeactivateMember}
-            style={{ width: 34, height: 34, alignItems: "center", justifyContent: "center" }}
+            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
           >
             <GoAtletaIcon name="close" size={21} color={colors.text} />
           </Pressable>

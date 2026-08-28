@@ -91,7 +91,8 @@ const baseLightColors: ThemeColors = {
   warningBg: "rgba(242, 160, 61, 0.18)",
   warningText: "#7A4309",
   warningBorder: "rgba(242, 160, 61, 0.36)",
-  dangerSolidBg: semanticColors.light.danger,
+  // Keeps white labels WCAG AA-compliant on compact solid danger surfaces.
+  dangerSolidBg: "#D13A3F",
   dangerSolidText: brandPalette.white,
   infoBg: "rgba(59, 130, 246, 0.12)",
   infoText: "#1D4ED8",

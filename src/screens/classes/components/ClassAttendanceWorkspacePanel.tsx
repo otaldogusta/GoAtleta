@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Image, Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import type { Student } from "../../../core/models";
@@ -73,7 +73,9 @@ type ClassAttendanceWorkspacePanelProps = {
   hasChanges: boolean;
   isLoading: boolean;
   isSaving: boolean;
+  loadFailed?: boolean;
   error: string | null;
+  onRetry?: () => void;
   onPrevious: () => void;
   onNext: () => void;
   onOpenCalendar: () => void;
@@ -128,7 +130,7 @@ function StudentAvatar({ student, colors, dense = false, onOpenPhoto }: { studen
   );
 }
 
-export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, dateLabel, students, statusById, detailsById, markedCount, hasChanges, isLoading, isSaving, error, onPrevious, onNext, onOpenCalendar, onOpenReport, onSetStatus, onSetDetails, onSave, onBindStudentNfc, nfcBindingStudentId = null }: ClassAttendanceWorkspacePanelProps) {
+export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, dateLabel, students, statusById, detailsById, markedCount, hasChanges, isLoading, isSaving, loadFailed = false, error, onRetry, onPrevious, onNext, onOpenCalendar, onOpenReport, onSetStatus, onSetDetails, onSave, onBindStudentNfc, nfcBindingStudentId = null }: ClassAttendanceWorkspacePanelProps) {
   const { containerRef, onLayout, width } = useContainerResponsiveLayout("content");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [photoPreviewStudent, setPhotoPreviewStudent] = useState<Student | null>(null);
@@ -138,6 +140,8 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
   const compactPanel = compact || mobile;
   const compactDesktop = compactPanel && !mobile;
   const densePanel = dense || compactDesktop;
+  const attendanceLocked = isLoading || isSaving || loadFailed;
+  const visibleError = error ?? (loadFailed ? "Não foi possível carregar a chamada." : null);
   const selectedStudentStatus = selectedStudent ? statusById[selectedStudent.id] : undefined;
   const openStudentDetails = (student: Student) => {
     const details = detailsById[student.id] ?? { note: "", painScore: 0 };
@@ -159,13 +163,13 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
     closeStudentDetails();
   };
 
-  const renderStudentRow = ({ item: student }: { item: Student }) => {
+  const renderStudentRow = (student: Student) => {
     const status = statusById[student.id];
     return (
-      <View style={[styles.studentRow, mobile ? styles.studentRowMobile : null, stacked ? styles.studentRowStacked : null, densePanel && !mobile ? styles.studentRowDense : null, { borderBottomColor: colors.border }]}>
+      <View key={student.id} style={[styles.studentRow, mobile ? styles.studentRowMobile : null, stacked ? styles.studentRowStacked : null, densePanel && !mobile ? styles.studentRowDense : null, { borderBottomColor: colors.border }]}>
         <View style={[styles.studentIdentity, mobile ? styles.studentIdentityMobile : null, stacked ? styles.studentIdentityStacked : null]}>
           <StudentAvatar student={student} colors={colors} dense={densePanel || mobile} onOpenPhoto={() => setPhotoPreviewStudent(student)} />
-          <Pressable onPress={() => openStudentDetails(student)} disabled={isSaving} accessibilityRole="button" accessibilityLabel={`Abrir dor e observações de ${student.name}`} style={({ pressed }) => [styles.studentNameButton, { opacity: pressed ? 0.72 : 1 }]}>
+          <Pressable onPress={() => openStudentDetails(student)} disabled={attendanceLocked} accessibilityRole="button" accessibilityLabel={`Abrir dor e observações de ${student.name}`} style={({ pressed }) => [styles.studentNameButton, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
             <Text numberOfLines={mobile ? 2 : 1} style={[styles.studentName, styles.studentNameButtonLabel, mobile ? styles.studentNameMobile : null, densePanel && !mobile ? styles.studentNameDense : null, { color: colors.text }]}>
               {student.name}
             </Text>
@@ -173,10 +177,10 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
         </View>
         <View style={[styles.rowActions, mobile ? styles.rowActionsMobile : null, stacked ? styles.rowActionsStacked : null, densePanel && !mobile ? styles.rowActionsDense : null]}>
           <View style={[styles.segmentedControl, mobile ? styles.segmentedControlMobile : null, stacked ? styles.segmentedControlStacked : null, densePanel && !mobile ? styles.segmentedControlDense : null, { borderColor: colors.border }]}>
-            <Pressable onPress={() => onSetStatus(student.id, "presente")} hitSlop={mobile ? 3 : undefined} disabled={isSaving} accessibilityRole="button" accessibilityState={{ selected: status === "presente" }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, status === "presente" ? { backgroundColor: colors.successBg } : null, { opacity: pressed ? 0.72 : 1 }]}>
+            <Pressable onPress={() => onSetStatus(student.id, "presente")} hitSlop={mobile ? 3 : undefined} disabled={attendanceLocked} accessibilityRole="button" accessibilityState={{ selected: status === "presente", disabled: attendanceLocked }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, status === "presente" ? { backgroundColor: colors.successBg } : null, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
               <Text style={[styles.segmentLabel, mobile || densePanel ? styles.segmentLabelDense : null, { color: status === "presente" ? colors.successText : colors.text }]}>Presente</Text>
             </Pressable>
-            <Pressable onPress={() => onSetStatus(student.id, "faltou")} hitSlop={mobile ? 3 : undefined} disabled={isSaving} accessibilityRole="button" accessibilityState={{ selected: status === "faltou" }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, styles.segmentDivider, { borderLeftColor: colors.border }, status === "faltou" ? { backgroundColor: colors.dangerBg } : null, { opacity: pressed ? 0.72 : 1 }]}>
+            <Pressable onPress={() => onSetStatus(student.id, "faltou")} hitSlop={mobile ? 3 : undefined} disabled={attendanceLocked} accessibilityRole="button" accessibilityState={{ selected: status === "faltou", disabled: attendanceLocked }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, styles.segmentDivider, { borderLeftColor: colors.border }, status === "faltou" ? { backgroundColor: colors.dangerBg } : null, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
               <Text style={[styles.segmentLabel, mobile || densePanel ? styles.segmentLabelDense : null, { color: status === "faltou" ? colors.dangerText : colors.text }]}>Faltou</Text>
             </Pressable>
           </View>
@@ -203,17 +207,19 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
       <View style={[styles.toolbar, mobile ? styles.toolbarMobile : compactDesktop ? styles.toolbarCompact : null, densePanel && !mobile ? styles.toolbarDense : null, { borderBottomColor: colors.border }]}>
         <View style={[styles.toolbarActions, mobile ? styles.toolbarActionsMobile : compactDesktop ? styles.toolbarActionsCompact : null, stacked ? styles.toolbarActionsStacked : null, densePanel && !mobile ? styles.toolbarActionsDense : null]}>
           <View style={[styles.syncSummary, stacked ? styles.syncSummaryStacked : null]}>
-            <Text numberOfLines={stacked ? undefined : 1} style={[styles.markedLabel, mobile ? styles.markedLabelMobile : compactDesktop ? styles.markedLabelCompact : null, stacked ? styles.markedLabelStacked : null, densePanel && !mobile ? styles.markedLabelDense : null, { color: colors.muted }]}>
-              <Text
-                style={{
-                  color: markedCount ? colors.successText : colors.text,
-                  fontWeight: "800",
-                }}
-              >
-                {markedCount}
+            {!loadFailed ? (
+              <Text numberOfLines={stacked ? undefined : 1} style={[styles.markedLabel, mobile ? styles.markedLabelMobile : compactDesktop ? styles.markedLabelCompact : null, stacked ? styles.markedLabelStacked : null, densePanel && !mobile ? styles.markedLabelDense : null, { color: colors.muted }]}>
+                <Text
+                  style={{
+                    color: markedCount ? colors.successText : colors.text,
+                    fontWeight: "800",
+                  }}
+                >
+                  {markedCount}
+                </Text>
+              {` de ${students.length} marcados`}
               </Text>
-            {` de ${students.length} marcados`}
-            </Text>
+            ) : null}
           </View>
           <View style={[styles.toolbarButtons, mobile ? styles.toolbarButtonsMobile : null, stacked ? styles.toolbarButtonsStacked : null]}>
             <Pressable onPress={onOpenReport} hitSlop={mobile ? 2 : undefined} accessibilityRole="button" accessibilityLabel="Abrir relatório" style={({ pressed }) => [styles.reportButton, mobile ? styles.reportButtonMobile : compactDesktop ? styles.reportButtonCompact : null, stacked ? styles.toolbarButtonStacked : null, densePanel && !mobile ? styles.reportButtonDense : null, { borderColor: colors.border, opacity: pressed ? 0.72 : 1 }]}>
@@ -222,7 +228,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
             </Pressable>
             <Pressable
               onPress={onSave}
-              disabled={!hasChanges || isSaving}
+              disabled={!hasChanges || attendanceLocked}
               accessibilityRole="button"
               accessibilityLabel="Salvar chamada"
               style={({ pressed }) => [
@@ -232,7 +238,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
                 stacked ? styles.toolbarButtonStacked : null,
                   {
                     backgroundColor: colors.primaryBg,
-                    opacity: !hasChanges || isSaving ? 0.55 : pressed ? 0.8 : 1,
+                    opacity: !hasChanges || attendanceLocked ? 0.55 : pressed ? 0.8 : 1,
                   },
               ]}
             >
@@ -244,19 +250,8 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
         </View>
       </View>
 
-        <FlatList
-          data={isLoading ? [] : students}
-          keyExtractor={(student) => student.id}
-          renderItem={renderStudentRow}
-          style={[styles.studentList, mobile ? styles.studentListMobile : null, densePanel && !mobile ? styles.studentListDense : null]}
-          nestedScrollEnabled
-          showsVerticalScrollIndicator
-          keyboardShouldPersistTaps="handled"
-          initialNumToRender={mobile ? 8 : 10}
-          maxToRenderPerBatch={8}
-          windowSize={5}
-          removeClippedSubviews={Platform.OS !== "web"}
-          ListHeaderComponent={error ? (
+        <View style={loadFailed && !isLoading ? styles.loadFailureState : null}>
+          {visibleError ? (
             <View
               style={[
                 styles.errorBanner,
@@ -266,20 +261,38 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
                 },
               ]}
             >
-              <Text style={{ color: colors.dangerText, fontWeight: "700" }}>{error}</Text>
+              <Text style={{ minWidth: 0, flex: 1, color: colors.dangerText, fontWeight: "700" }}>{visibleError}</Text>
+              {onRetry ? (
+                <Pressable
+                  onPress={onRetry}
+                  disabled={isLoading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tentar carregar a chamada novamente"
+                  style={({ pressed }) => [
+                    styles.retryButton,
+                    {
+                      backgroundColor: colors.secondaryBg,
+                      borderColor: colors.dangerBorder,
+                      opacity: isLoading ? 0.55 : pressed ? 0.72 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "900" }}>Tentar novamente</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : null}
-          ListEmptyComponent={isLoading ? (
+          {isLoading ? (
             <View style={styles.loadingState} accessibilityLiveRegion="polite">
               <ActivityIndicator size="small" color={colors.primaryBg} />
               <Text style={{ color: colors.muted, fontWeight: "700" }}>Carregando chamada…</Text>
             </View>
-          ) : (
+          ) : loadFailed ? null : students.length === 0 ? (
             <View style={styles.loadingState}>
               <Text style={{ color: colors.muted, fontWeight: "700" }}>Nenhum aluno nesta turma.</Text>
             </View>
-          )}
-        />
+          ) : students.map(renderStudentRow)}
+        </View>
 
       </View>
     </View>
@@ -358,19 +371,19 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
                 <Pressable
                   key={option.score}
                   onPress={() => setDraftPainScore(option.score)}
-                  disabled={!selectedStudentStatus || isSaving}
+                  disabled={!selectedStudentStatus || attendanceLocked}
                   accessibilityRole="button"
                   accessibilityLabel={`Dor: ${option.label}`}
                   accessibilityState={{
                     selected,
-                    disabled: !selectedStudentStatus || isSaving,
+                    disabled: !selectedStudentStatus || attendanceLocked,
                   }}
                   style={({ pressed }) => [
                     styles.painButton,
                     {
                       backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
                       borderColor: selected ? colors.primaryBg : colors.border,
-                      opacity: !selectedStudentStatus || isSaving ? 0.55 : pressed ? 0.72 : 1,
+                      opacity: !selectedStudentStatus || attendanceLocked ? 0.55 : pressed ? 0.72 : 1,
                     },
                   ]}
                 >
@@ -389,7 +402,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
             onChangeText={setDraftNote}
             placeholder="Observação (opcional)"
             placeholderTextColor={colors.muted}
-            editable={Boolean(selectedStudentStatus) && !isSaving}
+            editable={Boolean(selectedStudentStatus) && !attendanceLocked}
             multiline
             maxLength={500}
             style={[
@@ -398,7 +411,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
                 backgroundColor: colors.secondaryBg,
                 borderColor: colors.border,
                 color: colors.text,
-                opacity: selectedStudentStatus ? 1 : 0.55,
+                opacity: selectedStudentStatus && !attendanceLocked ? 1 : 0.55,
               },
             ]}
           />
@@ -406,14 +419,14 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
 
         <Pressable
           onPress={confirmStudentDetails}
-          disabled={!selectedStudentStatus || isSaving}
+          disabled={!selectedStudentStatus || attendanceLocked}
           accessibilityRole="button"
           accessibilityLabel="Concluir observações"
           style={({ pressed }) => [
             styles.detailsConfirmButton,
             {
               backgroundColor: colors.primaryBg,
-              opacity: !selectedStudentStatus || isSaving ? 0.55 : pressed ? 0.8 : 1,
+              opacity: !selectedStudentStatus || attendanceLocked ? 0.55 : pressed ? 0.8 : 1,
             },
           ]}
         >
@@ -509,7 +522,7 @@ const styles = StyleSheet.create({
   },
   reportButtonMobile: {
     flexShrink: 0,
-    minHeight: 40,
+    minHeight: 44,
     paddingHorizontal: 10,
     gap: 6,
   },
@@ -524,7 +537,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   saveButtonDense: { minHeight: 38, paddingHorizontal: 12 },
-  saveButtonMobile: { minHeight: 40, paddingHorizontal: 12, flexShrink: 0 },
+  saveButtonMobile: { minHeight: 44, paddingHorizontal: 12, flexShrink: 0 },
   saveButtonLabel: { fontSize: 13, fontWeight: "800" },
   saveButtonLabelDense: { fontSize: 12 },
   errorBanner: {
@@ -533,6 +546,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  retryButton: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingState: {
     minHeight: 180,
@@ -541,9 +565,10 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 20,
   },
-  studentList: { maxHeight: 560 },
-  studentListDense: { maxHeight: 480 },
-  studentListMobile: { maxHeight: 440 },
+  loadFailureState: {
+    minHeight: 180,
+    justifyContent: "center",
+  },
   studentRow: {
     minHeight: 78,
     borderBottomWidth: 1,
@@ -590,7 +615,7 @@ const styles = StyleSheet.create({
   studentNameButton: {
     minWidth: 0,
     flex: 1,
-    minHeight: 36,
+    minHeight: 44,
     justifyContent: "center",
   },
   studentNameButtonLabel: { flex: 0 },
@@ -635,7 +660,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     width: 142,
     flex: 1,
-    height: 38,
+    height: 44,
     borderRadius: 9,
   },
   segmentedControlStacked: { width: undefined, flex: 1 },
@@ -647,7 +672,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   segmentButtonDense: { minHeight: 38 },
-  segmentButtonMobile: { minHeight: 36 },
+  segmentButtonMobile: { minHeight: 44 },
   segmentDivider: { borderLeftWidth: 1 },
   segmentLabel: { fontSize: 13, fontWeight: "800" },
   segmentLabelDense: { fontSize: 12 },
@@ -671,16 +696,16 @@ const styles = StyleSheet.create({
   detailsTitle: { fontSize: 17, fontWeight: "900" },
   detailsStudentName: { fontSize: 12, fontWeight: "700" },
   detailsNfcButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 20,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   detailsCloseButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",

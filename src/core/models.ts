@@ -1122,6 +1122,15 @@ export type HiddenTemplate = {
   createdAt: string;
 };
 
+export type StudentMembershipStatus = "active" | "inactive";
+
+export type StudentFinancialStatus =
+  | "regular"
+  | "delinquent"
+  | "exempt"
+  | "pending"
+  | "unknown";
+
 export type Student = {
   id: string;
   name: string;
@@ -1136,8 +1145,8 @@ export type Student = {
   rgNormalized?: string | null;
   collegeCourse?: string | null;
   isExperimental?: boolean;
-  membershipStatus: "active" | "inactive";
-  financialStatus: "regular" | "delinquent";
+  membershipStatus: StudentMembershipStatus;
+  financialStatus: StudentFinancialStatus;
   inactivatedAt?: string | null;
   inactivatedBy?: string | null;
   inactivationReason?: string | null;
@@ -1161,6 +1170,28 @@ export type Student = {
   learningStyle: AthleteLearningStyle;
   createdAt: string;
 };
+
+export type StudentOperationalEvent =
+  | {
+      id: string;
+      kind: "membership";
+      previousStatus: StudentMembershipStatus | null;
+      status: StudentMembershipStatus;
+      reason: string | null;
+      source: "baseline" | "created" | "status_change" | "reason_change";
+      changedAt: string;
+      changedBy: string | null;
+    }
+  | {
+      id: string;
+      kind: "financial";
+      previousStatus: StudentFinancialStatus | null;
+      status: StudentFinancialStatus;
+      reason: null;
+      source: "baseline" | "created" | "status_change";
+      changedAt: string;
+      changedBy: string | null;
+    };
 
 export type StudentPreRegistrationStatus =
   | "lead"

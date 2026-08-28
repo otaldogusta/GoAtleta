@@ -1,16 +1,44 @@
-import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Platform, Text, View } from "react-native";
+import { type RefObject, useEffect, useRef, useState } from "react";
+import { Animated, Easing, Text, View } from "react-native";
 
+import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
 import { useAppTheme } from "../../../ui/app-theme";
 import { Pressable } from "../../../ui/Pressable";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
-import { brandPalette, radius, shadow } from "../../../theme/tokens";
+import { radius } from "../../../theme/tokens";
+
+export type TrainingFabMenuLayout = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export const TRAINING_FAB_MENU_WIDTH = 220;
+
+export function resolveTrainingFabMenuLayout(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): TrainingFabMenuLayout | null {
+  if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return {
+    x: Math.max(16, x + width - TRAINING_FAB_MENU_WIDTH),
+    y,
+    width: TRAINING_FAB_MENU_WIDTH,
+    height,
+  };
+}
 
 type TrainingFabMenuProps = {
   visible: boolean;
   importBusy?: boolean;
-  anchorRight: number;
-  anchorBottom: number;
+  anchorRef: RefObject<View | null>;
+  layout: TrainingFabMenuLayout | null;
   onClose: () => void;
   onCreatePress: () => void;
   onImportPress: () => void;
@@ -19,8 +47,8 @@ type TrainingFabMenuProps = {
 export function TrainingFabMenu({
   visible,
   importBusy = false,
-  anchorRight,
-  anchorBottom,
+  anchorRef,
+  layout,
   onClose,
   onCreatePress,
   onImportPress,
@@ -56,115 +84,77 @@ export function TrainingFabMenu({
   if (!mounted) return null;
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
-        zIndex: 3190,
+    <AnchoredDropdown
+      visible={mounted}
+      layout={layout}
+      container={null}
+      animationStyle={{
+        opacity: anim,
+        transform: [
+          {
+            translateY: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [8, 0],
+            }),
+          },
+          {
+            scale: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.96, 1],
+            }),
+          },
+        ],
       }}
+      zIndex={3190}
+      maxHeight={104}
+      nestedScrollEnabled={false}
+      density="menu"
+      interactiveRefs={[anchorRef]}
+      onRequestClose={onClose}
+      showVerticalScrollIndicator={false}
+      panelStyle={{ backgroundColor: colors.card }}
+      scrollContentStyle={{ padding: 6, gap: 8 }}
     >
       <Pressable
-        onPress={onClose}
+        onPress={onCreatePress}
         style={{
-          position: "absolute",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          backgroundColor: "transparent",
+          borderWidth: 1,
+          borderColor: colors.primaryBg,
+          backgroundColor: colors.primaryBg,
+          borderRadius: radius.internal,
+          paddingHorizontal: 9,
+          paddingVertical: 8,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
         }}
       >
-        <Animated.View
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            backgroundColor: brandPalette.navyDeep,
-            opacity: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 0.08],
-            }),
-          }}
-        />
+        <GoAtletaIcon name="calendar" size={16} color={colors.primaryText} />
+        <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "700" }}>
+          Criar treino
+        </Text>
       </Pressable>
-
-      <Animated.View
+      <Pressable
+        disabled={importBusy}
+        onPress={onImportPress}
         style={{
-          ...(Platform.OS === "web"
-            ? ({ position: "fixed", right: anchorRight, bottom: anchorBottom + 64 } as any)
-            : { position: "absolute" as const, right: anchorRight, bottom: anchorBottom + 64 }),
-          width: 220,
-          borderRadius: radius.card,
           borderWidth: 1,
           borderColor: colors.border,
-          backgroundColor: colors.card,
-          padding: 6,
-          ...shadow.card,
-          opacity: anim,
-          gap: 8,
-          transform: [
-            {
-              translateY: anim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [8, 0],
-              }),
-            },
-            {
-              scale: anim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.96, 1],
-              }),
-            },
-          ],
+          backgroundColor: colors.background,
+          borderRadius: radius.internal,
+          paddingHorizontal: 9,
+          paddingVertical: 8,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          opacity: importBusy ? 0.65 : 1,
         }}
       >
-        <Pressable
-          onPress={onCreatePress}
-          style={{
-            borderWidth: 1,
-            borderColor: colors.primaryBg,
-            backgroundColor: colors.primaryBg,
-            borderRadius: radius.internal,
-            paddingHorizontal: 9,
-            paddingVertical: 8,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <GoAtletaIcon name="calendar" size={16} color={colors.primaryText} />
-          <Text style={{ color: colors.primaryText, fontSize: 13, fontWeight: "700" }}>
-            Criar treino
-          </Text>
-        </Pressable>
-        <Pressable
-          disabled={importBusy}
-          onPress={onImportPress}
-          style={{
-            borderWidth: 1,
-            borderColor: colors.border,
-            backgroundColor: colors.background,
-            borderRadius: radius.internal,
-            paddingHorizontal: 9,
-            paddingVertical: 8,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            opacity: importBusy ? 0.65 : 1,
-          }}
-        >
-          <GoAtletaIcon name="upload" size={16} color={colors.text} />
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
-            {importBusy ? "Importando..." : "Importar planilha"}
-          </Text>
-        </Pressable>
-      </Animated.View>
-    </View>
+        <GoAtletaIcon name="upload" size={16} color={colors.text} />
+        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>
+          {importBusy ? "Importando..." : "Importar planilha"}
+        </Text>
+      </Pressable>
+    </AnchoredDropdown>
   );
 }

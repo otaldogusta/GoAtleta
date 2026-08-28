@@ -5,6 +5,7 @@ import {
     useRootNavigationState,
     useRouter,
 } from "expo-router";
+import Head from "expo-router/head";
 import "../src/ui/web-font-timeout-fallback";
 import { StatusBar } from "expo-status-bar";
 import * as Updates from "expo-updates";
@@ -745,7 +746,8 @@ select:focus {
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: none;
+  outline: 2px solid ${colors.primaryBg};
+  outline-offset: -2px;
   box-shadow: none;
 }
 input,
@@ -839,7 +841,7 @@ body.dropdown-scrollbars *::-webkit-scrollbar-thumb:hover {
     if (style.textContent !== css) {
       style.textContent = css;
     }
-  }, [colors.border, colors.inputBg, colors.inputText, colors.muted, mode]);
+  }, [colors.border, colors.inputBg, colors.inputText, colors.muted, colors.primaryBg, mode]);
 
   if (bootstrapError) {
     return (
@@ -1035,6 +1037,9 @@ function RootLayout() {
 
   return (
     <>
+      <Head>
+        <title>GoAtleta</title>
+      </Head>
       <VercelWebAnalytics />
       <AppThemeProvider>
         <Sentry.ErrorBoundary

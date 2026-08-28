@@ -89,7 +89,8 @@ export const WeekDaySelector = memo(function WeekDaySelector({
                 style={{
                   width: 8,
                   height: 8,
-                  borderRadius: 4,
+                  borderRadius: radius.full,
+                  overflow: "hidden",
                   backgroundColor: isSelected ? colors.success : day.isToday ? colors.primaryBg : "transparent",
                 }}
               />

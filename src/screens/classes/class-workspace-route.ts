@@ -36,3 +36,11 @@ export function parseClassWorkspaceRouteDate(value: RouteParam) {
   if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
   return parsed;
 }
+
+export function resolveClassWorkspaceLessonDate(
+  selectedDate: Date | null,
+  requestedDate: Date | null,
+  fallbackDate: Date | null,
+) {
+  return selectedDate ?? requestedDate ?? fallbackDate;
+}

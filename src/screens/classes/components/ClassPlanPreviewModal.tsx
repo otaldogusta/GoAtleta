@@ -88,6 +88,18 @@ export type ClassPlanWorkspaceHeaderControls = {
 
 type PreviewStatus = "idle" | "loading" | "ready" | "error";
 
+const PREVIEW_LOAD_TIMEOUT_MS = 10_000;
+
+type PdfBridgeMessage = {
+  type?: string;
+  blockKey?: unknown;
+  section?: unknown;
+  field?: unknown;
+  text?: unknown;
+  pageCount?: unknown;
+  currentPage?: unknown;
+};
+
 type PlanUndoEntry = {
   plan: TrainingPlan;
   isDirty: boolean;
@@ -165,8 +177,8 @@ export function ClassPlanPreviewModal({
   const workspaceMode = presentation === "workspace";
   const embeddedMode = presentation === "embedded";
   const splitLayout = Platform.OS === "web" && width >= 980;
-  const phoneLayout = Platform.OS === "web" && width < 600;
-  const inlinePdfEditor = Platform.OS === "web";
+  const phoneLayout = width < 600;
+  const inlinePdfEditor = true;
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle");
   const [previewHtml, setPreviewHtml] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
@@ -206,7 +218,7 @@ export function ClassPlanPreviewModal({
 
   useEffect(() => {
     if (!workspaceMode) return;
-    const responsiveZoom = width < 600 ? 70 : width < 980 ? 80 : 100;
+    const responsiveZoom = Platform.OS === "web" ? (width < 600 ? 70 : width < 980 ? 80 : 100) : 100;
     Promise.resolve().then(() => setPreviewZoom(responsiveZoom));
   }, [width, workspaceMode]);
 
@@ -297,7 +309,11 @@ export function ClassPlanPreviewModal({
   useEffect(() => {
     if (!visible) return undefined;
     if (Platform.OS !== "web") {
-      setPreviewStatus("idle");
+      setPreviewStatus("loading");
+      setPreviewHtml(sessionPlanHtml(pdfData, { editable: true }));
+      setPdfBlob(null);
+      setPdfSize(null);
+      setPdfUrl("");
       return undefined;
     }
 
@@ -364,6 +380,14 @@ export function ClassPlanPreviewModal({
       if (generatedUrl) URL.revokeObjectURL(generatedUrl);
     };
   }, [pdfData, retryKey, visible]);
+
+  useEffect(() => {
+    if (!visible || previewStatus !== "loading") return undefined;
+    const timeout = setTimeout(() => {
+      setPreviewStatus((current) => current === "loading" ? "error" : current);
+    }, PREVIEW_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [previewStatus, visible]);
 
   const handleDownload = useCallback(async () => {
     if (isDownloading) return;
@@ -460,16 +484,15 @@ export function ClassPlanPreviewModal({
     setPdfStatusLabel("Alterações não salvas");
   }, [classGroup, coachName, lessonDate, periodizationSource]);
 
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const handleMessage = (event: MessageEvent) => {
-      if (typeof event.data?.type === "string" && event.data.type.startsWith("GOATLETA_PDF_")) {
+  const handlePdfBridgeMessage = useCallback((data: unknown) => {
+      const message = (data ?? {}) as PdfBridgeMessage;
+      if (typeof message.type === "string" && message.type.startsWith("GOATLETA_PDF_")) {
         keepWorkspaceAtTop();
       }
-      if (event.data?.type === "GOATLETA_PDF_READY") {
+      if (message.type === "GOATLETA_PDF_READY") {
         setPreviewStatus("ready");
-      } else if (event.data?.type === "GOATLETA_PDF_BLOCK_CLICK") {
-        const { blockKey } = event.data;
+      } else if (message.type === "GOATLETA_PDF_BLOCK_CLICK") {
+        const { blockKey } = message;
         if (blockKey === "warmup" || blockKey === "main" || blockKey === "cooldown") {
           setSelectedBlockKey(blockKey);
           setIsPdfContentExpanded(false);
@@ -478,26 +501,26 @@ export function ClassPlanPreviewModal({
             setIsEditorExpanded(true);
           }
         }
-      } else if (event.data?.type === "GOATLETA_PDF_SECTION_CLICK" && event.data?.section === "pedagogy") {
+      } else if (message.type === "GOATLETA_PDF_SECTION_CLICK" && message.section === "pedagogy") {
         setIsPdfContentExpanded(true);
         if (!inlinePdfEditor && splitLayout) {
           setIsEditing(true);
           setIsEditorExpanded(true);
         }
-      } else if (event.data?.type === "GOATLETA_PDF_BACKGROUND_CLICK") {
+      } else if (message.type === "GOATLETA_PDF_BACKGROUND_CLICK") {
         setIsEditing(false);
-      } else if (event.data?.type === "GOATLETA_PDF_PAGE_COUNT") {
-        const pageCount = Math.max(1, Number(event.data?.pageCount) || 1);
+      } else if (message.type === "GOATLETA_PDF_PAGE_COUNT") {
+        const pageCount = Math.max(1, Number(message.pageCount) || 1);
         setPreviewPageCount(pageCount);
         setPreviewPage((current) => Math.min(current, pageCount));
-      } else if (event.data?.type === "GOATLETA_PDF_PAGE_CHANGE") {
-        const pageCount = Math.max(1, Number(event.data?.pageCount) || 1);
-        const currentPage = Math.max(1, Math.min(pageCount, Number(event.data?.currentPage) || 1));
+      } else if (message.type === "GOATLETA_PDF_PAGE_CHANGE") {
+        const pageCount = Math.max(1, Number(message.pageCount) || 1);
+        const currentPage = Math.max(1, Math.min(pageCount, Number(message.currentPage) || 1));
         setPreviewPageCount(pageCount);
         setPreviewPage(currentPage);
-      } else if (event.data?.type === "GOATLETA_PDF_EDIT") {
-        const { field, text } = event.data;
-        if (!field || typeof text !== "string") return;
+      } else if (message.type === "GOATLETA_PDF_EDIT") {
+        const { field, text } = message;
+        if (typeof field !== "string" || typeof text !== "string") return;
 
         if (!directEditSnapshotCapturedRef.current) {
           undoStackRef.current = [
@@ -575,10 +598,22 @@ export function ClassPlanPreviewModal({
           updateBlock(blockKey, (draft) => ({ ...draft, duration: text }));
         }
       }
+  }, [inlinePdfEditor, isDirty, keepWorkspaceAtTop, pdfStatusLabel, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle]);
+
+  const handlePreviewRetry = useCallback(() => {
+    setPreviewStatus("loading");
+    setPreviewRevision((current) => current + 1);
+    setRetryKey((current) => current + 1);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const handleMessage = (event: MessageEvent) => {
+      handlePdfBridgeMessage(event.data);
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [inlinePdfEditor, isDirty, keepWorkspaceAtTop, pdfStatusLabel, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle]);
+  }, [handlePdfBridgeMessage]);
 
   const persistWorkingPlan = useCallback(async (): Promise<TrainingPlan | null> => {
     if (isSaving) return null;
@@ -892,55 +927,33 @@ export function ClassPlanPreviewModal({
 
   const preview = (
     <View style={[styles.previewPane, { backgroundColor: colors.backgroundSubtle }]}>
-      {Platform.OS === "web" ? (
-        <>
-          {previewHtml ? (
-            <View
-              pointerEvents={previewStatus === "ready" ? "auto" : "none"}
-              style={[
-                StyleSheet.absoluteFill,
-                { opacity: previewStatus === "ready" ? 1 : 0 },
-              ]}
-            >
-              <PdfPreviewFrame
-                key={`plan-preview-${previewRevision}`}
-                url={pdfUrl || ""}
-                html={previewHtml}
-                title={`PDF do plano ${pdfPlan.title}`}
-                editable={true}
-                zoom={workspaceMode ? previewZoom : 100}
-                minimumPageWidth={phoneLayout ? 620 : undefined}
-              />
-            </View>
-          ) : null}
-          {previewStatus === "error" ? (
-            <View style={styles.previewState} accessibilityLiveRegion="polite">
-              <GoAtletaIcon name="document" size={30} color={colors.muted} />
-              <Text style={[styles.previewStateTitle, { color: colors.text }]}>Não foi possível preparar a prévia</Text>
-              <Pressable
-                onPress={() => setRetryKey((current) => current + 1)}
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.retryAction,
-                  { borderColor: colors.border, opacity: pressed ? 0.72 : 1 },
-                ]}
-              >
-                <Text style={[styles.retryActionLabel, { color: colors.text }]}>Tentar novamente</Text>
-              </Pressable>
-            </View>
-          ) : previewStatus !== "ready" ? (
-            <View style={styles.previewState} accessibilityLiveRegion="polite" accessibilityRole="progressbar">
-              <ActivityIndicator size="small" color={colors.primaryBg} />
-              <Text style={[styles.previewStateTitle, { color: colors.text }]}>Carregando plano…</Text>
-            </View>
-          ) : null}
-        </>
-      ) : previewStatus === "error" ? (
-        <View style={styles.previewState} accessibilityLiveRegion="polite">
+      {previewHtml ? (
+        <View
+          pointerEvents={previewStatus === "ready" ? "auto" : "none"}
+          style={StyleSheet.absoluteFill}
+        >
+          <PdfPreviewFrame
+            key={`plan-preview-${previewRevision}`}
+            url={pdfUrl || ""}
+            html={previewHtml}
+            title={`PDF do plano ${pdfPlan.title}`}
+            editable
+            zoom={workspaceMode ? previewZoom : 100}
+            minimumPageWidth={phoneLayout && Platform.OS === "web" ? 620 : undefined}
+            onMessage={handlePdfBridgeMessage}
+            onError={() => setPreviewStatus("error")}
+          />
+        </View>
+      ) : null}
+      {previewStatus === "error" ? (
+        <View
+          style={[styles.previewState, { backgroundColor: colors.backgroundSubtle }]}
+          accessibilityLiveRegion="polite"
+        >
           <GoAtletaIcon name="document" size={30} color={colors.muted} />
           <Text style={[styles.previewStateTitle, { color: colors.text }]}>Não foi possível preparar a prévia</Text>
           <Pressable
-            onPress={() => setRetryKey((current) => current + 1)}
+            onPress={handlePreviewRetry}
             accessibilityRole="button"
             style={({ pressed }) => [
               styles.retryAction,
@@ -950,13 +963,16 @@ export function ClassPlanPreviewModal({
             <Text style={[styles.retryActionLabel, { color: colors.text }]}>Tentar novamente</Text>
           </Pressable>
         </View>
-      ) : (
-        <View style={styles.previewState}>
-          <GoAtletaIcon name="document" size={30} color={colors.muted} />
-          <Text style={[styles.previewStateTitle, { color: colors.text }]}>Prévia disponível no navegador</Text>
-          <Text style={[styles.previewStateText, { color: colors.muted }]}>Baixe o PDF para ver o plano completo.</Text>
+      ) : previewStatus !== "ready" ? (
+        <View
+          style={[styles.previewState, { backgroundColor: colors.backgroundSubtle }]}
+          accessibilityLiveRegion="polite"
+          accessibilityRole="progressbar"
+        >
+          <ActivityIndicator size="small" color={colors.primaryBg} />
+          <Text style={[styles.previewStateTitle, { color: colors.text }]}>Carregando plano…</Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 
@@ -1504,8 +1520,7 @@ export function ClassPlanPreviewModal({
             </Pressable>
           </View>
 
-          <View style={styles.workspaceNativeOutline}>{renderOutline(editor)}</View>
-          {isEditing ? renderEditFooter(true) : null}
+          <View style={styles.workspacePreview}>{preview}</View>
         </View>
       );
     }
@@ -1984,7 +1999,7 @@ const styles = StyleSheet.create({
   primaryWorkspace: { flex: 1, minHeight: 0 },
   primaryWorkspaceDesktop: { flexDirection: "row" },
   previewPane: { flex: 1.7, minWidth: 0, minHeight: 0 },
-  previewState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 9 },
+  previewState: { flex: 1, zIndex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 9 },
   previewStateTitle: { fontSize: 15, fontWeight: "800", textAlign: "center" },
   previewStateText: { maxWidth: 320, fontSize: 12, lineHeight: 18, textAlign: "center" },
   retryAction: { minHeight: 40, borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" },

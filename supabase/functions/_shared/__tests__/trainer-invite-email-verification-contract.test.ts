@@ -9,6 +9,17 @@ const claimSource = readFileSync(
   resolve(__dirname, "../../claim-trainer-invite/index.ts"),
   "utf8"
 );
+const verificationSource = readFileSync(
+  resolve(__dirname, "../invite-email-verification.ts"),
+  "utf8"
+);
+const claimMigrationSource = readFileSync(
+  resolve(
+    __dirname,
+    "../../../migrations/20260825212548_include_financial_permission_in_trainer_invites.sql"
+  ),
+  "utf8"
+);
 const signupSource = readFileSync(resolve(__dirname, "../../../../app/signup.tsx"), "utf8");
 const verifyScreenSource = readFileSync(
   resolve(__dirname, "../../../../app/verify-email.tsx"),
@@ -25,9 +36,24 @@ describe("trainer invite email verification contract", () => {
   });
 
   test("rejects invite claims without a trusted server-side verification", () => {
-    expect(claimSource).toContain("user.app_metadata");
+    expect(claimSource).toContain("hasTrustedInviteIdentity(user)");
     expect(claimSource).toContain("EMAIL_NOT_VERIFIED");
     expect(claimSource).not.toContain("user.user_metadata");
+    expect(claimSource).toContain("initial_permissions, invited_via, invited_to");
+    expect(claimSource).toContain(
+      'invite.invited_via === "email" && invitedEmail && invitedEmail !== authenticatedEmail'
+    );
+    expect(verificationSource).toContain("user.app_metadata");
+    expect(verificationSource).toContain("TRUSTED_EXTERNAL_PROVIDERS");
+    expect(verificationSource).toContain("email_verified_hybrid_at");
+    expect(claimMigrationSource).toContain("from auth.users account");
+    expect(claimMigrationSource).toContain("v_invite.invited_via = 'email'");
+    expect(claimMigrationSource).toContain("INVITE_EMAIL_MISMATCH");
+  });
+
+  test("rejects non-object JSON before reading the invitation code", () => {
+    expect(claimSource).toContain("validateObjectPayload(await req.json())");
+    expect(claimSource).toContain("!parsed.ok || !parsed.data");
   });
 
   test("keeps the invite pending until the verified pending route claims it", () => {

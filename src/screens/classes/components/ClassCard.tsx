@@ -352,37 +352,23 @@ function StaffTeamPill({
         ) : null}
       </Pressable>
 
-      {Platform.OS === "web" ? (
-        <AnchoredDropdown
-          visible={open}
-          layout={triggerLayout}
-          container={null}
-          animationStyle={{ opacity: 1 }}
-          zIndex={12600}
-          maxHeight={Math.min(174, members.length * 48 + 12)}
-          nestedScrollEnabled={false}
-          density="compact"
-          interactiveRefs={[triggerRef]}
-          onRequestClose={close}
-          showVerticalScrollIndicator={false}
-          panelStyle={{ backgroundColor: colors.surfaceElevated ?? colors.card }}
-          scrollContentStyle={styles.staffPopoverContent}
-        >
-          {details}
-        </AnchoredDropdown>
-      ) : open ? (
-        <View
-          style={[
-            styles.staffNativePopover,
-            {
-              backgroundColor: colors.surfaceElevated ?? colors.card,
-              borderColor: colors.borderSubtle ?? colors.border,
-            },
-          ]}
-        >
-          {details}
-        </View>
-      ) : null}
+      <AnchoredDropdown
+        visible={open}
+        layout={triggerLayout}
+        container={null}
+        animationStyle={{ opacity: 1 }}
+        zIndex={12600}
+        maxHeight={Math.min(174, members.length * 48 + 12)}
+        nestedScrollEnabled={false}
+        density="menu"
+        interactiveRefs={[triggerRef]}
+        onRequestClose={close}
+        showVerticalScrollIndicator={false}
+        panelStyle={{ backgroundColor: colors.surfaceElevated ?? colors.card }}
+        scrollContentStyle={styles.staffPopoverContent}
+      >
+        {details}
+      </AnchoredDropdown>
     </View>
   );
 }
@@ -393,15 +379,13 @@ const getClassInitial = (name: string) => {
   return clean[0]?.toUpperCase() ?? "T";
 };
 
-const getDomSafeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "_");
-
 const pressedOrHovered = (state: { pressed: boolean; hovered?: boolean }) =>
   Boolean(state.pressed || state.hovered);
 
 const ACTION_MENU_Z_INDEX = 12000;
 const ACTION_MENU_WIDTH = 132;
-const ACTION_MENU_ESTIMATED_HEIGHT = 150;
-type ActionMenuLayout = { left: number; top: number };
+const ACTION_MENU_MAX_HEIGHT = 188;
+type ActionMenuLayout = { x: number; y: number; width: number; height: number };
 
 export const ClassCard = memo(function ClassCard({
   item,
@@ -439,8 +423,6 @@ export const ClassCard = memo(function ClassCard({
     .map((conflict) => `${conflict.name} (${dayNames[conflict.day]})`)
     .join(", ");
   const classInitial = getClassInitial(item.name);
-  const actionRootId = `class-card-actions-${getDomSafeId(item.id)}`;
-  const actionMenuId = `${actionRootId}-menu`;
   const menuItems = [
     { label: "Editar", action: () => onEdit?.(item), danger: false },
     { label: "Duplicar", action: () => onDuplicate?.(item), danger: false },
@@ -448,69 +430,19 @@ export const ClassCard = memo(function ClassCard({
     { label: "Apagar", action: () => onDelete?.(item), danger: true },
   ];
 
-  useEffect(() => {
-    if (!actionMenuOpen || Platform.OS !== "web") return undefined;
-    const doc = (globalThis as typeof globalThis & { document?: Document }).document;
-    const win = (globalThis as typeof globalThis & { window?: Window }).window;
-    if (!doc) return undefined;
-
-    const closeMenu = () => {
-      onCloseActionMenu?.();
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as (EventTarget & { closest?: (selector: string) => Element | null }) | null;
-      if (!target?.closest) {
-        closeMenu();
-        return;
-      }
-      if (target.closest(`#${actionRootId}`)) return;
-      if (target.closest(`#${actionMenuId}`)) return;
-      closeMenu();
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeMenu();
-    };
-
-    const handleVisibilityChange = () => {
-      if (doc.visibilityState === "hidden") closeMenu();
-    };
-
-    doc.addEventListener("pointerdown", handlePointerDown, true);
-    doc.addEventListener("scroll", closeMenu, true);
-    doc.addEventListener("wheel", closeMenu, true);
-    doc.addEventListener("touchmove", closeMenu, true);
-    doc.addEventListener("keydown", handleKeyDown);
-    doc.addEventListener("visibilitychange", handleVisibilityChange);
-    win?.addEventListener("resize", closeMenu);
-    win?.addEventListener("blur", closeMenu);
-    return () => {
-      doc.removeEventListener("pointerdown", handlePointerDown, true);
-      doc.removeEventListener("scroll", closeMenu, true);
-      doc.removeEventListener("wheel", closeMenu, true);
-      doc.removeEventListener("touchmove", closeMenu, true);
-      doc.removeEventListener("keydown", handleKeyDown);
-      doc.removeEventListener("visibilitychange", handleVisibilityChange);
-      win?.removeEventListener("resize", closeMenu);
-      win?.removeEventListener("blur", closeMenu);
-    };
-  }, [actionMenuId, actionMenuOpen, actionRootId, onCloseActionMenu]);
-
   const resolveActionMenuLayout = useCallback((x: number, y: number, width: number, height: number) => {
     const viewport = Dimensions.get("window");
-    const left = Math.max(12, Math.min(x + width - ACTION_MENU_WIDTH, viewport.width - ACTION_MENU_WIDTH - 12));
-    const defaultTop = y + height + 6;
-    const top =
-      defaultTop + ACTION_MENU_ESTIMATED_HEIGHT > viewport.height - 12
-        ? Math.max(12, y - ACTION_MENU_ESTIMATED_HEIGHT - 6)
-        : defaultTop;
-    return { left, top };
+    const anchorX = Math.max(
+      16,
+      Math.min(x + width - ACTION_MENU_WIDTH, viewport.width - ACTION_MENU_WIDTH - 16)
+    );
+    return { x: anchorX, y, width: ACTION_MENU_WIDTH, height };
   }, []);
 
   const measureActionMenu = useCallback(() => {
-    if (Platform.OS !== "web") return;
-    const element = actionWrapRef.current as unknown as HTMLElement | null;
+    const element = Platform.OS === "web"
+      ? (actionWrapRef.current as unknown as HTMLElement | null)
+      : null;
     if (element && typeof element.getBoundingClientRect === "function") {
       const rect = element.getBoundingClientRect();
       setActionMenuLayout(resolveActionMenuLayout(rect.left, rect.top, rect.width, rect.height));
@@ -523,7 +455,7 @@ export const ClassCard = memo(function ClassCard({
   }, [resolveActionMenuLayout]);
 
   useEffect(() => {
-    if (!actionMenuOpen || Platform.OS !== "web") return;
+    if (!actionMenuOpen) return;
     measureActionMenu();
   }, [actionMenuOpen, measureActionMenu]);
 
@@ -534,29 +466,26 @@ export const ClassCard = memo(function ClassCard({
     });
   }, [actionMenuOpen]);
 
-  const actionMenuContent = (
-    <View
-      nativeID={actionMenuId}
-      style={[
-        styles.actionMenu,
-        Platform.OS === "web" && actionMenuLayout
-          ? ({
-              position: "fixed",
-              left: actionMenuLayout.left,
-              top: actionMenuLayout.top,
-              right: "auto",
-              zIndex: ACTION_MENU_Z_INDEX + 2,
-            } as unknown as object)
-          : null,
-        {
-          backgroundColor: colors.surfaceElevated ?? colors.card,
-          borderColor: colors.borderSubtle ?? colors.border,
-        },
-      ]}
+  const actionMenuDropdown = (
+    <AnchoredDropdown
+      visible={actionMenuOpen}
+      layout={actionMenuLayout}
+      container={null}
+      animationStyle={{ opacity: 1 }}
+      zIndex={ACTION_MENU_Z_INDEX}
+      maxHeight={ACTION_MENU_MAX_HEIGHT}
+      nestedScrollEnabled={false}
+      density="menu"
+      interactiveRefs={[actionWrapRef]}
+      onRequestClose={onCloseActionMenu}
+      showVerticalScrollIndicator={false}
+      scrollContentStyle={styles.actionMenuContent}
     >
       {menuItems.map((menuItem) => (
         <Pressable
           key={menuItem.label}
+          accessibilityRole="button"
+          accessibilityLabel={`${menuItem.label} ${item.name}`}
           onPress={(event) => {
             event.stopPropagation?.();
             onCloseActionMenu?.();
@@ -581,16 +510,8 @@ export const ClassCard = memo(function ClassCard({
           </Text>
         </Pressable>
       ))}
-    </View>
+    </AnchoredDropdown>
   );
-
-  const actionMenuPortal =
-    Platform.OS === "web" &&
-    actionMenuOpen &&
-    actionMenuLayout &&
-    typeof document !== "undefined"
-      ? require("react-dom").createPortal(actionMenuContent, document.body)
-      : null;
 
   if (layout === "table") {
     return (
@@ -607,7 +528,6 @@ export const ClassCard = memo(function ClassCard({
               ? colors.backgroundSubtle ?? colors.secondaryBg
               : "transparent",
             borderBottomColor: colors.borderSubtle ?? colors.border,
-            zIndex: actionMenuOpen ? ACTION_MENU_Z_INDEX : 1,
           },
         ]}
       >
@@ -698,7 +618,7 @@ export const ClassCard = memo(function ClassCard({
           <StaffTeamPill members={viewModel.supportStaff} colors={colors} compact />
         </View>
 
-        <View ref={actionWrapRef} nativeID={actionRootId} style={styles.tableActionCell}>
+        <View ref={actionWrapRef} style={styles.tableActionCell}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Opções de ${item.name}`}
@@ -718,9 +638,8 @@ export const ClassCard = memo(function ClassCard({
           >
             <GoAtletaIcon name="ellipsisVertical" size={16} color={colors.textMuted ?? colors.muted} />
           </Pressable>
-          {actionMenuOpen && Platform.OS !== "web" ? actionMenuContent : null}
+          {actionMenuDropdown}
         </View>
-        {actionMenuPortal}
       </Pressable>
     );
   }
@@ -729,14 +648,6 @@ export const ClassCard = memo(function ClassCard({
     <Pressable
       disableWebPressScale
       onPress={(event) => {
-        if (Platform.OS === "web") {
-          const target = event.target as unknown as (EventTarget & {
-            closest?: (selector: string) => Element | null;
-          }) | null;
-          if (target?.closest?.(`#${actionRootId}`) || target?.closest?.(`#${actionMenuId}`)) {
-            return;
-          }
-        }
         onCloseActionMenu?.();
         onOpen(item);
       }}
@@ -748,8 +659,6 @@ export const ClassCard = memo(function ClassCard({
           {
             backgroundColor: colors.surface ?? colors.background,
             borderColor: colors.borderSubtle ?? colors.border,
-            zIndex: actionMenuOpen ? ACTION_MENU_Z_INDEX : 1,
-            elevation: actionMenuOpen ? ACTION_MENU_Z_INDEX : shadow.card.elevation,
           },
           isHovered || actionMenuOpen
             ? {
@@ -820,7 +729,7 @@ export const ClassCard = memo(function ClassCard({
             ) : null}
           </View>
 
-          <View ref={actionWrapRef} nativeID={actionRootId} style={styles.actionWrap}>
+          <View ref={actionWrapRef} style={styles.actionWrap}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Opções de ${item.name}`}
@@ -845,10 +754,9 @@ export const ClassCard = memo(function ClassCard({
             >
               <GoAtletaIcon name="ellipsisVertical" size={16} color={colors.textMuted ?? colors.muted} />
             </Pressable>
-            {actionMenuOpen && Platform.OS !== "web" ? actionMenuContent : null}
+            {actionMenuDropdown}
           </View>
         </View>
-        {actionMenuPortal}
       </View>
 
       <View style={[styles.metaGrid, narrowCard ? styles.metaGridNarrow : null]}>
@@ -979,7 +887,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-    zIndex: ACTION_MENU_Z_INDEX + 1,
   },
   tableClassAvatar: {
     width: 38,
@@ -1194,8 +1101,6 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "flex-end",
     flexShrink: 0,
-    zIndex: ACTION_MENU_Z_INDEX + 1,
-    elevation: ACTION_MENU_Z_INDEX + 1,
   },
   actionButton: {
     width: 28,
@@ -1212,28 +1117,15 @@ const styles = StyleSheet.create({
         }
       : null),
   },
-  actionMenu: {
-    position: "absolute",
-    top: 34,
-    right: 0,
-    width: 132,
-    borderRadius: radius.internal,
-    borderWidth: 1,
-    paddingVertical: 5,
-    zIndex: ACTION_MENU_Z_INDEX + 2,
-    elevation: ACTION_MENU_Z_INDEX + 2,
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0px 12px 24px rgba(0, 0, 0, 0.24)" }
-      : {
-          shadowColor: "#000",
-          shadowOpacity: 0.22,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 8 },
-        }),
+  actionMenuContent: {
+    padding: 6,
+    gap: 2,
   },
   actionMenuItem: {
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    minHeight: 42,
+    justifyContent: "center",
+    borderRadius: radius.internal,
   },
   actionMenuText: {
     fontSize: 12,
@@ -1424,16 +1316,5 @@ const styles = StyleSheet.create({
   staffPopoverRole: {
     fontSize: 11,
     fontWeight: "600",
-  },
-  staffNativePopover: {
-    position: "absolute",
-    top: 34,
-    right: 0,
-    width: 220,
-    padding: 6,
-    borderWidth: 1,
-    borderRadius: 14,
-    zIndex: 12600,
-    elevation: 20,
   },
 });

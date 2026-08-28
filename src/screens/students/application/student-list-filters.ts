@@ -2,6 +2,12 @@ import type { ClassGender, ClassGroup, Student } from "../../../core/models";
 
 export type StudentProfileFilter = "regular" | "experimental";
 export type StudentContactFilter = "with" | "without";
+export type StudentMembershipScope = "active" | "inactive" | "all";
+
+export const matchesStudentMembershipScope = (
+  student: Student,
+  scope: StudentMembershipScope,
+) => scope === "all" || student.membershipStatus === scope;
 
 export type StudentFilterExclusions = {
   profiles: StudentProfileFilter[];

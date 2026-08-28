@@ -8,6 +8,8 @@ describe("trainer route permissions", () => {
     expect(getTrainerPermissionKey("/prof/calendar")).toBe("calendar");
     expect(getTrainerPermissionKey("/prof/calendar/month")).toBe("calendar");
     expect(getTrainerPermissionKey("/coord/students")).toBe("students");
+    expect(getTrainerPermissionKey("/coord/management/athletes")).toBe("students");
+    expect(getTrainerPermissionKey("/coord/management")).toBe("org_members");
     expect(getTrainerPermissionKey("/coord/planning")).toBe("training");
     expect(getTrainerPermissionKey("/coord/nfc-attendance")).toBe("classes");
     expect(getTrainerPermissionKey("/prof/consultation")).toBe("students");

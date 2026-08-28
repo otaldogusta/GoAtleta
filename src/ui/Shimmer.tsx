@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import { Animated, Easing, Platform, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Platform, View } from "react-native";
 import { useAppTheme } from "./app-theme";
 
 type ShimmerBlockProps = {
@@ -13,7 +13,7 @@ let shimmerConsumers = 0;
 let webShimmerStylesInjected = false;
 
 const WEB_SHIMMER_STYLE_ID = "goatleta-shimmer-keyframes";
-const SHIMMER_DURATION_MS = 1600;
+const SHIMMER_DURATION_MS = 1250;
 
 const ensureWebShimmerStyles = () => {
   if (Platform.OS !== "web" || webShimmerStylesInjected) return;
@@ -61,6 +61,7 @@ const startShimmerLoop = () => {
       duration: SHIMMER_DURATION_MS,
       easing: Easing.linear,
       useNativeDriver: isNativeAnimation,
+      isInteraction: false,
     })
   );
   shimmerLoop.start();
@@ -90,8 +91,8 @@ const releaseShimmerDriver = () => {
 export function ShimmerBlock({ style }: ShimmerBlockProps) {
   const { mode } = useAppTheme();
   const isWeb = Platform.OS === "web";
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const anim = useRef<Animated.Value | null>(isWeb ? null : getShimmerProgress()).current;
-  const [width, setWidth] = useState(0);
   const glassBase = mode === "dark"
     ? "rgba(255, 255, 255, 0.10)"
     : "rgba(15, 23, 42, 0.06)";
@@ -102,6 +103,25 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
   const sheenColor = glassSheen;
 
   useEffect(() => {
+    let active = true;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (active) setPrefersReducedMotion(enabled);
+      })
+      .catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setPrefersReducedMotion
+    );
+
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) return undefined;
     if (isWeb) {
       ensureWebShimmerStyles();
       return undefined;
@@ -109,7 +129,7 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
 
     acquireShimmerDriver();
     return () => releaseShimmerDriver();
-  }, [isWeb]);
+  }, [isWeb, prefersReducedMotion]);
 
   if (isWeb) {
     const webSheenStyle = {
@@ -120,7 +140,7 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
       width: "42%",
       backgroundImage: `linear-gradient(90deg, transparent 0%, ${sheenColor} 52%, transparent 100%)`,
       opacity: 0.7,
-      animationName: "goatleta-shimmer-sweep",
+      animationName: prefersReducedMotion ? "none" : "goatleta-shimmer-sweep",
       animationDuration: `${SHIMMER_DURATION_MS}ms`,
       animationTimingFunction: "linear",
       animationIterationCount: "infinite",
@@ -143,15 +163,15 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
     );
   }
 
-  const shimmerWidth = Math.max(120, width * 0.8);
-  const translateX = (anim ?? getShimmerProgress()).interpolate({
-    inputRange: [0, 1],
-    outputRange: [-shimmerWidth, width + shimmerWidth],
-  });
+  const sheenOpacity = prefersReducedMotion
+    ? mode === "dark" ? 0.18 : 0.13
+    : (anim ?? getShimmerProgress()).interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: mode === "dark" ? [0.05, 0.52, 0.05] : [0.04, 0.4, 0.04],
+      });
 
   return (
     <View
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={[
         {
           backgroundColor: baseColor,
@@ -160,20 +180,18 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
         style,
       ]}
     >
-      {width > 0 ? (
-        <Animated.View
-          style={{
-            position: "absolute",
-            top: -6,
-            bottom: -6,
-            width: shimmerWidth,
-            backgroundColor: sheenColor,
-            pointerEvents: "none",
-            opacity: 0.18,
-            transform: [{ translateX }],
-          }}
-        />
-      ) : null}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          backgroundColor: sheenColor,
+          opacity: sheenOpacity,
+        }}
+      />
     </View>
   );
 }

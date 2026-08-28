@@ -15,6 +15,12 @@ import {
   requiresTrainerInviteEmailVerification,
   shouldReturnTrainerInviteToSignup,
 } from "../src/auth/pending-invite";
+import {
+  getPendingInviteCopy,
+  isTerminalPendingInviteIssue,
+  resolvePendingInviteViewState,
+  type PendingInviteIssue,
+} from "../src/auth/pending-invite-view";
 import { useRole } from "../src/auth/role";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { radius, spacing } from "../src/theme/tokens";
@@ -23,7 +29,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Button } from "../src/ui/Button";
 
-function PulseRadarBadge({ approved }: { approved?: boolean }) {
+function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: boolean }) {
   const { colors } = useAppTheme();
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
@@ -126,6 +132,27 @@ function PulseRadarBadge({ approved }: { approved?: boolean }) {
     );
   }
 
+  if (blocked) {
+    return (
+      <View style={{ width: 100, height: 100, alignItems: "center", justifyContent: "center" }}>
+        <View
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: colors.dangerBg,
+            borderWidth: 1.5,
+            borderColor: colors.dangerBorder,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <GoAtletaIcon name="warningCircle" size={30} color={colors.dangerText} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={{ width: 100, height: 100, alignItems: "center", justifyContent: "center" }}>
       <Animated.View
@@ -176,6 +203,7 @@ export default function PendingScreen() {
   const { refresh, role } = useRole();
   const [inviteBusy, setInviteBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [inviteIssue, setInviteIssue] = useState<PendingInviteIssue>(null);
   const [storedToken, setStoredToken] = useState("");
   const [storedTrainerCode, setStoredTrainerCode] = useState("");
   const [accessApproved, setAccessApproved] = useState(false);
@@ -201,20 +229,41 @@ export default function PendingScreen() {
 
   const parseInviteError = (error: unknown) => {
     const code = getInviteErrorCode(error);
-    if (code === "INVITE_EXPIRED") return "Convite expirado.";
-    if (code === "INVITE_ALREADY_USED") return "Convite já utilizado. Peça um novo link.";
-    if (code === "INVITE_INVALID" || code === "INVITE_REVOKED") return "Convite inválido.";
-    if (code === "STUDENT_ALREADY_LINKED") return "Seu acesso já está vinculado.";
-    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") return "Sessão expirada. Entre novamente.";
-    if (code === "EMAIL_NOT_VERIFIED") return "Confirme seu e-mail para aplicar o convite.";
-    if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") return "Sem permissão para validar o convite.";
-    return "Não foi possível validar o convite.";
+    if (code === "INVITE_EXPIRED") {
+      return { message: "Solicite um novo convite à organização.", issue: "expired" as const };
+    }
+    if (code === "INVITE_ALREADY_USED" || code === "INVITE_LIMIT_REACHED") {
+      return { message: "Entre com a conta que já aceitou o convite ou solicite outro.", issue: "already_used" as const };
+    }
+    if (code === "INVITE_REVOKED") {
+      return { message: "Solicite um novo convite à organização.", issue: "revoked" as const };
+    }
+    if (code === "INVITE_INVALID") {
+      return { message: "O link informado não é válido.", issue: "failed" as const };
+    }
+    if (code === "STUDENT_ALREADY_LINKED") {
+      return { message: "Seu acesso já está vinculado.", issue: "already_used" as const };
+    }
+    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
+      return { message: "Sessão expirada. Entre novamente.", issue: "failed" as const };
+    }
+    if (code === "EMAIL_NOT_VERIFIED") {
+      return { message: "Confirme seu e-mail para aplicar o convite.", issue: "failed" as const };
+    }
+    if (code === "INVITE_EMAIL_MISMATCH") {
+      return { message: "Entre com o e-mail que recebeu o convite.", issue: "failed" as const };
+    }
+    if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") {
+      return { message: "Sem permissão para validar o convite.", issue: "failed" as const };
+    }
+    return { message: "Tente novamente ou solicite outro convite.", issue: "failed" as const };
   };
 
   const handleStoredTrainerInvite = async (codeOverride?: string) => {
     const code = (codeOverride ?? storedTrainerCode).trim();
     if (!code || inviteBusy) return;
     setInviteBusy(true);
+    setInviteIssue(null);
     setMessage("");
     try {
       await claimTrainerInvite(code);
@@ -222,7 +271,9 @@ export default function PendingScreen() {
       await refresh();
       router.replace("/prof/home");
     } catch (error) {
-      setMessage(parseInviteError(error));
+      const parsed = parseInviteError(error);
+      setInviteIssue(parsed.issue);
+      setMessage(parsed.message);
     } finally {
       setInviteBusy(false);
     }
@@ -232,6 +283,7 @@ export default function PendingScreen() {
     const tokenValue = (tokenOverride ?? storedToken).trim();
     if (!tokenValue || inviteBusy) return;
     setInviteBusy(true);
+    setInviteIssue(null);
     setMessage("");
     try {
       await claimStudentInvite(tokenValue);
@@ -239,7 +291,9 @@ export default function PendingScreen() {
       await refresh();
       router.replace("/student/home");
     } catch (error) {
-      setMessage(parseInviteError(error));
+      const parsed = parseInviteError(error);
+      setInviteIssue(parsed.issue);
+      setMessage(parsed.message);
     } finally {
       setInviteBusy(false);
     }
@@ -249,6 +303,7 @@ export default function PendingScreen() {
     await Promise.all([clearPendingInvite(), clearPendingTrainerInvite()]);
     setStoredToken("");
     setStoredTrainerCode("");
+    setInviteIssue(null);
     setMessage("");
     autoClaimedRef.current = false;
   };
@@ -297,15 +352,15 @@ export default function PendingScreen() {
         }
         return;
       }
+      if (session && requiresTrainerInviteEmailVerification(session.user)) {
+        const email = encodeURIComponent(session.user.email ?? "");
+        router.replace(`/verify-email?email=${email}`);
+        return;
+      }
       autoClaimedRef.current = true;
       if (token) {
         await handleStoredInvite(token);
       } else {
-        if (requiresTrainerInviteEmailVerification(session?.user)) {
-          const email = encodeURIComponent(session?.user?.email ?? "");
-          router.replace(`/verify-email?email=${email}`);
-          return;
-        }
         await handleStoredTrainerInvite(trainerCode);
       }
     })();
@@ -317,6 +372,15 @@ export default function PendingScreen() {
   if ((role === "trainer" || role === "student") && !storedToken && !storedTrainerCode) {
     return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} />;
   }
+
+  const pendingViewState = resolvePendingInviteViewState({
+    accessApproved,
+    inviteBusy,
+    issue: inviteIssue,
+    hasStoredInvite: Boolean(storedToken || storedTrainerCode),
+  });
+  const pendingCopy = getPendingInviteCopy(pendingViewState);
+  const hasTerminalInviteIssue = isTerminalPendingInviteIssue(pendingViewState);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }}>
@@ -344,7 +408,7 @@ export default function PendingScreen() {
               gap: spacing.lg,
             }}
           >
-            <PulseRadarBadge approved={accessApproved} />
+            <PulseRadarBadge approved={accessApproved} blocked={hasTerminalInviteIssue} />
 
             <Animated.View style={{ alignItems: "center", gap: spacing.xs, transform: [{ translateY: textAnim.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, -8, 0] }) }] }}>
               <Text
@@ -355,7 +419,7 @@ export default function PendingScreen() {
                   textAlign: "center",
                 }}
               >
-                {accessApproved ? "Acesso liberado!" : "Aguardando liberação"}
+                {pendingCopy.title}
               </Text>
               <Text
                 style={{
@@ -365,9 +429,7 @@ export default function PendingScreen() {
                   textAlign: "center",
                 }}
               >
-                {accessApproved
-                  ? "Sua conta foi aprovada pela coordenação. Redirecionando..."
-                  : "Sua conta foi criada. O acesso será liberado quando você abrir o convite enviado pela sua organização."}
+                {pendingCopy.subtitle}
               </Text>
             </Animated.View>
 
@@ -395,13 +457,15 @@ export default function PendingScreen() {
                     {message}
                   </Text>
                 )}
-                <Button
-                  label={inviteBusy ? "Validando convite..." : "Validar convite agora"}
-                  onPress={() =>
-                    storedToken ? handleStoredInvite() : handleStoredTrainerInvite()
-                  }
-                  disabled={inviteBusy}
-                />
+                {!hasTerminalInviteIssue ? (
+                  <Button
+                    label={inviteBusy ? "Validando convite..." : "Validar convite agora"}
+                    onPress={() =>
+                      storedToken ? handleStoredInvite() : handleStoredTrainerInvite()
+                    }
+                    disabled={inviteBusy}
+                  />
+                ) : null}
                 <Pressable onPress={clearStoredInvite} style={{ padding: spacing.xs }}>
                   <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600" }}>
                     Descartar convite

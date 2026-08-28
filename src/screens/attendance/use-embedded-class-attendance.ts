@@ -3,6 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getStudentPhotoAccessUrl } from "../../api/student-photo-storage";
 import type { AttendanceRecord, Student } from "../../core/models";
 import { getAttendanceByDate, getStudentsByClass, saveAttendanceRecords } from "../../db/seed";
+import {
+  countMarkedAttendanceStudents,
+  mergeAttendanceRecordsPreservingOpaque,
+} from "./attendance-roster";
 
 export type EmbeddedAttendanceStatus = "presente" | "faltou" | undefined;
 export type EmbeddedAttendanceDetails = { note: string; painScore: number };
@@ -61,6 +65,7 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
   const [recordByStudentId, setRecordByStudentId] = useState<Record<string, AttendanceRecord>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -68,6 +73,7 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
     const requestId = loadRequestId.current + 1;
     loadRequestId.current = requestId;
     setIsLoading(true);
+    setLoadFailed(false);
     setError(null);
 
     try {
@@ -96,6 +102,7 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
       setRecordByStudentId(nextRecordByStudentId);
     } catch {
       if (loadRequestId.current !== requestId) return;
+      setLoadFailed(true);
       setError("Não foi possível carregar a chamada.");
     } finally {
       if (loadRequestId.current === requestId) setIsLoading(false);
@@ -111,7 +118,10 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
 
   const hasChanges = useMemo(() => !sameStatusMap(statusById, baselineStatusById) || !sameDetailsMap(detailsById, baselineDetailsById), [baselineDetailsById, baselineStatusById, detailsById, statusById]);
 
-  const markedCount = useMemo(() => Object.values(statusById).filter(Boolean).length, [statusById]);
+  const markedCount = useMemo(
+    () => countMarkedAttendanceStudents(students, statusById),
+    [statusById, students],
+  );
 
   const setStudentStatus = useCallback((studentId: string, status: Exclude<EmbeddedAttendanceStatus, undefined>) => {
     setStatusById((current) => ({
@@ -130,13 +140,13 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
   }, [baselineDetailsById, baselineStatusById]);
 
   const save = useCallback(async () => {
-    if (!classId || !date || isSaving) return null;
+    if (!classId || !date || isLoading || isSaving || loadFailed) return null;
     setIsSaving(true);
     setError(null);
     try {
       const createdAt = new Date().toISOString();
       const nextDetails = emptyDetailsMap(students);
-      const records = students.flatMap((student) => {
+      const visibleRecords = students.flatMap((student) => {
         const status = statusById[student.id];
         if (!status) return [];
         const existing = recordByStudentId[student.id];
@@ -158,6 +168,11 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
           } satisfies AttendanceRecord,
         ];
       });
+      const records = mergeAttendanceRecordsPreservingOpaque(
+        students.map((student) => student.id),
+        visibleRecords,
+        Object.values(recordByStudentId),
+      );
       const result = await saveAttendanceRecords(classId, date, records);
       setBaselineStatusById({ ...statusById });
       setDetailsById(nextDetails);
@@ -170,7 +185,7 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
     } finally {
       setIsSaving(false);
     }
-  }, [classId, date, detailsById, isSaving, recordByStudentId, statusById, students]);
+  }, [classId, date, detailsById, isLoading, isSaving, loadFailed, recordByStudentId, statusById, students]);
 
   return {
     students,
@@ -180,6 +195,7 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
     hasChanges,
     isLoading,
     isSaving,
+    loadFailed,
     error,
     setStudentStatus,
     setStudentDetails,

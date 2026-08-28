@@ -1,12 +1,15 @@
 ﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { validateStringField } from "../_shared/input-validation.ts";
+import {
+  validateObjectPayload,
+  validateStringField,
+} from "../_shared/input-validation.ts";
 
 
 const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
-const INVITE_TTL_DAYS = 14;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const INVITE_CHANNELS = new Set(["whatsapp", "email", "link"]);
 
 type InviteRole = "collaborator" | "professor" | "intern" | "moderator";
 
@@ -22,6 +25,7 @@ const PERMISSION_KEYS = [
   "whatsapp_settings",
   "assistant",
   "org_members",
+  "financial",
 ] as const;
 
 const createError = (req: Request, status: number, code: string, error: string) =>
@@ -115,12 +119,15 @@ Deno.serve(async (req) => {
     role: InviteRole;
     invitedTo?: string;
     invitedVia?: string;
-    maxUses?: number;
     permissionKeys?: string[];
   } = { organizationId: "", role: "collaborator" };
 
   try {
-    payload = (await req.json()) as typeof payload;
+    const parsed = validateObjectPayload(await req.json());
+    if (!parsed.ok || !parsed.data) {
+      return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
+    }
+    payload = parsed.data as typeof payload;
   } catch {
     return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
@@ -153,12 +160,17 @@ Deno.serve(async (req) => {
     )
   );
 
-  const invitedVia = (payload.invitedVia ?? "link").trim().toLowerCase();
-  const invitedTo = (payload.invitedTo ?? "").trim() || null;
+  const invitedVia = String(payload.invitedVia ?? "link").trim().toLowerCase();
+  const invitedTo = String(payload.invitedTo ?? "").trim() || null;
+  if (!INVITE_CHANNELS.has(invitedVia)) {
+    return createError(req, 400, "INVALID_REQUEST", "Invalid invitation channel");
+  }
   if (invitedVia === "email" && (!invitedTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedTo))) {
     return createError(req, 400, "INVALID_REQUEST", "A valid recipient email is required");
   }
-  const maxUses = Number.isFinite(payload.maxUses) ? Math.max(1, Math.min(10, Number(payload.maxUses))) : 1;
+  // The schema records one claimant, so every new link is intentionally single-use.
+  // Keep accepting older clients that still send maxUses, but never persist it.
+  const maxUses = 1;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -185,61 +197,35 @@ Deno.serve(async (req) => {
     return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("organization_members")
-    .select("role_level")
-    .eq("organization_id", orgValidation.data)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (adminError) {
-    return createError(req, 500, "SERVER_ERROR", "Organization lookup failed");
-  }
-
-  if (!adminRow) {
-    return createError(req, 404, "ORG_NOT_FOUND", "Organization not found");
-  }
-
-  if ((adminRow.role_level ?? 0) < 50) {
-    return createError(req, 403, "ORG_FORBIDDEN", "Forbidden");
-  }
-
-  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
   let code = "";
   let codeHash = "";
   let insertError: { message: string } | null = null;
   let inviteId = "";
+  let expiresAt = "";
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     code = normalizeCode(`${randomCode(4)}-${randomCode(4)}`);
     codeHash = await sha256(code);
 
-    // Membership and role were validated through the user-scoped client.
-    // Persist with the server client to avoid the legacy `is_trainer()` policy
-    // rejecting valid coordinators and organization administrators.
-    const { data, error } = await admin
-      .from("trainer_invites")
-      .insert({
-        code_hash: codeHash,
-        created_by: userId,
-        expires_at: expiresAt,
-        max_uses: maxUses,
-        uses: 0,
-        revoked: false,
-        organization_id: orgValidation.data,
-        target_role_level: targetRoleLevel,
-        invited_via: invitedVia,
-        invited_to: invitedTo,
-        initial_permissions: permissionKeys,
-        delivery_status: invitedVia === "email" ? "pending_delivery" : "not_applicable",
+    const { data, error } = await supabase
+      .rpc("create_trainer_invite_access", {
+        p_org_id: orgValidation.data,
+        p_code_hash: codeHash,
+        p_target_role_level: targetRoleLevel,
+        p_invited_via: invitedVia,
+        p_invited_to: invitedTo,
+        p_initial_permissions: permissionKeys,
       })
-      .select("id")
       .single();
 
     if (!error) {
       insertError = null;
-      inviteId = data?.id ?? "";
+      const inviteRow = data as {
+        invite_id?: unknown;
+        expires_at?: unknown;
+      } | null;
+      inviteId = String(inviteRow?.invite_id ?? "");
+      expiresAt = String(inviteRow?.expires_at ?? "");
       break;
     }
 
@@ -251,6 +237,12 @@ Deno.serve(async (req) => {
   }
 
   if (insertError) {
+    if (insertError.message?.includes("NOT_AUTHORIZED")) {
+      return createError(req, 403, "ORG_FORBIDDEN", "Forbidden");
+    }
+    return createError(req, 500, "SERVER_ERROR", "Failed to create invite");
+  }
+  if (!inviteId || !expiresAt) {
     return createError(req, 500, "SERVER_ERROR", "Failed to create invite");
   }
 

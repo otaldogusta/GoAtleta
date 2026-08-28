@@ -70,7 +70,7 @@ export function useBirthdayNotifications({
             inboxScope: notificationScopeForEffectiveProfile(effectiveProfile),
             actionUrl:
               effectiveProfile === "admin"
-                ? "/coord/students"
+                ? "/coord/management/athletes"
                 : "/prof/students",
             sourceType: "students",
             sourceId: `birthday:${organizationId}:${todayKey}`,

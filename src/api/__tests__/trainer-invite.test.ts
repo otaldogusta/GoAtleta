@@ -28,7 +28,7 @@ describe("createTrainerInvite", () => {
       organizationId: "11111111-1111-1111-1111-111111111111",
       role: "intern",
       invitedTo: "qa@example.com",
-      permissionKeys: ["classes", "calendar"],
+      permissionKeys: ["classes", "calendar", "financial"],
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -41,7 +41,7 @@ describe("createTrainerInvite", () => {
       role: "intern",
       invitedTo: "qa@example.com",
       invitedVia: "email",
-      permissionKeys: ["classes", "calendar"],
+      permissionKeys: ["classes", "calendar", "financial"],
       maxUses: 1,
     });
   });

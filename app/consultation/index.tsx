@@ -287,7 +287,7 @@ const createPilotStudent = ({ name, contact }: { name: string; contact: string }
     learningStyle: "misto",
     isExperimental: true,
     membershipStatus: "active",
-    financialStatus: "regular",
+    financialStatus: "unknown",
     inactivatedAt: null,
     createdAt: new Date().toISOString(),
   };

@@ -65,6 +65,10 @@ import {
   type AttendanceSavePhase,
 } from "../../../src/screens/attendance/attendance-save-feedback";
 import { resolveInitialAttendanceDate } from "../../../src/screens/attendance/resolve-initial-attendance-date";
+import {
+  mergeAttendanceRecordsPreservingOpaque,
+  resolveAttendanceStudentsForDate,
+} from "../../../src/screens/attendance/attendance-roster";
 
 const formatDate = (value: Date) => {
   const y = value.getFullYear();
@@ -172,7 +176,7 @@ function AttendanceAction({
       disabled={disabled || loading}
       suppressWebHoverFeedback={isText}
       style={({ pressed, hovered }) => ({
-        minHeight: compact ? 40 : 42,
+        minHeight: 44,
         minWidth: isText ? 0 : compact ? 128 : 142,
         paddingHorizontal: isText ? 0 : compact ? 14 : 18,
         borderRadius: isText ? 0 : 10,
@@ -311,10 +315,13 @@ export default function AttendanceScreen() {
   const navigation = useNavigation();
   const [cls, setCls] = useState<ClassGroup | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [allClassStudents, setAllClassStudents] = useState<Student[]>([]);
+  const [historicalStudents, setHistoricalStudents] = useState<Student[]>([]);
   const [rosterClassId, setRosterClassId] = useState<string | null>(null);
   const [initialAttendanceHistory, setInitialAttendanceHistory] = useState<
     AttendanceRecord[]
   >([]);
+  const [loadedAttendanceRecords, setLoadedAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [initialAttendanceHistoryClassId, setInitialAttendanceHistoryClassId] =
     useState<string | null>(null);
   const [date, setDate] = useState(formatDate(new Date()));
@@ -328,7 +335,10 @@ export default function AttendanceScreen() {
     Record<string, ActiveStudentContext[]>
   >({});
   const [loadMessage, setLoadMessage] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [canRetryLoad, setCanRetryLoad] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
+  const [isLoadingDate, setIsLoadingDate] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
   const [savePhase, setSavePhase] = useState<AttendanceSavePhase>("idle");
   const [baseline, setBaseline] = useState<{
@@ -393,9 +403,13 @@ export default function AttendanceScreen() {
         const attendanceHistoryPromise = getAttendanceByClass(data.id).catch(
           () => [] as AttendanceRecord[]
         );
-        const list = await getStudentsByClass(data.id);
+        const list = await getStudentsByClass(data.id, { includeInactive: true });
         if (alive) {
-          setStudents(list);
+          setAllClassStudents(list);
+          setStudents(list.filter((student) => student.membershipStatus !== "inactive"));
+          setHistoricalStudents([]);
+          setLoadedAttendanceRecords([]);
+          setIsLoadingDate(false);
           setRosterClassId(data.id);
         }
         const attendanceHistory = await attendanceHistoryPromise;
@@ -406,6 +420,11 @@ export default function AttendanceScreen() {
         // Contextual alerts enrich attendance, but must never delay the roster.
         void refreshActiveContexts(data.id);
       } else if (alive) {
+        setStudents([]);
+        setAllClassStudents([]);
+        setHistoricalStudents([]);
+        setLoadedAttendanceRecords([]);
+        setIsLoadingDate(false);
         setInitialAttendanceHistory([]);
         setRosterClassId(null);
         setInitialAttendanceHistoryClassId(null);
@@ -439,9 +458,14 @@ export default function AttendanceScreen() {
     });
   }, [students]);
 
+  const attendanceStudents = useMemo(
+    () => [...students, ...historicalStudents].sort((left, right) => left.name.localeCompare(right.name, "pt-BR")),
+    [historicalStudents, students]
+  );
+
   const items = useMemo(
     () =>
-      students.map((student) => ({
+      attendanceStudents.map((student) => ({
         student,
         status: statusById[student.id],
         note: noteById[student.id] ?? "",
@@ -453,7 +477,7 @@ export default function AttendanceScreen() {
           painScore: painById[student.id] ?? 0,
         }),
       })),
-    [activeContextsByStudentId, students, statusById, noteById, painById]
+    [activeContextsByStudentId, attendanceStudents, statusById, noteById, painById]
   );
 
   const resetContextDecision = useCallback((studentId: string) => {
@@ -468,17 +492,17 @@ export default function AttendanceScreen() {
     return classDays.includes(dayIndex);
   }, [classDays, date]);
 
-  const buildBaseMaps = useCallback(() => {
+  const buildBaseMaps = useCallback((roster: Student[] = attendanceStudents) => {
     const baseStatus: Record<string, "presente" | "faltou" | undefined> = {};
     const baseNotes: Record<string, string> = {};
     const basePain: Record<string, number> = {};
-    students.forEach((student) => {
+    roster.forEach((student) => {
       baseStatus[student.id] = undefined;
       baseNotes[student.id] = "";
       basePain[student.id] = 0;
     });
     return { baseStatus, baseNotes, basePain };
-  }, [students]);
+  }, [attendanceStudents]);
 
   const loadDate = useCallback(
     async (value: string) => {
@@ -486,21 +510,27 @@ export default function AttendanceScreen() {
       const requestId = loadRequestId.current + 1;
       loadRequestId.current = requestId;
       setDate(value);
+      setIsLoadingDate(true);
       setLoadMessage("");
+      setLoadFailed(false);
+      setCanRetryLoad(false);
       setContextDecisionById({});
       if (loadMessageTimer.current) {
         clearTimeout(loadMessageTimer.current);
         loadMessageTimer.current = null;
       }
-      const { baseStatus, baseNotes, basePain } = buildBaseMaps();
       if (classDays.length) {
         const dayIndex = getDayIndex(value);
         if (dayIndex !== null && !classDays.includes(dayIndex)) {
+          const { baseStatus, baseNotes, basePain } = buildBaseMaps(students);
+          setHistoricalStudents([]);
+          setLoadedAttendanceRecords([]);
           setStatusById(baseStatus);
           setNoteById(baseNotes);
           setPainById(basePain);
           setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
           setHasSaved(false);
+          setIsLoadingDate(false);
           setLoadMessage(
             `Essa turma treina em ${formatDays(classDays)}. Selecione um desses dias.`
           );
@@ -516,26 +546,30 @@ export default function AttendanceScreen() {
         records = await getAttendanceByDate(cls.id, value);
       } catch (error) {
         if (loadRequestId.current !== requestId) return;
-        if (isAuthError(error)) {
+        const authenticationFailed = isAuthError(error);
+        if (authenticationFailed) {
           setLoadMessage("Sessão expirada. Faça login novamente.");
         } else if (isNetworkError(error)) {
           setLoadMessage("Sem conexão. Mantendo os dados já carregados.");
         } else {
           setLoadMessage("Não foi possível carregar a data agora.");
         }
-        loadMessageTimer.current = setTimeout(() => {
-          setLoadMessage("");
-          loadMessageTimer.current = null;
-        }, 2500);
+        setLoadFailed(true);
+        setCanRetryLoad(!authenticationFailed);
+        setIsLoadingDate(false);
         return;
       }
       if (loadRequestId.current !== requestId) return;
       if (!records.length) {
+        const { baseStatus, baseNotes, basePain } = buildBaseMaps(students);
+        setHistoricalStudents([]);
+        setLoadedAttendanceRecords([]);
         setStatusById(baseStatus);
         setNoteById(baseNotes);
         setPainById(basePain);
         setBaseline({ status: baseStatus, note: baseNotes, pain: basePain });
         setHasSaved(false);
+        setIsLoadingDate(false);
         setLoadMessage("Sem registros para essa data.");
         loadMessageTimer.current = setTimeout(() => {
           setLoadMessage("");
@@ -543,6 +577,11 @@ export default function AttendanceScreen() {
         }, 2500);
         return;
       }
+      const attendanceRoster = resolveAttendanceStudentsForDate(allClassStudents, records);
+      const historicalRoster = attendanceRoster.filter((student) => student.membershipStatus === "inactive");
+      const { baseStatus, baseNotes, basePain } = buildBaseMaps(attendanceRoster);
+      setHistoricalStudents(historicalRoster);
+      setLoadedAttendanceRecords(records);
       const nextStatus: Record<string, "presente" | "faltou"> = {};
       const nextNotes: Record<string, string> = {};
       const nextPain: Record<string, number> = {};
@@ -559,13 +598,14 @@ export default function AttendanceScreen() {
       setPainById(finalPain);
       setBaseline({ status: finalStatus, note: finalNotes, pain: finalPain });
       setHasSaved(true);
+      setIsLoadingDate(false);
       setLoadMessage("Histórico carregado para essa data.");
       loadMessageTimer.current = setTimeout(() => {
         setLoadMessage("");
         loadMessageTimer.current = null;
       }, 2000);
     },
-    [buildBaseMaps, classDays, cls]
+    [allClassStudents, buildBaseMaps, classDays, cls, students]
   );
 
   useEffect(() => {
@@ -617,31 +657,44 @@ export default function AttendanceScreen() {
 
   const handleSave = async () => {
     if (!cls) return;
+    if (loadFailed) return;
+    if (isLoadingDate) return;
     if (isSavingAttendance) return;
     setIsSavingAttendance(true);
     setSavePhase("saving");
     try {
       const createdAt = new Date().toISOString();
-      const records = items
+      const existingByStudentId = new Map(
+        loadedAttendanceRecords.map((record) => [record.studentId, record]),
+      );
+      const visibleRecords = items
         .filter(
           (item): item is (typeof item & { status: "presente" | "faltou" }) =>
             item.status === "presente" || item.status === "faltou"
         )
-        .map((item) => ({
-          id: `${cls.id}_${item.student.id}_${date}`,
-          classId: cls.id,
-          studentId: item.student.id,
-          date,
-          status: item.status,
-          note: item.note.trim(),
-          painScore: item.pain,
-          createdAt,
-        }));
+        .map((item) => {
+          const existing = existingByStudentId.get(item.student.id);
+          return {
+            id: existing?.id ?? `${cls.id}_${item.student.id}_${date}`,
+            classId: cls.id,
+            studentId: item.student.id,
+            date,
+            status: item.status,
+            note: item.note.trim(),
+            painScore: item.pain,
+            createdAt: existing?.createdAt ?? createdAt,
+          };
+        });
+      const records = mergeAttendanceRecordsPreservingOpaque(
+        attendanceStudents.map((student) => student.id),
+        visibleRecords,
+        loadedAttendanceRecords,
+      );
 
       const nextStatus: Record<string, "presente" | "faltou" | undefined> = {};
       const nextNotes: Record<string, string> = {};
       const nextPain: Record<string, number> = {};
-      students.forEach((student) => {
+      attendanceStudents.forEach((student) => {
         const status = statusById[student.id];
         nextStatus[student.id] = status;
         nextNotes[student.id] = status ? (noteById[student.id] ?? "").trim() : "";
@@ -687,6 +740,7 @@ export default function AttendanceScreen() {
       setNoteById(nextNotes);
       setPainById(nextPain);
       setBaseline({ status: nextStatus, note: nextNotes, pain: nextPain });
+      setLoadedAttendanceRecords(records);
       logAction("Salvar chamada", {
         classId: cls.id,
         date,
@@ -897,8 +951,8 @@ export default function AttendanceScreen() {
   const markedCount = items.filter(
     (item) => item.status === "presente" || item.status === "faltou"
   ).length;
-  const canOpenReport = isClassDay && hasSaved && !isSavingAttendance;
-  const canSave = isClassDay && hasChanges && !isSavingAttendance;
+  const canOpenReport = isClassDay && hasSaved && !isLoadingDate && !isSavingAttendance && !loadFailed;
+  const canSave = isClassDay && hasChanges && !isLoadingDate && !isSavingAttendance && !loadFailed;
 
   const openReport = () => {
     if (!canOpenReport) return;
@@ -1146,11 +1200,32 @@ export default function AttendanceScreen() {
             ) : null}
 
             {loadMessage ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <GoAtletaIcon name="warningCircle" size={14} color={colors.warningText} />
-                <Text numberOfLines={2} style={{ color: colors.warningText, fontSize: 12 }}>
-                  {loadMessage}
-                </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <View style={{ minWidth: 0, flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <GoAtletaIcon name="warningCircle" size={14} color={colors.warningText} />
+                  <Text numberOfLines={2} style={{ flex: 1, color: colors.warningText, fontSize: 12 }}>
+                    {loadMessage}
+                  </Text>
+                </View>
+                {canRetryLoad ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Tentar carregar a chamada novamente"
+                    onPress={() => void loadDate(date)}
+                    style={({ pressed }) => ({
+                      minHeight: 44,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: pressed ? colors.surfaceElevated : colors.surface,
+                      borderWidth: 1,
+                      borderColor: colors.borderSubtle,
+                    })}
+                  >
+                    <Text style={{ color: colors.textPrimary, fontSize: 12, fontWeight: "900" }}>Tentar novamente</Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : null}
           </View>
@@ -1215,11 +1290,11 @@ export default function AttendanceScreen() {
                         />
                       ) : null}
                     </View>
-                    {!isMobile && (item.student.isExperimental || item.student.financialStatus === "delinquent") ? (
+                    {item.student.isExperimental || item.student.membershipStatus === "inactive" ? (
                       <Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
                         {[
                           item.student.isExperimental ? "Experimental" : null,
-                          item.student.financialStatus === "delinquent" ? "Inadimplente" : null,
+                          item.student.membershipStatus === "inactive" ? "Inativo no vínculo atual" : null,
                         ].filter(Boolean).join(" · ")}
                       </Text>
                     ) : null}
@@ -1248,17 +1323,18 @@ export default function AttendanceScreen() {
                           key={status}
                           accessibilityRole="radio"
                           accessibilityLabel={`${status === "presente" ? "Presente" : "Faltou"}: ${item.student.name}`}
-                          accessibilityState={{ checked: selected }}
+                          accessibilityState={{ checked: selected, disabled: isLoadingDate || loadFailed || isSavingAttendance }}
+                          disabled={isLoadingDate || loadFailed || isSavingAttendance}
                           onPress={() => toggleStatus(item.student.id, status)}
                           style={({ pressed }) => ({
                             flex: 1,
-                            minHeight: isMobile ? 34 : 36,
+                            minHeight: 44,
                             alignItems: "center",
                             justifyContent: "center",
                             backgroundColor,
                             borderRightWidth: status === "presente" ? 1 : 0,
                             borderRightColor: colors.borderSubtle,
-                            opacity: pressed ? 0.84 : 1,
+                            opacity: isLoadingDate || loadFailed || isSavingAttendance ? 0.55 : pressed ? 0.84 : 1,
                           })}
                         >
                           <Text
@@ -1285,8 +1361,8 @@ export default function AttendanceScreen() {
                       }))
                     }
                     style={({ pressed }) => ({
-                      width: 28,
-                      height: 36,
+                      width: 44,
+                      height: 44,
                       borderRadius: 8,
                       alignItems: "center",
                       justifyContent: "center",
@@ -1361,6 +1437,7 @@ export default function AttendanceScreen() {
                     }));
                   }}
                   placeholderTextColor={colors.placeholder}
+                  editable={!isLoadingDate && !loadFailed && !isSavingAttendance}
                   style={{
                     borderWidth: 1,
                     borderColor: colors.borderSubtle,
@@ -1378,6 +1455,7 @@ export default function AttendanceScreen() {
                         key={value}
                         label={String(value)}
                         variant={item.pain === value ? "primary" : "secondary"}
+                        disabled={isLoadingDate || loadFailed || isSavingAttendance}
                         onPress={() => {
                           resetContextDecision(item.student.id);
                           setPainById((prev) => ({
@@ -1389,7 +1467,7 @@ export default function AttendanceScreen() {
                     ))}
                   </View>
                 </View>
-                {item.suggestion &&
+                {!isLoadingDate && !loadFailed && item.suggestion &&
                 contextDecisionById[item.student.id] !== "ignored" ? (
                   <AttendanceContextSuggestion
                     suggestion={item.suggestion}

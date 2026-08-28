@@ -91,6 +91,9 @@ export function Button({
 
   return (
     <Pressable
+      accessibilityLabel={loading ? loadingLabel ?? label : label}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       onPress={onPress}
       disabled={isDisabled}
       style={({ pressed }) => [

@@ -15,6 +15,7 @@ import type {
   AttendanceRecord,
   ClassGroup,
   Student,
+  StudentOperationalEvent,
   StudentPreRegistration,
   StudentPreRegistrationStatus,
   WeeklyAutopilotKnowledgeReference,
@@ -52,6 +53,9 @@ import type {
     AthleteIntakeRow,
     AttendanceRow,
     StudentClassEnrollmentRow,
+    StudentFinancialEventRow,
+    StudentFinancialStatusRow,
+    StudentMembershipEventRow,
     StudentPreRegistrationRow,
     StudentRow,
 } from "./row-types";
@@ -110,6 +114,16 @@ type AttendanceCacheStore = Record<
   Record<string, Record<string, AttendanceRecord[]>>
 >;
 
+export type AttendanceExportRecord = Pick<
+  AttendanceRecord,
+  "id" | "classId" | "studentId" | "date" | "status"
+>;
+
+export type AttendanceExportStudent = Pick<
+  Student,
+  "id" | "name" | "membershipStatus"
+>;
+
 // ---------------------------------------------------------------------------
 // Row mappers / internal helpers
 // ---------------------------------------------------------------------------
@@ -119,6 +133,35 @@ const buildStudentsCacheKey = (organizationId: string | null) =>
 
 const buildAttendanceCacheOrgKey = (organizationId: string | null | undefined) =>
   organizationId?.trim() || "__global__";
+
+const EXPORT_PAGE_SIZE = 500;
+const EXPORT_MAX_PAGE_REQUESTS = 1000;
+
+const getAllExportPages = async <Row extends { id: string }>(
+  buildPath: (offset: number, limit: number) => string,
+  label: string,
+) => {
+  const rows: Row[] = [];
+  const seenIds = new Set<string>();
+
+  for (let request = 0; request < EXPORT_MAX_PAGE_REQUESTS; request += 1) {
+    const page = await supabaseGet<Row[]>(buildPath(rows.length, EXPORT_PAGE_SIZE));
+    if (page.length === 0) return rows;
+
+    let added = 0;
+    for (const row of page) {
+      if (seenIds.has(row.id)) continue;
+      seenIds.add(row.id);
+      rows.push(row);
+      added += 1;
+    }
+    if (added !== page.length) {
+      throw new Error(`A paginação de ${label} retornou registros repetidos.`);
+    }
+  }
+
+  throw new Error(`O volume de ${label} excedeu o limite seguro de exportação.`);
+};
 
 const readAttendanceCacheStore = async () =>
   (await readCache<AttendanceCacheStore>(CACHE_KEYS.attendanceRecords)) ?? {};
@@ -135,9 +178,13 @@ const getCachedAttendanceByDate = async (
   try {
     const store = await readAttendanceCacheStore();
     const orgKey = buildAttendanceCacheOrgKey(organizationId);
-    return store[orgKey]?.[classId]?.[date] ?? [];
+    const classStore = store[orgKey]?.[classId];
+    return {
+      found: Boolean(classStore && Object.prototype.hasOwnProperty.call(classStore, date)),
+      records: classStore?.[date] ?? [],
+    };
   } catch {
-    return [];
+    return { found: false, records: [] as AttendanceRecord[] };
   }
 };
 
@@ -163,7 +210,8 @@ const cacheAttendanceByDate = async (
 
 const mapStudentRow = (
   row: StudentRow,
-  activeOrganizationId?: string | null
+  activeOrganizationId?: string | null,
+  financialStatus: Student["financialStatus"] = "unknown"
 ): Student => {
   const resolvedOrganizationId = row.organization_id ?? activeOrganizationId ?? "";
   return {
@@ -181,7 +229,10 @@ const mapStudentRow = (
     collegeCourse: row.college_course ?? null,
     isExperimental: Boolean(row.is_experimental),
     membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
-    financialStatus: row.financial_status === "delinquent" ? "delinquent" : "regular",
+    // The general students row intentionally carries only the non-sensitive
+    // compatibility value `unknown`. Real financial state is hydrated from the
+    // protected 1:1 table after its RLS policy authorizes the current member.
+    financialStatus,
     inactivatedAt: row.inactivated_at ?? null,
     inactivatedBy: row.inactivated_by ?? null,
     inactivationReason: row.inactivation_reason ?? null,
@@ -214,21 +265,85 @@ const buildStudentsInFilter = (ids: string[]) =>
     .map((id) => encodeURIComponent(id))
     .join(",");
 
-const isAlreadyLinkedToClass = async (
+const loadStudentFinancialStatusMap = async (
+  studentIds: string[],
+  organizationId: string | null | undefined
+): Promise<Map<string, Student["financialStatus"]>> => {
+  const normalizedStudentIds = Array.from(
+    new Set(studentIds.map((id) => id.trim()).filter(Boolean))
+  );
+  if (!organizationId || normalizedStudentIds.length === 0) return new Map();
+
+  try {
+    const chunks: string[][] = [];
+    for (let offset = 0; offset < normalizedStudentIds.length; offset += 100) {
+      chunks.push(normalizedStudentIds.slice(offset, offset + 100));
+    }
+    const pages = await Promise.all(
+      chunks.map((chunk) =>
+        supabaseGet<Pick<StudentFinancialStatusRow, "student_id" | "status">[]>(
+          `/student_financial_statuses?select=student_id,status&organization_id=eq.${encodeURIComponent(
+            organizationId
+          )}&student_id=in.(${buildStudentsInFilter(chunk)})`
+        )
+      )
+    );
+    return new Map(
+      pages
+        .flat()
+        .map((row) => [row.student_id, row.status] as const)
+    );
+  } catch (error) {
+    // Safe rollout fallback: before the migration exists, or when the current
+    // member has no readable financial rows, general athlete flows stay usable
+    // and expose only `unknown`. Never fall back to the legacy column.
+    if (
+      isMissingRelation(error, "student_financial_statuses") ||
+      isNetworkError(error) ||
+      isAuthError(error)
+    ) {
+      return new Map();
+    }
+    Sentry.captureException(error);
+    return new Map();
+  }
+};
+
+const hydrateStudentFinancialStatuses = async (
+  students: Student[],
+  organizationId: string | null | undefined
+): Promise<Student[]> => {
+  const statuses = await loadStudentFinancialStatusMap(
+    students.map((student) => student.id),
+    organizationId
+  );
+  if (statuses.size === 0) return students;
+  return students.map((student) => ({
+    ...student,
+    financialStatus: statuses.get(student.id) ?? "unknown",
+  }));
+};
+
+const sanitizeCachedStudentFinancialStatuses = (students: Student[]) =>
+  students.map((student) => ({
+    ...student,
+    financialStatus: "unknown" as const,
+  }));
+
+const getExistingClassEnrollment = async (
   student: Student,
   classId: string,
   organizationId: string | null
-) => {
-  if (student.classId === classId) return true;
+): Promise<StudentClassEnrollmentRow | null> => {
   try {
     const rows = await supabaseGet<StudentClassEnrollmentRow[]>(
       organizationId
-        ? `/student_class_enrollments?select=id&student_id=eq.${encodeURIComponent(student.id)}&class_id=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&limit=1`
-        : `/student_class_enrollments?select=id&student_id=eq.${encodeURIComponent(student.id)}&class_id=eq.${encodeURIComponent(classId)}&limit=1`
+        ? `/student_class_enrollments?select=*&student_id=eq.${encodeURIComponent(student.id)}&class_id=eq.${encodeURIComponent(classId)}&organization_id=eq.${encodeURIComponent(organizationId)}&limit=1`
+        : `/student_class_enrollments?select=*&student_id=eq.${encodeURIComponent(student.id)}&class_id=eq.${encodeURIComponent(classId)}&limit=1`
     );
-    return rows.length > 0;
+    return rows[0] ?? null;
   } catch (error) {
-    if (isMissingRelation(error, "student_class_enrollments")) return false;
+    if (isMissingRelation(error, "student_class_enrollments")) return null;
     throw error;
   }
 };
@@ -460,7 +575,7 @@ const mapWeeklyAutopilotProposal = (
         ? parsed.diffs.map((diff) => ({
             weekStart: String((diff as { weekStart?: unknown }).weekStart ?? ""),
             changes: Array.isArray((diff as { changes?: unknown }).changes)
-              ? ((diff as { changes?: unknown }).changes as Array<Record<string, unknown>>).map(
+              ? ((diff as { changes?: unknown }).changes as Record<string, unknown>[]).map(
                   (change) => ({
                     field: String(change.field ?? ""),
                     before: change.before,
@@ -792,14 +907,31 @@ export async function linkExistingStudentByIdentity(params: {
     return { status: "none", student: null, matchedBy: null };
   }
 
-  const student = mapStudentRow(row, organizationId);
-  const alreadyLinked = await isAlreadyLinkedToClass(
+  const [student] = await hydrateStudentFinancialStatuses(
+    [mapStudentRow(row, organizationId)],
+    organizationId
+  );
+  const existingEnrollment = await getExistingClassEnrollment(
     student,
     params.classId,
     organizationId
   );
-  if (alreadyLinked) {
+  if (existingEnrollment?.status === "active") {
     return { status: "already-linked", student, matchedBy };
+  }
+
+  if (existingEnrollment) {
+    await supabasePatch(
+      organizationId
+        ? `/student_class_enrollments?id=eq.${encodeURIComponent(existingEnrollment.id)}&organization_id=eq.${encodeURIComponent(organizationId)}`
+        : `/student_class_enrollments?id=eq.${encodeURIComponent(existingEnrollment.id)}`,
+      {
+        status: "active",
+        modality: params.modality?.trim() || existingEnrollment.modality || null,
+        updated_at: new Date().toISOString(),
+      },
+    );
+    return { status: "linked", student, matchedBy };
   }
 
   await createStudentClassEnrollment(
@@ -827,8 +959,14 @@ export async function getStudents(
         activeOrganizationId
       )}&order=name.asc`
     );
-    const mapped = rows.map((row) => mapStudentRow(row, activeOrganizationId));
-    await writeCache(cacheKey, mapped);
+    const safeMapped = rows.map((row) => mapStudentRow(row, activeOrganizationId));
+    // Cache only the sanitized athlete projection. A financial administrator
+    // and a professor may use the same device/profile cache in sequence.
+    await writeCache(cacheKey, safeMapped);
+    const mapped = await hydrateStudentFinancialStatuses(
+      safeMapped,
+      activeOrganizationId
+    );
     Sentry.addBreadcrumb({
       category: "sqlite-query",
       message: "getStudents",
@@ -842,11 +980,38 @@ export async function getStudents(
         options.organizationId ?? (await getActiveOrganizationId());
       const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
       const cached = await readCache<Student[]>(cacheKey);
-      if (cached) return cached;
+      if (cached) {
+        const safeCached = sanitizeCachedStudentFinancialStatuses(cached);
+        await writeCache(cacheKey, safeCached);
+        return safeCached;
+      }
       return [];
     }
     throw error;
   }
+}
+
+export async function getAttendanceExportStudents(
+  options: { organizationId?: string | null } = {},
+): Promise<AttendanceExportStudent[]> {
+  const organizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "getAttendanceExportStudents",
+  );
+  if (!organizationId) return [];
+
+  type ExportStudentRow = Pick<StudentRow, "id" | "name" | "membership_status">;
+  const rows = await getAllExportPages<ExportStudentRow>(
+    (offset, limit) =>
+      `/students?select=id,name,membership_status&organization_id=eq.${encodeURIComponent(organizationId)}&order=id.asc&limit=${limit}&offset=${offset}`,
+    "atletas",
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
+  }));
 }
 
 export async function getStudentsByClass(
@@ -902,9 +1067,13 @@ export async function getStudentsByClass(
       }
     }
 
-    return Array.from(byId.values())
+    const filteredStudents = Array.from(byId.values())
       .filter((student) => options.includeInactive || student.membershipStatus !== "inactive")
       .sort((a, b) => a.name.localeCompare(b.name));
+    return hydrateStudentFinancialStatuses(
+      filteredStudents,
+      activeOrganizationId
+    );
   } catch (error) {
     if (isNetworkError(error) || isAuthError(error)) {
       const activeOrganizationId =
@@ -912,7 +1081,9 @@ export async function getStudentsByClass(
       const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
       const cached = await readCache<Student[]>(cacheKey);
       if (cached) {
-        return cached.filter(
+        const safeCached = sanitizeCachedStudentFinancialStatuses(cached);
+        await writeCache(cacheKey, safeCached);
+        return safeCached.filter(
           (item) =>
             item.classId === classId &&
             (options.includeInactive || item.membershipStatus !== "inactive")
@@ -940,7 +1111,68 @@ export async function getStudentById(
   );
   const row = rows[0];
   if (!row) return null;
-  return mapStudentRow(row, activeOrganizationId);
+  const [student] = await hydrateStudentFinancialStatuses(
+    [mapStudentRow(row, activeOrganizationId)],
+    activeOrganizationId
+  );
+  return student ?? null;
+}
+
+export async function getStudentOperationalHistory(
+  studentId: string,
+  options: {
+    organizationId?: string | null;
+    includeFinancial?: boolean;
+  } = {},
+): Promise<StudentOperationalEvent[]> {
+  const organizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "getStudentOperationalHistory",
+  );
+  if (!organizationId) return [];
+
+  const membershipPromise = supabaseGet<StudentMembershipEventRow[]>(
+    `/student_membership_events?select=*&student_id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=changed_at.desc`,
+  ).catch((error) => {
+    if (isMissingRelation(error, "student_membership_events")) return [];
+    throw error;
+  });
+  const financialPromise = options.includeFinancial
+    ? supabaseGet<StudentFinancialEventRow[]>(
+        `/student_financial_events?select=*&student_id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(organizationId)}&order=changed_at.desc`,
+      ).catch((error) => {
+        if (isMissingRelation(error, "student_financial_events")) return [];
+        throw error;
+      })
+    : Promise.resolve([] as StudentFinancialEventRow[]);
+
+  const [membershipRows, financialRows] = await Promise.all([
+    membershipPromise,
+    financialPromise,
+  ]);
+
+  return [
+    ...membershipRows.map<StudentOperationalEvent>((row) => ({
+      id: row.id,
+      kind: "membership",
+      previousStatus: row.previous_status ?? null,
+      status: row.status,
+      reason: row.reason ?? null,
+      source: row.source,
+      changedAt: row.changed_at,
+      changedBy: row.changed_by ?? null,
+    })),
+    ...financialRows.map<StudentOperationalEvent>((row) => ({
+      id: row.id,
+      kind: "financial",
+      previousStatus: row.previous_status ?? null,
+      status: row.status,
+      reason: null,
+      source: row.source,
+      changedAt: row.changed_at,
+      changedBy: row.changed_by ?? null,
+    })),
+  ].sort((left, right) => right.changedAt.localeCompare(left.changedAt));
 }
 
 export async function saveStudent(student: Student) {
@@ -968,7 +1200,8 @@ export async function saveStudent(student: Student) {
     college_course: student.collegeCourse?.trim() || null,
     is_experimental: Boolean(student.isExperimental),
     membership_status: student.membershipStatus ?? "active",
-    financial_status: student.financialStatus ?? "regular",
+    // Compatibility facade only. Financial mutations use the dedicated RPC.
+    financial_status: "unknown",
     inactivated_at: student.inactivatedAt ?? null,
     inactivated_by: student.inactivatedBy ?? null,
     inactivation_reason: student.inactivationReason?.trim() || null,
@@ -1042,7 +1275,8 @@ export async function updateStudent(student: Student) {
     college_course: student.collegeCourse?.trim() || null,
     is_experimental: Boolean(student.isExperimental),
     membership_status: student.membershipStatus ?? "active",
-    financial_status: student.financialStatus ?? "regular",
+    // Compatibility facade only. Financial mutations use the dedicated RPC.
+    financial_status: "unknown",
     inactivated_at: student.inactivatedAt ?? null,
     inactivated_by: student.inactivatedBy ?? null,
     inactivation_reason: student.inactivationReason?.trim() || null,
@@ -1187,52 +1421,174 @@ export async function updateStudentOperationalStatus(
     throw new Error("Selecione uma organização ativa.");
   }
 
+  if (patch.membershipStatus && patch.financialStatus) {
+    throw new Error("Atualize o vínculo e o financeiro separadamente.");
+  }
+
   const payload: Record<string, unknown> = {};
   if (patch.membershipStatus) {
     payload.membership_status = patch.membershipStatus;
     if (patch.membershipStatus === "inactive") {
+      const inactivationReason = patch.inactivationReason?.trim() ?? "";
+      if (!inactivationReason) {
+        throw new Error("Informe o motivo da inativação.");
+      }
       payload.inactivated_at = new Date().toISOString();
       payload.inactivated_by = (await getSessionUserId()) || null;
-      payload.inactivation_reason = patch.inactivationReason?.trim() || null;
+      payload.inactivation_reason = inactivationReason;
     } else {
       payload.inactivated_at = null;
       payload.inactivated_by = null;
       payload.inactivation_reason = null;
     }
   }
-  if (patch.financialStatus) {
-    payload.financial_status = patch.financialStatus;
-  }
-  if (Object.keys(payload).length === 0) {
+  if (Object.keys(payload).length === 0 && !patch.financialStatus) {
     throw new Error("Informe uma situação do aluno para atualizar.");
   }
 
-  const updatedRows = await supabasePatch<StudentRow[]>(
-    `/students?id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}`,
-    payload,
-    { Prefer: "return=representation" }
-  );
-  const updatedRow = updatedRows[0];
-  if (updatedRows.length !== 1 || !updatedRow) {
-    throw new Error(
-      "A situação do aluno não foi atualizada. Atualize a lista e tente novamente."
+  let updatedRow: StudentRow | null = null;
+  if (Object.keys(payload).length > 0) {
+    const updatedRows = await supabasePatch<StudentRow[]>(
+      `/students?id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}`,
+      payload,
+      { Prefer: "return=representation" }
     );
+    updatedRow = updatedRows[0] ?? null;
+    if (updatedRows.length !== 1 || !updatedRow) {
+      throw new Error(
+        "A situação do aluno não foi atualizada. Atualize a lista e tente novamente."
+      );
+    }
+
+    const confirmedStudent = mapStudentRow(updatedRow, activeOrganizationId);
+    if (
+      patch.membershipStatus &&
+      confirmedStudent.membershipStatus !== patch.membershipStatus
+    ) {
+      throw new Error(
+        "O Supabase não confirmou a nova situação do aluno. Tente novamente."
+      );
+    }
   }
 
-  const updatedStudent = mapStudentRow(updatedRow, activeOrganizationId);
-  if (
-    (patch.membershipStatus &&
-      updatedStudent.membershipStatus !== patch.membershipStatus) ||
-    (patch.financialStatus &&
-      updatedStudent.financialStatus !== patch.financialStatus)
-  ) {
-    throw new Error(
-      "O Supabase não confirmou a nova situação do aluno. Tente novamente."
+  let financialReceipt:
+    | Pick<StudentFinancialStatusRow, "student_id" | "status">
+    | null = null;
+  if (patch.financialStatus) {
+    const financialRows = await supabasePost<StudentFinancialStatusRow[]>(
+      "/rpc/set_student_financial_status",
+      {
+        p_org_id: activeOrganizationId,
+        p_student_id: studentId,
+        p_status: patch.financialStatus,
+      }
     );
+    financialReceipt = financialRows[0] ?? null;
+    if (
+      financialRows.length !== 1 ||
+      !financialReceipt ||
+      financialReceipt.student_id !== studentId ||
+      financialReceipt.status !== patch.financialStatus
+    ) {
+      throw new Error(
+        "O Supabase não confirmou a nova situação financeira. Tente novamente."
+      );
+    }
   }
-  return updatedStudent;
+
+  if (!updatedRow) {
+    const rows = await supabaseGet<StudentRow[]>(
+      `/students?select=*&id=eq.${encodeURIComponent(studentId)}&organization_id=eq.${encodeURIComponent(activeOrganizationId)}&limit=1`
+    );
+    updatedRow = rows[0] ?? null;
+  }
+  if (!updatedRow) {
+    throw new Error("Aluno não encontrado nesta organização.");
+  }
+
+  const baseStudent = mapStudentRow(updatedRow, activeOrganizationId);
+  if (financialReceipt) {
+    return { ...baseStudent, financialStatus: financialReceipt.status };
+  }
+  const [hydratedStudent] = await hydrateStudentFinancialStatuses(
+    [baseStudent],
+    activeOrganizationId
+  );
+  return hydratedStudent ?? baseStudent;
 }
 
+export async function inactivateStudents(
+  ids: string[],
+  inactivationReason: string,
+  options: { organizationId?: string | null } = {}
+) {
+  const studentIds = Array.from(
+    new Set(ids.map((id) => id.trim()).filter(Boolean))
+  );
+  if (!studentIds.length) {
+    throw new Error("Selecione pelo menos um aluno para inativar.");
+  }
+
+  const reason = inactivationReason.trim();
+  if (!reason) {
+    throw new Error("Informe o motivo da inativação.");
+  }
+  if (reason.length > 240) {
+    throw new Error("O motivo da inativação deve ter no máximo 240 caracteres.");
+  }
+
+  const activeOrganizationId =
+    options.organizationId ?? (await getActiveOrganizationId());
+  if (!activeOrganizationId) {
+    throw new Error("Selecione uma organização ativa.");
+  }
+
+  const inFilter = buildStudentsInFilter(studentIds);
+  const inactivatedAt = new Date().toISOString();
+  const updatedRows = await supabasePatch<StudentRow[]>(
+    `/students?organization_id=eq.${encodeURIComponent(activeOrganizationId)}&id=in.(${inFilter})`,
+    {
+      membership_status: "inactive",
+      inactivated_at: inactivatedAt,
+      inactivated_by: (await getSessionUserId()) || null,
+      inactivation_reason: reason,
+    },
+    { Prefer: "return=representation" }
+  );
+
+  const confirmedIds = new Set(updatedRows.map((row) => row.id));
+  if (
+    updatedRows.length !== studentIds.length ||
+    studentIds.some((studentId) => !confirmedIds.has(studentId))
+  ) {
+    throw new Error(
+      "O servidor não confirmou a inativação de todos os alunos. Atualize a lista e tente novamente."
+    );
+  }
+
+  const updatedStudents = updatedRows.map((row) =>
+    mapStudentRow(row, activeOrganizationId)
+  );
+  if (
+    updatedStudents.some(
+      (student) =>
+        student.membershipStatus !== "inactive" ||
+        student.inactivationReason !== reason
+    )
+  ) {
+    throw new Error(
+      "O Supabase não confirmou a inativação solicitada. Tente novamente."
+    );
+  }
+  return hydrateStudentFinancialStatuses(
+    updatedStudents,
+    activeOrganizationId
+  );
+}
+
+// Permanent erasure is intentionally kept separate from operational lifecycle
+// actions. Product screens must inactivate athletes instead of calling these
+// helpers; explicit LGPD workflows may still need physical deletion.
 export async function deleteStudent(id: string) {
   const activeOrganizationId = await getActiveOrganizationId();
   await supabaseDelete(
@@ -1271,40 +1627,25 @@ export async function moveStudentsToClass(
   if (!filteredIds.length || fromClassId === toClassId) return;
 
   const activeOrganizationId = organizationId ?? (await getActiveOrganizationId());
-  const inFilter = buildStudentsInFilter(filteredIds);
-  const studentsPath = activeOrganizationId
-    ? "/students?organization_id=eq." +
-      encodeURIComponent(activeOrganizationId) +
-      "&id=in.(" +
-      inFilter +
-      ")"
-    : "/students?id=in.(" + inFilter + ")";
-  const enrollmentPath = activeOrganizationId
-    ? "/student_class_enrollments?organization_id=eq." +
-      encodeURIComponent(activeOrganizationId) +
-      "&student_id=in.(" +
-      inFilter +
-      ")&class_id=eq." +
-      encodeURIComponent(fromClassId)
-    : "/student_class_enrollments?student_id=in.(" +
-      inFilter +
-      ")&class_id=eq." +
-      encodeURIComponent(fromClassId);
+  if (!activeOrganizationId) {
+    throw new Error("Selecione uma organização ativa.");
+  }
 
-  await supabasePatch(studentsPath, {
-    classid: toClassId,
-  });
-
-  try {
-    await supabaseDelete(enrollmentPath);
-  } catch (error) {
-    if (isMissingRelation(error, "student_class_enrollments")) {
-      return;
-    }
-    await supabasePatch(studentsPath, {
-      classid: fromClassId,
-    });
-    throw error;
+  const receiptRows = await supabasePost<{ moved_count: number }[]>(
+    "/rpc/move_students_to_class",
+    {
+      p_org_id: activeOrganizationId,
+      p_student_ids: filteredIds,
+      p_from_class_id: fromClassId,
+      p_to_class_id: toClassId,
+    },
+    { Prefer: "return=representation" },
+  );
+  const movedCount = Number(receiptRows[0]?.moved_count ?? -1);
+  if (movedCount !== new Set(filteredIds).size) {
+    throw new Error(
+      "O servidor não confirmou a movimentação de todos os alunos.",
+    );
   }
 }
 
@@ -1895,11 +2236,10 @@ export async function getAttendanceByDate(
   } catch (error) {
     if (isMissingRelation(error, "attendance_logs")) return [];
     const cached = await getCachedAttendanceByDate(classId, date, organizationId);
-    if (cached.length > 0 && (isNetworkError(error) || isAuthError(error))) {
-      return cached;
+    if (cached.found && (isNetworkError(error) || isAuthError(error))) {
+      return cached.records;
     }
-    if (cached.length > 0) return cached;
-    if (isNetworkError(error) || isAuthError(error)) return [];
+    if (cached.records.length > 0) return cached.records;
     throw error;
   }
 }
@@ -1956,6 +2296,55 @@ export async function getAttendanceAll(
     note: row.note ?? "",
     painScore: row.pain_score ?? 0,
     createdAt: row.createdat,
+  }));
+}
+
+export async function getAttendanceExportRecords(
+  options: {
+    organizationId?: string | null;
+    startIso?: string;
+    endIso?: string;
+    classIds?: string[];
+    studentId?: string | null;
+  } = {},
+): Promise<AttendanceExportRecord[]> {
+  const organizationId = await getScopedOrganizationId(
+    options.organizationId,
+    "getAttendanceExportRecords",
+  );
+  if (!organizationId) return [];
+
+  const classIds = options.classIds
+    ? Array.from(new Set(options.classIds.map((value) => value.trim()).filter(Boolean)))
+    : null;
+  if (classIds && classIds.length === 0) return [];
+
+  const startIso = options.startIso?.trim() || "";
+  const endIso = options.endIso?.trim() || "";
+  const studentId = options.studentId?.trim() || "";
+  const classFilter = classIds
+    ? `&classid=in.(${buildStudentsInFilter(classIds)})`
+    : "";
+  type ExportAttendanceRow = Pick<
+    AttendanceRow,
+    "id" | "classid" | "studentid" | "date" | "status"
+  >;
+  const rows = await getAllExportPages<ExportAttendanceRow>(
+    (offset, limit) =>
+      `/attendance_logs?select=id,classid,studentid,date,status&organization_id=eq.${encodeURIComponent(organizationId)}${
+        startIso ? `&date=gte.${encodeURIComponent(startIso)}` : ""
+      }${endIso ? `&date=lt.${encodeURIComponent(endIso)}` : ""}${classFilter}${
+        studentId ? `&studentid=eq.${encodeURIComponent(studentId)}` : ""
+      }&order=date.asc,classid.asc,studentid.asc,id.asc&limit=${limit}&offset=${offset}`,
+    "chamadas",
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    classId: row.classid,
+    studentId: row.studentid,
+    date: row.date,
+    status: row.status === "faltou" ? "faltou" : "presente",
   }));
 }
 

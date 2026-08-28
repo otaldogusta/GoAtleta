@@ -20,11 +20,14 @@ import {
   countStudentFilterExclusions,
   createEmptyStudentFilterExclusions,
   matchesStudentFilterExclusions,
+  matchesStudentMembershipScope,
   toggleStudentFilterExclusion,
   type StudentContactFilter,
   type StudentFilterExclusions,
   type StudentProfileFilter,
+  type StudentMembershipScope,
 } from "./application/student-list-filters";
+import { STUDENT_FINANCIAL_STATUS_OPTIONS } from "./application/student-operational-status";
 import { resolveStudentListPrimaryStatus } from "./application/student-list-status";
 import { radius } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
@@ -79,6 +82,7 @@ export type StudentsListTabProps = {
   onStudentWhatsApp?: (student: Student) => void;
   birthdayStudentIds?: ReadonlySet<string>;
   loading?: boolean;
+  canViewFinancialStatus?: boolean;
 };
 
 const PAGE_SIZE = 8;
@@ -193,14 +197,8 @@ const profileFilterOptions: FilterOption<StudentProfileFilter>[] = [
   { value: "experimental", label: "Experimental" },
 ];
 
-const membershipFilterOptions: FilterOption<Student["membershipStatus"]>[] = [
-  { value: "active", label: "Ativo" },
-  { value: "inactive", label: "Inativo" },
-];
-
 const financialFilterOptions: FilterOption<Student["financialStatus"]>[] = [
-  { value: "regular", label: "Regular" },
-  { value: "delinquent", label: "Inadimplente" },
+  ...STUDENT_FINANCIAL_STATUS_OPTIONS,
 ];
 
 const genderFilterOptions: FilterOption<ClassGroup["gender"]>[] = [
@@ -231,6 +229,7 @@ export const StudentsListTab = memo(function StudentsListTab({
   onStudentWhatsApp,
   birthdayStudentIds,
   loading = false,
+  canViewFinancialStatus = false,
 }: StudentsListTabProps) {
   const { colors } = useAppTheme();
   const { height: viewportHeight } = useWindowDimensions();
@@ -258,6 +257,8 @@ export const StudentsListTab = memo(function StudentsListTab({
   const [draftFilterExclusions, setDraftFilterExclusions] =
     useState<StudentFilterExclusions>(createEmptyStudentFilterExclusions);
   const [page, setPage] = useState(1);
+  const [membershipScope, setMembershipScope] =
+    useState<StudentMembershipScope>("active");
   const hasSearch = studentsSearch.trim().length > 0;
 
   const classScheduleById = useMemo(() => {
@@ -301,16 +302,38 @@ export const StudentsListTab = memo(function StudentsListTab({
       .map((cls) => ({ value: cls.id, label: cls.name }));
   }, [classById, studentsFiltered]);
 
+  const membershipCounts = useMemo(
+    () => ({
+      active: studentsFiltered.filter(
+        (student) => student.membershipStatus === "active",
+      ).length,
+      inactive: studentsFiltered.filter(
+        (student) => student.membershipStatus === "inactive",
+      ).length,
+      all: studentsFiltered.length,
+    }),
+    [studentsFiltered],
+  );
+
+  const effectiveFilterExclusions = useMemo(
+    () =>
+      canViewFinancialStatus
+        ? appliedFilterExclusions
+        : { ...appliedFilterExclusions, financials: [] },
+    [appliedFilterExclusions, canViewFinancialStatus],
+  );
   const activeFilterCount = useMemo(
-    () => countStudentFilterExclusions(appliedFilterExclusions),
-    [appliedFilterExclusions],
+    () => countStudentFilterExclusions(effectiveFilterExclusions),
+    [effectiveFilterExclusions],
   );
 
   const openFiltersModal = () => {
     setDraftFilterExclusions({
       profiles: [...appliedFilterExclusions.profiles],
       memberships: [...appliedFilterExclusions.memberships],
-      financials: [...appliedFilterExclusions.financials],
+      financials: canViewFinancialStatus
+        ? [...appliedFilterExclusions.financials]
+        : [],
       genders: [...appliedFilterExclusions.genders],
       classes: [...appliedFilterExclusions.classes],
       contacts: [...appliedFilterExclusions.contacts],
@@ -330,34 +353,51 @@ export const StudentsListTab = memo(function StudentsListTab({
 
   const filteredRows = useMemo(
     () =>
-      studentsFiltered.filter((student) =>
-        matchesStudentFilterExclusions({
-          student,
-          classGroup: classById.get(student.classId),
-          exclusions: appliedFilterExclusions,
-        }),
+      studentsFiltered.filter(
+        (student) =>
+          matchesStudentMembershipScope(student, membershipScope) &&
+          matchesStudentFilterExclusions({
+            student,
+            classGroup: classById.get(student.classId),
+            exclusions: effectiveFilterExclusions,
+          }),
       ),
     [
-      appliedFilterExclusions,
       classById,
+      effectiveFilterExclusions,
+      membershipScope,
       studentsFiltered,
     ],
   );
 
   useEffect(() => {
-    setPage(1);
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) setPage(1);
+    });
+    return () => {
+      active = false;
+    };
   }, [
     appliedFilterExclusions,
+    membershipScope,
     studentsSearch,
     studentsUnitFilter,
   ]);
 
   useEffect(() => {
     const availableClassIds = new Set(classOptions.map((option) => option.value));
-    setAppliedFilterExclusions((current) => ({
-      ...current,
-      classes: current.classes.filter((classId) => availableClassIds.has(classId)),
-    }));
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      setAppliedFilterExclusions((current) => ({
+        ...current,
+        classes: current.classes.filter((classId) => availableClassIds.has(classId)),
+      }));
+    });
+    return () => {
+      active = false;
+    };
   }, [classOptions]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
@@ -602,6 +642,71 @@ export const StudentsListTab = memo(function StudentsListTab({
                 }}
               />
             </View>
+          </View>
+
+          <View
+            accessibilityRole="tablist"
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {(
+              [
+                { value: "active", label: "Ativos" },
+                { value: "inactive", label: "Inativos" },
+                { value: "all", label: "Todos" },
+              ] as const
+            ).map((option) => {
+              const active = membershipScope === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setMembershipScope(option.value)}
+                  style={(state) => ({
+                    minHeight: 44,
+                    paddingHorizontal: 12,
+                    borderRadius: radius.internal,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: active
+                      ? colors.primaryBg
+                      : (colors.borderSubtle ?? colors.border),
+                    backgroundColor:
+                      active || state.hovered
+                        ? colors.secondaryBg
+                        : colors.background,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                  })}
+                >
+                  <Text
+                    style={{
+                      color: active
+                        ? colors.primaryBg
+                        : (colors.textMuted ?? colors.muted),
+                      fontSize: 12,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                  <Text
+                    style={{
+                      color: colors.textMuted ?? colors.muted,
+                      fontSize: 10,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {membershipCounts[option.value]}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
         </View>
@@ -1107,20 +1212,15 @@ export const StudentsListTab = memo(function StudentsListTab({
           nestedScrollEnabled
           showsVerticalScrollIndicator
         >
-          <StudentFilterGroup
-            title="Vínculo"
-            options={membershipFilterOptions}
-            excludedValues={draftFilterExclusions.memberships}
-            onToggle={(value) => toggleDraftFilter("memberships", value)}
-            compact={compactFilters}
-          />
-          <StudentFilterGroup
-            title="Financeiro"
-            options={financialFilterOptions}
-            excludedValues={draftFilterExclusions.financials}
-            onToggle={(value) => toggleDraftFilter("financials", value)}
-            compact={compactFilters}
-          />
+          {canViewFinancialStatus ? (
+            <StudentFilterGroup
+              title="Financeiro"
+              options={financialFilterOptions}
+              excludedValues={draftFilterExclusions.financials}
+              onToggle={(value) => toggleDraftFilter("financials", value)}
+              compact={compactFilters}
+            />
+          ) : null}
           <StudentFilterGroup
             title="Perfil"
             options={profileFilterOptions}
@@ -1192,7 +1292,9 @@ export const StudentsListTab = memo(function StudentsListTab({
               setAppliedFilterExclusions({
                 profiles: [...draftFilterExclusions.profiles],
                 memberships: [...draftFilterExclusions.memberships],
-                financials: [...draftFilterExclusions.financials],
+                financials: canViewFinancialStatus
+                  ? [...draftFilterExclusions.financials]
+                  : [],
                 genders: [...draftFilterExclusions.genders],
                 classes: [...draftFilterExclusions.classes],
                 contacts: [...draftFilterExclusions.contacts],

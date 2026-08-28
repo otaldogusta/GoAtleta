@@ -1,6 +1,10 @@
 ﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { validateStringField } from "../_shared/input-validation.ts";
+import {
+  validateObjectPayload,
+  validateStringField,
+} from "../_shared/input-validation.ts";
+import { authenticateRequest } from "../_shared/middlewares/auth.ts";
 
 
 const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
@@ -8,7 +12,6 @@ const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-
 const createError = (req: Request, status: number, code: string, error: string) =>
   new Response(JSON.stringify({ code, error }), { status, headers: makeJsonHeaders(req) });
 
-const INVITE_TTL_DAYS = 30;
 const ALLOWED_CHANNELS = new Set(["whatsapp", "email", "link"]);
 
 const toHex = (buffer: ArrayBuffer) => {
@@ -25,33 +28,7 @@ const sha256 = async (value: string) => {
 const normalizeChannel = (value: string) => {
   const normalized = (value ?? "").trim().toLowerCase();
   if (!normalized) return "whatsapp";
-  if (!ALLOWED_CHANNELS.has(normalized)) return "whatsapp";
-  return normalized;
-};
-
-// verify_jwt = true in config.toml means the Supabase gateway already validates
-// the JWT cryptographically before the function runs. We can safely decode the
-// payload locally without making a second network round-trip to Supabase Auth,
-// which avoids 401s caused by server-side session invalidation.
-const requireUser = (req: Request): { id: string; email?: string; token: string } | null => {
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.slice("Bearer ".length).trim();
-  if (!token) return null;
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
-    ) as Record<string, unknown>;
-    const sub = payload["sub"];
-    const exp = payload["exp"];
-    if (typeof sub !== "string" || !sub) return null;
-    if (typeof exp === "number" && exp < Date.now() / 1000) return null;
-    return { id: sub, email: typeof payload["email"] === "string" ? payload["email"] : undefined, token };
-  } catch {
-    return null;
-  }
+  return ALLOWED_CHANNELS.has(normalized) ? normalized : null;
 };
 
 Deno.serve(async (req) => {
@@ -62,14 +39,22 @@ Deno.serve(async (req) => {
     return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
-  const user = requireUser(req);
-  if (!user) {
+  const auth = await authenticateRequest(req);
+  if (!auth) {
     return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
-  let payload: { studentId: string; invitedVia: string; invitedTo: string } = {};
+  let payload: { studentId: string; invitedVia: string; invitedTo: string } = {
+    studentId: "",
+    invitedVia: "",
+    invitedTo: "",
+  };
   try {
-    payload = (await req.json()) as {
+    const parsed = validateObjectPayload(await req.json());
+    if (!parsed.ok || !parsed.data) {
+      return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
+    }
+    payload = parsed.data as {
       studentId: string;
       invitedVia: string;
       invitedTo: string;
@@ -89,8 +74,7 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+  if (!supabaseUrl || !anonKey) {
     return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
@@ -98,63 +82,69 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
     global: {
       headers: {
-        Authorization: `Bearer ${user.token}`,
+        Authorization: `Bearer ${auth.token}`,
       },
     },
   });
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const { data: student, error: studentError } = await supabase
-    .from("students")
-    .select("id, name, phone, login_email, owner_id, student_user_id")
-    .eq("id", studentId)
-    .maybeSingle();
-
-  if (studentError) {
-    console.error("create-student-invite: student lookup failed", studentError.message);
-    return createError(req, 500, "SERVER_ERROR", "Student lookup failed");
-  }
-
-  if (!student) {
-    return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
-  }
-
-  if (student.student_user_id && student.student_user_id !== user.id) {
-    return createError(req, 409, "STUDENT_ALREADY_LINKED", "Student already linked");
-  }
-
   const token = crypto.randomUUID();
   const tokenHash = await sha256(token);
-  const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
   const invitedVia = normalizeChannel(String(payload.invitedVia ?? ""));
-  const invitedToValidation = validateStringField(payload.invitedTo, { maxLength: 255 });
+  if (!invitedVia) {
+    return createError(req, 400, "INVALID_REQUEST", "Invalid invitation channel");
+  }
+  const invitedToValidation = validateStringField(payload.invitedTo, {
+    maxLength: 255,
+    ...(invitedVia === "email"
+      ? {
+          minLength: 5,
+          pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+        }
+      : {}),
+  });
+  if (invitedVia === "email" && !invitedToValidation.ok) {
+    return createError(req, 400, "INVALID_REQUEST", "Invalid invitation email");
+  }
   const invitedTo = invitedToValidation.ok && invitedToValidation.data
-    ? invitedToValidation.data
+    ? invitedVia === "email"
+      ? invitedToValidation.data.trim().toLowerCase()
+      : invitedToValidation.data.trim()
     : null;
 
-  // The user-scoped lookup above is the authorization check. Use the server
-  // client only for persistence so current organization/class roles are not
-  // blocked by the legacy `is_trainer()` invite policy.
-  const { error: insertError } = await admin.from("student_invites").insert({
-    student_id: studentId,
-    token_hash: tokenHash,
-    created_by: user.id,
-    expires_at: expiresAt.toISOString(),
-    invited_via: invitedVia,
-    invited_to: invitedTo,
-  });
+  const { data: invite, error: insertError } = await supabase
+    .rpc("create_student_invite_access", {
+      p_student_id: studentId,
+      p_token_hash: tokenHash,
+      p_invited_via: invitedVia,
+      p_invited_to: invitedTo,
+    })
+    .single();
 
-  if (insertError) {
-    console.error("create-student-invite: insert failed", insertError.message);
+  if (insertError || !invite) {
+    const message = insertError?.message ?? "";
+    if (message.includes("STUDENT_NOT_FOUND")) {
+      return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
+    }
+    if (message.includes("STUDENT_ALREADY_LINKED")) {
+      return createError(req, 409, "STUDENT_ALREADY_LINKED", "Student already linked");
+    }
+    if (message.includes("NOT_AUTHORIZED")) {
+      return createError(req, 403, "FORBIDDEN", "Forbidden");
+    }
+    console.error("create-student-invite: atomic insert failed");
+    return createError(req, 500, "SERVER_ERROR", "Failed to create invite");
+  }
+
+  const expiresAt = String(
+    (invite as { expires_at?: unknown }).expires_at ?? ""
+  );
+  if (!expiresAt) {
     return createError(req, 500, "SERVER_ERROR", "Failed to create invite");
   }
 
   return new Response(
     JSON.stringify({
       token,
-      expires_at: expiresAt.toISOString(),
+      expires_at: expiresAt,
       student_id: studentId,
     }),
     { headers: makeJsonHeaders(req) }

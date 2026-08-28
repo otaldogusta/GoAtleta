@@ -20,6 +20,7 @@ import {
   isNetworkError,
   supabaseDelete,
   supabaseGet,
+  supabasePatch,
   supabasePost,
 } from "./client";
 import type {
@@ -43,6 +44,7 @@ type TrainingSessionSyncParams = {
   createdAt?: string;
   updatedAt?: string;
   attendance?: TrainingSessionAttendance[];
+  descriptionWriteMode?: "replace" | "insert-only";
 };
 
 type TrainingIntegrationRuleSyncParams = {
@@ -233,6 +235,10 @@ const buildAttendanceFilter = (sessionId: string, organizationId?: string | null
   `/training_session_attendance?session_id=eq.${encodeURIComponent(sessionId)}` +
   (organizationId ? `&organization_id=eq.${encodeURIComponent(organizationId)}` : "");
 
+const buildTrainingSessionFilter = (sessionId: string, organizationId?: string | null) =>
+  `/training_sessions?id=eq.${encodeURIComponent(sessionId)}` +
+  (organizationId ? `&organization_id=eq.${encodeURIComponent(organizationId)}` : "");
+
 const buildIntegrationRuleFilter = (ruleId: string, organizationId?: string | null) =>
   `/training_session_integration_rule_classes?rule_id=eq.${encodeURIComponent(ruleId)}` +
   (organizationId ? `&organization_id=eq.${encodeURIComponent(organizationId)}` : "");
@@ -358,11 +364,32 @@ export async function upsertTrainingSession(params: TrainingSessionSyncParams) {
   };
 
   try {
-    await supabasePost(
-      "/training_sessions?on_conflict=id",
-      [sessionPayload],
-      { Prefer: "resolution=merge-duplicates" }
-    );
+    if (params.descriptionWriteMode === "insert-only") {
+      // Attendance provides a useful fallback description when it creates the
+      // session, but a realized report is the authority once one exists. An
+      // insert-ignore followed by a description-free patch makes that rule
+      // independent from whether attendance or the report finishes first.
+      await supabasePost(
+        "/training_sessions?on_conflict=id",
+        [sessionPayload],
+        { Prefer: "resolution=ignore-duplicates" }
+      );
+      await supabasePatch(buildTrainingSessionFilter(sessionId, organizationId), {
+        title: sessionPayload.title,
+        end_at: sessionPayload.end_at,
+        status: sessionPayload.status,
+        type: sessionPayload.type,
+        source: sessionPayload.source,
+        plan_id: sessionPayload.plan_id,
+        updated_at: sessionPayload.updated_at,
+      });
+    } else {
+      await supabasePost(
+        "/training_sessions?on_conflict=id",
+        [sessionPayload],
+        { Prefer: "resolution=merge-duplicates" }
+      );
+    }
 
     await supabaseDelete(buildSessionFilter(sessionId, organizationId));
     if (classIds.length) {
@@ -379,27 +406,29 @@ export async function upsertTrainingSession(params: TrainingSessionSyncParams) {
       );
     }
 
-    await supabaseDelete(buildAttendanceFilter(sessionId, organizationId));
-    if (params.attendance?.length) {
-      await supabasePost(
-        "/training_session_attendance",
-        params.attendance.map((item) => ({
-          id: `tsa_${hashString(`${sessionId}|${item.studentId}`)}`,
-          session_id: sessionId,
-          student_id: item.studentId,
-          class_id: item.classId,
-          organization_id: item.organizationId || organizationId || undefined,
-          status: item.status === "absent" ? "absent" : "present",
-          note: item.note?.trim() || null,
-          pain_score:
-            typeof item.painScore === "number" && Number.isFinite(item.painScore)
-              ? item.painScore
-              : null,
-          created_at: item.createdAt ?? nowIso,
-          updated_at: item.updatedAt ?? nowIso,
-        })),
-        { Prefer: "resolution=merge-duplicates" }
-      );
+    if (params.attendance !== undefined) {
+      await supabaseDelete(buildAttendanceFilter(sessionId, organizationId));
+      if (params.attendance.length) {
+        await supabasePost(
+          "/training_session_attendance",
+          params.attendance.map((item) => ({
+            id: `tsa_${hashString(`${sessionId}|${item.studentId}`)}`,
+            session_id: sessionId,
+            student_id: item.studentId,
+            class_id: item.classId,
+            organization_id: item.organizationId || organizationId || undefined,
+            status: item.status === "absent" ? "absent" : "present",
+            note: item.note?.trim() || "",
+            pain_score:
+              typeof item.painScore === "number" && Number.isFinite(item.painScore)
+                ? item.painScore
+                : null,
+            created_at: item.createdAt ?? nowIso,
+            updated_at: item.updatedAt ?? nowIso,
+          })),
+          { Prefer: "resolution=merge-duplicates" }
+        );
+      }
     }
 
     if (classIds.length > 1) {
@@ -479,6 +508,7 @@ export async function syncTrainingSessionFromAttendance(params: {
     source: params.plan ? "plan" : "manual",
     planId: params.plan?.id ?? null,
     organizationId: params.organizationId ?? params.classInfo.organizationId,
+    descriptionWriteMode: "insert-only",
     attendance: params.records.map((record) => ({
       id: record.id,
       sessionId: "",

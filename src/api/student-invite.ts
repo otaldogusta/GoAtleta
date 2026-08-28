@@ -121,8 +121,10 @@ export async function claimStudentInvite(tokenValue: string) {
   );
 }
 
-export async function listStudentPendingInvites() {
-  const res = await requestWithAuth("/functions/v1/list-student-invites", {});
+export async function listStudentPendingInvites(organizationId?: string) {
+  const res = await requestWithAuth("/functions/v1/list-student-invites", {
+    organizationId: organizationId ?? "",
+  });
   return await parseInviteApiResponse<{ invites: StudentInvitePendingItem[] }>(
     res,
     "Falha ao listar convites de aluno."

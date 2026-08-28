@@ -3,6 +3,7 @@ export type InviteErrorCode =
   | "INVITE_EXPIRED"
   | "INVITE_ALREADY_USED"
   | "INVITE_REVOKED"
+  | "INVITE_EMAIL_MISMATCH"
   | "INVITE_LIMIT_REACHED"
   | "STUDENT_ALREADY_LINKED"
   | "STUDENT_NOT_FOUND"
@@ -35,6 +36,9 @@ const mapMessageToCode = (message: string): InviteErrorCode => {
     return "INVITE_ALREADY_USED";
   }
   if (lower.includes("revoked")) return "INVITE_REVOKED";
+  if (lower.includes("another email") || lower.includes("outro e-mail")) {
+    return "INVITE_EMAIL_MISMATCH";
+  }
   if (lower.includes("limit reached")) return "INVITE_LIMIT_REACHED";
   if (lower.includes("already linked") || lower.includes("ja esta vinculado") || lower.includes("já está vinculado")) {
     return "STUDENT_ALREADY_LINKED";

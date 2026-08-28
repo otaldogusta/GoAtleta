@@ -39,7 +39,11 @@ import { useAuth } from "../../src/auth/auth";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { sortClassesBySchedule } from "../../src/core/class-schedule-sort";
 import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
-import type { ClassGroup, Student } from "../../src/core/models";
+import type {
+  ClassGroup,
+  Student,
+  StudentOperationalEvent,
+} from "../../src/core/models";
 import { deriveStudentHealthAssessment } from "../../src/core/student-health";
 import {
   findPossibleExistingStudents,
@@ -48,8 +52,8 @@ import {
 import { isStudentBirthdayToday } from "../../src/core/students/student-birthday";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
-  deleteStudent,
   getClasses,
+  getStudentOperationalHistory,
   getStudents,
   revealStudentCpf,
   saveStudent,
@@ -85,6 +89,10 @@ import {
   buildStudentListGroups,
   groupStudentsByClassId,
 } from "../../src/screens/students/application/student-list-selectors";
+import {
+  buildStudentOperationalHistoryScopeKey,
+  isStudentOperationalHistoryScopeCurrent,
+} from "../../src/screens/students/application/student-operational-history-request";
 import { exportStudentsXlsx } from "../../src/screens/students/export/exportStudentsXlsx";
 import { useBuildStudentMessage } from "../../src/screens/students/hooks/useBuildStudentMessage";
 import { useOnEditStudent } from "../../src/screens/students/hooks/useOnEditStudent";
@@ -103,7 +111,6 @@ import { AppRefreshControl } from "../../src/ui/AppRefreshControl";
 import { Button } from "../../src/ui/Button";
 import { getClassPalette } from "../../src/ui/class-colors";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
-import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalSheet } from "../../src/ui/ModalSheet";
@@ -114,7 +121,6 @@ import { ShimmerBlock } from "../../src/ui/Shimmer";
 import { getUnitPalette } from "../../src/ui/unit-colors";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
-import { useUndoableListDelete } from "../../src/ui/useUndoableListDelete";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { WebCameraCaptureModal } from "../../src/ui/WebCameraCaptureModal";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
@@ -235,9 +241,16 @@ export default function StudentsScreen() {
   const canRevealCpf = scopedRoutes.scope === "coord" && effectiveProfile === "admin";
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
-  const { activeOrganization } = useOrganization();
+  const {
+    activeOrganization,
+    memberPermissions,
+    permissionsLoading,
+  } = useOrganization();
+  const canManageFinancialStatus =
+    !permissionsLoading &&
+    ((activeOrganization?.role_level ?? 0) >= 50 ||
+      memberPermissions.financial === true);
   const { coachName, groupInviteLinks } = useWhatsAppSettings();
-  const { confirm } = useConfirmUndo();
   const { confirm: confirmDialog } = useConfirmDialog();
   const emptyDropdownTextStyle = useMemo(
     () => ({
@@ -292,6 +305,14 @@ export default function StudentsScreen() {
   const [showStudentsImportModal, setShowStudentsImportModal] = useState(false);
   const [studentsExportBusy, setStudentsExportBusy] = useState(false);
   const [operationalStatusSaving, setOperationalStatusSaving] = useState(false);
+  const [operationalHistory, setOperationalHistory] = useState<
+    StudentOperationalEvent[]
+  >([]);
+  const [operationalHistoryLoading, setOperationalHistoryLoading] =
+    useState(false);
+  const [operationalHistoryError, setOperationalHistoryError] = useState("");
+  const operationalHistoryRequestIdRef = useRef(0);
+  const operationalHistoryScopeKeyRef = useRef("");
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] =
     useState<StudentsTab | null>(null);
@@ -669,7 +690,7 @@ export default function StudentsScreen() {
   const loadSupplementaryStudentsData = useCallback(
     async (aliveRef: { current: boolean }) => {
       const invitesPromise = session?.access_token
-        ? listStudentPendingInvites().catch((error) => {
+        ? listStudentPendingInvites(activeOrganization?.id).catch((error) => {
             console.warn("StudentsScreen invite load failed", error);
             return { invites: [] };
           })
@@ -679,7 +700,7 @@ export default function StudentsScreen() {
       if (!aliveRef.current) return;
       setPendingStudentInvites(pendingInvitesResult.invites ?? []);
     },
-    [session?.access_token],
+    [activeOrganization?.id, session?.access_token],
   );
 
   useEffect(() => {
@@ -734,6 +755,91 @@ export default function StudentsScreen() {
     () => students.find((student) => student.id === editingId) ?? null,
     [editingId, students],
   );
+  const operationalStudentId = operationalStudent?.id ?? null;
+  const operationalOrganizationId = activeOrganization?.id ?? null;
+  const operationalHistoryScopeKey = buildStudentOperationalHistoryScopeKey({
+    organizationId: operationalOrganizationId,
+    studentId: operationalStudentId,
+    includeFinancial: canManageFinancialStatus,
+  });
+  operationalHistoryScopeKeyRef.current = operationalHistoryScopeKey;
+
+  const refreshOperationalHistory = useCallback(async () => {
+    const requestScopeKey = operationalHistoryScopeKey;
+    if (
+      !isStudentOperationalHistoryScopeCurrent(
+        requestScopeKey,
+        operationalHistoryScopeKeyRef.current,
+      )
+    ) {
+      return;
+    }
+    const requestId = operationalHistoryRequestIdRef.current + 1;
+    operationalHistoryRequestIdRef.current = requestId;
+    if (!operationalStudentId || !operationalOrganizationId) {
+      setOperationalHistory([]);
+      setOperationalHistoryLoading(false);
+      setOperationalHistoryError("");
+      return;
+    }
+    setOperationalHistory([]);
+    setOperationalHistoryLoading(true);
+    setOperationalHistoryError("");
+    try {
+      const history = await getStudentOperationalHistory(
+        operationalStudentId,
+        {
+          organizationId: operationalOrganizationId,
+          includeFinancial: canManageFinancialStatus,
+        },
+      );
+      if (
+        requestId !== operationalHistoryRequestIdRef.current ||
+        !isStudentOperationalHistoryScopeCurrent(
+          requestScopeKey,
+          operationalHistoryScopeKeyRef.current,
+        )
+      ) {
+        return;
+      }
+      setOperationalHistory(history);
+    } catch (error) {
+      if (
+        requestId !== operationalHistoryRequestIdRef.current ||
+        !isStudentOperationalHistoryScopeCurrent(
+          requestScopeKey,
+          operationalHistoryScopeKeyRef.current,
+        )
+      ) {
+        return;
+      }
+      console.warn("StudentsScreen operational history failed", error);
+      setOperationalHistory([]);
+      setOperationalHistoryError("Não foi possível carregar o histórico.");
+    } finally {
+      if (
+        requestId === operationalHistoryRequestIdRef.current &&
+        isStudentOperationalHistoryScopeCurrent(
+          requestScopeKey,
+          operationalHistoryScopeKeyRef.current,
+        )
+      ) {
+        setOperationalHistoryLoading(false);
+      }
+    }
+  }, [
+    canManageFinancialStatus,
+    operationalHistoryScopeKey,
+    operationalOrganizationId,
+    operationalStudentId,
+  ]);
+
+  useEffect(() => {
+    void refreshOperationalHistory();
+    return () => {
+      operationalHistoryRequestIdRef.current += 1;
+    };
+  }, [refreshOperationalHistory]);
 
   const handleUpdateOperationalStatus = useCallback(
     async (patch: {
@@ -741,7 +847,14 @@ export default function StudentsScreen() {
       financialStatus?: Student["financialStatus"];
       inactivationReason?: string | null;
     }) => {
-      if (!operationalStudent || operationalStatusSaving) return;
+      if (!operationalStudent || operationalStatusSaving) return false;
+      if (patch.financialStatus && !canManageFinancialStatus) {
+        showSaveToast({
+          message: "Você não tem permissão para alterar o financeiro.",
+          variant: "error",
+        });
+        return false;
+      }
       const nextMembership = patch.membershipStatus;
       if (nextMembership === "active") {
         const confirmed = await confirmDialog({
@@ -752,7 +865,7 @@ export default function StudentsScreen() {
           tone: "default",
           onConfirm: () => undefined,
         });
-        if (!confirmed) return;
+        if (!confirmed) return false;
       }
 
       setOperationalStatusSaving(true);
@@ -761,7 +874,7 @@ export default function StudentsScreen() {
           operationalStudent.id,
           patch,
           {
-            organizationId: activeOrganization?.id,
+            organizationId: operationalOrganizationId,
           },
         );
         setStudents((current) =>
@@ -769,30 +882,33 @@ export default function StudentsScreen() {
             student.id === updatedStudent.id ? updatedStudent : student,
           ),
         );
+        await refreshOperationalHistory();
         showSaveToast({
           message: patch.membershipStatus
             ? patch.membershipStatus === "inactive"
               ? "Aluno inativado. O histórico foi preservado."
               : "Aluno reativado."
-            : patch.financialStatus === "delinquent"
-              ? "Situação financeira marcada como inadimplente."
-              : "Situação financeira marcada como regular.",
+            : "Situação financeira atualizada.",
           variant: "success",
         });
+        return true;
       } catch (error) {
         showSaveToast({
           error,
           message: "Não foi possível atualizar a situação do aluno.",
           variant: "error",
         });
+        return false;
       } finally {
         setOperationalStatusSaving(false);
       }
     }, [
-      activeOrganization?.id,
+      canManageFinancialStatus,
       confirmDialog,
+      operationalOrganizationId,
       operationalStatusSaving,
       operationalStudent,
+      refreshOperationalHistory,
       showSaveToast,
     ],
   );
@@ -1389,7 +1505,7 @@ export default function StudentsScreen() {
         healthObservations: healthObservations.trim(),
         birthDate: birthDate || "",
         membershipStatus: operationalStudent?.membershipStatus ?? "active",
-        financialStatus: operationalStudent?.financialStatus ?? "regular",
+        financialStatus: operationalStudent?.financialStatus ?? "unknown",
         inactivatedAt: operationalStudent?.inactivatedAt ?? null,
         createdAt: editingCreatedAt ? editingCreatedAt : nowIso,
       };
@@ -1594,53 +1710,6 @@ export default function StudentsScreen() {
     }
     closeEditModal();
   };
-
-  const getStudentId = useCallback((student: Student) => student.id, []);
-  const undoableStudentDelete = useUndoableListDelete({
-    items: students,
-    setItems: setStudents,
-    getId: getStudentId,
-    confirm,
-    title: "Excluir aluno?",
-    message: (targets) => {
-      const [student] = targets;
-      return student?.name
-        ? `Tem certeza que deseja excluir ${student.name}?`
-        : "Tem certeza que deseja excluir este aluno?";
-    },
-    confirmLabel: "Excluir",
-    undoMessage: "Aluno excluído. Deseja desfazer?",
-    deleteItems: async (ids) => {
-      const [studentId] = ids;
-      if (!studentId) return;
-      await measure("deleteStudent", () => deleteStudent(studentId));
-    },
-    onOptimistic: (_targets, ids) => {
-      if (ids.includes(editingId ?? "")) {
-        closeEditModal();
-      }
-    },
-    onConfirmed: (targets) => {
-      const [student] = targets;
-      if (!student) return;
-      logAction("Excluir aluno", {
-        studentId: student.id,
-        classId: student.classId,
-      });
-    },
-    onError: (error) => {
-      const detail =
-        error instanceof Error
-          ? error.message
-          : "Não foi possível excluir o aluno.";
-      Alert.alert("Excluir aluno", detail);
-    },
-  });
-
-  const deleteEditingStudent = useCallback(() => {
-    if (!editingId) return;
-    undoableStudentDelete.deleteOne(editingId);
-  }, [editingId, undoableStudentDelete]);
 
   const handleRevealEditingCpf = useCallback(async () => {
     if (!editingId || !canRevealCpf) return;
@@ -2161,8 +2230,14 @@ export default function StudentsScreen() {
   };
 
   const goBackFromStudents = useCallback(() => {
-    navigateBackOrReplace({ router, fallback: scopedRoutes.home });
-  }, [router, scopedRoutes.home]);
+    navigateBackOrReplace({
+      router,
+      fallback:
+        scopedRoutes.scope === "coord"
+          ? "/coord/management"
+          : scopedRoutes.home,
+    });
+  }, [router, scopedRoutes.home, scopedRoutes.scope]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -2175,7 +2250,7 @@ export default function StudentsScreen() {
           style={{ flex: 1, position: "relative", overflow: "visible" }}
         >
           <ScreenPageHeader
-            title="Alunos"
+            title={scopedRoutes.scope === "coord" ? "Gestão de atletas" : "Alunos"}
             onBack={goBackFromStudents}
             right={
               <View
@@ -2201,7 +2276,7 @@ export default function StudentsScreen() {
                   accessibilityLabel="Adicionar aluno"
                   onPress={() => requestSwitchStudentsTab("cadastro")}
                   style={{
-                    height: 40,
+                    height: 44,
                     paddingHorizontal: windowWidth < 1040 ? 11 : 15,
                     borderRadius: 12,
                     backgroundColor: colors.primaryBg,
@@ -2521,6 +2596,7 @@ export default function StudentsScreen() {
                 onStudentWhatsApp={openStudentWhatsApp}
                 birthdayStudentIds={birthdayStudentIds}
                 loading={loading}
+                canViewFinancialStatus={canManageFinancialStatus}
               />
           </ScrollView>
 
@@ -2845,8 +2921,12 @@ export default function StudentsScreen() {
           closeAllEditPickers={closeAllEditPickers}
           operationalStudent={operationalStudent}
           operationalStatusSaving={operationalStatusSaving}
+          canManageFinancialStatus={canManageFinancialStatus}
+          operationalHistory={operationalHistory}
+          operationalHistoryLoading={operationalHistoryLoading}
+          operationalHistoryError={operationalHistoryError}
+          onRetryOperationalHistory={refreshOperationalHistory}
           onUpdateOperationalStatus={handleUpdateOperationalStatus}
-          deleteEditingStudent={deleteEditingStudent}
           editSaving={editSaving}
           setEditSaving={setEditSaving}
           onSave={onSave}

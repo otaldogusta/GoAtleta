@@ -19,6 +19,13 @@ const preservationMigrationSource = readFileSync(
   ),
   "utf8",
 );
+const reviewAuditMigrationSource = readFileSync(
+  resolve(
+    __dirname,
+    "../../../migrations/20260826084000_preserve_review_audits_on_account_deletion.sql",
+  ),
+  "utf8",
+);
 
 describe("self-service account deletion contract", () => {
   test("authenticates the caller and only deletes the authenticated user", () => {
@@ -82,5 +89,20 @@ describe("self-service account deletion contract", () => {
     expect(preservationMigrationSource).toContain(
       "revoke all on function public.prepare_self_account_deletion(uuid)",
     );
+  });
+
+  test("keeps resolved review audits valid after reviewer anonymization", () => {
+    expect(reviewAuditMigrationSource).toContain(
+      "drop constraint if exists organization_access_requests_resolution_check",
+    );
+    expect(reviewAuditMigrationSource).toContain(
+      "status <> 'pending' and reviewed_at is not null",
+    );
+    expect(reviewAuditMigrationSource).toContain(
+      "drop constraint if exists document_merge_proposals_review_audit_check",
+    );
+    expect(reviewAuditMigrationSource).toContain("reviewed_by is null");
+    expect(reviewAuditMigrationSource).toContain("or reviewed_at is not null");
+    expect(reviewAuditMigrationSource).not.toContain("delete from");
   });
 });

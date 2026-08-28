@@ -1,32 +1,16 @@
 ﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  validateObjectPayload,
+  validateStringField,
+} from "../_shared/input-validation.ts";
+import { authenticateRequest } from "../_shared/middlewares/auth.ts";
 
 
 const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
 
 const createError = (req: Request, status: number, code: string, error: string) =>
   new Response(JSON.stringify({ code, error }), { status, headers: makeJsonHeaders(req) });
-
-const requireUser = (req: Request): { id: string; email?: string; token: string } | null => {
-  const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.slice("Bearer ".length).trim();
-  if (!token) return null;
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(
-      atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"))
-    ) as Record<string, unknown>;
-    const sub = payload["sub"];
-    const exp = payload["exp"];
-    if (typeof sub !== "string" || !sub) return null;
-    if (typeof exp === "number" && exp < Date.now() / 1000) return null;
-    return { id: sub, email: typeof payload["email"] === "string" ? payload["email"] : undefined, token };
-  } catch {
-    return null;
-  }
-};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -36,14 +20,21 @@ Deno.serve(async (req) => {
     return createError(req, 405, "INVALID_REQUEST", "Method not allowed");
   }
 
-  const user = requireUser(req);
-  if (!user) {
+  const auth = await authenticateRequest(req);
+  if (!auth) {
     return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
-  let payload: { studentId: string; clearLoginEmail: boolean } = {};
+  let payload: { studentId: string; clearLoginEmail: boolean } = {
+    studentId: "",
+    clearLoginEmail: false,
+  };
   try {
-    payload = (await req.json()) as {
+    const parsed = validateObjectPayload(await req.json());
+    if (!parsed.ok || !parsed.data) {
+      return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
+    }
+    payload = parsed.data as {
       studentId: string;
       clearLoginEmail: boolean;
     };
@@ -51,15 +42,18 @@ Deno.serve(async (req) => {
     return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
 
-  const studentId = (payload.studentId ?? "").trim();
-  if (!studentId) {
-    return createError(req, 400, "INVALID_REQUEST", "Missing studentId");
+  const studentIdValidation = validateStringField(payload.studentId, {
+    minLength: 1,
+    maxLength: 128,
+  });
+  if (!studentIdValidation.ok) {
+    return createError(req, 400, "INVALID_REQUEST", "Invalid studentId");
   }
+  const studentId = studentIdValidation.data;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+  if (!supabaseUrl || !anonKey) {
     return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
@@ -67,54 +61,25 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
     global: {
       headers: {
-        Authorization: `Bearer ${user.token}`,
+        Authorization: `Bearer ${auth.token}`,
       },
     },
   });
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const { error: revokeError } = await supabase.rpc("revoke_student_access", {
+    p_student_id: studentId,
+    p_clear_login_email: payload.clearLoginEmail === true,
   });
 
-  const { data: student, error: studentError } = await supabase
-    .from("students")
-    .select("id, owner_id")
-    .eq("id", studentId)
-    .maybeSingle();
-
-  if (studentError) {
-    console.error("revoke-student-access: student lookup failed", studentError.message);
-    return createError(req, 500, "SERVER_ERROR", "Student lookup failed");
-  }
-
-  if (!student) {
-    return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
-  }
-
-  const updates: Record<string, unknown> = {
-    student_user_id: null,
-  };
-  if (payload.clearLoginEmail) {
-    updates.login_email = null;
-  }
-
-  const { error: studentUpdateError } = await supabase
-    .from("students")
-    .update(updates)
-    .eq("id", studentId);
-
-  if (studentUpdateError) {
-    console.error("revoke-student-access: student update failed", studentUpdateError.message);
+  if (revokeError) {
+    const message = revokeError.message ?? "";
+    if (message.includes("STUDENT_NOT_FOUND")) {
+      return createError(req, 404, "STUDENT_NOT_FOUND", "Student not found");
+    }
+    if (message.includes("NOT_AUTHORIZED")) {
+      return createError(req, 403, "FORBIDDEN", "Not authorized");
+    }
+    console.error("revoke-student-access: atomic revoke failed");
     return createError(req, 500, "SERVER_ERROR", "Failed to revoke student access");
-  }
-
-  const { error: inviteUpdateError } = await admin
-    .from("student_invites")
-    .update({ revoked: true })
-    .eq("student_id", studentId);
-
-  if (inviteUpdateError) {
-    console.error("revoke-student-access: invite update failed", inviteUpdateError.message);
-    return createError(req, 500, "SERVER_ERROR", "Failed to revoke student invites");
   }
 
   return new Response(JSON.stringify({ status: "ok" }), { headers: makeJsonHeaders(req) });

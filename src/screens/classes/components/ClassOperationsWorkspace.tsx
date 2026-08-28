@@ -29,6 +29,19 @@ type WorkspaceAction = {
 
 export type ClassWorkspaceSection = "overview" | "attendance";
 
+export type ClassOperationalStatus = {
+  state: "loading" | "pending" | "completed" | "unavailable";
+  label: string;
+  detail: string;
+};
+
+export type ClassRecentTrainingSummary = {
+  id: string;
+  dateKey: string;
+  dateLabel: string;
+  title: string;
+};
+
 type ClassOperationsWorkspaceProps = {
   colors: ThemeColors;
   compact: boolean;
@@ -45,20 +58,22 @@ type ClassOperationsWorkspaceProps = {
   attendanceContent?: ReactNode | ((options: { dense: boolean }) => ReactNode);
   activeSection?: ClassWorkspaceSection;
   onSelectSection?: (section: ClassWorkspaceSection) => void;
-  studentCount: number | null;
-  contactStatusValue: string;
-  contactStatusLabel: string;
-  reportStatusValue: string;
-  reportStatusLabel: string;
+  attendanceStatus: ClassOperationalStatus;
+  reportStatus: ClassOperationalStatus;
+  recentTrainings: ClassRecentTrainingSummary[] | null;
   onOpenSession: () => void;
   onOpenAttendance: () => void;
   onOpenReport: () => void;
+  onOpenRecentTraining: (dateKey: string) => void;
   onOpenPlanning: () => void;
   onOpenVisualTech: () => void;
   onOpenScouting: () => void;
   onOpenStudents: () => void;
   onExportRoster: () => void;
   onOpenWhatsApp: () => void;
+  compactNavigationOpen?: boolean;
+  onCompactNavigationOpenChange?: (open: boolean) => void;
+  showCompactNavigationFab?: boolean;
 };
 
 type ClassContextStripProps = {
@@ -110,16 +125,18 @@ export const ClassContextStrip = memo(function ClassContextStrip({
     >
       <ContextItem icon="organization" label={unitLabel} colors={colors} compact={compact} />
       <ContextItem icon="time" label={scheduleLabel} colors={colors} compact={compact} />
-      {!compact ? (
-        <>
-          <ContextItem
-            icon="students"
-            label={studentCount === null ? "Alunos: —" : `${studentCount} ${studentCount === 1 ? "aluno" : "alunos"}`}
-            colors={colors}
-          />
-          <ContextItem icon="calendar" label={`Próxima aula: ${nextClassLabel}`} colors={colors} />
-        </>
-      ) : null}
+      <ContextItem
+        icon="students"
+        label={studentCount === null ? "Ativos: —" : `${studentCount} ${studentCount === 1 ? "ativo" : "ativos"}`}
+        colors={colors}
+        compact={compact}
+      />
+      <ContextItem
+        icon="calendar"
+        label={compact ? nextClassLabel : `Próxima aula: ${nextClassLabel}`}
+        colors={colors}
+        compact={compact}
+      />
     </View>
   );
 });
@@ -296,6 +313,48 @@ function PlanBlockRow({
   );
 }
 
+function OperationalStatusRow({
+  title,
+  status,
+  colors,
+  onPress,
+}: {
+  title: string;
+  status: ClassOperationalStatus;
+  colors: ThemeColors;
+  onPress: () => void;
+}) {
+  const completed = status.state === "completed";
+  const pending = status.state === "pending";
+  const statusColor = completed ? colors.successText : pending ? colors.warningText : colors.muted;
+  const statusBackground = completed ? colors.successBg : pending ? colors.warningBg : colors.secondaryBg;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Abrir ${title.toLocaleLowerCase("pt-BR")}: ${status.label}`}
+      style={({ pressed }) => [styles.operationalStatusRow, { opacity: pressed ? 0.76 : 1 }]}
+    >
+      <GoAtletaIcon
+        name={completed ? "checkmarkCircle" : pending ? "warningCircle" : "time"}
+        size={19}
+        color={statusColor}
+      />
+      <View style={styles.operationalStatusCopy}>
+        <Text style={[styles.operationalStatusTitle, { color: colors.text }]}>{title}</Text>
+        <Text numberOfLines={2} style={[styles.operationalStatusDetail, { color: colors.muted }]}>
+          {status.detail}
+        </Text>
+      </View>
+      <View style={[styles.operationalStatusBadge, { backgroundColor: statusBackground }]}>
+        <Text style={[styles.operationalStatusBadgeLabel, { color: statusColor }]}>{status.label}</Text>
+      </View>
+      <GoAtletaIcon name="chevronRight" size={16} color={colors.muted} />
+    </Pressable>
+  );
+}
+
 export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   colors,
   compact,
@@ -312,19 +371,33 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   attendanceContent,
   activeSection = "overview",
   onSelectSection,
+  attendanceStatus,
+  reportStatus,
+  recentTrainings,
   onOpenSession,
   onOpenAttendance,
   onOpenReport,
+  onOpenRecentTraining,
   onOpenPlanning,
   onOpenVisualTech,
   onOpenScouting,
   onOpenStudents,
   onExportRoster,
   onOpenWhatsApp,
+  compactNavigationOpen,
+  onCompactNavigationOpenChange,
+  showCompactNavigationFab = true,
 }: ClassOperationsWorkspaceProps) {
   const insets = useSafeAreaInsets();
   const lessonContentAnim = useRef(new Animated.Value(1)).current;
-  const [isCompactNavigationOpen, setIsCompactNavigationOpen] = useState(false);
+  const [internalCompactNavigationOpen, setInternalCompactNavigationOpen] = useState(false);
+  const isCompactNavigationOpen = compactNavigationOpen ?? internalCompactNavigationOpen;
+  const setIsCompactNavigationOpen = useCallback((open: boolean) => {
+    if (compactNavigationOpen === undefined) {
+      setInternalCompactNavigationOpen(open);
+    }
+    onCompactNavigationOpenChange?.(open);
+  }, [compactNavigationOpen, onCompactNavigationOpenChange]);
   const compactNavigationBottom = resolveCopilotCompanionFabBottom(insets.bottom);
   const { containerRef, onLayout, width: workspaceWidth } = useContainerResponsiveLayout("dashboard");
   const dense = resolveDenseClassWorkspace(workspaceWidth, compact);
@@ -348,7 +421,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
     if (!compact) {
       setIsCompactNavigationOpen(false);
     }
-  }, [compact]);
+  }, [compact, setIsCompactNavigationOpen]);
 
   const actions = useMemo<Record<string, WorkspaceAction>>(() => ({
     overview: {
@@ -436,12 +509,12 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
 
   const closeCompactNavigation = useCallback(() => {
     setIsCompactNavigationOpen(false);
-  }, []);
+  }, [setIsCompactNavigationOpen]);
 
   const handleCompactNavigationAction = useCallback((action: WorkspaceAction) => {
     setIsCompactNavigationOpen(false);
     action.onPress();
-  }, []);
+  }, [setIsCompactNavigationOpen]);
 
   const isAttendanceSection = activeSection === "attendance" && attendanceContent;
   const resolvedAttendanceContent = typeof attendanceContent === "function"
@@ -577,10 +650,56 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           </Animated.View>
         )}
       </View>
+      <View style={[styles.operationalSummary, { borderColor: colors.border }]}>
+        <Text style={[styles.operationalSummaryTitle, { color: colors.text }]}>Operação da aula</Text>
+        <OperationalStatusRow
+          title="Chamada"
+          status={attendanceStatus}
+          colors={colors}
+          onPress={actions.attendance.onPress}
+        />
+        <OperationalStatusRow
+          title="Relatório"
+          status={reportStatus}
+          colors={colors}
+          onPress={actions.report.onPress}
+        />
+
+        <View style={[styles.recentTrainings, { borderTopColor: colors.border }]}>
+          <Text style={[styles.recentTrainingsTitle, { color: colors.text }]}>Últimos treinos</Text>
+          {recentTrainings === null ? (
+            <View style={styles.recentTrainingsLoading} accessibilityLiveRegion="polite">
+              <ActivityIndicator size="small" color={colors.primaryBg} />
+              <Text style={[styles.recentTrainingEmpty, { color: colors.muted }]}>Carregando histórico</Text>
+            </View>
+          ) : recentTrainings.length ? (
+            recentTrainings.map((training) => (
+              <Pressable
+                key={training.id}
+                onPress={() => onOpenRecentTraining(training.dateKey)}
+                accessibilityRole="button"
+                accessibilityLabel={`Abrir treino de ${training.dateLabel}`}
+                style={({ pressed }) => [styles.recentTrainingRow, { opacity: pressed ? 0.76 : 1 }]}
+              >
+                <GoAtletaIcon name="training" size={17} color={colors.muted} />
+                <View style={styles.recentTrainingCopy}>
+                  <Text numberOfLines={1} style={[styles.recentTrainingTitle, { color: colors.text }]}>
+                    {training.title}
+                  </Text>
+                  <Text style={[styles.recentTrainingDate, { color: colors.muted }]}>{training.dateLabel}</Text>
+                </View>
+                <GoAtletaIcon name="chevronRight" size={16} color={colors.muted} />
+              </Pressable>
+            ))
+          ) : (
+            <Text style={[styles.recentTrainingEmpty, { color: colors.muted }]}>Nenhum treino registrado.</Text>
+          )}
+        </View>
+      </View>
     </View>
   );
 
-  const compactNavigationFab = compact && !isCompactNavigationOpen ? (
+  const compactNavigationFab = compact && showCompactNavigationFab && !isCompactNavigationOpen ? (
     <Pressable
       onPress={() => setIsCompactNavigationOpen(true)}
       accessibilityRole="button"
@@ -683,10 +802,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   contextStripCompact: {
-    minHeight: 44,
-    flexWrap: "nowrap",
+    minHeight: 76,
+    flexWrap: "wrap",
     alignItems: "center",
-    rowGap: 0,
+    rowGap: 6,
     columnGap: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -708,8 +827,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   contextItemCompact: {
-    flex: 1,
-    flexBasis: 0,
+    flexGrow: 1,
+    flexBasis: "44%",
     minWidth: 0,
     justifyContent: "flex-start",
     gap: 6,
@@ -1031,63 +1150,90 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center",
   },
-  overviewPanel: {
-    minHeight: 108,
-    borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
+  operationalSummary: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingVertical: 10,
   },
-  overviewPanelCompact: {
-    minHeight: 0,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: "column",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  overviewPanelStacked: {
-    minHeight: 148,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: "column",
-    alignItems: "stretch",
-    justifyContent: "center",
-    gap: 8,
-  },
-  overviewStat: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  overviewCopy: {
-    minWidth: 0,
-  },
-  overviewCopyCompact: {
-    width: "100%",
-  },
-  overviewStatCompact: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-    justifyContent: "flex-start",
-    gap: 7,
-  },
-  overviewStatStacked: {
-    flex: 0,
-    justifyContent: "flex-start",
-    gap: 10,
-  },
-  overviewValue: {
-    fontSize: 16,
+  operationalSummaryTitle: {
+    paddingHorizontal: 2,
+    paddingBottom: 4,
+    fontSize: 15,
     fontWeight: "800",
   },
-  overviewLabel: {
+  operationalStatusRow: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingVertical: 7,
+    paddingHorizontal: 2,
+  },
+  operationalStatusCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  operationalStatusTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  operationalStatusDetail: {
     marginTop: 2,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  operationalStatusBadge: {
+    minHeight: 26,
+    borderRadius: radius.full,
+    justifyContent: "center",
+    paddingHorizontal: 9,
+  },
+  operationalStatusBadgeLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  recentTrainings: {
+    marginTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+  },
+  recentTrainingsTitle: {
+    paddingHorizontal: 2,
+    paddingBottom: 3,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  recentTrainingsLoading: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 2,
+  },
+  recentTrainingRow: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingHorizontal: 2,
+    paddingVertical: 6,
+  },
+  recentTrainingCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  recentTrainingTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  recentTrainingDate: {
+    marginTop: 2,
+    fontSize: 11,
+  },
+  recentTrainingEmpty: {
+    minHeight: 40,
+    paddingHorizontal: 2,
+    paddingVertical: 10,
     fontSize: 12,
   },
 });

@@ -46,6 +46,7 @@ describe("profile route scope", () => {
     expect(getTrainerScopedRoutes("coord")).toMatchObject({
       home: "/coord/dashboard",
       classes: "/coord/classes",
+      students: "/coord/management/athletes",
       planning: "/coord/planning",
       reports: "/coord/management",
       nfcAttendance: "/coord/nfc-attendance",

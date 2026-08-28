@@ -112,7 +112,8 @@ export type MemberPermissionKey =
   | "absence_notices"
   | "whatsapp_settings"
   | "assistant"
-  | "org_members";
+  | "org_members"
+  | "financial";
 
 export type MemberPermission = {
   permissionKey: MemberPermissionKey;
@@ -163,6 +164,11 @@ export const MEMBER_PERMISSION_OPTIONS: {
     key: "students",
     label: "Alunos",
     description: "Acessar cadastro e listagem de alunos.",
+  },
+  {
+    key: "financial",
+    label: "Financeiro",
+    description: "Consultar e atualizar a situação financeira dos alunos.",
   },
   {
     key: "classes",
@@ -343,7 +349,7 @@ export const adminApplyMemberAccessChange = async ({
   idempotencyKey: string;
 }): Promise<MemberAccessChangeReceipt> => {
   const rows = await supabaseRestPost<MemberAccessChangeReceiptRow[]>(
-    "/rpc/admin_apply_member_access_change",
+    "/rpc/admin_apply_member_access_change_v2",
     {
       p_org_id: organizationId,
       p_user_id: userId,

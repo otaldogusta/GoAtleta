@@ -110,7 +110,7 @@ const deriveRegulationImpact = (topics: string[]) => {
     containsTopic(normalizedTopics, /(relat[oó]rio|prazo|registro|presen[çc]a|frequ[eê]ncia)/)
   ) {
     addArea("Coordenação");
-    addAction({ label: "Ver coordenação", route: "/coordination" });
+    addAction({ label: "Ver gestão", route: "/coord/management" });
   }
 
   if (containsTopic(normalizedTopics, /(turma|treino|periodiza|carga|sess[aã]o)/)) {

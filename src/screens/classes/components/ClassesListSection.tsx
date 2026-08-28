@@ -29,7 +29,6 @@ type Conflict = { name: string; day: number; modality?: string; kind: "conflict"
 type Layout = { x: number; y: number; width: number; height: number };
 
 const ALL_UNITS_KEY = "__all_units__";
-const OPEN_MENU_Z_INDEX = 11000;
 const TABLE_LAYOUT_MIN_WIDTH = 680;
 
 type Props = {
@@ -180,7 +179,6 @@ export const ClassesListSection = memo(function ClassesListSection({
         style={[
           styles.classRowWrapper,
           !showTable ? styles.classCardWrapper : null,
-          openActionMenuId === item.id ? styles.classRowWrapperOpen : null,
         ]}
       >
         <ClassCard
@@ -576,10 +574,6 @@ const styles = StyleSheet.create({
   },
   classCardWrapper: {
     marginBottom: 10,
-  },
-  classRowWrapperOpen: {
-    zIndex: OPEN_MENU_Z_INDEX,
-    elevation: OPEN_MENU_Z_INDEX,
   },
   mobileClassListContent: {
     padding: 10,

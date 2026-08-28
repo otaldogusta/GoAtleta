@@ -7,6 +7,8 @@ type PdfPreviewFrameProps = {
   editable?: boolean;
   zoom?: number;
   minimumPageWidth?: number;
+  onMessage?: (data: unknown) => void;
+  onError?: () => void;
 };
 
 export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, minimumPageWidth = 0) => {
@@ -319,6 +321,7 @@ export const PdfPreviewFrame = memo(function PdfPreviewFrame({
   editable,
   zoom = 100,
   minimumPageWidth = 0,
+  onError,
 }: PdfPreviewFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const style: CSSProperties = {
@@ -348,5 +351,6 @@ export const PdfPreviewFrame = memo(function PdfPreviewFrame({
     sandbox: editable ? "allow-scripts allow-same-origin" : undefined,
     title,
     style,
+    onError,
   });
 });

@@ -419,6 +419,29 @@ export async function deleteClass(id: string) {
 export async function deleteClassCascade(id: string) {
   const activeOrganizationId = await getActiveOrganizationId();
   const classFilter = "classid=eq." + encodeURIComponent(id) + (activeOrganizationId ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId) : "");
+  const studentLinks = await supabaseGet<{ id: string }[]>(
+    "/students?select=id&" + classFilter + "&limit=1"
+  );
+  let enrollmentLinks: { id: string }[] = [];
+  try {
+    enrollmentLinks = await supabaseGet<{ id: string }[]>(
+      "/student_class_enrollments?select=id&class_id=eq." +
+        encodeURIComponent(id) +
+        (activeOrganizationId
+          ? "&organization_id=eq." + encodeURIComponent(activeOrganizationId)
+          : "") +
+        "&limit=1"
+    );
+  } catch (error) {
+    if (!isMissingRelation(error, "student_class_enrollments")) {
+      throw error;
+    }
+  }
+  if (studentLinks.length > 0 || enrollmentLinks.length > 0) {
+    throw new Error(
+      "A turma possui atletas vinculados. Mova-os para outra turma ou mantenha esta turma como histórico. Nenhum atleta foi excluído."
+    );
+  }
   await supabaseDelete("/training_plans?" + classFilter);
   await supabaseDelete("/class_plans?" + classFilter);
   await supabaseDelete("/attendance_logs?" + classFilter);
@@ -434,7 +457,6 @@ export async function deleteClassCascade(id: string) {
       throw error;
     }
   }
-  await supabaseDelete("/students?" + classFilter);
   await supabaseDelete("/session_logs?" + classFilter);
   try {
     const sessionLinks = await supabaseGet<{ session_id: string }[]>(

@@ -1,4 +1,5 @@
 import type { TrainingPlan } from "./models";
+import { createClientId } from "./client-id";
 
 const knownMethodologyApproaches = new Set(["analitico", "global", "jogo", "hibrido"]);
 
@@ -52,7 +53,7 @@ export const createTrainingPlanVersion = (
 
   const nowIso = params.nowIso ?? new Date().toISOString();
   const status = params.status ?? "final";
-  const uid = crypto.randomUUID();
+  const uid = createClientId();
 
   return {
     id: `${params.idPrefix ?? "plan"}_${uid}`,

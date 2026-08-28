@@ -463,6 +463,7 @@ export default function LoginScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <Animated.View
+              role="main"
               style={{
                 flex: 1,
                 justifyContent: "center",
@@ -483,6 +484,7 @@ export default function LoginScreen() {
             >
             { showRememberToast && rememberTouched ? (
               <Animated.View
+                accessibilityLiveRegion="polite"
                 style={{
                   position: "absolute",
                   top: 0,
@@ -510,6 +512,8 @@ export default function LoginScreen() {
               </Animated.View>
             ) : null}
             <Pressable
+              accessibilityLabel={showReset ? "Voltar para entrar" : "Voltar"}
+              accessibilityRole="button"
               onPress={() => {
                 if (showReset) {
                   setShowReset(false);
@@ -585,6 +589,7 @@ export default function LoginScreen() {
               <View style={{ position: "relative", zIndex: message && (fromSignup === "1" || message.toLowerCase().includes("email")) ? 50 : 1 }}>
                 { message && (fromSignup === "1" || message.toLowerCase().includes("email")) ? (
                   <View
+                    accessibilityRole="alert"
                     style={{
                       position: "absolute",
                       top: -38,
@@ -650,6 +655,7 @@ export default function LoginScreen() {
                   }}
                 >
                   <TextInput
+                    accessibilityLabel="E-mail"
                     nativeID="login-email"
                     placeholder="Email"
                     value={email}
@@ -690,6 +696,7 @@ export default function LoginScreen() {
                   <View style={{ position: "relative", zIndex: message && !(fromSignup === "1" || message.toLowerCase().includes("email")) ? 50 : 1 }}>
                     { message && !(fromSignup === "1" || message.toLowerCase().includes("email")) ? (
                       <View
+                        accessibilityRole="alert"
                         style={{
                           position: "absolute",
                           top: -38,
@@ -755,6 +762,7 @@ export default function LoginScreen() {
                       }}
                     >
                       <TextInput
+                        accessibilityLabel="Senha"
                         ref={passwordInputRef}
                         nativeID="login-password"
                         placeholder="Senha"
@@ -784,6 +792,9 @@ export default function LoginScreen() {
                         }}
                       />
                       <Pressable
+                        accessibilityElementsHidden={password.length === 0}
+                        accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                        accessibilityRole="button"
                         onPress={() => setShowPassword((prev) => !prev)}
                         disabled={password.length === 0}
                         style={{
@@ -813,6 +824,8 @@ export default function LoginScreen() {
                 />
 
                   <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: rememberMe }}
                     onPress={() => {
                       setRememberTouched(true);
                       setRememberMe((current) => {
@@ -867,6 +880,7 @@ export default function LoginScreen() {
 
                   { failedLoginAttempt && password.length > 0 ? (
                     <Pressable
+                      accessibilityRole="link"
                       onPress={() => {
                         setShowReset(true);
                         setMessage("");
@@ -908,6 +922,7 @@ export default function LoginScreen() {
                 <View style={{ gap: 14, position: "relative", zIndex: 10 }}>
                   { message ? (
                     <View
+                      accessibilityRole="alert"
                       style={{
                         position: "absolute",
                         top: -38,
@@ -990,6 +1005,8 @@ export default function LoginScreen() {
                 </View>
                 <View style={{ alignItems: "center" }}>
                   <Pressable
+                    accessibilityLabel="Entrar com Google"
+                    accessibilityRole="button"
                     onPress={() => handleOAuth("google")}
                     style={{
                       width: 52,
@@ -1011,6 +1028,7 @@ export default function LoginScreen() {
             <View style={{ alignItems: "center", gap: 6 }}>
               <Text style={{ color: colors.muted }}>Não tem conta?</Text>
               <Pressable
+                accessibilityRole="link"
                 onPress={() => router.replace("/signup")}
                 suppressWebHoverFeedback
                 style={({ pressed }: any) => ({

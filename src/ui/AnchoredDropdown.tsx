@@ -3,8 +3,11 @@ import React, { useEffect, useRef } from "react";
 import {
     Animated,
     Dimensions,
+    Modal,
     Platform,
+    Pressable as RawPressable,
     ScrollView,
+    StyleSheet,
     StyleProp,
     View,
     ViewStyle,
@@ -221,6 +224,7 @@ export function AnchoredDropdown({
   const windowWidth = Dimensions.get("window").width;
   const windowHeight = Dimensions.get("window").height;
   const useViewportCoordinates = Platform.OS === "web" && portalToBodyOnWeb;
+  const useWindowCoordinates = Platform.OS !== "web" || useViewportCoordinates;
   const resolvedZIndex = useViewportCoordinates
     ? resolveFloatingListZIndex(zIndex)
     : zIndex;
@@ -238,9 +242,9 @@ export function AnchoredDropdown({
         : DEFAULT_DROPDOWN_MAX_HEIGHT,
     Math.floor(windowHeight * (isMenu ? 0.45 : isCompact ? 0.35 : 0.23))
   );
-  const leftBase = useViewportCoordinates || !container ? layout.x : layout.x - container.x;
+  const leftBase = useWindowCoordinates || !container ? layout.x : layout.x - container.x;
   const left = Math.max(16, Math.min(leftBase, windowWidth - 16 - resolvedWidth));
-  const defaultTop = useViewportCoordinates || !container
+  const defaultTop = useWindowCoordinates || !container
     ? layout.y + layout.height + 8
     : layout.y - container.y + layout.height + 8;
   const availableBottom = windowHeight - 24;
@@ -331,6 +335,29 @@ export function AnchoredDropdown({
   if (Platform.OS === "web" && portalToBodyOnWeb && typeof document !== "undefined") {
     const ReactDOM = require("react-dom");
     return ReactDOM.createPortal(dropdown, document.body);
+  }
+
+  if (Platform.OS !== "web") {
+    return (
+      <Modal
+        visible
+        transparent
+        animationType="none"
+        statusBarTranslucent
+        hardwareAccelerated
+        onRequestClose={onRequestClose}
+      >
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <RawPressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar lista"
+            style={StyleSheet.absoluteFill}
+            onPress={onRequestClose}
+          />
+          {dropdown}
+        </View>
+      </Modal>
+    );
   }
 
   return dropdown;

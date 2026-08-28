@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { validateStringField } from "../_shared/input-validation.ts";
+import { hasTrustedInviteIdentity } from "../_shared/invite-email-verification.ts";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const makeHeaders = (request: Request) => ({
@@ -51,6 +52,12 @@ Deno.serve(async (request) => {
   if (authError || !authData.user) {
     return response(request, 401, { error: "Unauthorized" });
   }
+  if (!hasTrustedInviteIdentity(authData.user)) {
+    return response(request, 403, {
+      code: "EMAIL_NOT_VERIFIED",
+      error: "Confirme seu e-mail antes de solicitar acesso.",
+    });
+  }
 
   const body = await request.json().catch(() => null) as {
     coordinatorEmail?: string;
@@ -65,30 +72,16 @@ Deno.serve(async (request) => {
   }
 
   const coordinatorEmail = emailValidation.data.trim().toLowerCase();
-  const { data: coordinator, error: coordinatorError } =
-    await service.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const { data: coordinatorMemberships, error: coordinatorError } =
+    await service.rpc("resolve_access_request_coordinator", {
+      p_email: coordinatorEmail,
+    });
   if (coordinatorError) {
     return response(request, 500, { error: "Falha ao localizar a coordenação." });
   }
 
-  const coordinatorUser = coordinator.users.find(
-    (candidate) => candidate.email?.trim().toLowerCase() === coordinatorEmail
-  );
-
   // Avoid exposing whether an email has an account or administrative access.
-  if (!coordinatorUser) {
-    return response(request, 200, { accepted: true });
-  }
-
-  const { data: memberships, error: membershipsError } = await service
-    .from("organization_members")
-    .select("organization_id,user_id,role_level")
-    .eq("user_id", coordinatorUser.id)
-    .gte("role_level", 50);
-  if (membershipsError) {
-    return response(request, 500, { error: "Falha ao localizar a coordenação." });
-  }
-  if (!memberships?.length) {
+  if (!coordinatorMemberships?.length) {
     return response(request, 200, { accepted: true });
   }
 
@@ -100,9 +93,9 @@ Deno.serve(async (request) => {
   const title = "Nova solicitação de acesso";
   const bodyText = `${requesterName} (${requesterEmail}) aguarda definição de função.`;
 
-  let createdCount = 0;
-  for (const membership of memberships.slice(0, 20)) {
+  for (const membership of coordinatorMemberships) {
     const organizationId = String(membership.organization_id);
+    const coordinatorUserId = String(membership.coordinator_user_id);
     const { data: existingRequest, error: existingRequestError } = await service
       .from("organization_access_requests")
       .select("id")
@@ -129,22 +122,34 @@ Deno.serve(async (request) => {
         .select("id")
         .single();
       if (requestInsertError || !createdRequest?.id) {
-        return response(request, 500, {
-          error: "Não foi possível registrar a solicitação de acesso.",
-        });
+        if (requestInsertError?.code === "23505") {
+          const { data: concurrentRequest } = await service
+            .from("organization_access_requests")
+            .select("id")
+            .eq("organization_id", organizationId)
+            .eq("requester_user_id", authData.user.id)
+            .eq("status", "pending")
+            .maybeSingle();
+          accessRequestId = String(concurrentRequest?.id ?? "");
+        }
+        if (!accessRequestId) {
+          return response(request, 500, {
+            error: "Não foi possível registrar a solicitação de acesso.",
+          });
+        }
+      } else {
+        accessRequestId = String(createdRequest.id);
       }
-      accessRequestId = String(createdRequest.id);
     }
 
     const { data: existing } = await service
       .from("notifications")
       .select("id")
       .eq("organization_id", organizationId)
-      .eq("recipient_user_id", coordinatorUser.id)
+      .eq("recipient_user_id", coordinatorUserId)
       .eq("inbox_scope", "coord")
       .eq("source_type", "access_request")
       .eq("source_id", accessRequestId)
-      .is("read_at", null)
       .maybeSingle();
 
     if (existing) continue;
@@ -154,7 +159,7 @@ Deno.serve(async (request) => {
     )}`;
     const { error: insertError } = await service.from("notifications").insert({
       organization_id: organizationId,
-      recipient_user_id: coordinatorUser.id,
+      recipient_user_id: coordinatorUserId,
       inbox_scope: "coord",
       actor_user_id: authData.user.id,
       type: "generic",
@@ -171,13 +176,11 @@ Deno.serve(async (request) => {
       },
     });
     if (insertError) continue;
-    createdCount += 1;
-
     const { data: tokenRows } = await service
       .from("push_tokens")
       .select("expo_push_token")
       .eq("organization_id", organizationId)
-      .eq("user_id", coordinatorUser.id);
+      .eq("user_id", coordinatorUserId);
     const messages = (tokenRows ?? [])
       .map((row) => String(row.expo_push_token ?? "").trim())
       .filter(Boolean)
@@ -205,5 +208,7 @@ Deno.serve(async (request) => {
     }
   }
 
-  return response(request, 200, { accepted: true, created: createdCount });
+  // Keep the public response identical whether or not the supplied address
+  // belongs to a coordinator. Delivery details remain server-side only.
+  return response(request, 200, { accepted: true });
 });

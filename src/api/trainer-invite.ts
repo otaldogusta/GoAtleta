@@ -1,4 +1,5 @@
 import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
+import type { MemberPermissionKey } from "./members";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 import { parseInviteApiResponse } from "./invite-errors";
 
@@ -13,6 +14,9 @@ export type TrainerInviteItem = {
   max_uses: number;
   uses: number;
   revoked: boolean;
+  revoked_at?: string | null;
+  revoked_by?: string | null;
+  initial_permissions?: MemberPermissionKey[] | null;
   claimed_by?: string | null;
   claimed_at?: string | null;
   invited_via: string;
@@ -121,7 +125,7 @@ export async function createTrainerInvite(options: {
   role: TrainerInviteRole;
   invitedTo?: string;
   invitedVia?: "email" | "link";
-  permissionKeys?: string[];
+  permissionKeys?: MemberPermissionKey[];
 }, auth?: AuthOverride) {
   const res = await authedPost("/functions/v1/create-trainer-invite", {
     organizationId: options.organizationId,

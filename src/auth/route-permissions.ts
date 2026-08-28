@@ -21,6 +21,7 @@ export const trainerPermissionByPrefix = [
   { prefix: "/coord/assistant", permissionKey: "assistant" },
   { prefix: "/coord/regulation-history", permissionKey: "org_members" },
   { prefix: "/coord/students", permissionKey: "students" },
+  { prefix: "/coord/management/athletes", permissionKey: "students" },
   { prefix: "/coord/classes", permissionKey: "classes" },
   { prefix: "/coord/dashboard", permissionKey: "org_members" },
   { prefix: "/coord/management", permissionKey: "org_members" },

@@ -12,7 +12,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../src/auth/auth";
-import { getPendingTrainerInvite } from "../src/auth/pending-invite";
+import {
+  getPendingInvite,
+  getPendingTrainerInvite,
+} from "../src/auth/pending-invite";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { markRender } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
@@ -127,8 +130,11 @@ export default function VerifyEmailScreen() {
     try {
       const verifiedSession = await verifySignupCode(email.trim(), code.trim());
       await refreshUser();
-      const pendingTrainerCode = await getPendingTrainerInvite();
-      if (pendingTrainerCode) {
+      const [pendingStudentToken, pendingTrainerCode] = await Promise.all([
+        getPendingInvite(),
+        getPendingTrainerInvite(),
+      ]);
+      if (pendingStudentToken || pendingTrainerCode) {
         router.replace("/pending");
         return;
       }
@@ -211,7 +217,7 @@ export default function VerifyEmailScreen() {
           }}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={{ width: "100%", maxWidth: 640, alignSelf: "center", gap: 22 }}>
+          <View style={{ width: "100%", maxWidth: 440, alignSelf: "center", gap: 22 }}>
             <View style={{ gap: 10 }}>
               <Text style={{ fontSize: titleSize, fontWeight: "800", color: colors.text }}>
                 Confirmar e-mail

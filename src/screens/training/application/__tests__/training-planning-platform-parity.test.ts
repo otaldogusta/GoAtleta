@@ -17,23 +17,45 @@ const planTimeDistribution = readFileSync(
   resolve(__dirname, "../../../classes/components/PlanTimeDistribution.tsx"),
   "utf8"
 );
+const nativePdfPreview = readFileSync(
+  resolve(__dirname, "../../../../pdf/PdfPreviewFrame.tsx"),
+  "utf8"
+);
 
 describe("training planning platform parity", () => {
   it("keeps the unified planning workspace enabled independently of Platform.OS", () => {
     expect(trainingRoute).toContain("const usesUnifiedPlanningWorkspace = true;");
     expect(trainingRoute).toContain("{usesUnifiedPlanningWorkspace ? (");
     expect(trainingRoute).not.toContain('{Platform.OS === "web" ? (\n          <>\n            <ScreenPageHeader');
+    expect(trainingRoute).toContain('message: "Não foi possível salvar o rascunho."');
   });
 
-  it("renders an editable compact workspace on native instead of the PDF-only surface", () => {
+  it("branches leave and replacement confirmation copy from the explicit draft flush result", () => {
+    expect(trainingRoute).toContain("buildTrainingPlanWorkspaceExitConfirmation");
+    expect(trainingRoute.match(/const flushResult = await flushWorkspaceDraft\(\);/g)).toHaveLength(2);
+    expect(trainingRoute.match(/draftPersisted: flushResult\.persisted/g)).toHaveLength(2);
+    expect(trainingRoute).not.toContain(
+      'message: "Seu rascunho está salvo neste dispositivo e será restaurado quando você voltar."'
+    );
+    expect(trainingRoute).not.toContain(
+      'message: "O rascunho atual está salvo neste dispositivo. Ao trocar, ele será descartado."'
+    );
+  });
+
+  it("renders the editable document surface on native", () => {
     expect(classPlanWorkspace).toContain('if (Platform.OS !== "web")');
-    expect(classPlanWorkspace).toContain("styles.workspaceNativeOutline");
-    expect(classPlanWorkspace).toContain("{renderOutline(editor)}");
-    expect(classPlanWorkspace).toContain("renderEditFooter(true)");
+    expect(classPlanWorkspace).toContain("<View style={styles.workspacePreview}>{preview}</View>");
+    expect(classPlanWorkspace).toContain("onMessage={handlePdfBridgeMessage}");
+    expect(nativePdfPreview).toContain('from "react-native-webview"');
+    expect(nativePdfPreview).toContain("window.ReactNativeWebView.postMessage");
+    expect(nativePdfPreview).toContain("if (!html)");
+    expect(nativePdfPreview).toContain("scalesPageToFit={false}");
+    expect(nativePdfPreview).toContain("onLayout={handleLayout}");
+    expect(nativePdfPreview).toContain("PDF selecionado. Abra no editor para continuar.");
   });
 
   it("keeps the web class plan on the same inline PDF editor used by planning", () => {
-    expect(classPlanWorkspace).toContain('const inlinePdfEditor = Platform.OS === "web";');
+    expect(classPlanWorkspace).toContain("const inlinePdfEditor = true;");
     expect(classPlanWorkspace).toContain("{inlinePdfEditor ? (\n            preview");
     expect(classPlanWorkspace).toContain("const currentWorkingPlan = workingPlanRef.current;");
     expect(classPlanWorkspace).toContain("normalizeClassTrainingPlan(currentWorkingPlan)");
@@ -43,7 +65,9 @@ describe("training planning platform parity", () => {
     expect(classPlanWorkspace).toContain("{inlinePdfEditor ? inlineSaveButton : null}");
     expect(classPlanWorkspace).toContain("{menuButton}\n          </>");
     expect(classPlanWorkspace).toContain("overlayZIndex={6000}");
-    expect(classPlanWorkspace).toContain("minimumPageWidth={phoneLayout ? 620 : undefined}");
+    expect(classPlanWorkspace).toContain(
+      'minimumPageWidth={phoneLayout && Platform.OS === "web" ? 620 : undefined}'
+    );
     expect(classPlanWorkspace).toContain("containerPadding={8}");
     expect(classPlanWorkspace).toContain("radius: 18");
     expect(classPlanWorkspace).toContain("flushBottom: false");
@@ -66,7 +90,7 @@ describe("training planning platform parity", () => {
     expect(trainingRoute).not.toContain("paddingLeft: responsiveLayout.isMobile && workspaceLibraryCollapsed ? 64 : 0");
   });
 
-  it("opens the lesson modal before loading and reveals the preview only when its frame is ready", () => {
+  it("opens the lesson modal with a guarded loading overlay and a recoverable native preview", () => {
     expect(unifiedPlanningWorkspace).toContain("<ClassPlanModalHost");
     expect(unifiedPlanningWorkspace).toContain('presentation="embedded"');
     expect(unifiedPlanningWorkspace).not.toContain("<ClassPlanLoadingModal");
@@ -74,8 +98,13 @@ describe("training planning platform parity", () => {
     expect(unifiedPlanningWorkspace).not.toContain("<Suspense fallback={null}>");
     expect(classPlanWorkspace).toContain('presentation?: "modal" | "workspace" | "embedded"');
     expect(classPlanWorkspace).toContain("if (embeddedMode)");
-    expect(classPlanWorkspace).toContain('event.data?.type === "GOATLETA_PDF_READY"');
-    expect(classPlanWorkspace).toContain('previewStatus === "ready" ? 1 : 0');
+    expect(classPlanWorkspace).toContain('message.type === "GOATLETA_PDF_READY"');
+    expect(classPlanWorkspace).toContain("handlePdfBridgeMessage(event.data)");
+    expect(classPlanWorkspace).toContain('pointerEvents={previewStatus === "ready" ? "auto" : "none"}');
+    expect(classPlanWorkspace).toContain("style={StyleSheet.absoluteFill}");
+    expect(classPlanWorkspace).toContain("PREVIEW_LOAD_TIMEOUT_MS");
+    expect(classPlanWorkspace).toContain('onError={() => setPreviewStatus("error")}');
+    expect(classPlanWorkspace).toContain("setPreviewRevision((current) => current + 1)");
   });
 
   it("keeps the selected month first in the rail and the lesson detail compact", () => {

@@ -33,14 +33,13 @@ import { matchAthleteIntakeToStudents, type AthleteIntake } from "../../../src/c
 import { useEffectiveProfile } from "../../../src/hooks/use-effective-profile";
 import type { ClassGroup, Student } from "../../../src/core/models";
 import {
-    deleteStudent,
-    deleteStudents,
     getAthleteIntakesByClass,
     getClassById,
     getClasses,
     getStudentClassIds,
     getStudents,
     getStudentsByClass,
+    inactivateStudents,
     linkExistingStudentByIdentity,
     moveStudentsToClass,
     revealStudentCpf,
@@ -69,7 +68,6 @@ import {
   useFormValidationFeedback,
 } from "../../../src/ui/form-validation-feedback";
 import { useSaveToast } from "../../../src/ui/save-toast";
-import { useUndoableListDelete } from "../../../src/ui/useUndoableListDelete";
 import { useCollapsibleAnimation } from "../../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../../src/ui/use-modal-card-style";
 import { useConfirmDialog } from "../../../src/ui/confirm-dialog";
@@ -259,6 +257,12 @@ export default function ClassStudentsScreen() {
     radius: 18,
     gap: 12,
   });
+  const inactivationModalCardStyle = useModalCardStyle({
+    maxWidth: 520,
+    padding: 16,
+    radius: 18,
+    gap: 12,
+  });
   const duplicateReviewModalCardStyle = useModalCardStyle({
     maxWidth: 420,
     padding: 16,
@@ -302,6 +306,10 @@ export default function ClassStudentsScreen() {
   const [moveClassSearch, setMoveClassSearch] = useState("");
   const [moveClassError, setMoveClassError] = useState("");
   const [selectedMoveClassId, setSelectedMoveClassId] = useState("");
+  const [inactivationTargets, setInactivationTargets] = useState<Student[]>([]);
+  const [inactivationReason, setInactivationReason] = useState("");
+  const [inactivationError, setInactivationError] = useState("");
+  const [inactivationSaving, setInactivationSaving] = useState(false);
   const [editUnitFilters, setEditUnitFilters] = useState<string[]>([]);
   const [editClassIds, setEditClassIds] = useState<string[]>([]);
   const [initialEditClassIds, setInitialEditClassIds] = useState<string[]>([]);
@@ -1359,7 +1367,7 @@ export default function ClassStudentsScreen() {
         athleteObjective: "base",
         learningStyle: "misto",
         membershipStatus: "active",
-        financialStatus: "regular",
+        financialStatus: "unknown",
         inactivatedAt: null,
         createdAt: nowIso,
       });
@@ -1567,66 +1575,87 @@ export default function ClassStudentsScreen() {
     }
   };
 
-  const getStudentId = useCallback((student: Student) => student.id, []);
-  const undoableStudentDelete = useUndoableListDelete({
-    items: students,
-    setItems: setStudents,
-    getId: getStudentId,
-    confirm,
-    title: (targets) => (targets.length === 1 ? "Excluir aluno?" : "Excluir alunos?"),
-    message: (targets) => {
-      if (targets.length === 1) {
-        const [student] = targets;
-        return student.name
-          ? `Tem certeza que deseja excluir ${student.name}?`
-          : "Tem certeza que deseja excluir este aluno?";
-      }
-      return `${targets.length} aluno(s) serão excluídos da turma. Você poderá desfazer por alguns segundos.`;
-    },
-    confirmLabel: "Excluir",
-    undoMessage: (targets) =>
-      targets.length === 1
-        ? `${targets[0].name || "Aluno"} excluído. Deseja desfazer?`
-        : `${targets.length} aluno(s) excluído(s). Desfazer?`,
-    deleteItems: async (ids) => {
-      if (ids.length === 1) {
-        await deleteStudent(ids[0]);
-        return;
-      }
-      await deleteStudents(ids);
-    },
-    onOptimistic: (targets, ids) => {
-      const idSet = new Set(ids);
-      setSelectedStudentIds((prev) => prev.filter((id) => !idSet.has(id)));
-      if (editingStudent?.id && idSet.has(editingStudent.id)) {
+  const closeInactivationModal = useCallback(() => {
+    if (inactivationSaving) return;
+    setInactivationTargets([]);
+    setInactivationReason("");
+    setInactivationError("");
+  }, [inactivationSaving]);
+
+  const requestStudentInactivation = useCallback((targets: Student[]) => {
+    const activeTargets = targets.filter(
+      (student) => student.membershipStatus !== "inactive"
+    );
+    if (!activeTargets.length) return;
+    setInactivationTargets(activeTargets);
+    setInactivationReason("");
+    setInactivationError("");
+  }, []);
+
+  const confirmStudentInactivation = async () => {
+    if (inactivationSaving || !inactivationTargets.length) return;
+    const reason = inactivationReason.trim();
+    if (!reason) {
+      setInactivationError("Informe o motivo da inativação.");
+      return;
+    }
+
+    setInactivationSaving(true);
+    setInactivationError("");
+    try {
+      const updatedStudents = await inactivateStudents(
+        inactivationTargets.map((student) => student.id),
+        reason,
+        { organizationId: cls?.organizationId ?? null }
+      );
+      const updatedById = new Map(
+        updatedStudents.map((student) => [student.id, student])
+      );
+      const inactivatedIds = new Set(updatedById.keys());
+      const inactivatedEditingStudent = Boolean(
+        editingStudent?.id && inactivatedIds.has(editingStudent.id)
+      );
+
+      setStudents((current) =>
+        current.filter((student) => !inactivatedIds.has(student.id))
+      );
+      setOrganizationStudents((current) =>
+        current.map((student) => updatedById.get(student.id) ?? student)
+      );
+      setSelectedStudentIds((current) =>
+        current.filter((studentId) => !inactivatedIds.has(studentId))
+      );
+      setSelectionModeEnabled(false);
+      if (inactivatedEditingStudent) {
         closeEditModal();
       }
-    },
-    onConfirmed: (targets) => {
-      if (targets.length === 1) {
-        showSaveToast({
-          message: `${targets[0].name || "Aluno"} excluído da turma.`,
-          variant: "success",
-        });
-      }
-    },
-    onError: (error, targets) => {
+
+      const [singleStudent] = inactivationTargets;
+      showSaveToast({
+        message:
+          inactivationTargets.length === 1
+            ? `${singleStudent?.name || "Aluno"} foi inativado. O histórico foi preservado.`
+            : `${inactivationTargets.length} alunos foram inativados. O histórico foi preservado.`,
+        variant: "success",
+      });
+      setInactivationTargets([]);
+      setInactivationReason("");
+      setInactivationError("");
+    } catch (error) {
       const detail =
         error instanceof Error
           ? error.message
-          : targets.length === 1
-          ? "Não foi possível excluir o aluno."
-          : "Não foi possível excluir os alunos.";
-      Alert.alert(targets.length === 1 ? "Excluir aluno" : "Excluir alunos", detail);
-    },
-  });
-
-  const removeStudent = useCallback(
-    (student: Student) => {
-      undoableStudentDelete.deleteOne(student);
-    },
-    [undoableStudentDelete]
-  );
+          : "Não foi possível inativar os alunos.";
+      setInactivationError(detail);
+      showSaveToast({
+        error,
+        message: detail,
+        variant: "error",
+      });
+    } finally {
+      setInactivationSaving(false);
+    }
+  };
 
   const selectedStudents = useMemo(
     () => students.filter((student) => selectedStudentIds.includes(student.id)),
@@ -1850,6 +1879,7 @@ export default function ClassStudentsScreen() {
         rg: null,
         rgNormalized: null,
         loginEmail: "",
+        financialStatus: "unknown",
         createdAt: nowIso,
       } satisfies Student;
     });
@@ -1894,9 +1924,9 @@ export default function ClassStudentsScreen() {
     });
   }, [clearSelectedStudents, cls, confirm, selectedStudents]);
 
-  const handleDeleteSelectedStudents = useCallback(() => {
-    undoableStudentDelete.deleteMany(selectedStudents);
-  }, [selectedStudents, undoableStudentDelete]);
+  const handleInactivateSelectedStudents = useCallback(() => {
+    requestStudentInactivation(selectedStudents);
+  }, [requestStudentInactivation, selectedStudents]);
 
   const activeLayout = dropKey ? layouts[dropKey] : null;
   const activeOptions =
@@ -2249,20 +2279,20 @@ export default function ClassStudentsScreen() {
                       <GoAtletaIcon name="copy" size={17} color={colors.text} />
                     </Pressable>
                     <Pressable
-                      onPress={handleDeleteSelectedStudents}
+                      onPress={handleInactivateSelectedStudents}
                       style={{
                         width: 38,
                         height: 38,
                         borderRadius: 12,
                         borderWidth: 1,
                         borderColor: colors.border,
-                        backgroundColor: colors.dangerSolidBg,
+                        backgroundColor: colors.warningBg,
                         alignItems: "center",
                         justifyContent: "center",
                       }}
-                      accessibilityLabel="Excluir alunos"
+                      accessibilityLabel="Inativar alunos"
                     >
-                      <GoAtletaIcon name="trash" size={17} color={colors.dangerSolidText} />
+                      <GoAtletaIcon name="archive" size={17} color={colors.warningText} />
                     </Pressable>
                     <Pressable
                       onPress={handleSelectionMore}
@@ -3447,25 +3477,27 @@ export default function ClassStudentsScreen() {
             <Pressable
               onPress={() => {
                 if (editingStudent) {
-                  removeStudent(editingStudent);
+                  requestStudentInactivation([editingStudent]);
                 }
               }}
-              disabled={!editingStudent || saving}
+              disabled={!editingStudent || saving || inactivationSaving}
               style={{
                 borderRadius: 12,
-                backgroundColor: colors.dangerSolidBg,
+                borderWidth: 1,
+                borderColor: colors.warningText,
+                backgroundColor: colors.warningBg,
                 paddingVertical: 10,
                 alignItems: "center",
-                opacity: !editingStudent || saving ? 0.45 : 1,
+                opacity: !editingStudent || saving || inactivationSaving ? 0.45 : 1,
               }}
             >
               <Text
                 style={{
-                  color: colors.dangerSolidText,
+                  color: colors.warningText,
                   fontWeight: "700",
                 }}
               >
-                Excluir aluno
+                Inativar aluno
               </Text>
             </Pressable>
           </ScrollView>
@@ -3522,6 +3554,102 @@ export default function ClassStudentsScreen() {
               </AnchoredDropdownOption>
             ))}
           </AnchoredDropdown>
+        </View>
+      </ModalSheet>
+
+      <ModalSheet
+        visible={inactivationTargets.length > 0}
+        onClose={closeInactivationModal}
+        position="center"
+        overlayZIndex={19000}
+        cardStyle={inactivationModalCardStyle}
+      >
+        <View style={{ gap: 14 }}>
+          <View style={{ gap: 4 }}>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>
+              {inactivationTargets.length === 1
+                ? "Inativar aluno"
+                : `Inativar ${inactivationTargets.length} alunos`}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+              O cadastro e o histórico serão preservados. O motivo ficará registrado na Gestão.
+            </Text>
+          </View>
+
+          <View style={{ gap: 6 }}>
+            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+              Motivo da inativação
+            </Text>
+            <TextInput
+              value={inactivationReason}
+              onChangeText={(value) => {
+                setInactivationReason(value);
+                if (inactivationError) setInactivationError("");
+              }}
+              editable={!inactivationSaving}
+              multiline
+              maxLength={240}
+              textAlignVertical="top"
+              placeholder="Ex.: mudança de turma, pausa ou desligamento"
+              placeholderTextColor={colors.placeholder}
+              style={[
+                inputStyle(colors),
+                {
+                  minHeight: 96,
+                  paddingTop: 12,
+                  paddingBottom: 12,
+                },
+              ]}
+            />
+            <Text style={{ color: colors.muted, fontSize: 11, textAlign: "right" }}>
+              {inactivationReason.length}/240
+            </Text>
+            {inactivationError ? (
+              <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "600" }}>
+                {inactivationError}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <Pressable
+              onPress={closeInactivationModal}
+              disabled={inactivationSaving}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: inactivationSaving ? 0.55 : 1,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void confirmStudentInactivation()}
+              disabled={inactivationSaving || !inactivationReason.trim()}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                borderRadius: 12,
+                backgroundColor: colors.warningBg,
+                borderWidth: 1,
+                borderColor: colors.warningText,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity:
+                  inactivationSaving || !inactivationReason.trim() ? 0.55 : 1,
+              }}
+            >
+              <Text style={{ color: colors.warningText, fontWeight: "800" }}>
+                {inactivationSaving ? "Inativando..." : "Inativar"}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </ModalSheet>
 

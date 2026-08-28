@@ -16,7 +16,11 @@ import {
     View,
     ViewStyle,
 } from "react-native";
-import type { ClassGroup, Student } from "../../../core/models";
+import type {
+    ClassGroup,
+    Student,
+    StudentOperationalEvent,
+} from "../../../core/models";
 import { deriveStudentHealthAssessment } from "../../../core/student-health";
 import { normalizeRaDigits } from "../../../utils/student-ra";
 import type { ThemeColors } from "../../../ui/app-theme";
@@ -38,6 +42,8 @@ import { StudentMultiSelectOption } from "../components/StudentDropdownOptions";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
 import { BirthdayAvatar } from "../components/BirthdayAvatar";
+import { STUDENT_FINANCIAL_STATUS_OPTIONS } from "../application/student-operational-status";
+import { StudentOperationalHistoryModal } from "./StudentOperationalHistoryModal";
 
 type CollapsibleAnim = {
     animatedStyle: any;
@@ -209,12 +215,16 @@ export type StudentEditModalProps = {
     // Delete / Save
     operationalStudent: Student | null;
     operationalStatusSaving: boolean;
+    canManageFinancialStatus: boolean;
+    operationalHistory: StudentOperationalEvent[];
+    operationalHistoryLoading: boolean;
+    operationalHistoryError: string;
+    onRetryOperationalHistory: () => Promise<void>;
     onUpdateOperationalStatus: (patch: {
         membershipStatus?: Student["membershipStatus"];
         financialStatus?: Student["financialStatus"];
         inactivationReason?: string | null;
-    }) => Promise<void>;
-    deleteEditingStudent: () => void;
+    }) => Promise<boolean>;
     editSaving: boolean;
     setEditSaving: (value: boolean) => void;
     onSave: () => Promise<boolean>;
@@ -342,8 +352,12 @@ export function StudentEditModal({
     closeAllEditPickers,
     operationalStudent,
     operationalStatusSaving,
+    canManageFinancialStatus,
+    operationalHistory,
+    operationalHistoryLoading,
+    operationalHistoryError,
+    onRetryOperationalHistory,
     onUpdateOperationalStatus,
-    deleteEditingStudent,
     editSaving,
     setEditSaving,
     onSave,
@@ -357,11 +371,15 @@ export function StudentEditModal({
     const raInputRef = useRef<TextInput | null>(null);
     const [showInactivationForm, setShowInactivationForm] = useState(false);
     const [inactivationReason, setInactivationReason] = useState("");
+    const [showOperationalHistory, setShowOperationalHistory] = useState(false);
 
     useEffect(() => {
         if (!showEditModal || operationalStudent?.membershipStatus === "inactive") {
             setShowInactivationForm(false);
             setInactivationReason("");
+        }
+        if (!showEditModal) {
+            setShowOperationalHistory(false);
         }
     }, [operationalStudent?.id, operationalStudent?.membershipStatus, showEditModal]);
 
@@ -456,9 +474,14 @@ export function StudentEditModal({
     }, [classModalities, classModalityFilter, selectedClassModality, showEditClassPicker]);
 
     return (
+        <>
         <ModalSheet
             visible={showEditModal}
-            onClose={requestCloseEditModal}
+            onClose={
+                showOperationalHistory
+                    ? () => setShowOperationalHistory(false)
+                    : requestCloseEditModal
+            }
             cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}
             position="center"
         >
@@ -486,10 +509,13 @@ export function StudentEditModal({
                         </Text>
                         <Pressable
                             onPress={requestCloseEditModal}
+                            accessibilityRole="button"
+                            accessibilityLabel="Fechar edição do aluno"
+                            hitSlop={8}
                             style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 16,
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
                                 alignItems: "center",
                                 justifyContent: "center",
                                 backgroundColor: colors.secondaryBg,
@@ -567,18 +593,41 @@ export function StudentEditModal({
                                         minWidth: 280,
                                     }}
                                 >
-                                    <View style={{ gap: 2 }}>
-                                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                                    <View
+                                        style={{
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: 12,
+                                        }}
+                                    >
+                                        <Text style={{ flex: 1, color: colors.text, fontSize: 14, fontWeight: "800" }}>
                                             Situação do aluno
                                         </Text>
-                                        <Text style={{ color: colors.muted, fontSize: 11 }}>
-                                            O financeiro não altera presença. Inativos saem de novas chamadas e mantêm o histórico.
-                                        </Text>
+                                        <Pressable
+                                            onPress={() => setShowOperationalHistory(true)}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Ver histórico do aluno"
+                                            hitSlop={8}
+                                            style={({ pressed, hovered }: any) => ({
+                                                width: 40,
+                                                height: 40,
+                                                borderRadius: 20,
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                backgroundColor: hovered ? colors.secondaryBg : colors.card,
+                                                borderWidth: 1,
+                                                borderColor: hovered ? colors.primaryBg : colors.border,
+                                                opacity: pressed ? 0.76 : 1,
+                                            })}
+                                        >
+                                            <GoAtletaIcon name="time" size={19} color={colors.text} />
+                                        </Pressable>
                                     </View>
                                     {showInactivationForm ? (
                                         <View style={{ gap: 8 }}>
                                             <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                                                Motivo (opcional)
+                                                Motivo
                                             </Text>
                                             <View
                                                 style={{
@@ -616,30 +665,39 @@ export function StudentEditModal({
                                                         setShowInactivationForm(false);
                                                         setInactivationReason("");
                                                     }}
-                                                    style={{ minHeight: 38, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" }}
+                                                    style={{ minHeight: 44, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" }}
                                                     suppressWebHoverFeedback
                                                 >
                                                     <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Cancelar</Text>
                                                 </Pressable>
                                                 <Pressable
-                                                    disabled={operationalStatusSaving}
+                                                    disabled={
+                                                        operationalStatusSaving ||
+                                                        !inactivationReason.trim()
+                                                    }
                                                     onPress={() => {
                                                         void onUpdateOperationalStatus({
                                                             membershipStatus: "inactive",
                                                             inactivationReason,
-                                                        }).then(() => {
-                                                            setShowInactivationForm(false);
-                                                            setInactivationReason("");
+                                                        }).then((updated) => {
+                                                            if (updated) {
+                                                                setShowInactivationForm(false);
+                                                                setInactivationReason("");
+                                                            }
                                                         });
                                                     }}
                                                     style={{
-                                                        minHeight: 38,
+                                                        minHeight: 44,
                                                         borderRadius: 11,
                                                         backgroundColor: colors.dangerSolidBg,
                                                         paddingHorizontal: 12,
                                                         alignItems: "center",
                                                         justifyContent: "center",
-                                                        opacity: operationalStatusSaving ? 0.55 : 1,
+                                                        opacity:
+                                                            operationalStatusSaving ||
+                                                            !inactivationReason.trim()
+                                                                ? 0.55
+                                                                : 1,
                                                     }}
                                                 >
                                                     <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "800" }}>
@@ -660,7 +718,7 @@ export function StudentEditModal({
                                                 setShowInactivationForm(true);
                                             }}
                                             style={{
-                                                minHeight: 38,
+                                                minHeight: 44,
                                                 borderRadius: 11,
                                                 borderWidth: 1,
                                                 borderColor:
@@ -692,61 +750,52 @@ export function StudentEditModal({
                                                     : "Inativar aluno"}
                                             </Text>
                                         </Pressable>
-                                        <Pressable
-                                            disabled={operationalStatusSaving}
-                                            onPress={() =>
-                                                void onUpdateOperationalStatus({
-                                                    financialStatus:
-                                                        operationalStudent.financialStatus === "delinquent"
-                                                            ? "regular"
-                                                            : "delinquent",
-                                                })
-                                            }
-                                            style={{
-                                                minHeight: 38,
-                                                borderRadius: 11,
-                                                borderWidth: 1,
-                                                borderColor:
-                                                    operationalStudent.financialStatus === "delinquent"
-                                                        ? colors.warningBg
-                                                        : colors.border,
-                                                backgroundColor:
-                                                    operationalStudent.financialStatus === "delinquent"
-                                                        ? colors.warningBg
-                                                        : colors.secondaryBg,
-                                                paddingHorizontal: 12,
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                opacity: operationalStatusSaving ? 0.55 : 1,
-                                            }}
-                                        >
-                                            <Text
-                                                style={{
-                                                    color:
-                                                        operationalStudent.financialStatus === "delinquent"
-                                                            ? colors.warningText
-                                                            : colors.text,
-                                                    fontSize: 12,
-                                                    fontWeight: "800",
-                                                }}
-                                            >
-                                                {operationalStudent.financialStatus === "delinquent"
-                                                    ? "Marcar financeiro regular"
-                                                    : "Marcar inadimplente"}
-                                            </Text>
-                                        </Pressable>
                                     </View>
                                     )}
-                                    {operationalStudent.membershipStatus === "inactive" && operationalStudent.inactivatedAt ? (
-                                        <View style={{ gap: 2 }}>
-                                            <Text style={{ color: colors.muted, fontSize: 11 }}>
-                                                Inativado em {new Date(operationalStudent.inactivatedAt).toLocaleDateString("pt-BR")}.
+                                    {canManageFinancialStatus ? (
+                                        <View style={{ gap: 7 }}>
+                                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                                                Financeiro
                                             </Text>
-                                            {operationalStudent.inactivationReason ? (
-                                                <Text style={{ color: colors.muted, fontSize: 11 }}>
-                                                    Motivo: {operationalStudent.inactivationReason}
-                                                </Text>
-                                            ) : null}
+                                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                                                {STUDENT_FINANCIAL_STATUS_OPTIONS.map((option) => {
+                                                    const active = operationalStudent.financialStatus === option.value;
+                                                    return (
+                                                        <Pressable
+                                                            key={option.value}
+                                                            disabled={operationalStatusSaving || active}
+                                                            accessibilityRole="radio"
+                                                            accessibilityState={{ checked: active, disabled: operationalStatusSaving || active }}
+                                                            onPress={() =>
+                                                                void onUpdateOperationalStatus({
+                                                                    financialStatus: option.value,
+                                                                })
+                                                            }
+                                                            style={{
+                                                                minHeight: 44,
+                                                                borderRadius: 11,
+                                                                borderWidth: 1,
+                                                                borderColor: active ? colors.primaryBg : colors.border,
+                                                                backgroundColor: active ? colors.secondaryBg : colors.card,
+                                                                paddingHorizontal: 12,
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                opacity: operationalStatusSaving && !active ? 0.55 : 1,
+                                                            }}
+                                                        >
+                                                            <Text
+                                                                style={{
+                                                                    color: active ? colors.primaryBg : colors.text,
+                                                                    fontSize: 12,
+                                                                    fontWeight: "800",
+                                                                }}
+                                                            >
+                                                                {option.label}
+                                                            </Text>
+                                                        </Pressable>
+                                                    );
+                                                })}
+                                            </View>
                                         </View>
                                     ) : null}
                                 </View>
@@ -1343,21 +1392,6 @@ export function StudentEditModal({
                                 ) : null}
                             </View>
 
-                            {editingId ? (
-                                <Pressable
-                                    onPress={deleteEditingStudent}
-                                    disabled={editSaving}
-                                    style={{
-                                        paddingVertical: 10,
-                                        borderRadius: 12,
-                                        backgroundColor: colors.dangerSolidBg,
-                                        alignItems: "center",
-                                        opacity: editSaving ? 0.5 : 1,
-                                    }}
-                                >
-                                    <Text style={{ color: colors.dangerSolidText, fontWeight: "700" }}>Excluir aluno</Text>
-                                </Pressable>
-                            ) : null}
                         </View>
                     </ScrollView>
                     <View style={{ paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
@@ -1389,5 +1423,15 @@ export function StudentEditModal({
                 </View>
             </View>
         </ModalSheet>
+        <StudentOperationalHistoryModal
+            visible={showOperationalHistory}
+            loading={operationalHistoryLoading}
+            events={operationalHistory}
+            errorMessage={operationalHistoryError}
+            colors={colors}
+            onClose={() => setShowOperationalHistory(false)}
+            onRetry={() => void onRetryOperationalHistory()}
+        />
+        </>
     );
 }

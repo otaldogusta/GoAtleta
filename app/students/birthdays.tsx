@@ -7,7 +7,11 @@ export default function StudentsBirthdaysRedirect() {
 
   return (
     <Redirect
-      href={effectiveProfile === "admin" ? "/coord/students" : "/prof/students"}
+      href={
+        effectiveProfile === "admin"
+          ? ("/coord/management/athletes" as never)
+          : "/prof/students"
+      }
     />
   );
 }

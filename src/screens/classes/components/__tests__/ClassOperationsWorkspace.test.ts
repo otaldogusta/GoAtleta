@@ -3,8 +3,8 @@ import { act, fireEvent, render } from "@testing-library/react-native";
 import { Text } from "react-native";
 
 import { COPILOT_FAB_SIZE, COPILOT_FAB_STACK_GAP, resolveCopilotCompanionFabBottom, resolveCopilotFabBottom } from "../../../../copilot/components/CopilotFab";
-import { buildClassAttendanceWorkspaceHref, parseClassWorkspaceRouteDate, resolveClassWorkspaceRouteSection } from "../../class-workspace-route";
-import { ClassOperationsWorkspace, resolveDenseClassWorkspace } from "../ClassOperationsWorkspace";
+import { buildClassAttendanceWorkspaceHref, parseClassWorkspaceRouteDate, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../class-workspace-route";
+import { ClassContextStrip, ClassOperationsWorkspace, resolveDenseClassWorkspace } from "../ClassOperationsWorkspace";
 import { ClassAttendanceWorkspacePanel, resolveStackedAttendancePanel } from "../ClassAttendanceWorkspacePanel";
 import { isTodayLessonDateLabel } from "../ClassLessonDateNavigator";
 
@@ -60,6 +60,8 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null, overrides: R
   const onOpenPlanning = jest.fn();
   const onOpenLessonCalendar = jest.fn();
   const onGeneratePlan = jest.fn();
+  const onOpenReport = jest.fn();
+  const onOpenRecentTraining = jest.fn();
   const screen = render(
     React.createElement(ClassOperationsWorkspace, {
       colors,
@@ -74,14 +76,21 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null, overrides: R
       onViewPlan: jest.fn(),
       onGeneratePlan,
       isGeneratingPlan: false,
-      studentCount: 24,
-      contactStatusValue: "24 pendentes",
-      contactStatusLabel: "contatos para atualizar",
-      reportStatusValue: "Pendente",
-      reportStatusLabel: "registre a última aula",
+      attendanceStatus: {
+        state: "pending",
+        label: "Pendente",
+        detail: "3 atletas ainda estão sem registro.",
+      },
+      reportStatus: {
+        state: "pending",
+        label: "Pendente",
+        detail: "Registre o treino realizado.",
+      },
+      recentTrainings: [],
       onOpenSession: jest.fn(),
       onOpenAttendance: jest.fn(),
-      onOpenReport: jest.fn(),
+      onOpenReport,
+      onOpenRecentTraining,
       onOpenPlanning,
       onOpenVisualTech: jest.fn(),
       onOpenScouting: jest.fn(),
@@ -92,7 +101,14 @@ function renderWorkspace(compact: boolean, appliedPlan: any = null, overrides: R
     }),
   );
 
-  return { screen, onGeneratePlan, onOpenPlanning, onOpenLessonCalendar };
+  return {
+    screen,
+    onGeneratePlan,
+    onOpenPlanning,
+    onOpenLessonCalendar,
+    onOpenReport,
+    onOpenRecentTraining,
+  };
 }
 
 describe("ClassOperationsWorkspace responsive navigation", () => {
@@ -137,10 +153,60 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(parseClassWorkspaceRouteDate("2026-08-24")).toEqual(new Date(2026, 7, 24));
   });
 
+  it("keeps the explicit route date as the adjacent-navigation base", () => {
+    const requestedDate = new Date(2026, 7, 24);
+    const nextClassDate = new Date(2026, 7, 27);
+
+    expect(resolveClassWorkspaceLessonDate(null, requestedDate, nextClassDate)).toBe(requestedDate);
+    expect(resolveClassWorkspaceLessonDate(new Date(2026, 7, 25), requestedDate, nextClassDate)).toEqual(new Date(2026, 7, 25));
+  });
+
   it("keeps NFC out of the class navigation", () => {
     const { screen } = renderWorkspace(false);
 
     expect(screen.queryByLabelText("Chamada NFC")).toBeNull();
+  });
+
+  it("shows objective pending states and an honest empty training history", () => {
+    const { screen, onOpenReport } = renderWorkspace(true);
+
+    expect(screen.getByLabelText("Abrir chamada: Pendente")).toBeTruthy();
+    expect(screen.getByLabelText("Abrir relatório: Pendente")).toBeTruthy();
+    expect(screen.getByText("3 atletas ainda estão sem registro.")).toBeTruthy();
+    expect(screen.getByText("Nenhum treino registrado.")).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText("Abrir relatório: Pendente"));
+    expect(onOpenReport).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens only recent trainings backed by a real session date", () => {
+    const { screen, onOpenRecentTraining } = renderWorkspace(true, null, {
+      attendanceStatus: {
+        state: "completed",
+        label: "Concluída",
+        detail: "Todos os atletas ativos possuem registro.",
+      },
+      reportStatus: {
+        state: "completed",
+        label: "Concluído",
+        detail: "Relatório desta aula registrado.",
+      },
+      recentTrainings: [
+        {
+          id: "session-1",
+          dateKey: "2026-08-19",
+          dateLabel: "19/08/2026",
+          title: "Recepção e transição",
+        },
+      ],
+    });
+
+    expect(screen.getByLabelText("Abrir chamada: Concluída")).toBeTruthy();
+    expect(screen.getByLabelText("Abrir relatório: Concluído")).toBeTruthy();
+    expect(screen.getByText("Recepção e transição")).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText("Abrir treino de 19/08/2026"));
+    expect(onOpenRecentTraining).toHaveBeenCalledWith("2026-08-19");
   });
 
   it("keeps student rows inside the embedded attendance list without legacy navigation", () => {
@@ -263,9 +329,48 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
       paddingHorizontal: 12,
       paddingVertical: 10,
     });
-    expect(screen.getByLabelText("Aula anterior")).toHaveStyle({ width: 36, height: 36, borderRadius: 18 });
-    expect(screen.getByLabelText("Próxima aula")).toHaveStyle({ width: 36, height: 36, borderRadius: 18 });
+    expect(screen.getByLabelText("Aula anterior")).toHaveStyle({ width: 44, height: 44, borderRadius: 22 });
+    expect(screen.getByLabelText("Próxima aula")).toHaveStyle({ width: 44, height: 44, borderRadius: 22 });
     expect(screen.queryByLabelText("Chamada sincronizada")).toBeNull();
+  });
+
+  it("offers retry without showing a preserved roster or a false empty state after load failure", () => {
+    const onRetry = jest.fn();
+    const screen = render(
+      React.createElement(ClassAttendanceWorkspacePanel, {
+        colors,
+        compact: true,
+        mobile: true,
+        dense: false,
+        dateLabel: "27/08/2026",
+        students: [{ id: "student-from-previous-date", name: "Aluna da data anterior", photoUrl: null }],
+        statusById: { "student-from-previous-date": "presente" },
+        detailsById: { "student-from-previous-date": { note: "", painScore: 0 } },
+        markedCount: 1,
+        hasChanges: false,
+        isLoading: false,
+        isSaving: false,
+        loadFailed: true,
+        error: "Não foi possível carregar a chamada.",
+        onRetry,
+        onPrevious: jest.fn(),
+        onNext: jest.fn(),
+        onOpenCalendar: jest.fn(),
+        onOpenReport: jest.fn(),
+        onSetStatus: jest.fn(),
+        onSetDetails: jest.fn(),
+        onSave: jest.fn(),
+      }),
+    );
+
+    expect(screen.getByText("Não foi possível carregar a chamada.")).toBeTruthy();
+    expect(screen.queryByText("Aluna da data anterior")).toBeNull();
+    expect(screen.queryByText("1 de 1 marcados")).toBeNull();
+    expect(screen.queryByText("Nenhum aluno nesta turma.")).toBeNull();
+
+    fireEvent.press(screen.getByLabelText("Tentar carregar a chamada novamente"));
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   it("edits pain and notes without leaving the embedded attendance", () => {
@@ -434,6 +539,23 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     const { screen } = renderWorkspace(true);
 
     expect(screen.getByLabelText("Abrir menu da turma")).toBeTruthy();
+  });
+
+  it("keeps the active roster and next lesson visible in compact class context", () => {
+    const screen = render(
+      React.createElement(ClassContextStrip, {
+        colors,
+        compact: true,
+        mobile: true,
+        unitLabel: "Unidade Centro",
+        scheduleLabel: "Qua e Sex · 18:00",
+        studentCount: 24,
+        nextClassLabel: "Hoje · 18:00",
+      }),
+    );
+
+    expect(screen.getByText("24 ativos")).toBeTruthy();
+    expect(screen.getByText("Hoje · 18:00")).toBeTruthy();
   });
 
   it("keeps the permanent rail on the desktop layout", () => {

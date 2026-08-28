@@ -18,6 +18,57 @@ create table if not exists private.planning_reconciliation_audit (
 revoke all on table private.planning_reconciliation_audit from public, anon, authenticated;
 grant select on table private.planning_reconciliation_audit to service_role;
 
+-- Make a fresh replay self-contained. The hosted database already had these
+-- canonical columns when this migration was first applied, while the historical
+-- migration chain still exposes the legacy compact names.
+alter table public.planning_cycles
+  add column if not exists start_date date,
+  add column if not exists end_date date,
+  add column if not exists created_at timestamptz,
+  add column if not exists updated_at timestamptz;
+
+update public.planning_cycles
+set start_date = coalesce(start_date, nullif(btrim(startdate), '')::date, make_date(year, 1, 1)),
+    end_date = coalesce(end_date, nullif(btrim(enddate), '')::date, make_date(year, 12, 31)),
+    created_at = coalesce(created_at, createdat, now()),
+    updated_at = coalesce(updated_at, updatedat, created_at, createdat, now());
+
+alter table public.planning_cycles
+  alter column start_date set not null,
+  alter column end_date set not null,
+  alter column created_at set default now(),
+  alter column created_at set not null,
+  alter column updated_at set default now(),
+  alter column updated_at set not null;
+
+alter table public.class_plans
+  add column if not exists cycle_id text,
+  add column if not exists created_at timestamptz;
+
+update public.class_plans
+set created_at = coalesce(created_at, createdat, now());
+
+alter table public.class_plans
+  alter column created_at set default now(),
+  alter column created_at set not null;
+
+-- ON CONFLICT must have a matching arbiter. Refuse ambiguous historical data
+-- instead of silently merging or deleting cycle records.
+do $$
+begin
+  if exists (
+    select 1
+    from public.planning_cycles
+    group by organization_id, classid, year
+    having count(*) > 1
+  ) then
+    raise exception 'planning_cycles contains duplicate organization/class/year identities';
+  end if;
+end $$;
+
+create unique index if not exists planning_cycles_org_class_year_uidx
+  on public.planning_cycles (organization_id, classid, year);
+
 -- Some historical class plans predate planning_cycles. Create only the missing
 -- class/year containers; existing cycles always remain the source of truth.
 insert into public.planning_cycles (
@@ -49,7 +100,7 @@ select
   max(coalesce(cp.updated_at, cp.updatedat, cp.created_at, cp.createdat, now()))
 from public.class_plans cp
 group by cp.organization_id, cp.classid, extract(year from cp.startdate)::integer
-on conflict (classid, year) do nothing;
+on conflict (organization_id, classid, year) do nothing;
 
 -- Preserve the losing version before removing real duplicates. Manual plans
 -- outrank generated plans; within the same source, the newest edit wins.

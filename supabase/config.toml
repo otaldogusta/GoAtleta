@@ -25,24 +25,27 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.create-student-invite]
-verify_jwt = true
+verify_jwt = false
 
 [functions.validate-student-invite]
 verify_jwt = false
 
 [functions.claim-student-invite]
-verify_jwt = true
+verify_jwt = false
 
 [functions.list-student-invites]
-verify_jwt = true
+verify_jwt = false
 
 [functions.revoke-student-invite]
-verify_jwt = true
+verify_jwt = false
 
 [functions.invite-link]
 verify_jwt = false
 
 [functions.revoke-student-access]
+verify_jwt = false
+
+[functions.request-access-review]
 verify_jwt = true
 
 [functions.rules-sync]

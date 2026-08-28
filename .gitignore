@@ -50,6 +50,7 @@ app-example
 
 # Supabase CLI cache
 supabase/.temp/
+supabase/.branches/
 .tools/
 
 # editor

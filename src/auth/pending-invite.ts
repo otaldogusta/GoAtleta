@@ -41,29 +41,33 @@ export const resolvePendingTrainerCode = ({
   storedCode: string;
 }) => routeCode?.trim().toUpperCase() || storedCode.trim().toUpperCase();
 
-export const requiresTrainerInviteEmailVerification = (user?: {
+export const requiresInviteEmailVerification = (user?: {
+  email?: string | null;
+  is_anonymous?: boolean | null;
   app_metadata?: Record<string, unknown> | null;
   user_metadata?: Record<string, unknown> | null;
 } | null) => {
+  if (!user || user.is_anonymous === true) return true;
+  if (!String(user.email ?? "").trim()) return true;
   const appMetadata = user?.app_metadata ?? {};
-  const userMetadata = user?.user_metadata ?? {};
   const providers = [
     ...(Array.isArray(appMetadata.providers) ? appMetadata.providers : []),
     appMetadata.provider,
   ]
     .map((value) => String(value ?? "").trim().toLowerCase())
     .filter(Boolean);
-  const hasTrustedExternalProvider = providers.some(
-    (provider) => provider !== "email" && provider !== "phone"
+  const hasTrustedExternalProvider = providers.some((provider) =>
+    ["google", "apple", "facebook"].includes(provider)
   );
   if (hasTrustedExternalProvider) return false;
-  const isHybridSignup = userMetadata.requires_email_hybrid_verification === true;
-  const usesEmailProvider = providers.includes("email");
-  return (
-    (isHybridSignup || usesEmailProvider) &&
-    typeof appMetadata.email_verified_hybrid_at !== "string"
+  return !(
+    typeof appMetadata.email_verified_hybrid_at === "string"
+    && Boolean(appMetadata.email_verified_hybrid_at.trim())
   );
 };
+
+export const requiresTrainerInviteEmailVerification =
+  requiresInviteEmailVerification;
 
 export const resolveAuthenticatedTrainerInviteEntry = ({
   hasSession,

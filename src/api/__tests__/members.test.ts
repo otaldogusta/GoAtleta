@@ -52,7 +52,7 @@ describe("members api", () => {
 
     expect(mockSupabaseRestPost).toHaveBeenCalledTimes(1);
     expect(mockSupabaseRestPost).toHaveBeenCalledWith(
-      "/rpc/admin_apply_member_access_change",
+      "/rpc/admin_apply_member_access_change_v2",
       {
         p_org_id: "org-1",
         p_user_id: "user-1",

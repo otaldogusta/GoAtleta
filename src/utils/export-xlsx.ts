@@ -2,10 +2,12 @@ import {
   cacheDirectory,
   documentDirectory,
   EncodingType,
+  getContentUriAsync,
   writeAsStringAsync,
 } from "expo-file-system/legacy";
+import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
-import { Platform } from "react-native";
+import { Linking, Platform } from "react-native";
 import type { WorkSheet } from "@e965/xlsx";
 import { loadXlsx } from "./load-xlsx";
 
@@ -256,14 +258,43 @@ export async function exportWorkbookXlsx(
   const workbookBase64 = XLSX.write(workbook, { bookType: "xlsx", type: "base64" });
   await writeAsStringAsync(uri, workbookBase64, { encoding: EncodingType.Base64 });
 
-  const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(uri, {
-      dialogTitle: input.dialogTitle ?? "Exportar planilha",
-      mimeType: XLSX_MIME,
-      UTI: "org.openxmlformats.spreadsheetml.sheet",
-    });
+  const opened = await tryOpenXlsx(uri);
+  if (!opened) {
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(uri, {
+        dialogTitle: input.dialogTitle ?? "Exportar planilha",
+        mimeType: XLSX_MIME,
+        UTI: "org.openxmlformats.spreadsheetml.sheet",
+      });
+    }
   }
 
   return { fileName: input.fileName, uri };
+}
+
+async function tryOpenXlsx(uri: string): Promise<boolean> {
+  if (Platform.OS !== "android") return false;
+
+  try {
+    const contentUri = await getContentUriAsync(uri);
+    try {
+      await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+        data: contentUri,
+        type: XLSX_MIME,
+        flags: 1 | 268435456, // GRANT_READ_URI_PERMISSION | ACTIVITY_NEW_TASK
+      });
+      return true;
+    } catch {
+      const canOpen = await Linking.canOpenURL(contentUri);
+      if (canOpen) {
+        await Linking.openURL(contentUri);
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 }

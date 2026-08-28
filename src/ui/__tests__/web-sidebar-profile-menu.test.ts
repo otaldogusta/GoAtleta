@@ -1,11 +1,13 @@
 import React from "react";
 import { act, fireEvent, render } from "@testing-library/react-native";
+import { Platform } from "react-native";
 
 import { WebSidebar } from "../WebSidebar";
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockHistoryPushState = jest.fn();
+const mockHistoryReplaceState = jest.fn();
 let mockPathname = "/prof/home";
 const mockOrganizationContext = {
   activeOrganization: { role_level: 50 },
@@ -68,11 +70,18 @@ jest.mock("../../notifications/useUnreadNotificationCount", () => ({
 }));
 
 describe("WebSidebar profile menu", () => {
+  const originalPlatformOS = Platform.OS;
+
   beforeEach(() => {
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      value: "web",
+    });
     mockPathname = "/prof/home";
     mockPush.mockClear();
     mockReplace.mockClear();
     mockHistoryPushState.mockClear();
+    mockHistoryReplaceState.mockClear();
     mockOrganizationContext.activeOrganization.role_level = 50;
     mockOrganizationContext.memberPermissions = {
       calendar: true,
@@ -103,6 +112,7 @@ describe("WebSidebar profile menu", () => {
       value: {
         state: { key: "current-route" },
         pushState: mockHistoryPushState,
+        replaceState: mockHistoryReplaceState,
       },
     });
     Object.defineProperty(window, "location", {
@@ -116,6 +126,13 @@ describe("WebSidebar profile menu", () => {
     Object.defineProperty(window, "requestAnimationFrame", {
       configurable: true,
       value: undefined,
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(Platform, "OS", {
+      configurable: true,
+      value: originalPlatformOS,
     });
   });
 
@@ -193,6 +210,7 @@ describe("WebSidebar profile menu", () => {
       value: {
         state: { key: "class" },
         pushState: mockHistoryPushState,
+        replaceState: mockHistoryReplaceState,
       },
     });
     Object.defineProperty(window, "location", {

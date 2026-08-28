@@ -1,6 +1,9 @@
 ﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { validateStringField } from "../_shared/input-validation.ts";
+import {
+  validateObjectPayload,
+  validateStringField,
+} from "../_shared/input-validation.ts";
 
 
 const makeJsonHeaders = (req: Request) => ({ ...buildCorsHeaders(req), "Content-Type": "application/json" });
@@ -33,7 +36,11 @@ Deno.serve(async (req) => {
     organizationId: "",
   };
   try {
-    payload = (await req.json()) as typeof payload;
+    const parsed = validateObjectPayload(await req.json());
+    if (!parsed.ok || !parsed.data) {
+      return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
+    }
+    payload = parsed.data as typeof payload;
   } catch {
     return createError(req, 400, "INVALID_REQUEST", "Invalid JSON");
   }
@@ -52,8 +59,7 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+  if (!supabaseUrl || !anonKey) {
     return createError(req, 500, "SERVER_ERROR", "Missing Supabase configuration");
   }
 
@@ -65,60 +71,28 @@ Deno.serve(async (req) => {
       },
     },
   });
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
   const userId = authData?.user?.id ?? "";
   if (authError || !userId) {
     return createError(req, 401, "UNAUTHORIZED", "Unauthorized");
   }
 
-  const { data: adminRow, error: adminError } = await supabase
-    .from("organization_members")
-    .select("role_level")
-    .eq("organization_id", orgValidation.data)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (adminError) {
-    return createError(req, 500, "SERVER_ERROR", "Organization lookup failed");
-  }
-
-  if (!adminRow) {
-    return createError(req, 404, "ORG_NOT_FOUND", "Organization not found");
-  }
-
-  if ((adminRow.role_level ?? 0) < 50) {
-    return createError(req, 403, "ORG_FORBIDDEN", "Forbidden");
-  }
-
-  const { data: invite, error: inviteError } = await admin
-    .from("trainer_invites")
-    .select("id, revoked")
-    .eq("id", inviteIdValidation.data)
-    .eq("organization_id", orgValidation.data)
-    .maybeSingle();
-
-  if (inviteError) {
-    return createError(req, 500, "SERVER_ERROR", "Invite lookup failed");
-  }
-
-  if (!invite) {
-    return createError(req, 404, "INVITE_INVALID", "Invite not found");
-  }
-
-  if (invite.revoked) {
-    return new Response(JSON.stringify({ status: "ok" }), { headers: makeJsonHeaders(req) });
-  }
-
-  const { error: updateError } = await admin
-    .from("trainer_invites")
-    .update({ revoked: true })
-    .eq("id", inviteIdValidation.data);
+  const { error: updateError } = await supabase.rpc(
+    "revoke_trainer_invite_access",
+    {
+      p_invite_id: inviteIdValidation.data,
+      p_org_id: orgValidation.data,
+    }
+  );
 
   if (updateError) {
+    const message = updateError.message ?? "";
+    if (message.includes("NOT_AUTHORIZED")) {
+      return createError(req, 403, "ORG_FORBIDDEN", "Forbidden");
+    }
+    if (message.includes("INVITE_INVALID")) {
+      return createError(req, 404, "INVITE_INVALID", "Invite not found");
+    }
     return createError(req, 500, "SERVER_ERROR", "Failed to revoke invite");
   }
 
