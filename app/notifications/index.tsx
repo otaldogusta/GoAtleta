@@ -18,6 +18,7 @@ import {
 } from "../../src/notificationsInbox";
 import { notificationScopeForEffectiveProfile } from "../../src/notifications/inbox-scope";
 import { resolveNotificationOrganizationId } from "../../src/notifications/notification-organization";
+import { markRender, measureAsync } from "../../src/observability/perf";
 import { getNotificationsModule, isExpoGo } from "../../src/push/notificationRuntime";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { Pressable } from "../../src/ui/Pressable";
@@ -37,6 +38,7 @@ const profilePreviewRoutes: Record<ProfilePreviewId, string> = {
 };
 
 export default function NotificationsScreen() {
+  markRender("screen.notifications.render.root");
   const { colors, mode, toggleMode } = useAppTheme();
   const { signOut } = useAuth();
   const { role: userRole, student, refresh: refreshRole } = useRole();
@@ -69,9 +71,13 @@ export default function NotificationsScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const nextItems = await getNotifications(
-        inboxScope,
-        notificationOrganizationId,
+      const nextItems = await measureAsync(
+        "screen.notifications.load.inbox",
+        () => getNotifications(inboxScope, notificationOrganizationId),
+        {
+          inboxScope,
+          hasOrganizationId: notificationOrganizationId ? 1 : 0,
+        },
       );
       if (!alive) return;
       setItems(nextItems);
