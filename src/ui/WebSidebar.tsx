@@ -12,6 +12,7 @@ import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
 import { navigateToPrimaryRoute } from "../navigation/primary-route-navigation";
 import { getScopedProfilePath } from "../navigation/profile-routes";
 import { formatUnreadNotificationBadge } from "../notifications/unread-notification-count";
+import { resolveNotificationOrganizationId } from "../notifications/notification-organization";
 import { PROFILE_NAME_FALLBACK, resolveProfileDisplayName } from "../core/profile-name";
 import { useUnreadNotificationCount } from "../notifications/useUnreadNotificationCount";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
@@ -250,10 +251,19 @@ export function WebSidebar({
   const pathname = usePathname();
   const { mode, colors } = useAppTheme();
   const { session, signOut } = useAuth();
-  const { availableRoles, refresh: refreshRole, setActiveRole } = useRole();
+  const {
+    availableRoles,
+    student,
+    refresh: refreshRole,
+    setActiveRole,
+  } = useRole();
   const organizationContext = useOptionalOrganization();
   const { unreadCount: unreadNotificationCount } = useUnreadNotificationCount(
-    organizationContext?.activeOrganization?.id,
+    resolveNotificationOrganizationId({
+      activeOrganizationId: organizationContext?.activeOrganization?.id,
+      studentOrganizationId: student?.organizationId,
+      inboxScope: role,
+    }),
     true,
     role,
   );

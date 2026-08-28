@@ -4,6 +4,9 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
 export type SendPushInput = {
   organizationId: string;
   targetUserId: string;
+  notificationType?: string;
+  sourceType?: string;
+  notificationId?: string;
   title: string;
   body: string;
   data?: Record<string, unknown>;
@@ -39,6 +42,9 @@ export async function sendPushToUser(input: SendPushInput): Promise<SendPushResu
       body: JSON.stringify({
         organizationId: input.organizationId,
         targetUserId: input.targetUserId,
+        notificationType: input.notificationType ?? "generic",
+        sourceType: input.sourceType ?? "",
+        notificationId: input.notificationId ?? "",
         title: input.title,
         body: input.body,
         data: input.data ?? null,

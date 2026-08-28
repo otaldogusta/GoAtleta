@@ -657,6 +657,9 @@ export function ConsultationScreen() {
       studentId: workout.studentId,
       studentName: selectedStudent?.name,
       workoutId: workout.id,
+      organizationId: selectedStudent?.organizationId,
+      classId: selectedStudent?.classId,
+      targetUserId: selectedStudent?.studentUserId ?? undefined,
     });
     updatePersistenceNotice("Treino publicado para a aluna no servidor.", status);
     await reload();
@@ -664,13 +667,19 @@ export function ConsultationScreen() {
 
   const reviewLog = async (logId: string) => {
     const reviewedLog = state.executionLogs.find((log) => log.id === logId);
+    const notificationStudent = consultationStudents.find(
+      (student) => student.id === (reviewedLog?.studentId ?? selectedStudentId),
+    );
     const status = await markExecutionLogReviewed(logId);
     await notifyConsultationEvent({
       event: "consultation_execution_reviewed",
       studentId: reviewedLog?.studentId ?? selectedStudentId,
-      studentName: selectedStudent?.name,
+      studentName: notificationStudent?.name,
       workoutId: reviewedLog?.workoutId,
       executionLogId: logId,
+      organizationId: notificationStudent?.organizationId,
+      classId: notificationStudent?.classId,
+      targetUserId: notificationStudent?.studentUserId ?? undefined,
     });
     updatePersistenceNotice("Feedback marcado como revisado no servidor.", status);
     await reload();

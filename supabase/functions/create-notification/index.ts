@@ -4,6 +4,8 @@ import {
   validateObjectPayload,
   validateStringField,
 } from "../_shared/input-validation.ts";
+import { authorizeNotificationDelivery } from "../_shared/notification-authorization.ts";
+import { resolveAuthorizedNotificationContent } from "../_shared/notification-content.ts";
 
 
 const makeJsonHeaders = (request: Request) => ({ ...buildCorsHeaders(request), "Content-Type": "application/json" });
@@ -175,45 +177,91 @@ Deno.serve(async (request) => {
   const organizationId = organizationValidation.data;
   const recipientUserId = recipientValidation.data;
 
-  const { data: senderMembership, error: senderError } = await supabase
-    .from("organization_members")
-    .select("user_id")
-    .eq("organization_id", organizationId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (senderError) {
-    return new Response(JSON.stringify({ error: senderError.message }), {
-      status: 500,
-      headers: makeJsonHeaders(request),
+  let authorization;
+  try {
+    authorization = await authorizeNotificationDelivery({
+      supabase,
+      organizationId,
+      senderUserId: user.id,
+      recipientUserId,
+      notificationType: typeValidation.data,
+      sourceType: sourceTypeValidation.data,
     });
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Notification authorization failed.",
+      }),
+      { status: 500, headers: makeJsonHeaders(request) },
+    );
   }
-  if (!senderMembership) {
+
+  if (!authorization.allowed) {
+    const recipientMissing = authorization.reason === "recipient_not_linked";
+    return new Response(
+      JSON.stringify({
+        error: recipientMissing
+          ? "Recipient is not linked to organization."
+          : "Forbidden",
+      }),
+      {
+        status: recipientMissing ? 404 : 403,
+        headers: makeJsonHeaders(request),
+      },
+    );
+  }
+
+  if (!authorization.mode) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: makeJsonHeaders(request),
     });
   }
 
-  const { data: recipientMembership, error: recipientError } = await supabase
-    .from("organization_members")
-    .select("user_id")
-    .eq("organization_id", organizationId)
-    .eq("user_id", recipientUserId)
-    .maybeSingle();
-  if (recipientError) {
-    return new Response(JSON.stringify({ error: recipientError.message }), {
-      status: 500,
-      headers: makeJsonHeaders(request),
+  let content;
+  try {
+    content = await resolveAuthorizedNotificationContent({
+      supabase,
+      organizationId,
+      senderUserId: user.id,
+      recipientUserId,
+      recipientRoleLevel: authorization.recipient.roleLevel,
+      mode: authorization.mode,
+      inboxScope: inboxScopeValidation.data as "prof" | "coord" | "student" | "all",
+      type: typeValidation.data,
+      title: titleValidation.data,
+      body: bodyValidation.data,
+      actionUrl: actionUrlValidation.data,
+      sourceType: sourceTypeValidation.data,
+      sourceId: sourceIdValidation.data,
+      metadata: metadataValidation.data ?? {},
     });
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Notification source validation failed.",
+      }),
+      { status: 500, headers: makeJsonHeaders(request) },
+    );
   }
-  if (!recipientMembership) {
-    return new Response(JSON.stringify({ error: "Recipient is not a member of organization." }), {
-      status: 404,
-      headers: makeJsonHeaders(request),
-    });
+  if (!content) {
+    return new Response(
+      JSON.stringify({ error: "Notification source is not authorized." }),
+      { status: 403, headers: makeJsonHeaders(request) },
+    );
   }
 
-  if (payload.dedupe && sourceTypeValidation.data && sourceIdValidation.data) {
+  const shouldDedupe =
+    Boolean(payload.dedupe) ||
+    (authorization.mode !== "self" && authorization.mode !== "admin");
+
+  if (shouldDedupe && content.sourceType && content.sourceId) {
     const { data: existing, error: existingError } = await supabase
       .from("notifications")
       .select(
@@ -221,10 +269,10 @@ Deno.serve(async (request) => {
       )
       .eq("organization_id", organizationId)
       .eq("recipient_user_id", recipientUserId)
-      .eq("inbox_scope", inboxScopeValidation.data)
-      .eq("type", typeValidation.data)
-      .eq("source_type", sourceTypeValidation.data)
-      .eq("source_id", sourceIdValidation.data)
+      .eq("inbox_scope", content.inboxScope)
+      .eq("type", content.type)
+      .eq("source_type", content.sourceType)
+      .eq("source_id", content.sourceId)
       .maybeSingle();
 
     if (existingError) {
@@ -247,15 +295,15 @@ Deno.serve(async (request) => {
     .insert({
       organization_id: organizationId,
       recipient_user_id: recipientUserId,
-      inbox_scope: inboxScopeValidation.data,
+      inbox_scope: content.inboxScope,
       actor_user_id: user.id,
-      type: typeValidation.data,
-      title: titleValidation.data,
-      body: bodyValidation.data,
-      action_url: actionUrlValidation.data || null,
-      source_type: sourceTypeValidation.data || null,
-      source_id: sourceIdValidation.data || null,
-      metadata: metadataValidation.data ?? {},
+      type: content.type,
+      title: content.title,
+      body: content.body,
+      action_url: content.actionUrl,
+      source_type: content.sourceType,
+      source_id: content.sourceId,
+      metadata: content.metadata,
     })
     .select(
       "id,organization_id,recipient_user_id,inbox_scope,actor_user_id,type,title,body,action_url,source_type,source_id,metadata,read_at,archived_at,created_at"

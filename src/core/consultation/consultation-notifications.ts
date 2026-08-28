@@ -12,6 +12,7 @@ export type ConsultationNotificationPayload = {
   workoutId?: string;
   executionLogId?: string;
   organizationId?: string;
+  classId?: string;
   targetUserId?: string;
 };
 

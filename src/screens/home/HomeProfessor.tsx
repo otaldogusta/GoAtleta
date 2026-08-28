@@ -420,12 +420,15 @@ export function HomeProfessorScreen({
   );
   const loadInbox = useCallback(async () => {
     try {
-      const items = await getNotifications(notificationInboxScope);
+      const items = await getNotifications(
+        notificationInboxScope,
+        activeOrganization?.id,
+      );
       setInbox(items);
     } catch {
       setInbox([]);
     }
-  }, [notificationInboxScope]);
+  }, [activeOrganization?.id, notificationInboxScope]);
   useEffect(() => {
     profilePhotoCacheRef.current = { uri: null, updatedAt: 0 };
   }, [role, session?.user?.id]);
@@ -483,13 +486,17 @@ export function HomeProfessorScreen({
 
     })();
 
-    const unsubscribe = subscribeNotifications((items) => {
+    const unsubscribe = subscribeNotifications(
+      (items) => {
 
-      if (!alive) return;
+        if (!alive) return;
 
-      setInbox(items);
+        setInbox(items);
 
-    });
+      },
+      notificationInboxScope,
+      activeOrganization?.id,
+    );
 
     return () => {
 
@@ -502,6 +509,7 @@ export function HomeProfessorScreen({
   }, [
     activeOrganization?.id,
     loadHomeSchedule,
+    notificationInboxScope,
     role,
     scheduleRequestKey,
   ]);
@@ -579,7 +587,7 @@ export function HomeProfessorScreen({
 
     }).start();
 
-    await markAllRead(notificationInboxScope);
+    await markAllRead(notificationInboxScope, activeOrganization?.id);
 
   };
 
@@ -2563,8 +2571,14 @@ export function HomeProfessorScreen({
                     onPress={() => {
 
                       const handleClear = async () => {
-                        await clearNotifications(notificationInboxScope);
-                        const items = await getNotifications(notificationInboxScope);
+                        await clearNotifications(
+                          notificationInboxScope,
+                          activeOrganization?.id,
+                        );
+                        const items = await getNotifications(
+                          notificationInboxScope,
+                          activeOrganization?.id,
+                        );
                         setInbox(items);
                         setExpandedId(null);
                       };
@@ -2788,7 +2802,11 @@ export function HomeProfessorScreen({
                           onPress={() => {
                             if (item.actionUrl) {
                               void (async () => {
-                                await markNotificationRead(item.id, notificationInboxScope);
+                                await markNotificationRead(
+                                  item.id,
+                                  notificationInboxScope,
+                                  activeOrganization?.id,
+                                );
                                 closeInbox();
                                 router.push(item.actionUrl as never);
                               })();

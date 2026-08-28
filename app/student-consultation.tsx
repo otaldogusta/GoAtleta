@@ -192,6 +192,8 @@ export default function StudentConsultationScreen() {
       studentName: activeStudent?.name,
       workoutId: log.workoutId,
       executionLogId: log.id,
+      organizationId: activeStudent?.organizationId,
+      classId: activeStudent?.classId,
     });
     if ((log.painLevel ?? 0) >= 7) {
       await notifyConsultationEvent({
@@ -200,6 +202,8 @@ export default function StudentConsultationScreen() {
         studentName: activeStudent?.name,
         workoutId: log.workoutId,
         executionLogId: log.id,
+        organizationId: activeStudent?.organizationId,
+        classId: activeStudent?.classId,
       });
     }
     setPersistenceStatus(status);

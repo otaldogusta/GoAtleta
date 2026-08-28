@@ -1135,6 +1135,7 @@ export type Student = {
   id: string;
   name: string;
   organizationId: string;
+  studentUserId?: string | null;
   photoUrl?: string;
   ra?: string | null;
   raStartYear?: number | null;

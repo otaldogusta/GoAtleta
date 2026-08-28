@@ -5,7 +5,6 @@ import {
   supabaseRestDelete,
   supabaseRestGet,
   supabaseRestPatch,
-  supabaseRestPost,
 } from "./rest";
 import { sendPushToUser } from "./push";
 import {
@@ -155,34 +154,6 @@ const buildCreatePayload = async (input: CreateNotificationInput) => {
   };
 };
 
-const findExistingNotification = async (
-  payload: NonNullable<Awaited<ReturnType<typeof buildCreatePayload>>>,
-) => {
-  if (!payload.source_type || !payload.source_id) return null;
-  const baseFilter = `organization_id=eq.${encodeURIComponent(
-    payload.organization_id,
-  )}&recipient_user_id=eq.${encodeURIComponent(
-    payload.recipient_user_id,
-  )}&inbox_scope=eq.${encodeURIComponent(
-    payload.inbox_scope,
-  )}&type=eq.${encodeURIComponent(payload.type)}&source_type=eq.${encodeURIComponent(
-    payload.source_type,
-  )}&source_id=eq.${encodeURIComponent(payload.source_id)}`;
-  let rows: NotificationRow[];
-  try {
-    rows = await supabaseRestGet<NotificationRow[]>(
-      `/notifications?select=${NOTIFICATION_SELECT}&${baseFilter}&archived_at=is.null&limit=1`,
-    );
-  } catch (error) {
-    if (!isMissingArchivedAtColumn(error)) throw error;
-    rows = await supabaseRestGet<NotificationRow[]>(
-      `/notifications?select=${NOTIFICATION_SELECT_LEGACY}&${baseFilter}&limit=1`,
-    );
-  }
-  const existing = rows?.[0];
-  return existing ? mapNotification(existing) : null;
-};
-
 const callCreateNotificationFunction = async (
   input: CreateNotificationInput,
 ) => {
@@ -292,38 +263,22 @@ export async function createNotification(
 
   let notification: AppNotification | null = null;
   let createdNew = true;
-  let currentUserId = "";
+  const currentUserId = await getSessionUserId();
   try {
-    currentUserId = await getSessionUserId();
-    const targetIsCurrentUser = payload.recipient_user_id === currentUserId;
-
-    if (input.dedupe && targetIsCurrentUser) {
-      const existing = await findExistingNotification(payload);
-      if (existing) return existing;
-    }
-
-    if (targetIsCurrentUser) {
-      notification = mapNotification(
-        (
-          await supabaseRestPost<NotificationRow[]>("/notifications", [payload])
-        )[0],
-      );
-    } else {
-      const remoteResult = await callCreateNotificationFunction({
-        ...input,
-        organizationId: payload.organization_id,
-        recipientUserId: payload.recipient_user_id,
-        actorUserId: payload.actor_user_id,
-        type: payload.type,
-        actionUrl: payload.action_url,
-        sourceType: payload.source_type,
-        sourceId: payload.source_id,
-        metadata: payload.metadata,
-        dedupe: input.dedupe,
-      });
-      notification = remoteResult.notification;
-      createdNew = remoteResult.created;
-    }
+    const remoteResult = await callCreateNotificationFunction({
+      ...input,
+      organizationId: payload.organization_id,
+      recipientUserId: payload.recipient_user_id,
+      actorUserId: payload.actor_user_id,
+      type: payload.type,
+      actionUrl: payload.action_url,
+      sourceType: payload.source_type,
+      sourceId: payload.source_id,
+      metadata: payload.metadata,
+      dedupe: input.dedupe,
+    });
+    notification = remoteResult.notification;
+    createdNew = remoteResult.created;
   } catch (error) {
     if (isMissingNotificationsTable(error)) return null;
     throw error;
@@ -339,6 +294,9 @@ export async function createNotification(
       await sendPushToUser({
         organizationId: notification.organizationId,
         targetUserId: notification.recipientUserId,
+        notificationType: notification.type,
+        sourceType: notification.sourceType ?? "",
+        notificationId: notification.id,
         title: notification.title,
         body: notification.body,
         data: {

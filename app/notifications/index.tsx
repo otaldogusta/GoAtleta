@@ -17,6 +17,7 @@ import {
   markNotificationRead,
 } from "../../src/notificationsInbox";
 import { notificationScopeForEffectiveProfile } from "../../src/notifications/inbox-scope";
+import { resolveNotificationOrganizationId } from "../../src/notifications/notification-organization";
 import { getNotificationsModule, isExpoGo } from "../../src/push/notificationRuntime";
 import { useOrganization } from "../../src/providers/OrganizationProvider";
 import { Pressable } from "../../src/ui/Pressable";
@@ -38,11 +39,16 @@ const profilePreviewRoutes: Record<ProfilePreviewId, string> = {
 export default function NotificationsScreen() {
   const { colors, mode, toggleMode } = useAppTheme();
   const { signOut } = useAuth();
-  const { role: userRole, refresh: refreshRole } = useRole();
+  const { role: userRole, student, refresh: refreshRole } = useRole();
   const { activeOrganization, devProfilePreview, setDevProfilePreview } = useOrganization();
   const router = useRouter();
   const effectiveProfile = useEffectiveProfile();
   const inboxScope = notificationScopeForEffectiveProfile(effectiveProfile);
+  const notificationOrganizationId = resolveNotificationOrganizationId({
+    activeOrganizationId: activeOrganization?.id,
+    studentOrganizationId: student?.organizationId,
+    inboxScope,
+  });
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [items, setItems] = useState<AppNotification[]>([]);
@@ -63,10 +69,13 @@ export default function NotificationsScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const nextItems = await getNotifications(inboxScope);
+      const nextItems = await getNotifications(
+        inboxScope,
+        notificationOrganizationId,
+      );
       if (!alive) return;
       setItems(nextItems);
-      await markAllRead(inboxScope);
+      await markAllRead(inboxScope, notificationOrganizationId);
       if (alive) {
         const readAt = new Date().toISOString();
         setItems(nextItems.map((item) => ({ ...item, read: true, readAt: item.readAt ?? readAt })));
@@ -75,7 +84,7 @@ export default function NotificationsScreen() {
     return () => {
       alive = false;
     };
-  }, [inboxScope]);
+  }, [inboxScope, notificationOrganizationId]);
 
   const requestPermissions = async () => {
     if (isWeb || isExpoGo) return false;
@@ -165,7 +174,10 @@ export default function NotificationsScreen() {
                 <Pressable
                   onPress={() => {
                     void (async () => {
-                      await clearNotifications(inboxScope);
+                      await clearNotifications(
+                        inboxScope,
+                        notificationOrganizationId,
+                      );
                       setItems([]);
                     })();
                   }}
@@ -196,7 +208,11 @@ export default function NotificationsScreen() {
                   key={item.id}
                   onPress={() => {
                     void (async () => {
-                      await markNotificationRead(item.id, inboxScope);
+                      await markNotificationRead(
+                        item.id,
+                        inboxScope,
+                        notificationOrganizationId,
+                      );
                       if (item.actionUrl) router.push(item.actionUrl as never);
                     })();
                   }}

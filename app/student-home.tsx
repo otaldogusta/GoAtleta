@@ -80,7 +80,7 @@ export default function StudentHome() {
     (async () => {
       try {
         const [items, studentClass] = await Promise.all([
-          getNotifications("student"),
+          getNotifications("student", student?.organizationId),
           studentClassId
             ? getClassById(studentClassId, { organizationId: student?.organizationId })
             : Promise.resolve(null),
@@ -92,10 +92,14 @@ export default function StudentHome() {
         if (alive) setLoading(false);
       }
     })();
-    const unsubscribe = subscribeNotifications((items) => {
-      if (!alive) return;
-      setInbox(items);
-    });
+    const unsubscribe = subscribeNotifications(
+      (items) => {
+        if (!alive) return;
+        setInbox(items);
+      },
+      "student",
+      student?.organizationId,
+    );
     return () => {
       alive = false;
       unsubscribe();
@@ -297,7 +301,7 @@ export default function StudentHome() {
               setRefreshing(true);
               try {
                 const [items, studentClass] = await Promise.all([
-                  getNotifications("student"),
+                  getNotifications("student", student?.organizationId),
                   studentClassId
                     ? getClassById(studentClassId, { organizationId: student?.organizationId })
                     : Promise.resolve(null),

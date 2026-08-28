@@ -57,6 +57,7 @@ import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
 import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
 import { VercelWebAnalytics } from "../src/observability/VercelWebAnalytics";
+import { resolveNotificationOrganizationId } from "../src/notifications/notification-organization";
 import { OrganizationProvider, useOptionalOrganization } from "../src/providers/OrganizationProvider";
 import {
     ensureAndroidNotificationChannel,
@@ -202,7 +203,7 @@ function RootLayoutContent() {
     useBootstrap();
   const rootState = useRootNavigationState();
   const { session, loading, exchangeCodeForSession, consumeAuthUrl } = useAuth();
-  const { role, loading: roleLoading } = useRole();
+  const { role, student, loading: roleLoading } = useRole();
   const effectiveProfile = useEffectiveProfile();
   const organization = useOptionalOrganization();
   const {
@@ -223,6 +224,10 @@ function RootLayoutContent() {
   const appStartedAtRef = useRef(Date.now());
   const lastBootPhaseRef = useRef<string | null>(null);
   const pushRegistrationInFlightRef = useRef(false);
+  const queuedPushRegistrationRef = useRef<{
+    key: string;
+    organizationId: string;
+  } | null>(null);
   const lastPushRegistrationKeyRef = useRef("");
   const oauthHandledHrefRef = useRef("");
   const oauthInFlightRef = useRef(false);
@@ -400,29 +405,60 @@ function RootLayoutContent() {
   }, [pathname]);
 
   const registerPushTokenIfNeeded = useCallback(() => {
-    const organizationId = activeOrganization?.id ?? "";
+    const organizationId =
+      resolveNotificationOrganizationId({
+        activeOrganizationId: activeOrganization?.id,
+        studentOrganizationId: student?.organizationId,
+        effectiveProfile,
+      }) ?? "";
     const userId = session?.user?.id ?? "";
     if (!organizationId || !userId) {
+      queuedPushRegistrationRef.current = null;
       lastPushRegistrationKeyRef.current = "";
       return;
     }
 
     const registrationKey = `${userId}:${organizationId}`;
-    if (pushRegistrationInFlightRef.current) return;
     if (lastPushRegistrationKeyRef.current === registrationKey) return;
 
-    pushRegistrationInFlightRef.current = true;
-    void ensurePushTokenRegistered({ organizationId })
-      .then(() => {
-        lastPushRegistrationKeyRef.current = registrationKey;
+    queuedPushRegistrationRef.current = {
+      key: registrationKey,
+      organizationId,
+    };
+    if (pushRegistrationInFlightRef.current) return;
+
+    const processQueuedRegistration = () => {
+      const nextRegistration = queuedPushRegistrationRef.current;
+      if (!nextRegistration) return;
+      if (lastPushRegistrationKeyRef.current === nextRegistration.key) {
+        queuedPushRegistrationRef.current = null;
+        return;
+      }
+
+      queuedPushRegistrationRef.current = null;
+      pushRegistrationInFlightRef.current = true;
+      void ensurePushTokenRegistered({
+        organizationId: nextRegistration.organizationId,
       })
-      .catch(() => {
-        // Keep key unset on failure so app-active can retry later.
-      })
-      .finally(() => {
-        pushRegistrationInFlightRef.current = false;
-      });
-  }, [activeOrganization?.id, session?.user?.id]);
+        .then(() => {
+          lastPushRegistrationKeyRef.current = nextRegistration.key;
+        })
+        .catch(() => {
+          // Keep key unset on failure so app-active can retry later.
+        })
+        .finally(() => {
+          pushRegistrationInFlightRef.current = false;
+          processQueuedRegistration();
+        });
+    };
+
+    processQueuedRegistration();
+  }, [
+    activeOrganization?.id,
+    effectiveProfile,
+    session?.user?.id,
+    student?.organizationId,
+  ]);
 
   useEffect(() => {
     const detach = attachPushListeners({

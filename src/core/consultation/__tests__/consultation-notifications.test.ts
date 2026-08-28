@@ -2,6 +2,7 @@
 let mockStorage: Record<string, string> = {};
 const mockAddNotification = jest.fn();
 const mockSendPushToUser = jest.fn();
+const mockListClassHeadsByClassIds = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: jest.fn((key: string) => Promise.resolve(mockStorage[key] ?? null)),
@@ -23,6 +24,11 @@ jest.mock("../../../api/push", () => ({
   sendPushToUser: (...args: unknown[]) => mockSendPushToUser(...args),
 }));
 
+jest.mock("../../../api/class-responsibles", () => ({
+  listClassHeadsByClassIds: (...args: unknown[]) =>
+    mockListClassHeadsByClassIds(...args),
+}));
+
 import { buildConsultationNotification } from "../consultation-notifications";
 import {
   clearConsultationNotificationEventKeysForTests,
@@ -33,6 +39,14 @@ describe("consultation notifications", () => {
   beforeEach(async () => {
     mockStorage = {};
     jest.clearAllMocks();
+    mockAddNotification.mockResolvedValue({ id: "notification-1" });
+    mockSendPushToUser.mockResolvedValue({
+      status: "ok",
+      sent: 1,
+      failed: 0,
+      invalidTokens: 0,
+    });
+    mockListClassHeadsByClassIds.mockResolvedValue([]);
     await clearConsultationNotificationEventKeysForTests();
   });
 
@@ -102,7 +116,7 @@ describe("consultation notifications", () => {
     });
   });
 
-  test("adapter creates internal notification and skips push without remote target", async () => {
+  test("adapter fails closed instead of notifying the current user without routing context", async () => {
     const result = await notifyConsultationEvent({
       event: "consultation_workout_completed",
       studentId: "student-1",
@@ -111,18 +125,49 @@ describe("consultation notifications", () => {
       executionLogId: "log-1",
     });
 
-    expect(result.internal).toBe("created");
+    expect(result.internal).toBe("failed");
     expect(result.push).toBe("skipped");
+    expect(mockAddNotification).not.toHaveBeenCalled();
+    expect(mockSendPushToUser).not.toHaveBeenCalled();
+  });
+
+  test("adapter routes student events to every responsible class head", async () => {
+    mockListClassHeadsByClassIds.mockResolvedValue([
+      { userId: "coach-2" },
+      { userId: "coach-1" },
+      { userId: "coach-1" },
+    ]);
+
+    const result = await notifyConsultationEvent({
+      event: "consultation_workout_completed",
+      studentId: "student-1",
+      studentName: "Ana",
+      workoutId: "workout-1",
+      executionLogId: "log-1",
+      organizationId: "org-1",
+      classId: "class-1",
+    });
+
+    expect(result.internal).toBe("created");
+    expect(result.push).toBe("sent");
+    expect(mockAddNotification).toHaveBeenCalledTimes(2);
     expect(mockAddNotification).toHaveBeenCalledWith(
       "Treino concluído",
       "Ana concluiu o treino.",
       expect.objectContaining({
-        type: "consultation_event",
-        actionUrl: "/prof/consultation",
-        sourceType: "consultation",
-      })
+        organizationId: "org-1",
+        recipientUserId: "coach-1",
+        inboxScope: "prof",
+        dedupe: true,
+      }),
     );
-    expect(mockSendPushToUser).not.toHaveBeenCalled();
+    expect(mockSendPushToUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        targetUserId: "coach-2",
+        notificationType: "consultation_event",
+      }),
+    );
   });
 
   test("adapter can use the safe push backend when target data is available", async () => {
@@ -154,6 +199,8 @@ describe("consultation notifications", () => {
       studentId: "student-1",
       workoutId: "workout-1",
       executionLogId: "log-1",
+      organizationId: "org-1",
+      targetUserId: "coach-1",
     };
 
     const first = await notifyConsultationEvent(payload);
@@ -162,5 +209,26 @@ describe("consultation notifications", () => {
     expect(first.internal).toBe("created");
     expect(second.internal).toBe("skipped_duplicate");
     expect(mockAddNotification).toHaveBeenCalledTimes(1);
+  });
+
+  test("adapter does not persist dedupe when internal notification creation fails", async () => {
+    mockAddNotification.mockResolvedValue(null);
+    const payload = {
+      event: "consultation_workout_completed" as const,
+      studentId: "student-1",
+      workoutId: "workout-1",
+      executionLogId: "log-1",
+      organizationId: "org-1",
+      targetUserId: "coach-1",
+    };
+
+    const first = await notifyConsultationEvent(payload);
+    const second = await notifyConsultationEvent(payload);
+
+    expect(first.internal).toBe("failed");
+    expect(second.internal).toBe("failed");
+    expect(mockAddNotification).toHaveBeenCalledTimes(2);
+    expect(mockSendPushToUser).not.toHaveBeenCalled();
+    expect(mockStorage).toEqual({});
   });
 });

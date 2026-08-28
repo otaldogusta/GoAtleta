@@ -46,6 +46,12 @@ import {
 describe("notifications api", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRestGet.mockReset();
+    mockRestPost.mockReset();
+    mockRestPatch.mockReset();
+    mockRestDelete.mockReset();
+    mockSendPushToUser.mockReset();
+    mockFetch.mockReset();
     mockGetSessionUserId.mockResolvedValue("user-1");
     mockGetValidAccessToken.mockResolvedValue("access-token");
     mockGetActiveOrganizationId.mockResolvedValue("org-1");
@@ -104,24 +110,30 @@ describe("notifications api", () => {
     );
   });
 
-  test("creates own notification through Data API", async () => {
-    mockRestPost.mockResolvedValue([
-      {
-        id: "n-2",
-        organization_id: "org-1",
-        recipient_user_id: "user-1",
-        actor_user_id: "user-1",
-        type: "birthday",
-        title: "Aniversariantes do dia",
-        body: "Aniversariantes de hoje: Ana.",
-        action_url: "/students/birthdays",
-        source_type: "birthdays",
-        source_id: null,
-        metadata: { total: 1 },
-        read_at: null,
-        created_at: "2026-07-06T12:00:00.000Z",
-      },
-    ]);
+  test("creates own notification through the authorized Edge Function", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          created: true,
+          notification: {
+            id: "n-2",
+            organization_id: "org-1",
+            recipient_user_id: "user-1",
+            actor_user_id: "user-1",
+            type: "birthday",
+            title: "Aniversariantes do dia",
+            body: "Aniversariantes de hoje: Ana.",
+            action_url: "/students/birthdays",
+            source_type: "birthdays",
+            source_id: null,
+            metadata: { total: 1 },
+            read_at: null,
+            created_at: "2026-07-06T12:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
 
     const created = await createNotification({
       inboxScope: "prof",
@@ -133,18 +145,11 @@ describe("notifications api", () => {
     });
 
     expect(created?.id).toBe("n-2");
-    expect(mockRestPost).toHaveBeenCalledWith(
-      "/notifications",
-      expect.arrayContaining([
-        expect.objectContaining({
-          organization_id: "org-1",
-          recipient_user_id: "user-1",
-          inbox_scope: "prof",
-          type: "birthday",
-        }),
-      ]),
+    expect(mockRestPost).not.toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://example.supabase.co/functions/v1/create-notification",
+      expect.objectContaining({ method: "POST" }),
     );
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   test("creates cross-user notification through Edge Function", async () => {
@@ -198,23 +203,29 @@ describe("notifications api", () => {
   });
 
   test("deduplicates own notification by recipient, type and source", async () => {
-    mockRestGet.mockResolvedValue([
-      {
-        id: "n-existing",
-        organization_id: "org-1",
-        recipient_user_id: "user-1",
-        actor_user_id: "user-1",
-        type: "absence_notice_created",
-        title: "Novo aviso de ausência",
-        body: "Aluno avisou ausência.",
-        action_url: "/prof/absence-notices",
-        source_type: "absence_notice",
-        source_id: "notice-1",
-        metadata: {},
-        read_at: null,
-        created_at: "2026-07-06T12:00:00.000Z",
-      },
-    ]);
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          created: false,
+          notification: {
+            id: "n-existing",
+            organization_id: "org-1",
+            recipient_user_id: "user-1",
+            actor_user_id: "user-1",
+            type: "absence_notice_created",
+            title: "Novo aviso de ausência",
+            body: "Aluno avisou ausência.",
+            action_url: "/prof/absence-notices",
+            source_type: "absence_notice",
+            source_id: "notice-1",
+            metadata: {},
+            read_at: null,
+            created_at: "2026-07-06T12:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
 
     const created = await createNotification({
       inboxScope: "prof",
@@ -228,10 +239,15 @@ describe("notifications api", () => {
     });
 
     expect(created?.id).toBe("n-existing");
-    expect(mockRestGet).toHaveBeenCalledWith(
-      expect.stringContaining("source_id=eq.notice-1"),
-    );
+    expect(mockRestGet).not.toHaveBeenCalled();
     expect(mockRestPost).not.toHaveBeenCalled();
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body as string)).toEqual(
+      expect.objectContaining({
+        recipientUserId: "user-1",
+        sourceId: "notice-1",
+        dedupe: true,
+      }),
+    );
     expect(mockSendPushToUser).not.toHaveBeenCalled();
   });
 
@@ -291,23 +307,29 @@ describe("notifications api", () => {
   });
 
   test("never sends push implicitly to the current user", async () => {
-    mockRestPost.mockResolvedValue([
-      {
-        id: "n-own",
-        organization_id: "org-1",
-        recipient_user_id: "user-1",
-        actor_user_id: "user-1",
-        type: "generic",
-        title: "Aviso",
-        body: "Mensagem interna.",
-        action_url: null,
-        source_type: null,
-        source_id: null,
-        metadata: {},
-        read_at: null,
-        created_at: "2026-07-06T12:00:00.000Z",
-      },
-    ]);
+    mockFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          created: true,
+          notification: {
+            id: "n-own",
+            organization_id: "org-1",
+            recipient_user_id: "user-1",
+            actor_user_id: "user-1",
+            type: "generic",
+            title: "Aviso",
+            body: "Mensagem interna.",
+            action_url: null,
+            source_type: null,
+            source_id: null,
+            metadata: {},
+            read_at: null,
+            created_at: "2026-07-06T12:00:00.000Z",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
 
     await createNotification({
       inboxScope: "prof",
@@ -316,7 +338,8 @@ describe("notifications api", () => {
       sendPush: true,
     });
 
-    expect(mockRestPost).toHaveBeenCalled();
+    expect(mockFetch).toHaveBeenCalled();
+    expect(mockRestPost).not.toHaveBeenCalled();
     expect(mockSendPushToUser).not.toHaveBeenCalled();
   });
 
@@ -414,6 +437,11 @@ describe("notifications api", () => {
     mockRestPatch.mockRejectedValue(missingTableError);
     mockRestDelete.mockRejectedValue(missingTableError);
     mockRestPost.mockRejectedValue(missingTableError);
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: missingTableError.message }), {
+        status: 500,
+      }),
+    );
 
     await expect(listNotifications({ inboxScope: "prof" })).resolves.toEqual([]);
     await expect(markNotificationRead("n-1")).resolves.toBeUndefined();

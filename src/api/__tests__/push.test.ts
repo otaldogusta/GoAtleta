@@ -39,6 +39,7 @@ describe("push api", () => {
     const result = await sendPushToUser({
       organizationId: "org_1",
       targetUserId: "user_2",
+      notificationId: "notification-1",
       title: "Chamada pendente",
       body: "Teste",
       data: { route: "/class/[id]/attendance", params: { id: "c1", date: "2026-02-26" } },
@@ -60,6 +61,14 @@ describe("push api", () => {
           apikey: "anon-key",
         }),
       })
+    );
+
+    const [, requestInit] = (global.fetch as jest.Mock).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(JSON.parse(String(requestInit.body))).toEqual(
+      expect.objectContaining({ notificationId: "notification-1" })
     );
   });
 
@@ -93,4 +102,3 @@ describe("push api", () => {
     ).rejects.toThrow("Forbidden");
   });
 });
-

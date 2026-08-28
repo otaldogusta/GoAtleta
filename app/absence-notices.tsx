@@ -1,10 +1,11 @@
 import { usePathname, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SectionList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ResponsivePage } from "../src/components/ui/ResponsivePage";
+import { useRole } from "../src/auth/role";
 import { FullscreenLoadingState } from "../src/components/ui/FullscreenLoadingState";
+import { ResponsivePage } from "../src/components/ui/ResponsivePage";
 import { SectionLoadingState } from "../src/components/ui/SectionLoadingState";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
@@ -26,6 +27,7 @@ import {
 } from "../src/notificationsInbox";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { resolveNotificationInboxScope } from "../src/notifications/inbox-scope";
+import { resolveNotificationOrganizationId } from "../src/notifications/notification-organization";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { canActOnAbsenceNotice } from "../src/screens/absence-notices/absence-notice-state";
 import {
@@ -138,12 +140,18 @@ export function NotificationsCenterScreen({
   const { colors } = useAppTheme();
   const responsive = useResponsiveLayout("content");
   const { activeOrganization } = useOrganization();
+  const { student } = useRole();
   const router = useRouter();
   const pathname = usePathname();
   const effectiveProfile = useEffectiveProfile();
   const inboxScope = resolveNotificationInboxScope({
     pathname,
     effectiveProfile,
+  });
+  const notificationOrganizationId = resolveNotificationOrganizationId({
+    activeOrganizationId: activeOrganization?.id,
+    studentOrganizationId: student?.organizationId,
+    inboxScope,
   });
   const { confirm: confirmDialog } = useConfirmDialog();
   markRender("screen.absenceNotices.render.root");
@@ -165,11 +173,23 @@ export function NotificationsCenterScreen({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const showingArchived = selectedFilter === "archived";
-  const noticesContextKey = `${activeOrganization?.id ?? "none"}:${inboxScope}`;
+  const noticesContextKey = `${notificationOrganizationId ?? "none"}:${inboxScope}`;
+  const noticesContextKeyRef = useRef(noticesContextKey);
+  const loadNoticesRequestIdRef = useRef(0);
+  const loadMoreRequestIdRef = useRef(0);
+  noticesContextKeyRef.current = noticesContextKey;
   const [loadedNoticesContextKey, setLoadedNoticesContextKey] = useState<string | null>(null);
 
   const loadNotices = useCallback(async () => {
+    const requestId = ++loadNoticesRequestIdRef.current;
+    loadMoreRequestIdRef.current += 1;
+    const requestContextKey = noticesContextKey;
+    const isCurrentRequest = () =>
+      loadNoticesRequestIdRef.current === requestId &&
+      noticesContextKeyRef.current === requestContextKey;
+
     setIsLoading(true);
+    setIsLoadingMore(false);
     setLoadError(null);
     try {
       const [notificationPage, absenceList, studentList, classList] =
@@ -179,15 +199,19 @@ export function NotificationsCenterScreen({
             Promise.all([
               getNotificationsPage({
                 inboxScope,
+                organizationId: notificationOrganizationId,
                 limit: NOTIFICATIONS_PAGE_SIZE,
                 archiveScope: showingArchived ? "archived" : "active",
               }),
-              getAbsenceNotices(),
-              getStudents({ organizationId: activeOrganization?.id }),
-              getClasses({ organizationId: activeOrganization?.id }),
+              getAbsenceNotices({
+                organizationId: notificationOrganizationId,
+              }),
+              getStudents({ organizationId: notificationOrganizationId }),
+              getClasses({ organizationId: notificationOrganizationId }),
             ]),
-          { hasOrganization: activeOrganization?.id ? 1 : 0 },
+          { hasOrganization: notificationOrganizationId ? 1 : 0 },
         );
+      if (!isCurrentRequest()) return;
       setNotifications(notificationPage.items);
       setHasMoreNotifications(notificationPage.hasMore);
       setNotificationOffset(notificationPage.nextOffset);
@@ -195,6 +219,7 @@ export function NotificationsCenterScreen({
       setStudents(studentList);
       setClasses(classList);
     } catch {
+      if (!isCurrentRequest()) return;
       setNotifications([]);
       setHasMoreNotifications(false);
       setNotificationOffset(0);
@@ -205,9 +230,17 @@ export function NotificationsCenterScreen({
         "Não foi possível carregar as notificações agora. Verifique sua sessão e tente novamente.",
       );
     } finally {
-      setIsLoading(false);
+      if (isCurrentRequest()) {
+        setIsLoading(false);
+      }
     }
-  }, [activeOrganization?.id, inboxScope, showingArchived]);
+  }, [
+    activeOrganization?.id,
+    inboxScope,
+    notificationOrganizationId,
+    noticesContextKey,
+    showingArchived,
+  ]);
 
   useEffect(() => {
     let alive = true;
@@ -384,7 +417,11 @@ export function NotificationsCenterScreen({
 
   const markRead = useCallback(async (notification: AppNotification) => {
     if (notification.read) return;
-    await markNotificationRead(notification.id, inboxScope);
+    await markNotificationRead(
+      notification.id,
+      inboxScope,
+      notificationOrganizationId,
+    );
     const readAt = new Date().toISOString();
     setNotifications((prev) =>
       prev.map((item) =>
@@ -393,14 +430,14 @@ export function NotificationsCenterScreen({
           : item,
       ),
     );
-  }, [inboxScope]);
+  }, [inboxScope, notificationOrganizationId]);
 
   const markAllNotificationsAsRead = useCallback(async () => {
     if (isMarkingAllRead || unreadCount === 0) return;
     setIsMarkingAllRead(true);
     setActionError(null);
     try {
-      await markAllRead(inboxScope);
+      await markAllRead(inboxScope, notificationOrganizationId);
       const readAt = new Date().toISOString();
       setNotifications((current) =>
         current.map((item) => ({
@@ -414,19 +451,27 @@ export function NotificationsCenterScreen({
     } finally {
       setIsMarkingAllRead(false);
     }
-  }, [inboxScope, isMarkingAllRead, unreadCount]);
+  }, [inboxScope, isMarkingAllRead, notificationOrganizationId, unreadCount]);
 
   const loadMoreNotifications = useCallback(async () => {
     if (isLoadingMore || !hasMoreNotifications) return;
+    const requestId = ++loadMoreRequestIdRef.current;
+    const requestContextKey = noticesContextKey;
+    const isCurrentRequest = () =>
+      loadMoreRequestIdRef.current === requestId &&
+      noticesContextKeyRef.current === requestContextKey;
+
     setIsLoadingMore(true);
     setActionError(null);
     try {
       const page = await getNotificationsPage({
         inboxScope,
+        organizationId: notificationOrganizationId,
         limit: NOTIFICATIONS_PAGE_SIZE,
         offset: notificationOffset,
         archiveScope: showingArchived ? "archived" : "active",
       });
+      if (!isCurrentRequest()) return;
       setNotifications((current) => {
         const knownIds = new Set(current.map((item) => item.id));
         return [
@@ -437,15 +482,20 @@ export function NotificationsCenterScreen({
       setNotificationOffset(page.nextOffset);
       setHasMoreNotifications(page.hasMore);
     } catch {
+      if (!isCurrentRequest()) return;
       setActionError("Não foi possível carregar mais notificações.");
     } finally {
-      setIsLoadingMore(false);
+      if (isCurrentRequest()) {
+        setIsLoadingMore(false);
+      }
     }
   }, [
     hasMoreNotifications,
     inboxScope,
     isLoadingMore,
+    notificationOrganizationId,
     notificationOffset,
+    noticesContextKey,
     showingArchived,
   ]);
 
@@ -461,7 +511,7 @@ export function NotificationsCenterScreen({
         setIsArchivingRead(true);
         setActionError(null);
         try {
-          await archiveRead(inboxScope);
+          await archiveRead(inboxScope, notificationOrganizationId);
           await loadNotices();
         } catch {
           setActionError("Não foi possível arquivar as notificações lidas.");
@@ -470,7 +520,14 @@ export function NotificationsCenterScreen({
         }
       },
     });
-  }, [confirmDialog, inboxScope, isArchivingRead, loadNotices, readActiveCount]);
+  }, [
+    confirmDialog,
+    inboxScope,
+    isArchivingRead,
+    loadNotices,
+    notificationOrganizationId,
+    readActiveCount,
+  ]);
 
   const restoreArchivedNotification = useCallback(
     async (notificationId: string) => {
@@ -478,7 +535,11 @@ export function NotificationsCenterScreen({
       setRestoringId(notificationId);
       setActionError(null);
       try {
-        await restoreNotification(notificationId, inboxScope);
+        await restoreNotification(
+          notificationId,
+          inboxScope,
+          notificationOrganizationId,
+        );
         setNotifications((current) =>
           current.filter((item) => item.id !== notificationId),
         );
@@ -488,7 +549,7 @@ export function NotificationsCenterScreen({
         setRestoringId(null);
       }
     },
-    [inboxScope, restoringId],
+    [inboxScope, notificationOrganizationId, restoringId],
   );
 
   const openNotification = useCallback(

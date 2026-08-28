@@ -4,8 +4,12 @@ import {
   validateObjectPayload,
   validateStringField,
 } from "../_shared/input-validation.ts";
+import { authorizeNotificationDelivery } from "../_shared/notification-authorization.ts";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+const MAX_PUSH_TOKENS_PER_USER = 8;
+const EXPO_PUSH_TOKEN_PATTERN =
+  /^(?:ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/;
 
 
 const makeJsonHeaders = (request: Request) => ({ ...buildCorsHeaders(request), "Content-Type": "application/json" });
@@ -13,6 +17,9 @@ const makeJsonHeaders = (request: Request) => ({ ...buildCorsHeaders(request), "
 type SendPushPayload = {
   organizationId?: string;
   targetUserId?: string;
+  notificationType?: string;
+  sourceType?: string;
+  notificationId?: string;
   title?: string;
   body?: string;
   data?: Record<string, unknown> | null;
@@ -23,6 +30,25 @@ type ExpoTicket = {
   id?: string;
   message?: string;
   details?: { error?: string } & Record<string, unknown>;
+};
+
+type StoredNotificationRow = {
+  id: string;
+  organization_id: string;
+  actor_user_id: string | null;
+  recipient_user_id: string;
+  type: string;
+  title: string;
+  body: string;
+  action_url: string | null;
+  source_type: string | null;
+  source_id: string | null;
+  metadata: Record<string, unknown> | null;
+};
+
+type PushDeliveryClaimRow = {
+  delivery_id: string | null;
+  claim_status: "claimed" | "duplicate" | "rate_limited";
 };
 
 const createAnonClient = () => {
@@ -75,6 +101,9 @@ const toExpoTickets = (payload: unknown): ExpoTicket[] => {
   return [];
 };
 
+const isValidExpoPushToken = (value: string) =>
+  value.length <= 200 && EXPO_PUSH_TOKEN_PATTERN.test(value);
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return corsPreflight(request);
@@ -125,41 +154,50 @@ Deno.serve(async (request) => {
     });
   }
 
-  const titleValidation = validateStringField(payload.title, {
-    minLength: 1,
-    maxLength: 120,
-  });
-  if (!titleValidation.ok) {
-    return new Response(JSON.stringify({ error: `Invalid title: ${titleValidation.error}` }), {
-      status: 400,
-      headers: makeJsonHeaders(request),
-    });
+  const notificationTypeValidation = validateStringField(
+    payload.notificationType ?? "generic",
+    {
+      minLength: 1,
+      maxLength: 64,
+    },
+  );
+  if (!notificationTypeValidation.ok) {
+    return new Response(
+      JSON.stringify({
+        error: `Invalid notificationType: ${notificationTypeValidation.error}`,
+      }),
+      { status: 400, headers: makeJsonHeaders(request) },
+    );
   }
 
-  const bodyValidation = validateStringField(payload.body, {
-    minLength: 1,
-    maxLength: 500,
+  const sourceTypeValidation = validateStringField(payload.sourceType ?? "", {
+    maxLength: 80,
   });
-  if (!bodyValidation.ok) {
-    return new Response(JSON.stringify({ error: `Invalid body: ${bodyValidation.error}` }), {
-      status: 400,
-      headers: makeJsonHeaders(request),
-    });
+  if (!sourceTypeValidation.ok) {
+    return new Response(
+      JSON.stringify({ error: `Invalid sourceType: ${sourceTypeValidation.error}` }),
+      { status: 400, headers: makeJsonHeaders(request) },
+    );
   }
 
-  const dataValidation = validateObjectPayload(payload.data, { maxBytes: 4096 });
-  if (!dataValidation.ok) {
-    return new Response(JSON.stringify({ error: `Invalid data payload: ${dataValidation.error}` }), {
-      status: 400,
-      headers: makeJsonHeaders(request),
-    });
+  const notificationIdValidation = validateStringField(
+    payload.notificationId ?? "",
+    { maxLength: 128 },
+  );
+  if (!notificationIdValidation.ok) {
+    return new Response(
+      JSON.stringify({
+        error: `Invalid notificationId: ${notificationIdValidation.error}`,
+      }),
+      { status: 400, headers: makeJsonHeaders(request) },
+    );
   }
 
   const organizationId = organizationValidation.data;
   const targetUserId = targetUserValidation.data;
-  const title = titleValidation.data;
-  const body = bodyValidation.data;
-  const data = dataValidation.data;
+  const notificationType = notificationTypeValidation.data;
+  const sourceType = sourceTypeValidation.data;
+  const notificationId = notificationIdValidation.data;
 
   const supabase = createServiceClient();
   if (!supabase) {
@@ -169,72 +207,278 @@ Deno.serve(async (request) => {
     });
   }
 
-  const { data: senderMembership, error: senderError } = await supabase
-    .from("organization_members")
-    .select("role_level")
-    .eq("organization_id", organizationId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (senderError) {
-    return new Response(JSON.stringify({ error: senderError.message }), {
-      status: 500,
-      headers: makeJsonHeaders(request),
+  let authorization;
+  try {
+    authorization = await authorizeNotificationDelivery({
+      supabase,
+      organizationId,
+      senderUserId: user.id,
+      recipientUserId: targetUserId,
+      notificationType,
+      sourceType,
     });
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Push authorization failed.",
+      }),
+      { status: 500, headers: makeJsonHeaders(request) },
+    );
   }
-  const senderRoleLevel = Number(senderMembership?.role_level ?? 0);
-  if (!senderMembership || !Number.isFinite(senderRoleLevel) || senderRoleLevel < 50) {
+
+  if (!authorization.allowed) {
+    const targetMissing = authorization.reason === "recipient_not_linked";
+    return new Response(
+      JSON.stringify({
+        error: targetMissing
+          ? "Target user is not linked to organization."
+          : "Forbidden",
+      }),
+      {
+        status: targetMissing ? 404 : 403,
+        headers: makeJsonHeaders(request),
+      },
+    );
+  }
+
+  if (!authorization.mode) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: makeJsonHeaders(request),
     });
   }
 
-  const { data: targetMembership, error: targetError } = await supabase
-    .from("organization_members")
-    .select("user_id")
-    .eq("organization_id", organizationId)
-    .eq("user_id", targetUserId)
-    .maybeSingle();
-  if (targetError) {
-    return new Response(JSON.stringify({ error: targetError.message }), {
-      status: 500,
-      headers: makeJsonHeaders(request),
+  let deliveryTitle: string;
+  let deliveryBody: string;
+  let deliveryData: Record<string, unknown> | null;
+
+  if (authorization.mode === "admin") {
+    const titleValidation = validateStringField(payload.title, {
+      minLength: 1,
+      maxLength: 120,
     });
+    if (!titleValidation.ok) {
+      return new Response(
+        JSON.stringify({ error: `Invalid title: ${titleValidation.error}` }),
+        { status: 400, headers: makeJsonHeaders(request) },
+      );
+    }
+
+    const bodyValidation = validateStringField(payload.body, {
+      minLength: 1,
+      maxLength: 500,
+    });
+    if (!bodyValidation.ok) {
+      return new Response(
+        JSON.stringify({ error: `Invalid body: ${bodyValidation.error}` }),
+        { status: 400, headers: makeJsonHeaders(request) },
+      );
+    }
+
+    const dataValidation = validateObjectPayload(payload.data, {
+      maxBytes: 4096,
+    });
+    if (!dataValidation.ok) {
+      return new Response(
+        JSON.stringify({
+          error: `Invalid data payload: ${dataValidation.error}`,
+        }),
+        { status: 400, headers: makeJsonHeaders(request) },
+      );
+    }
+
+    deliveryTitle = titleValidation.data;
+    deliveryBody = bodyValidation.data;
+    deliveryData = dataValidation.data;
+  } else {
+    if (!notificationId) {
+      return new Response(
+        JSON.stringify({
+          error: "notificationId is required for non-admin push delivery.",
+        }),
+        { status: 400, headers: makeJsonHeaders(request) },
+      );
+    }
+
+    const { data: storedNotification, error: storedNotificationError } =
+      await supabase
+        .from("notifications")
+        .select(
+          "id,organization_id,actor_user_id,recipient_user_id,type,title,body,action_url,source_type,source_id,metadata",
+        )
+        .eq("id", notificationId)
+        .eq("organization_id", organizationId)
+        .maybeSingle<StoredNotificationRow>();
+
+    if (storedNotificationError) {
+      return new Response(
+        JSON.stringify({ error: storedNotificationError.message }),
+        { status: 500, headers: makeJsonHeaders(request) },
+      );
+    }
+
+    const storedSourceType = String(
+      storedNotification?.source_type ?? "",
+    ).trim();
+    const notificationMatchesDelivery = Boolean(
+      storedNotification &&
+        storedNotification.organization_id === organizationId &&
+        storedNotification.actor_user_id === user.id &&
+        storedNotification.recipient_user_id === targetUserId &&
+        storedNotification.type === notificationType &&
+        storedSourceType === sourceType,
+    );
+
+    if (!storedNotification || !notificationMatchesDelivery) {
+      return new Response(
+        JSON.stringify({ error: "Notification is not authorized for delivery." }),
+        { status: 403, headers: makeJsonHeaders(request) },
+      );
+    }
+
+    const storedTitleValidation = validateStringField(
+      storedNotification.title,
+      { minLength: 1, maxLength: 120 },
+    );
+    const storedBodyValidation = validateStringField(storedNotification.body, {
+      minLength: 1,
+      maxLength: 500,
+    });
+    const storedMetadataValidation = validateObjectPayload(
+      storedNotification.metadata ?? {},
+      { maxBytes: 4096 },
+    );
+    if (
+      !storedTitleValidation.ok ||
+      !storedBodyValidation.ok ||
+      !storedMetadataValidation.ok ||
+      !storedMetadataValidation.data
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Stored notification content is invalid." }),
+        { status: 500, headers: makeJsonHeaders(request) },
+      );
+    }
+
+    const canonicalParams = {
+      ...storedMetadataValidation.data,
+      ...(storedNotification.source_type
+        ? { sourceType: storedNotification.source_type }
+        : {}),
+      ...(storedNotification.source_id
+        ? { sourceId: storedNotification.source_id }
+        : {}),
+    };
+    const canonicalDataValidation = validateObjectPayload(
+      {
+        notificationId: storedNotification.id,
+        type: storedNotification.type,
+        route: storedNotification.action_url ?? "/communications",
+        ...(Object.keys(canonicalParams).length
+          ? { params: canonicalParams }
+          : {}),
+      },
+      { maxBytes: 4096 },
+    );
+    if (!canonicalDataValidation.ok || !canonicalDataValidation.data) {
+      return new Response(
+        JSON.stringify({ error: "Stored notification data is invalid." }),
+        { status: 500, headers: makeJsonHeaders(request) },
+      );
+    }
+
+    deliveryTitle = storedTitleValidation.data;
+    deliveryBody = storedBodyValidation.data;
+    deliveryData = canonicalDataValidation.data;
   }
-  if (!targetMembership) {
-    return new Response(JSON.stringify({ error: "Target user is not a member of organization." }), {
-      status: 404,
-      headers: makeJsonHeaders(request),
-    });
+
+  // Claim a persisted notification id before contacting Expo so retries and
+  // concurrent replays fail closed. Legacy admin sends without an inbox row
+  // remain supported and are bounded by the server-side sender rate limit.
+  const replayGuardNotificationId = notificationId || null;
+  const { data: deliveryClaim, error: deliveryClaimError } = await supabase
+    .rpc("claim_push_delivery", {
+      p_organization_id: organizationId,
+      p_from_user_id: user.id,
+      p_to_user_id: targetUserId,
+      p_notification_id: replayGuardNotificationId,
+      p_title: deliveryTitle,
+      p_body: deliveryBody,
+      p_data: deliveryData,
+    })
+    .single<PushDeliveryClaimRow>();
+
+  if (deliveryClaimError) {
+    return new Response(
+      JSON.stringify({ error: "Unable to claim push delivery." }),
+      { status: 500, headers: makeJsonHeaders(request) },
+    );
+  }
+
+  if (deliveryClaim.claim_status === "duplicate") {
+    return new Response(
+      JSON.stringify({
+        error: "Notification push delivery was already attempted.",
+      }),
+      { status: 409, headers: makeJsonHeaders(request) },
+    );
+  }
+
+  if (deliveryClaim.claim_status === "rate_limited") {
+    return new Response(
+      JSON.stringify({
+        error: "Push delivery rate limit exceeded. Try again shortly.",
+      }),
+      { status: 429, headers: makeJsonHeaders(request) },
+    );
+  }
+
+  const deliveryId = String(deliveryClaim.delivery_id ?? "").trim();
+  if (!deliveryId) {
+    return new Response(
+      JSON.stringify({ error: "Unable to claim push delivery." }),
+      { status: 500, headers: makeJsonHeaders(request) },
+    );
   }
 
   const { data: tokenRows, error: tokensError } = await supabase
     .from("push_tokens")
     .select("expo_push_token")
     .eq("organization_id", organizationId)
-    .eq("user_id", targetUserId);
+    .eq("user_id", targetUserId)
+    .order("updated_at", { ascending: false })
+    .limit(MAX_PUSH_TOKENS_PER_USER);
   if (tokensError) {
-    return new Response(JSON.stringify({ error: tokensError.message }), {
+    await supabase
+      .from("push_deliveries")
+      .update({ provider_response: { reason: "token_lookup_failed" } })
+      .eq("id", deliveryId);
+
+    return new Response(JSON.stringify({ error: "Unable to load push recipients." }), {
       status: 500,
       headers: makeJsonHeaders(request),
     });
   }
 
-  const tokens = (tokenRows ?? [])
-    .map((row) => String(row.expo_push_token ?? "").trim())
-    .filter(Boolean);
+  const tokens = Array.from(
+    new Set(
+      (tokenRows ?? [])
+        .map((row) => String(row.expo_push_token ?? "").trim())
+        .filter(isValidExpoPushToken),
+    ),
+  );
 
   if (!tokens.length) {
-    await supabase.from("push_deliveries").insert({
-      organization_id: organizationId,
-      from_user_id: user.id,
-      to_user_id: targetUserId,
-      title,
-      body,
-      data,
-      status: "error",
-      provider_response: { reason: "no_tokens" },
-    });
+    await supabase
+      .from("push_deliveries")
+      .update({
+        status: "error",
+        provider_response: { reason: "no_tokens" },
+      })
+      .eq("id", deliveryId);
 
     return new Response(
       JSON.stringify({
@@ -250,9 +494,9 @@ Deno.serve(async (request) => {
   const messages = tokens.map((to) => ({
     to,
     sound: "default",
-    title,
-    body,
-    data: data ?? undefined,
+    title: deliveryTitle,
+    body: deliveryBody,
+    data: deliveryData ?? undefined,
   }));
 
   const chunks = splitChunks(messages, 100);
@@ -320,21 +564,18 @@ Deno.serve(async (request) => {
   const status: "ok" | "partial" | "error" =
     sent > 0 && failed === 0 ? "ok" : sent > 0 ? "partial" : "error";
 
-  await supabase.from("push_deliveries").insert({
-    organization_id: organizationId,
-    from_user_id: user.id,
-    to_user_id: targetUserId,
-    title,
-    body,
-    data,
-    status,
-    provider_response: {
-      sent,
-      failed,
-      invalidTokens: invalidTokens.length,
-      tickets: allTickets,
-    },
-  });
+  await supabase
+    .from("push_deliveries")
+    .update({
+      status,
+      provider_response: {
+        sent,
+        failed,
+        invalidTokens: invalidTokens.length,
+        tickets: allTickets,
+      },
+    })
+    .eq("id", deliveryId);
 
   return new Response(
     JSON.stringify({

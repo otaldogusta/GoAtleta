@@ -22,7 +22,22 @@ export type { NotificationInboxScope };
 
 type Listener = (items: AppNotification[]) => void;
 
-let listeners: Listener[] = [];
+type ListenerSubscription = {
+  listener: Listener;
+  key: string;
+  inboxScope: NotificationInboxScope;
+  organizationId: string | null;
+};
+
+let listeners: ListenerSubscription[] = [];
+
+const normalizeSubscriptionOrganizationId = (organizationId?: string | null) =>
+  String(organizationId ?? "").trim() || null;
+
+const getSubscriptionKey = (
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => `${inboxScope}:${normalizeSubscriptionOrganizationId(organizationId) ?? ""}`;
 
 const TECHNICAL_NOTIFICATION_TITLES = new Set(["Erro fatal", "Erro no app"]);
 const TECHNICAL_NOTIFICATION_PATTERNS = [
@@ -45,14 +60,26 @@ const isUserVisibleNotification = (
   );
 };
 
-const emit = (items: AppNotification[]) => {
+const emit = (
+  items: AppNotification[],
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
   const visibleItems = items.filter(isUserVisibleNotification);
-  listeners.forEach((listener) => listener(visibleItems));
+  const key = getSubscriptionKey(inboxScope, organizationId);
+  listeners.forEach((subscription) => {
+    if (subscription.key === key) {
+      subscription.listener(visibleItems);
+    }
+  });
 };
 
-const readAll = async (inboxScope: NotificationInboxScope) => {
+const readAll = async (
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
   try {
-    const items = await listNotifications({ inboxScope });
+    const items = await listNotifications({ inboxScope, organizationId });
     return items.filter(isUserVisibleNotification);
   } catch {
     return [];
@@ -70,11 +97,13 @@ export const getNotificationsPage = async ({
   limit = 20,
   offset = 0,
   archiveScope = "active",
+  organizationId,
 }: {
   inboxScope: NotificationInboxScope;
   limit?: number;
   offset?: number;
   archiveScope?: NotificationArchiveScope;
+  organizationId?: string | null;
 }): Promise<NotificationsPage> => {
   const pageSize = Math.max(1, Math.min(Math.floor(limit), 50));
   try {
@@ -83,6 +112,7 @@ export const getNotificationsPage = async ({
       limit: pageSize + 1,
       offset,
       archiveScope,
+      organizationId,
     });
     const hasMore = rows.length > pageSize;
     const pageRows = rows.slice(0, pageSize);
@@ -96,21 +126,70 @@ export const getNotificationsPage = async ({
   }
 };
 
-const refreshListeners = async (inboxScope: NotificationInboxScope) => {
-  const items = await readAll(inboxScope);
-  emit(items);
-  return items;
+const refreshListeners = async (
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
+  const normalizedOrganizationId = normalizeSubscriptionOrganizationId(organizationId);
+  const contexts = new Map<
+    string,
+    { inboxScope: NotificationInboxScope; organizationId: string | null }
+  >();
+  const addContext = (
+    contextInboxScope: NotificationInboxScope,
+    contextOrganizationId: string | null,
+  ) => {
+    const key = getSubscriptionKey(contextInboxScope, contextOrganizationId);
+    if (!contexts.has(key)) {
+      contexts.set(key, {
+        inboxScope: contextInboxScope,
+        organizationId: contextOrganizationId,
+      });
+    }
+  };
+
+  addContext(inboxScope, normalizedOrganizationId);
+  listeners.forEach((subscription) => {
+    if (subscription.organizationId !== normalizedOrganizationId) return;
+    const receivesMutation =
+      inboxScope === "all" ||
+      subscription.inboxScope === "all" ||
+      subscription.inboxScope === inboxScope;
+    if (receivesMutation) {
+      addContext(subscription.inboxScope, subscription.organizationId);
+    }
+  });
+
+  await Promise.all(
+    Array.from(contexts.values()).map(async (context) => {
+      const items = await readAll(context.inboxScope, context.organizationId);
+      emit(items, context.inboxScope, context.organizationId);
+    }),
+  );
 };
 
-export const subscribeNotifications = (listener: Listener) => {
-  listeners.push(listener);
+export const subscribeNotifications = (
+  listener: Listener,
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
+  const subscription = {
+    listener,
+    key: getSubscriptionKey(inboxScope, organizationId),
+    inboxScope,
+    organizationId: normalizeSubscriptionOrganizationId(organizationId),
+  };
+  listeners.push(subscription);
   return () => {
-    listeners = listeners.filter((item) => item !== listener);
+    listeners = listeners.filter((item) => item !== subscription);
   };
 };
 
-export const getNotifications = async (inboxScope: NotificationInboxScope) => {
-  return await readAll(inboxScope);
+export const getNotifications = async (
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
+  return await readAll(inboxScope, organizationId);
 };
 
 export const addNotification = async (
@@ -126,44 +205,61 @@ export const addNotification = async (
       title,
       body,
     });
-    await refreshListeners(options.inboxScope);
+    await refreshListeners(
+      options.inboxScope,
+      created?.organizationId ?? options.organizationId,
+    );
     return created;
   } catch {
     return null;
   }
 };
 
-export const markAllRead = async (inboxScope: NotificationInboxScope) => {
-  await markAllNotificationsRead(inboxScope);
-  await refreshListeners(inboxScope);
+export const markAllRead = async (
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
+  await markAllNotificationsRead(inboxScope, organizationId);
+  await refreshListeners(inboxScope, organizationId);
 };
 
 export const markNotificationRead = async (
   id: string,
   inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
 ) => {
   await markRemoteNotificationRead(id);
-  await refreshListeners(inboxScope);
+  await refreshListeners(inboxScope, organizationId);
 };
 
-export const archiveRead = async (inboxScope: NotificationInboxScope) => {
-  await archiveReadNotifications(inboxScope);
-  await refreshListeners(inboxScope);
+export const archiveRead = async (
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
+  await archiveReadNotifications(inboxScope, organizationId);
+  await refreshListeners(inboxScope, organizationId);
 };
 
 export const restoreNotification = async (
   id: string,
   inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
 ) => {
-  await restoreRemoteNotification(id);
-  await refreshListeners(inboxScope);
+  await restoreRemoteNotification(id, organizationId);
+  await refreshListeners(inboxScope, organizationId);
 };
 
-export const clearNotifications = async (inboxScope: NotificationInboxScope) => {
-  await clearMyNotifications(inboxScope);
-  emit([]);
+export const clearNotifications = async (
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
+  await clearMyNotifications(inboxScope, organizationId);
+  await refreshListeners(inboxScope, organizationId);
 };
 
-export const getUnreadCount = async (inboxScope: NotificationInboxScope) => {
-  return await getUnreadNotificationCount(inboxScope);
+export const getUnreadCount = async (
+  inboxScope: NotificationInboxScope,
+  organizationId?: string | null,
+) => {
+  return await getUnreadNotificationCount(inboxScope, organizationId);
 };

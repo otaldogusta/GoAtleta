@@ -113,6 +113,7 @@ export type StudentRow = {
   id: string;
   name: string;
   organization_id?: string | null;
+  student_user_id?: string | null;
   photo_url?: string | null;
   ra?: string | null;
   ra_start_year?: number | null;

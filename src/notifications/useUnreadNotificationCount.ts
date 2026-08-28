@@ -20,9 +20,9 @@ export function useUnreadNotificationCount(
   }, []);
 
   const refresh = useCallback(async () => {
-    const notifications = await getNotifications(inboxScope);
+    const notifications = await getNotifications(inboxScope, organizationId);
     applyNotifications(notifications);
-  }, [applyNotifications, inboxScope]);
+  }, [applyNotifications, inboxScope, organizationId]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -32,10 +32,14 @@ export function useUnreadNotificationCount(
       if (active) applyNotifications(notifications);
     };
     const refreshIfActive = async () => {
-      const notifications = await getNotifications(inboxScope);
+      const notifications = await getNotifications(inboxScope, organizationId);
       applyIfActive(notifications);
     };
-    const unsubscribe = subscribeNotifications(applyIfActive);
+    const unsubscribe = subscribeNotifications(
+      applyIfActive,
+      inboxScope,
+      organizationId,
+    );
     const scheduledRefresh = setTimeout(() => {
       void refreshIfActive();
     }, 0);

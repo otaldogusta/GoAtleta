@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { listClassHeadsByClassIds } from "../api/class-responsibles";
 import { sendPushToUser } from "../api/push";
 import {
   buildConsultationNotification,
@@ -37,6 +38,29 @@ export const buildConsultationNotificationEventKey = (
     payload.executionLogId ?? "no-log",
   ].join(":");
 
+const resolveRecipientUserIds = async (
+  payload: ConsultationNotificationPayload,
+  recipientRole: "student" | "coach",
+) => {
+  const explicitTarget = String(payload.targetUserId ?? "").trim();
+  if (explicitTarget) return [explicitTarget];
+  if (
+    recipientRole !== "coach" ||
+    !payload.organizationId ||
+    !payload.classId
+  ) {
+    return [];
+  }
+
+  const heads = await listClassHeadsByClassIds({
+    organizationId: payload.organizationId,
+    classIds: [payload.classId],
+  });
+  return Array.from(
+    new Set(heads.map((head) => String(head.userId ?? "").trim()).filter(Boolean)),
+  ).sort();
+};
+
 export async function notifyConsultationEvent(
   payload: ConsultationNotificationPayload
 ): Promise<ConsultationNotificationDeliveryResult> {
@@ -44,38 +68,85 @@ export async function notifyConsultationEvent(
   const eventKey = buildConsultationNotificationEventKey(payload);
 
   try {
+    const organizationId = String(payload.organizationId ?? "").trim();
+    if (!organizationId) {
+      return {
+        eventKey,
+        internal: "failed",
+        push: "skipped",
+        error: "Organização da notificação não informada.",
+      };
+    }
+
+    const recipientUserIds = await resolveRecipientUserIds(
+      payload,
+      notification.recipientRole,
+    );
+    if (!recipientUserIds.length) {
+      return {
+        eventKey,
+        internal: "failed",
+        push: "skipped",
+        error: "Destinatário da notificação não encontrado.",
+      };
+    }
+
     const deliveredKeys = await readDeliveredKeys();
-    if (deliveredKeys.includes(eventKey)) {
+    const deliveredSet = new Set(deliveredKeys);
+    const pendingRecipients = recipientUserIds.filter(
+      (recipientUserId) => !deliveredSet.has(`${eventKey}:${recipientUserId}`),
+    );
+    if (!pendingRecipients.length) {
       return { eventKey, internal: "skipped_duplicate", push: "skipped" };
     }
 
     const actionUrl = notification.recipientRole === "student"
       ? "/student-consultation"
       : "/prof/consultation";
-    await addNotification(notification.title, notification.body, {
-      type: "consultation_event",
-      organizationId: payload.organizationId,
-      recipientUserId: payload.targetUserId,
-      inboxScope: notification.recipientRole === "student" ? "student" : "prof",
-      actionUrl,
-      sourceType: "consultation",
-      sourceId: eventKey,
-      metadata: {
-        event: payload.event,
-        studentId: payload.studentId,
-        workoutId: payload.workoutId ?? null,
-        executionLogId: payload.executionLogId ?? null,
-        recipientRole: notification.recipientRole,
-      },
-    });
+    let internalFailed = false;
+    let pushAttempted = false;
+    let pushFailed = false;
+    const errors: string[] = [];
+    const succeededKeys: string[] = [];
 
-    let push: ConsultationNotificationDeliveryResult["push"] = "skipped";
-    let pushError = "";
-    if (payload.organizationId && payload.targetUserId) {
+    for (const recipientUserId of pendingRecipients) {
+      const createdNotification = await addNotification(
+        notification.title,
+        notification.body,
+        {
+          type: "consultation_event",
+          organizationId,
+          recipientUserId,
+          inboxScope:
+            notification.recipientRole === "student" ? "student" : "prof",
+          actionUrl,
+          sourceType: "consultation",
+          sourceId: eventKey,
+          metadata: {
+            event: payload.event,
+            studentId: payload.studentId,
+            workoutId: payload.workoutId ?? null,
+            executionLogId: payload.executionLogId ?? null,
+            recipientRole: notification.recipientRole,
+          },
+          dedupe: true,
+        },
+      );
+      if (!createdNotification) {
+        internalFailed = true;
+        errors.push("Não foi possível registrar a notificação interna.");
+        continue;
+      }
+
+      succeededKeys.push(`${eventKey}:${recipientUserId}`);
+      pushAttempted = true;
       try {
         await sendPushToUser({
-          organizationId: payload.organizationId,
-          targetUserId: payload.targetUserId,
+          organizationId,
+          targetUserId: recipientUserId,
+          notificationType: "consultation_event",
+          sourceType: "consultation",
+          notificationId: createdNotification.id,
           title: notification.title,
           body: notification.body,
           data: {
@@ -91,20 +162,23 @@ export async function notifyConsultationEvent(
             },
           },
         });
-        push = "sent";
       } catch (error) {
-        push = "failed";
-        pushError = error instanceof Error ? error.message : "Falha ao enviar push remoto.";
+        pushFailed = true;
+        errors.push(
+          error instanceof Error ? error.message : "Falha ao enviar push remoto.",
+        );
       }
     }
 
-    await writeDeliveredKeys([...deliveredKeys, eventKey]);
+    if (succeededKeys.length) {
+      await writeDeliveredKeys([...deliveredKeys, ...succeededKeys]);
+    }
 
     return {
       eventKey,
-      internal: "created",
-      push,
-      error: pushError || undefined,
+      internal: internalFailed ? "failed" : "created",
+      push: pushFailed ? "failed" : pushAttempted ? "sent" : "skipped",
+      error: errors.length ? Array.from(new Set(errors)).join(" ") : undefined,
     };
   } catch (error) {
     return {

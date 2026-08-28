@@ -218,6 +218,7 @@ const mapStudentRow = (
     id: row.id,
     name: row.name,
     organizationId: resolvedOrganizationId,
+    studentUserId: row.student_user_id ?? null,
     photoUrl: row.photo_url ?? undefined,
     ra: row.ra ?? null,
     raStartYear: row.ra_start_year ?? null,
