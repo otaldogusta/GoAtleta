@@ -476,8 +476,8 @@ export default function LogScreen() {
             </View>
 
             <View style={{ marginTop: 12, gap: 8 }}>
-              <Button label="Salvar e gerar relatório" onPress={handleSaveAndReport} />
-              <Button label="Salvar" variant="secondary" onPress={handleSave} />
+              <Button label="Salvar" onPress={handleSave} />
+              <Button label="Salvar e baixar PDF" variant="outline" onPress={handleSaveAndReport} />
             </View>
           </View>
 

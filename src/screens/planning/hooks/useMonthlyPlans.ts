@@ -349,6 +349,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       const plans = await loadRequiredMonthlyData(
         "semanas do ciclo",
         getClassPlansByClass(classId, {
+          organizationId: cls.organizationId,
           cycleId: selectedCycle.id,
           cycleYear,
         }),

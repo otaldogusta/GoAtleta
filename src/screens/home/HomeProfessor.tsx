@@ -2,8 +2,6 @@ import * as Clipboard from "expo-clipboard";
 
 import { Link, useFocusEffect, useRouter } from "expo-router";
 
-import * as Updates from "expo-updates";
-
 import { Image } from "expo-image";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -90,6 +88,7 @@ import { useAppTheme } from "../../ui/app-theme";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+import { useNativeSidebarController } from "../../ui/native-sidebar-controller";
 
 import { getScopedProfilePath } from "../../navigation/profile-routes";
 import { markRender, measureAsync } from "../../observability/perf";
@@ -97,6 +96,7 @@ import { useSaveToast } from "../../ui/save-toast";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 import { AgendaCard } from "./components/AgendaCard";
 import { CurrentLessonCarousel } from "./components/CurrentLessonCarousel";
+import { useHorizontalGestureArbitration } from "./components/horizontal-gesture-arbitration";
 import {
   resolveHomeScheduleRequestKey,
   shouldShowInitialHomeLoading,
@@ -166,6 +166,7 @@ export function HomeProfessorScreen({
 
   const { colors, mode } = useAppTheme();
   const responsiveLayout = useResponsiveLayout("dashboard");
+  const { openMobileSidebar } = useNativeSidebarController();
 
   // Glass overlay function no longer needed - using native component styling instead
 
@@ -231,6 +232,13 @@ export function HomeProfessorScreen({
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [horizontalGestureActive, setHorizontalGestureActive] = useState(false);
+  const handleHorizontalGestureChange = useCallback((active: boolean) => {
+    setHorizontalGestureActive(active);
+  }, []);
+  const legacyAgendaGestureHandlers = useHorizontalGestureArbitration(
+    handleHorizontalGestureChange
+  );
 
   const agendaScrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const profilePhotoCacheRef = useRef<{ uri: string | null; updatedAt: number }>({
@@ -1387,32 +1395,6 @@ export function HomeProfessorScreen({
 
     try {
 
-      if (Updates.isEnabled && Platform.OS !== "web") {
-
-        try {
-
-          const update = await Updates.checkForUpdateAsync();
-
-          if (update.isAvailable) {
-
-            await Updates.fetchUpdateAsync();
-
-            showToast("Atualização encontrada. Reiniciando...", "success");
-
-            await Updates.reloadAsync();
-
-            return;
-
-          }
-
-        } catch {
-
-          // ignore update check errors in dev
-
-        }
-
-      }
-
       await refreshHomeData();
 
       setManualIndex(null);
@@ -1617,7 +1599,11 @@ export function HomeProfessorScreen({
         contentContainerStyle={homeContentContainerStyle}
 
         refreshControl={
-          <AppRefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <AppRefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            enabled={!horizontalGestureActive}
+          />
         }
 
       >
@@ -1639,11 +1625,13 @@ export function HomeProfessorScreen({
       >
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          {isWebHome && responsiveLayout.isMobile ? (
+          {responsiveLayout.isMobile ? (
             <Pressable
               onPress={() => {
-                if (typeof window !== "undefined") {
+                if (Platform.OS === "web" && typeof window !== "undefined") {
                   window.dispatchEvent(new CustomEvent("goatleta:toggle-sidebar"));
+                } else {
+                  openMobileSidebar();
                 }
               }}
               accessibilityLabel="Abrir menu principal"
@@ -1969,6 +1957,7 @@ export function HomeProfessorScreen({
                 onIndexChange={selectHeroIndex}
                 onOpenLesson={handleOpenLesson}
                 onOpenAttendance={handleOpenAttendance}
+                onHorizontalGestureChange={handleHorizontalGestureChange}
               />
 
               <WeekDaySelector
@@ -1978,6 +1967,7 @@ export function HomeProfessorScreen({
                 compact={isUx2CCompact}
                 mobile={isUx2CMobile}
                 onSelect={handleSelectWeekDay}
+                onHorizontalGestureChange={handleHorizontalGestureChange}
               />
 
               <View
@@ -2055,6 +2045,8 @@ export function HomeProfessorScreen({
           <FlatList
             ref={agendaScrollRef}
             horizontal
+            {...legacyAgendaGestureHandlers}
+            directionalLockEnabled
             data={agendaScrollItems}
             keyExtractor={(item, index) => `${item.classId}-${item.dateKey}-${index}`}
             showsHorizontalScrollIndicator={false}

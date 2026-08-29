@@ -863,12 +863,10 @@ const styles = StyleSheet.create({
     zIndex: 5100,
   },
   compactNavigationSheet: {
-    width: "100%",
-    maxHeight: "86%",
+    maxHeight: "78%",
+    marginHorizontal: 8,
     borderWidth: 1,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
+    borderRadius: radius.xl,
     overflow: "hidden",
   },
   compactNavigationHeader: {

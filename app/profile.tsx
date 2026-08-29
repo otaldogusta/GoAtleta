@@ -20,7 +20,7 @@ import type { ClassGroup } from "../src/core/models";
 
 import { useAuth } from "../src/auth/auth";
 import { canSafelyUnlinkProvider } from "../src/auth/identity-linking";
-import { saveSession, setRememberPreference } from "../src/auth/session";
+import { saveSession } from "../src/auth/session";
 import { BackTitleHeader } from "../src/components/ui/BackTitleHeader";
 import { ResponsiveGrid } from "../src/components/ui/ResponsiveGrid";
 import { ResponsivePage } from "../src/components/ui/ResponsivePage";
@@ -1326,8 +1326,7 @@ export default function ProfileScreen() {
       const result = await promptBiometrics("Ativar biometria no GoAtleta");
       if (!result.success) return;
       if (session) {
-        await setRememberPreference(true);
-        await saveSession(session, true);
+        await saveSession(session);
       }
       await setBiometricsEnabled(true);
     } catch (error) {

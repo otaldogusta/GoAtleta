@@ -241,7 +241,7 @@ export default function StudentInviteScreen() {
     setMessage("");
     try {
       if (mode === "login") {
-        await signIn(email.trim(), password, true);
+        await signIn(email.trim(), password);
         setMessage("Validando convite...");
         return;
       }

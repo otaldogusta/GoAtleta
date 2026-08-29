@@ -46,6 +46,7 @@ import {
     trainerOnlyPrefixes,
 } from "../src/auth/route-permissions";
 import { BootstrapProvider, useBootstrap } from "../src/bootstrap/BootstrapProvider";
+import { BootstrapGate } from "../src/bootstrap/BootstrapGate";
 import { resolveBootstrapInitialSession } from "../src/bootstrap/bootstrap-auth";
 import { resolveBootStatus, shouldMaskBootContent } from "../src/bootstrap/boot-status";
 import { PedagogicalConfigProvider } from "../src/bootstrap/pedagogical-config-context";
@@ -1098,9 +1099,11 @@ export default RootLayout;
 function BootstrapAuthProviders() {
   const { data } = useBootstrap();
   return (
-    <AuthProvider initialSession={resolveBootstrapInitialSession(data)}>
-      <BiometricAuthBoundary />
-    </AuthProvider>
+    <BootstrapGate>
+      <AuthProvider initialSession={resolveBootstrapInitialSession(data)}>
+        <BiometricAuthBoundary />
+      </AuthProvider>
+    </BootstrapGate>
   );
 }
 

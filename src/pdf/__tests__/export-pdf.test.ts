@@ -37,6 +37,12 @@ import * as Sharing from "expo-sharing";
 import { exportPdf } from "../export-pdf";
 
 describe("exportPdf on Android", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (Sharing.isAvailableAsync as jest.Mock).mockResolvedValue(true);
+    (Sharing.shareAsync as jest.Mock).mockResolvedValue(undefined);
+  });
+
   it("persists and hands off the readable requested filename", async () => {
     const result = await exportPdf({
       html: "<html><body>Relatório</body></html>",
@@ -59,5 +65,18 @@ describe("exportPdf on Android", () => {
       uri: expectedUri,
       fileName: "relatorio-turma-e2e-2026-08-26.pdf",
     });
+  });
+
+  it("fails explicitly when Android cannot open or share the generated file", async () => {
+    (Sharing.isAvailableAsync as jest.Mock).mockResolvedValue(false);
+
+    await expect(
+      exportPdf({
+        html: "<html><body>Relatório</body></html>",
+        fileName: "relatorio-sem-destino.pdf",
+      })
+    ).rejects.toThrow("No PDF viewer or sharing destination is available.");
+
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
   });
 });

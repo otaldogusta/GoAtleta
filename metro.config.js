@@ -1,6 +1,7 @@
 const {
   getSentryExpoConfig
 } = require("@sentry/react-native/metro");
+const path = require("node:path");
 
 const config = getSentryExpoConfig(__dirname);
 
@@ -30,5 +31,24 @@ config.resolver.extraNodeModules = {
 config.resolver.sourceExts = Array.from(
   new Set([...(config.resolver.sourceExts || []), "cjs"])
 );
+
+// Keep local QA/build artifacts out of Metro's Windows file map. The project
+// creates thousands of nested files under tmp/ and generated output folders;
+// watching those directories can exhaust the process handle limit and surface
+// as EMFILE / "Could not load bundle" in the development client.
+const escapeRegExp = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const projectRootPattern = __dirname
+  .split(path.sep)
+  .map(escapeRegExp)
+  .join("[\\\\/]");
+const generatedOutputPattern = new RegExp(
+  `^${projectRootPattern}[\\\\/](?:dist|storybook-static|outputs?|tmp|\\.tmp|artifacts|\\.vercel|\\.codex-(?:artifacts|doc-build|logs|runtime|tmp)|\\.expo-(?:release-check|web-build-check2?))(?:[\\\\/]|$)`
+);
+
+config.resolver.blockList = [
+  ...(config.resolver.blockList || []),
+  generatedOutputPattern,
+];
 
 module.exports = config;

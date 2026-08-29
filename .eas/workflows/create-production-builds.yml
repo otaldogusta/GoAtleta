@@ -2,11 +2,11 @@ name: Create Production Builds
 
 jobs:
   build_android:
-    name: Build Android (production-apk)
+    name: Build Android (production AAB)
     type: build
     params:
       platform: android
-      profile: production-apk
+      profile: production
 
   build_ios:
     name: Build iOS (production)

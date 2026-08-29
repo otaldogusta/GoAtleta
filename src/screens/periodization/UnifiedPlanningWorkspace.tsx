@@ -6,7 +6,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
@@ -17,13 +16,17 @@ import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import type { ThemeColors } from "../../ui/app-theme";
 import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
-import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
 import { ShimmerBlock } from "../../ui/Shimmer";
 import { useCollapsibleAnimation } from "../../ui/use-collapsible";
 import { useContainerResponsiveLayout } from "../../ui/use-container-responsive-layout";
 import type { ClassPlanPeriodizationSource } from "../classes/components/ClassPlanPreviewModal";
+import {
+  ClassPlanModalFrame,
+  ClassPlanModalHeader,
+  isClassPlanPhoneLayout,
+} from "../classes/components/ClassPlanModalFrame";
 import { PlanTimeDistribution } from "../classes/components/PlanTimeDistribution";
 import { regenerateMonthPlans } from "../planning/application/regenerate-month-plans";
 import {
@@ -40,7 +43,6 @@ import {
   resolveUnifiedPlanningContextLayout,
   type MonthCyclePresentation,
 } from "./application/unified-planning-view-model";
-import { resolveClassPlanModalSafeAreaPadding } from "./application/class-plan-modal-safe-area";
 import {
   PeriodizationLoadCurve,
   type PeriodizationLoadCurveDraft,
@@ -61,38 +63,28 @@ type ClassPlanModalHostProps = {
 };
 
 function ClassPlanLoadingContent({ colors, className, lessonDate, onClose }: Omit<ClassPlanModalHostProps, "children">) {
+  const { width } = useWindowDimensions();
+  const phoneLayout = isClassPlanPhoneLayout(width);
   const formattedDate = lessonDate.split("-").reverse().join("/");
 
   return (
     <>
-      <View
-        style={{
-          minHeight: 72,
-          paddingHorizontal: 18,
-          paddingVertical: 11,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 10,
-        }}
+      <ClassPlanModalHeader
+        phoneLayout={phoneLayout}
+        borderColor={colors.border}
+        textColor={colors.text}
+        mutedColor={colors.muted}
+        title="Plano da aula"
+        subtitle={`${className} · ${formattedDate}`}
       >
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: colors.text, fontSize: 19, fontWeight: "800" }}>
-            Plano da aula
-          </Text>
-          <Text numberOfLines={1} style={{ color: colors.muted, marginTop: 3, fontSize: 12 }}>
-            {className} · {formattedDate}
-          </Text>
-        </View>
         <Pressable
           onPress={onClose}
           accessibilityRole="button"
           accessibilityLabel="Fechar plano"
           style={({ pressed }) => ({
-            width: 42,
-            height: 42,
-            borderRadius: 21,
+            width: phoneLayout ? 38 : 42,
+            height: phoneLayout ? 38 : 42,
+            borderRadius: phoneLayout ? 19 : 21,
             borderWidth: 1,
             borderColor: colors.border,
             alignItems: "center",
@@ -102,7 +94,7 @@ function ClassPlanLoadingContent({ colors, className, lessonDate, onClose }: Omi
         >
           <GoAtletaIcon name="close" size={20} color={colors.text} />
         </Pressable>
-      </View>
+      </ClassPlanModalHeader>
       <View
         accessibilityLiveRegion="polite"
         accessibilityRole="progressbar"
@@ -116,32 +108,16 @@ function ClassPlanLoadingContent({ colors, className, lessonDate, onClose }: Omi
 }
 
 function ClassPlanModalHost({ colors, className, lessonDate, onClose, children }: ClassPlanModalHostProps) {
-  const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const compact = width < 980;
   const modalContentSafeAreaStyle = {
     flex: 1,
     minHeight: 0,
-    ...resolveClassPlanModalSafeAreaPadding(compact, insets),
   } as const;
 
   return (
-    <ModalSheet
+    <ClassPlanModalFrame
       visible
       onClose={onClose}
-      position="center"
-      containerPadding={compact ? 0 : 8}
-      cardStyle={{
-        width: compact ? "100%" : "94%",
-        maxWidth: compact ? "100%" : 1200,
-        height: compact ? "100%" : "90%",
-        maxHeight: compact ? "100%" : 840,
-        borderRadius: compact ? 0 : 18,
-        borderWidth: compact ? 0 : 1,
-        borderColor: colors.border,
-        padding: 0,
-        overflow: "hidden",
-      }}
+      borderColor={colors.border}
     >
       <View style={modalContentSafeAreaStyle}>
         {children ?? (
@@ -153,7 +129,7 @@ function ClassPlanModalHost({ colors, className, lessonDate, onClose, children }
           />
         )}
       </View>
-    </ModalSheet>
+    </ClassPlanModalFrame>
   );
 }
 
@@ -299,12 +275,20 @@ const MonthRail = memo(function MonthRail({ colors, summaries, selectedMonthKey,
 }) {
   const activeCurrentMonth = referenceMonthKey ?? currentMonthKey();
   const horizontalRailRef = useRef<ScrollView>(null);
+  const lastScrolledMonthIndexRef = useRef<number | null>(null);
   const selectedMonthIndex = summaries.findIndex((summary) => summary.monthKey === selectedMonthKey);
 
   useEffect(() => {
     if (!horizontal || selectedMonthIndex < 0) return;
+    const animate =
+      lastScrolledMonthIndexRef.current !== null &&
+      lastScrolledMonthIndexRef.current !== selectedMonthIndex;
     const frame = requestAnimationFrame(() => {
-      horizontalRailRef.current?.scrollTo({ x: selectedMonthIndex * 146, animated: false });
+      horizontalRailRef.current?.scrollTo({
+        x: selectedMonthIndex * 146,
+        animated: animate,
+      });
+      lastScrolledMonthIndexRef.current = selectedMonthIndex;
     });
     return () => cancelAnimationFrame(frame);
   }, [horizontal, selectedMonthIndex]);

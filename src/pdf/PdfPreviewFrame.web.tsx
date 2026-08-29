@@ -69,6 +69,7 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         display: none;
       }
       .page {
+        box-sizing: border-box;
         width: 210mm;
         height: 297mm;
         min-height: 297mm;

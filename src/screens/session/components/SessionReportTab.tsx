@@ -91,6 +91,7 @@ type SessionReportTabProps = {
   onChangeParticipantsCount: (value: string) => void;
   onChangeActivity: (value: string) => void;
   onChangeConclusion: (value: string) => void;
+  onFieldFocus?: (nativeTarget: number) => void;
   onRewriteActivity: () => void;
   onRewriteConclusion: () => void;
   onApplyAutoActivity: () => void;
@@ -149,6 +150,7 @@ export function SessionReportTab({
   onChangeParticipantsCount,
   onChangeActivity,
   onChangeConclusion,
+  onFieldFocus,
   onRewriteActivity,
   onRewriteConclusion,
   onApplyAutoActivity,
@@ -312,6 +314,7 @@ export function SessionReportTab({
               placeholder={ptBR.session.report.participantsPlaceholder}
               value={participantsCount}
               onChangeText={onChangeParticipantsCount}
+              onFocus={(event) => onFieldFocus?.(event.nativeEvent.target)}
               keyboardType="numeric"
               placeholderTextColor={colors.placeholder}
               style={{
@@ -334,6 +337,7 @@ export function SessionReportTab({
                 placeholder={ptBR.session.report.activityPlaceholder}
                 value={activity}
                 onChangeText={onChangeActivity}
+                onFocus={(event) => onFieldFocus?.(event.nativeEvent.target)}
                 placeholderTextColor={colors.placeholder}
                 style={{
                   borderWidth: 1,
@@ -452,6 +456,7 @@ export function SessionReportTab({
               placeholder={ptBR.session.report.conclusionPlaceholder}
               value={conclusion}
               onChangeText={onChangeConclusion}
+              onFocus={(event) => onFieldFocus?.(event.nativeEvent.target)}
               placeholderTextColor={colors.placeholder}
               multiline
               style={{
@@ -604,12 +609,13 @@ export function SessionReportTab({
                 ? ptBR.session.actions.saveChanges
                 : ptBR.session.actions.save
             }
-            variant="secondary"
+            variant="primary"
             onPress={onSaveReport}
             disabled={!reportHasChanges}
           />
           <Button
             label={ptBR.session.actions.generateReport}
+            variant="outline"
             onPress={onSaveAndGenerateReport}
           />
         </View>

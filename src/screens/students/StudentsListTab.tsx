@@ -825,7 +825,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                       key={student.id}
                       onPress={() => onStudentPress?.(student)}
                       style={(state) => ({
-                        minHeight: showTable ? 88 : 64,
+                        minHeight: showTable ? 72 : 56,
                         borderBottomWidth: StyleSheet.hairlineWidth,
                         borderBottomColor: colors.borderSubtle ?? colors.border,
                         backgroundColor: state.hovered
@@ -853,7 +853,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                             onPhotoPress?.(student);
                           }}
                           style={(state) => ({
-                            borderRadius: 19,
+                            borderRadius: 17,
                             opacity: state.pressed ? 0.72 : 1,
                           })}
                         >
@@ -861,7 +861,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                             colors={colors}
                             photoUrl={resolveStudentPhotoUrl?.(student) ?? undefined}
                             isBirthdayToday={birthdayStudentIds?.has(student.id)}
-                            size={38}
+                            size={34}
                           />
                         </Pressable>
                         <View style={{ flex: 1, minWidth: 0 }}>
@@ -1004,8 +1004,8 @@ export const StudentsListTab = memo(function StudentsListTab({
                       <Pressable
                         onPress={() => onStudentWhatsApp?.(student)}
                         style={{
-                          width: 42,
-                          height: 42,
+                          width: 38,
+                          height: 38,
                           alignItems: "center",
                           justifyContent: "center",
                         }}

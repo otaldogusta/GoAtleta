@@ -10,7 +10,7 @@ import {
 } from "./active-role";
 import { useAuth } from "./auth";
 import type { SelectableUserRole, UserRole } from "./role-types";
-import { getSessionUserId, getValidAccessToken } from "./session";
+import { getAccessToken, getSessionUserId, getValidAccessToken } from "./session";
 
 export type { UserRole } from "./role-types";
 
@@ -86,9 +86,44 @@ const mapStudent = (row: StudentRow): Student => ({
   createdAt: row.createdat,
 });
 
+class RoleRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "RoleRequestError";
+    this.status = status;
+  }
+}
+
+export const ROLE_REQUEST_TIMEOUT_MS = 5000;
+
+const fetchRoleResponse = async (
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1],
+) => {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(
+    () => controller.abort(),
+    ROLE_REQUEST_TIMEOUT_MS,
+  );
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    const text = await response.text();
+    return { response, text };
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new RoleRequestError("Tempo esgotado ao carregar o perfil.", 408);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+};
+
 const fetchIsTrainer = async (token: string) => {
   const base = SUPABASE_URL.replace(/\/$/, "");
-  const res = await fetch(base + "/rest/v1/rpc/is_trainer", {
+  const { response, text } = await fetchRoleResponse(base + "/rest/v1/rpc/is_trainer", {
     method: "POST",
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -97,8 +132,9 @@ const fetchIsTrainer = async (token: string) => {
     },
     body: "{}",
   });
-  const text = await res.text();
-  if (!res.ok) throw new Error(text || "Falha ao checar role.");
+  if (!response.ok) {
+    throw new RoleRequestError(text || "Falha ao checar role.", response.status);
+  }
   try {
     return Boolean(JSON.parse(text));
   } catch {
@@ -108,7 +144,7 @@ const fetchIsTrainer = async (token: string) => {
 
 const fetchStudentSelf = async (token: string, userId: string) => {
   const base = SUPABASE_URL.replace(/\/$/, "");
-  const res = await fetch(
+  const { response, text } = await fetchRoleResponse(
     base +
       "/rest/v1/students?select=*&student_user_id=eq." +
       encodeURIComponent(userId) +
@@ -121,14 +157,17 @@ const fetchStudentSelf = async (token: string, userId: string) => {
       },
     }
   );
-  const text = await res.text();
-  if (!res.ok) throw new Error(text || "Falha ao buscar aluno.");
+  if (!response.ok) {
+    throw new RoleRequestError(text || "Falha ao buscar aluno.", response.status);
+  }
   const rows = text ? (JSON.parse(text) as StudentRow[]) : [];
   if (!rows.length) return null;
   return mapStudent(rows[0]);
 };
 
-const buildPreviewStudent = (userId: string | null): Student => ({
+// Synthetic data is only valid for the explicit development preview. A real
+// cached role must never receive a fabricated organization or student record.
+const buildDevPreviewStudent = (userId: string | null): Student => ({
   id: userId ?? "preview-student",
   name: "Aluno (Preview)",
   organizationId: "preview",
@@ -171,6 +210,15 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setRole(null);
   }
+
+  const restoreCachedRole = useCallback(async (userId: string) => {
+    const preferredRole = await getActiveRolePreference(userId);
+    if (!preferredRole) return false;
+    setAvailableRoles([preferredRole]);
+    setRole(preferredRole);
+    setStudent(null);
+    return true;
+  }, []);
 
   const refresh = useCallback(async (options?: { silent?: boolean } | boolean) => {
     const isSilent = typeof options === "object" ? options?.silent : Boolean(options);
@@ -225,17 +273,20 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
             ...(studentRow ? (["student"] as const) : []),
           ]);
           setRole("student");
-          setStudent(studentRow ?? buildPreviewStudent(userId));
+          setStudent(studentRow ?? buildDevPreviewStudent(userId));
           return;
         }
         setRole("student");
-        setStudent(buildPreviewStudent(userId));
+        setStudent(buildDevPreviewStudent(userId));
         return;
       }
 
       const token = await getValidAccessToken();
       const userId = await getSessionUserId();
       if (!token || !userId) {
+        if (!token && userId && getAccessToken() && (await restoreCachedRole(userId))) {
+          return;
+        }
         setRole("pending");
         setStudent(null);
         return;
@@ -263,13 +314,20 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       setStudent(null);
     } catch (error) {
       Sentry.captureException(error);
+      const requestStatus = error instanceof RoleRequestError ? error.status : 0;
+      const canUseOfflineRole =
+        requestStatus === 0 || requestStatus === 408 || requestStatus === 429 || requestStatus >= 500;
+      const userId = session.user?.id ?? "";
+      if (canUseOfflineRole && userId && (await restoreCachedRole(userId))) {
+        return;
+      }
       setRole("pending");
       setAvailableRoles([]);
       setStudent(null);
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [restoreCachedRole, session]);
 
   useEffect(() => {
     const automaticRefreshKey = session

@@ -61,6 +61,8 @@ export const exportPdf = async ({
           dialogTitle: "Salvar/Compartilhar PDF",
           UTI: "com.adobe.pdf",
         });
+      } else {
+        throw new Error("No PDF viewer or sharing destination is available.");
       }
     }
 

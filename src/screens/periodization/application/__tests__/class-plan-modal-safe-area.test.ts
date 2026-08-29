@@ -2,13 +2,27 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { resolveClassPlanModalSafeAreaPadding } from "../class-plan-modal-safe-area";
+import { isClassPlanPhoneLayout } from "../../../classes/components/ClassPlanModalFrame";
 
 const workspaceSource = readFileSync(
   resolve(__dirname, "../../UnifiedPlanningWorkspace.tsx"),
   "utf8",
 );
+const previewSource = readFileSync(
+  resolve(__dirname, "../../../classes/components/ClassPlanPreviewModal.tsx"),
+  "utf8",
+);
+const frameSource = readFileSync(
+  resolve(__dirname, "../../../classes/components/ClassPlanModalFrame.tsx"),
+  "utf8",
+);
 
 describe("class plan fullscreen modal safe area", () => {
+  it("uses the same phone header breakpoint for loading and ready content", () => {
+    expect(isClassPlanPhoneLayout(599)).toBe(true);
+    expect(isClassPlanPhoneLayout(600)).toBe(false);
+  });
+
   it("protects status bar, cutout, and navigation edges in compact mode", () => {
     expect(
       resolveClassPlanModalSafeAreaPadding(true, {
@@ -41,11 +55,16 @@ describe("class plan fullscreen modal safe area", () => {
     });
   });
 
-  it("wires real safe-area insets around both loading and embedded content", () => {
-    expect(workspaceSource).toContain('import { useSafeAreaInsets } from "react-native-safe-area-context"');
-    expect(workspaceSource).toContain("const insets = useSafeAreaInsets();");
-    expect(workspaceSource).toContain("resolveClassPlanModalSafeAreaPadding(compact, insets)");
+  it("uses one centered frame and header geometry while ModalSheet owns safe areas", () => {
+    expect(workspaceSource).toContain("<ClassPlanModalFrame");
+    expect(workspaceSource).toContain("<ClassPlanModalHeader");
     expect(workspaceSource).toContain("<View style={modalContentSafeAreaStyle}>");
-    expect(workspaceSource).toContain('height: compact ? "100%" : "90%"');
+    expect(previewSource).toContain("<ClassPlanModalFrame");
+    expect(previewSource).toContain("<ClassPlanModalHeader");
+    expect(frameSource).toContain("containerPadding={8}");
+    expect(frameSource).toContain('width: "94%"');
+    expect(frameSource).toContain('height: "90%"');
+    expect(frameSource).toContain("borderRadius: 18");
+    expect(frameSource).toContain("minHeight: 60");
   });
 });

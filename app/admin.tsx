@@ -42,7 +42,7 @@ export default function AdminLoginScreen() {
     setMessage("");
     setBusy(true);
     try {
-      await signIn(email.trim(), password, true);
+      await signIn(email.trim(), password);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Falha ao autenticar.";
       setMessage(

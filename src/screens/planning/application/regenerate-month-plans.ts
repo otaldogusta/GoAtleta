@@ -75,6 +75,42 @@ export interface RegenerateMonthPlansParams {
   onProgress?: (progress: MonthRegenerationProgress) => void;
 }
 
+const extractIsoDate = (value: string | null | undefined): string | null => {
+  const match = String(value ?? "").match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? null;
+};
+
+const buildProtectedDailyPlanDates = (params: {
+  classId: string;
+  recentSessionLogs?: SessionLog[];
+  recentSessionSummaries?: RecentSessionSummary[];
+}): Set<string> => {
+  const protectedDates = new Set<string>();
+
+  for (const summary of params.recentSessionSummaries ?? []) {
+    const isRealized =
+      summary.wasApplied ||
+      summary.wasConfirmedExecuted === true ||
+      summary.wasEditedByTeacher ||
+      summary.executionState === "applied_not_confirmed" ||
+      summary.executionState === "teacher_edited" ||
+      summary.executionState === "confirmed_executed";
+    const date = isRealized ? extractIsoDate(summary.sessionDate) : null;
+    if (date) protectedDates.add(date);
+  }
+
+  // A persisted class report is also execution evidence. This fallback keeps
+  // the unified periodization workspace safe even when richer summaries were
+  // not loaded by that surface.
+  for (const log of params.recentSessionLogs ?? []) {
+    if (log.classId !== params.classId) continue;
+    const date = extractIsoDate(log.createdAt);
+    if (date) protectedDates.add(date);
+  }
+
+  return protectedDates;
+};
+
 export const buildInitialMonthPlans = (params: {
   classGroup: ClassGroup;
   monthKey: string;
@@ -118,7 +154,14 @@ export const regenerateMonthPlans = async (
   params: RegenerateMonthPlansParams
 ): Promise<MonthRegenerationResult> => {
   const { classGroup, monthKey, classPlans, activeCycleStartDate, activeCycleEndDate, onProgress } = params;
+  const organizationId = String(classGroup.organizationId ?? "").trim();
   const resolvedCycleId = String(params.activeCycle?.id ?? params.activeCycleId ?? "").trim();
+
+  if (!organizationId) {
+    throw new Error(
+      "A turma precisa estar vinculada a uma organização antes de atualizar o mês.",
+    );
+  }
 
   if (!resolvedCycleId) {
     throw new Error(
@@ -126,12 +169,32 @@ export const regenerateMonthPlans = async (
     );
   }
 
-  let monthlyPlans = filterClassPlansBySessionMonth(
+  const cycleOrganizationId = String(params.activeCycle?.organizationId ?? "").trim();
+  if (cycleOrganizationId && cycleOrganizationId !== organizationId) {
+    throw new Error("O ciclo ativo pertence a outra organização.");
+  }
+  const cycleClassId = String(params.activeCycle?.classId ?? "").trim();
+  if (cycleClassId && cycleClassId !== classGroup.id) {
+    throw new Error("O ciclo ativo pertence a outra turma.");
+  }
+
+  const filteredMonthlyPlans = filterClassPlansBySessionMonth(
     classPlans,
     classGroup,
     params.calendarExceptions ?? [],
     monthKey
-  ).map((plan) => ({ ...plan, cycleId: resolvedCycleId }));
+  );
+  const foreignCyclePlan = filteredMonthlyPlans.find((plan) => {
+    const cycleId = String(plan.cycleId ?? "").trim();
+    return cycleId && cycleId !== resolvedCycleId;
+  });
+  if (foreignCyclePlan) {
+    throw new Error("Há um plano semanal vinculado a outro ciclo neste mês.");
+  }
+  let monthlyPlans = filteredMonthlyPlans.map((plan) => ({
+    ...plan,
+    cycleId: resolvedCycleId,
+  }));
 
   if (!monthlyPlans.length) {
     onProgress?.({ stage: "weeklies", message: "Criando semanas do mês..." });
@@ -151,7 +214,7 @@ export const regenerateMonthPlans = async (
       });
       return { status: "outside_cycle", weeklyPlanCount: 0 };
     }
-    await saveClassPlans(monthlyPlans, { organizationId: classGroup.organizationId });
+    await saveClassPlans(monthlyPlans, { organizationId });
   }
 
   // === Stage 1: Generate monthly blueprint ===
@@ -196,6 +259,12 @@ export const regenerateMonthPlans = async (
       message: `Atualizando semana ${i + 1}/${monthlyPlans.length}`,
     });
 
+    // A manual weekly plan is an explicit teacher decision. Keep it intact;
+    // daily automatic plans may still be filled around it below.
+    if (weekPlan.source === "MANUAL") {
+      continue;
+    }
+
     // Auto-regenerate weekly: bump version, mark in_sync
     const weeklySessions = buildPlanSessionCalendar({
       plan: weekPlan,
@@ -214,7 +283,7 @@ export const regenerateMonthPlans = async (
       cycleId: resolvedCycleId,
     };
 
-    await updateClassPlan(regeneratedWeekly);
+    await updateClassPlan(regeneratedWeekly, { organizationId });
     monthlyPlans[i] = regeneratedWeekly;
   }
 
@@ -223,6 +292,11 @@ export const regenerateMonthPlans = async (
 
   const weekIds = monthlyPlans.map((p) => p.id);
   const existingDailies = await listDailyLessonPlansByWeekIds(weekIds);
+  const protectedDailyPlanDates = buildProtectedDailyPlanDates({
+    classId: classGroup.id,
+    recentSessionLogs: params.recentSessionLogs,
+    recentSessionSummaries: params.recentSessionSummaries,
+  });
 
   for (let i = 0; i < monthlyPlans.length; i++) {
     const weekPlan = monthlyPlans[i];
@@ -251,6 +325,13 @@ export const regenerateMonthPlans = async (
       const existingDaily = existingDailies.find(
         (d) => d.weeklyPlanId === weekPlan.id && d.date === session.date
       );
+
+      // Never mutate the historical document for an applied or completed
+      // session. It is evidence of what was actually delivered, not a future
+      // planning draft.
+      if (existingDaily && protectedDailyPlanDates.has(session.date)) {
+        continue;
+      }
 
       const regeneratedDaily = regenerateDailyLessonPlanFromWeek({
         existing: existingDaily ?? null,

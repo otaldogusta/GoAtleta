@@ -29,7 +29,7 @@ import {
   savePendingTrainerInvite,
 } from "../src/auth/pending-invite";
 import { sanitizePostLoginRedirect } from "../src/auth/post-login-redirect";
-import { hasStoredSession, setRememberPreference } from "../src/auth/session";
+import { hasStoredSession } from "../src/auth/session";
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { getBiometricsEnabled } from "../src/security/biometric-settings";
 import { isBiometricsSupported } from "../src/security/biometrics";
@@ -93,7 +93,6 @@ export default function LoginScreen() {
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricHint, setBiometricHint] = useState("");
   const rememberToastAnim = useRef(new Animated.Value(0)).current;
-  const rememberMeRef = useRef(false);
   const loginInFlightRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
   const rememberKey = "auth_remember_email";
@@ -129,17 +128,12 @@ export default function LoginScreen() {
       if (saved) {
         setEmail(saved);
         setRememberMe(true);
-        rememberMeRef.current = true;
       }
     })();
     return () => {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    rememberMeRef.current = rememberMe;
-  }, [rememberMe]);
 
   useEffect(() => {
     if (resetParam === "1" || resetParam === "true") {
@@ -208,11 +202,6 @@ export default function LoginScreen() {
     }
     void AsyncStorage.setItem(rememberKey, email.trim());
   }, [email, rememberMe]);
-
-  useEffect(() => {
-    if (!rememberTouched) return;
-    void setRememberPreference(rememberMe);
-  }, [rememberMe, rememberTouched]);
 
   useEffect(() => {
     if (!showReset && resetCountdown > 0) {
@@ -361,7 +350,7 @@ export default function LoginScreen() {
     loginInFlightRef.current = true;
     setBusy(true);
     try {
-      await signIn(email.trim(), password, rememberMeRef.current);
+      await signIn(email.trim(), password);
       markCredentialLoginSuccess();
       setFailedLoginAttempt(false);
     } catch (error) {
@@ -507,7 +496,7 @@ export default function LoginScreen() {
                 }}
               >
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  Sessão não será lembrada.
+                  E-mail não será lembrado.
                 </Text>
               </Animated.View>
             ) : null}
@@ -830,7 +819,6 @@ export default function LoginScreen() {
                       setRememberTouched(true);
                       setRememberMe((current) => {
                         const next = !current;
-                        rememberMeRef.current = next;
                         if (!next) {
                           setShowRememberToast(true);
                         }
@@ -872,7 +860,7 @@ export default function LoginScreen() {
                           ) : null}
                         </View>
                         <Text style={{ color: hovered ? colors.text : colors.muted }}>
-                          Lembre de mim
+                          Lembrar meu e-mail
                         </Text>
                       </>
                     )}

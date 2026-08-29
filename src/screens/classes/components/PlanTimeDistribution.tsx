@@ -72,7 +72,7 @@ export function PlanTimeDistribution({
     <View style={{ position: "relative", flexDirection: "row", alignItems: "center", gap: compact ? 10 : 18, overflow: "visible" }}>
       <View
         {...webHoverProps}
-        style={{ width: size, height: size, alignItems: "center", justifyContent: "center", paddingTop: emphasized ? 26 : 0, columnGap: emphasized ? 0 : undefined, overflow: "visible" }}
+        style={{ width: size, height: size, alignItems: "center", justifyContent: "center", overflow: "visible" }}
       >
         <Svg
           width={size}

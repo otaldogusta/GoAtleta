@@ -17,6 +17,7 @@ type ScreenPageHeaderProps = {
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   horizontalBleed?: number;
+  fadeHeight?: number;
 };
 
 export function ScreenPageHeader({
@@ -30,6 +31,7 @@ export function ScreenPageHeader({
   style,
   contentStyle,
   horizontalBleed = 24,
+  fadeHeight,
 }: ScreenPageHeaderProps) {
   const { colors } = useAppTheme();
 
@@ -37,6 +39,7 @@ export function ScreenPageHeader({
     <ScreenTopChrome
       style={style}
       horizontalBleed={horizontalBleed}
+      fadeHeight={fadeHeight}
       contentStyle={[
         {
           gap: 12,

@@ -3615,6 +3615,32 @@ export default function TrainingList() {
   const selectedPlanContextText = selectedPlan
     ? [getClassName(selectedPlan.classId), selectedPlanScheduleText].filter(Boolean).join(" · ")
     : "";
+  const renderWorkspaceLibrary = (
+    presentation: "rail" | "sheet",
+    collapsed: boolean,
+  ) => (
+    <TrainingPlanningWorkspaceLibrary
+      presentation={presentation}
+      collapsed={collapsed}
+      plans={items}
+      templates={templates}
+      classes={classes}
+      selectedPlanId={selectedPlan?.id}
+      onToggleCollapsed={() => setWorkspaceLibraryCollapsed((current) => !current)}
+      onSelectPlan={(plan) => {
+        void confirmWorkspaceReplacement(() => {
+          handleViewPlan(plan);
+          if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+        });
+      }}
+      onUseTemplate={(template) => {
+        void confirmWorkspaceReplacement(() => {
+          handleUseWorkspaceTemplate(template);
+          if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
+        });
+      }}
+    />
+  );
 
   return (
     <View ref={screenRootRef} style={{ flex: 1, backgroundColor: colors.background }}>
@@ -3790,7 +3816,44 @@ export default function TrainingList() {
               }}
             >
               <View style={{ flex: 1, minHeight: 0, position: "relative" }}>
-                {!workspaceLibraryCollapsed || !selectedPlan ? (
+                {responsiveLayout.isMobile ? (
+                  <>
+                    {!workspaceLibraryCollapsed ? (
+                      <ModalSheet
+                        visible
+                        onClose={() => setWorkspaceLibraryCollapsed(true)}
+                        position="right"
+                        overlayZIndex={5200}
+                        containerPadding={12}
+                        cardStyle={{
+                          width: "92%",
+                          maxWidth: 360,
+                          height: "100%",
+                          maxHeight: "100%",
+                          padding: 0,
+                          paddingBottom: 0,
+                          marginBottom: 0,
+                          gap: 0,
+                          borderRadius: 18,
+                          overflow: "hidden",
+                        }}
+                      >
+                        {renderWorkspaceLibrary("sheet", false)}
+                      </ModalSheet>
+                    ) : !selectedPlan ? (
+                      <View
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: 0,
+                          zIndex: 40,
+                        }}
+                      >
+                        {renderWorkspaceLibrary("rail", true)}
+                      </View>
+                    ) : null}
+                  </>
+                ) : !workspaceLibraryCollapsed || !selectedPlan ? (
                   <View
                     style={{
                       position: "absolute",
@@ -3803,26 +3866,10 @@ export default function TrainingList() {
                       boxShadow: "10px 0 28px rgba(10, 19, 34, 0.26)",
                     }}
                   >
-                    <TrainingPlanningWorkspaceLibrary
-                      collapsed={!selectedPlan ? workspaceLibraryCollapsed : false}
-                      plans={items}
-                      templates={templates}
-                      classes={classes}
-                      selectedPlanId={selectedPlan?.id}
-                      onToggleCollapsed={() => setWorkspaceLibraryCollapsed((current) => !current)}
-                      onSelectPlan={(plan) => {
-                        void confirmWorkspaceReplacement(() => {
-                          handleViewPlan(plan);
-                          if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
-                        });
-                      }}
-                      onUseTemplate={(template) => {
-                        void confirmWorkspaceReplacement(() => {
-                          handleUseWorkspaceTemplate(template);
-                          if (responsiveLayout.isMobile) setWorkspaceLibraryCollapsed(true);
-                        });
-                      }}
-                    />
+                    {renderWorkspaceLibrary(
+                      "rail",
+                      !selectedPlan ? workspaceLibraryCollapsed : false,
+                    )}
                   </View>
                 ) : null}
 

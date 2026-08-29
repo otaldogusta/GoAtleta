@@ -26,6 +26,7 @@ describe("buildPreviewHtml", () => {
     expect(buildPreviewHtml(source, true, 120)).toContain("width: 210mm;");
     expect(buildPreviewHtml(source, true, 120)).toContain("min-height: 297mm;");
     expect(buildPreviewHtml(source, true, 120)).toContain("aspect-ratio: 210 / 297;");
+    expect(buildPreviewHtml(source, true, 120)).toContain("box-sizing: border-box;");
     expect(buildPreviewHtml(source, true, 120)).toContain("requestedZoom = 1.2;");
     expect(buildPreviewHtml(source, true, 30)).toContain("requestedZoom = 0.7;");
     expect(buildPreviewHtml(source, true, 180)).toContain("requestedZoom = 1.4;");
@@ -85,7 +86,11 @@ describe("buildNativePreviewHtml", () => {
     expect(html).toContain("}, 100)");
     expect(html).toContain("width: 210mm");
     expect(html).toContain("min-height: 297mm");
+    expect(html).toContain("aspect-ratio: 210 / 297");
+    expect(html).toContain("box-sizing: border-box");
     expect(html).toContain("padding: 15mm 8mm 8mm");
+    expect(html).toContain("goatleta-native-page-shell");
+    expect(html).toContain("transform: scale(var(--goatleta-native-page-scale, 1))");
     expect(html).toContain("GOATLETA_PDF_PAGE_COUNT");
     expect(html).toContain("GOATLETA_PDF_READY");
     expect(html.indexOf("send({ type: 'GOATLETA_PDF_READY' })")).toBeLessThan(
@@ -95,9 +100,13 @@ describe("buildNativePreviewHtml", () => {
 
   it("keeps direct editing enabled only for editable native previews", () => {
     const source = "<html><head></head><body><div class=\"page\"></div></body></html>";
+    const editableHtml = buildNativePreviewHtml(source, true);
 
-    expect(buildNativePreviewHtml(source, true)).toContain("GOATLETA_PDF_EDIT");
-    expect(buildNativePreviewHtml(source, true)).toContain("document.addEventListener('input'");
+    expect(editableHtml).toContain("GOATLETA_PDF_EDIT");
+    expect(editableHtml).toContain("document.addEventListener('input'");
+    expect(editableHtml).toContain("publishEdit(event.target); scheduleScaleUpdate()");
+    expect(editableHtml).toContain("new ResizeObserver(scheduleScaleUpdate)");
+    expect(editableHtml).toContain("pageResizeObserver.observe(page)");
     expect(buildNativePreviewHtml(source, false)).not.toContain("document.addEventListener('input'");
   });
 
@@ -107,11 +116,41 @@ describe("buildNativePreviewHtml", () => {
 
     expect(html).toContain("var hostViewportWidth = 360");
     expect(html).toContain(
-      "var resolvedViewportWidth = hostViewportWidth || document.documentElement.clientWidth || window.innerWidth"
+      "var resolvedViewportWidth = viewport.canvas.clientWidth || document.documentElement.clientWidth || window.innerWidth || hostViewportWidth"
     );
     expect(html).toContain("var availableWidth = Math.max(1, resolvedViewportWidth - 20)");
     expect(html).toContain("var fitScale = Math.min(1, availableWidth / naturalWidth)");
     expect(html).toContain("var requestedZoom = 1");
+    expect(html).toContain("var minimumScale = 0 > 0 ? 0 / naturalWidth : 0");
+    expect(html).toContain("Math.max(minimumScale, fitScale * requestedZoom)");
+    expect(html).toContain("var scaledPageWidth = Math.ceil(pageWidth * resolvedScale)");
+    expect(html).toContain("shell.style.width = scaledPageWidth + 'px'");
+    expect(html).toContain("shell.style.height = Math.ceil(pageHeight * resolvedScale) + 'px'");
+    expect(html).toContain("page.style.transform = 'scale(' + resolvedScale + ')'");
     expect(html).not.toContain("Math.max(280, window.innerWidth - 16)");
   });
+
+  it("keeps the editable A4 layout readable and pannable on native phones", () => {
+    const source = "<html><head></head><body><div class=\"page\"></div></body></html>";
+    const html = buildNativePreviewHtml(source, true, 100, 360, 620);
+
+    expect(html).toContain("goatleta-native-scroll-canvas");
+    expect(html).toContain("goatleta-native-document-track");
+    expect(html).toContain("overflow-x: auto");
+    expect(html).toContain("overflow-y: auto");
+    expect(html).toContain("touch-action: pan-x pan-y pinch-zoom");
+    expect(html).toContain("enableCanvasDrag(viewport.canvas)");
+    expect(html).toContain("canvas.addEventListener('touchmove'");
+    expect(html).toContain("event.preventDefault()");
+    expect(html).toContain("canvas.scrollLeft = drag.left - deltaX");
+    expect(html).toContain("isEditableTarget(event.target)");
+    expect(html).toContain("[contenteditable=\"true\"], .pdf-editable-cell, input, textarea, select");
+    expect(html).toContain("viewport.track.style.width = Math.max(");
+    expect(html).toContain("var minimumScale = 620 > 0 ? 620 / naturalWidth : 0");
+    expect(html).toContain("Math.max(minimumScale, fitScale * requestedZoom)");
+    expect(html).toContain("width: 210mm");
+    expect(buildNativePreviewHtml(source, true, 125, 360, 620)).toContain("var requestedZoom = 1.25");
+    expect(html).not.toContain("grid-template-columns: minmax(112px, 34%)");
+  });
+
 });

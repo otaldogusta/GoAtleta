@@ -482,8 +482,9 @@ export function StudentEditModal({
                     ? () => setShowOperationalHistory(false)
                     : requestCloseEditModal
             }
-            cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}
+            cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "90%" }]}
             position="center"
+            containerPadding={Platform.OS === "web" ? 16 : 8}
         >
             <View
                 ref={editModalRef}
@@ -530,6 +531,7 @@ export function StudentEditModal({
                         style={{ width: "100%", flex: 1 }}
                         contentContainerStyle={{ gap: 10, paddingBottom: 96 }}
                         keyboardShouldPersistTaps="handled"
+                        automaticallyAdjustKeyboardInsets
                         onScrollBeginDrag={closeAllEditPickers}
                     >
                         <View style={{ gap: 10 }}>

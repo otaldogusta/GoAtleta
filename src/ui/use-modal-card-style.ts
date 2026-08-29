@@ -1,6 +1,5 @@
 import { Platform } from "react-native";
 import type { ViewStyle } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppTheme } from "./app-theme";
 
@@ -16,7 +15,6 @@ type ModalCardOptions = {
 
 export function useModalCardStyle(options: ModalCardOptions = {}) {
   const { colors, mode } = useAppTheme();
-  const insets = useSafeAreaInsets();
   const padding = options.padding ?? 16;
   const gap = options.gap ?? 10;
   const radius = options.radius ?? 20;
@@ -48,7 +46,9 @@ export function useModalCardStyle(options: ModalCardOptions = {}) {
     borderWidth: 1,
     borderColor: lightWeb ? "rgba(15,23,42,0.14)" : colors.border,
     padding,
-    paddingBottom: padding + insets.bottom + webBottomSpacing,
+    // ModalSheet owns safe-area positioning. Keeping the inset out of the card
+    // avoids applying it twice in centered and right-side overlays.
+    paddingBottom: padding + webBottomSpacing,
     borderTopLeftRadius: radius,
     borderTopRightRadius: radius,
     borderBottomLeftRadius: flushBottom ? 0 : radius,

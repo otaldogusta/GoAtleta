@@ -29,10 +29,8 @@ import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import { useAppTheme } from "../../../ui/app-theme";
 import { useConfirmDialog } from "../../../ui/confirm-dialog";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
-import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useSaveToast } from "../../../ui/save-toast";
-import { useModalCardStyle } from "../../../ui/use-modal-card-style";
 import { buildClassPlanPdfData } from "../application/build-class-plan-pdf-data";
 import {
   appendClassPlanActivity,
@@ -51,6 +49,11 @@ import {
   CLASS_PLAN_BLOCK_PRESENTATION,
   summarizeClassPlanActivities,
 } from "./class-plan-block-presentation";
+import {
+  ClassPlanModalFrame,
+  ClassPlanModalHeader,
+  isClassPlanPhoneLayout,
+} from "./ClassPlanModalFrame";
 import { PlanTimeDistribution } from "./PlanTimeDistribution";
 
 export type ClassPlanPeriodizationSource = SessionPlanPeriodizationSource;
@@ -89,6 +92,7 @@ export type ClassPlanWorkspaceHeaderControls = {
 type PreviewStatus = "idle" | "loading" | "ready" | "error";
 
 const PREVIEW_LOAD_TIMEOUT_MS = 10_000;
+const MOBILE_DOCUMENT_ZOOM = 125;
 
 type PdfBridgeMessage = {
   type?: string;
@@ -177,7 +181,7 @@ export function ClassPlanPreviewModal({
   const workspaceMode = presentation === "workspace";
   const embeddedMode = presentation === "embedded";
   const splitLayout = Platform.OS === "web" && width >= 980;
-  const phoneLayout = width < 600;
+  const phoneLayout = isClassPlanPhoneLayout(width);
   const inlinePdfEditor = true;
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>("idle");
   const [previewHtml, setPreviewHtml] = useState("");
@@ -218,9 +222,13 @@ export function ClassPlanPreviewModal({
 
   useEffect(() => {
     if (!workspaceMode) return;
-    const responsiveZoom = Platform.OS === "web" ? (width < 600 ? 70 : width < 980 ? 80 : 100) : 100;
+    const responsiveZoom = Platform.OS === "web"
+      ? (width < 600 ? 70 : width < 980 ? 80 : 100)
+      : phoneLayout
+        ? MOBILE_DOCUMENT_ZOOM
+        : 100;
     Promise.resolve().then(() => setPreviewZoom(responsiveZoom));
-  }, [width, workspaceMode]);
+  }, [phoneLayout, width, workspaceMode]);
 
   const keepWorkspaceAtTop = useCallback(() => {
     if (!workspaceMode || Platform.OS !== "web" || typeof window === "undefined") return;
@@ -236,15 +244,6 @@ export function ClassPlanPreviewModal({
       window.requestAnimationFrame(resetScroll);
     });
   }, [workspaceMode]);
-
-  const cardStyle = useModalCardStyle({
-    maxHeight: "90%",
-    maxWidth: 1200,
-    fullWidth: false,
-    padding: 0,
-    radius: 18,
-    flushBottom: false,
-  });
 
   useEffect(() => {
     if (!visible) return;
@@ -938,8 +937,8 @@ export function ClassPlanPreviewModal({
             html={previewHtml}
             title={`PDF do plano ${pdfPlan.title}`}
             editable
-            zoom={workspaceMode ? previewZoom : 100}
-            minimumPageWidth={phoneLayout && Platform.OS === "web" ? 620 : undefined}
+            zoom={workspaceMode ? previewZoom : phoneLayout ? MOBILE_DOCUMENT_ZOOM : 100}
+            minimumPageWidth={phoneLayout ? 620 : undefined}
             onMessage={handlePdfBridgeMessage}
             onError={() => setPreviewStatus("error")}
           />
@@ -1608,13 +1607,14 @@ export function ClassPlanPreviewModal({
 
   const modalContent = (
     <>
-      <View style={[styles.header, phoneLayout ? styles.headerPhone : null, { borderBottomColor: colors.border }]}>
-        <View style={styles.headerCopy}>
-          <Text numberOfLines={1} style={[styles.title, phoneLayout ? styles.titlePhone : null, { color: colors.text }]}>Plano da aula</Text>
-          <Text numberOfLines={1} style={[styles.subtitle, phoneLayout ? styles.subtitlePhone : null, { color: colors.muted }]}>
-            {classGroup.name} · {formatLessonDate(lessonDate)} · {formatLessonTime(classGroup)}
-          </Text>
-        </View>
+      <ClassPlanModalHeader
+        phoneLayout={phoneLayout}
+        borderColor={colors.border}
+        textColor={colors.text}
+        mutedColor={colors.muted}
+        title="Plano da aula"
+        subtitle={`${classGroup.name} · ${formatLessonDate(lessonDate)} · ${formatLessonTime(classGroup)}`}
+      >
 
         {splitLayout ? (
           <>
@@ -1670,7 +1670,7 @@ export function ClassPlanPreviewModal({
         >
           <GoAtletaIcon name="close" size={20} color={colors.text} />
         </Pressable>
-      </View>
+      </ClassPlanModalHeader>
 
       {!splitLayout && !inlinePdfEditor ? (
         <View style={[styles.mobileTabs, { borderBottomColor: colors.border }]}>
@@ -1763,12 +1763,32 @@ export function ClassPlanPreviewModal({
         container={null}
         animationStyle={{ opacity: menuAnimation }}
         zIndex={32000}
-        maxHeight={104}
+        maxHeight={176}
         nestedScrollEnabled={false}
         onRequestClose={() => setShowMenu(false)}
         interactiveRefs={[menuTriggerRef]}
         showVerticalScrollIndicator={false}
       >
+        <AnchoredDropdownOption
+          active={false}
+          disabled={isDownloading || previewStatus === "loading"}
+          onPress={() => {
+            setShowMenu(false);
+            void handleDownload();
+          }}
+        >
+          <View style={styles.menuOption}>
+            {isDownloading ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : (
+              <GoAtletaIcon name="download" size={17} color={colors.text} />
+            )}
+            <View style={styles.menuOptionCopy}>
+              <Text style={[styles.menuOptionLabel, { color: colors.text }]}>Baixar PDF</Text>
+              <Text style={[styles.menuOptionHint, { color: colors.muted }]}>Salvar ou compartilhar</Text>
+            </View>
+          </View>
+        </AnchoredDropdownOption>
         <AnchoredDropdownOption active={false} onPress={handleRemove}>
           <View style={styles.menuOption}>
             <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
@@ -1787,21 +1807,13 @@ export function ClassPlanPreviewModal({
   }
 
   return (
-    <ModalSheet
+    <ClassPlanModalFrame
       visible={visible}
       onClose={requestClose}
-      position="center"
-      overlayZIndex={6000}
-      containerPadding={8}
-      cardStyle={[
-        cardStyle,
-        styles.modalCard,
-        styles.modalCardCentered,
-        { borderColor: colors.border, borderWidth: 1 },
-      ]}
+      borderColor={colors.border}
     >
       {modalContent}
-    </ModalSheet>
+    </ClassPlanModalFrame>
   );
 }
 
@@ -1920,35 +1932,6 @@ const styles = StyleSheet.create({
   } as any,
   workspaceDurationSuffix: { fontSize: 11, fontWeight: "700" },
   workspacePreview: { flex: 1, minHeight: 0, paddingTop: 68 },
-  modalCard: { overflow: "hidden", paddingBottom: 0, marginBottom: 0, gap: 0 },
-  modalCardCentered: {
-    width: "94%",
-    maxWidth: 1200,
-    height: "90%",
-    maxHeight: 840,
-    borderRadius: 18,
-    borderWidth: 1,
-  },
-  header: {
-    minHeight: 72,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  headerPhone: {
-    minHeight: 60,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
-  },
-  headerCopy: { flex: 1, minWidth: 0 },
-  title: { fontSize: 19, fontWeight: "800" },
-  titlePhone: { fontSize: 17 },
-  subtitle: { marginTop: 3, fontSize: 12 },
-  subtitlePhone: { marginTop: 1, fontSize: 11 },
   headerButton: {
     minHeight: 40,
     borderWidth: 1,

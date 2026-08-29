@@ -383,13 +383,14 @@ export function PeriodizationManagerSheet({
       visible={visible}
       onClose={onClose}
       position="center"
-      containerPadding={compact ? 8 : 22}
+      containerPadding={compact ? 10 : 22}
       backdropOpacity={0.72}
       cardStyle={{
         alignSelf: "center",
         width: "100%",
         maxWidth: 1340,
-        height: Math.min(height - (compact ? 16 : 44), 900),
+        height: compact ? "92%" : Math.min(height - 44, 900),
+        maxHeight: compact ? "92%" : 900,
         minWidth: 0,
         borderRadius: compact ? 18 : 22,
         borderWidth: 1,
@@ -401,11 +402,11 @@ export function PeriodizationManagerSheet({
       <View style={{ flex: 1, width: "100%", overflow: "hidden" }}>
         <View
           style={{
-            minHeight: compact ? 70 : 88,
+            minHeight: compact ? 64 : 88,
             flexDirection: "row",
             alignItems: "center",
             gap: 12,
-            paddingHorizontal: compact ? 16 : 28,
+            paddingHorizontal: compact ? 14 : 28,
             borderBottomWidth: 1,
             borderBottomColor: colors.border,
           }}
@@ -625,8 +626,8 @@ export function PeriodizationManagerSheet({
               borderRightColor: colors.border,
             }}
             contentStyle={{
-              padding: compact ? 16 : 26,
-              gap: 22,
+              padding: compact ? 14 : 26,
+              gap: compact ? 16 : 22,
             }}
           >
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
@@ -909,6 +910,26 @@ export function PeriodizationManagerSheet({
               </Pressable>
               {advancedOpen ? advancedContent : null}
             </View>
+
+            {compact ? (
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 12,
+                  backgroundColor: colors.secondaryBg,
+                  padding: 12,
+                  gap: 4,
+                }}
+              >
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                  Ao salvar
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+                  {autoPlanCount} semanas automáticas podem ser recalculadas. Os {manualPlanCount} planos manuais e {completedLessonCount} aulas realizadas permanecem preservados.
+                </Text>
+              </View>
+            ) : null}
           </ManagerPane>
 
           <ManagerPane
@@ -917,6 +938,7 @@ export function PeriodizationManagerSheet({
               width: wide ? "49%" : "100%",
               maxWidth: "100%",
               minWidth: 0,
+              display: compact ? "none" : "flex",
               borderTopWidth: wide ? 0 : 1,
               borderTopColor: colors.border,
             }}
@@ -1087,17 +1109,17 @@ export function PeriodizationManagerSheet({
 
         <View
           style={{
-            minHeight: compact ? 74 : 82,
+            minHeight: compact ? 62 : 82,
             flexDirection: narrow ? "column" : "row",
             alignItems: narrow ? "stretch" : "center",
-            gap: 12,
+            gap: compact ? 8 : 12,
             paddingHorizontal: compact ? 16 : 26,
-            paddingVertical: 12,
+            paddingVertical: compact ? 10 : 12,
             borderTopWidth: 1,
             borderTopColor: colors.border,
           }}
         >
-          <View
+          {error || dirty || creatingNextCycle ? <View
             style={{
               flex: 1,
               flexDirection: "row",
@@ -1135,8 +1157,8 @@ export function PeriodizationManagerSheet({
                     ? "Alterações não salvas"
                     : "Configuração sincronizada")}
             </Text>
-          </View>
-          <Pressable
+          </View> : null}
+          {dirty ? <Pressable
             disabled={!dirty || saving}
             onPress={() => { setDraft(savedDraft); setCycleDateInput(formatBrazilianDate(savedDraft.cycleStartDate)); }}
             style={{
@@ -1151,7 +1173,7 @@ export function PeriodizationManagerSheet({
             <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
               {creatingNextCycle ? "Restaurar sugestão" : "Descartar rascunho"}
             </Text>
-          </Pressable>
+          </Pressable> : null}
           <Pressable
             accessibilityRole="button"
             disabled={saveDisabled}
@@ -1164,6 +1186,7 @@ export function PeriodizationManagerSheet({
               borderRadius: 11,
               backgroundColor: colors.primaryBg,
               paddingHorizontal: 20,
+              marginLeft: narrow ? 0 : "auto",
               opacity: saveDisabled ? 0.55 : 1,
             }}
           >

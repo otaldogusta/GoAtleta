@@ -412,7 +412,7 @@ describe("session training UI components", () => {
     expect(text).toContain("Galeria");
     expect(text).toContain("Foto do relatório");
     expect(text).toContain("Substituir (câmera)");
-    expect(text).toContain("Gerar relatório");
+    expect(text).toContain("Baixar PDF");
     expect(text).not.toContain("Academia não priorizada");
     expect(text).not.toContain("Detalhes do plano");
     expect(text).not.toMatch(/[\uF000-\uF8FF]/);

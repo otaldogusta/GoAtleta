@@ -15,6 +15,7 @@ type ModalSheetProps = {
   overlayZIndex?: number;
   bottomOffset?: number;
   containerPadding?: number;
+  respectBottomInset?: boolean;
 };
 
 let activeWebScrollLocks = 0;
@@ -111,6 +112,7 @@ export function ModalSheet({
   overlayZIndex = 1000,
   bottomOffset,
   containerPadding = 16,
+  respectBottomInset = true,
 }: ModalSheetProps) {
   const anim = useRef(new Animated.Value(0)).current;
   const [isMounted, setIsMounted] = useState(visible);
@@ -119,7 +121,7 @@ export function ModalSheet({
   const insets = useSafeAreaInsets();
   const resolvedBottomOffset = isCenter
     ? 0
-    : Math.max(bottomOffset ?? 0, insets.bottom);
+    : Math.max(bottomOffset ?? 0, respectBottomInset ? insets.bottom : 0);
   const baseCardStyle = useModalCardStyle();
   const resolvedCardStyle = [baseCardStyle, cardStyle];
 
@@ -208,16 +210,27 @@ export function ModalSheet({
       <View
         style={
           isCenter
-            ? { flex: 1, alignItems: "center", justifyContent: "center", padding: containerPadding }
+            ? {
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingTop: containerPadding + insets.top,
+                paddingRight: containerPadding + insets.right,
+                paddingBottom: containerPadding + insets.bottom,
+                paddingLeft: containerPadding + insets.left,
+              }
             : isRight
               ? {
                   flex: 1,
                   width: "100%",
                   alignItems: "flex-end",
                   justifyContent: "flex-start",
-                  padding: containerPadding,
+                  paddingTop: containerPadding + insets.top,
+                  paddingRight: containerPadding + insets.right,
+                  paddingBottom: containerPadding + insets.bottom,
+                  paddingLeft: containerPadding + insets.left,
                 }
-            : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
+              : { position: "absolute", left: 0, right: 0, bottom: resolvedBottomOffset }
         }
         pointerEvents="box-none"
       >

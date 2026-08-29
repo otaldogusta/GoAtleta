@@ -25,6 +25,7 @@ export type TrainingPlanningWorkspaceTemplate = {
 
 type Props = {
   collapsed: boolean;
+  presentation?: "rail" | "sheet";
   plans: TrainingPlan[];
   templates: TrainingPlanningWorkspaceTemplate[];
   classes: ClassGroup[];
@@ -117,6 +118,7 @@ const planRowLabel = (plan: TrainingPlan) => {
 
 export function TrainingPlanningWorkspaceLibrary({
   collapsed,
+  presentation = "rail",
   plans,
   templates,
   classes,
@@ -126,6 +128,7 @@ export function TrainingPlanningWorkspaceLibrary({
   onUseTemplate,
 }: Props) {
   const { colors } = useAppTheme();
+  const sheetMode = presentation === "sheet";
   const classById = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes]);
   const selectedPlan = useMemo(() => plans.find((plan) => plan.id === selectedPlanId), [plans, selectedPlanId]);
   const assignedPlans = useMemo(() => plans.filter((plan) => plan.classId && classById.has(plan.classId)), [classById, plans]);
@@ -245,16 +248,23 @@ export function TrainingPlanningWorkspaceLibrary({
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View
+      testID="training-planning-workspace-library"
+      style={[
+        styles.root,
+        sheetMode ? styles.sheetRoot : null,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Biblioteca</Text>
         <Pressable
           onPress={onToggleCollapsed}
           accessibilityRole="button"
-          accessibilityLabel="Recolher biblioteca"
+          accessibilityLabel={sheetMode ? "Fechar biblioteca" : "Recolher biblioteca"}
           style={({ pressed }) => [styles.iconButton, { borderColor: colors.border, opacity: pressed ? 0.68 : 1 }]}
         >
-          <GoAtletaIcon name="chevronBack" size={18} color={colors.text} />
+          <GoAtletaIcon name={sheetMode ? "close" : "chevronBack"} size={18} color={colors.text} />
         </Pressable>
       </View>
 
@@ -463,6 +473,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     padding: 12,
     gap: 10,
+  },
+  sheetRoot: {
+    width: "100%",
+    minWidth: 0,
+    borderWidth: 0,
+    borderRadius: 0,
   },
   collapsedRail: { width: 56, minWidth: 56, borderWidth: 1, borderRadius: radius.card, padding: 8, alignItems: "center" },
   header: { minHeight: 38, flexDirection: "row", alignItems: "center", gap: 8 },

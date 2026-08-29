@@ -4,7 +4,7 @@ const mockInitDb = jest.fn();
 const mockFlushPendingWrites = jest.fn();
 const mockLoadPedagogicalConfig = jest.fn();
 const mockSmartSyncInit = jest.fn();
-const mockLoadSession = jest.fn();
+const mockLoadValidatedSession = jest.fn();
 
 jest.mock("@sentry/react-native", () => ({
   addBreadcrumb: (...args: unknown[]) => mockAddBreadcrumb(...args),
@@ -30,7 +30,7 @@ jest.mock("../pedagogical-config-loader", () => ({
 }));
 
 jest.mock("../../auth/session", () => ({
-  loadSession: () => mockLoadSession(),
+  loadValidatedSession: () => mockLoadValidatedSession(),
 }));
 
 describe("bootstrapApp", () => {
@@ -42,7 +42,7 @@ describe("bootstrapApp", () => {
       config: { dimensions: [] },
       error: null,
     });
-    mockLoadSession.mockResolvedValue({
+    mockLoadValidatedSession.mockResolvedValue({
       access_token: "token",
       refresh_token: "refresh",
       expires_at: 999999,
@@ -55,7 +55,7 @@ describe("bootstrapApp", () => {
 
     const result = await bootstrapApp();
 
-    expect(mockLoadSession).toHaveBeenCalledTimes(1);
+    expect(mockLoadValidatedSession).toHaveBeenCalledTimes(1);
     expect(result.session).toEqual({
       access_token: "token",
       refresh_token: "refresh",

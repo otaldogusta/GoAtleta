@@ -4,6 +4,7 @@ import { ScrollView, Text, View } from "react-native";
 import { Pressable } from "../../../ui/Pressable";
 import { radius, shadow } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
+import { useHorizontalGestureArbitration } from "./horizontal-gesture-arbitration";
 import type { WeekDaySummary } from "./homeScheduleTypes";
 
 type WeekDaySelectorProps = {
@@ -13,6 +14,7 @@ type WeekDaySelectorProps = {
   compact?: boolean;
   mobile?: boolean;
   onSelect: (dateKey: string) => void;
+  onHorizontalGestureChange?: (active: boolean) => void;
 };
 
 export const WeekDaySelector = memo(function WeekDaySelector({
@@ -22,7 +24,12 @@ export const WeekDaySelector = memo(function WeekDaySelector({
   compact = false,
   mobile = false,
   onSelect,
+  onHorizontalGestureChange,
 }: WeekDaySelectorProps) {
+  const horizontalGestureHandlers = useHorizontalGestureArbitration(
+    onHorizontalGestureChange
+  );
+
   return (
     <View
       style={{
@@ -41,6 +48,8 @@ export const WeekDaySelector = memo(function WeekDaySelector({
 
       <ScrollView
         horizontal
+        {...horizontalGestureHandlers}
+        directionalLockEnabled
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{
           flexDirection: "row",

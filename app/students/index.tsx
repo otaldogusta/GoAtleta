@@ -273,7 +273,7 @@ export default function StudentsScreen() {
     gap: 8,
   };
   const editModalCardStyle = useModalCardStyle({
-    maxHeight: Platform.OS === "web" ? "92%" : "96%",
+    maxHeight: Platform.OS === "web" ? "92%" : "90%",
     maxWidth: isCompactForm ? 700 : 960,
     padding: 16,
     radius: 16,
@@ -2366,26 +2366,27 @@ export default function StudentsScreen() {
                 <ModalSheet
                   visible={isCadastroTab}
                   onClose={() => requestSwitchStudentsTab("alunos")}
-                  position="right"
+                  position={windowWidth < 720 ? "center" : "right"}
                   slideOffset={560}
-                  containerPadding={0}
+                  containerPadding={windowWidth < 720 ? 8 : 0}
                   backdropOpacity={0.7}
                   cardStyle={{
                     width: windowWidth < 720 ? "100%" : "42%",
                     minWidth: windowWidth < 720 ? 0 : 480,
                     maxWidth: 560,
-                    height: "100%",
-                    maxHeight: "100%",
-                    alignSelf: "flex-end",
+                    height: windowWidth < 720 ? "90%" : "100%",
+                    maxHeight: windowWidth < 720 ? "90%" : "100%",
+                    alignSelf: windowWidth < 720 ? "center" : "flex-end",
                     marginBottom: 0,
-                    borderRadius: 0,
+                    borderRadius: windowWidth < 720 ? 18 : 0,
                     padding: 0,
+                    overflow: "hidden",
                   }}
                 >
                   <View
                     style={{
-                      paddingHorizontal: 20,
-                      paddingVertical: 16,
+                      paddingHorizontal: windowWidth < 720 ? 14 : 20,
+                      paddingVertical: windowWidth < 720 ? 10 : 16,
                       borderBottomWidth: 1,
                       borderBottomColor: colors.border,
                       flexDirection: "row",
@@ -2396,7 +2397,7 @@ export default function StudentsScreen() {
                     <Text
                       style={{
                         color: colors.text,
-                        fontSize: 20,
+                        fontSize: windowWidth < 720 ? 18 : 20,
                         fontWeight: "900",
                       }}
                     >
@@ -2423,8 +2424,12 @@ export default function StudentsScreen() {
                   </View>
                   <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ padding: 20, paddingBottom: 28 }}
+                    contentContainerStyle={{
+                      padding: windowWidth < 720 ? 12 : 20,
+                      paddingBottom: windowWidth < 720 ? 20 : 28,
+                    }}
                     keyboardShouldPersistTaps="handled"
+                    automaticallyAdjustKeyboardInsets
                   >
                     <Suspense
                       fallback={
@@ -2539,7 +2544,7 @@ export default function StudentsScreen() {
                   </ScrollView>
                   <View
                     style={{
-                      padding: 16,
+                      padding: windowWidth < 720 ? 10 : 16,
                       borderTopWidth: 1,
     borderTopColor: colors.border,
     flexDirection: "row",

@@ -84,6 +84,14 @@ testvoleiapp
 /artifacts/academic-bacharelado/
 /artifacts/academic-curation-*/
 /artifacts/e2e-*/
+/artifacts/figma-screen-inventory-*/
+/artifacts/design-qa/after-back.png
+/artifacts/design-qa/current-device-state.png
+/artifacts/design-qa/dev-client-connect-state.png
+/artifacts/design-qa/goatleta-smoke-*.png
+/artifacts/design-qa/mobile-polish-*.png
+/artifacts/design-qa/native-sidebar-*.png
+/artifacts/design-qa/planning-side-tabs.png
 /artifacts/design-qa/coordination-approved-comparison.png
 /artifacts/design-qa/coordination-approved-layout.png
 /artifacts/design-qa/coordination-approved-layout*.jpg

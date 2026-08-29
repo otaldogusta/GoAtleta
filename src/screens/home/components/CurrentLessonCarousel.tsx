@@ -11,6 +11,10 @@ import {
 
 import { spacing } from "../../../theme/tokens";
 import { CurrentLessonHero } from "./CurrentLessonHero";
+import {
+  HORIZONTAL_GESTURE_THRESHOLD,
+  resolveDominantGestureAxis,
+} from "./horizontal-gesture-arbitration";
 import type { HomeScheduleItem, HomeScheduleSlot } from "./homeScheduleTypes";
 
 type CurrentLessonCarouselProps = {
@@ -24,6 +28,7 @@ type CurrentLessonCarouselProps = {
   onIndexChange: (index: number) => void;
   onOpenLesson: (item: HomeScheduleItem | null) => void;
   onOpenAttendance: (item: HomeScheduleItem | null) => void;
+  onHorizontalGestureChange?: (active: boolean) => void;
 };
 
 type ResolveCarouselIndexParams = {
@@ -86,6 +91,7 @@ export const CurrentLessonCarousel = memo(function CurrentLessonCarousel({
   onIndexChange,
   onOpenLesson,
   onOpenAttendance,
+  onHorizontalGestureChange,
 }: CurrentLessonCarouselProps) {
   const listRef = useRef<FlatList<HomeScheduleSlot>>(null);
   const currentOffsetRef = useRef(0);
@@ -120,9 +126,13 @@ export const CurrentLessonCarousel = memo(function CurrentLessonCarousel({
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gesture) =>
           slots.length > 1 &&
-          Math.abs(gesture.dx) > 8 &&
-          Math.abs(gesture.dx) > Math.abs(gesture.dy),
+          resolveDominantGestureAxis(
+            gesture.dx,
+            gesture.dy,
+            HORIZONTAL_GESTURE_THRESHOLD
+          ) === "horizontal",
         onPanResponderGrant: () => {
+          onHorizontalGestureChange?.(true);
           dragStartOffsetRef.current = currentIndex * carouselWidth;
         },
         onPanResponderMove: (_, gesture) => {
@@ -136,6 +146,7 @@ export const CurrentLessonCarousel = memo(function CurrentLessonCarousel({
           listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
         },
         onPanResponderRelease: (_, gesture) => {
+          onHorizontalGestureChange?.(false);
           settleAtIndex(
             resolveCarouselIndex({
               currentIndex,
@@ -146,10 +157,19 @@ export const CurrentLessonCarousel = memo(function CurrentLessonCarousel({
           );
         },
         onPanResponderTerminate: () => {
+          onHorizontalGestureChange?.(false);
           scrollToIndex(currentIndex, true);
         },
+        onShouldBlockNativeResponder: () => true,
       }),
-    [carouselWidth, currentIndex, scrollToIndex, settleAtIndex, slots.length]
+    [
+      carouselWidth,
+      currentIndex,
+      onHorizontalGestureChange,
+      scrollToIndex,
+      settleAtIndex,
+      slots.length,
+    ]
   );
 
   useEffect(() => {

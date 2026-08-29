@@ -34,7 +34,7 @@ import { setDevProfilePreview } from "../dev/profile-preview";
 type AuthContextValue = {
   session: AuthSession | null;
   loading: boolean;
-  signIn: (email: string, password: string, remember: boolean) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signUp: (
     email: string,
     password: string,
@@ -349,7 +349,7 @@ export function AuthProvider({
     }
   }, [session?.user?.id]);
 
-  const signIn = useCallback(async (email: string, password: string, remember = true) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     await setDevProfilePreview("auto");
     const payload = await authFetch("/auth/v1/token?grant_type=password", {
       email,
@@ -362,7 +362,7 @@ export function AuthProvider({
       user: hydratedUser ?? normalized.user,
     };
     setSession(next);
-    await saveSession(next, remember);
+    await saveSession(next);
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, redirectPath: string, fullName?: string) => {

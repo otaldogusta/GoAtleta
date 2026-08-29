@@ -307,6 +307,7 @@ describe("useMonthlyPlans", () => {
     expect(latest?.isHistoricalCycle).toBe(true);
     expect(latest?.weeklyItems).toHaveLength(1);
     expect(getClassPlansByClass).toHaveBeenCalledWith("class-1", {
+      organizationId: "org-1",
       cycleId: "cycle-2026",
       cycleYear: 2026,
     });

@@ -9,6 +9,10 @@ const classPlanWorkspace = readFileSync(
   resolve(__dirname, "../../../classes/components/ClassPlanPreviewModal.tsx"),
   "utf8"
 );
+const classPlanModalFrame = readFileSync(
+  resolve(__dirname, "../../../classes/components/ClassPlanModalFrame.tsx"),
+  "utf8"
+);
 const unifiedPlanningWorkspace = readFileSync(
   resolve(__dirname, "../../../periodization/UnifiedPlanningWorkspace.tsx"),
   "utf8"
@@ -64,27 +68,35 @@ describe("training planning platform parity", () => {
   it("keeps compact web plan actions in the header and above page FABs", () => {
     expect(classPlanWorkspace).toContain("{inlinePdfEditor ? inlineSaveButton : null}");
     expect(classPlanWorkspace).toContain("{menuButton}\n          </>");
-    expect(classPlanWorkspace).toContain("overlayZIndex={6000}");
+    expect(classPlanModalFrame).toContain("overlayZIndex = 6000");
     expect(classPlanWorkspace).toContain(
-      'minimumPageWidth={phoneLayout && Platform.OS === "web" ? 620 : undefined}'
+      'minimumPageWidth={phoneLayout ? 620 : undefined}'
     );
-    expect(classPlanWorkspace).toContain("containerPadding={8}");
-    expect(classPlanWorkspace).toContain("radius: 18");
-    expect(classPlanWorkspace).toContain("flushBottom: false");
-    expect(classPlanWorkspace).not.toContain("radius: splitLayout ? 18 : 0");
-    expect(classPlanWorkspace).toContain('modalCardCentered: {\n    width: "94%"');
-    expect(classPlanWorkspace).toContain('height: "90%"');
+    expect(classPlanWorkspace).toContain("const MOBILE_DOCUMENT_ZOOM = 125;");
+    expect(classPlanWorkspace).toContain(
+      "zoom={workspaceMode ? previewZoom : phoneLayout ? MOBILE_DOCUMENT_ZOOM : 100}"
+    );
+    expect(classPlanWorkspace).toContain("<ClassPlanModalFrame");
+    expect(classPlanWorkspace).toContain("<ClassPlanModalHeader");
+    expect(classPlanModalFrame).toContain("containerPadding={8}");
+    expect(classPlanModalFrame).toContain('width: "94%"');
+    expect(classPlanModalFrame).toContain('height: "90%"');
+    expect(classPlanModalFrame).toContain("borderRadius: 18");
     expect(classPlanWorkspace).not.toContain(
       "inlinePdfEditor && !splitLayout ? renderEditFooter(true)"
     );
+    expect(classPlanWorkspace).toContain(">Baixar PDF</Text>");
+    expect(classPlanWorkspace).toContain(">Salvar ou compartilhar</Text>");
   });
 
   it("keeps the library trigger in the PDF toolbar and opens the library as an overlay", () => {
     expect(classPlanWorkspace).toContain("onToggleWorkspaceLibrary");
     expect(classPlanWorkspace).toContain('accessibilityLabel={workspaceLibraryExpanded ? "Recolher biblioteca" : "Expandir biblioteca"}');
-    expect(trainingRoute).toContain("{!workspaceLibraryCollapsed || !selectedPlan ? (");
-    expect(trainingRoute).toContain("collapsed={!selectedPlan ? workspaceLibraryCollapsed : false}");
-    expect(trainingRoute).toContain('position: "absolute"');
+    expect(trainingRoute).toContain("{responsiveLayout.isMobile ? (");
+    expect(trainingRoute).toContain('position="right"');
+    expect(trainingRoute).toContain('renderWorkspaceLibrary("sheet", false)');
+    expect(trainingRoute).toContain('renderWorkspaceLibrary("rail", true)');
+    expect(trainingRoute).toContain(") : !workspaceLibraryCollapsed || !selectedPlan ? (");
     expect(trainingRoute).toContain('boxShadow: "10px 0 28px rgba(10, 19, 34, 0.26)"');
     expect(trainingRoute).toContain("workspaceLibraryExpanded={!workspaceLibraryCollapsed}");
     expect(trainingRoute).not.toContain("paddingLeft: responsiveLayout.isMobile && workspaceLibraryCollapsed ? 64 : 0");
@@ -92,6 +104,8 @@ describe("training planning platform parity", () => {
 
   it("opens the lesson modal with a guarded loading overlay and a recoverable native preview", () => {
     expect(unifiedPlanningWorkspace).toContain("<ClassPlanModalHost");
+    expect(unifiedPlanningWorkspace).toContain("<ClassPlanModalFrame");
+    expect(unifiedPlanningWorkspace).toContain("<ClassPlanModalHeader");
     expect(unifiedPlanningWorkspace).toContain('presentation="embedded"');
     expect(unifiedPlanningWorkspace).not.toContain("<ClassPlanLoadingModal");
     expect(unifiedPlanningWorkspace).toContain("Carregando plano…");
@@ -108,11 +122,14 @@ describe("training planning platform parity", () => {
   });
 
   it("keeps the selected month first in the rail and the lesson detail compact", () => {
-    expect(unifiedPlanningWorkspace).toContain("horizontalRailRef.current?.scrollTo({ x: selectedMonthIndex * 146, animated: false })");
+    expect(unifiedPlanningWorkspace).toContain("const lastScrolledMonthIndexRef = useRef<number | null>(null)");
+    expect(unifiedPlanningWorkspace).toContain("lastScrolledMonthIndexRef.current !== selectedMonthIndex");
+    expect(unifiedPlanningWorkspace).toContain("animated: animate");
+    expect(unifiedPlanningWorkspace).toContain("lastScrolledMonthIndexRef.current = selectedMonthIndex");
     expect(unifiedPlanningWorkspace).not.toContain("<MonthOverview");
     expect(unifiedPlanningWorkspace).not.toContain("Aplicação da regra mensal em jogo formal");
     expect(unifiedPlanningWorkspace).toContain("compact emphasized showLegend={false}");
-    expect(planTimeDistribution).toContain("paddingTop: emphasized ? 26 : 0");
-    expect(planTimeDistribution).toContain("columnGap: emphasized ? 0 : undefined");
+    expect(planTimeDistribution).toContain('alignItems: "center", justifyContent: "center"');
+    expect(planTimeDistribution).not.toContain("paddingTop: emphasized ? 26 : 0");
   });
 });

@@ -1749,6 +1749,7 @@ export function SessionScreen({
     height: number;
   } | null>(null);
   const containerRef = useRef<View>(null);
+  const embeddedReportScrollRef = useRef<ScrollView>(null);
   const pseTriggerRef = useRef<View>(null);
   const techniqueTriggerRef = useRef<View>(null);
   const lastRewriteAppliedRef = useRef<{
@@ -3547,6 +3548,16 @@ export function SessionScreen({
         setConclusion(value);
         closePickers();
       }}
+      onFieldFocus={(nativeTarget) => {
+        if (!embeddedReport) return;
+        setTimeout(() => {
+          embeddedReportScrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(
+            nativeTarget,
+            132,
+            true,
+          );
+        }, 120);
+      }}
       onRewriteActivity={() => void handleRewriteField("activity")}
       onRewriteConclusion={() => void handleRewriteField("conclusion")}
       onApplyAutoActivity={handleApplyAutoActivity}
@@ -3584,7 +3595,7 @@ export function SessionScreen({
     return (
       <KeyboardAvoidingView
         style={{ flex: 1, minHeight: 0 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
       >
         <View
@@ -3625,12 +3636,14 @@ export function SessionScreen({
           </Pressable>
         </View>
         <ScrollView
+          ref={embeddedReportScrollRef}
           style={{ flex: 1, minHeight: 0 }}
           contentContainerStyle={{ padding: 20, paddingBottom: Math.max(24, insets.bottom + 16) }}
           onScrollBeginDrag={closePickers}
           scrollEnabled={!showPsePicker && !showTechniquePicker}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          automaticallyAdjustKeyboardInsets
           showsVerticalScrollIndicator={false}
         >
           {reportTabContent}

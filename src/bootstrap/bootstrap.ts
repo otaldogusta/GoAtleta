@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/react-native";
-import { loadSession, type AuthSession } from "../auth/session";
+import { loadValidatedSession, type AuthSession } from "../auth/session";
 import type { PedagogicalDimensionsConfig } from "../config/pedagogical-dimensions-config";
 import { smartSync } from "../core/smart-sync";
 import { flushPendingWrites } from "../db/seed";
@@ -22,7 +22,7 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
   const result = await Promise.race([
     (async () => {
       const sessionStart = Date.now();
-      const session = await loadSession();
+      const session = await loadValidatedSession();
       const sessionMs = Date.now() - sessionStart;
       if (__DEV__) {
         console.log(`[bootstrap] loadSession: ${sessionMs}ms`);

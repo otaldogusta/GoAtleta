@@ -34,6 +34,7 @@ type AnchoredDropdownProps = {
   portalToBodyOnWeb?: boolean;
   interactiveRefs?: Array<React.RefObject<View | null>>;
   density?: "default" | "compact" | "menu";
+  fitContent?: boolean;
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;
@@ -56,6 +57,7 @@ export function AnchoredDropdown({
   portalToBodyOnWeb = true,
   interactiveRefs,
   density = "default",
+  fitContent = false,
 }: AnchoredDropdownProps) {
   const { colors, mode } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
@@ -292,7 +294,7 @@ export function AnchoredDropdown({
         style={[
           panelStyle,
           {
-            height: resolvedMaxHeight,
+            height: fitContent ? undefined : resolvedMaxHeight,
             maxHeight: resolvedMaxHeight,
             borderRadius: isCompact || isMenu ? 14 : 18,
             overflow: "hidden",
@@ -311,7 +313,10 @@ export function AnchoredDropdown({
         <ScrollView
           ref={scrollRef}
           style={[
-            { height: resolvedMaxHeight, maxHeight: resolvedMaxHeight },
+            {
+              height: fitContent ? undefined : resolvedMaxHeight,
+              maxHeight: resolvedMaxHeight,
+            },
           ]}
           contentContainerStyle={[
             isCompact || isMenu

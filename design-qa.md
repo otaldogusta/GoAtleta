@@ -66,6 +66,110 @@ final result: passed
 
 ---
 
+# Design QA - gestos, relatório, periodização e cadastros no mobile
+
+**Fontes visuais do problema**
+
+- Relatório encoberto pelo teclado:
+  `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-e6c10f43-6bb5-4972-8721-635a27961bf6.png`
+- Gerenciador de periodização invadindo a barra do sistema:
+  `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-38d227fb-dcfc-46aa-a819-ac56280129a9.png`
+- Cabeçalho quebrado e menu de recálculo superdimensionado:
+  `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-e81e30b9-8242-41b9-94b5-489aa5c96394.png`
+
+**Implementação capturada**
+
+- Home e gesto horizontal: `artifacts/design-qa/mobile-polish-home-horizontal-gesture.png`
+- Turmas com atualização global: `artifacts/design-qa/mobile-polish-classes-refresh.png`
+- Relatório com teclado: `artifacts/design-qa/mobile-polish-report-keyboard.png`
+- Periodização: `artifacts/design-qa/mobile-polish-periodization-galaxy-s25.png`
+- Menu de recálculo: `artifacts/design-qa/mobile-polish-periodization-recalculate.png`
+- Gerenciador do ciclo: `artifacts/design-qa/mobile-polish-periodization-manager.png`
+- Lista de alunos: `artifacts/design-qa/mobile-polish-students-list.png`
+- Detalhes e cadastro: `artifacts/design-qa/mobile-polish-student-detail.png` e
+  `artifacts/design-qa/mobile-polish-student-create.png`
+- Menu da turma: `artifacts/design-qa/mobile-polish-class-menu.png`
+
+**Ambiente e normalização**
+
+- Dispositivo: Galaxy S25, viewport físico `1080 x 2340 px`, tema escuro e
+  development build conectado ao Metro por ADB reverse.
+- As três capturas de origem e as nove capturas da implementação foram
+  comparadas juntas. Diferenças de turma, data e conteúdo são dados reais da
+  sessão e não alterações de layout.
+
+**Comparção visual e funcional**
+
+- Gestos: o carrossel da Home bloqueia o pull-to-refresh enquanto há gesto
+  horizontal. O refresh continua disponível na Home e em Turmas, com o mesmo
+  componente visual.
+- Relatório: o campo focado acompanha a abertura do teclado; `Salvar` usa a ação
+  primária verde e `Baixar PDF` usa a ação secundária, sem ambiguidade entre
+  persistir e exportar.
+- Periodização: o título permanece em uma linha e as ações ficam em uma faixa
+  própria. O cabeçalho nativo não tem o recorte de sombra superior ou inferior.
+- Modais: o gerenciador respeita as áreas seguras, tem margens consistentes e
+  densidade menor. O menu de recálculo usa altura de conteúdo e largura ampliada
+  para os rótulos do mês. O menu da turma é um bottom sheet alinhado ao rodapé,
+  com margens laterais e rótulos legíveis.
+- Planejamento: a troca de mês usa rolagem animada; o visualizador do plano
+  completo compartilha a moldura compacta do plano da turma; o valor da carga
+  foi recentralizado no gráfico circular.
+- Alunos: a lista ganhou densidade consistente. Detalhes, edição e cadastro
+  usam modal central seguro, hierarquia compacta e campos em duas colunas quando
+  o espaço permite.
+
+**Interações verificadas**
+
+- Swipe horizontal entre turmas na Home sem spinner de atualização.
+- Pull-to-refresh em Turmas com indicador visível.
+- Foco e digitação no relatório mantendo o campo de conclusão acima do teclado.
+- Abertura e fechamento do recálculo e do gerenciador de periodização.
+- Lista, detalhes e novo cadastro de aluno.
+- Abertura e rolagem do menu da turma.
+- Exportação do PDF, recálculo e regeneração não foram executados para não
+  alterar dados reais. A moldura compartilhada do plano e a área segura foram
+  cobertas por teste focado.
+
+**Validação técnica**
+
+- `npm run typecheck:app`
+- `npm run check:org-scope`
+- `npm run build`
+- Jest focado: 4 suítes e 29 testes aprovados.
+- `git diff --check` sem erro de whitespace; apenas avisos CRLF preexistentes em
+  arquivos fora deste pacote.
+
+**Escopo adiado**
+
+- O refinamento de quadra visual e análise de scouting permanece fora desta
+  rodada, conforme priorização do usuário.
+
+**Smoke físico final com o aparelho reconectado**
+
+- `artifacts/design-qa/goatleta-smoke-home-swipe.png`: o carrossel mudou de
+  `Estrelas do Saque` para `Águias` sem disparar o refresh.
+- `artifacts/design-qa/goatleta-smoke-classes-refresh.png`: Turmas permaneceu
+  responsiva ao gesto vertical de atualização.
+- `artifacts/design-qa/goatleta-smoke-report-keyboard-connected.png`: o campo
+  `Conclusão` permaneceu visível e focado acima do teclado.
+- `artifacts/design-qa/goatleta-smoke-periodization.png` e
+  `artifacts/design-qa/goatleta-smoke-periodization-recalculate-final.png`: o
+  cabeçalho ficou em uma linha e o rótulo completo de setembro coube no menu.
+- `artifacts/design-qa/goatleta-smoke-periodization-manager-final.png`: o modal
+  respeitou as margens superior, lateral e inferior do Galaxy S25.
+- `artifacts/design-qa/goatleta-smoke-class-menu-final.png` e
+  `artifacts/design-qa/goatleta-smoke-class-menu-scroll.png`: bottom sheet
+  alinhado ao rodapé, com rolagem e todos os destinos legíveis.
+- `artifacts/design-qa/goatleta-smoke-students-final.png`,
+  `artifacts/design-qa/goatleta-smoke-student-detail-final.png` e
+  `artifacts/design-qa/goatleta-smoke-student-create-final.png`: lista, edição
+  e cadastro permaneceram dentro da área segura e com hierarquia compacta.
+- Nenhuma chamada, relatório, recálculo ou cadastro foi salvo durante o smoke.
+
+final result: passed
+---
+
 # Chamada responsiva — 2026-08-22
 
 ## Referência e implementação
@@ -241,5 +345,143 @@ final result: passed
 - A implementação usa a carga real do ciclo e a aula mensal selecionada, enquanto o mockup contém valores demonstrativos e seleciona a primeira aula.
 - A curva real oscila por semana e por política de recuperação; o mockup ilustra uma onda simplificada.
 - O trilho anual mantém os cards e o scroll já existentes, mas omite o cabeçalho redundante no breakpoint compacto.
+
+final result: passed
+
+---
+
+# Design QA - preview A4 e navegação móvel
+
+**Fonte visual**
+
+- A4 completo no leitor: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-b3a61dc2-4a21-4eab-a873-838fbe2a3cdc.png`
+- Densidade de leitura no Word: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-801c0871-53ab-4a99-b735-8c671ef0720a.png`
+- Estado anterior do GoAtleta: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-73b433a3-c8c6-47ae-8941-ad1d2d073305.png`
+
+**Implementação capturada**
+
+- Preview inicial a 125%: `C:\Users\gusta\Downloads\GoAtleta\tmp\device-plan-zoom125.png`
+- Preview após pan horizontal: `C:\Users\gusta\Downloads\GoAtleta\tmp\device-plan-zoom125-panned.png`
+- Gaveta lateral nativa: `C:\Users\gusta\Downloads\GoAtleta\tmp\device-native-sidebar.png`
+
+**Ambiente e normalização**
+
+- Dispositivo: Galaxy S25, Android 16/API 36, development build `1.0.2-dev`.
+- Viewport e capturas: `1080 x 2340 px`; fonte e implementação possuem a mesma
+  densidade de captura do aparelho, sem redimensionamento para a comparação.
+- Estado: usuário autenticado, turma com plano aplicado, tema escuro do app e
+  documento A4 branco editável.
+- A captura do Word usa outro plano, tema e chrome de aplicativo. A comparação
+  considera escala, legibilidade e área visível da tabela, não cores ou controles
+  proprietários do Word.
+
+**Comparação visual**
+
+- Visão completa: o estado anterior ajustava quase toda a largura do documento
+  dentro do modal e deixava a tabela pequena. O estado revisado abre a 125%,
+  mostra aproximadamente a mesma quantidade de colunas da referência do Word e
+  preserva uma faixa lateral navegável.
+- Região focada: cabeçalho e primeiras linhas da tabela continuam nítidos; os
+  rótulos, valores, bordas e pesos tipográficos permanecem legíveis no zoom
+  inicial. O pan revela a coluna de descrição sem deslocar a toolbar do modal.
+
+**Superfícies de fidelidade**
+
+- Tipografia: família e pesos continuam sendo os do documento exportável; o
+  ganho de leitura vem do zoom do visualizador, não de uma alteração destrutiva
+  de fontes ou quebras de linha.
+- Espaçamento e layout: a folha usa `210 x 297 mm`, proporção `210 / 297` e
+  `box-sizing: border-box`. A toolbar fica fixa, com o documento navegável abaixo.
+- Cores e tokens: o documento permanece branco e imprimível; o chrome mantém os
+  tokens escuros do GoAtleta. Não foi copiado o tema preto do Word.
+- Imagens e ativos: não há imagem ou ativo de referência dentro do plano; os
+  ícones da toolbar e da gaveta vêm do registro de ícones existente.
+- Copy e conteúdo: nomes, datas e exercícios diferem porque as capturas usam
+  turmas distintas. Os rótulos estruturais do plano permanecem equivalentes.
+
+**Histórico da iteração**
+
+- P2 anterior: o enquadramento inicial deixava o plano pequeno demais para
+  leitura e não lembrava um editor de documento no celular.
+- Correção: definição explícita da caixa A4 e zoom móvel inicial de 125%, mantendo
+  pan e pinça e sem modificar o PDF gerado.
+- Evidência posterior: `device-plan-zoom125.png` e
+  `device-plan-zoom125-panned.png`; não restaram diferenças P0, P1 ou P2 no alvo
+  visual desta rodada.
+
+**Interações verificadas**
+
+- Pan horizontal no documento após a nova escala.
+- Pinça aprovada pelo usuário antes da calibração final; a ponte de zoom não foi
+  removida ou substituída nesta mudança.
+- Gaveta lateral aberta pelo botão da Home e fechada pelo botão físico Voltar.
+- Toolbar do plano permaneceu acessível; ações não foram executadas para evitar
+  alterar o plano real.
+
+**Pendências funcionais fora deste aceite visual**
+
+- Pan vertical nas bordas, edição longa, salvar/reabrir e APK sem Metro ainda
+  pertencem à matriz de release e não são considerados concluídos por este QA.
+
+final result: passed
+
+---
+
+# Design QA - drawer nativo com marca e perfil
+
+**Fonte visual e funcional**
+
+- Sidebar web expandida: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\goatleta-brand-sidebar-expanded.png`
+- Menu de perfil e troca de workspace web: `C:\Users\gusta\Downloads\GoAtleta\artifacts\design-qa\workspace-switcher-local-1209x812.png`
+- Componentes canônicos: `src/ui/WebSidebar.tsx` e `src/ui/GoAtletaBrand.tsx`.
+
+**Implementação capturada**
+
+- Drawer aberto: `artifacts/design-qa/native-sidebar-brand-profile-galaxy-s25.png`
+- Menu de perfil aberto: `artifacts/design-qa/native-sidebar-profile-menu-galaxy-s25.png`
+- Destino de perfil aberto pelo menu: `artifacts/design-qa/native-sidebar-profile-route-galaxy-s25.png`
+
+**Ambiente e normalização**
+
+- Dispositivo: Galaxy S25, Android 16/API 36, development build conectado ao
+  Metro por ADB reverse.
+- Viewport físico: `1080 x 2340 px`, tema escuro, sessão autenticada no perfil
+  Coordenação.
+- A referência web e a captura nativa foram comparadas juntas. A normalização
+  considera a mesma estrutura expandida; a diferença de quantidade de itens é
+  intencional porque a referência está no perfil Professor e o aparelho no
+  perfil Coordenação.
+
+**Comparação visual**
+
+- Marca: o placeholder textual `GA` foi removido. O topo nativo agora usa o
+  símbolo e o wordmark SVG oficiais, em branco, com o subtítulo contextual do
+  perfil, como no web.
+- Hierarquia: marca, navegação rolável e conta foram separados em três regiões.
+  A conta não rola com os atalhos e permanece ancorada ao rodapé.
+- Perfil: avatar por iniciais, nome, função e chevron repetem dimensões, estados,
+  bordas e paleta do card web.
+- Menu: `Perfil e configurações` e `Sair` aparecem acima do card, com divisor e
+  tratamento de perigo equivalentes à referência.
+- Movimento: o drawer permanece montado e usa `Animated.Value` com driver
+  nativo para translação e opacidade. Isso elimina o flash de montagem e mantém
+  a Home estável sob o scrim.
+
+**Histórico da iteração**
+
+- P1 anterior: o drawer aparecia de forma abrupta, sem transição estável.
+- P1 anterior: a marca oficial havia sido substituída por um círculo com `GA`.
+- P1 anterior: não existia o card de conta nem o menu de perfil no rodapé.
+- Correção: drawer persistente animado, ativos oficiais e rodapé funcional.
+- Comparação final: não restaram diferenças P0, P1 ou P2 no escopo solicitado.
+
+**Interações verificadas**
+
+- Abertura pelo botão de três linhas e fechamento pelo botão físico Voltar,
+  repetidos três vezes sem tela branca, remount da Home ou erro no Metro.
+- Abertura e fechamento do menu de perfil.
+- Navegação real para `Perfil` por `Perfil e configurações`.
+- `Sair` foi mantido funcional, mas não executado para preservar a sessão usada
+  no restante da validação.
 
 final result: passed
