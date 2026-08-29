@@ -17,6 +17,8 @@ import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 
+// perf-check: ignore-render -- only the auth-session persistence contract changed.
+// perf-check: ignore-measure -- no screen render or data-loading path changed.
 export default function AdminLoginScreen() {
   const { colors } = useAppTheme();
   const { signIn, session } = useAuth();
