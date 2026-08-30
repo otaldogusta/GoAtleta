@@ -3548,15 +3548,21 @@ export function SessionScreen({
         setConclusion(value);
         closePickers();
       }}
-      onFieldFocus={(nativeTarget) => {
+      onFieldFocus={(nativeTarget, field) => {
         if (!embeddedReport) return;
-        setTimeout(() => {
+        const additionalOffset =
+          field === "conclusion" ? 260 : field === "activity" ? 156 : 132;
+        const revealFocusedField = () => {
           embeddedReportScrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(
             nativeTarget,
-            132,
+            additionalOffset,
             true,
           );
-        }, 120);
+        };
+        setTimeout(revealFocusedField, 140);
+        if (Platform.OS === "android") {
+          setTimeout(revealFocusedField, 420);
+        }
       }}
       onRewriteActivity={() => void handleRewriteField("activity")}
       onRewriteConclusion={() => void handleRewriteField("conclusion")}

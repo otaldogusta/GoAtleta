@@ -22,6 +22,7 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
 
 type ReportTechnique = "boa" | "ok" | "ruim" | "nenhum";
 type ReportPhotoSource = "camera" | "library";
+type ReportFieldFocus = "participants" | "activity" | "conclusion";
 type DropdownLayout = { x: number; y: number; width: number; height: number };
 type ContainerPoint = { x: number; y: number };
 
@@ -91,7 +92,7 @@ type SessionReportTabProps = {
   onChangeParticipantsCount: (value: string) => void;
   onChangeActivity: (value: string) => void;
   onChangeConclusion: (value: string) => void;
-  onFieldFocus?: (nativeTarget: number) => void;
+  onFieldFocus?: (nativeTarget: number, field: ReportFieldFocus) => void;
   onRewriteActivity: () => void;
   onRewriteConclusion: () => void;
   onApplyAutoActivity: () => void;
@@ -314,7 +315,9 @@ export function SessionReportTab({
               placeholder={ptBR.session.report.participantsPlaceholder}
               value={participantsCount}
               onChangeText={onChangeParticipantsCount}
-              onFocus={(event) => onFieldFocus?.(event.nativeEvent.target)}
+              onFocus={(event) =>
+                onFieldFocus?.(event.nativeEvent.target, "participants")
+              }
               keyboardType="numeric"
               placeholderTextColor={colors.placeholder}
               style={{
@@ -337,7 +340,9 @@ export function SessionReportTab({
                 placeholder={ptBR.session.report.activityPlaceholder}
                 value={activity}
                 onChangeText={onChangeActivity}
-                onFocus={(event) => onFieldFocus?.(event.nativeEvent.target)}
+                onFocus={(event) =>
+                  onFieldFocus?.(event.nativeEvent.target, "activity")
+                }
                 placeholderTextColor={colors.placeholder}
                 style={{
                   borderWidth: 1,
@@ -456,7 +461,9 @@ export function SessionReportTab({
               placeholder={ptBR.session.report.conclusionPlaceholder}
               value={conclusion}
               onChangeText={onChangeConclusion}
-              onFocus={(event) => onFieldFocus?.(event.nativeEvent.target)}
+              onFocus={(event) =>
+                onFieldFocus?.(event.nativeEvent.target, "conclusion")
+              }
               placeholderTextColor={colors.placeholder}
               multiline
               style={{
