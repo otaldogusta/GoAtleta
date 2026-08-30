@@ -20,12 +20,19 @@ const toPublicUrl = (path: string, cacheVersion?: number) => {
   return `${base}/storage/v1/object/public/${PROFILE_PHOTO_BUCKET}/${encodedPath}${cacheQuery}`;
 };
 
-const readErrorText = async (res: Response) => {
-  try {
-    return (await res.text()) || "";
-  } catch {
-    return "";
+export const getProfilePhotoStorageErrorMessage = (
+  status: number,
+  action: "save" | "remove" = "save"
+) => {
+  if (status === 401) return "Sua sessão expirou. Entre novamente.";
+  if (status === 403) {
+    return action === "remove"
+      ? "Você não tem permissão para remover esta foto."
+      : "Não foi possível alterar esta foto. Atualize a página e tente novamente.";
   }
+  return action === "remove"
+    ? "Não foi possível remover a foto. Tente novamente."
+    : "Não foi possível salvar a foto. Tente novamente.";
 };
 
 const getAuthHeaders = async (contentType?: string) => {
@@ -77,8 +84,7 @@ export const uploadMyProfilePhoto = async (params: {
   );
 
   if (!res.ok) {
-    const text = await readErrorText(res);
-    throw new Error(text || "Failed to upload profile photo");
+    throw new Error(getProfilePhotoStorageErrorMessage(res.status));
   }
 
   return toPublicUrl(path, Date.now());
@@ -101,7 +107,6 @@ export const removeMyProfilePhotoObject = async (userId: string) => {
   );
 
   if (!res.ok && res.status !== 404) {
-    const text = await readErrorText(res);
-    throw new Error(text || "Failed to remove profile photo");
+    throw new Error(getProfilePhotoStorageErrorMessage(res.status, "remove"));
   }
 };
