@@ -1,6 +1,7 @@
 // perf-check: ignore-measure -- static capability summary with no async load.
 import { useRouter } from "expo-router";
-import { ScrollView, Text, View } from "react-native";
+import { useMemo } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -13,8 +14,61 @@ import { resolveFinanceSettingsDisplay } from "../../finance/application/finance
 import { markRender } from "../../observability/perf";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { radius, spacing } from "../../theme/tokens";
-import { useAppTheme } from "../../ui/app-theme";
+import { useAppTheme, type ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
+
+const PAYMENT_METHODS = [
+  ["Pix", "Disponível ao conectar"],
+  ["Boleto", "Disponível ao conectar"],
+  ["Cartão", "Disponível ao conectar"],
+] as const;
+
+const BILLING_RULES = [
+  "Vencimento definido em cada plano",
+  "Multa e juros serão configurados na integração",
+  "Lembretes serão enviados após a confirmação do provedor",
+  "A assinatura do Go Atleta fica em Configurações da instituição",
+] as const;
+
+const createFinanceSettingsStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    paymentMethodItem: {
+      minWidth: 150,
+      flexGrow: 1,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 10,
+      gap: 2,
+    },
+    paymentMethodLabel: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: "800",
+    },
+    paymentMethodValue: {
+      color: colors.muted,
+      fontSize: 11,
+    },
+    rulesCard: {
+      borderRadius: radius.container,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      padding: spacing.md,
+      gap: 10,
+    },
+    ruleRow: {
+      flexDirection: "row",
+      gap: 9,
+      alignItems: "flex-start",
+    },
+    ruleText: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+  });
 
 function ConfigurationCard({
   icon,
@@ -98,6 +152,7 @@ export default function CoordinationFinanceSettings({
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { activeOrganization } = useOrganization();
+  const styles = useMemo(() => createFinanceSettingsStyles(colors), [colors]);
   const integrationDisplay = resolveFinanceSettingsDisplay({
     capabilityEnabled: REAL_MONEY_PAYMENTS_ENABLED,
     // There is no read API for persisted subscription or merchant state yet.
@@ -153,71 +208,32 @@ export default function CoordinationFinanceSettings({
               Formas de pagamento
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {[
-                ["Pix", "Disponível ao conectar"],
-                ["Boleto", "Disponível ao conectar"],
-                ["Cartão", "Disponível ao conectar"],
-              ].map(([label, value]) => (
+              {PAYMENT_METHODS.map(([label, value]) => (
                 <View
                   key={label}
-                  style={{
-                    minWidth: 150,
-                    flexGrow: 1,
-                    borderTopWidth: 1,
-                    borderTopColor: colors.border,
-                    paddingTop: 10,
-                    gap: 2,
-                  }}
+                  style={styles.paymentMethodItem}
                 >
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>{label}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>{value}</Text>
+                  <Text style={styles.paymentMethodLabel}>{label}</Text>
+                  <Text style={styles.paymentMethodValue}>{value}</Text>
                 </View>
               ))}
             </View>
           </View>
 
-          <View
-            style={{
-              borderRadius: radius.container,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.card,
-              padding: spacing.md,
-              gap: 10,
-            }}
-          >
+          <View style={styles.rulesCard}>
             <Text
               style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
             >
               Regras de cobrança
             </Text>
-            {[
-              "Vencimento definido em cada plano",
-              "Multa e juros serão configurados na integração",
-              "Lembretes serão enviados após a confirmação do provedor",
-              "A assinatura do Go Atleta fica em Configurações da instituição",
-            ].map((item) => (
-              <View
-                key={item}
-                style={{
-                  flexDirection: "row",
-                  gap: 9,
-                  alignItems: "flex-start",
-                }}
-              >
+            {BILLING_RULES.map((item) => (
+              <View key={item} style={styles.ruleRow}>
                 <GoAtletaIcon
                   name="circleOutline"
                   size={16}
                   color={colors.muted}
                 />
-                <Text
-                  style={{
-                    flex: 1,
-                    color: colors.text,
-                    fontSize: 13,
-                    lineHeight: 18,
-                  }}
-                >
+                <Text style={styles.ruleText}>
                   {item}
                 </Text>
               </View>

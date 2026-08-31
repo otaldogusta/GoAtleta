@@ -1,6 +1,13 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Platform, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -28,8 +35,46 @@ import { useOrganization } from "../../providers/OrganizationProvider";
 import { radius, spacing } from "../../theme/tokens";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";
-import { useAppTheme } from "../../ui/app-theme";
+import { useAppTheme, type ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+
+const createTuitionSetupStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    planRow: {
+      minHeight: 62,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 11,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    agreementRow: {
+      minHeight: 72,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 11,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    rowContent: {
+      flex: 1,
+      minWidth: 0,
+    },
+    rowTitle: {
+      color: colors.text,
+      fontWeight: "800",
+    },
+    rowMeta: {
+      color: colors.muted,
+      fontSize: 12,
+    },
+    planAmount: {
+      color: colors.text,
+      fontWeight: "900",
+    },
+  });
 
 const dateOnly = (date: Date) => {
   const year = date.getFullYear();
@@ -115,6 +160,7 @@ export default function CoordinationTuitionSetup({
   markRender("screen.coordTuitionSetup.render.root");
   const router = useRouter();
   const { colors } = useAppTheme();
+  const styles = useMemo(() => createTuitionSetupStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { activeOrganization, memberPermissions, permissionsLoading } =
     useOrganization();
@@ -377,28 +423,20 @@ export default function CoordinationTuitionSetup({
                 {plans.map((plan) => (
                   <View
                     key={plan.id}
-                    style={{
-                      minHeight: 62,
-                      borderTopWidth: 1,
-                      borderTopColor: colors.border,
-                      paddingTop: 11,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
+                    style={styles.planRow}
                   >
-                    <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={styles.rowContent}>
                       <Text
                         numberOfLines={1}
-                        style={{ color: colors.text, fontWeight: "800" }}
+                        style={styles.rowTitle}
                       >
                         {plan.name}
                       </Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      <Text style={styles.rowMeta}>
                         vence no dia {plan.dueDay}
                       </Text>
                     </View>
-                    <Text style={{ color: colors.text, fontWeight: "900" }}>
+                    <Text style={styles.planAmount}>
                       {formatMoneyFromCents(plan.amountCents)}
                     </Text>
                   </View>
@@ -479,26 +517,18 @@ export default function CoordinationTuitionSetup({
                 {agreements.map((agreement) => (
                   <View
                     key={agreement.id}
-                    style={{
-                      minHeight: 72,
-                      borderTopWidth: 1,
-                      borderTopColor: colors.border,
-                      paddingTop: 11,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
+                    style={styles.agreementRow}
                   >
-                    <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={styles.rowContent}>
                       <Text
                         numberOfLines={1}
-                        style={{ color: colors.text, fontWeight: "800" }}
+                        style={styles.rowTitle}
                       >
                         {agreement.studentName}
                       </Text>
                       <Text
                         numberOfLines={1}
-                        style={{ color: colors.muted, fontSize: 12 }}
+                        style={styles.rowMeta}
                       >
                         {agreement.planName} ·{" "}
                         {formatMoneyFromCents(agreement.amountCents)}

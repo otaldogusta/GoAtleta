@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -35,7 +36,7 @@ import { ConfirmCloseOverlay } from "../../ui/ConfirmCloseOverlay";
 import { DateInput } from "../../ui/DateInput";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
-import { useAppTheme } from "../../ui/app-theme";
+import { useAppTheme, type ThemeColors } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { PaymentStatusBadge } from "./components/PaymentStatusBadge";
 
@@ -58,6 +59,111 @@ const PAYMENT_METHODS: ReadonlyArray<{
   { value: "bank_transfer", label: "Transferência" },
   { value: "other", label: "Outro" },
 ];
+
+const createManualPaymentStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    paymentMethodOption: {
+      minHeight: 38,
+      borderRadius: radius.full,
+      borderWidth: 1,
+      paddingHorizontal: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    paymentMethodOptionSelected: {
+      borderColor: colors.primaryBg,
+      backgroundColor: colors.primaryBg,
+    },
+    paymentMethodOptionIdle: {
+      borderColor: colors.border,
+      backgroundColor: colors.inputBg,
+    },
+    paymentMethodLabel: {
+      fontSize: 12,
+      fontWeight: "800",
+    },
+    paymentMethodLabelSelected: {
+      color: colors.primaryText,
+    },
+    paymentMethodLabelIdle: {
+      color: colors.text,
+    },
+  });
+
+const createReceivablesStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    row: {
+      minHeight: 96,
+      paddingVertical: 12,
+      paddingHorizontal: spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 12,
+    },
+    rowContent: {
+      flexGrow: 1,
+      flexBasis: 220,
+      minWidth: 0,
+      gap: 4,
+    },
+    rowTitle: {
+      color: colors.text,
+      fontSize: 14,
+      fontWeight: "900",
+    },
+    rowMeta: {
+      color: colors.muted,
+      fontSize: 12,
+    },
+    rowPaymentMeta: {
+      color: colors.muted,
+      fontSize: 11,
+    },
+    rowSummary: {
+      minWidth: 150,
+      alignItems: "flex-end",
+      gap: 6,
+    },
+    rowBalance: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: "900",
+    },
+    rowAction: {
+      minHeight: 34,
+      borderRadius: radius.full,
+      backgroundColor: colors.primaryBg,
+      paddingHorizontal: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    rowActionText: {
+      color: colors.primaryText,
+      fontSize: 11,
+      fontWeight: "900",
+    },
+    emptyState: {
+      minHeight: 220,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 9,
+      padding: spacing.lg,
+    },
+    emptyTitle: {
+      color: colors.text,
+      fontWeight: "900",
+    },
+    emptyDescription: {
+      color: colors.muted,
+      fontSize: 13,
+      textAlign: "center",
+    },
+  });
+
+type ReceivablesStyles = ReturnType<typeof createReceivablesStyles>;
 
 const todayDateOnly = () => {
   const now = new Date();
@@ -160,6 +266,7 @@ export function ManualPaymentModal({
   onSuccess: (result: ManualPaymentSuccess) => Promise<void> | void;
 }) {
   const { colors } = useAppTheme();
+  const styles = useMemo(() => createManualPaymentStyles(colors), [colors]);
   const outstandingCents = invoice
     ? getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents)
     : 0;
@@ -409,18 +516,21 @@ export function ManualPaymentModal({
                         setMethod(option.value);
                         clearFormError();
                       }}
-                      style={{
-                        minHeight: 38,
-                        borderRadius: radius.full,
-                        borderWidth: 1,
-                        borderColor: selected ? colors.primaryBg : colors.border,
-                        backgroundColor: selected ? colors.primaryBg : colors.inputBg,
-                        paddingHorizontal: 12,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
+                      style={[
+                        styles.paymentMethodOption,
+                        selected
+                          ? styles.paymentMethodOptionSelected
+                          : styles.paymentMethodOptionIdle,
+                      ]}
                     >
-                      <Text style={{ color: selected ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "800" }}>
+                      <Text
+                        style={[
+                          styles.paymentMethodLabel,
+                          selected
+                            ? styles.paymentMethodLabelSelected
+                            : styles.paymentMethodLabelIdle,
+                        ]}
+                      >
                         {option.label}
                       </Text>
                     </Pressable>
@@ -556,11 +666,12 @@ export function ManualPaymentModal({
 function ReceivableRow({
   invoice,
   onRecord,
+  styles,
 }: {
   invoice: OrganizationInvoice;
   onRecord: (invoice: OrganizationInvoice) => void;
+  styles: ReceivablesStyles;
 }) {
-  const { colors } = useAppTheme();
   const outstandingCents = getInvoiceOutstandingCents(
     invoice.amountCents,
     invoice.paidCents
@@ -572,34 +683,22 @@ function ReceivableRow({
   });
 
   return (
-    <View
-      style={{
-        minHeight: 96,
-        paddingVertical: 12,
-        paddingHorizontal: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        flexDirection: "row",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 12,
-      }}
-    >
-      <View style={{ flexGrow: 1, flexBasis: 220, minWidth: 0, gap: 4 }}>
-        <Text numberOfLines={1} style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
+    <View style={styles.row}>
+      <View style={styles.rowContent}>
+        <Text numberOfLines={1} style={styles.rowTitle}>
           {invoice.studentName}
         </Text>
-        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
+        <Text numberOfLines={1} style={styles.rowMeta}>
           {invoice.description} · {formatFinanceDate(invoice.dueDate)}
         </Text>
         {invoice.paidCents > 0 ? (
-          <Text style={{ color: colors.muted, fontSize: 11 }}>
+          <Text style={styles.rowPaymentMeta}>
             Total {formatMoneyFromCents(invoice.amountCents)} · pago {formatMoneyFromCents(invoice.paidCents)}
           </Text>
         ) : null}
       </View>
-      <View style={{ minWidth: 150, alignItems: "flex-end", gap: 6 }}>
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>
+      <View style={styles.rowSummary}>
+        <Text style={styles.rowBalance}>
           Saldo {formatMoneyFromCents(outstandingCents)}
         </Text>
         <PaymentStatusBadge status={invoice.status} />
@@ -607,16 +706,9 @@ function ReceivableRow({
           <Pressable
             accessibilityLabel={`Registrar pagamento de ${invoice.studentName}`}
             onPress={() => onRecord(invoice)}
-            style={{
-              minHeight: 34,
-              borderRadius: radius.full,
-              backgroundColor: colors.primaryBg,
-              paddingHorizontal: 12,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            style={styles.rowAction}
           >
-            <Text style={{ color: colors.primaryText, fontSize: 11, fontWeight: "900" }}>
+            <Text style={styles.rowActionText}>
               Registrar pagamento
             </Text>
           </Pressable>
@@ -630,6 +722,7 @@ export default function CoordinationReceivables() {
   markRender("screen.coordReceivables.render.root");
   const router = useRouter();
   const { colors } = useAppTheme();
+  const styles = useMemo(() => createReceivablesStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
   const organizationId = activeOrganization?.id ?? "";
@@ -756,13 +849,14 @@ export default function CoordinationReceivables() {
                     key={invoice.id}
                     invoice={invoice}
                     onRecord={setSelectedInvoice}
+                    styles={styles}
                   />
                 ))
               ) : (
-                <View style={{ minHeight: 220, alignItems: "center", justifyContent: "center", gap: 9, padding: spacing.lg }}>
+                <View style={styles.emptyState}>
                   <GoAtletaIcon name="document" size={28} color={colors.muted} />
-                  <Text style={{ color: colors.text, fontWeight: "900" }}>Nenhuma cobrança emitida</Text>
-                  <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center" }}>
+                  <Text style={styles.emptyTitle}>Nenhuma cobrança emitida</Text>
+                  <Text style={styles.emptyDescription}>
                     Os títulos aparecem aqui depois que um plano é vinculado ao atleta.
                   </Text>
                 </View>

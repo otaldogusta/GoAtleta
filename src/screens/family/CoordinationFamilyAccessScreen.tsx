@@ -5,6 +5,7 @@ import {
   Platform,
   ScrollView,
   Share,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -187,6 +188,83 @@ export default function CoordinationFamilyAccessScreen({
       )
       .slice(0, 40);
   }, [query, students]);
+  const listStyles = useMemo(
+    () => ({
+      studentOption: [styles.studentOption, { borderColor: colors.border }],
+      selectedStudentOption: [
+        styles.studentOption,
+        {
+          borderColor: colors.primaryBg,
+          backgroundColor: colors.secondaryBg,
+        },
+      ],
+      studentName: [styles.studentName, { color: colors.text }],
+      selectedStudentName: [styles.selectedStudentName, { color: colors.text }],
+      relationshipKind: [
+        styles.relationshipKind,
+        { borderColor: colors.border, backgroundColor: colors.card },
+      ],
+      selectedRelationshipKind: [
+        styles.relationshipKind,
+        {
+          borderColor: colors.primaryBg,
+          backgroundColor: colors.primaryBg,
+        },
+      ],
+      relationshipKindText: [
+        styles.relationshipKindText,
+        { color: colors.text },
+      ],
+      selectedRelationshipKindText: [
+        styles.relationshipKindText,
+        { color: colors.primaryText },
+      ],
+      permission: [styles.permission, { borderColor: colors.border }],
+      selectedPermission: [
+        styles.permission,
+        {
+          borderColor: colors.successBg,
+          backgroundColor: colors.secondaryBg,
+        },
+      ],
+      permissionText: [styles.permissionText, { color: colors.text }],
+      upcomingPermission: [
+        styles.upcomingPermission,
+        {
+          borderColor: colors.border,
+          backgroundColor: colors.secondaryBg,
+        },
+      ],
+      upcomingPermissionText: [styles.permissionText, { color: colors.muted }],
+      inviteRow: [styles.inviteRow, { borderTopColor: colors.border }],
+      relationshipRow: [
+        styles.relationshipRow,
+        { borderTopColor: colors.border },
+      ],
+      itemTitle: [styles.itemTitle, { color: colors.text }],
+      itemMeta: [styles.itemMeta, { color: colors.muted }],
+      plan: [styles.plan, { borderColor: colors.border }],
+      selectedPlan: [
+        styles.plan,
+        {
+          borderColor: colors.primaryBg,
+          backgroundColor: colors.primaryBg,
+        },
+      ],
+      planText: [styles.planText, { color: colors.text }],
+      selectedPlanText: [styles.planText, { color: colors.primaryText }],
+    }),
+    [
+      colors.border,
+      colors.card,
+      colors.muted,
+      colors.primaryBg,
+      colors.primaryText,
+      colors.secondaryBg,
+      colors.successBg,
+      colors.text,
+    ],
+  );
 
   /* eslint-disable react-hooks/set-state-in-effect -- These effects synchronize the selected organization and athlete with remote access data. */
   useEffect(() => {
@@ -399,22 +477,31 @@ export default function CoordinationFamilyAccessScreen({
       setBusy(false);
     }
   };
+  const handleStandaloneBack = useCallback(() => {
+    router.replace("/coord/management" as never);
+  }, [router]);
 
   return (
     <SafeAreaView
       edges={embedded ? [] : ["top"]}
-      style={{ flex: 1, minHeight: 0, backgroundColor: embedded ? colors.card : colors.background }}
+      style={{
+        flex: 1,
+        minHeight: 0,
+        backgroundColor: embedded ? colors.card : colors.background,
+      }}
     >
       <ScrollView
         style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={{ paddingBottom: embedded ? spacing.md : insets.bottom + 84 }}
+        contentContainerStyle={{
+          paddingBottom: embedded ? spacing.md : insets.bottom + 84,
+        }}
         keyboardShouldPersistTaps="handled"
       >
         <ResponsivePage variant="dashboard" gap={spacing.md}>
           <ScreenPageHeader
             title="Acessos familiares"
             subtitle="Responsáveis, atletas e pagadores"
-            onBack={onClose ?? (() => router.replace("/coord/management" as never))}
+            onBack={onClose ?? handleStandaloneBack}
             horizontalBleed={0}
           />
 
@@ -477,26 +564,19 @@ export default function CoordinationFamilyAccessScreen({
                         setInviteUrl("");
                         setMessage("");
                       }}
-                      style={{
-                        minHeight: 44,
-                        borderRadius: radius.card,
-                        borderWidth: 1,
-                        borderColor: selected
-                          ? colors.primaryBg
-                          : colors.border,
-                        backgroundColor: selected
-                          ? colors.secondaryBg
-                          : "transparent",
-                        paddingHorizontal: 11,
-                        justifyContent: "center",
-                      }}
+                      style={
+                        selected
+                          ? listStyles.selectedStudentOption
+                          : listStyles.studentOption
+                      }
                     >
                       <Text
                         numberOfLines={1}
-                        style={{
-                          color: colors.text,
-                          fontWeight: selected ? "900" : "700",
-                        }}
+                        style={
+                          selected
+                            ? listStyles.selectedStudentName
+                            : listStyles.studentName
+                        }
                       >
                         {student.name}
                       </Text>
@@ -538,26 +618,18 @@ export default function CoordinationFamilyAccessScreen({
                       <Pressable
                         key={option}
                         onPress={() => changeKind(option)}
-                        style={{
-                          minHeight: 38,
-                          borderRadius: radius.full,
-                          borderWidth: 1,
-                          borderColor: selected
-                            ? colors.primaryBg
-                            : colors.border,
-                          backgroundColor: selected
-                            ? colors.primaryBg
-                            : colors.card,
-                          paddingHorizontal: 12,
-                          justifyContent: "center",
-                        }}
+                        style={
+                          selected
+                            ? listStyles.selectedRelationshipKind
+                            : listStyles.relationshipKind
+                        }
                       >
                         <Text
-                          style={{
-                            color: selected ? colors.primaryText : colors.text,
-                            fontSize: 12,
-                            fontWeight: "800",
-                          }}
+                          style={
+                            selected
+                              ? listStyles.selectedRelationshipKindText
+                              : listStyles.relationshipKindText
+                          }
                         >
                           {relationshipKindLabel[option]}
                         </Text>
@@ -593,34 +665,18 @@ export default function CoordinationFamilyAccessScreen({
                       <Pressable
                         key={option.key}
                         onPress={() => togglePermission(option.key)}
-                        style={{
-                          minHeight: 36,
-                          borderRadius: radius.card,
-                          borderWidth: 1,
-                          borderColor: selected
-                            ? colors.successBg
-                            : colors.border,
-                          backgroundColor: selected
-                            ? colors.secondaryBg
-                            : "transparent",
-                          paddingHorizontal: 10,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
+                        style={
+                          selected
+                            ? listStyles.selectedPermission
+                            : listStyles.permission
+                        }
                       >
                         <GoAtletaIcon
                           name={selected ? "checkmark" : "circleOutline"}
                           size={14}
                           color={selected ? colors.success : colors.muted}
                         />
-                        <Text
-                          style={{
-                            color: colors.text,
-                            fontSize: 12,
-                            fontWeight: "700",
-                          }}
-                        >
+                        <Text style={listStyles.permissionText}>
                           {option.label}
                         </Text>
                       </Pressable>
@@ -630,31 +686,14 @@ export default function CoordinationFamilyAccessScreen({
                     <View
                       key={label}
                       accessibilityLabel={`${label}, em breve`}
-                      style={{
-                        minHeight: 36,
-                        borderRadius: radius.card,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.secondaryBg,
-                        opacity: 0.72,
-                        paddingHorizontal: 10,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
+                      style={listStyles.upcomingPermission}
                     >
                       <GoAtletaIcon
                         name="lock"
                         size={14}
                         color={colors.muted}
                       />
-                      <Text
-                        style={{
-                          color: colors.muted,
-                          fontSize: 12,
-                          fontWeight: "700",
-                        }}
-                      >
+                      <Text style={listStyles.upcomingPermissionText}>
                         {label} · Em breve
                       </Text>
                     </View>
@@ -730,26 +769,12 @@ export default function CoordinationFamilyAccessScreen({
                   </Text>
                 ) : null}
                 {invites.slice(0, 12).map((invite) => (
-                  <View
-                    key={invite.id}
-                    style={{
-                      minHeight: 62,
-                      borderTopWidth: 1,
-                      borderTopColor: colors.border,
-                      paddingTop: 11,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 9,
-                    }}
-                  >
-                    <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-                      <Text
-                        numberOfLines={1}
-                        style={{ color: colors.text, fontWeight: "800" }}
-                      >
+                  <View key={invite.id} style={listStyles.inviteRow}>
+                    <View style={styles.inviteContent}>
+                      <Text numberOfLines={1} style={listStyles.itemTitle}>
                         {invite.invitedEmail}
                       </Text>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
+                      <Text style={listStyles.itemMeta}>
                         {relationshipKindLabel[invite.relationshipKind]} ·{" "}
                         {invite.status === "pending"
                           ? "aguardando aceite"
@@ -828,29 +853,14 @@ export default function CoordinationFamilyAccessScreen({
                 {relationships.map((relationship) => (
                   <View
                     key={relationship.id}
-                    style={{
-                      minHeight: 72,
-                      borderTopWidth: 1,
-                      borderTopColor: colors.border,
-                      paddingTop: 11,
-                      gap: 8,
-                    }}
+                    style={listStyles.relationshipRow}
                   >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 9,
-                      }}
-                    >
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          numberOfLines={1}
-                          style={{ color: colors.text, fontWeight: "800" }}
-                        >
+                    <View style={styles.relationshipHeader}>
+                      <View style={styles.relationshipContent}>
+                        <Text numberOfLines={1} style={listStyles.itemTitle}>
                           {relationship.contactEmail || "Conta removida"}
                         </Text>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>
+                        <Text style={listStyles.itemMeta}>
                           {relationshipKindLabel[relationship.kind]} ·{" "}
                           {relationship.status === "active"
                             ? "ativo"
@@ -883,28 +893,18 @@ export default function CoordinationFamilyAccessScreen({
                               <Pressable
                                 key={plan.id}
                                 onPress={() => setSelectedPlanId(plan.id)}
-                                style={{
-                                  minHeight: 34,
-                                  borderRadius: radius.full,
-                                  borderWidth: 1,
-                                  borderColor: selected
-                                    ? colors.primaryBg
-                                    : colors.border,
-                                  backgroundColor: selected
-                                    ? colors.primaryBg
-                                    : "transparent",
-                                  paddingHorizontal: 9,
-                                  justifyContent: "center",
-                                }}
+                                style={
+                                  selected
+                                    ? listStyles.selectedPlan
+                                    : listStyles.plan
+                                }
                               >
                                 <Text
-                                  style={{
-                                    color: selected
-                                      ? colors.primaryText
-                                      : colors.text,
-                                    fontSize: 11,
-                                    fontWeight: "800",
-                                  }}
+                                  style={
+                                    selected
+                                      ? listStyles.selectedPlanText
+                                      : listStyles.planText
+                                  }
                                 >
                                   {plan.name}
                                 </Text>
@@ -932,3 +932,101 @@ export default function CoordinationFamilyAccessScreen({
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  studentOption: {
+    minHeight: 44,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    backgroundColor: "transparent",
+    paddingHorizontal: 11,
+    justifyContent: "center",
+  },
+  studentName: {
+    fontWeight: "700",
+  },
+  selectedStudentName: {
+    fontWeight: "900",
+  },
+  relationshipKind: {
+    minHeight: 38,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+  },
+  relationshipKindText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  permission: {
+    minHeight: 36,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    backgroundColor: "transparent",
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  upcomingPermission: {
+    minHeight: 36,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    opacity: 0.72,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  permissionText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  inviteRow: {
+    minHeight: 62,
+    borderTopWidth: 1,
+    paddingTop: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  inviteContent: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  relationshipRow: {
+    minHeight: 72,
+    borderTopWidth: 1,
+    paddingTop: 11,
+    gap: 8,
+  },
+  relationshipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  relationshipContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  itemTitle: {
+    fontWeight: "800",
+  },
+  itemMeta: {
+    fontSize: 12,
+  },
+  plan: {
+    minHeight: 34,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    backgroundColor: "transparent",
+    paddingHorizontal: 9,
+    justifyContent: "center",
+  },
+  planText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+});

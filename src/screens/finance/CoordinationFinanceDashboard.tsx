@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -241,6 +241,225 @@ const isMissingFinanceFoundation = (error: unknown) => {
   );
 };
 
+type FinanceDashboardColors = ReturnType<typeof useAppTheme>["colors"];
+
+const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
+  StyleSheet.create({
+    summaryMetricCell: {
+      minHeight: 76,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      justifyContent: "center",
+      gap: 4,
+      borderColor: colors.border,
+    },
+    summaryMetricCellCompact: { width: "50%" },
+    summaryMetricCellWide: { width: "25%" },
+    summaryMetricCellLeftDivider: { borderLeftWidth: 1 },
+    summaryMetricCellTopDivider: { borderTopWidth: 1 },
+    summaryMetricLabel: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    summaryMetricValue: {
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: "900",
+    },
+    summaryMetricValueSuccess: { color: colors.success },
+    summaryMetricValueWarning: { color: colors.warning },
+    summaryMetricValueDanger: { color: colors.danger },
+    sectionTabs: {
+      flexDirection: "row",
+      gap: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    sectionTabsCompact: { flexWrap: "wrap" },
+    sectionTabsWide: { flexWrap: "nowrap" },
+    sectionTab: {
+      minHeight: 40,
+      paddingHorizontal: 14,
+      borderBottomWidth: 2,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    sectionTabSelected: { borderBottomColor: colors.success },
+    sectionTabIdle: { borderBottomColor: "transparent" },
+    sectionTabLabel: { fontSize: 12 },
+    sectionTabLabelSelected: {
+      color: colors.text,
+      fontWeight: "900",
+    },
+    sectionTabLabelIdle: {
+      color: colors.muted,
+      fontWeight: "700",
+    },
+    attentionRow: {
+      minHeight: 58,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    attentionPrimaryColumn: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    listPrimaryText: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: "800",
+    },
+    listSecondaryText: {
+      color: colors.muted,
+      fontSize: 11,
+    },
+    attentionValueColumn: {
+      alignItems: "flex-end",
+      gap: 3,
+    },
+    attentionValue: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "900",
+    },
+    attentionStatus: {
+      color: colors.danger,
+      fontSize: 11,
+      fontWeight: "800",
+    },
+    receiptBreakdownRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    receiptBreakdownLabel: {
+      color: colors.muted,
+      fontSize: 12,
+    },
+    receiptBreakdownValue: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: "900",
+    },
+    flexSpacer: { flex: 1 },
+    payerRow: {
+      minHeight: 62,
+      borderTopColor: colors.border,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+    },
+    payerRowFirst: { borderTopWidth: 0 },
+    payerRowDivided: { borderTopWidth: 1 },
+    payerRowCompact: {
+      flexDirection: "column",
+      alignItems: "stretch",
+      gap: 6,
+    },
+    payerRowWide: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+    },
+    payerPrimaryColumn: {
+      flex: 1.1,
+      minWidth: 0,
+      gap: 2,
+    },
+    payerStudentColumn: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    payerStudentName: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    payerAmount: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "900",
+    },
+    detailRow: { gap: 3 },
+    detailLabel: {
+      color: colors.muted,
+      fontSize: 11,
+      fontWeight: "700",
+    },
+    detailValue: {
+      color: colors.text,
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "700",
+    },
+    detailSupportingText: {
+      color: colors.muted,
+      fontSize: 11,
+      lineHeight: 16,
+    },
+    filterButton: {
+      minHeight: 32,
+      borderRadius: radius.card,
+      borderWidth: 1,
+      paddingHorizontal: 11,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    filterButtonSelected: {
+      borderColor: colors.primaryBg,
+      backgroundColor: colors.primaryBg,
+    },
+    filterButtonIdle: {
+      borderColor: colors.border,
+      backgroundColor: colors.secondaryBg,
+    },
+    filterLabel: {
+      fontSize: 11,
+      fontWeight: "800",
+    },
+    filterLabelSelected: { color: colors.primaryText },
+    filterLabelIdle: { color: colors.text },
+    pageButton: {
+      width: 32,
+      height: 32,
+      borderRadius: radius.card,
+      borderWidth: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    pageButtonSelected: {
+      borderColor: colors.primaryBg,
+      backgroundColor: colors.successBg,
+    },
+    pageButtonIdle: {
+      borderColor: "transparent",
+      backgroundColor: "transparent",
+    },
+    pageLabel: {
+      fontSize: 11,
+      fontWeight: "800",
+    },
+    pageLabelSelected: { color: colors.successText },
+    pageLabelIdle: { color: colors.text },
+    monthOptionLabel: {
+      fontSize: 12,
+      fontWeight: "800",
+    },
+    monthOptionLabelSelected: { color: colors.primaryText },
+    monthOptionLabelIdle: { color: colors.text },
+  });
+
+const useFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
+  useMemo(() => createFinanceDashboardStyles(colors), [colors]);
+
 function FinanceAction({
   label,
   icon,
@@ -301,13 +520,26 @@ function FinanceSummaryStrip({
   compact: boolean;
 }) {
   const { colors } = useAppTheme();
+  const dashboardStyles = useFinanceDashboardStyles(colors);
   const receivedRate = summary.expectedCents
     ? Math.min(100, Math.round((summary.receivedCents / summary.expectedCents) * 100))
     : 0;
   const items = [
-    { label: "Recebido", value: formatMoneyFromCents(summary.receivedCents), color: colors.success },
-    { label: "Em aberto", value: formatMoneyFromCents(summary.openCents), color: colors.warning },
-    { label: "Vencido", value: formatMoneyFromCents(summary.overdueCents), color: colors.danger },
+    {
+      label: "Recebido",
+      value: formatMoneyFromCents(summary.receivedCents),
+      valueStyle: dashboardStyles.summaryMetricValueSuccess,
+    },
+    {
+      label: "Em aberto",
+      value: formatMoneyFromCents(summary.openCents),
+      valueStyle: dashboardStyles.summaryMetricValueWarning,
+    },
+    {
+      label: "Vencido",
+      value: formatMoneyFromCents(summary.overdueCents),
+      valueStyle: dashboardStyles.summaryMetricValueDanger,
+    },
   ];
   const columns = compact ? 2 : 4;
 
@@ -326,23 +558,24 @@ function FinanceSummaryStrip({
       {items.map((item, index) => (
         <View
           key={item.label}
-          style={{
-            width: compact ? "50%" : "25%",
-            minHeight: 76,
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            justifyContent: "center",
-            gap: 4,
-            borderLeftWidth: index % columns === 0 ? 0 : 1,
-            borderTopWidth: compact && index >= 2 ? 1 : 0,
-            borderColor: colors.border,
-          }}
+          style={[
+            dashboardStyles.summaryMetricCell,
+            compact
+              ? dashboardStyles.summaryMetricCellCompact
+              : dashboardStyles.summaryMetricCellWide,
+            index % columns === 0
+              ? undefined
+              : dashboardStyles.summaryMetricCellLeftDivider,
+            compact && index >= 2
+              ? dashboardStyles.summaryMetricCellTopDivider
+              : undefined,
+          ]}
         >
-          <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>{item.label}</Text>
+          <Text style={dashboardStyles.summaryMetricLabel}>{item.label}</Text>
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit
-            style={{ color: item.color, fontSize: 18, lineHeight: 22, fontWeight: "900" }}
+            style={[dashboardStyles.summaryMetricValue, item.valueStyle]}
           >
             {item.value}
           </Text>
@@ -390,6 +623,7 @@ function FinanceSectionTabs({
   onChange: (section: FinanceSection) => void;
 }) {
   const { colors } = useAppTheme();
+  const dashboardStyles = useFinanceDashboardStyles(colors);
   const sections: readonly [FinanceSection, string][] = [
     ["overview", "Visão geral"],
     ["charges", "Cobranças"],
@@ -400,13 +634,12 @@ function FinanceSectionTabs({
   return (
     <View
       accessibilityRole="tablist"
-      style={{
-        flexDirection: "row",
-        flexWrap: compact ? "wrap" : "nowrap",
-        gap: 4,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-      }}
+      style={[
+        dashboardStyles.sectionTabs,
+        compact
+          ? dashboardStyles.sectionTabsCompact
+          : dashboardStyles.sectionTabsWide,
+      ]}
     >
       {sections.map(([value, label]) => {
         const selected = value === active;
@@ -416,21 +649,20 @@ function FinanceSectionTabs({
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             onPress={() => onChange(value)}
-            style={{
-              minHeight: 40,
-              paddingHorizontal: 14,
-              borderBottomWidth: 2,
-              borderBottomColor: selected ? colors.success : "transparent",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            style={[
+              dashboardStyles.sectionTab,
+              selected
+                ? dashboardStyles.sectionTabSelected
+                : dashboardStyles.sectionTabIdle,
+            ]}
           >
             <Text
-              style={{
-                color: selected ? colors.text : colors.muted,
-                fontSize: 12,
-                fontWeight: selected ? "900" : "700",
-              }}
+              style={[
+                dashboardStyles.sectionTabLabel,
+                selected
+                  ? dashboardStyles.sectionTabLabelSelected
+                  : dashboardStyles.sectionTabLabelIdle,
+              ]}
             >
               {label}
             </Text>
@@ -455,6 +687,7 @@ function FinanceOverviewPanel({
   onNewCharge: () => void;
 }) {
   const { colors } = useAppTheme();
+  const dashboardStyles = useFinanceDashboardStyles(colors);
   const attentionInvoices = invoices
     .filter((invoice) => invoiceMatchesFilter(invoice, "attention"))
     .sort((left, right) => left.dueDate.localeCompare(right.dueDate))
@@ -517,30 +750,21 @@ function FinanceOverviewPanel({
               <Pressable
                 key={invoice.id}
                 onPress={onOpenCharges}
-                style={{
-                  minHeight: 58,
-                  borderTopWidth: 1,
-                  borderTopColor: colors.border,
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                }}
+                style={dashboardStyles.attentionRow}
               >
-                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                <View style={dashboardStyles.attentionPrimaryColumn}>
+                  <Text numberOfLines={1} style={dashboardStyles.listPrimaryText}>
                     {invoice.studentName}
                   </Text>
-                  <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
+                  <Text numberOfLines={1} style={dashboardStyles.listSecondaryText}>
                     {invoice.payerName ?? invoice.description}
                   </Text>
                 </View>
-                <View style={{ alignItems: "flex-end", gap: 3 }}>
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>
+                <View style={dashboardStyles.attentionValueColumn}>
+                  <Text style={dashboardStyles.attentionValue}>
                     {formatMoneyFromCents(getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents))}
                   </Text>
-                  <Text style={{ color: colors.danger, fontSize: 11, fontWeight: "800" }}>
+                  <Text style={dashboardStyles.attentionStatus}>
                     {getOperationalStatusLabel(invoice) ?? "Requer atenção"}
                   </Text>
                 </View>
@@ -588,13 +812,13 @@ function FinanceOverviewPanel({
               ["Em aberto", summary.openCount],
               ["Vencidas", summary.overdueCount],
             ].map(([label, value]) => (
-              <View key={String(label)} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>{value}</Text>
+              <View key={String(label)} style={dashboardStyles.receiptBreakdownRow}>
+                <Text style={dashboardStyles.receiptBreakdownLabel}>{label}</Text>
+                <Text style={dashboardStyles.receiptBreakdownValue}>{value}</Text>
               </View>
             ))}
           </View>
-          <View style={{ flex: 1 }} />
+          <View style={dashboardStyles.flexSpacer} />
           <FinanceAction label="Nova cobrança" icon="add" primary onPress={onNewCharge} />
         </View>
       </View>
@@ -614,6 +838,7 @@ function FinancePayersPanel({
   onManagePeople: () => void;
 }) {
   const { colors } = useAppTheme();
+  const dashboardStyles = useFinanceDashboardStyles(colors);
 
   return (
     <View style={{ gap: 12 }}>
@@ -655,34 +880,33 @@ function FinancePayersPanel({
             return (
               <View
                 key={agreement.id}
-                style={{
-                  minHeight: 62,
-                  borderTopWidth: index === 0 ? 0 : 1,
-                  borderTopColor: colors.border,
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  flexDirection: compact ? "column" : "row",
-                  alignItems: compact ? "stretch" : "center",
-                  gap: compact ? 6 : 14,
-                }}
+                style={[
+                  dashboardStyles.payerRow,
+                  index === 0
+                    ? dashboardStyles.payerRowFirst
+                    : dashboardStyles.payerRowDivided,
+                  compact
+                    ? dashboardStyles.payerRowCompact
+                    : dashboardStyles.payerRowWide,
+                ]}
               >
-                <View style={{ flex: 1.1, minWidth: 0, gap: 2 }}>
-                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+                <View style={dashboardStyles.payerPrimaryColumn}>
+                  <Text numberOfLines={1} style={dashboardStyles.listPrimaryText}>
                     {invoice?.payerName ?? "Responsável financeiro vinculado"}
                   </Text>
-                  <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
+                  <Text numberOfLines={1} style={dashboardStyles.listSecondaryText}>
                     {invoice?.payerContact ?? "Acesso gerenciado em Gestão"}
                   </Text>
                 </View>
-                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                <View style={dashboardStyles.payerStudentColumn}>
+                  <Text numberOfLines={1} style={dashboardStyles.payerStudentName}>
                     {agreement.studentName}
                   </Text>
-                  <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
+                  <Text numberOfLines={1} style={dashboardStyles.listSecondaryText}>
                     {agreement.planName}
                   </Text>
                 </View>
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "900" }}>
+                <Text style={dashboardStyles.payerAmount}>
                   {formatMoneyFromCents(agreement.amountCents)}
                 </Text>
               </View>
@@ -718,6 +942,7 @@ function InvoiceDetails({
   onRecord: (invoice: FinanceInvoice) => void;
 }) {
   const { colors } = useAppTheme();
+  const dashboardStyles = useFinanceDashboardStyles(colors);
 
   if (!invoice) {
     return (
@@ -801,20 +1026,13 @@ function InvoiceDetails({
       <View style={{ height: 1, backgroundColor: colors.border }} />
       <View style={{ gap: 13 }}>
         {detailRows.map(([label, value, supportingText]) => (
-          <View key={label} style={{ gap: 3 }}>
-            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>{label}</Text>
-            <Text
-              style={{
-                color: colors.text,
-                fontSize: 13,
-                lineHeight: 18,
-                fontWeight: "700",
-              }}
-            >
+          <View key={label} style={dashboardStyles.detailRow}>
+            <Text style={dashboardStyles.detailLabel}>{label}</Text>
+            <Text style={dashboardStyles.detailValue}>
               {value}
             </Text>
             {supportingText ? (
-              <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>
+              <Text style={dashboardStyles.detailSupportingText}>
                 {supportingText}
               </Text>
             ) : null}
@@ -1018,6 +1236,7 @@ export default function CoordinationFinanceDashboard() {
   const designPreview = __DEV__ && params.designPreview === "finance";
   const router = useRouter();
   const { colors } = useAppTheme();
+  const dashboardStyles = useFinanceDashboardStyles(colors);
   const responsiveLayout = useResponsiveLayout("dashboard");
   const insets = useSafeAreaInsets();
   const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
@@ -1501,22 +1720,25 @@ export default function CoordinationFinanceDashboard() {
                         return (
                           <Pressable
                             key={value}
-                              onPress={() => {
-                                setFilter(value);
-                                setPage(1);
-                              }}
-                            style={{
-                              minHeight: 32,
-                              borderRadius: radius.card,
-                              borderWidth: 1,
-                              borderColor: selected ? colors.primaryBg : colors.border,
-                              backgroundColor: selected ? colors.primaryBg : colors.secondaryBg,
-                              paddingHorizontal: 11,
-                              alignItems: "center",
-                              justifyContent: "center",
+                            onPress={() => {
+                              setFilter(value);
+                              setPage(1);
                             }}
+                            style={[
+                              dashboardStyles.filterButton,
+                              selected
+                                ? dashboardStyles.filterButtonSelected
+                                : dashboardStyles.filterButtonIdle,
+                            ]}
                           >
-                            <Text style={{ color: selected ? colors.primaryText : colors.text, fontSize: 11, fontWeight: "800" }}>
+                            <Text
+                              style={[
+                                dashboardStyles.filterLabel,
+                                selected
+                                  ? dashboardStyles.filterLabelSelected
+                                  : dashboardStyles.filterLabelIdle,
+                              ]}
+                            >
                               {label}
                             </Text>
                           </Pressable>
@@ -1580,18 +1802,21 @@ export default function CoordinationFinanceDashboard() {
                                 key={pageNumber}
                                 accessibilityLabel={`Página ${pageNumber}`}
                                 onPress={() => setPage(pageNumber)}
-                                style={{
-                                  width: 32,
-                                  height: 32,
-                                  borderRadius: radius.card,
-                                  borderWidth: 1,
-                                  borderColor: pageNumber === visiblePage ? colors.primaryBg : "transparent",
-                                  backgroundColor: pageNumber === visiblePage ? colors.successBg : "transparent",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
+                                style={[
+                                  dashboardStyles.pageButton,
+                                  pageNumber === visiblePage
+                                    ? dashboardStyles.pageButtonSelected
+                                    : dashboardStyles.pageButtonIdle,
+                                ]}
                               >
-                                <Text style={{ color: pageNumber === visiblePage ? colors.successText : colors.text, fontSize: 11, fontWeight: "800" }}>
+                                <Text
+                                  style={[
+                                    dashboardStyles.pageLabel,
+                                    pageNumber === visiblePage
+                                      ? dashboardStyles.pageLabelSelected
+                                      : dashboardStyles.pageLabelIdle,
+                                  ]}
+                                >
                                   {pageNumber}
                                 </Text>
                               </Pressable>
@@ -1692,7 +1917,14 @@ export default function CoordinationFinanceDashboard() {
                 setShowMonthPicker(false);
               }}
           >
-            <Text style={{ color: selectedMonth === month ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "800" }}>
+            <Text
+              style={[
+                dashboardStyles.monthOptionLabel,
+                selectedMonth === month
+                  ? dashboardStyles.monthOptionLabelSelected
+                  : dashboardStyles.monthOptionLabelIdle,
+              ]}
+            >
               {formatFinanceMonthLabel(month)}
             </Text>
           </AnchoredDropdownOption>
