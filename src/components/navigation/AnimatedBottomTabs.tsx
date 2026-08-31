@@ -90,7 +90,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
   const radialActions = useMemo(() => {
     const actions = ROLE_RADIAL_ACTIONS[role];
     const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-    if (role === "student" || isOrgAdmin) return actions;
+    if (role === "student" || role === "family" || isOrgAdmin) return actions;
 
     return actions.filter((action) => {
       if (permissionsLoading && getTrainerPermissionKey(String(action.href))) return false;

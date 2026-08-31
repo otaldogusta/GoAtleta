@@ -16,6 +16,8 @@ export default function CoordinationTabsLayout() {
       >
         <Tabs.Screen name="index" options={{ href: null }} />
         <Tabs.Screen name="events" options={{ href: null }} />
+        <Tabs.Screen name="family-access" options={{ href: null }} />
+        <Tabs.Screen name="finance" options={{ href: null }} />
         <Tabs.Screen name="org-members" options={{ href: null }} />
         <Tabs.Screen name="students" options={{ href: null }} />
         <Tabs.Screen name="communications" options={{ href: null }} />

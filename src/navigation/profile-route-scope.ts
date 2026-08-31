@@ -1,6 +1,6 @@
 import type { EffectiveProfile } from "../core/effective-profile";
 
-export type ProfileRouteScope = "prof" | "coord" | "student";
+export type ProfileRouteScope = "prof" | "coord" | "student" | "family";
 export type TrainerRouteScope = Extract<ProfileRouteScope, "prof" | "coord">;
 
 export const WEB_SHELL_LAST_SCOPE_KEY = "goatleta:web-shell-last-scope";
@@ -16,7 +16,10 @@ const isPathInside = (path: string, prefix: string) =>
   path === prefix || path.startsWith(`${prefix}/`);
 
 export const isProfileRouteScope = (value: unknown): value is ProfileRouteScope =>
-  value === "prof" || value === "coord" || value === "student";
+  value === "prof" ||
+  value === "coord" ||
+  value === "student" ||
+  value === "family";
 
 export const getExplicitProfileRouteScope = (
   pathname: string,
@@ -25,6 +28,7 @@ export const getExplicitProfileRouteScope = (
   if (isPathInside(path, "/prof")) return "prof";
   if (isPathInside(path, "/coord") || path === "/coordination") return "coord";
   if (isPathInside(path, "/student") || path === "/student-home") return "student";
+  if (isPathInside(path, "/family")) return "family";
   return null;
 };
 
@@ -50,6 +54,7 @@ export const shouldWrapSharedProfileRoute = (pathname: string) => {
 const getFallbackScope = (effectiveProfile: EffectiveProfile): ProfileRouteScope => {
   if (effectiveProfile === "admin") return "coord";
   if (effectiveProfile === "student") return "student";
+  if (effectiveProfile === "family") return "family";
   return "prof";
 };
 

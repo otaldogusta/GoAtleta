@@ -151,6 +151,12 @@ function HomeProfessorBelowFoldBase({
         route: "/coord/management",
       },
       {
+        label: "Financeiro",
+        description: "Mensalidades e recebimentos",
+        icon: "payments",
+        route: "/coord/finance",
+      },
+      {
         label: "Eventos",
         description: "Agenda institucional",
         icon: "events",

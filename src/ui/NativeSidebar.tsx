@@ -45,12 +45,14 @@ const roleSubtitle: Record<AppRole, string> = {
   prof: "Painel do professor",
   coord: "Painel operacional",
   student: "Minha rotina",
+  family: "Portal da família",
 };
 
 const roleProfileLabel: Record<AppRole, string> = {
   prof: "Professor",
   coord: "Coordenação",
   student: "Aluno",
+  family: "Responsável",
 };
 
 const getDisplayName = (session: ReturnType<typeof useAuth>["session"]) => {
@@ -129,7 +131,7 @@ export function NativeSidebar({
       }));
     const actions = ROLE_RADIAL_ACTIONS[role]
       .filter((item) => {
-        if (role === "student" || isOrgAdmin) return true;
+        if (role === "student" || role === "family" || isOrgAdmin) return true;
         if (permissionsLoading && getTrainerPermissionKey(String(item.href))) return false;
         return isTrainerPathAllowed(String(item.href), memberPermissions, false);
       })

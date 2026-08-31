@@ -1,6 +1,8 @@
 import type { MemberPermissionKey } from "../api/members";
 
 export const trainerPermissionByPrefix = [
+  { prefix: "/coord/finance", permissionKey: "financial" },
+  { prefix: "/coord/family-access", permissionKey: "students" },
   { prefix: "/prof/students", permissionKey: "students" },
   { prefix: "/prof/consultation", permissionKey: "students" },
   { prefix: "/prof/classes", permissionKey: "classes" },
@@ -71,6 +73,7 @@ export const studentOnlyRoutes = [
 ];
 
 export const trainerOnlyPrefixes = [
+  "/coord/finance",
   "/prof",
   "/coord",
   "/coordination",
@@ -93,7 +96,45 @@ export const trainerOnlyPrefixes = [
   "/whatsapp-settings",
 ];
 
+export const familyOnlyPrefixes = ["/family"];
+
+const isPathInside = (pathname: string, prefix: string) =>
+  pathname === prefix || pathname.startsWith(`${prefix}/`);
+
+const isStudentOnlyPath = (pathname: string) =>
+  studentOnlyRoutes.some((prefix) => isPathInside(pathname, prefix)) ||
+  isPathInside(pathname, "/student") ||
+  pathname.startsWith("/student-");
+
+export const isRolePathBlocked = ({
+  role,
+  pathname,
+  allowStudentConsultationPreview = false,
+}: {
+  role: "trainer" | "student" | "family" | "pending" | null;
+  pathname: string;
+  allowStudentConsultationPreview?: boolean;
+}) => {
+  if (!role || role === "pending") return false;
+  const isTrainerPath = trainerOnlyPrefixes.some((prefix) =>
+    isPathInside(pathname, prefix),
+  );
+  const isFamilyPath = familyOnlyPrefixes.some((prefix) =>
+    isPathInside(pathname, prefix),
+  );
+  const isStudentPath = isStudentOnlyPath(pathname);
+
+  if (role === "student") return isTrainerPath || isFamilyPath;
+  if (role === "family") return isTrainerPath || isStudentPath;
+  if (allowStudentConsultationPreview && isPathInside(pathname, "/student-consultation")) {
+    return isFamilyPath;
+  }
+  return isStudentPath || isFamilyPath;
+};
+
 export const hybridVerificationRestrictedPrefixes = [
+  "/coord/finance",
+  "/family",
   "/prof",
   "/coord",
   "/coordination",

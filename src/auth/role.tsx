@@ -1,16 +1,39 @@
 import * as Sentry from "@sentry/react-native";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
-import type { Student } from "../core/models";
-import { getDevProfilePreview, type DevProfilePreview } from "../dev/profile-preview";
 import {
+  getMyStudentContexts,
+  isFamilyFoundationUnavailable,
+  type FamilyStudentContext,
+} from "../api/family-access";
+import type { Student } from "../core/models";
+import {
+  getDevProfilePreview,
+  type DevProfilePreview,
+} from "../dev/profile-preview";
+import {
+  getActiveFamilyStudentPreference,
   getActiveRolePreference,
+  setActiveFamilyStudentPreference,
   setActiveRolePreference,
 } from "./active-role";
 import { useAuth } from "./auth";
 import type { SelectableUserRole, UserRole } from "./role-types";
-import { getAccessToken, getSessionUserId, getValidAccessToken } from "./session";
+import {
+  resolveAvailableUserRoles,
+  resolvePreferredActiveRole,
+  resolveSelectedFamilyStudent,
+} from "./role-resolution";
+import { getSessionUserId, getValidAccessToken } from "./session";
 
 export type { UserRole } from "./role-types";
 
@@ -19,9 +42,14 @@ type RoleState = {
   availableRoles: SelectableUserRole[];
   devProfilePreview: DevProfilePreview;
   student: Student | null;
+  familyContexts: FamilyStudentContext[];
+  selectedFamilyStudent: FamilyStudentContext | null;
   loading: boolean;
+  error: Error | null;
   refresh: (options?: { silent?: boolean } | boolean) => Promise<void>;
+  retry: () => Promise<void>;
   setActiveRole: (role: SelectableUserRole) => Promise<boolean>;
+  setActiveFamilyStudent: (studentId: string) => Promise<boolean>;
 };
 
 const RoleContext = createContext<RoleState | null>(null);
@@ -72,12 +100,16 @@ const mapStudent = (row: StudentRow): Student => ({
   medicationUse: row.medication_use ?? false,
   medicationNotes: row.medication_notes ?? "",
   healthObservations: row.health_observations ?? "",
-  positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
-  positionSecondary: (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
-  athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
+  positionPrimary:
+    (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
+  positionSecondary:
+    (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
+  athleteObjective:
+    (row.athlete_objective as Student["athleteObjective"]) ?? "base",
   learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
   birthDate: row.birthdate ?? "",
-  membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
+  membershipStatus:
+    row.membership_status === "inactive" ? "inactive" : "active",
   // Student self/role resolution never loads protected financial data.
   financialStatus: "unknown",
   inactivatedAt: row.inactivated_at ?? null,
@@ -123,17 +155,23 @@ const fetchRoleResponse = async (
 
 const fetchIsTrainer = async (token: string) => {
   const base = SUPABASE_URL.replace(/\/$/, "");
-  const { response, text } = await fetchRoleResponse(base + "/rest/v1/rpc/is_trainer", {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+  const { response, text } = await fetchRoleResponse(
+    base + "/rest/v1/rpc/is_trainer",
+    {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
     },
-    body: "{}",
-  });
+  );
   if (!response.ok) {
-    throw new RoleRequestError(text || "Falha ao checar role.", response.status);
+    throw new RoleRequestError(
+      text || "Falha ao checar role.",
+      response.status,
+    );
   }
   try {
     return Boolean(JSON.parse(text));
@@ -155,18 +193,29 @@ const fetchStudentSelf = async (token: string, userId: string) => {
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${token}`,
       },
-    }
+    },
   );
   if (!response.ok) {
-    throw new RoleRequestError(text || "Falha ao buscar aluno.", response.status);
+    throw new RoleRequestError(
+      text || "Falha ao buscar aluno.",
+      response.status,
+    );
   }
   const rows = text ? (JSON.parse(text) as StudentRow[]) : [];
   if (!rows.length) return null;
   return mapStudent(rows[0]);
 };
 
-// Synthetic data is only valid for the explicit development preview. A real
-// cached role must never receive a fabricated organization or student record.
+const fetchFamilyContexts = async (token: string) => {
+  try {
+    return await getMyStudentContexts(token);
+  } catch (error) {
+    if (isFamilyFoundationUnavailable(error)) return [];
+    throw error;
+  }
+};
+
+// Synthetic data is only valid for the explicit development preview.
 const buildDevPreviewStudent = (userId: string | null): Student => ({
   id: userId ?? "preview-student",
   name: "Aluno (Preview)",
@@ -198,136 +247,201 @@ const buildDevPreviewStudent = (userId: string | null): Student => ({
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const [role, setRole] = useState<UserRole | null>(null);
-  const [availableRoles, setAvailableRoles] = useState<SelectableUserRole[]>([]);
-  const [devProfilePreview, setDevProfilePreviewState] = useState<DevProfilePreview>("auto");
+  const [availableRoles, setAvailableRoles] = useState<SelectableUserRole[]>(
+    [],
+  );
+  const [devProfilePreview, setDevProfilePreviewState] =
+    useState<DevProfilePreview>("auto");
   const [student, setStudent] = useState<Student | null>(null);
+  const [familyContexts, setFamilyContexts] = useState<FamilyStudentContext[]>(
+    [],
+  );
+  const [selectedFamilyStudent, setSelectedFamilyStudent] =
+    useState<FamilyStudentContext | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const lastSessionUserIdRef = useRef<string | undefined>(session?.user?.id);
   const lastAutomaticRefreshKeyRef = useRef("");
 
   if (session?.user?.id !== lastSessionUserIdRef.current) {
     lastSessionUserIdRef.current = session?.user?.id;
     setLoading(true);
+    setError(null);
     setRole(null);
+    setAvailableRoles([]);
+    setStudent(null);
+    setFamilyContexts([]);
+    setSelectedFamilyStudent(null);
   }
 
-  const restoreCachedRole = useCallback(async (userId: string) => {
-    const preferredRole = await getActiveRolePreference(userId);
-    if (!preferredRole) return false;
-    setAvailableRoles([preferredRole]);
-    setRole(preferredRole);
-    setStudent(null);
-    return true;
-  }, []);
+  const refresh = useCallback(
+    async (options?: { silent?: boolean } | boolean) => {
+      const isSilent =
+        typeof options === "object" ? options?.silent : Boolean(options);
+      if (!isSilent) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const preview = await getDevProfilePreview();
+        setDevProfilePreviewState(preview);
 
-  const refresh = useCallback(async (options?: { silent?: boolean } | boolean) => {
-    const isSilent = typeof options === "object" ? options?.silent : Boolean(options);
-    const preview = await getDevProfilePreview();
-    setDevProfilePreviewState(preview);
+        if (!session) {
+          setRole(null);
+          setAvailableRoles([]);
+          setStudent(null);
+          setFamilyContexts([]);
+          setSelectedFamilyStudent(null);
+          return;
+        }
 
-    if (!session) {
-      setRole(null);
-      setAvailableRoles([]);
-      setStudent(null);
-      setLoading(false);
-      return;
-    }
+        if (preview === "professor" || preview === "admin") {
+          const token = await getValidAccessToken();
+          const userId = await getSessionUserId();
+          if (token && userId) {
+            const [
+              isTrainer,
+              studentRow,
+              familyRows,
+              preferredFamilyStudentId,
+            ] = await Promise.all([
+              fetchIsTrainer(token),
+              fetchStudentSelf(token, userId),
+              fetchFamilyContexts(token),
+              getActiveFamilyStudentPreference(userId),
+            ]);
+            const resolvedRoles = resolveAvailableUserRoles({
+              isTrainer,
+              hasStudent: Boolean(studentRow),
+              familyContexts: familyRows,
+            });
+            const selectedFamily = resolveSelectedFamilyStudent({
+              familyContexts: familyRows,
+              preferredStudentId: preferredFamilyStudentId,
+            });
+            setAvailableRoles(resolvedRoles);
+            setFamilyContexts(familyRows);
+            setSelectedFamilyStudent(selectedFamily);
+            if (!resolvedRoles.length) {
+              setRole("pending");
+              setStudent(null);
+              return;
+            }
+          }
+          setRole("trainer");
+          setStudent(null);
+          return;
+        }
 
-    if (!isSilent) {
-      setLoading(true);
-    }
-    try {
-      if (preview === "professor" || preview === "admin") {
+        if (preview === "student") {
+          const token = await getValidAccessToken();
+          const userId = await getSessionUserId();
+          if (token && userId) {
+            const [
+              isTrainer,
+              studentRow,
+              familyRows,
+              preferredFamilyStudentId,
+            ] = await Promise.all([
+              fetchIsTrainer(token),
+              fetchStudentSelf(token, userId),
+              fetchFamilyContexts(token),
+              getActiveFamilyStudentPreference(userId),
+            ]);
+            setAvailableRoles(
+              resolveAvailableUserRoles({
+                isTrainer,
+                hasStudent: Boolean(studentRow),
+                familyContexts: familyRows,
+              }),
+            );
+            setFamilyContexts(familyRows);
+            setSelectedFamilyStudent(
+              resolveSelectedFamilyStudent({
+                familyContexts: familyRows,
+                preferredStudentId: preferredFamilyStudentId,
+              }),
+            );
+            setRole("student");
+            setStudent(studentRow ?? buildDevPreviewStudent(userId));
+            return;
+          }
+          setRole("student");
+          setStudent(buildDevPreviewStudent(userId));
+          setFamilyContexts([]);
+          setSelectedFamilyStudent(null);
+          return;
+        }
+
         const token = await getValidAccessToken();
         const userId = await getSessionUserId();
-        if (token && userId) {
-          const [isTrainer, studentRow] = await Promise.all([
-            fetchIsTrainer(token),
-            fetchStudentSelf(token, userId),
-          ]);
-          setAvailableRoles([
-            ...(isTrainer ? (["trainer"] as const) : []),
-            ...(studentRow ? (["student"] as const) : []),
-          ]);
-          if (!isTrainer && !studentRow) {
+        if (!token || !userId) {
+          throw new RoleRequestError(
+            "Sessão indisponível ao carregar o perfil.",
+            401,
+          );
+        }
+        const [
+          isTrainer,
+          studentRow,
+          familyRows,
+          preferredRole,
+          preferredFamilyStudentId,
+        ] = await Promise.all([
+          fetchIsTrainer(token),
+          fetchStudentSelf(token, userId),
+          fetchFamilyContexts(token),
+          getActiveRolePreference(userId),
+          getActiveFamilyStudentPreference(userId),
+        ]);
+        const resolvedRoles = resolveAvailableUserRoles({
+          isTrainer,
+          hasStudent: Boolean(studentRow),
+          familyContexts: familyRows,
+        });
+        const selectedFamily = resolveSelectedFamilyStudent({
+          familyContexts: familyRows,
+          preferredStudentId: preferredFamilyStudentId,
+        });
+        setAvailableRoles(resolvedRoles);
+        setFamilyContexts(familyRows);
+        setSelectedFamilyStudent(selectedFamily);
+        if (resolvedRoles.length) {
+          const resolvedRole = resolvePreferredActiveRole({
+            availableRoles: resolvedRoles,
+            preferredRole,
+          });
+          if (!resolvedRole) {
             setRole("pending");
             setStudent(null);
             return;
           }
-        }
-        setRole("trainer");
-        setStudent(null);
-        return;
-      }
-
-      if (preview === "student") {
-        const token = await getValidAccessToken();
-        const userId = await getSessionUserId();
-        if (token && userId) {
-          const [isTrainer, studentRow] = await Promise.all([
-            fetchIsTrainer(token),
-            fetchStudentSelf(token, userId),
-          ]);
-          setAvailableRoles([
-            ...(isTrainer ? (["trainer"] as const) : []),
-            ...(studentRow ? (["student"] as const) : []),
-          ]);
-          setRole("student");
-          setStudent(studentRow ?? buildDevPreviewStudent(userId));
-          return;
-        }
-        setRole("student");
-        setStudent(buildDevPreviewStudent(userId));
-        return;
-      }
-
-      const token = await getValidAccessToken();
-      const userId = await getSessionUserId();
-      if (!token || !userId) {
-        if (!token && userId && getAccessToken() && (await restoreCachedRole(userId))) {
+          setRole(resolvedRole);
+          setStudent(resolvedRole === "student" ? studentRow : null);
           return;
         }
         setRole("pending");
         setStudent(null);
-        return;
+      } catch (caughtError) {
+        const parsedError =
+          caughtError instanceof Error
+            ? caughtError
+            : new Error(String(caughtError));
+        Sentry.captureException(parsedError);
+        setError(parsedError);
+        setRole(null);
+        setAvailableRoles([]);
+        setStudent(null);
+        setFamilyContexts([]);
+        setSelectedFamilyStudent(null);
+      } finally {
+        setLoading(false);
       }
-      const [isTrainer, studentRow, preferredRole] = await Promise.all([
-        fetchIsTrainer(token),
-        fetchStudentSelf(token, userId),
-        getActiveRolePreference(userId),
-      ]);
-      const resolvedRoles: SelectableUserRole[] = [
-        ...(isTrainer ? (["trainer"] as const) : []),
-        ...(studentRow ? (["student"] as const) : []),
-      ];
-      setAvailableRoles(resolvedRoles);
-      if (resolvedRoles.length) {
-        const resolvedRole =
-          preferredRole && resolvedRoles.includes(preferredRole)
-            ? preferredRole
-            : resolvedRoles[0];
-        setRole(resolvedRole);
-        setStudent(resolvedRole === "student" ? studentRow : null);
-        return;
-      }
-      setRole("pending");
-      setStudent(null);
-    } catch (error) {
-      Sentry.captureException(error);
-      const requestStatus = error instanceof RoleRequestError ? error.status : 0;
-      const canUseOfflineRole =
-        requestStatus === 0 || requestStatus === 408 || requestStatus === 429 || requestStatus >= 500;
-      const userId = session.user?.id ?? "";
-      if (canUseOfflineRole && userId && (await restoreCachedRole(userId))) {
-        return;
-      }
-      setRole("pending");
-      setAvailableRoles([]);
-      setStudent(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [restoreCachedRole, session]);
+    },
+    [session],
+  );
+
+  const retry = useCallback(() => refresh(), [refresh]);
 
   useEffect(() => {
     const automaticRefreshKey = session
@@ -349,12 +463,52 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       await refresh();
       return true;
     },
-    [availableRoles, refresh]
+    [availableRoles, refresh],
+  );
+
+  const setActiveFamilyStudent = useCallback(
+    async (studentId: string) => {
+      const userId = await getSessionUserId();
+      const selected = familyContexts.find(
+        (context) => context.studentId === studentId.trim(),
+      );
+      if (!userId || !selected) return false;
+      await setActiveFamilyStudentPreference(userId, selected.studentId);
+      setSelectedFamilyStudent(selected);
+      return true;
+    },
+    [familyContexts],
   );
 
   const value = useMemo(
-    () => ({ role, availableRoles, devProfilePreview, student, loading, refresh, setActiveRole }),
-    [availableRoles, devProfilePreview, loading, refresh, role, setActiveRole, student]
+    () => ({
+      role,
+      availableRoles,
+      devProfilePreview,
+      student,
+      familyContexts,
+      selectedFamilyStudent,
+      loading,
+      error,
+      refresh,
+      retry,
+      setActiveRole,
+      setActiveFamilyStudent,
+    }),
+    [
+      availableRoles,
+      devProfilePreview,
+      familyContexts,
+      loading,
+      error,
+      refresh,
+      retry,
+      role,
+      selectedFamilyStudent,
+      setActiveFamilyStudent,
+      setActiveRole,
+      student,
+    ],
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
@@ -368,9 +522,14 @@ export const useRole = () => {
       availableRoles: [],
       devProfilePreview: "auto",
       student: null,
+      familyContexts: [],
+      selectedFamilyStudent: null,
       loading: false,
+      error: null,
       refresh: async () => {},
+      retry: async () => {},
       setActiveRole: async () => false,
+      setActiveFamilyStudent: async () => false,
     } as RoleState;
   }
   return ctx;

@@ -6,7 +6,7 @@ export const notificationScopeForEffectiveProfile = (
   profile: EffectiveProfile,
 ): Exclude<NotificationInboxScope, "all"> => {
   if (profile === "admin") return "coord";
-  if (profile === "student") return "student";
+  if (profile === "student" || profile === "family") return "student";
   return "prof";
 };
 
@@ -21,6 +21,7 @@ export const resolveNotificationInboxScope = ({
   if (path === "/coord" || path.startsWith("/coord/")) return "coord";
   if (path === "/prof" || path.startsWith("/prof/")) return "prof";
   if (path === "/student" || path.startsWith("/student/")) return "student";
+  if (path === "/family" || path.startsWith("/family/")) return "student";
   return notificationScopeForEffectiveProfile(effectiveProfile);
 };
 

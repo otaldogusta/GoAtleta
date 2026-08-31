@@ -20,7 +20,9 @@ export const resolveNotificationOrganizationId = ({
   const activeOrganization = normalizeOrganizationId(activeOrganizationId);
   const studentOrganization = normalizeOrganizationId(studentOrganizationId);
   const prefersStudentOrganization =
-    inboxScope === "student" || effectiveProfile === "student";
+    inboxScope === "student" ||
+    effectiveProfile === "student" ||
+    effectiveProfile === "family";
 
   return prefersStudentOrganization
     ? studentOrganization ?? activeOrganization

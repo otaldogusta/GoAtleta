@@ -1,6 +1,6 @@
 import type { UserRole } from "../auth/role";
 
-export type EffectiveProfile = "student" | "professor" | "admin";
+export type EffectiveProfile = "student" | "family" | "professor" | "admin";
 
 export const resolveEffectiveProfile = (params: {
   role: UserRole | null;
@@ -10,6 +10,7 @@ export const resolveEffectiveProfile = (params: {
   const orgRoleLevel = params.orgRoleLevel ?? 0;
 
   if (role === "student") return "student";
+  if (role === "family") return "family";
   if (role === "trainer" && orgRoleLevel >= 50) return "admin";
   return "professor";
 };

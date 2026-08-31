@@ -299,6 +299,43 @@ describe("WebSidebar profile menu", () => {
     );
   });
 
+  it("opens the finance workspace expanded while preserving the collapse control", () => {
+    mockPathname = "/coord/finance";
+    const screen = render(
+      React.createElement(WebSidebar, {
+        role: "coord",
+        showCompact: true,
+        canExpand: true,
+        canPersistExpansion: true,
+      })
+    );
+
+    expect(screen.getByLabelText("Recolher menu")).toBeTruthy();
+    expect(screen.getByLabelText("Navegação principal").props.style).toEqual(
+      expect.objectContaining({ width: 88 })
+    );
+    expect(screen.getByTestId("web-sidebar-expanded-panel").props.style).toEqual(
+      expect.objectContaining({ width: 220, position: "fixed" })
+    );
+
+    fireEvent.press(screen.getByLabelText("Recolher menu"));
+
+    expect(screen.getByLabelText("Navegação principal compacta")).toBeTruthy();
+    expect(screen.getByLabelText("Expandir menu")).toBeTruthy();
+    expect(window.localStorage.setItem).toHaveBeenLastCalledWith(
+      "goatleta:web-sidebar-expanded",
+      "compact"
+    );
+
+    fireEvent.press(screen.getByLabelText("Expandir menu"));
+
+    expect(screen.getByLabelText("Recolher menu")).toBeTruthy();
+    expect(window.localStorage.setItem).toHaveBeenLastCalledWith(
+      "goatleta:web-sidebar-expanded",
+      "expanded"
+    );
+  });
+
   it("allows temporary tablet expansion without persisting it", () => {
     const screen = render(
       React.createElement(WebSidebar, {

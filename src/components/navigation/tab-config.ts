@@ -2,7 +2,7 @@ import type { Href } from "expo-router";
 
 import type { GoAtletaIconName } from "../../ui/icon-registry";
 
-export type AppRole = "prof" | "student" | "coord";
+export type AppRole = "prof" | "student" | "family" | "coord";
 
 type BaseTabItemConfig = {
   key: string;
@@ -51,6 +51,12 @@ export const ROLE_TABS: Record<AppRole, TabItemConfig[]> = {
     { key: "achievements", routeName: "achievements", label: "Conquistas", icon: "achievements", href: "/student/achievements" },
     { key: "profile", routeName: "profile", label: "Perfil", icon: "profile", href: "/student/profile" },
   ],
+  family: [
+    { key: "home", routeName: "home", label: "Hoje", icon: "home", href: "/family/home" },
+    { key: "agenda", routeName: "agenda", label: "Agenda", icon: "agenda", href: "/family/agenda" },
+    { key: "payments", routeName: "payments", label: "Pagamentos", icon: "payments", href: "/family/payments" },
+    { key: "profile", routeName: "profile", label: "Perfil", icon: "profile", href: "/family/profile" },
+  ],
   coord: [
     { key: "dashboard", routeName: "dashboard", label: "Painel", icon: "home", href: "/coord/dashboard" },
     { key: "classes", routeName: "classes", label: "Turmas", icon: "classes", href: "/coord/classes" },
@@ -74,10 +80,12 @@ export const ROLE_RADIAL_ACTIONS: Record<AppRole, RadialAction[]> = {
     { id: "scouting", label: "Scouting", icon: "scouting", href: "/student-scouting" },
     { id: "assistant", label: "Assistente", icon: "assistant", href: "/assistant" },
   ],
+  family: [],
   coord: [
     { id: "event", label: "Criar evento", icon: "events", href: "/coord/events" },
     { id: "communications", label: "Avisos", icon: "absenceNotices", href: "/coord/communications" },
     { id: "cycle", label: "Ciclos", icon: "periodization", href: "/coord/periodization" },
+    { id: "finance", label: "Financeiro", icon: "payments", href: "/coord/finance" },
     { id: "assistant", label: "Assistente", icon: "assistant", href: "/coord/assistant" },
   ],
 };

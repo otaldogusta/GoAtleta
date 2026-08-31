@@ -1,5 +1,6 @@
 import {
   getTrainerPermissionKey,
+  isRolePathBlocked,
   isTrainerPathAllowed,
 } from "../route-permissions";
 
@@ -11,6 +12,8 @@ describe("trainer route permissions", () => {
     expect(getTrainerPermissionKey("/coord/management/athletes")).toBe("students");
     expect(getTrainerPermissionKey("/coord/management")).toBe("org_members");
     expect(getTrainerPermissionKey("/coord/planning")).toBe("training");
+    expect(getTrainerPermissionKey("/coord/finance")).toBe("financial");
+    expect(getTrainerPermissionKey("/coord/family-access")).toBe("students");
     expect(getTrainerPermissionKey("/coord/nfc-attendance")).toBe("classes");
     expect(getTrainerPermissionKey("/prof/consultation")).toBe("students");
     expect(getTrainerPermissionKey("/prof/calendarized")).toBeNull();
@@ -31,6 +34,27 @@ describe("trainer route permissions", () => {
     expect(isTrainerPathAllowed("/prof/calendar", {}, false)).toBe(false);
     expect(
       isTrainerPathAllowed("/prof/calendar", { calendar: false }, true)
+    ).toBe(true);
+  });
+
+  it("keeps trainer, student and family routes isolated", () => {
+    expect(
+      isRolePathBlocked({ role: "family", pathname: "/family/payments" }),
+    ).toBe(false);
+    expect(
+      isRolePathBlocked({ role: "family", pathname: "/prof/classes" }),
+    ).toBe(true);
+    expect(
+      isRolePathBlocked({ role: "family", pathname: "/student-home" }),
+    ).toBe(true);
+    expect(
+      isRolePathBlocked({ role: "student", pathname: "/family/home" }),
+    ).toBe(true);
+    expect(
+      isRolePathBlocked({ role: "trainer", pathname: "/coord/finance" }),
+    ).toBe(false);
+    expect(
+      isRolePathBlocked({ role: "trainer", pathname: "/family/home" }),
     ).toBe(true);
   });
 });

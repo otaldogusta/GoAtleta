@@ -9,6 +9,7 @@ describe("notification inbox scope", () => {
     expect(notificationScopeForEffectiveProfile("professor")).toBe("prof");
     expect(notificationScopeForEffectiveProfile("admin")).toBe("coord");
     expect(notificationScopeForEffectiveProfile("student")).toBe("student");
+    expect(notificationScopeForEffectiveProfile("family")).toBe("student");
   });
 
   test("prefers the explicit route over the account default profile", () => {
@@ -24,6 +25,12 @@ describe("notification inbox scope", () => {
         effectiveProfile: "admin",
       }),
     ).toBe("prof");
+    expect(
+      resolveNotificationInboxScope({
+        pathname: "/family/payments",
+        effectiveProfile: "professor",
+      }),
+    ).toBe("student");
   });
 
   test("includes explicitly shared announcements in a profile inbox", () => {

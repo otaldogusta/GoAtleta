@@ -485,3 +485,66 @@ final result: passed
   no restante da validação.
 
 final result: passed
+
+---
+
+# Design QA — Financeiro da coordenação
+
+## Referência e estado
+
+- Mockup aprovado: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-15683cdf-0f39-457b-8ab7-262703848cb0.png` (1576 × 742).
+- Estado anterior apontado pelo usuário: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-722fadff-2617-45de-8c0c-29900e77432a.png` (1444 × 408).
+- Estado comparado: desktop, tema escuro, agosto de 2026, primeira página e cobrança de Enzo Martins selecionada.
+- Viewport de validação: 1440 × 1024.
+
+## Implementação e evidências
+
+- Rota local: `http://localhost:8081/coord/finance`.
+- Captura da direção visual aprovada: `artifacts/design-qa/finance-dashboard-list-header-revised-1440.png` (1360 × 914 renderizados pela superfície do navegador).
+- Comparação normalizada no mesmo recorte: `artifacts/design-qa/finance-dashboard-reference-vs-revised-focus.png`.
+- Evidência da sidebar em sobreposição: `artifacts/design-qa/finance-dashboard-sidebar-overlay-1440.png`.
+- O cabeçalho fixo, a seta de retorno e a arquitetura final em abas foram ajustados depois dessas capturas e validados por testes de contrato e typecheck; ainda requerem uma nova captura autenticada nos três breakpoints.
+
+## Correções visuais
+
+- O módulo foi organizado nas abas `Visão geral`, `Cobranças`, `Planos` e `Pagadores`, mantendo o contexto financeiro em uma única rota.
+- O cabeçalho usa o componente compartilhado do app, permanece fixo e oferece retorno real com fallback para o painel da coordenação.
+- O título, as ações e os filtros de `Contas a receber` foram retirados do card grande e voltaram a ocupar a área livre acima da tabela, como no mockup.
+- A contagem duplicada sob o título foi removida; a informação permanece no rodapé paginado.
+- A tabela agora é o único bloco com borda nessa seção e preserva a composição densa do mockup.
+- O cabeçalho de `Vencimento` recebeu o indicador de ordenação.
+- A linha selecionada usa o círculo verde preenchido com check e o estado pago usa o rótulo `Pago`.
+- `Nova cobrança` abre um modal próprio, sem trocar de rota; planos recorrentes ficam na aba `Planos` como `Planos e mensalidades`.
+- `Configurar financeiro` abre um modal centralizado, sem navegar para uma tela avulsa.
+- Acesso de atletas e responsáveis não pertence ao Financeiro: a gestão de vínculos ficou em `Gestão > Acessos familiares`.
+- Pesos tipográficos da lista foram reduzidos para evitar a aparência pesada do estado anterior.
+- P0: nenhum.
+- P1: nenhum.
+- P2: falta recapturar a composição final depois da troca para cabeçalho fixo e abas.
+
+## Interações verificadas
+
+- Seleção de uma cobrança atualiza linha e painel de detalhes; no mobile, o detalhe usa a superfície adaptada da tela.
+- O estado final foi restaurado para Enzo Martins, igual ao mockup.
+- Paginação, busca e filtros permanecem disponíveis.
+- Criação de cobrança, configuração financeira e registro manual usam modais e mantêm `/coord/finance`.
+- `Pagadores` encaminha a administração de responsáveis para Gestão, evitando duplicar o cadastro familiar.
+- Na captura anterior, o console da rota ficou sem erros novos.
+
+## Veredito
+
+A direção visual foi aprovada; contratos, testes focados e typecheck da implementação final passaram. O smoke visual autenticado final em 390 × 844, 834 × 1194 e 1440 × 1024 continua como gate de QA, sem bloquear a publicação da fundação desativada por feature state.
+
+final result: passed with visual revalidation pending
+
+## Fluxos modais e acessos familiares — 31/08/2026
+
+- `Nova cobrança` abre um modal próprio e mantém `/coord/finance`.
+- A aba `Planos` concentra planos e mensalidades sem reutilizar a ação de nova cobrança.
+- `Configurar financeiro` abre um modal centralizado e permanece no módulo.
+- Em Gestão, `Acessos familiares` abre como ação contextual; ao fechar ou voltar, permanece em `/coord/management`.
+- A rota direta `/coord/family-access` retorna para `/coord/management`.
+- Os contratos automatizados cobrem a permanência na rota, a separação entre cobrança e planos, o retorno para Gestão e o cabeçalho fixo.
+- Uma nova inspeção autenticada dos três viewports permanece pendente após a arquitetura final em abas.
+
+final result: passed with visual revalidation pending

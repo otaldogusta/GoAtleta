@@ -24,6 +24,7 @@ const COORDINATION_NAVIGATION_ORDER = [
   "classes",
   "students",
   "management",
+  "finance",
   "events",
   "members",
   "nfc",
@@ -37,7 +38,7 @@ export function orderWebSidebarItems<T extends SidebarItemWithKey>(
   role: AppRole,
   items: readonly T[]
 ): T[] {
-  if (role === "student") return [...items];
+  if (role === "student" || role === "family") return [...items];
 
   const navigationOrder =
     role === "prof" ? PROFESSOR_NAVIGATION_ORDER : COORDINATION_NAVIGATION_ORDER;

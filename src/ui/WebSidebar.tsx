@@ -45,6 +45,7 @@ type SidebarItem = {
 
 const SIDEBAR_COMPACT_WIDTH = 88;
 const SIDEBAR_EXPANDED_WIDTH = 292;
+const SIDEBAR_FINANCE_WIDTH = 220;
 const SIDEBAR_EXPANSION_DISTANCE = SIDEBAR_EXPANDED_WIDTH - SIDEBAR_COMPACT_WIDTH;
 const SIDEBAR_EXPANDED_STORAGE_KEY = "goatleta:web-sidebar-expanded";
 
@@ -52,24 +53,28 @@ const roleSubtitle: Record<AppRole, string> = {
   prof: "Painel do professor",
   coord: "Painel operacional",
   student: "Minha rotina",
+  family: "Portal da família",
 };
 
 const roleProfileLabel: Record<AppRole, string> = {
   prof: "Professor",
   coord: "Coordenação",
   student: "Aluno",
+  family: "Responsável",
 };
 
 const rolePreview: Record<AppRole, ProfileSwitchId> = {
   prof: "professor",
   coord: "admin",
   student: "student",
+  family: "family",
 };
 
 const previewRoutes: Record<ProfileSwitchId, string> = {
   professor: "/prof/home",
   admin: "/coord/dashboard",
   student: "/student/home",
+  family: "/family/home",
 };
 
 const profileSwitchOptions: ReadonlyArray<{
@@ -95,6 +100,12 @@ const profileSwitchOptions: ReadonlyArray<{
     label: "Aluno",
     subtitle: "Rotina do atleta",
     icon: "student",
+  },
+  {
+    id: "family",
+    label: "Família",
+    subtitle: "Acompanhar atletas",
+    icon: "family",
   },
 ];
 
@@ -254,6 +265,7 @@ export function WebSidebar({
   const {
     availableRoles,
     student,
+    selectedFamilyStudent,
     refresh: refreshRole,
     setActiveRole,
   } = useRole();
@@ -261,20 +273,26 @@ export function WebSidebar({
   const { unreadCount: unreadNotificationCount } = useUnreadNotificationCount(
     resolveNotificationOrganizationId({
       activeOrganizationId: organizationContext?.activeOrganization?.id,
-      studentOrganizationId: student?.organizationId,
-      inboxScope: role,
+      studentOrganizationId:
+        role === "family"
+          ? selectedFamilyStudent?.organizationId
+          : student?.organizationId,
+      inboxScope: role === "family" ? "student" : role,
     }),
     true,
-    role,
+    role === "family" ? "student" : role,
   );
   const unreadNotificationBadge = formatUnreadNotificationBadge(unreadNotificationCount);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
   const [profileSwitcherTop, setProfileSwitcherTop] = useState(12);
-  const [sidebarExpanded, setSidebarExpandedState] = useState(() => {
-    if (!canPersistExpansion || typeof window === "undefined") return false;
+  const isFinanceWorkspace = showCompact && pathname.startsWith("/coord/finance");
+  const [sidebarExpandedPreference, setSidebarExpandedState] = useState<boolean | null>(() => {
+    if (!canPersistExpansion || typeof window === "undefined") return null;
     const stored = window.localStorage.getItem(SIDEBAR_EXPANDED_STORAGE_KEY);
-    return stored === "expanded";
+    if (stored === "expanded") return true;
+    if (stored === "compact") return false;
+    return null;
   });
   const [supportsHoverPointer, setSupportsHoverPointer] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -287,11 +305,6 @@ export function WebSidebar({
   } | null>(null);
   const profileMenuRootRef = useRef<View | null>(null);
   const profileSwitcherTriggerRef = useRef<View | null>(null);
-
-  useEffect(() => {
-    if (canPersistExpansion) return;
-    setSidebarExpandedState(false);
-  }, [canPersistExpansion, showCompact]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -313,7 +326,12 @@ export function WebSidebar({
     };
   }, []);
 
+  const sidebarExpanded =
+    sidebarExpandedPreference ?? (canPersistExpansion && isFinanceWorkspace);
   const expanded = sidebarExpanded && (canExpand || !showCompact);
+  const activeExpandedWidth = isFinanceWorkspace
+    ? SIDEBAR_FINANCE_WIDTH
+    : SIDEBAR_EXPANDED_WIDTH;
   const revealSidebarToggle = !supportsHoverPointer || sidebarHovered;
   const sidebarRevealEvents = {
     onMouseEnter: () => setSidebarHovered(true),
@@ -327,7 +345,10 @@ export function WebSidebar({
   const memberPermissions = organizationContext?.memberPermissions ?? {};
   const permissionsLoading = organizationContext?.permissionsLoading ?? true;
   const isOrgAdmin = (organizationContext?.activeOrganization?.role_level ?? 0) >= 50;
-  const hasHybridAccount = availableRoles.includes("trainer") && availableRoles.includes("student");
+  const hasTrainerRole = availableRoles.includes("trainer");
+  const hasStudentRole = availableRoles.includes("student");
+  const hasFamilyRole = availableRoles.includes("family");
+  const hasHybridAccount = availableRoles.length > 1;
   const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
   const canUseDevPreview = __DEV__ && Boolean(setDevProfilePreview);
   const selectedPreview = rolePreview[role];
@@ -452,8 +473,12 @@ export function WebSidebar({
     async (preview: ProfileSwitchId) => {
       closeProfileMenu();
       setSidebarExpanded(false);
-      const realRole: Extract<UserRole, "trainer" | "student"> =
-        preview === "student" ? "student" : "trainer";
+      const realRole: Extract<UserRole, "trainer" | "student" | "family"> =
+        preview === "student"
+          ? "student"
+          : preview === "family"
+            ? "family"
+            : "trainer";
       if (hasHybridAccount) {
         if (setDevProfilePreview) {
           await setDevProfilePreview("auto");
@@ -461,6 +486,12 @@ export function WebSidebar({
         const changed = await setActiveRole(realRole);
         if (!changed) return;
       } else {
+        if (preview === "family") {
+          const changed = await setActiveRole("family");
+          if (!changed) return;
+          router.replace(previewRoutes.family as never);
+          return;
+        }
         if (!setDevProfilePreview) return;
         await setDevProfilePreview(preview);
         await refreshRole();
@@ -474,6 +505,9 @@ export function WebSidebar({
     hasHybridAccount,
     isOrgAdmin,
     canUseDevPreview,
+    hasTrainerRole,
+    hasStudentRole,
+    hasFamilyRole,
   });
   const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) =>
     visibleProfileSwitchIds.includes(option.id)
@@ -519,7 +553,7 @@ export function WebSidebar({
         position: "absolute",
         zIndex: 3201,
         width: 236,
-        left: placement === "expanded" ? SIDEBAR_EXPANDED_WIDTH - 12 : "calc(100% - 2px)",
+        left: placement === "expanded" ? activeExpandedWidth - 12 : "calc(100% - 2px)",
         top: placement === "expanded" ? profileSwitcherTop : 10,
         borderRadius: radius.xl,
         borderWidth: 1,
@@ -546,7 +580,7 @@ export function WebSidebar({
       {visibleProfileSwitchOptions.map((option) => {
         const active = selectedPreview === option.id;
         return (
-          <Pressable
+        <Pressable
             key={option.id}
             accessibilityLabel={`Abrir workspace ${option.label}`}
             accessibilityState={{ selected: active }}
@@ -736,7 +770,7 @@ export function WebSidebar({
   }));
 
   const canShowItem = (item: SidebarItem) => {
-    if (role === "student" || isOrgAdmin) return true;
+    if (role === "student" || role === "family" || isOrgAdmin) return true;
     // Permission-bound destinations stay hidden until the organization RPC
     // explicitly grants them. This prevents a restricted menu from flashing
     // while permissions are loading or when the request fails.
@@ -812,6 +846,12 @@ export function WebSidebar({
         icon: "students",
       },
       {
+        key: "finance",
+        label: "Financeiro",
+        href: "/coord/finance",
+        icon: "payments",
+      },
+      {
         key: "events",
         label: "Eventos",
         href: "/coord/events",
@@ -876,6 +916,7 @@ export function WebSidebar({
         icon: "scouting",
       },
     ],
+    family: [],
   };
   const operationalItems = operationalItemsByRole[role].filter(canShowItem);
   const navigationItems = orderWebSidebarItems(role, [...mainItems, ...operationalItems]);
@@ -1163,7 +1204,7 @@ export function WebSidebar({
         importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
         style={
           ({
-            width: SIDEBAR_EXPANDED_WIDTH,
+            width: activeExpandedWidth,
             height: "100vh",
             maxHeight: "100dvh",
             position: "fixed",
@@ -1187,7 +1228,7 @@ export function WebSidebar({
         <SidebarToggleButton
           expanded
           onPress={() => setSidebarExpanded(false)}
-          revealed={revealSidebarToggle}
+          revealed={isFinanceWorkspace || revealSidebarToggle}
           reduceMotion={prefersReducedMotion}
           edgeOffset={expanded ? 0 : -SIDEBAR_EXPANSION_DISTANCE}
           edgeDuration={expanded ? 280 : 200}
@@ -1199,7 +1240,7 @@ export function WebSidebar({
             top: 0,
             left: 0,
             bottom: 0,
-            width: SIDEBAR_EXPANDED_WIDTH,
+            width: activeExpandedWidth,
             overflow: "hidden",
             backgroundColor: sidebarBackgroundColor,
             borderRightWidth: 1,
@@ -1216,7 +1257,7 @@ export function WebSidebar({
         >
           <View
             style={({
-              width: SIDEBAR_EXPANDED_WIDTH,
+              width: activeExpandedWidth,
               height: "100%",
               paddingTop: 18,
               paddingBottom: "max(18px, env(safe-area-inset-bottom, 0px))",
@@ -1388,7 +1429,7 @@ export function WebSidebar({
             <SidebarToggleButton
               expanded={false}
               onPress={() => setSidebarExpanded(true)}
-              revealed={revealSidebarToggle}
+              revealed={isFinanceWorkspace || revealSidebarToggle}
               reduceMotion={prefersReducedMotion}
             />
           ) : null}

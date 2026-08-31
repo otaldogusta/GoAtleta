@@ -675,6 +675,7 @@ export default function LoginScreen() {
                       borderWidth: 0,
                       fontSize: 15,
                       borderRadius: 0,
+                      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
                     }}
                   />
                 </View>
@@ -778,6 +779,7 @@ export default function LoginScreen() {
                           borderWidth: 0,
                           fontSize: 15,
                           borderRadius: 0,
+                          ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}),
                         }}
                       />
                       <Pressable

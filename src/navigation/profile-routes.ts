@@ -37,6 +37,7 @@ export const getScopedPlanningPath = (currentPath: string) => {
 
 export const getScopedProfilePath = (currentPath: string) => {
   const path = normalizePath(currentPath);
+  if (isScopedPath(path, "/family")) return "/family/profile";
   if (isScopedPath(path, "/student")) return "/student/profile";
   if (isScopedPath(path, "/prof")) return "/prof/profile";
   if (isScopedPath(path, "/coord") || path === "/coordination") return "/coord/profile";

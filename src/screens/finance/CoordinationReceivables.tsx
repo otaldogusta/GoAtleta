@@ -1,0 +1,785 @@
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+
+import {
+  listOrganizationInvoices,
+  recordManualPayment,
+  type OrganizationInvoice,
+} from "../../api/finance";
+import { ResponsivePage } from "../../components/ui/ResponsivePage";
+import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
+import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
+import { createClientId } from "../../core/client-id";
+import {
+  canRecordManualPaymentForInvoice,
+  formatFinanceDate,
+  formatMoneyFromCents,
+  getInvoiceOutstandingCents,
+  parseMoneyInputToCents,
+  toFinancePaidAtIso,
+} from "../../finance/application/finance-format";
+import { markRender, measureAsync } from "../../observability/perf";
+import { useOrganization } from "../../providers/OrganizationProvider";
+import { radius, spacing } from "../../theme/tokens";
+import { Button } from "../../ui/Button";
+import { ConfirmCloseOverlay } from "../../ui/ConfirmCloseOverlay";
+import { DateInput } from "../../ui/DateInput";
+import { ModalSheet } from "../../ui/ModalSheet";
+import { Pressable } from "../../ui/Pressable";
+import { useAppTheme } from "../../ui/app-theme";
+import { GoAtletaIcon } from "../../ui/icon-registry";
+import { PaymentStatusBadge } from "./components/PaymentStatusBadge";
+
+type ManualPaymentMethod = Parameters<typeof recordManualPayment>[0]["method"];
+
+type ManualPaymentSuccess = {
+  invoiceId: string;
+  studentName: string;
+  amountCents: number;
+};
+
+const PAYMENT_METHODS: ReadonlyArray<{
+  value: ManualPaymentMethod;
+  label: string;
+}> = [
+  { value: "pix", label: "Pix" },
+  { value: "boleto", label: "Boleto" },
+  { value: "card", label: "Cartão" },
+  { value: "cash", label: "Dinheiro" },
+  { value: "bank_transfer", label: "Transferência" },
+  { value: "other", label: "Outro" },
+];
+
+const todayDateOnly = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const moneyInputFromCents = (cents: number) =>
+  (Math.max(0, cents) / 100).toFixed(2).replace(".", ",");
+
+const paymentErrorMessage = (error: unknown) => {
+  const detail = error instanceof Error ? error.message : String(error ?? "");
+  if (/PAYMENT_EXCEEDS_BALANCE/i.test(detail)) {
+    return "O saldo mudou enquanto você registrava. Atualize as cobranças e tente novamente.";
+  }
+  if (/INVOICE_NOT_PAYABLE/i.test(detail)) {
+    return "Esta cobrança não aceita mais pagamentos.";
+  }
+  if (/NOT_AUTHORIZED|permission|403/i.test(detail)) {
+    return "Sua permissão financeira mudou. Atualize a tela antes de continuar.";
+  }
+  if (/record_manual_payment_v1|PGRST202|could not find the function|404/i.test(detail)) {
+    return "O registro de pagamento ainda não está disponível neste ambiente.";
+  }
+  return "Não foi possível registrar o pagamento. Revise os dados e tente novamente.";
+};
+
+function PaymentTextField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = "default",
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  keyboardType?: "default" | "decimal-pad";
+  multiline?: boolean;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>{label}</Text>
+      <View
+        style={{
+          minHeight: multiline ? 88 : 50,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.inputBg,
+          paddingHorizontal: 14,
+          justifyContent: multiline ? "flex-start" : "center",
+        }}
+      >
+        <TextInput
+          accessibilityLabel={label}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.placeholder}
+          keyboardType={keyboardType}
+          multiline={multiline}
+          maxLength={multiline ? 500 : undefined}
+          style={[
+            {
+              minHeight: multiline ? 86 : 50,
+              paddingVertical: multiline ? 12 : 0,
+              borderWidth: 0,
+              borderRadius: 0,
+              color: colors.inputText,
+              backgroundColor: "transparent",
+              textAlignVertical: multiline ? "top" : "center",
+            },
+            Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : null,
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
+
+export function ManualPaymentModal({
+  visible,
+  invoice,
+  organizationId,
+  canRecord,
+  onClose,
+  onSuccess,
+}: {
+  visible: boolean;
+  invoice: OrganizationInvoice | null;
+  organizationId: string;
+  canRecord: boolean;
+  onClose: () => void;
+  onSuccess: (result: ManualPaymentSuccess) => Promise<void> | void;
+}) {
+  const { colors } = useAppTheme();
+  const outstandingCents = invoice
+    ? getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents)
+    : 0;
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<ManualPaymentMethod>("pix");
+  const [paidDate, setPaidDate] = useState(todayDateOnly());
+  const [notes, setNotes] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [initialFingerprint, setInitialFingerprint] = useState("");
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const submissionRef = useRef<{ fingerprint: string; idempotencyKey: string } | null>(null);
+
+  useEffect(() => {
+    if (!visible || !invoice) return;
+    const initialAmount = moneyInputFromCents(
+      getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents)
+    );
+    const initialDate = todayDateOnly();
+    const timer = setTimeout(() => {
+      setAmount(initialAmount);
+      setMethod("pix");
+      setPaidDate(initialDate);
+      setNotes("");
+      setConfirmed(false);
+      setBusy(false);
+      setFormError("");
+      setShowCloseConfirm(false);
+      setInitialFingerprint(
+        JSON.stringify([initialAmount, "pix", initialDate, "", false])
+      );
+      submissionRef.current = null;
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [invoice, visible]);
+
+  const currentFingerprint = JSON.stringify([
+    amount,
+    method,
+    paidDate,
+    notes,
+    confirmed,
+  ]);
+  const dirty = Boolean(initialFingerprint) && currentFingerprint !== initialFingerprint;
+  const parsedAmount = useMemo(() => parseMoneyInputToCents(amount), [amount]);
+  const paidAt = useMemo(() => toFinancePaidAtIso(paidDate), [paidDate]);
+  const invoicePayable = invoice
+    ? canRecordManualPaymentForInvoice({
+        amountCents: invoice.amountCents,
+        paidCents: invoice.paidCents,
+        status: invoice.status,
+      })
+    : false;
+  const amountError = !amount.trim()
+    ? "Informe o valor recebido."
+    : parsedAmount === null
+      ? "Informe um valor válido."
+      : parsedAmount > outstandingCents
+        ? `O valor não pode superar o saldo de ${formatMoneyFromCents(outstandingCents)}.`
+        : "";
+  const canSubmit = Boolean(
+    invoice &&
+      organizationId &&
+      canRecord &&
+      invoicePayable &&
+      parsedAmount !== null &&
+      parsedAmount <= outstandingCents &&
+      paidAt &&
+      confirmed &&
+      !busy
+  );
+
+  const clearFormError = () => {
+    if (formError) setFormError("");
+  };
+
+  const requestClose = () => {
+    if (busy) return;
+    if (dirty) {
+      setShowCloseConfirm(true);
+      return;
+    }
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    if (!invoice || !canSubmit || parsedAmount === null || !paidAt) return;
+    const payloadFingerprint = JSON.stringify([
+      invoice.id,
+      parsedAmount,
+      method,
+      paidAt,
+      notes.trim(),
+    ]);
+    if (submissionRef.current?.fingerprint !== payloadFingerprint) {
+      submissionRef.current = {
+        fingerprint: payloadFingerprint,
+        idempotencyKey: createClientId(),
+      };
+    }
+
+    setBusy(true);
+    setFormError("");
+    try {
+      await recordManualPayment({
+        organizationId,
+        invoiceId: invoice.id,
+        amountCents: parsedAmount,
+        method,
+        paidAt,
+        notes,
+        idempotencyKey: submissionRef.current.idempotencyKey,
+      });
+      await onSuccess({
+        invoiceId: invoice.id,
+        studentName: invoice.studentName,
+        amountCents: parsedAmount,
+      });
+      submissionRef.current = null;
+      onClose();
+    } catch (error) {
+      setFormError(paymentErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <ModalSheet
+        visible={visible}
+        onClose={requestClose}
+        position="center"
+        cardStyle={{
+          width: "100%",
+          maxWidth: 560,
+          maxHeight: "92%",
+          borderRadius: radius.container,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          overflow: "hidden",
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ width: "100%", maxHeight: "100%" }}
+        >
+          <View
+            style={{
+              minHeight: 68,
+              paddingHorizontal: spacing.md,
+              paddingVertical: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+                Registrar pagamento
+              </Text>
+              <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
+                {invoice?.studentName ?? "Cobrança"}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Fechar registro de pagamento"
+              onPress={requestClose}
+              disabled={busy}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: busy ? 0.55 : 1,
+              }}
+            >
+              <GoAtletaIcon name="close" size={21} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            style={{ flexShrink: 1 }}
+            contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View
+              style={{
+                borderRadius: radius.card,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.inputBg,
+                padding: spacing.md,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: spacing.md,
+              }}
+            >
+              <View style={{ flexGrow: 1, minWidth: 130, gap: 3 }}>
+                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Saldo</Text>
+                <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>
+                  {formatMoneyFromCents(outstandingCents)}
+                </Text>
+              </View>
+              <View style={{ flexGrow: 1, minWidth: 170, gap: 3 }}>
+                <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Cobrança</Text>
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                  Total {formatMoneyFromCents(invoice?.amountCents ?? 0)} · pago {formatMoneyFromCents(invoice?.paidCents ?? 0)}
+                </Text>
+              </View>
+            </View>
+
+            <PaymentTextField
+              label="Valor recebido (R$)"
+              value={amount}
+              onChangeText={(value) => {
+                setAmount(value);
+                clearFormError();
+              }}
+              placeholder="0,00"
+              keyboardType="decimal-pad"
+            />
+            {amountError && amount.trim() ? (
+              <Text accessibilityRole="alert" style={{ marginTop: -10, color: colors.dangerText, fontSize: 12, fontWeight: "700" }}>
+                {amountError}
+              </Text>
+            ) : null}
+
+            <View style={{ gap: 7 }}>
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>Forma de recebimento</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
+                {PAYMENT_METHODS.map((option) => {
+                  const selected = method === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => {
+                        setMethod(option.value);
+                        clearFormError();
+                      }}
+                      style={{
+                        minHeight: 38,
+                        borderRadius: radius.full,
+                        borderWidth: 1,
+                        borderColor: selected ? colors.primaryBg : colors.border,
+                        backgroundColor: selected ? colors.primaryBg : colors.inputBg,
+                        paddingHorizontal: 12,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ color: selected ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "800" }}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>Data do recebimento</Text>
+              <DateInput
+                value={paidDate}
+                onChange={(value) => {
+                  setPaidDate(value);
+                  clearFormError();
+                }}
+                placeholder="DD/MM/AAAA"
+                invalid={!paidAt}
+              />
+            </View>
+
+            <PaymentTextField
+              label="Observação (opcional)"
+              value={notes}
+              onChangeText={(value) => {
+                setNotes(value);
+                clearFormError();
+              }}
+              placeholder="Ex.: recebido pela secretaria"
+              multiline
+            />
+
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: confirmed }}
+              onPress={() => {
+                setConfirmed((current) => !current);
+                clearFormError();
+              }}
+              style={{
+                minHeight: 52,
+                borderRadius: radius.card,
+                borderWidth: 1,
+                borderColor: confirmed ? colors.successBorder : colors.border,
+                backgroundColor: confirmed ? colors.successBg : colors.inputBg,
+                padding: 12,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  borderWidth: 1,
+                  borderColor: confirmed ? colors.success : colors.border,
+                  backgroundColor: confirmed ? colors.success : "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {confirmed ? <GoAtletaIcon name="checkmark" size={16} color={colors.primaryText} /> : null}
+              </View>
+              <Text style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: "700" }}>
+                Confirmo que este valor já foi recebido pela instituição.
+              </Text>
+            </Pressable>
+
+            {formError ? (
+              <View
+                accessibilityRole="alert"
+                style={{
+                  borderRadius: radius.card,
+                  borderWidth: 1,
+                  borderColor: colors.dangerBorder,
+                  backgroundColor: colors.dangerBg,
+                  padding: 12,
+                  flexDirection: "row",
+                  gap: 8,
+                }}
+              >
+                <GoAtletaIcon name="warningCircle" size={18} color={colors.dangerText} />
+                <Text style={{ flex: 1, color: colors.dangerText, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>
+                  {formError}
+                </Text>
+              </View>
+            ) : null}
+          </ScrollView>
+
+          <View
+            style={{
+              padding: spacing.md,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              flexDirection: "row",
+              gap: spacing.sm,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Button label="Cancelar" variant="outline" onPress={requestClose} disabled={busy} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button
+                label="Registrar pagamento"
+                loadingLabel="Registrando..."
+                onPress={() => void handleSubmit()}
+                disabled={!canSubmit}
+                loading={busy}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </ModalSheet>
+
+      <ConfirmCloseOverlay
+        visible={showCloseConfirm}
+        title="Sair sem registrar?"
+        message="Os dados deste pagamento serão descartados."
+        confirmLabel="Descartar"
+        cancelLabel="Continuar editando"
+        onConfirm={() => {
+          setShowCloseConfirm(false);
+          onClose();
+        }}
+        onCancel={() => setShowCloseConfirm(false)}
+      />
+    </>
+  );
+}
+
+function ReceivableRow({
+  invoice,
+  onRecord,
+}: {
+  invoice: OrganizationInvoice;
+  onRecord: (invoice: OrganizationInvoice) => void;
+}) {
+  const { colors } = useAppTheme();
+  const outstandingCents = getInvoiceOutstandingCents(
+    invoice.amountCents,
+    invoice.paidCents
+  );
+  const canRecord = canRecordManualPaymentForInvoice({
+    amountCents: invoice.amountCents,
+    paidCents: invoice.paidCents,
+    status: invoice.status,
+  });
+
+  return (
+    <View
+      style={{
+        minHeight: 96,
+        paddingVertical: 12,
+        paddingHorizontal: spacing.md,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <View style={{ flexGrow: 1, flexBasis: 220, minWidth: 0, gap: 4 }}>
+        <Text numberOfLines={1} style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>
+          {invoice.studentName}
+        </Text>
+        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
+          {invoice.description} · {formatFinanceDate(invoice.dueDate)}
+        </Text>
+        {invoice.paidCents > 0 ? (
+          <Text style={{ color: colors.muted, fontSize: 11 }}>
+            Total {formatMoneyFromCents(invoice.amountCents)} · pago {formatMoneyFromCents(invoice.paidCents)}
+          </Text>
+        ) : null}
+      </View>
+      <View style={{ minWidth: 150, alignItems: "flex-end", gap: 6 }}>
+        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>
+          Saldo {formatMoneyFromCents(outstandingCents)}
+        </Text>
+        <PaymentStatusBadge status={invoice.status} />
+        {canRecord ? (
+          <Pressable
+            accessibilityLabel={`Registrar pagamento de ${invoice.studentName}`}
+            onPress={() => onRecord(invoice)}
+            style={{
+              minHeight: 34,
+              borderRadius: radius.full,
+              backgroundColor: colors.primaryBg,
+              paddingHorizontal: 12,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ color: colors.primaryText, fontSize: 11, fontWeight: "900" }}>
+              Registrar pagamento
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+export default function CoordinationReceivables() {
+  markRender("screen.coordReceivables.render.root");
+  const router = useRouter();
+  const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
+  const organizationId = activeOrganization?.id ?? "";
+  const canAccess =
+    (activeOrganization?.role_level ?? 0) >= 50 || memberPermissions.financial === true;
+  const [rows, setRows] = useState<OrganizationInvoice[]>([]);
+  const [selectedInvoice, setSelectedInvoice] = useState<OrganizationInvoice | null>(null);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const requestRef = useRef(0);
+
+  const load = useCallback(async () => {
+    const request = requestRef.current + 1;
+    requestRef.current = request;
+    if (!organizationId || !canAccess) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const next = await measureAsync(
+        "screen.coordReceivables.load.invoices",
+        () => listOrganizationInvoices(organizationId),
+        { organizationId },
+      );
+      if (request !== requestRef.current) return;
+      setRows(next);
+    } catch {
+      if (request !== requestRef.current) return;
+      setRows([]);
+      setError("Cobranças indisponíveis até a fundação financeira ser aplicada.");
+    } finally {
+      if (request === requestRef.current) setLoading(false);
+    }
+  }, [canAccess, organizationId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+      return () => {
+        requestRef.current += 1;
+      };
+    }, [load])
+  );
+
+  const handlePaymentSuccess = useCallback(
+    async (result: ManualPaymentSuccess) => {
+      setNotice(
+        `${formatMoneyFromCents(result.amountCents)} registrado para ${result.studentName}.`
+      );
+      await load();
+    },
+    [load]
+  );
+
+  if (!permissionsLoading && !canAccess) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl }}>
+          <GoAtletaIcon name="lock" size={28} color={colors.muted} />
+          <Text style={{ marginTop: 12, color: colors.text, fontSize: 18, fontWeight: "800" }}>
+            Financeiro restrito
+          </Text>
+          <Text style={{ marginTop: 5, color: colors.muted, textAlign: "center" }}>
+            Solicite à coordenação a permissão financeira.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
+        <ResponsivePage variant="dashboard" gap={spacing.md}>
+          <ScreenPageHeader
+            title="Cobranças"
+            subtitle={`${rows.length} título(s)`}
+            onBack={() => router.back()}
+            horizontalBleed={0}
+          />
+          {notice ? (
+            <Pressable
+              accessibilityRole="alert"
+              onPress={() => setNotice("")}
+              style={{
+                borderRadius: radius.container,
+                borderWidth: 1,
+                borderColor: colors.successBorder,
+                backgroundColor: colors.successBg,
+                padding: spacing.md,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 9,
+              }}
+            >
+              <GoAtletaIcon name="success" size={19} color={colors.successText} />
+              <Text style={{ flex: 1, color: colors.successText, fontWeight: "800" }}>{notice}</Text>
+            </Pressable>
+          ) : null}
+          {loading ? <SectionLoadingState /> : null}
+          {error ? (
+            <Pressable
+              onPress={() => void load()}
+              style={{
+                borderRadius: radius.container,
+                borderWidth: 1,
+                borderColor: colors.warningBorder,
+                backgroundColor: colors.warningBg,
+                padding: spacing.md,
+              }}
+            >
+              <Text style={{ color: colors.warningText, fontWeight: "800" }}>{error}</Text>
+            </Pressable>
+          ) : null}
+          {!loading && !error ? (
+            <View style={{ borderRadius: radius.container, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
+              {rows.length ? (
+                rows.map((invoice) => (
+                  <ReceivableRow
+                    key={invoice.id}
+                    invoice={invoice}
+                    onRecord={setSelectedInvoice}
+                  />
+                ))
+              ) : (
+                <View style={{ minHeight: 220, alignItems: "center", justifyContent: "center", gap: 9, padding: spacing.lg }}>
+                  <GoAtletaIcon name="document" size={28} color={colors.muted} />
+                  <Text style={{ color: colors.text, fontWeight: "900" }}>Nenhuma cobrança emitida</Text>
+                  <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center" }}>
+                    Os títulos aparecem aqui depois que um plano é vinculado ao atleta.
+                  </Text>
+                </View>
+              )}
+            </View>
+          ) : null}
+        </ResponsivePage>
+      </ScrollView>
+
+      <ManualPaymentModal
+        visible={Boolean(selectedInvoice)}
+        invoice={selectedInvoice}
+        organizationId={organizationId}
+        canRecord={canAccess}
+        onClose={() => setSelectedInvoice(null)}
+        onSuccess={handlePaymentSuccess}
+      />
+    </SafeAreaView>
+  );
+}

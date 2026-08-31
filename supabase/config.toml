@@ -33,6 +33,15 @@ verify_jwt = false
 [functions.claim-student-invite]
 verify_jwt = false
 
+[functions.create-student-relationship-invite]
+verify_jwt = false
+
+[functions.validate-student-relationship-invite]
+verify_jwt = false
+
+[functions.claim-student-relationship-invite]
+verify_jwt = false
+
 [functions.list-student-invites]
 verify_jwt = false
 

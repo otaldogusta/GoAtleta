@@ -46,6 +46,7 @@ describe("web sidebar navigation", () => {
   it("places coordination students beside classes", () => {
     const items = [
       { key: "management" },
+      { key: "finance" },
       { key: "events" },
       { key: "students" },
       { key: "classes" },
@@ -57,6 +58,7 @@ describe("web sidebar navigation", () => {
       "classes",
       "students",
       "management",
+      "finance",
       "events",
     ]);
   });

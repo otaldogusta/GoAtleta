@@ -72,11 +72,22 @@ export const getPendingInviteCopy = (state: PendingInviteViewState) => {
       };
     default:
       return {
-        title: "Aguardando liberação",
-        subtitle: "Abra o convite enviado pela sua organização para liberar o acesso.",
+        title: "Escolha como começar",
+        subtitle: "Entre por convite ou crie uma instituição para coordenar.",
       };
   }
 };
 
 export const isTerminalPendingInviteIssue = (state: PendingInviteViewState) =>
   state === "revoked" || state === "expired" || state === "already_used";
+
+export type ResolvedPendingRole = "trainer" | "student" | "family";
+
+export const resolvePendingRoleHome = (
+  role: ResolvedPendingRole | "pending" | null,
+) => {
+  if (role === "student") return "/student/home" as const;
+  if (role === "family") return "/family/home" as const;
+  if (role === "trainer") return "/prof/home" as const;
+  return null;
+};

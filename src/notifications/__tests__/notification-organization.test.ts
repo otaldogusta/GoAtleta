@@ -37,6 +37,13 @@ describe("notification organization", () => {
         effectiveProfile: "student",
       }),
     ).toBe("org-student");
+    expect(
+      resolveNotificationOrganizationId({
+        activeOrganizationId: "org-active",
+        studentOrganizationId: "org-family",
+        effectiveProfile: "family",
+      }),
+    ).toBe("org-family");
   });
 
   test("falls back safely when the preferred organization is unavailable", () => {

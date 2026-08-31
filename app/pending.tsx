@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getInviteErrorCode } from "../src/api/invite-errors";
@@ -18,11 +18,13 @@ import {
 import {
   getPendingInviteCopy,
   isTerminalPendingInviteIssue,
+  resolvePendingRoleHome,
   resolvePendingInviteViewState,
   type PendingInviteIssue,
 } from "../src/auth/pending-invite-view";
 import { useRole } from "../src/auth/role";
 import { markRender, measureAsync } from "../src/observability/perf";
+import { useOrganization } from "../src/providers/OrganizationProvider";
 import { radius, spacing } from "../src/theme/tokens";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -201,17 +203,22 @@ export default function PendingScreen() {
   const router = useRouter();
   const { session, signOut, loading: authLoading } = useAuth();
   const { refresh, role } = useRole();
+  const { createOrganization } = useOrganization();
   const [inviteBusy, setInviteBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [inviteIssue, setInviteIssue] = useState<PendingInviteIssue>(null);
   const [storedToken, setStoredToken] = useState("");
   const [storedTrainerCode, setStoredTrainerCode] = useState("");
   const [accessApproved, setAccessApproved] = useState(false);
+  const [organizationName, setOrganizationName] = useState("");
+  const [organizationBusy, setOrganizationBusy] = useState(false);
+  const [organizationMessage, setOrganizationMessage] = useState("");
   const autoClaimedRef = useRef(false);
   const textAnim = useRef(new Animated.Value(0)).current;
+  const resolvedRoleHome = resolvePendingRoleHome(role);
 
   useEffect(() => {
-    if (role === "trainer" || role === "student" || accessApproved) {
+    if (resolvedRoleHome || accessApproved) {
       setAccessApproved(true);
       Animated.timing(textAnim, {
         toValue: 1,
@@ -221,11 +228,11 @@ export default function PendingScreen() {
       }).start();
 
       const timer = setTimeout(() => {
-        router.replace(role === "student" ? "/student/home" : "/prof/home");
+        router.replace(resolvedRoleHome ?? "/prof/home");
       }, 1800);
       return () => clearTimeout(timer);
     }
-  }, [accessApproved, role, router, textAnim]);
+  }, [accessApproved, resolvedRoleHome, router, textAnim]);
 
   const parseInviteError = (error: unknown) => {
     const code = getInviteErrorCode(error);
@@ -313,6 +320,22 @@ export default function PendingScreen() {
     router.replace("/login");
   };
 
+  const handleCreateOrganization = async () => {
+    const name = organizationName.trim();
+    if (name.length < 3 || organizationBusy) return;
+    setOrganizationBusy(true);
+    setOrganizationMessage("");
+    try {
+      await createOrganization(name);
+      await refresh();
+      router.replace("/coord/dashboard");
+    } catch {
+      setOrganizationMessage("Não foi possível criar a instituição. Tente novamente.");
+    } finally {
+      setOrganizationBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (!session) return;
     const interval = setInterval(() => {
@@ -347,8 +370,8 @@ export default function PendingScreen() {
       }
       if (authLoading) return;
       if (!token && !trainerCode) {
-        if (role === "trainer" || role === "student") {
-          router.replace("/");
+        if (resolvedRoleHome) {
+          router.replace(resolvedRoleHome);
         }
         return;
       }
@@ -367,9 +390,9 @@ export default function PendingScreen() {
     return () => {
       alive = false;
     };
-  }, [authLoading, refresh, role, router, session]);
+  }, [authLoading, refresh, resolvedRoleHome, router, session]);
 
-  if ((role === "trainer" || role === "student") && !storedToken && !storedTrainerCode) {
+  if (resolvedRoleHome && !storedToken && !storedTrainerCode) {
     return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} />;
   }
 
@@ -473,6 +496,89 @@ export default function PendingScreen() {
                 </Pressable>
               </View>
             )}
+
+            {pendingViewState === "waiting" ? (
+              <View
+                style={{
+                  width: "100%",
+                  borderRadius: radius.container,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
+                  padding: spacing.md,
+                  gap: spacing.md,
+                }}
+              >
+                <View style={{ gap: 4 }}>
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: "800" }}>
+                    Quero gerenciar uma instituição
+                  </Text>
+                  <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
+                    Crie seu espaço de coordenação. A assinatura comercial será configurada separadamente.
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    minHeight: 50,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.inputBg,
+                    paddingHorizontal: 14,
+                    justifyContent: "center",
+                  }}
+                >
+                  <TextInput
+                    accessibilityLabel="Nome da instituição"
+                    placeholder="Nome da instituição"
+                    placeholderTextColor={colors.placeholder}
+                    value={organizationName}
+                    onChangeText={(value) => {
+                      setOrganizationName(value);
+                      setOrganizationMessage("");
+                    }}
+                    autoCapitalize="words"
+                    style={[
+                      {
+                        minHeight: 50,
+                        color: colors.inputText,
+                        backgroundColor: "transparent",
+                        borderWidth: 0,
+                        borderRadius: 0,
+                        paddingVertical: 0,
+                      },
+                      Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : null,
+                    ]}
+                  />
+                </View>
+                {organizationMessage ? (
+                  <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: 13 }}>
+                    {organizationMessage}
+                  </Text>
+                ) : null}
+                <Button
+                  label="Criar instituição"
+                  loading={organizationBusy}
+                  loadingLabel="Criando instituição..."
+                  disabled={organizationName.trim().length < 3}
+                  onPress={() => void handleCreateOrganization()}
+                />
+
+                <View style={{ height: 1, backgroundColor: colors.border }} />
+
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.sm }}>
+                  <GoAtletaIcon name="link" size={18} color={colors.primaryBg} />
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+                      Sou atleta ou responsável
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
+                      Abra o link enviado pela instituição. Você não precisa conhecer o e-mail de nenhum coordenador.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
 
             <View style={{ width: "100%", gap: spacing.sm, marginTop: spacing.xs }}>
               <Pressable

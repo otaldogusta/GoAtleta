@@ -2,6 +2,7 @@ import {
   getPendingInviteCopy,
   isTerminalPendingInviteIssue,
   resolvePendingInviteViewState,
+  resolvePendingRoleHome,
 } from "../pending-invite-view";
 
 describe("pending invite presentation", () => {
@@ -30,7 +31,7 @@ describe("pending invite presentation", () => {
     expect(isTerminalPendingInviteIssue(state)).toBe(true);
   });
 
-  it("keeps the waiting copy only when no invite is available", () => {
+  it("shows a concrete starting choice when no invite is available", () => {
     const state = resolvePendingInviteViewState({
       accessApproved: false,
       inviteBusy: false,
@@ -39,6 +40,13 @@ describe("pending invite presentation", () => {
     });
 
     expect(state).toBe("waiting");
-    expect(getPendingInviteCopy(state).title).toBe("Aguardando liberação");
+    expect(getPendingInviteCopy(state).title).toBe("Escolha como começar");
+  });
+
+  it("returns every resolved role to its own portal", () => {
+    expect(resolvePendingRoleHome("trainer")).toBe("/prof/home");
+    expect(resolvePendingRoleHome("student")).toBe("/student/home");
+    expect(resolvePendingRoleHome("family")).toBe("/family/home");
+    expect(resolvePendingRoleHome("pending")).toBeNull();
   });
 });

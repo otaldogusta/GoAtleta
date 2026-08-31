@@ -56,6 +56,7 @@ import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
 import { useUndoableListDelete } from "../../ui/useUndoableListDelete";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
+import CoordinationFamilyAccessScreen from "../family/CoordinationFamilyAccessScreen";
 import { resolveAccessModalLayout } from "./application/access-modal-layout";
 import {
   getClassAssignmentScheduleLabels,
@@ -625,7 +626,7 @@ export function CoordinationPeopleWorkspace({
 
   const [search, setSearch] = useState("");
   const [peopleSortKey, setPeopleSortKey] = useState<PeopleSortKey | null>(null);
-  const peopleSortIndicator = useRef(new Animated.Value(0)).current;
+  const [peopleSortIndicator] = useState(() => new Animated.Value(0));
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [peopleExpanded, setPeopleExpanded] = useState(true);
   const [organizing, setOrganizing] = useState(false);
@@ -634,6 +635,7 @@ export function CoordinationPeopleWorkspace({
     Partial<Record<SecondaryModuleKey, boolean>>
   >({ attendance: true });
   const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [showFamilyAccess, setShowFamilyAccess] = useState(false);
   const [modalMember, setModalMember] = useState<OrgMember | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteAudience>("professor");
@@ -651,7 +653,7 @@ export function CoordinationPeopleWorkspace({
   const [inviteEmailError, setInviteEmailError] = useState<"missing" | "invalid" | null>(null);
   const [inviteNotice, setInviteNotice] = useState<InviteNotice | null>(null);
   const inviteEmailInputRef = useRef<TextInput | null>(null);
-  const inviteEmailShakeAnim = useRef(new Animated.Value(0)).current;
+  const [inviteEmailShakeAnim] = useState(() => new Animated.Value(0));
   const [editBusy, setEditBusy] = useState(false);
   const [editRole, setEditRole] = useState<5 | 10 | 50>(10);
   const [editClassIds, setEditClassIds] = useState<string[]>([]);
@@ -1567,14 +1569,40 @@ export function CoordinationPeopleWorkspace({
         })}`}
         onBack={() => router.push("/coord/dashboard")}
         right={
-          compact ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Gerenciar acessos familiares"
+              onPress={() => setShowFamilyAccess(true)}
+              style={{
+                height: 44,
+                width: compact ? 44 : undefined,
+                paddingHorizontal: compact ? 0 : 12,
+                borderRadius: radius.internal,
+                borderWidth: 1,
+                borderColor: border,
+                backgroundColor: colors.secondaryBg,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+              }}
+            >
+              <GoAtletaIcon name="family" size={17} color={colors.text} />
+              {!compact ? (
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                  Acessos familiares
+                </Text>
+              ) : null}
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Abrir gestão de atletas"
               onPress={() => router.push("/coord/management/athletes" as never)}
               style={{
                 height: 44,
-                paddingHorizontal: 12,
+                width: compact ? 44 : undefined,
+                paddingHorizontal: compact ? 0 : 12,
                 borderRadius: radius.internal,
                 borderWidth: 1,
                 borderColor: border,
@@ -1586,11 +1614,13 @@ export function CoordinationPeopleWorkspace({
               }}
             >
               <GoAtletaIcon name="students" size={17} color={colors.text} />
-              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                Atletas
-              </Text>
+              {!compact ? (
+                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                  Atletas
+                </Text>
+              ) : null}
             </Pressable>
-          ) : undefined
+          </View>
         }
         horizontalBleed={pageHorizontalGutter}
         style={
@@ -2353,6 +2383,26 @@ export function CoordinationPeopleWorkspace({
         </View>
       </View>
       </ScrollView>
+
+      <ModalSheet
+        visible={showFamilyAccess}
+        onClose={() => setShowFamilyAccess(false)}
+        position="center"
+        cardStyle={{
+          width: compact ? Math.max(0, width - 32) : 1120,
+          maxWidth: "100%",
+          height: compact ? "94%" : "88%",
+          maxHeight: "94%",
+          borderRadius: radius.container,
+          borderWidth: 1,
+          borderColor: border,
+          backgroundColor: colors.card,
+          overflow: "hidden",
+          padding: 0,
+        }}
+      >
+        <CoordinationFamilyAccessScreen embedded onClose={() => setShowFamilyAccess(false)} />
+      </ModalSheet>
 
       <ModalSheet
         visible={modalMode === "invite"}

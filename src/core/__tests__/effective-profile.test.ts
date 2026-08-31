@@ -27,4 +27,10 @@ describe("effective profile", () => {
   it("resolves an administrative trainer from the organization role level", () => {
     expect(resolveEffectiveProfile({ role: "trainer", orgRoleLevel: 50 })).toBe("admin");
   });
+
+  it("keeps the family profile separate from the athlete profile", () => {
+    expect(resolveEffectiveProfile({ role: "family", orgRoleLevel: 100 })).toBe(
+      "family",
+    );
+  });
 });

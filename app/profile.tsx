@@ -63,7 +63,6 @@ import {
   syncPersonalAcademicDrive,
   type AcademicDriveOAuthStatus,
 } from "../src/db/academic-knowledge";
-import type { DevProfilePreview } from "../src/dev/profile-preview";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../src/navigation/use-trainer-route-scope";
 import { useOrganization } from "../src/providers/OrganizationProvider";
@@ -83,15 +82,19 @@ import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 import { WebCameraCaptureModal } from "../src/ui/WebCameraCaptureModal";
 import { radius, shadow } from "../src/theme/tokens";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
-import { resolveAuthorizedProfileSwitchIds } from "../src/ui/profile-switch-options";
+import {
+  resolveAuthorizedProfileSwitchIds,
+  type ProfileSwitchId,
+} from "../src/ui/profile-switch-options";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 
-type ProfilePreviewId = Exclude<DevProfilePreview, "auto">;
+type ProfilePreviewId = ProfileSwitchId;
 
 const profileSwitchLabels: Record<ProfilePreviewId, string> = {
   professor: "Professor",
   student: "Aluno",
   admin: "Coordenação",
+  family: "Família",
 };
 
 const getProfileMenuOptionStyle = (selected: boolean) => ({
@@ -382,11 +385,14 @@ export default function ProfileScreen() {
       ? "admin"
       : defaultProfile === "student"
         ? "student"
+        : defaultProfile === "family"
+          ? "family"
         : "professor";
   const routeProfilePreview = useMemo<ProfilePreviewId | null>(() => {
     if (/^\/prof(\/|$)/.test(pathname)) return "professor";
     if (/^\/coord(\/|$)/.test(pathname) || pathname === "/coordination") return "admin";
     if (/^\/student(\/|$)/.test(pathname) || pathname === "/student-home") return "student";
+    if (/^\/family(\/|$)/.test(pathname)) return "family";
     return null;
   }, [pathname]);
   const selectedProfilePreview: ProfilePreviewId =
@@ -507,6 +513,7 @@ export default function ProfileScreen() {
   const showWorkspaceSwitcher = !student && organizations.length > 1;
   const hasTrainerRole = userRole === "trainer" || availableRoles.includes("trainer");
   const hasStudentRole = userRole === "student" || availableRoles.includes("student");
+  const hasFamilyRole = userRole === "family" || availableRoles.includes("family");
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const canUseDevPreview =
     __DEV__ &&
@@ -517,10 +524,11 @@ export default function ProfileScreen() {
       resolveAuthorizedProfileSwitchIds({
         hasTrainerRole,
         hasStudentRole,
+        hasFamilyRole,
         isOrgAdmin,
         canUseDevPreview,
       }),
-    [canUseDevPreview, hasStudentRole, hasTrainerRole, isOrgAdmin],
+    [canUseDevPreview, hasFamilyRole, hasStudentRole, hasTrainerRole, isOrgAdmin],
   );
   const canSwitchProfile = authorizedProfileSwitchIds.length > 1;
   const closeProfileMenu = useCallback(() => {
@@ -1343,17 +1351,30 @@ export default function ProfileScreen() {
       closeProfileMenu();
 
       if (canUseDevPreview) {
-        await setDevProfilePreview(preview);
-        await refreshRole();
+        if (preview === "family") {
+          await setDevProfilePreview("auto");
+          const changed = await setActiveRole("family");
+          if (!changed && userRole !== "family") return;
+        } else {
+          await setDevProfilePreview(preview);
+          await refreshRole();
+        }
       } else {
         await setDevProfilePreview("auto");
-        const nextRole = preview === "student" ? "student" : "trainer";
+        const nextRole =
+          preview === "student"
+            ? "student"
+            : preview === "family"
+              ? "family"
+              : "trainer";
         const changed = await setActiveRole(nextRole);
         if (!changed && userRole !== nextRole) return;
       }
 
       if (preview === "student") {
         router.replace("/student/home" as Parameters<typeof router.replace>[0]);
+      } else if (preview === "family") {
+        router.replace("/family/home" as Parameters<typeof router.replace>[0]);
       } else if (preview === "professor") {
         router.replace("/prof/home" as Parameters<typeof router.replace>[0]);
       } else {

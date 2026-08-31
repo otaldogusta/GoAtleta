@@ -63,6 +63,30 @@ describe("profile switch options", () => {
     ).toEqual(["professor", "admin"]);
   });
 
+  test("inclui Família somente quando há vínculo confirmado pelo servidor", () => {
+    expect(
+      resolveAuthorizedProfileSwitchIds({
+        hasTrainerRole: true,
+        hasStudentRole: false,
+        hasFamilyRole: true,
+        isOrgAdmin: false,
+        canUseDevPreview: false,
+      }),
+    ).toEqual(["professor", "family"]);
+  });
+
+  test("mantém a troca entre os três papéis reais da conta híbrida", () => {
+    expect(
+      resolveVisibleProfileSwitchIds({
+        hasHybridAccount: true,
+        hasTrainerRole: true,
+        hasStudentRole: true,
+        hasFamilyRole: true,
+        isOrgAdmin: false,
+      }),
+    ).toEqual(["professor", "student", "family"]);
+  });
+
   test("preserva os três perfis no preview local", () => {
     expect(
       resolveAuthorizedProfileSwitchIds({

@@ -37,7 +37,8 @@ export function useBirthdayNotifications({
       !enabled ||
       !storageLoaded ||
       !organizationId ||
-      effectiveProfile === "student"
+      effectiveProfile === "student" ||
+      effectiveProfile === "family"
     ) {
       return undefined;
     }

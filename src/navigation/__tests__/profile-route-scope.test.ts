@@ -1,6 +1,8 @@
 import {
   getExplicitProfileRouteScope,
   getTrainerScopedRoutes,
+  isProfileRouteScope,
+  resolveProfileRouteScope,
   resolveTrainerRouteScope,
   shouldWrapSharedProfileRoute,
 } from "../profile-route-scope";
@@ -59,5 +61,16 @@ describe("profile route scope", () => {
     expect(shouldWrapSharedProfileRoute("/class/c_123/planning")).toBe(true);
     expect(shouldWrapSharedProfileRoute("/training")).toBe(true);
     expect(shouldWrapSharedProfileRoute("/welcome")).toBe(false);
+  });
+
+  it("resolves family routes explicitly and as the family fallback", () => {
+    expect(getExplicitProfileRouteScope("/family/payments")).toBe("family");
+    expect(isProfileRouteScope("family")).toBe(true);
+    expect(
+      resolveProfileRouteScope({
+        pathname: "/profile",
+        effectiveProfile: "family",
+      }),
+    ).toBe("family");
   });
 });

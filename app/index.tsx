@@ -46,6 +46,7 @@ export default function Home() {
   if (!session) return <Redirect href="/welcome" />;
   if (role === "pending") return <Redirect href="/pending" />;
 
+  if (profile === "family") return <Redirect href="/family/home" />;
   if (profile === "student") return <Redirect href="/student/home" />;
   if (profile === "admin") return <Redirect href="/coord/dashboard" />;
   return <Redirect href="/prof/home" />;
