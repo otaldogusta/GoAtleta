@@ -68,6 +68,11 @@ const createFinanceSettingsStyles = (colors: ThemeColors) =>
       fontSize: 13,
       lineHeight: 18,
     },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: "900",
+    },
   });
 
 function ConfigurationCard({
@@ -202,9 +207,7 @@ export default function CoordinationFinanceSettings({
               gap: 10,
             }}
           >
-            <Text
-              style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
-            >
+            <Text style={styles.sectionTitle}>
               Formas de pagamento
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -221,9 +224,7 @@ export default function CoordinationFinanceSettings({
           </View>
 
           <View style={styles.rulesCard}>
-            <Text
-              style={{ color: colors.text, fontSize: 15, fontWeight: "900" }}
-            >
+            <Text style={styles.sectionTitle}>
               Regras de cobrança
             </Text>
             {BILLING_RULES.map((item) => (

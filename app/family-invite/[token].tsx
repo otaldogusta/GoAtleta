@@ -23,7 +23,7 @@ import { requiresInviteEmailVerification } from "../../src/auth/pending-invite";
 import { useRole } from "../../src/auth/role";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { markRender, measureAsync } from "../../src/observability/perf";
-import { radius, shadow, spacing } from "../../src/theme/tokens";
+import { borders, radius, shadow, spacing } from "../../src/theme/tokens";
 import { Button } from "../../src/ui/Button";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
@@ -32,6 +32,7 @@ import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 
 type AuthStep = "choice" | "login" | "signup" | "verify";
 type InviteState = "checking" | "valid" | "invalid";
+type InviteInputField = "otp" | "email" | "password" | "confirmPassword";
 
 const normalizeOtp = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 6);
 const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
@@ -83,6 +84,8 @@ export default function StudentRelationshipInviteScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedInputField, setFocusedInputField] =
+    useState<InviteInputField | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [enterAnim] = useState(() => new Animated.Value(0));
@@ -329,16 +332,17 @@ export default function StudentRelationshipInviteScreen() {
     navigateBackOrReplace({ router, fallback: session ? "/" : "/welcome" });
   };
 
-  const inputShell = {
+  const inputShell = (field: InviteInputField) => ({
     minHeight: 50,
     borderRadius: radius.internal,
     paddingHorizontal: 14,
     backgroundColor: solidInputBg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: focusedInputField === field ? borders.focus : 1,
+    borderColor:
+      focusedInputField === field ? colors.borderStrong : colors.border,
     flexDirection: "row" as const,
     alignItems: "center" as const,
-  };
+  });
   const inputText = {
     flex: 1,
     minHeight: 48,
@@ -403,7 +407,7 @@ export default function StudentRelationshipInviteScreen() {
               Digite o código enviado para {normalizedSessionEmail || email}.
             </Text>
           </View>
-          <View style={inputShell}>
+          <View style={inputShell("otp")}>
             <TextInput
               value={otp}
               onChangeText={(value) => {
@@ -417,6 +421,8 @@ export default function StudentRelationshipInviteScreen() {
               placeholderTextColor={colors.placeholder}
               maxLength={6}
               style={[inputText, { letterSpacing: 6, textAlign: "center" }]}
+              onFocus={() => setFocusedInputField("otp")}
+              onBlur={() => setFocusedInputField(null)}
               onSubmitEditing={() => void handleVerify()}
             />
           </View>
@@ -442,7 +448,7 @@ export default function StudentRelationshipInviteScreen() {
         <Text style={{ color: colors.text, fontWeight: "800", fontSize: responsive.density.sectionTitleFontSize }}>
           {isSignup ? "Criar conta" : "Entrar"}
         </Text>
-        <View style={inputShell}>
+        <View style={inputShell("email")}>
           <TextInput
             value={email}
             onChangeText={(value) => {
@@ -457,9 +463,11 @@ export default function StudentRelationshipInviteScreen() {
             placeholder="E-mail"
             placeholderTextColor={colors.placeholder}
             style={inputText}
+            onFocus={() => setFocusedInputField("email")}
+            onBlur={() => setFocusedInputField(null)}
           />
         </View>
-        <View style={inputShell}>
+        <View style={inputShell("password")}>
           <TextInput
             value={password}
             onChangeText={(value) => {
@@ -472,6 +480,8 @@ export default function StudentRelationshipInviteScreen() {
             placeholder="Senha"
             placeholderTextColor={colors.placeholder}
             style={inputText}
+            onFocus={() => setFocusedInputField("password")}
+            onBlur={() => setFocusedInputField(null)}
           />
           <Pressable
             accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
@@ -486,7 +496,7 @@ export default function StudentRelationshipInviteScreen() {
           </Pressable>
         </View>
         {isSignup ? (
-          <View style={inputShell}>
+          <View style={inputShell("confirmPassword")}>
             <TextInput
               value={confirmPassword}
               onChangeText={(value) => {
@@ -499,6 +509,8 @@ export default function StudentRelationshipInviteScreen() {
               placeholder="Confirmar senha"
               placeholderTextColor={colors.placeholder}
               style={inputText}
+              onFocus={() => setFocusedInputField("confirmPassword")}
+              onBlur={() => setFocusedInputField(null)}
               onSubmitEditing={() => void handleSignup()}
             />
           </View>

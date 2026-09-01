@@ -34,6 +34,11 @@ import {
 import { ResponsiveGrid } from "../../components/ui/ResponsiveGrid";
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
+import {
+  captureOrganizationAsyncIdentity,
+  isOrganizationAsyncIdentityCurrent,
+  type OrganizationAsyncIdentity,
+} from "../../core/organization-async-identity";
 import type { Student } from "../../core/models";
 import { getStudents } from "../../db/students";
 import {
@@ -42,6 +47,7 @@ import {
   relationshipKindLabel,
 } from "../../family/application/relationship-presets";
 import { canManageFinanceFromFamilyAccess } from "../../finance/application/finance-permissions";
+import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { radius, spacing } from "../../theme/tokens";
@@ -140,7 +146,21 @@ type CoordinationFamilyAccessScreenProps = {
   onClose?: () => void;
 };
 
-export default function CoordinationFamilyAccessScreen({
+export default function CoordinationFamilyAccessScreen(
+  props: CoordinationFamilyAccessScreenProps = {},
+) {
+  const { activeOrganization } = useOrganization();
+  const organizationId = activeOrganization?.id ?? "";
+
+  return (
+    <CoordinationFamilyAccessOrganizationScope
+      key={organizationId}
+      {...props}
+    />
+  );
+}
+
+function CoordinationFamilyAccessOrganizationScope({
   embedded = false,
   onClose,
 }: CoordinationFamilyAccessScreenProps = {}) {
@@ -151,6 +171,12 @@ export default function CoordinationFamilyAccessScreen({
   const { activeOrganization, memberPermissions, permissionsLoading } =
     useOrganization();
   const organizationId = activeOrganization?.id ?? "";
+  const {
+    identity: organizationIdentity,
+    identityRef: organizationIdentityRef,
+  } = useOrganizationAsyncIdentity(
+    organizationId,
+  );
   const canManageFinance = canManageFinanceFromFamilyAccess({
     roleLevel: activeOrganization?.role_level ?? 0,
     canManageFinancial: memberPermissions.financial === true,
@@ -170,24 +196,93 @@ export default function CoordinationFamilyAccessScreen({
       permissionsForRelationshipKind("guardian"),
     );
   const [inviteUrl, setInviteUrl] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(organizationId));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const relationRequestRef = useRef(0);
+  const selectedStudentIdRef = useRef(selectedStudentId);
+  const selectedPlanIdRef = useRef(selectedPlanId);
+  const [directoryIdentity, setDirectoryIdentity] =
+    useState<OrganizationAsyncIdentity | null>(null);
+  const [relationshipScope, setRelationshipScope] = useState<{
+    identity: OrganizationAsyncIdentity;
+    studentId: string;
+  } | null>(null);
+  const [inviteUrlScope, setInviteUrlScope] = useState<{
+    identity: OrganizationAsyncIdentity;
+    studentId: string;
+  } | null>(null);
+
+  const directoryIsCurrent = Boolean(
+    directoryIdentity &&
+      isOrganizationAsyncIdentityCurrent(
+        organizationIdentity,
+        directoryIdentity,
+      ),
+  );
+  const scopedStudents = useMemo(
+    () => (directoryIsCurrent ? students : []),
+    [directoryIsCurrent, students],
+  );
+  const scopedPlans = useMemo(
+    () => (directoryIsCurrent ? plans : []),
+    [directoryIsCurrent, plans],
+  );
+  const scopedSelectedStudentId = directoryIsCurrent
+    ? selectedStudentId
+    : "";
+  const relationshipsAreCurrent = Boolean(
+    relationshipScope &&
+      isOrganizationAsyncIdentityCurrent(
+        organizationIdentity,
+        relationshipScope.identity,
+      ) &&
+      relationshipScope.studentId === scopedSelectedStudentId,
+  );
+  const inviteUrlIsCurrent = Boolean(
+    inviteUrlScope &&
+      isOrganizationAsyncIdentityCurrent(
+        organizationIdentity,
+        inviteUrlScope.identity,
+      ) &&
+      inviteUrlScope.studentId === scopedSelectedStudentId,
+  );
+  const scopedInvites = relationshipsAreCurrent ? invites : [];
+  const scopedRelationships = relationshipsAreCurrent ? relationships : [];
+  const scopedInviteUrl = inviteUrlIsCurrent ? inviteUrl : "";
+
+  const clearInviteUrl = () => {
+    setInviteUrlScope(null);
+    setInviteUrl("");
+  };
+
+  const isCapturedStudentCurrent = (
+    identity: OrganizationAsyncIdentity,
+    studentId: string,
+  ) =>
+    selectedStudentIdRef.current === studentId &&
+    isOrganizationAsyncIdentityCurrent(
+      organizationIdentityRef.current,
+      identity,
+    );
 
   const selectedStudent = useMemo(
-    () => students.find((student) => student.id === selectedStudentId) ?? null,
-    [selectedStudentId, students],
+    () =>
+      scopedStudents.find(
+        (student) => student.id === scopedSelectedStudentId,
+      ) ??
+      null,
+    [scopedSelectedStudentId, scopedStudents],
   );
   const filteredStudents = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
-    if (!normalized) return students.slice(0, 40);
-    return students
+    if (!normalized) return scopedStudents.slice(0, 40);
+    return scopedStudents
       .filter((student) =>
         student.name.toLocaleLowerCase("pt-BR").includes(normalized),
       )
       .slice(0, 40);
-  }, [query, students]);
+  }, [query, scopedStudents]);
   const listStyles = useMemo(
     () => ({
       studentOption: [styles.studentOption, { borderColor: colors.border }],
@@ -266,16 +361,18 @@ export default function CoordinationFamilyAccessScreen({
     ],
   );
 
-  /* eslint-disable react-hooks/set-state-in-effect -- These effects synchronize the selected organization and athlete with remote access data. */
   useEffect(() => {
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity) return;
     let active = true;
     if (!organizationId) {
-      setLoading(false);
       return () => {
         active = false;
       };
     }
-    setLoading(true);
     void measureAsync(
       "screen.coordFamilyAccess.load.directory",
       () =>
@@ -288,32 +385,78 @@ export default function CoordinationFamilyAccessScreen({
       { organizationId },
     )
       .then(([studentRows, planRows]) => {
-        if (!active) return;
+        if (
+          !active ||
+          !isOrganizationAsyncIdentityCurrent(
+            organizationIdentityRef.current,
+            identity,
+          )
+        )
+          return;
+        const activePlans = planRows.filter((plan) => plan.active);
+        const nextStudentId = studentRows.some(
+          (student) => student.id === selectedStudentIdRef.current,
+        )
+          ? selectedStudentIdRef.current
+          : studentRows[0]?.id || "";
+        const nextPlanId = activePlans.some(
+          (plan) => plan.id === selectedPlanIdRef.current,
+        )
+          ? selectedPlanIdRef.current
+          : activePlans[0]?.id || "";
+        setDirectoryIdentity(identity);
+        selectedStudentIdRef.current = nextStudentId;
+        selectedPlanIdRef.current = nextPlanId;
         setStudents(studentRows);
-        setPlans(planRows.filter((plan) => plan.active));
-        setSelectedStudentId((current) => current || studentRows[0]?.id || "");
-        setSelectedPlanId(
-          (current) =>
-            current || planRows.find((plan) => plan.active)?.id || "",
-        );
+        setPlans(activePlans);
+        setSelectedStudentId(nextStudentId);
+        setSelectedPlanId(nextPlanId);
       })
       .catch(() => {
-        if (active) setMessage("Não foi possível carregar os atletas.");
+        if (
+          !active ||
+          !isOrganizationAsyncIdentityCurrent(
+            organizationIdentityRef.current,
+            identity,
+          )
+        )
+          return;
+        setDirectoryIdentity(null);
+        setStudents([]);
+        setPlans([]);
+        setMessage("Não foi possível carregar os atletas.");
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (
+          active &&
+          isOrganizationAsyncIdentityCurrent(
+            organizationIdentityRef.current,
+            identity,
+          )
+        ) {
+          setLoading(false);
+        }
       });
     return () => {
       active = false;
     };
-  }, [canManageFinance, organizationId]);
+  }, [
+    canManageFinance,
+    organizationId,
+    organizationIdentity,
+    organizationIdentityRef,
+  ]);
 
   const loadRelationships = useCallback(async () => {
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity) return;
+    const studentId = directoryIsCurrent ? selectedStudentId : "";
     const request = relationRequestRef.current + 1;
     relationRequestRef.current = request;
-    if (!organizationId || !selectedStudentId) {
-      setInvites([]);
-      setRelationships([]);
+    if (!organizationId || !studentId) {
       return;
     }
     try {
@@ -321,32 +464,53 @@ export default function CoordinationFamilyAccessScreen({
         "screen.coordFamilyAccess.load.relationships",
         () =>
           Promise.all([
-            listStudentRelationships(organizationId, selectedStudentId),
-            listStudentRelationshipInvites(organizationId, selectedStudentId),
-          ]),
-        { organizationId, studentId: selectedStudentId },
+            listStudentRelationships(organizationId, studentId),
+            listStudentRelationshipInvites(organizationId, studentId),
+        ]),
+        { organizationId, studentId },
       );
-      if (request === relationRequestRef.current) {
-        setRelationships(relationshipRows);
-        setInvites(inviteRows);
-      }
+      if (
+        request !== relationRequestRef.current ||
+        selectedStudentIdRef.current !== studentId ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
+      setRelationshipScope({ identity, studentId });
+      setRelationships(relationshipRows);
+      setInvites(inviteRows);
     } catch {
-      if (request === relationRequestRef.current) {
-        setRelationships([]);
-        setInvites([]);
-      }
+      if (
+        request !== relationRequestRef.current ||
+        selectedStudentIdRef.current !== studentId ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
+      setRelationshipScope({ identity, studentId });
+      setRelationships([]);
+      setInvites([]);
     }
-  }, [organizationId, selectedStudentId]);
+  }, [
+    directoryIsCurrent,
+    organizationId,
+    organizationIdentity,
+    organizationIdentityRef,
+    selectedStudentId,
+  ]);
 
   useEffect(() => {
     void loadRelationships();
   }, [loadRelationships]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const changeKind = (nextKind: StudentRelationshipKind) => {
     setKind(nextKind);
     setPermissions(permissionsForRelationshipKind(nextKind));
-    setInviteUrl("");
+    clearInviteUrl();
     setMessage("");
   };
 
@@ -357,7 +521,12 @@ export default function CoordinationFamilyAccessScreen({
   };
 
   const handleCreateInvite = async () => {
-    if (!organizationId || !selectedStudentId || busy) return;
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    const studentId = selectedStudent?.id ?? "";
+    if (!identity || !organizationId || !studentId || busy) return;
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setMessage("Informe o e-mail que usará o convite.");
@@ -365,33 +534,47 @@ export default function CoordinationFamilyAccessScreen({
     }
     setBusy(true);
     setMessage("");
-    setInviteUrl("");
+    clearInviteUrl();
     try {
       const result = await createStudentRelationshipInvite({
         organizationId,
-        studentId: selectedStudentId,
+        studentId,
         invitedEmail: normalizedEmail,
         relationshipKind: kind,
         relationshipLabel: relationshipKindLabel[kind],
         invitedVia: "link",
         permissions: normalizeRelationshipPermissions(permissions),
       });
+      if (!isCapturedStudentCurrent(identity, studentId)) return;
+      setInviteUrlScope({ identity, studentId });
       setInviteUrl(result.inviteUrl);
       setMessage("Link criado. Envie somente para o e-mail informado.");
       await loadRelationships();
+      if (!isCapturedStudentCurrent(identity, studentId)) return;
     } catch {
+      if (!isCapturedStudentCurrent(identity, studentId)) return;
       setMessage(
         "Não foi possível criar o convite. Confira se já existe um vínculo pendente.",
       );
     } finally {
-      setBusy(false);
+      if (
+        isCapturedStudentCurrent(identity, studentId)
+      ) {
+        setBusy(false);
+      }
     }
   };
 
   const handleRevokeInvite = async (invite: StudentRelationshipInvite) => {
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    const studentId = selectedStudent?.id ?? "";
     if (
+      !identity ||
       !organizationId ||
-      !selectedStudentId ||
+      !studentId ||
       busy ||
       invite.status !== "pending"
     )
@@ -401,59 +584,99 @@ export default function CoordinationFamilyAccessScreen({
     try {
       const rows = await revokeStudentRelationshipInvite({
         organizationId,
-        studentId: selectedStudentId,
+        studentId,
         inviteId: invite.id,
         reason: "revoked_by_coordination",
       });
+      if (!isCapturedStudentCurrent(identity, studentId)) return;
+      setRelationshipScope({ identity, studentId });
       setInvites(rows);
       setMessage("Convite cancelado.");
     } catch {
+      if (!isCapturedStudentCurrent(identity, studentId)) return;
       setMessage("Não foi possível cancelar o convite.");
     } finally {
-      setBusy(false);
+      if (
+        isCapturedStudentCurrent(identity, studentId)
+      ) {
+        setBusy(false);
+      }
     }
   };
 
   const handleCopy = async () => {
-    if (!inviteUrl) return;
-    await Clipboard.setStringAsync(inviteUrl);
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity || !scopedInviteUrl) return;
+    const studentId = selectedStudent?.id ?? "";
+    if (!studentId || inviteUrlScope?.studentId !== studentId) return;
+    await Clipboard.setStringAsync(scopedInviteUrl);
+    if (!isCapturedStudentCurrent(identity, studentId)) return;
     setMessage("Link copiado.");
   };
 
   const handleShare = async () => {
-    if (!inviteUrl) return;
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity || !scopedInviteUrl) return;
+    const studentId = selectedStudent?.id ?? "";
+    if (!studentId || inviteUrlScope?.studentId !== studentId) return;
     await Share.share({
-      message: `Convite Go Atleta para ${selectedStudent?.name ?? "o atleta"}: ${inviteUrl}`,
+      message: `Convite Go Atleta para ${selectedStudent?.name ?? "o atleta"}: ${scopedInviteUrl}`,
     });
+    if (!isCapturedStudentCurrent(identity, studentId)) return;
   };
 
   const handleRevoke = async (relationship: StudentRelationship) => {
-    if (!organizationId || !selectedStudentId || busy) return;
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    const studentId = selectedStudent?.id ?? "";
+    if (!identity || !organizationId || !studentId || busy) return;
     setBusy(true);
     setMessage("");
     try {
       const rows = await revokeStudentRelationship({
         organizationId,
-        studentId: selectedStudentId,
+        studentId,
         relationshipId: relationship.id,
         reason: "revoked_by_coordination",
         clearLegacyLoginEmail: relationship.kind === "athlete",
       });
+      if (!isCapturedStudentCurrent(identity, studentId)) return;
+      setRelationshipScope({ identity, studentId });
       setRelationships(rows);
       setMessage("Acesso revogado.");
     } catch {
+      if (!isCapturedStudentCurrent(identity, studentId)) return;
       setMessage("Não foi possível revogar o acesso.");
     } finally {
-      setBusy(false);
+      if (
+        isCapturedStudentCurrent(identity, studentId)
+      ) {
+        setBusy(false);
+      }
     }
   };
 
   const handleCreateAgreement = async (relationship: StudentRelationship) => {
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    const studentId = selectedStudent?.id ?? "";
+    const planId = directoryIsCurrent ? selectedPlanId : "";
     if (
+      !identity ||
       !canManageFinance ||
       !organizationId ||
-      !selectedStudentId ||
-      !selectedPlanId ||
+      !studentId ||
+      !planId ||
       busy
     )
       return;
@@ -462,19 +685,34 @@ export default function CoordinationFamilyAccessScreen({
     try {
       await createTuitionAgreement({
         organizationId,
-        studentId: selectedStudentId,
-        planId: selectedPlanId,
+        studentId,
+        planId,
         payerRelationshipId: relationship.id,
         startsOn: todayDate(),
-        idempotencyKey: `agreement:${selectedStudentId}:${selectedPlanId}:${relationship.id}`,
+        idempotencyKey: `agreement:${studentId}:${planId}:${relationship.id}`,
       });
+      if (
+        !isCapturedStudentCurrent(identity, studentId) ||
+        selectedPlanIdRef.current !== planId
+      )
+        return;
       setMessage("Mensalidade vinculada ao responsável.");
     } catch {
+      if (
+        !isCapturedStudentCurrent(identity, studentId) ||
+        selectedPlanIdRef.current !== planId
+      )
+        return;
       setMessage(
         "Não foi possível vincular. Verifique se o atleta já possui um plano ativo.",
       );
     } finally {
-      setBusy(false);
+      if (
+        isCapturedStudentCurrent(identity, studentId) &&
+        selectedPlanIdRef.current === planId
+      ) {
+        setBusy(false);
+      }
     }
   };
   const handleStandaloneBack = useCallback(() => {
@@ -544,7 +782,7 @@ export default function CoordinationFamilyAccessScreen({
               </Text>
               <AccessInput
                 label="Buscar"
-                value={query}
+                value={directoryIsCurrent ? query : ""}
                 onChangeText={setQuery}
                 placeholder="Nome do atleta"
               />
@@ -553,16 +791,22 @@ export default function CoordinationFamilyAccessScreen({
                   <Text style={{ color: colors.muted }}>Carregando...</Text>
                 ) : null}
                 {filteredStudents.map((student) => {
-                  const selected = student.id === selectedStudentId;
+                  const selected = student.id === scopedSelectedStudentId;
                   return (
                     <Pressable
                       key={student.id}
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
                       onPress={() => {
+                        relationRequestRef.current += 1;
+                        setRelationshipScope(null);
+                        selectedStudentIdRef.current = student.id;
+                        setInvites([]);
+                        setRelationships([]);
                         setSelectedStudentId(student.id);
-                        setInviteUrl("");
+                        clearInviteUrl();
                         setMessage("");
+                        setBusy(false);
                       }}
                       style={
                         selected
@@ -639,10 +883,10 @@ export default function CoordinationFamilyAccessScreen({
                 </View>
                 <AccessInput
                   label="E-mail do convidado"
-                  value={email}
+                  value={directoryIsCurrent ? email : ""}
                   onChangeText={(value) => {
                     setEmail(value);
-                    setInviteUrl("");
+                    clearInviteUrl();
                   }}
                   placeholder="responsavel@exemplo.com"
                   keyboardType="email-address"
@@ -703,10 +947,10 @@ export default function CoordinationFamilyAccessScreen({
                   label="Criar link de acesso"
                   loading={busy}
                   loadingLabel="Criando..."
-                  disabled={!selectedStudentId || !email.trim()}
+                  disabled={!scopedSelectedStudentId || !email.trim()}
                   onPress={() => void handleCreateInvite()}
                 />
-                {inviteUrl ? (
+                {scopedInviteUrl ? (
                   <View
                     style={{
                       borderRadius: radius.card,
@@ -722,7 +966,7 @@ export default function CoordinationFamilyAccessScreen({
                       numberOfLines={3}
                       style={{ color: colors.text, fontSize: 12 }}
                     >
-                      {inviteUrl}
+                      {scopedInviteUrl}
                     </Text>
                     <View style={{ flexDirection: "row", gap: 8 }}>
                       <View style={{ flex: 1 }}>
@@ -763,12 +1007,12 @@ export default function CoordinationFamilyAccessScreen({
                 >
                   Convites enviados
                 </Text>
-                {invites.length === 0 ? (
+                {scopedInvites.length === 0 ? (
                   <Text style={{ color: colors.muted, fontSize: 13 }}>
                     Nenhum convite para este atleta.
                   </Text>
                 ) : null}
-                {invites.slice(0, 12).map((invite) => (
+                {scopedInvites.slice(0, 12).map((invite) => (
                   <View key={invite.id} style={listStyles.inviteRow}>
                     <View style={styles.inviteContent}>
                       <Text numberOfLines={1} style={listStyles.itemTitle}>
@@ -845,12 +1089,12 @@ export default function CoordinationFamilyAccessScreen({
                     </Text>
                   </View>
                 ) : null}
-                {relationships.length === 0 ? (
+                {scopedRelationships.length === 0 ? (
                   <Text style={{ color: colors.muted, fontSize: 13 }}>
                     Nenhum acesso aceito para este atleta.
                   </Text>
                 ) : null}
-                {relationships.map((relationship) => (
+                {scopedRelationships.map((relationship) => (
                   <View
                     key={relationship.id}
                     style={listStyles.relationshipRow}
@@ -887,12 +1131,15 @@ export default function CoordinationFamilyAccessScreen({
                             gap: 6,
                           }}
                         >
-                          {plans.map((plan) => {
+                          {scopedPlans.map((plan) => {
                             const selected = selectedPlanId === plan.id;
                             return (
                               <Pressable
                                 key={plan.id}
-                                onPress={() => setSelectedPlanId(plan.id)}
+                                onPress={() => {
+                                  selectedPlanIdRef.current = plan.id;
+                                  setSelectedPlanId(plan.id);
+                                }}
                                 style={
                                   selected
                                     ? listStyles.selectedPlan

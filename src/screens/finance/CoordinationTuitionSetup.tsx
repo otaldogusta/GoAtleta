@@ -26,10 +26,16 @@ import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
 import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
 import {
+  captureOrganizationAsyncIdentity,
+  isOrganizationAsyncIdentityCurrent,
+  type OrganizationAsyncIdentity,
+} from "../../core/organization-async-identity";
+import {
   formatMoneyFromCents,
   parseMoneyInputToCents,
 } from "../../finance/application/finance-format";
 import { canOpenFamilyAccessFromFinance } from "../../finance/application/finance-permissions";
+import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { radius, spacing } from "../../theme/tokens";
@@ -151,7 +157,21 @@ type CoordinationTuitionSetupProps = {
   onOpenPeopleManagement?: () => void;
 };
 
-export default function CoordinationTuitionSetup({
+export default function CoordinationTuitionSetup(
+  props: CoordinationTuitionSetupProps = {},
+) {
+  const { activeOrganization } = useOrganization();
+  const organizationId = activeOrganization?.id ?? "";
+
+  return (
+    <CoordinationTuitionSetupOrganizationScope
+      key={organizationId}
+      {...props}
+    />
+  );
+}
+
+function CoordinationTuitionSetupOrganizationScope({
   embedded = false,
   showHeader = true,
   onClose,
@@ -165,6 +185,12 @@ export default function CoordinationTuitionSetup({
   const { activeOrganization, memberPermissions, permissionsLoading } =
     useOrganization();
   const organizationId = activeOrganization?.id ?? "";
+  const {
+    identity: organizationIdentity,
+    identityRef: organizationIdentityRef,
+  } = useOrganizationAsyncIdentity(
+    organizationId,
+  );
   const canManageFamilyAccess = canOpenFamilyAccessFromFinance({
     roleLevel: activeOrganization?.role_level ?? 0,
     canManageStudents: memberPermissions.students === true,
@@ -172,7 +198,7 @@ export default function CoordinationTuitionSetup({
   });
   const [plans, setPlans] = useState<TuitionPlan[]>([]);
   const [agreements, setAgreements] = useState<TuitionAgreement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(organizationId));
   const [busy, setBusy] = useState(false);
   const [issuingId, setIssuingId] = useState("");
   const [message, setMessage] = useState("");
@@ -181,8 +207,25 @@ export default function CoordinationTuitionSetup({
   const [dueDay, setDueDay] = useState("10");
   const [description, setDescription] = useState("");
   const requestRef = useRef(0);
+  const [dataIdentity, setDataIdentity] =
+    useState<OrganizationAsyncIdentity | null>(null);
+  const dataIsCurrent = Boolean(
+    dataIdentity &&
+      isOrganizationAsyncIdentityCurrent(
+        organizationIdentity,
+        dataIdentity,
+      ),
+  );
+  const scopedPlans = dataIsCurrent ? plans : [];
+  const scopedAgreements = dataIsCurrent ? agreements : [];
+  const scopedMessage = dataIsCurrent ? message : "";
 
   const load = useCallback(async () => {
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity) return;
     const request = requestRef.current + 1;
     requestRef.current = request;
     if (!organizationId) {
@@ -202,18 +245,42 @@ export default function CoordinationTuitionSetup({
           ]),
         { organizationId },
       );
-      if (request !== requestRef.current) return;
+      if (
+        request !== requestRef.current ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
+      setDataIdentity(identity);
       setPlans(nextPlans);
       setAgreements(nextAgreements);
     } catch {
-      if (request !== requestRef.current) return;
+      if (
+        request !== requestRef.current ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
+      setDataIdentity(identity);
       setPlans([]);
       setAgreements([]);
       setMessage("A fundação financeira local ainda não foi aplicada.");
     } finally {
-      if (request === requestRef.current) setLoading(false);
+      if (
+        request === requestRef.current &&
+        isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      ) {
+        setLoading(false);
+      }
     }
-  }, [organizationId]);
+  }, [organizationId, organizationIdentity, organizationIdentityRef]);
 
   useFocusEffect(
     useCallback(() => {
@@ -234,31 +301,77 @@ export default function CoordinationTuitionSetup({
     parsedDay <= 28;
 
   const handleCreate = async () => {
-    if (!organizationId || !canCreate || parsedAmount === null || busy) return;
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (
+      !identity ||
+      !organizationId ||
+      !canCreate ||
+      parsedAmount === null ||
+      busy
+    )
+      return;
+    const input = {
+      name,
+      amountCents: parsedAmount,
+      dueDay: parsedDay,
+      description,
+    };
     setBusy(true);
     setMessage("");
     try {
       await createTuitionPlan({
         organizationId,
-        name,
-        amountCents: parsedAmount,
-        dueDay: parsedDay,
-        description,
+        ...input,
       });
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
       setName("");
       setAmount("");
       setDescription("");
       setMessage("Plano de mensalidade criado.");
       await load();
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
     } catch {
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
       setMessage("Não foi possível criar o plano.");
     } finally {
-      setBusy(false);
+      if (
+        isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      ) {
+        setBusy(false);
+      }
     }
   };
 
   const handleIssue = async (agreement: TuitionAgreement) => {
-    if (!organizationId || issuingId) return;
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity || !organizationId || issuingId) return;
     setIssuingId(agreement.id);
     setMessage("");
     const dates = currentInvoiceDates(agreement.dueDay);
@@ -271,8 +384,22 @@ export default function CoordinationTuitionSetup({
         description: `Mensalidade ${agreement.planName}`,
         idempotencyKey: `tuition:${agreement.id}:${dates.competenceMonth}`,
       });
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
       setMessage(`Mensalidade de ${agreement.studentName} emitida.`);
     } catch (error) {
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
       const detail = error instanceof Error ? error.message : "";
       setMessage(
         /unique|idempotency/i.test(detail)
@@ -280,7 +407,14 @@ export default function CoordinationTuitionSetup({
           : "Não foi possível emitir a mensalidade.",
       );
     } finally {
-      setIssuingId("");
+      if (
+        isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      ) {
+        setIssuingId("");
+      }
     }
   };
 
@@ -313,7 +447,7 @@ export default function CoordinationTuitionSetup({
             </View>
           )}
 
-          {message ? (
+          {scopedMessage ? (
             <Pressable
               accessibilityRole="alert"
               onPress={() => setMessage("")}
@@ -326,7 +460,7 @@ export default function CoordinationTuitionSetup({
               }}
             >
               <Text style={{ color: colors.text, fontWeight: "800" }}>
-                {message}
+                {scopedMessage}
               </Text>
             </Pressable>
           ) : null}
@@ -415,12 +549,12 @@ export default function CoordinationTuitionSetup({
                   Planos cadastrados
                 </Text>
                 {loading ? <SectionLoadingState /> : null}
-                {!loading && plans.length === 0 ? (
+                {!loading && scopedPlans.length === 0 ? (
                   <Text style={{ color: colors.muted, fontSize: 13 }}>
                     Nenhum plano cadastrado.
                   </Text>
                 ) : null}
-                {plans.map((plan) => (
+                {scopedPlans.map((plan) => (
                   <View
                     key={plan.id}
                     style={styles.planRow}
@@ -471,7 +605,7 @@ export default function CoordinationTuitionSetup({
                       Atletas com mensalidade
                     </Text>
                     <Text style={{ color: colors.muted, fontSize: 12 }}>
-                      {agreements.length} atleta(s) com mensalidade
+                      {scopedAgreements.length} atleta(s) com mensalidade
                     </Text>
                   </View>
                   {canManageFamilyAccess ? (
@@ -514,7 +648,7 @@ export default function CoordinationTuitionSetup({
                     </Text>
                   </View>
                 ) : null}
-                {agreements.map((agreement) => (
+                {scopedAgreements.map((agreement) => (
                   <View
                     key={agreement.id}
                     style={styles.agreementRow}
@@ -544,7 +678,7 @@ export default function CoordinationTuitionSetup({
                     />
                   </View>
                 ))}
-                {!loading && agreements.length === 0 ? (
+                {!loading && scopedAgreements.length === 0 ? (
                   <View
                     style={{
                       paddingVertical: spacing.md,

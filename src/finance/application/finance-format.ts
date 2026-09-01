@@ -65,6 +65,14 @@ export const toFinancePaidAtIso = (dateOnly: string) => {
   return parsed.toISOString();
 };
 
+export const isFinancePaidDateAllowed = (
+  dateOnly: string,
+  latestDateOnly: string,
+) =>
+  toFinancePaidAtIso(dateOnly) !== null &&
+  /^\d{4}-\d{2}-\d{2}$/.test(latestDateOnly) &&
+  dateOnly <= latestDateOnly;
+
 export const invoiceStatusLabel: Record<InvoiceStatus, string> = {
   draft: "Rascunho",
   open: "Em aberto",

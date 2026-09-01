@@ -15,12 +15,18 @@ import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
 import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
 import {
+  captureOrganizationAsyncIdentity,
+  isOrganizationAsyncIdentityCurrent,
+  type OrganizationAsyncIdentity,
+} from "../../core/organization-async-identity";
+import {
   canRecordManualPaymentForInvoice,
   formatFinanceDate,
   formatMoneyFromCents,
   getInvoiceOutstandingCents,
   type InvoiceStatus,
 } from "../../finance/application/finance-format";
+import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
 import { navigateBackOrReplace } from "../../navigation/safe-router";
 import { useOrganization } from "../../providers/OrganizationProvider";
@@ -404,6 +410,35 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
       color: colors.muted,
       fontSize: 11,
       lineHeight: 16,
+    },
+    detailDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    detailHistorySection: {
+      gap: 8,
+    },
+    detailHistoryTitle: {
+      color: colors.text,
+      fontSize: 13,
+      fontWeight: "900",
+    },
+    detailHistoryEntry: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 9,
+    },
+    detailHistoryEntryBody: {
+      flex: 1,
+    },
+    detailHistoryEntryTitle: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: "800",
+    },
+    detailHistoryEntryMeta: {
+      color: colors.muted,
+      fontSize: 11,
     },
     filterButton: {
       minHeight: 32,
@@ -1023,7 +1058,7 @@ function InvoiceDetails({
           </Text>
         </View>
       </View>
-      <View style={{ height: 1, backgroundColor: colors.border }} />
+      <View style={dashboardStyles.detailDivider} />
       <View style={{ gap: 13 }}>
         {detailRows.map(([label, value, supportingText]) => (
           <View key={label} style={dashboardStyles.detailRow}>
@@ -1039,34 +1074,34 @@ function InvoiceDetails({
           </View>
         ))}
       </View>
-      <View style={{ height: 1, backgroundColor: colors.border }} />
-      <View style={{ gap: 8, flex: framed ? 1 : undefined }}>
-        <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>Histórico</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+      <View style={dashboardStyles.detailDivider} />
+      <View style={[dashboardStyles.detailHistorySection, framed && dashboardStyles.flexSpacer]}>
+        <Text style={dashboardStyles.detailHistoryTitle}>Histórico</Text>
+        <View style={dashboardStyles.detailHistoryEntry}>
           <GoAtletaIcon name="receipt" size={17} color={colors.muted} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+          <View style={dashboardStyles.detailHistoryEntryBody}>
+            <Text style={dashboardStyles.detailHistoryEntryTitle}>
               Cobrança criada
             </Text>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>
+            <Text style={dashboardStyles.detailHistoryEntryMeta}>
               {formatFinanceDate(invoice.createdAt)}
             </Text>
           </View>
         </View>
         {invoice.paidCents > 0 ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+          <View style={dashboardStyles.detailHistoryEntry}>
             <GoAtletaIcon name="success" size={18} color={colors.success} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+            <View style={dashboardStyles.detailHistoryEntryBody}>
+              <Text style={dashboardStyles.detailHistoryEntryTitle}>
                 {formatMoneyFromCents(invoice.paidCents)} recebido
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>
+              <Text style={dashboardStyles.detailHistoryEntryMeta}>
                 {invoice.paidAt ? formatFinanceDate(invoice.paidAt) : "Pagamento confirmado"}
               </Text>
             </View>
           </View>
         ) : (
-          <View style={{ flex: framed ? 1 : undefined }} />
+          <View style={framed ? dashboardStyles.flexSpacer : undefined} />
         )}
       </View>
       {canRecord ? (
@@ -1231,6 +1266,15 @@ function InvoiceList({
 }
 
 export default function CoordinationFinanceDashboard() {
+  const params = useLocalSearchParams<{ designPreview?: string }>();
+  const { activeOrganization } = useOrganization();
+  const organizationId = activeOrganization?.id ?? "";
+  const scopeKey = `${organizationId}:${params.designPreview ?? ""}`;
+
+  return <CoordinationFinanceDashboardOrganizationScope key={scopeKey} />;
+}
+
+function CoordinationFinanceDashboardOrganizationScope() {
   markRender("screen.coordFinance.render.root");
   const params = useLocalSearchParams<{ designPreview?: string }>();
   const designPreview = __DEV__ && params.designPreview === "finance";
@@ -1241,6 +1285,12 @@ export default function CoordinationFinanceDashboard() {
   const insets = useSafeAreaInsets();
   const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
   const organizationId = activeOrganization?.id ?? (designPreview ? "preview-organization" : "");
+  const {
+    identity: organizationIdentity,
+    identityRef: organizationIdentityRef,
+  } = useOrganizationAsyncIdentity(
+    organizationId,
+  );
   const canAccess = designPreview || (activeOrganization?.role_level ?? 0) >= 50 || memberPermissions.financial === true;
   const { containerRef, onLayout, width: contentWidth } = useContainerResponsiveLayout("dashboard");
   const showDetailPanel = contentWidth >= 1060;
@@ -1271,12 +1321,45 @@ export default function CoordinationFinanceDashboard() {
   const [foundationPending, setFoundationPending] = useState(false);
   const [error, setError] = useState("");
   const requestIdRef = useRef(0);
+  const [dataIdentity, setDataIdentity] =
+    useState<OrganizationAsyncIdentity | null>(null);
+  const dataIsCurrent = Boolean(
+    dataIdentity &&
+      isOrganizationAsyncIdentityCurrent(
+        organizationIdentity,
+        dataIdentity,
+      ),
+  );
+  const scopedServerSummary = useMemo(
+    () =>
+      dataIsCurrent
+        ? serverSummary
+        : { ...EMPTY_SUMMARY, organizationId },
+    [dataIsCurrent, organizationId, serverSummary],
+  );
+  const scopedInvoices = useMemo(
+    () => (dataIsCurrent ? invoices : []),
+    [dataIsCurrent, invoices],
+  );
+  const scopedAgreements = useMemo(
+    () => (dataIsCurrent ? agreements : []),
+    [agreements, dataIsCurrent],
+  );
+  const scopedNotice = dataIsCurrent ? notice : "";
+  const scopedError = dataIsCurrent ? error : "";
+  const scopedFoundationPending = dataIsCurrent && foundationPending;
 
   const load = useCallback(
     async (refresh = false) => {
+      const identity = captureOrganizationAsyncIdentity(
+        organizationIdentityRef.current,
+        organizationIdentity,
+      );
+      if (!identity) return;
       const requestId = requestIdRef.current + 1;
       requestIdRef.current = requestId;
       if (designPreview) {
+        setDataIdentity(identity);
         setServerSummary(DESIGN_PREVIEW_SUMMARY);
         setInvoices(DESIGN_PREVIEW_INVOICES);
         setAgreements(DESIGN_PREVIEW_AGREEMENTS);
@@ -1287,6 +1370,7 @@ export default function CoordinationFinanceDashboard() {
         return;
       }
       if (!organizationId || !canAccess) {
+        setDataIdentity(identity);
         setLoading(false);
         setRefreshing(false);
         setServerSummary({ ...EMPTY_SUMMARY, organizationId });
@@ -1307,25 +1391,54 @@ export default function CoordinationFinanceDashboard() {
           ]),
           { organizationId }
         );
-        if (requestId !== requestIdRef.current) return;
+        if (
+          requestId !== requestIdRef.current ||
+          !isOrganizationAsyncIdentityCurrent(
+            organizationIdentityRef.current,
+            identity,
+          )
+        )
+          return;
+        setDataIdentity(identity);
         setServerSummary(nextSummary);
         setInvoices(nextInvoices);
         setAgreements(nextAgreements);
         setFoundationPending(false);
       } catch (loadError) {
-        if (requestId !== requestIdRef.current) return;
+        if (
+          requestId !== requestIdRef.current ||
+          !isOrganizationAsyncIdentityCurrent(
+            organizationIdentityRef.current,
+            identity,
+          )
+        )
+          return;
+        setDataIdentity(identity);
         setServerSummary({ ...EMPTY_SUMMARY, organizationId });
         setInvoices([]);
         setAgreements([]);
         if (isMissingFinanceFoundation(loadError)) setFoundationPending(true);
         else setError("Não foi possível carregar o financeiro.");
       } finally {
-        if (requestId !== requestIdRef.current) return;
+        if (
+          requestId !== requestIdRef.current ||
+          !isOrganizationAsyncIdentityCurrent(
+            organizationIdentityRef.current,
+            identity,
+          )
+        )
+          return;
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [canAccess, designPreview, organizationId]
+    [
+      canAccess,
+      designPreview,
+      organizationId,
+      organizationIdentity,
+      organizationIdentityRef,
+    ]
   );
 
   useFocusEffect(
@@ -1338,24 +1451,27 @@ export default function CoordinationFinanceDashboard() {
   );
 
   const monthOptions = useMemo(() => {
-    const months = new Set(invoices.map(invoiceMonthKey));
+    const months = new Set(scopedInvoices.map(invoiceMonthKey));
     months.add(currentMonthKey());
     return Array.from(months).sort((left, right) => right.localeCompare(left));
-  }, [invoices]);
+  }, [scopedInvoices]);
   const monthlyInvoices = useMemo(
-    () => invoices.filter((invoice) => invoiceMonthKey(invoice) === selectedMonth),
-    [invoices, selectedMonth]
+    () =>
+      scopedInvoices.filter(
+        (invoice) => invoiceMonthKey(invoice) === selectedMonth,
+      ),
+    [scopedInvoices, selectedMonth]
   );
   const summary = useMemo(
     () =>
       designPreview
-        ? serverSummary
+        ? scopedServerSummary
         : summarizeFinanceInvoices(
             monthlyInvoices,
             organizationId,
-            serverSummary.activeAgreementsCount
+            scopedServerSummary.activeAgreementsCount
           ),
-    [designPreview, monthlyInvoices, organizationId, serverSummary]
+    [designPreview, monthlyInvoices, organizationId, scopedServerSummary]
   );
   const filteredInvoices = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
@@ -1406,24 +1522,60 @@ export default function CoordinationFinanceDashboard() {
 
   const handlePaymentSuccess = useCallback(
     async (result: { studentName: string; amountCents: number }) => {
+      const identity = captureOrganizationAsyncIdentity(
+        organizationIdentityRef.current,
+        organizationIdentity,
+      );
+      if (!identity) return;
       setNotice(`${formatMoneyFromCents(result.amountCents)} registrado para ${result.studentName}.`);
       setPaymentInvoice(null);
       setMobileDetailsVisible(false);
       await load(true);
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
     },
-    [load]
+    [load, organizationIdentity, organizationIdentityRef]
   );
 
   const handleInvoiceSuccess = useCallback(
     async (studentName: string) => {
+      const identity = captureOrganizationAsyncIdentity(
+        organizationIdentityRef.current,
+        organizationIdentity,
+      );
+      if (!identity) return;
       setNotice(`Cobrança de ${studentName} emitida.`);
       await load(true);
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
     },
-    [load],
+    [load, organizationIdentity, organizationIdentityRef],
   );
 
   const openMonthPicker = () => {
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity || !dataIsCurrent) return;
     monthTriggerRef.current?.measureInWindow((x, y, width, height) => {
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
       setMonthTriggerLayout({ x, y, width, height });
       setShowMonthPicker(true);
     });
@@ -1601,7 +1753,7 @@ export default function CoordinationFinanceDashboard() {
           variant="dashboard"
           gap={Platform.OS === "web" && !responsiveLayout.isMobile ? 24 : responsiveLayout.density.pageGap}
         >
-          {foundationPending ? (
+          {scopedFoundationPending ? (
             <View style={{ borderRadius: radius.container, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg, padding: spacing.md, gap: 5 }}>
               <Text style={{ color: colors.warningText, fontWeight: "800" }}>Financeiro aguardando ativação</Text>
               <Text style={{ color: colors.warningText, fontSize: 13, lineHeight: 19 }}>
@@ -1610,7 +1762,7 @@ export default function CoordinationFinanceDashboard() {
             </View>
           ) : null}
 
-          {notice ? (
+          {scopedNotice ? (
             <Pressable
               accessibilityRole="alert"
               onPress={() => setNotice("")}
@@ -1626,13 +1778,13 @@ export default function CoordinationFinanceDashboard() {
               }}
             >
               <GoAtletaIcon name="success" size={19} color={colors.successText} />
-              <Text style={{ flex: 1, color: colors.successText, fontWeight: "800" }}>{notice}</Text>
+              <Text style={{ flex: 1, color: colors.successText, fontWeight: "800" }}>{scopedNotice}</Text>
             </Pressable>
           ) : null}
 
-          {error ? (
+          {scopedError ? (
             <Pressable onPress={() => void load()} style={{ borderRadius: radius.container, borderWidth: 1, borderColor: colors.dangerBorder, backgroundColor: colors.dangerBg, padding: spacing.md }}>
-              <Text style={{ color: colors.dangerText, fontWeight: "800" }}>{error} Tocar para tentar novamente.</Text>
+              <Text style={{ color: colors.dangerText, fontWeight: "800" }}>{scopedError} Tocar para tentar novamente.</Text>
             </Pressable>
           ) : null}
 
@@ -1662,7 +1814,7 @@ export default function CoordinationFinanceDashboard() {
             </View>
           ) : activeSection === "payers" ? (
             <FinancePayersPanel
-              agreements={agreements}
+              agreements={scopedAgreements}
               invoices={monthlyInvoices}
               compact={compactHeader}
               onManagePeople={() =>
@@ -1894,7 +2046,7 @@ export default function CoordinationFinanceDashboard() {
       </ScrollView>
 
       <AnchoredDropdown
-        visible={showMonthPicker}
+        visible={dataIsCurrent && showMonthPicker}
         layout={monthTriggerLayout}
         container={null}
         animationStyle={{ opacity: 1 }}
@@ -1955,8 +2107,8 @@ export default function CoordinationFinanceDashboard() {
       </ModalSheet>
 
       <ManualPaymentModal
-        visible={Boolean(paymentInvoice)}
-        invoice={paymentInvoice}
+        visible={dataIsCurrent && Boolean(paymentInvoice)}
+        invoice={dataIsCurrent ? paymentInvoice : null}
         organizationId={organizationId}
         canRecord={canAccess}
         onClose={() => setPaymentInvoice(null)}
@@ -1964,7 +2116,7 @@ export default function CoordinationFinanceDashboard() {
       />
 
       <NewChargeModal
-        visible={newChargeVisible}
+        visible={dataIsCurrent && newChargeVisible}
         organizationId={organizationId}
         competenceMonth={selectedMonth}
         onClose={() => setNewChargeVisible(false)}
@@ -1976,7 +2128,7 @@ export default function CoordinationFinanceDashboard() {
       />
 
       <ModalSheet
-        visible={workspaceModal === "settings"}
+        visible={dataIsCurrent && workspaceModal === "settings"}
         onClose={() => setWorkspaceModal(null)}
         position="center"
         cardStyle={{

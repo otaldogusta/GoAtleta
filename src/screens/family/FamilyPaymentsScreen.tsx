@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Text, View } from "react-native";
 
 import {
@@ -39,38 +39,84 @@ const invoiceStatusLabel: Record<FamilyInvoiceStatus, string> = {
   unknown: "Em análise",
 };
 
-export function FamilyPaymentsScreen() {
-  markRender("screen.familyPayments.render.root");
-  const { colors } = useAppTheme();
-  const { selectedFamilyStudent } = useRole();
-  const selectedStudentId = selectedFamilyStudent?.studentId ?? null;
-  const selectedRelationshipId = selectedFamilyStudent?.relationshipId ?? null;
-  const canViewFinance = selectedFamilyStudent?.canViewFinance ?? false;
-  const [data, setData] = useState<FamilyFinanceData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [failed, setFailed] = useState(false);
+type FamilyFinanceRequestState = {
+  relationshipId: string | null;
+  studentId: string | null;
+  data: FamilyFinanceData | null;
+  loading: boolean;
+  failed: boolean;
+};
+
+type UseFamilyFinanceDataParams = {
+  selectedRelationshipId: string | null;
+  selectedStudentId: string | null;
+  canViewFinance: boolean;
+};
+
+const emptyFinanceRequestState: FamilyFinanceRequestState = {
+  relationshipId: null,
+  studentId: null,
+  data: null,
+  loading: false,
+  failed: false,
+};
+
+export function useFamilyFinanceData({
+  selectedRelationshipId,
+  selectedStudentId,
+  canViewFinance,
+}: UseFamilyFinanceDataParams) {
+  const requestIdRef = useRef(0);
+  const [requestState, setRequestState] = useState<FamilyFinanceRequestState>(
+    emptyFinanceRequestState,
+  );
 
   const load = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     if (!selectedStudentId || !canViewFinance || !selectedRelationshipId) {
-      setData(null);
-      setFailed(false);
+      setRequestState(emptyFinanceRequestState);
       return;
     }
-    setLoading(true);
-    setFailed(false);
+
+    setRequestState((current) => {
+      const currentScopeMatches =
+        current.relationshipId === selectedRelationshipId &&
+        current.studentId === selectedStudentId;
+      return {
+        relationshipId: selectedRelationshipId,
+        studentId: selectedStudentId,
+        data: currentScopeMatches ? current.data : null,
+        loading: true,
+        failed: false,
+      };
+    });
+
     try {
-      setData(
-        await measureAsync(
-          "screen.familyPayments.load.invoices",
-          () => getMyFamilyFinance(selectedRelationshipId),
-          { relationshipId: selectedRelationshipId },
-        ),
+      const nextData = await measureAsync(
+        "screen.familyPayments.load.invoices",
+        () => getMyFamilyFinance(selectedRelationshipId),
+        { relationshipId: selectedRelationshipId },
       );
+
+      if (requestIdRef.current !== requestId) return;
+      setRequestState({
+        relationshipId: selectedRelationshipId,
+        studentId: selectedStudentId,
+        data: nextData,
+        loading: false,
+        failed: false,
+      });
     } catch {
-      setData(null);
-      setFailed(true);
-    } finally {
-      setLoading(false);
+      if (requestIdRef.current !== requestId) return;
+      setRequestState({
+        relationshipId: selectedRelationshipId,
+        studentId: selectedStudentId,
+        data: null,
+        loading: false,
+        failed: true,
+      });
     }
   }, [canViewFinance, selectedRelationshipId, selectedStudentId]);
 
@@ -78,8 +124,40 @@ export function FamilyPaymentsScreen() {
     const timer = setTimeout(() => {
       void load();
     }, 0);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      requestIdRef.current += 1;
+    };
   }, [load]);
+
+  const hasFinanceScope = Boolean(
+    selectedRelationshipId && selectedStudentId && canViewFinance,
+  );
+  const stateMatchesSelection =
+    hasFinanceScope &&
+    requestState.relationshipId === selectedRelationshipId &&
+    requestState.studentId === selectedStudentId;
+  const data = stateMatchesSelection ? requestState.data : null;
+  const loading =
+    hasFinanceScope &&
+    (!stateMatchesSelection || requestState.loading);
+  const failed = stateMatchesSelection && requestState.failed;
+
+  return { data, loading, failed, load };
+}
+
+export function FamilyPaymentsScreen() {
+  markRender("screen.familyPayments.render.root");
+  const { colors } = useAppTheme();
+  const { selectedFamilyStudent } = useRole();
+  const selectedStudentId = selectedFamilyStudent?.studentId ?? null;
+  const selectedRelationshipId = selectedFamilyStudent?.relationshipId ?? null;
+  const canViewFinance = selectedFamilyStudent?.canViewFinance ?? false;
+  const { data, loading, failed, load } = useFamilyFinanceData({
+    selectedRelationshipId,
+    selectedStudentId,
+    canViewFinance,
+  });
 
   const hasInvoices = Boolean(data?.invoices.length);
   const hasPaymentLink = Boolean(

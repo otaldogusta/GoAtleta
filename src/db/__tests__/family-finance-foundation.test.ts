@@ -17,6 +17,22 @@ const financeMigrationSource = readFileSync(
   "utf8",
 );
 
+const payerRevocationMigrationSource = readFileSync(
+  resolve(
+    __dirname,
+    "../../../supabase/migrations/20260901000346_pause_tuition_agreements_on_payer_revocation.sql",
+  ),
+  "utf8",
+);
+
+const manualPaymentDateMigrationSource = readFileSync(
+  resolve(
+    __dirname,
+    "../../../supabase/migrations/20260901014911_reject_future_manual_payment_date.sql",
+  ),
+  "utf8",
+);
+
 const functionBody = (source: string, name: string) => {
   const start = source.indexOf(`create or replace function public.${name}`);
   const end = source.indexOf(`revoke all on function public.${name}`, start);
@@ -396,5 +412,82 @@ describe("finance foundation contract", () => {
     expect(manualPayment).toContain("'confirmed'");
     expect(manualPayment).toContain("insert into public.finance_audit_events");
     expect(manualPayment).toContain("manual_payment_recorded");
+  });
+});
+
+describe("payer revocation finance guard", () => {
+  test("pauses historical active agreements with an ineligible payer and audits the repair", () => {
+    expect(payerRevocationMigrationSource).toContain(
+      "with paused_agreements as (",
+    );
+    expect(payerRevocationMigrationSource).toContain(
+      "relationship.status <> 'active'",
+    );
+    expect(payerRevocationMigrationSource).toContain(
+      "or not relationship.can_pay",
+    );
+    expect(payerRevocationMigrationSource).toContain(
+      "'paused_ineligible_payer_backfill'",
+    );
+    expect(payerRevocationMigrationSource).not.toMatch(/\bdelete\s+from\b/i);
+  });
+
+  test("pauses active agreements inside the relationship revocation transaction", () => {
+    const revokeRelationship = functionBody(
+      payerRevocationMigrationSource,
+      "revoke_student_relationship_v1",
+    );
+    const pauseAgreement = revokeRelationship.indexOf(
+      "update public.tuition_agreements agreement",
+    );
+    const revokeRelationshipRow = revokeRelationship.indexOf(
+      "update public.student_relationships relationship",
+    );
+
+    expect(revokeRelationship).toContain("for update");
+    expect(pauseAgreement).toBeGreaterThanOrEqual(0);
+    expect(revokeRelationshipRow).toBeGreaterThan(pauseAgreement);
+    expect(revokeRelationship).toContain(
+      "'paused_payer_relationship_revoked'",
+    );
+    expect(revokeRelationship).toContain(
+      "insert into public.finance_audit_events",
+    );
+  });
+
+  test("revalidates and locks the payer before locking the agreement for issuance", () => {
+    const issueInvoice = functionBody(
+      payerRevocationMigrationSource,
+      "issue_tuition_invoice_v1",
+    );
+    const payerLock = issueInvoice.indexOf(
+      "select relationship.*\n    into v_payer_relationship",
+    );
+    const agreementLock = issueInvoice.indexOf(
+      "select agreement.*\n    into v_agreement",
+      payerLock,
+    );
+
+    expect(payerLock).toBeGreaterThanOrEqual(0);
+    expect(agreementLock).toBeGreaterThan(payerLock);
+    expect(issueInvoice).toContain("relationship.status = 'active'");
+    expect(issueInvoice).toContain("relationship.can_pay");
+    expect(issueInvoice).toContain("raise exception 'PAYER_RELATIONSHIP_INVALID'");
+    expect(issueInvoice.slice(payerLock, agreementLock)).toContain("for update");
+    expect(issueInvoice.slice(agreementLock)).toContain("for update");
+  });
+});
+
+describe("manual payment date guard", () => {
+  test("rejects future dates inside the financial RPC", () => {
+    const manualPayment = functionBody(
+      manualPaymentDateMigrationSource,
+      "record_manual_payment_v1",
+    );
+
+    expect(manualPayment).toContain("PAYMENT_DATE_IN_FUTURE");
+    expect(manualPayment).toContain("America/Sao_Paulo");
+    expect(manualPaymentDateMigrationSource).not.toMatch(/\bdelete\s+from\b/i);
+    expect(manualPaymentDateMigrationSource).not.toMatch(/\bdrop\s+table\b/i);
   });
 });

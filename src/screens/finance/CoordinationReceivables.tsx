@@ -21,13 +21,20 @@ import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
 import { SectionLoadingState } from "../../components/ui/SectionLoadingState";
 import { createClientId } from "../../core/client-id";
 import {
+  captureOrganizationAsyncIdentity,
+  isOrganizationAsyncIdentityCurrent,
+  type OrganizationAsyncIdentity,
+} from "../../core/organization-async-identity";
+import {
   canRecordManualPaymentForInvoice,
   formatFinanceDate,
   formatMoneyFromCents,
   getInvoiceOutstandingCents,
+  isFinancePaidDateAllowed,
   parseMoneyInputToCents,
   toFinancePaidAtIso,
 } from "../../finance/application/finance-format";
+import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
 import { useOrganization } from "../../providers/OrganizationProvider";
 import { radius, spacing } from "../../theme/tokens";
@@ -48,10 +55,10 @@ type ManualPaymentSuccess = {
   amountCents: number;
 };
 
-const PAYMENT_METHODS: ReadonlyArray<{
+const PAYMENT_METHODS: readonly {
   value: ManualPaymentMethod;
   label: string;
-}> = [
+}[] = [
   { value: "pix", label: "Pix" },
   { value: "boleto", label: "Boleto" },
   { value: "card", label: "Cartão" },
@@ -184,6 +191,9 @@ const paymentErrorMessage = (error: unknown) => {
   if (/INVOICE_NOT_PAYABLE/i.test(detail)) {
     return "Esta cobrança não aceita mais pagamentos.";
   }
+  if (/PAYMENT_DATE_IN_FUTURE/i.test(detail)) {
+    return "A data do recebimento não pode estar no futuro.";
+  }
   if (/NOT_AUTHORIZED|permission|403/i.test(detail)) {
     return "Sua permissão financeira mudou. Atualize a tela antes de continuar.";
   }
@@ -267,6 +277,13 @@ export function ManualPaymentModal({
 }) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createManualPaymentStyles(colors), [colors]);
+  const {
+    identity: organizationIdentity,
+    identityRef: organizationIdentityRef,
+  } = useOrganizationAsyncIdentity(
+    organizationId,
+  );
+  const invoiceIdRef = useRef(invoice?.id ?? "");
   const outstandingCents = invoice
     ? getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents)
     : 0;
@@ -280,6 +297,10 @@ export function ManualPaymentModal({
   const [initialFingerprint, setInitialFingerprint] = useState("");
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const submissionRef = useRef<{ fingerprint: string; idempotencyKey: string } | null>(null);
+
+  useEffect(() => {
+    invoiceIdRef.current = invoice?.id ?? "";
+  }, [invoice]);
 
   useEffect(() => {
     if (!visible || !invoice) return;
@@ -302,7 +323,7 @@ export function ManualPaymentModal({
       submissionRef.current = null;
     }, 0);
     return () => clearTimeout(timer);
-  }, [invoice, visible]);
+  }, [invoice, organizationIdentity, visible]);
 
   const currentFingerprint = JSON.stringify([
     amount,
@@ -314,6 +335,7 @@ export function ManualPaymentModal({
   const dirty = Boolean(initialFingerprint) && currentFingerprint !== initialFingerprint;
   const parsedAmount = useMemo(() => parseMoneyInputToCents(amount), [amount]);
   const paidAt = useMemo(() => toFinancePaidAtIso(paidDate), [paidDate]);
+  const paidDateAllowed = isFinancePaidDateAllowed(paidDate, todayDateOnly());
   const invoicePayable = invoice
     ? canRecordManualPaymentForInvoice({
         amountCents: invoice.amountCents,
@@ -336,6 +358,7 @@ export function ManualPaymentModal({
       parsedAmount !== null &&
       parsedAmount <= outstandingCents &&
       paidAt &&
+      paidDateAllowed &&
       confirmed &&
       !busy
   );
@@ -354,9 +377,15 @@ export function ManualPaymentModal({
   };
 
   const handleSubmit = async () => {
-    if (!invoice || !canSubmit || parsedAmount === null || !paidAt) return;
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity || !invoice || !canSubmit || parsedAmount === null || !paidAt)
+      return;
+    const submittedInvoice = invoice;
     const payloadFingerprint = JSON.stringify([
-      invoice.id,
+      submittedInvoice.id,
       parsedAmount,
       method,
       paidAt,
@@ -374,24 +403,56 @@ export function ManualPaymentModal({
     try {
       await recordManualPayment({
         organizationId,
-        invoiceId: invoice.id,
+        invoiceId: submittedInvoice.id,
         amountCents: parsedAmount,
         method,
         paidAt,
         notes,
         idempotencyKey: submissionRef.current.idempotencyKey,
       });
+      if (
+        invoiceIdRef.current !== submittedInvoice.id ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
       await onSuccess({
-        invoiceId: invoice.id,
-        studentName: invoice.studentName,
+        invoiceId: submittedInvoice.id,
+        studentName: submittedInvoice.studentName,
         amountCents: parsedAmount,
       });
+      if (
+        invoiceIdRef.current !== submittedInvoice.id ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
       submissionRef.current = null;
       onClose();
     } catch (error) {
+      if (
+        invoiceIdRef.current !== submittedInvoice.id ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
       setFormError(paymentErrorMessage(error));
     } finally {
-      setBusy(false);
+      if (
+        invoiceIdRef.current === submittedInvoice.id &&
+        isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      ) {
+        setBusy(false);
+      }
     }
   };
 
@@ -548,8 +609,16 @@ export function ManualPaymentModal({
                   clearFormError();
                 }}
                 placeholder="DD/MM/AAAA"
-                invalid={!paidAt}
+                invalid={!paidAt || !paidDateAllowed}
               />
+              {paidAt && !paidDateAllowed ? (
+                <Text
+                  accessibilityRole="alert"
+                  style={{ color: colors.dangerText, fontSize: 12, fontWeight: "700" }}
+                >
+                  A data do recebimento não pode estar no futuro.
+                </Text>
+              ) : null}
             </View>
 
             <PaymentTextField
@@ -719,6 +788,13 @@ function ReceivableRow({
 }
 
 export default function CoordinationReceivables() {
+  const { activeOrganization } = useOrganization();
+  const organizationId = activeOrganization?.id ?? "";
+
+  return <CoordinationReceivablesOrganizationScope key={organizationId} />;
+}
+
+function CoordinationReceivablesOrganizationScope() {
   markRender("screen.coordReceivables.render.root");
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -726,6 +802,12 @@ export default function CoordinationReceivables() {
   const insets = useSafeAreaInsets();
   const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
   const organizationId = activeOrganization?.id ?? "";
+  const {
+    identity: organizationIdentity,
+    identityRef: organizationIdentityRef,
+  } = useOrganizationAsyncIdentity(
+    organizationId,
+  );
   const canAccess =
     (activeOrganization?.role_level ?? 0) >= 50 || memberPermissions.financial === true;
   const [rows, setRows] = useState<OrganizationInvoice[]>([]);
@@ -734,12 +816,32 @@ export default function CoordinationReceivables() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const requestRef = useRef(0);
+  const [dataIdentity, setDataIdentity] =
+    useState<OrganizationAsyncIdentity | null>(null);
+  const dataIsCurrent = Boolean(
+    dataIdentity &&
+      isOrganizationAsyncIdentityCurrent(
+        organizationIdentity,
+        dataIdentity,
+      ),
+  );
+  const scopedRows = dataIsCurrent ? rows : [];
+  const scopedSelectedInvoice = dataIsCurrent ? selectedInvoice : null;
+  const scopedNotice = dataIsCurrent ? notice : "";
+  const scopedError = dataIsCurrent ? error : "";
 
   const load = useCallback(async () => {
+    const identity = captureOrganizationAsyncIdentity(
+      organizationIdentityRef.current,
+      organizationIdentity,
+    );
+    if (!identity) return;
     const request = requestRef.current + 1;
     requestRef.current = request;
     if (!organizationId || !canAccess) {
+      setDataIdentity(identity);
       setRows([]);
+      setSelectedInvoice(null);
       setLoading(false);
       return;
     }
@@ -751,16 +853,51 @@ export default function CoordinationReceivables() {
         () => listOrganizationInvoices(organizationId),
         { organizationId },
       );
-      if (request !== requestRef.current) return;
+      if (
+        request !== requestRef.current ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
+      setDataIdentity(identity);
       setRows(next);
+      setSelectedInvoice((current) =>
+        current && next.some((invoice) => invoice.id === current.id)
+          ? current
+          : null,
+      );
     } catch {
-      if (request !== requestRef.current) return;
+      if (
+        request !== requestRef.current ||
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
+      setDataIdentity(identity);
       setRows([]);
+      setSelectedInvoice(null);
       setError("Cobranças indisponíveis até a fundação financeira ser aplicada.");
     } finally {
-      if (request === requestRef.current) setLoading(false);
+      if (
+        request === requestRef.current &&
+        isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      ) {
+        setLoading(false);
+      }
     }
-  }, [canAccess, organizationId]);
+  }, [
+    canAccess,
+    organizationId,
+    organizationIdentity,
+    organizationIdentityRef,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -773,12 +910,25 @@ export default function CoordinationReceivables() {
 
   const handlePaymentSuccess = useCallback(
     async (result: ManualPaymentSuccess) => {
+      const identity = captureOrganizationAsyncIdentity(
+        organizationIdentityRef.current,
+        organizationIdentity,
+      );
+      if (!identity) return;
       setNotice(
         `${formatMoneyFromCents(result.amountCents)} registrado para ${result.studentName}.`
       );
+      setSelectedInvoice(null);
       await load();
+      if (
+        !isOrganizationAsyncIdentityCurrent(
+          organizationIdentityRef.current,
+          identity,
+        )
+      )
+        return;
     },
-    [load]
+    [load, organizationIdentity, organizationIdentityRef]
   );
 
   if (!permissionsLoading && !canAccess) {
@@ -803,11 +953,11 @@ export default function CoordinationReceivables() {
         <ResponsivePage variant="dashboard" gap={spacing.md}>
           <ScreenPageHeader
             title="Cobranças"
-            subtitle={`${rows.length} título(s)`}
+            subtitle={`${scopedRows.length} título(s)`}
             onBack={() => router.back()}
             horizontalBleed={0}
           />
-          {notice ? (
+          {scopedNotice ? (
             <Pressable
               accessibilityRole="alert"
               onPress={() => setNotice("")}
@@ -823,11 +973,11 @@ export default function CoordinationReceivables() {
               }}
             >
               <GoAtletaIcon name="success" size={19} color={colors.successText} />
-              <Text style={{ flex: 1, color: colors.successText, fontWeight: "800" }}>{notice}</Text>
+              <Text style={{ flex: 1, color: colors.successText, fontWeight: "800" }}>{scopedNotice}</Text>
             </Pressable>
           ) : null}
           {loading ? <SectionLoadingState /> : null}
-          {error ? (
+          {scopedError ? (
             <Pressable
               onPress={() => void load()}
               style={{
@@ -838,13 +988,13 @@ export default function CoordinationReceivables() {
                 padding: spacing.md,
               }}
             >
-              <Text style={{ color: colors.warningText, fontWeight: "800" }}>{error}</Text>
+              <Text style={{ color: colors.warningText, fontWeight: "800" }}>{scopedError}</Text>
             </Pressable>
           ) : null}
-          {!loading && !error ? (
+          {!loading && !scopedError ? (
             <View style={{ borderRadius: radius.container, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
-              {rows.length ? (
-                rows.map((invoice) => (
+              {scopedRows.length ? (
+                scopedRows.map((invoice) => (
                   <ReceivableRow
                     key={invoice.id}
                     invoice={invoice}
@@ -867,8 +1017,8 @@ export default function CoordinationReceivables() {
       </ScrollView>
 
       <ManualPaymentModal
-        visible={Boolean(selectedInvoice)}
-        invoice={selectedInvoice}
+        visible={dataIsCurrent && Boolean(scopedSelectedInvoice)}
+        invoice={scopedSelectedInvoice}
         organizationId={organizationId}
         canRecord={canAccess}
         onClose={() => setSelectedInvoice(null)}

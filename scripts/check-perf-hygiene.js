@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
@@ -28,6 +27,7 @@ function parseArgs(argv) {
   const files = [];
   let baseRef = "";
   let strict = false;
+  let worktree = false;
 
   while (args.length) {
     const token = args.shift();
@@ -39,6 +39,10 @@ function parseArgs(argv) {
       strict = true;
       continue;
     }
+    if (token === "--worktree") {
+      worktree = true;
+      continue;
+    }
     if (token === "--files") {
       while (args.length && !args[0].startsWith("--")) {
         files.push(toPosix(args.shift()));
@@ -47,10 +51,15 @@ function parseArgs(argv) {
     }
   }
 
-  return { files, baseRef, strict };
+  return { files, baseRef, strict, worktree };
 }
 
-function listChangedFiles(baseRef) {
+function resolveWorktreeBase(ref) {
+  if (ref.startsWith("HEAD~") || ref === "HEAD") return ref;
+  return run(`git merge-base ${ref} HEAD`) || ref;
+}
+
+function listChangedFiles(baseRef, worktree) {
   const candidates = [
     baseRef,
     process.env.PERF_BASE_REF || "",
@@ -64,16 +73,21 @@ function listChangedFiles(baseRef) {
     const hasRef = run(`git rev-parse --verify ${ref}`);
     if (!hasRef) continue;
 
-    const command =
-      ref.startsWith("HEAD~") || ref === "HEAD"
+    const command = worktree
+      ? `git diff --name-only ${resolveWorktreeBase(ref)} --`
+      : ref.startsWith("HEAD~") || ref === "HEAD"
         ? `git diff --name-only ${ref} HEAD`
         : `git diff --name-only ${ref}...HEAD`;
-    const out = run(command);
+    const tracked = run(command);
+    const untracked = worktree
+      ? run("git ls-files --others --exclude-standard")
+      : "";
+    const out = [tracked, untracked].filter(Boolean).join("\n");
     if (!out) continue;
-    return out
+    return [...new Set(out
       .split(/\r?\n/)
       .map((line) => toPosix(line.trim()))
-      .filter(Boolean);
+      .filter(Boolean))];
   }
 
   return [];
@@ -86,7 +100,7 @@ function isCandidateScreenFile(filePath) {
   return true;
 }
 
-function getDiffForFile(filePath, baseRef) {
+function getDiffForFile(filePath, baseRef, worktree) {
   const normalized = toPosix(filePath);
   const candidates = [
     baseRef,
@@ -101,8 +115,9 @@ function getDiffForFile(filePath, baseRef) {
     const hasRef = run(`git rev-parse --verify ${ref}`);
     if (!hasRef) continue;
 
-    const command =
-      ref.startsWith("HEAD~") || ref === "HEAD"
+    const command = worktree
+      ? `git diff -U14 ${resolveWorktreeBase(ref)} -- "${normalized}"`
+      : ref.startsWith("HEAD~") || ref === "HEAD"
         ? `git diff -U14 ${ref} HEAD -- "${normalized}"`
         : `git diff -U14 ${ref}...HEAD -- "${normalized}"`;
     const out = run(command);
@@ -118,7 +133,7 @@ function parseHunkAddedLineStart(line) {
   return Number(match[1]);
 }
 
-function validateInlineRowStyles(filePath, baseRef) {
+function validateInlineRowStyles(filePath, baseRef, worktree) {
   const absolute = path.resolve(filePath);
   if (!fs.existsSync(absolute)) return [];
 
@@ -126,7 +141,7 @@ function validateInlineRowStyles(filePath, baseRef) {
   if (content.includes(SKIP_INLINE_ROW_STYLE_TAG)) return [];
   if (!hasDefaultExportScreen(content)) return [];
 
-  const diff = getDiffForFile(filePath, baseRef);
+  const diff = getDiffForFile(filePath, baseRef, worktree);
   if (!diff) return [];
 
   const lines = diff.split(/\r?\n/);
@@ -216,8 +231,10 @@ function validateFile(filePath) {
 }
 
 function main() {
-  const { files: cliFiles, baseRef, strict } = parseArgs(process.argv.slice(2));
-  const changed = cliFiles.length ? cliFiles : listChangedFiles(baseRef);
+  const { files: cliFiles, baseRef, strict, worktree } = parseArgs(
+    process.argv.slice(2)
+  );
+  const changed = cliFiles.length ? cliFiles : listChangedFiles(baseRef, worktree);
 
   if (!changed.length) {
     console.log("[perf-hygiene] Nenhum arquivo alterado para validar.");
@@ -235,7 +252,9 @@ function main() {
     .filter((entry) => Boolean(entry));
 
   const strictViolations = strict
-    ? candidates.flatMap((filePath) => validateInlineRowStyles(filePath, baseRef))
+    ? candidates.flatMap((filePath) =>
+        validateInlineRowStyles(filePath, baseRef, worktree)
+      )
     : [];
 
   if (!violations.length && !strictViolations.length) {

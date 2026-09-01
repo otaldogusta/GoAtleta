@@ -3,6 +3,7 @@ import {
   formatFinanceDate,
   formatMoneyFromCents,
   getInvoiceOutstandingCents,
+  isFinancePaidDateAllowed,
   invoiceStatusLabel,
   normalizeInvoiceStatus,
   parseMoneyInputToCents,
@@ -69,5 +70,12 @@ describe("finance formatting", () => {
     expect(toFinancePaidAtIso("2026-08-30")).toContain("2026-08-30T");
     expect(toFinancePaidAtIso("2026-02-30")).toBeNull();
     expect(toFinancePaidAtIso("30/08/2026")).toBeNull();
+  });
+
+  it("accepts past and current payment dates but rejects future dates", () => {
+    expect(isFinancePaidDateAllowed("2026-08-30", "2026-08-31")).toBe(true);
+    expect(isFinancePaidDateAllowed("2026-08-31", "2026-08-31")).toBe(true);
+    expect(isFinancePaidDateAllowed("2026-09-01", "2026-08-31")).toBe(false);
+    expect(isFinancePaidDateAllowed("2026-02-30", "2026-08-31")).toBe(false);
   });
 });

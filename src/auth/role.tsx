@@ -246,6 +246,11 @@ const buildDevPreviewStudent = (userId: string | null): Student => ({
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
+  const sessionUserId = session?.user?.id ?? null;
+  const sessionSnapshotKey = session
+    ? `${session.user.id}:${session.access_token}`
+    : "signed-out";
+  const hasSession = Boolean(session);
   const [role, setRole] = useState<UserRole | null>(null);
   const [availableRoles, setAvailableRoles] = useState<SelectableUserRole[]>(
     [],
@@ -260,22 +265,44 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     useState<FamilyStudentContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const lastSessionUserIdRef = useRef<string | undefined>(session?.user?.id);
+  const [authorizationSessionKey, setAuthorizationSessionKey] =
+    useState(sessionSnapshotKey);
+  const activeSessionUserIdRef = useRef<string | null>(sessionUserId);
+  const activeSessionKeyRef = useRef(sessionSnapshotKey);
+  const refreshGenerationRef = useRef(0);
   const lastAutomaticRefreshKeyRef = useRef("");
 
-  if (session?.user?.id !== lastSessionUserIdRef.current) {
-    lastSessionUserIdRef.current = session?.user?.id;
-    setLoading(true);
+  useEffect(() => {
+    const userChanged = activeSessionUserIdRef.current !== sessionUserId;
+    const sessionChanged = activeSessionKeyRef.current !== sessionSnapshotKey;
+    if (!userChanged && !sessionChanged) return;
+
+    refreshGenerationRef.current += 1;
+    activeSessionUserIdRef.current = sessionUserId;
+    activeSessionKeyRef.current = sessionSnapshotKey;
+    setAuthorizationSessionKey(sessionSnapshotKey);
+
+    if (!userChanged) return;
+    setLoading(hasSession);
     setError(null);
     setRole(null);
     setAvailableRoles([]);
     setStudent(null);
     setFamilyContexts([]);
     setSelectedFamilyStudent(null);
-  }
+  }, [hasSession, sessionSnapshotKey, sessionUserId]);
 
   const refresh = useCallback(
     async (options?: { silent?: boolean } | boolean) => {
+      const refreshSession = session;
+      const requestSessionKey = sessionSnapshotKey;
+      if (activeSessionKeyRef.current !== requestSessionKey) return;
+
+      const requestGeneration = refreshGenerationRef.current + 1;
+      refreshGenerationRef.current = requestGeneration;
+      const isCurrentRefresh = () =>
+        refreshGenerationRef.current === requestGeneration &&
+        activeSessionKeyRef.current === requestSessionKey;
       const isSilent =
         typeof options === "object" ? options?.silent : Boolean(options);
       if (!isSilent) {
@@ -284,9 +311,10 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       try {
         const preview = await getDevProfilePreview();
+        if (!isCurrentRefresh()) return;
         setDevProfilePreviewState(preview);
 
-        if (!session) {
+        if (!refreshSession) {
           setRole(null);
           setAvailableRoles([]);
           setStudent(null);
@@ -297,7 +325,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
 
         if (preview === "professor" || preview === "admin") {
           const token = await getValidAccessToken();
+          if (!isCurrentRefresh()) return;
           const userId = await getSessionUserId();
+          if (!isCurrentRefresh()) return;
           if (token && userId) {
             const [
               isTrainer,
@@ -310,6 +340,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
               fetchFamilyContexts(token),
               getActiveFamilyStudentPreference(userId),
             ]);
+            if (!isCurrentRefresh()) return;
             const resolvedRoles = resolveAvailableUserRoles({
               isTrainer,
               hasStudent: Boolean(studentRow),
@@ -335,7 +366,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
 
         if (preview === "student") {
           const token = await getValidAccessToken();
+          if (!isCurrentRefresh()) return;
           const userId = await getSessionUserId();
+          if (!isCurrentRefresh()) return;
           if (token && userId) {
             const [
               isTrainer,
@@ -348,6 +381,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
               fetchFamilyContexts(token),
               getActiveFamilyStudentPreference(userId),
             ]);
+            if (!isCurrentRefresh()) return;
             setAvailableRoles(
               resolveAvailableUserRoles({
                 isTrainer,
@@ -374,7 +408,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         }
 
         const token = await getValidAccessToken();
+        if (!isCurrentRefresh()) return;
         const userId = await getSessionUserId();
+        if (!isCurrentRefresh()) return;
         if (!token || !userId) {
           throw new RoleRequestError(
             "Sessão indisponível ao carregar o perfil.",
@@ -394,6 +430,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           getActiveRolePreference(userId),
           getActiveFamilyStudentPreference(userId),
         ]);
+        if (!isCurrentRefresh()) return;
         const resolvedRoles = resolveAvailableUserRoles({
           isTrainer,
           hasStudent: Boolean(studentRow),
@@ -423,6 +460,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setRole("pending");
         setStudent(null);
       } catch (caughtError) {
+        if (!isCurrentRefresh()) return;
         const parsedError =
           caughtError instanceof Error
             ? caughtError
@@ -435,61 +473,71 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setFamilyContexts([]);
         setSelectedFamilyStudent(null);
       } finally {
-        setLoading(false);
+        if (isCurrentRefresh()) {
+          setLoading(false);
+        }
       }
     },
-    [session],
+    [session, sessionSnapshotKey],
   );
 
   const retry = useCallback(() => refresh(), [refresh]);
 
   useEffect(() => {
-    const automaticRefreshKey = session
-      ? `${session.user.id}:${session.access_token}`
-      : "signed-out";
-    if (lastAutomaticRefreshKeyRef.current === automaticRefreshKey) return;
-    lastAutomaticRefreshKeyRef.current = automaticRefreshKey;
+    if (lastAutomaticRefreshKeyRef.current === sessionSnapshotKey) return;
+    lastAutomaticRefreshKeyRef.current = sessionSnapshotKey;
 
     Promise.resolve().then(() => {
       void refresh();
     });
-  }, [refresh, session]);
+  }, [refresh, sessionSnapshotKey]);
 
   const setActiveRole = useCallback(
     async (nextRole: SelectableUserRole) => {
+      if (activeSessionKeyRef.current !== sessionSnapshotKey) return false;
       const userId = await getSessionUserId();
+      if (activeSessionKeyRef.current !== sessionSnapshotKey) return false;
       if (!userId || !availableRoles.includes(nextRole)) return false;
       await setActiveRolePreference(userId, nextRole);
+      if (activeSessionKeyRef.current !== sessionSnapshotKey) return false;
       await refresh();
-      return true;
+      return activeSessionKeyRef.current === sessionSnapshotKey;
     },
-    [availableRoles, refresh],
+    [availableRoles, refresh, sessionSnapshotKey],
   );
 
   const setActiveFamilyStudent = useCallback(
     async (studentId: string) => {
+      if (activeSessionKeyRef.current !== sessionSnapshotKey) return false;
       const userId = await getSessionUserId();
+      if (activeSessionKeyRef.current !== sessionSnapshotKey) return false;
       const selected = familyContexts.find(
         (context) => context.studentId === studentId.trim(),
       );
       if (!userId || !selected) return false;
       await setActiveFamilyStudentPreference(userId, selected.studentId);
+      if (activeSessionKeyRef.current !== sessionSnapshotKey) return false;
       setSelectedFamilyStudent(selected);
       return true;
     },
-    [familyContexts],
+    [familyContexts, sessionSnapshotKey],
   );
+
+  const isPublishedSessionCurrent =
+    authorizationSessionKey === sessionSnapshotKey;
 
   const value = useMemo(
     () => ({
-      role,
-      availableRoles,
+      role: isPublishedSessionCurrent ? role : null,
+      availableRoles: isPublishedSessionCurrent ? availableRoles : [],
       devProfilePreview,
-      student,
-      familyContexts,
-      selectedFamilyStudent,
-      loading,
-      error,
+      student: isPublishedSessionCurrent ? student : null,
+      familyContexts: isPublishedSessionCurrent ? familyContexts : [],
+      selectedFamilyStudent: isPublishedSessionCurrent
+        ? selectedFamilyStudent
+        : null,
+      loading: isPublishedSessionCurrent ? loading : hasSession,
+      error: isPublishedSessionCurrent ? error : null,
       refresh,
       retry,
       setActiveRole,
@@ -499,6 +547,8 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       availableRoles,
       devProfilePreview,
       familyContexts,
+      hasSession,
+      isPublishedSessionCurrent,
       loading,
       error,
       refresh,

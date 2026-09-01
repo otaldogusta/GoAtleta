@@ -47,4 +47,14 @@ describe("student relationship invite route contract", () => {
     expect(routeSource).toContain("borderRadius: 0");
     expect(routeSource).toContain("disabled={!canSubmitAuth}");
   });
+
+  it("replaces the removed web outline with a neutral theme focus border", () => {
+    expect(routeSource).toContain("focusedInputField === field ? borders.focus : 1");
+    expect(routeSource).toContain("focusedInputField === field ? colors.borderStrong : colors.border");
+    expect(routeSource).toContain('onFocus={() => setFocusedInputField("otp")}');
+    expect(routeSource).toContain('onFocus={() => setFocusedInputField("email")}');
+    expect(routeSource).toContain('onFocus={() => setFocusedInputField("password")}');
+    expect(routeSource).toContain('onFocus={() => setFocusedInputField("confirmPassword")}');
+    expect(routeSource).not.toContain("focusedInputField === field ? colors.primaryBg");
+  });
 });

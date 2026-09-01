@@ -27,6 +27,10 @@ describe("sanitizeVercelAnalyticsEvent", () => {
       "https://goatleta.com/invite/_token",
     ],
     [
+      "https://goatleta.com/family-invite/private-token",
+      "https://goatleta.com/family-invite/_token",
+    ],
+    [
       "https://goatleta.com/students/private-student/attendance",
       "https://goatleta.com/students/_id/attendance",
     ],
@@ -45,6 +49,18 @@ describe("sanitizeVercelAnalyticsEvent", () => {
     ).toEqual({
       type: "pageview",
       url: "https://goatleta.com/prof/home",
+    });
+  });
+
+  it("removes sensitive query and hash data from a family invite", () => {
+    expect(
+      sanitizeVercelAnalyticsEvent({
+        type: "pageview",
+        url: "https://goatleta.com/family-invite/private-token?email=private@example.com#otp=123456",
+      }),
+    ).toEqual({
+      type: "pageview",
+      url: "https://goatleta.com/family-invite/_token",
     });
   });
 

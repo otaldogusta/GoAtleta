@@ -1,11 +1,13 @@
 import * as Sentry from "@sentry/react-native";
 import type { CycleDayGenerationExplanation } from "../core/cycle-day-planning/format-generation-explanation";
+import { sanitizeNavigationPath } from "./navigation-privacy";
 
 export const logNavigation = (pathname: string) => {
-  if (!pathname) return;
+  const safePathname = sanitizeNavigationPath(pathname);
+  if (!safePathname) return;
   Sentry.addBreadcrumb({
     category: "navigation",
-    message: `Route: ${pathname}`,
+    message: `Route: ${safePathname}`,
     level: "info",
   });
 };
