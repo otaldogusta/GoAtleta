@@ -912,14 +912,25 @@ async function verifyFixtures(client, accounts) {
   );
 
   const attendance = await client.user(
-    `/rest/v1/attendance_logs?select=id&organization_id=eq.${encodeEq(FIXTURE.organization.id)}&classid=eq.${encodeEq(FIXTURE.class.id)}`,
+    `/rest/v1/attendance_logs?select=id&organization_id=eq.${encodeEq(FIXTURE.organization.id)}&classid=eq.${encodeEq(FIXTURE.class.id)}&id=like.e2e-local-attendance-*`,
     sessions.professor.access_token,
     { label: "chamadas históricas" }
   );
-  assert(Array.isArray(attendance) && attendance.length === 6, "Histórico de chamada incompleto.");
+  expectRowIds(
+    attendance,
+    [
+      "e2e-local-attendance-older-regular",
+      "e2e-local-attendance-older-delinquent",
+      "e2e-local-attendance-older-inactive",
+      "e2e-local-attendance-recent-regular",
+      "e2e-local-attendance-recent-delinquent",
+      "e2e-local-attendance-recent-inactive",
+    ],
+    "chamadas históricas"
+  );
 
   const sessionLogs = await client.user(
-    `/rest/v1/session_logs?select=id&organization_id=eq.${encodeEq(FIXTURE.organization.id)}&classid=eq.${encodeEq(FIXTURE.class.id)}`,
+    `/rest/v1/session_logs?select=id&organization_id=eq.${encodeEq(FIXTURE.organization.id)}&classid=eq.${encodeEq(FIXTURE.class.id)}&id=eq.e2e-local-session-001`,
     sessions.professor.access_token,
     { label: "relatório histórico" }
   );

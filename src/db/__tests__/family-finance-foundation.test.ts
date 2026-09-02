@@ -33,6 +33,14 @@ const manualPaymentDateMigrationSource = readFileSync(
   "utf8",
 );
 
+const separateFinanceTotalsMigrationSource = readFileSync(
+  resolve(
+    __dirname,
+    "../../../supabase/migrations/20260902005940_separate_open_and_overdue_finance_totals.sql",
+  ),
+  "utf8",
+);
+
 const functionBody = (source: string, name: string) => {
   const start = source.indexOf(`create or replace function public.${name}`);
   const end = source.indexOf(`revoke all on function public.${name}`, start);
@@ -382,6 +390,22 @@ describe("finance foundation contract", () => {
     ).toContain("public.has_org_member_permission(p_org_id, 'financial')");
   });
 
+  test("keeps open and overdue dashboard totals mutually exclusive", () => {
+    const dashboardFunction = functionBody(
+      separateFinanceTotalsMigrationSource,
+      "get_organization_finance_dashboard_v1",
+    );
+    expect(dashboardFunction).toContain(
+      "invoice.status in ('open', 'pending')\n          and invoice.due_date >= current_date",
+    );
+    expect(dashboardFunction).toContain(
+      "public.has_org_member_permission(p_org_id, 'financial')",
+    );
+    expect(separateFinanceTotalsMigrationSource).toContain(
+      "grant execute on function public.get_organization_finance_dashboard_v1(uuid)\n  to authenticated;",
+    );
+  });
+
   test("serializes and rejects conflicting idempotent writes", () => {
     for (const rpc of [
       "create_tuition_plan_v1",
@@ -447,9 +471,7 @@ describe("payer revocation finance guard", () => {
     expect(revokeRelationship).toContain("for update");
     expect(pauseAgreement).toBeGreaterThanOrEqual(0);
     expect(revokeRelationshipRow).toBeGreaterThan(pauseAgreement);
-    expect(revokeRelationship).toContain(
-      "'paused_payer_relationship_revoked'",
-    );
+    expect(revokeRelationship).toContain("'paused_payer_relationship_revoked'");
     expect(revokeRelationship).toContain(
       "insert into public.finance_audit_events",
     );
@@ -472,8 +494,12 @@ describe("payer revocation finance guard", () => {
     expect(agreementLock).toBeGreaterThan(payerLock);
     expect(issueInvoice).toContain("relationship.status = 'active'");
     expect(issueInvoice).toContain("relationship.can_pay");
-    expect(issueInvoice).toContain("raise exception 'PAYER_RELATIONSHIP_INVALID'");
-    expect(issueInvoice.slice(payerLock, agreementLock)).toContain("for update");
+    expect(issueInvoice).toContain(
+      "raise exception 'PAYER_RELATIONSHIP_INVALID'",
+    );
+    expect(issueInvoice.slice(payerLock, agreementLock)).toContain(
+      "for update",
+    );
     expect(issueInvoice.slice(agreementLock)).toContain("for update");
   });
 });

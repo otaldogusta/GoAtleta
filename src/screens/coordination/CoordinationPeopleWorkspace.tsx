@@ -1655,11 +1655,9 @@ export function CoordinationPeopleWorkspace({
           borderWidth: 1,
           borderColor: border,
           backgroundColor: panel,
-          paddingVertical: compact ? 12 : 15,
-          paddingHorizontal: 18,
+          paddingVertical: compact ? 9 : 12,
+          paddingHorizontal: compact ? 8 : 12,
           flexDirection: "row",
-          flexWrap: compact ? "wrap" : "nowrap",
-          rowGap: compact ? 6 : 0,
         }}
       >
         {[
@@ -1671,37 +1669,47 @@ export function CoordinationPeopleWorkspace({
         ].map(([icon, value, label], index) => (
           <View
             key={String(label)}
+            accessible
+            accessibilityLabel={`${loading ? "Carregando" : value} ${label}`}
             style={{
+              flex: 1,
               minWidth: 0,
-              width: compact ? (index === 4 ? "100%" : "50%") : "20%",
-              minHeight: compact ? (index === 4 ? 42 : 60) : undefined,
-              flexDirection: compact ? (index === 4 ? "row" : "column") : "row",
+              minHeight: compact ? 72 : 78,
               justifyContent: "center",
               alignItems: "center",
-              gap: compact ? (index === 4 ? 8 : 3) : 10,
-              paddingHorizontal: compact ? 8 : 0,
-              borderLeftWidth: !compact && index > 0 ? 1 : 0,
+              gap: compact ? 3 : 5,
+              paddingHorizontal: compact ? 3 : 8,
+              borderLeftWidth: index > 0 ? 1 : 0,
               borderLeftColor: border,
             }}
           >
-            <GoAtletaIcon name={icon as GoAtletaIconName} size={21} color={colors.muted} />
-            <View
-              style={
-                compact
-                  ? {
-                      alignItems: "center",
-                      minWidth: 0,
-                      flexDirection: index === 4 ? "row" : "column",
-                      gap: index === 4 ? 6 : 0,
-                    }
-                  : undefined
-              }
+            <GoAtletaIcon
+              name={icon as GoAtletaIconName}
+              size={compact ? 18 : 20}
+              color={colors.muted}
+            />
+            <Text
+              style={{
+                color: colors.text,
+                fontSize: compact ? 18 : 20,
+                lineHeight: compact ? 21 : 24,
+                fontWeight: "800",
+                textAlign: "center",
+              }}
             >
-              <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800", textAlign: compact ? "center" : "left" }}>
-                {loading ? "..." : value}
-              </Text>
-              <Text numberOfLines={2} style={{ color: colors.muted, fontSize: 11, textAlign: compact ? "center" : "left" }}>{label}</Text>
-            </View>
+              {loading ? "..." : value}
+            </Text>
+            <Text
+              numberOfLines={2}
+              style={{
+                color: colors.muted,
+                fontSize: compact ? 9 : 11,
+                lineHeight: compact ? 11 : 14,
+                textAlign: "center",
+              }}
+            >
+              {label}
+            </Text>
           </View>
         ))}
       </View>

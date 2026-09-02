@@ -9,6 +9,10 @@ const layoutSource = readFileSync(
   resolve(__dirname, "../../../app/_layout.tsx"),
   "utf8",
 );
+const verifyEmailSource = readFileSync(
+  resolve(__dirname, "../../../app/verify-email.tsx"),
+  "utf8",
+);
 const helperSource = readFileSync(
   resolve(
     __dirname,
@@ -27,10 +31,14 @@ describe("student relationship invite route contract", () => {
     expect(routeSource).not.toContain('from "../../src/api/student-invite"');
   });
 
-  it("covers login, account creation and trusted e-mail verification", () => {
-    expect(routeSource).toContain("await signIn(");
-    expect(routeSource).toContain("await signUp(");
-    expect(routeSource).toContain("await verifySignupCode(");
+  it("delegates login, account creation and e-mail verification to the canonical auth screens", () => {
+    expect(routeSource).toContain('router.push("/signup")');
+    expect(routeSource).toContain('router.push("/login")');
+    expect(routeSource).toContain('pathname: "/verify-email"');
+    expect(routeSource).not.toContain("await signIn(");
+    expect(routeSource).not.toContain("await signUp(");
+    expect(routeSource).not.toContain("await verifySignupCode(");
+    expect(routeSource).not.toContain("<TextInput");
     expect(routeSource).toContain("requiresInviteEmailVerification(session?.user)");
     expect(routeSource).toContain("claimStudentRelationshipInvite(tokenValue)");
   });
@@ -41,20 +49,27 @@ describe("student relationship invite route contract", () => {
     expect(routeSource).toContain("await Promise.all([refreshUser(), refreshRole()])");
   });
 
-  it("keeps the compact auth layout and input geometry", () => {
-    expect(routeSource).toContain("maxWidth: 440");
-    expect(routeSource).toContain("minHeight: 50");
-    expect(routeSource).toContain("borderRadius: 0");
-    expect(routeSource).toContain("disabled={!canSubmitAuth}");
+  it("claims a pending family relationship immediately after OTP verification", () => {
+    const claimIndex = verifyEmailSource.indexOf(
+      "claimStudentRelationshipInvite(relationshipToken)",
+    );
+    const clearIndex = verifyEmailSource.indexOf(
+      "clearPendingRelationshipInvite()",
+    );
+
+    expect(claimIndex).toBeGreaterThan(-1);
+    expect(clearIndex).toBeGreaterThan(claimIndex);
+    expect(verifyEmailSource).toContain('receipt.relationshipKind === "athlete"');
+    expect(verifyEmailSource).toContain('"/student/home" : "/family/home"');
+    expect(verifyEmailSource).toContain("await Promise.all([refreshUser(), refreshRole()])");
+    expect(verifyEmailSource).toContain('pendingRelationshipToken: ""');
   });
 
-  it("replaces the removed web outline with a neutral theme focus border", () => {
-    expect(routeSource).toContain("focusedInputField === field ? borders.focus : 1");
-    expect(routeSource).toContain("focusedInputField === field ? colors.borderStrong : colors.border");
-    expect(routeSource).toContain('onFocus={() => setFocusedInputField("otp")}');
-    expect(routeSource).toContain('onFocus={() => setFocusedInputField("email")}');
-    expect(routeSource).toContain('onFocus={() => setFocusedInputField("password")}');
-    expect(routeSource).toContain('onFocus={() => setFocusedInputField("confirmPassword")}');
-    expect(routeSource).not.toContain("focusedInputField === field ? colors.primaryBg");
+  it("keeps only the compact invite context and persists the return path", () => {
+    expect(routeSource).toContain("maxWidth: 440");
+    expect(routeSource).toContain("savePendingRelationshipInvite(tokenValue)");
+    expect(routeSource).toContain("clearPendingRelationshipInvite()");
+    expect(routeSource).not.toContain("type AuthStep");
+    expect(routeSource).not.toContain("inputShell");
   });
 });

@@ -1,7 +1,17 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import {
   getOrganizationFinanceDashboard,
@@ -26,6 +36,8 @@ import {
   getInvoiceOutstandingCents,
   type InvoiceStatus,
 } from "../../finance/application/finance-format";
+import { resolveFinanceScrollBottomPadding } from "../../finance/application/finance-responsive-layout";
+import { summarizeFinanceInvoices } from "../../finance/application/finance-summary";
 import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
 import { navigateBackOrReplace } from "../../navigation/safe-router";
@@ -47,9 +59,7 @@ import { NewChargeModal } from "./components/NewChargeModal";
 import { PaymentStatusBadge } from "./components/PaymentStatusBadge";
 
 type FilterValue =
-  | "all"
-  | "attention"
-  | Extract<InvoiceStatus, "open" | "overdue" | "paid">;
+  "all" | "attention" | Extract<InvoiceStatus, "open" | "overdue" | "paid">;
 type FinanceSection = "overview" | "charges" | "plans" | "payers";
 type FinanceWorkspaceModal = "settings" | null;
 type AnchorLayout = { x: number; y: number; width: number; height: number };
@@ -71,67 +81,117 @@ const EMPTY_SUMMARY: OrganizationFinanceSummary = {
   activeAgreementsCount: 0,
 };
 
-const DESIGN_PREVIEW_SUMMARY: OrganizationFinanceSummary = {
-  organizationId: "preview-organization",
-  expectedCents: 864000,
-  receivedCents: 648000,
-  overdueCents: 72000,
-  openCents: 144000,
-  overdueCount: 2,
-  openCount: 7,
-  paidCount: 23,
-  activeAgreementsCount: 10,
+const currentMonthKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 };
 
-const ACTIVE_INVOICE_STATUSES: readonly InvoiceStatus[] = [
-  "open",
-  "awaiting_payment",
-  "partially_paid",
-  "overdue",
-];
+const DESIGN_PREVIEW_MONTH = currentMonthKey();
+const designPreviewDueDate = (day: number) =>
+  `${DESIGN_PREVIEW_MONTH}-${String(day).padStart(2, "0")}`;
 
 const DESIGN_PREVIEW_ROWS = [
-  ["Lucas Oliveira", "Sub-15 A", "Carlos Oliveira", "2026-08-10", "paid"],
-  ["Mateus Souza", "Sub-13 B", "Juliana Souza", "2026-08-10", "paid"],
-  ["Gabriel Lima", "Sub-15 A", "Fernanda Lima", "2026-08-10", "paid"],
-  ["Enzo Martins", "Sub-13 A", "Rafael Martins", "2026-08-15", "open"],
-  ["Miguel Pereira", "Sub-11 A", "Patrícia Pereira", "2026-08-15", "open"],
-  ["Davi Santos", "Sub-15 B", "Marcos Santos", "2026-08-20", "overdue"],
-  ["Arthur Rocha", "Sub-13 A", "Camila Rocha", "2026-08-20", "overdue"],
-  ["Heitor Alves", "Sub-11 B", "Bruno Alves", "2026-08-25", "open"],
-  ["Pedro Henrique", "Sub-11 A", "Ana Paula Henrique", "2026-08-25", "open"],
-  ["Bernardo Costa", "Sub-13 B", "Thiago Costa", "2026-08-30", "open"],
-  ["João Vitor", "Sub-11 A", "Vanessa Vitor", "2026-08-30", "open"],
-  ["Samuel Bordim", "Sub-15 B", "Eduardo Bordim", "2026-08-31", "open"],
+  [
+    "Lucas Oliveira",
+    "Sub-15 A",
+    "Carlos Oliveira",
+    designPreviewDueDate(10),
+    "paid",
+  ],
+  [
+    "Mateus Souza",
+    "Sub-13 B",
+    "Juliana Souza",
+    designPreviewDueDate(10),
+    "paid",
+  ],
+  [
+    "Gabriel Lima",
+    "Sub-15 A",
+    "Fernanda Lima",
+    designPreviewDueDate(10),
+    "paid",
+  ],
+  [
+    "Enzo Martins",
+    "Sub-13 A",
+    "Rafael Martins",
+    designPreviewDueDate(15),
+    "open",
+  ],
+  [
+    "Miguel Pereira",
+    "Sub-11 A",
+    "Patrícia Pereira",
+    designPreviewDueDate(15),
+    "open",
+  ],
+  [
+    "Davi Santos",
+    "Sub-15 B",
+    "Marcos Santos",
+    designPreviewDueDate(20),
+    "overdue",
+  ],
+  [
+    "Arthur Rocha",
+    "Sub-13 A",
+    "Camila Rocha",
+    designPreviewDueDate(20),
+    "overdue",
+  ],
+  ["Heitor Alves", "Sub-11 B", "Bruno Alves", designPreviewDueDate(25), "open"],
+  [
+    "Pedro Henrique",
+    "Sub-11 A",
+    "Ana Paula Henrique",
+    designPreviewDueDate(25),
+    "open",
+  ],
+  [
+    "Bernardo Costa",
+    "Sub-13 B",
+    "Thiago Costa",
+    designPreviewDueDate(28),
+    "open",
+  ],
+  ["João Vitor", "Sub-11 A", "Vanessa Vitor", designPreviewDueDate(28), "open"],
+  [
+    "Samuel Bordim",
+    "Sub-15 B",
+    "Eduardo Bordim",
+    designPreviewDueDate(28),
+    "open",
+  ],
   ...Array.from({ length: 20 }, (_, index) => [
     `Atleta ${index + 13}`,
     `Turma ${String.fromCharCode(65 + (index % 4))}`,
     `Responsável ${index + 13}`,
-    "2026-08-31",
+    designPreviewDueDate(28),
     "paid",
   ]),
 ] as const;
 
 const DESIGN_PREVIEW_INVOICES: FinanceInvoice[] = DESIGN_PREVIEW_ROWS.map(
   ([studentName, className, payerName, dueDate, status], index) => ({
-  id: `preview-invoice-${index + 1}`,
-  studentId: `preview-student-${index + 1}`,
-  studentName,
-  competenceMonth: "2026-08-01",
-  dueDate,
-  amountCents: 16000,
-  paidCents: status === "paid" ? 16000 : 0,
-  status: status as InvoiceStatus,
-  description: `Mensalidade ${className}`,
-  className,
-  payerName,
-  payerContact:
-    studentName === "Enzo Martins"
-      ? "(41) 99876-5432 · rafael.martins@email.com"
-      : undefined,
-  createdAt: "2026-08-01T12:00:00.000Z",
-  paidAt: status === "paid" ? `${dueDate}T12:00:00.000Z` : null,
-  })
+    id: `preview-invoice-${index + 1}`,
+    studentId: `preview-student-${index + 1}`,
+    studentName,
+    competenceMonth: `${DESIGN_PREVIEW_MONTH}-01`,
+    dueDate,
+    amountCents: 16000,
+    paidCents: status === "paid" ? 16000 : 0,
+    status: status as InvoiceStatus,
+    description: `Mensalidade ${className}`,
+    className,
+    payerName,
+    payerContact:
+      studentName === "Enzo Martins"
+        ? "(41) 99876-5432 · rafael.martins@email.com"
+        : undefined,
+    createdAt: `${DESIGN_PREVIEW_MONTH}-01T12:00:00.000Z`,
+    paidAt: status === "paid" ? `${dueDate}T12:00:00.000Z` : null,
+  }),
 );
 
 const DESIGN_PREVIEW_AGREEMENTS: TuitionAgreement[] =
@@ -151,11 +211,6 @@ const DESIGN_PREVIEW_AGREEMENTS: TuitionAgreement[] =
     dueDay: Number(invoice.dueDate.slice(-2)),
   }));
 
-const currentMonthKey = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-};
-
 const invoiceMonthKey = (invoice: OrganizationInvoice) =>
   invoice.competenceMonth.slice(0, 7);
 
@@ -169,40 +224,24 @@ export const formatFinanceMonthLabel = (monthKey: string) => {
   return label.charAt(0).toUpperCase() + label.slice(1);
 };
 
-export const summarizeFinanceInvoices = (
-  invoices: OrganizationInvoice[],
-  organizationId: string,
-  activeAgreementsCount = 0
-): OrganizationFinanceSummary => {
-  const billable = invoices.filter(
-    (invoice) => !["draft", "canceled", "refunded"].includes(invoice.status)
-  );
-  return billable.reduce<OrganizationFinanceSummary>(
-    (summary, invoice) => {
-      const outstanding = getInvoiceOutstandingCents(
-        invoice.amountCents,
-        invoice.paidCents
-      );
-      summary.expectedCents += invoice.amountCents;
-      summary.receivedCents += invoice.paidCents;
-      if (invoice.status === "overdue") {
-        summary.overdueCents += outstanding;
-        summary.overdueCount += 1;
-      }
-      if (ACTIVE_INVOICE_STATUSES.includes(invoice.status)) {
-        summary.openCents += outstanding;
-        summary.openCount += 1;
-      }
-      if (invoice.status === "paid") summary.paidCount += 1;
-      return summary;
-    },
-    { ...EMPTY_SUMMARY, organizationId, activeAgreementsCount }
-  );
+export const formatFinanceCompactMonthLabel = (monthKey: string) => {
+  const parsed = new Date(`${monthKey}-01T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "Mês atual";
+  const month = new Intl.DateTimeFormat("pt-BR", { month: "short" })
+    .format(parsed)
+    .replace(/\.$/, "");
+  return `${month.charAt(0).toUpperCase()}${month.slice(1)}. ${parsed.getFullYear()}`;
 };
+
+const DESIGN_PREVIEW_SUMMARY = summarizeFinanceInvoices(
+  DESIGN_PREVIEW_INVOICES,
+  "preview-organization",
+  DESIGN_PREVIEW_AGREEMENTS.length,
+);
 
 const invoiceMatchesFilter = (
   invoice: OrganizationInvoice,
-  filter: FilterValue
+  filter: FilterValue,
 ) => {
   if (filter === "all") return true;
   if (filter === "attention") {
@@ -218,7 +257,9 @@ const invoiceMatchesFilter = (
   }
   if (filter === "overdue") return invoice.status === "overdue";
   if (filter === "paid") return invoice.status === "paid";
-  return ["open", "awaiting_payment", "partially_paid"].includes(invoice.status);
+  return ["open", "awaiting_payment", "partially_paid"].includes(
+    invoice.status,
+  );
 };
 
 const getOverdueDays = (invoice: OrganizationInvoice) => {
@@ -227,7 +268,10 @@ const getOverdueDays = (invoice: OrganizationInvoice) => {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
   if (Number.isNaN(due.getTime())) return 0;
-  return Math.max(1, Math.floor((today.getTime() - due.getTime()) / 86_400_000));
+  return Math.max(
+    1,
+    Math.floor((today.getTime() - due.getTime()) / 86_400_000),
+  );
 };
 
 const getOperationalStatusLabel = (invoice: OrganizationInvoice) => {
@@ -243,7 +287,7 @@ const getOperationalStatusLabel = (invoice: OrganizationInvoice) => {
 const isMissingFinanceFoundation = (error: unknown) => {
   const value = error instanceof Error ? error.message : String(error ?? "");
   return /get_organization_finance_dashboard_v1|PGRST202|could not find the function|404/i.test(
-    value
+    value,
   );
 };
 
@@ -259,10 +303,12 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
       gap: 4,
       borderColor: colors.border,
     },
-    summaryMetricCellCompact: { width: "50%" },
+    summaryMetricCellCompact: {
+      width: "33.333333%",
+      paddingHorizontal: 10,
+    },
     summaryMetricCellWide: { width: "25%" },
     summaryMetricCellLeftDivider: { borderLeftWidth: 1 },
-    summaryMetricCellTopDivider: { borderTopWidth: 1 },
     summaryMetricLabel: {
       color: colors.muted,
       fontSize: 11,
@@ -557,7 +603,10 @@ function FinanceSummaryStrip({
   const { colors } = useAppTheme();
   const dashboardStyles = useFinanceDashboardStyles(colors);
   const receivedRate = summary.expectedCents
-    ? Math.min(100, Math.round((summary.receivedCents / summary.expectedCents) * 100))
+    ? Math.min(
+        100,
+        Math.round((summary.receivedCents / summary.expectedCents) * 100),
+      )
     : 0;
   const items = [
     {
@@ -576,7 +625,7 @@ function FinanceSummaryStrip({
       valueStyle: dashboardStyles.summaryMetricValueDanger,
     },
   ];
-  const columns = compact ? 2 : 4;
+  const columns = compact ? 3 : 4;
 
   return (
     <View
@@ -601,9 +650,6 @@ function FinanceSummaryStrip({
             index % columns === 0
               ? undefined
               : dashboardStyles.summaryMetricCellLeftDivider,
-            compact && index >= 2
-              ? dashboardStyles.summaryMetricCellTopDivider
-              : undefined,
           ]}
         >
           <Text style={dashboardStyles.summaryMetricLabel}>{item.label}</Text>
@@ -618,22 +664,42 @@ function FinanceSummaryStrip({
       ))}
       <View
         style={{
-          width: compact ? "50%" : "25%",
-          minHeight: 76,
+          width: compact ? "100%" : "25%",
+          minHeight: compact ? 64 : 76,
           paddingHorizontal: 16,
           paddingVertical: 12,
           justifyContent: "center",
           gap: 8,
-          borderLeftWidth: 1,
+          borderLeftWidth: compact ? 0 : 1,
           borderTopWidth: compact ? 1 : 0,
           borderColor: colors.border,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>Taxa recebida</Text>
-          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>{receivedRate}%</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <Text
+            style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}
+          >
+            Taxa recebida
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>
+            {receivedRate}%
+          </Text>
         </View>
-        <View style={{ height: 7, borderRadius: radius.full, backgroundColor: colors.secondaryBg, overflow: "hidden" }}>
+        <View
+          style={{
+            height: 7,
+            borderRadius: radius.full,
+            backgroundColor: colors.secondaryBg,
+            overflow: "hidden",
+          }}
+        >
           <View
             style={{
               width: `${receivedRate}%`,
@@ -746,7 +812,7 @@ function FinanceOverviewPanel({
       >
         <View
           style={{
-            flex: 1.35,
+            flex: compact ? undefined : 1.35,
             minWidth: 0,
             borderRadius: radius.container,
             borderWidth: 1,
@@ -765,7 +831,9 @@ function FinanceOverviewPanel({
             }}
           >
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
+              <Text
+                style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}
+              >
                 Precisam de atenção
               </Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
@@ -775,7 +843,13 @@ function FinanceOverviewPanel({
               </Text>
             </View>
             <Pressable onPress={onOpenCharges}>
-              <Text style={{ color: colors.success, fontSize: 12, fontWeight: "800" }}>
+              <Text
+                style={{
+                  color: colors.success,
+                  fontSize: 12,
+                  fontWeight: "800",
+                }}
+              >
                 Ver cobranças
               </Text>
             </Pressable>
@@ -788,30 +862,55 @@ function FinanceOverviewPanel({
                 style={dashboardStyles.attentionRow}
               >
                 <View style={dashboardStyles.attentionPrimaryColumn}>
-                  <Text numberOfLines={1} style={dashboardStyles.listPrimaryText}>
+                  <Text
+                    numberOfLines={1}
+                    style={dashboardStyles.listPrimaryText}
+                  >
                     {invoice.studentName}
                   </Text>
-                  <Text numberOfLines={1} style={dashboardStyles.listSecondaryText}>
+                  <Text
+                    numberOfLines={1}
+                    style={dashboardStyles.listSecondaryText}
+                  >
                     {invoice.payerName ?? invoice.description}
                   </Text>
                 </View>
                 <View style={dashboardStyles.attentionValueColumn}>
                   <Text style={dashboardStyles.attentionValue}>
-                    {formatMoneyFromCents(getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents))}
+                    {formatMoneyFromCents(
+                      getInvoiceOutstandingCents(
+                        invoice.amountCents,
+                        invoice.paidCents,
+                      ),
+                    )}
                   </Text>
                   <Text style={dashboardStyles.attentionStatus}>
                     {getOperationalStatusLabel(invoice) ?? "Requer atenção"}
                   </Text>
                 </View>
                 {index === 0 ? (
-                  <GoAtletaIcon name="chevronRight" size={17} color={colors.muted} />
+                  <GoAtletaIcon
+                    name="chevronRight"
+                    size={17}
+                    color={colors.muted}
+                  />
                 ) : null}
               </Pressable>
             ))
           ) : (
-            <View style={{ minHeight: 174, alignItems: "center", justifyContent: "center", gap: 7, padding: 16 }}>
+            <View
+              style={{
+                minHeight: 174,
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+                padding: 16,
+              }}
+            >
               <GoAtletaIcon name="success" size={24} color={colors.success} />
-              <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>
+              <Text
+                style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}
+              >
                 Tudo em dia
               </Text>
             </View>
@@ -820,7 +919,7 @@ function FinanceOverviewPanel({
 
         <View
           style={{
-            flex: 0.8,
+            flex: compact ? undefined : 0.8,
             minWidth: compact ? 0 : 270,
             borderRadius: radius.container,
             borderWidth: 1,
@@ -831,15 +930,30 @@ function FinanceOverviewPanel({
           }}
         >
           <View style={{ gap: 3 }}>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
+            <Text
+              style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}
+            >
               Recebimentos do mês
             </Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               {receivedRate}% do valor emitido
             </Text>
           </View>
-          <View style={{ height: 9, borderRadius: radius.full, backgroundColor: colors.secondaryBg, overflow: "hidden" }}>
-            <View style={{ width: `${receivedRate}%`, height: "100%", backgroundColor: colors.success }} />
+          <View
+            style={{
+              height: 9,
+              borderRadius: radius.full,
+              backgroundColor: colors.secondaryBg,
+              overflow: "hidden",
+            }}
+          >
+            <View
+              style={{
+                width: `${receivedRate}%`,
+                height: "100%",
+                backgroundColor: colors.success,
+              }}
+            />
           </View>
           <View style={{ gap: 10 }}>
             {[
@@ -847,14 +961,26 @@ function FinanceOverviewPanel({
               ["Em aberto", summary.openCount],
               ["Vencidas", summary.overdueCount],
             ].map(([label, value]) => (
-              <View key={String(label)} style={dashboardStyles.receiptBreakdownRow}>
-                <Text style={dashboardStyles.receiptBreakdownLabel}>{label}</Text>
-                <Text style={dashboardStyles.receiptBreakdownValue}>{value}</Text>
+              <View
+                key={String(label)}
+                style={dashboardStyles.receiptBreakdownRow}
+              >
+                <Text style={dashboardStyles.receiptBreakdownLabel}>
+                  {label}
+                </Text>
+                <Text style={dashboardStyles.receiptBreakdownValue}>
+                  {value}
+                </Text>
               </View>
             ))}
           </View>
           <View style={dashboardStyles.flexSpacer} />
-          <FinanceAction label="Nova cobrança" icon="add" primary onPress={onNewCharge} />
+          <FinanceAction
+            label="Nova cobrança"
+            icon="add"
+            primary
+            onPress={onNewCharge}
+          />
         </View>
       </View>
     </View>
@@ -926,18 +1052,30 @@ function FinancePayersPanel({
                 ]}
               >
                 <View style={dashboardStyles.payerPrimaryColumn}>
-                  <Text numberOfLines={1} style={dashboardStyles.listPrimaryText}>
+                  <Text
+                    numberOfLines={1}
+                    style={dashboardStyles.listPrimaryText}
+                  >
                     {invoice?.payerName ?? "Responsável financeiro vinculado"}
                   </Text>
-                  <Text numberOfLines={1} style={dashboardStyles.listSecondaryText}>
+                  <Text
+                    numberOfLines={1}
+                    style={dashboardStyles.listSecondaryText}
+                  >
                     {invoice?.payerContact ?? "Acesso gerenciado em Gestão"}
                   </Text>
                 </View>
                 <View style={dashboardStyles.payerStudentColumn}>
-                  <Text numberOfLines={1} style={dashboardStyles.payerStudentName}>
+                  <Text
+                    numberOfLines={1}
+                    style={dashboardStyles.payerStudentName}
+                  >
                     {agreement.studentName}
                   </Text>
-                  <Text numberOfLines={1} style={dashboardStyles.listSecondaryText}>
+                  <Text
+                    numberOfLines={1}
+                    style={dashboardStyles.listSecondaryText}
+                  >
                     {agreement.planName}
                   </Text>
                 </View>
@@ -948,13 +1086,32 @@ function FinancePayersPanel({
             );
           })
         ) : (
-          <View style={{ minHeight: 220, alignItems: "center", justifyContent: "center", gap: 8, padding: 20 }}>
+          <View
+            style={{
+              minHeight: 220,
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: 20,
+            }}
+          >
             <GoAtletaIcon name="family" size={25} color={colors.muted} />
-            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>
+            <Text
+              style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}
+            >
               Nenhum pagador vinculado
             </Text>
-            <Text style={{ maxWidth: 360, color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "center" }}>
-              Cadastre o responsável no atleta e depois associe um plano de mensalidade.
+            <Text
+              style={{
+                maxWidth: 360,
+                color: colors.muted,
+                fontSize: 12,
+                lineHeight: 18,
+                textAlign: "center",
+              }}
+            >
+              Cadastre o responsável no atleta e depois associe um plano de
+              mensalidade.
             </Text>
           </View>
         )}
@@ -995,10 +1152,24 @@ function InvoiceDetails({
         }}
       >
         <GoAtletaIcon name="receipt" size={24} color={colors.muted} />
-        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800", textAlign: "center" }}>
+        <Text
+          style={{
+            color: colors.text,
+            fontSize: 14,
+            fontWeight: "800",
+            textAlign: "center",
+          }}
+        >
           Selecione uma cobrança
         </Text>
-        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "center" }}>
+        <Text
+          style={{
+            color: colors.muted,
+            fontSize: 12,
+            lineHeight: 18,
+            textAlign: "center",
+          }}
+        >
           Os detalhes e a ação de pagamento aparecem aqui.
         </Text>
       </View>
@@ -1012,7 +1183,11 @@ function InvoiceDetails({
   });
   const operationalStatus = getOperationalStatusLabel(invoice);
   const detailRows = [
-    ["Responsável financeiro", invoice.payerName ?? "Não informado", invoice.payerContact],
+    [
+      "Responsável financeiro",
+      invoice.payerName ?? "Não informado",
+      invoice.payerContact,
+    ],
     ["Plano", invoice.description, invoice.className],
   ] as const;
 
@@ -1030,29 +1205,58 @@ function InvoiceDetails({
     >
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-          <Text numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>
+          <Text
+            numberOfLines={1}
+            style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}
+          >
             {invoice.studentName}
           </Text>
           <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-            {invoice.className ?? invoice.description.replace(/^Mensalidade\s+/i, "")}
+            {invoice.className ??
+              invoice.description.replace(/^Mensalidade\s+/i, "")}
           </Text>
         </View>
         {onClose ? (
           <Pressable
             accessibilityLabel="Fechar detalhes"
             onPress={onClose}
-            style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" }}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
             <GoAtletaIcon name="close" size={20} color={colors.muted} />
           </Pressable>
         ) : null}
       </View>
       <View style={{ gap: 5 }}>
-        <Text style={{ color: colors.text, fontSize: 22, lineHeight: 27, fontWeight: "900" }}>
-          {formatMoneyFromCents(getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents))}
+        <Text
+          style={{
+            color: colors.text,
+            fontSize: 22,
+            lineHeight: 27,
+            fontWeight: "900",
+          }}
+        >
+          {formatMoneyFromCents(
+            getInvoiceOutstandingCents(invoice.amountCents, invoice.paidCents),
+          )}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <PaymentStatusBadge status={invoice.status} label={operationalStatus} />
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <PaymentStatusBadge
+            status={invoice.status}
+            label={operationalStatus}
+          />
           <Text style={{ color: colors.muted, fontSize: 11 }}>
             Vencimento em {formatFinanceDate(invoice.dueDate)}
           </Text>
@@ -1063,9 +1267,7 @@ function InvoiceDetails({
         {detailRows.map(([label, value, supportingText]) => (
           <View key={label} style={dashboardStyles.detailRow}>
             <Text style={dashboardStyles.detailLabel}>{label}</Text>
-            <Text style={dashboardStyles.detailValue}>
-              {value}
-            </Text>
+            <Text style={dashboardStyles.detailValue}>{value}</Text>
             {supportingText ? (
               <Text style={dashboardStyles.detailSupportingText}>
                 {supportingText}
@@ -1075,7 +1277,12 @@ function InvoiceDetails({
         ))}
       </View>
       <View style={dashboardStyles.detailDivider} />
-      <View style={[dashboardStyles.detailHistorySection, framed && dashboardStyles.flexSpacer]}>
+      <View
+        style={[
+          dashboardStyles.detailHistorySection,
+          framed && dashboardStyles.flexSpacer,
+        ]}
+      >
         <Text style={dashboardStyles.detailHistoryTitle}>Histórico</Text>
         <View style={dashboardStyles.detailHistoryEntry}>
           <GoAtletaIcon name="receipt" size={17} color={colors.muted} />
@@ -1096,7 +1303,9 @@ function InvoiceDetails({
                 {formatMoneyFromCents(invoice.paidCents)} recebido
               </Text>
               <Text style={dashboardStyles.detailHistoryEntryMeta}>
-                {invoice.paidAt ? formatFinanceDate(invoice.paidAt) : "Pagamento confirmado"}
+                {invoice.paidAt
+                  ? formatFinanceDate(invoice.paidAt)
+                  : "Pagamento confirmado"}
               </Text>
             </View>
           </View>
@@ -1119,13 +1328,35 @@ function InvoiceDetails({
           }}
         >
           <GoAtletaIcon name="payments" size={18} color={colors.primaryText} />
-          <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "900" }}>Registrar pagamento</Text>
+          <Text
+            style={{
+              color: colors.primaryText,
+              fontSize: 12,
+              fontWeight: "900",
+            }}
+          >
+            Registrar pagamento
+          </Text>
         </Pressable>
       ) : null}
       {showReminder ? (
-        <View style={{ minHeight: 28, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 }}>
-          <GoAtletaIcon name="communications" size={16} color={colors.success} />
-          <Text style={{ color: colors.success, fontSize: 12, fontWeight: "800" }}>
+        <View
+          style={{
+            minHeight: 28,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 7,
+          }}
+        >
+          <GoAtletaIcon
+            name="communications"
+            size={16}
+            color={colors.success}
+          />
+          <Text
+            style={{ color: colors.success, fontSize: 12, fontWeight: "800" }}
+          >
             Enviar lembrete
           </Text>
         </View>
@@ -1161,15 +1392,71 @@ function InvoiceList({
           }}
         >
           <View style={{ width: 26 }} />
-          <Text style={{ flex: 1.35, color: colors.muted, fontSize: 11, fontWeight: "800" }}>Atleta</Text>
-          <Text style={{ flex: 0.9, color: colors.muted, fontSize: 11, fontWeight: "800" }}>Turma</Text>
-          <Text style={{ flex: 1.45, color: colors.muted, fontSize: 11, fontWeight: "800" }}>Responsável pagador</Text>
-          <View style={{ flex: 1.05, flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}>Vencimento</Text>
+          <Text
+            style={{
+              flex: 1.35,
+              color: colors.muted,
+              fontSize: 11,
+              fontWeight: "800",
+            }}
+          >
+            Atleta
+          </Text>
+          <Text
+            style={{
+              flex: 0.9,
+              color: colors.muted,
+              fontSize: 11,
+              fontWeight: "800",
+            }}
+          >
+            Turma
+          </Text>
+          <Text
+            style={{
+              flex: 1.45,
+              color: colors.muted,
+              fontSize: 11,
+              fontWeight: "800",
+            }}
+          >
+            Responsável pagador
+          </Text>
+          <View
+            style={{
+              flex: 1.05,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <Text
+              style={{ color: colors.muted, fontSize: 11, fontWeight: "800" }}
+            >
+              Vencimento
+            </Text>
             <GoAtletaIcon name="chevronUp" size={12} color={colors.muted} />
           </View>
-          <Text style={{ flex: 0.85, color: colors.muted, fontSize: 11, fontWeight: "800" }}>Valor</Text>
-          <Text style={{ flex: 0.95, color: colors.muted, fontSize: 11, fontWeight: "800" }}>Status</Text>
+          <Text
+            style={{
+              flex: 0.85,
+              color: colors.muted,
+              fontSize: 11,
+              fontWeight: "800",
+            }}
+          >
+            Valor
+          </Text>
+          <Text
+            style={{
+              flex: 0.95,
+              color: colors.muted,
+              fontSize: 11,
+              fontWeight: "800",
+            }}
+          >
+            Status
+          </Text>
           <View style={{ width: 28 }} />
         </View>
       ) : null}
@@ -1192,12 +1479,20 @@ function InvoiceList({
                 alignItems: showTable ? "center" : "stretch",
                 gap: showTable ? 12 : 9,
               },
-              Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : null,
+              Platform.OS === "web"
+                ? ({ outlineStyle: "none" } as never)
+                : null,
             ]}
           >
             {showTable ? (
               <>
-                <View style={{ width: 26, alignItems: "center", justifyContent: "center" }}>
+                <View
+                  style={{
+                    width: 26,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   {selected ? (
                     <View
                       style={{
@@ -1209,21 +1504,53 @@ function InvoiceList({
                         backgroundColor: colors.success,
                       }}
                     >
-                      <GoAtletaIcon name="checkmark" size={14} color={colors.primaryText} />
+                      <GoAtletaIcon
+                        name="checkmark"
+                        size={14}
+                        color={colors.primaryText}
+                      />
                     </View>
                   ) : null}
                 </View>
-                <Text numberOfLines={1} style={{ flex: 1.35, color: colors.text, fontSize: 12, fontWeight: "600" }}>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1.35,
+                    color: colors.text,
+                    fontSize: 12,
+                    fontWeight: "600",
+                  }}
+                >
                   {invoice.studentName}
                 </Text>
-                <Text numberOfLines={1} style={{ flex: 0.9, color: colors.text, fontSize: 12 }}>
-                  {invoice.className ?? invoice.description.replace(/^Mensalidade\s+/i, "")}
+                <Text
+                  numberOfLines={1}
+                  style={{ flex: 0.9, color: colors.text, fontSize: 12 }}
+                >
+                  {invoice.className ??
+                    invoice.description.replace(/^Mensalidade\s+/i, "")}
                 </Text>
-                <Text numberOfLines={1} style={{ flex: 1.45, color: colors.text, fontSize: 12 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{ flex: 1.45, color: colors.text, fontSize: 12 }}
+                >
                   {invoice.payerName ?? "Não informado"}
                 </Text>
-                <Text numberOfLines={1} style={{ flex: 1.05, color: colors.text, fontSize: 12 }}>{formatFinanceDate(invoice.dueDate)}</Text>
-                <Text numberOfLines={1} style={{ flex: 0.85, color: colors.text, fontSize: 12, fontWeight: "600" }}>
+                <Text
+                  numberOfLines={1}
+                  style={{ flex: 1.05, color: colors.text, fontSize: 12 }}
+                >
+                  {formatFinanceDate(invoice.dueDate)}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 0.85,
+                    color: colors.text,
+                    fontSize: 12,
+                    fontWeight: "600",
+                  }}
+                >
                   {formatMoneyFromCents(invoice.amountCents)}
                 </Text>
                 <View style={{ flex: 0.95 }}>
@@ -1236,25 +1563,67 @@ function InvoiceList({
                     }
                   />
                 </View>
-                <GoAtletaIcon name="ellipsisVertical" size={18} color={colors.muted} />
+                <GoAtletaIcon
+                  name="ellipsisVertical"
+                  size={18}
+                  color={colors.muted}
+                />
               </>
             ) : (
               <>
-                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    gap: 12,
+                  }}
+                >
                   <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-                    <Text numberOfLines={1} style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>{invoice.studentName}</Text>
-                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>
-                      {invoice.description} · vence {formatFinanceDate(invoice.dueDate)}
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: colors.text,
+                        fontSize: 14,
+                        fontWeight: "900",
+                      }}
+                    >
+                      {invoice.studentName}
+                    </Text>
+                    <Text
+                      numberOfLines={1}
+                      style={{ color: colors.muted, fontSize: 12 }}
+                    >
+                      {invoice.description} · vence{" "}
+                      {formatFinanceDate(invoice.dueDate)}
                     </Text>
                   </View>
-                  <GoAtletaIcon name="chevronRight" size={18} color={colors.muted} />
+                  <GoAtletaIcon
+                    name="chevronRight"
+                    size={18}
+                    color={colors.muted}
+                  />
                 </View>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                  }}
+                >
                   <PaymentStatusBadge
                     status={invoice.status}
                     label={getOperationalStatusLabel(invoice)}
                   />
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "900" }}>{formatMoneyFromCents(invoice.amountCents)}</Text>
+                  <Text
+                    style={{
+                      color: colors.text,
+                      fontSize: 13,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {formatMoneyFromCents(invoice.amountCents)}
+                  </Text>
                 </View>
               </>
             )}
@@ -1283,33 +1652,48 @@ function CoordinationFinanceDashboardOrganizationScope() {
   const dashboardStyles = useFinanceDashboardStyles(colors);
   const responsiveLayout = useResponsiveLayout("dashboard");
   const insets = useSafeAreaInsets();
-  const { activeOrganization, memberPermissions, permissionsLoading } = useOrganization();
-  const organizationId = activeOrganization?.id ?? (designPreview ? "preview-organization" : "");
+  const { activeOrganization, memberPermissions, permissionsLoading } =
+    useOrganization();
+  const organizationId =
+    activeOrganization?.id ?? (designPreview ? "preview-organization" : "");
   const {
     identity: organizationIdentity,
     identityRef: organizationIdentityRef,
-  } = useOrganizationAsyncIdentity(
-    organizationId,
-  );
-  const canAccess = designPreview || (activeOrganization?.role_level ?? 0) >= 50 || memberPermissions.financial === true;
-  const { containerRef, onLayout, width: contentWidth } = useContainerResponsiveLayout("dashboard");
+  } = useOrganizationAsyncIdentity(organizationId);
+  const canAccess =
+    designPreview ||
+    (activeOrganization?.role_level ?? 0) >= 50 ||
+    memberPermissions.financial === true;
+  const {
+    containerRef,
+    onLayout,
+    width: contentWidth,
+  } = useContainerResponsiveLayout("dashboard");
   const showDetailPanel = contentWidth >= 1060;
   const showTable = contentWidth >= 720;
-  const compactHeader = responsiveLayout.tier === "mobile" || responsiveLayout.tier === "tablet";
+  const compactHeader =
+    responsiveLayout.tier === "mobile" || responsiveLayout.tier === "tablet";
   const monthTriggerRef = useRef<View | null>(null);
-  const [monthTriggerLayout, setMonthTriggerLayout] = useState<AnchorLayout | null>(null);
+  const [monthTriggerLayout, setMonthTriggerLayout] =
+    useState<AnchorLayout | null>(null);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
-  const [serverSummary, setServerSummary] = useState<OrganizationFinanceSummary>(EMPTY_SUMMARY);
+  const [serverSummary, setServerSummary] =
+    useState<OrganizationFinanceSummary>(EMPTY_SUMMARY);
   const [invoices, setInvoices] = useState<FinanceInvoice[]>([]);
   const [agreements, setAgreements] = useState<TuitionAgreement[]>([]);
   const [activeSection, setActiveSection] = useState<FinanceSection>(
     designPreview ? "charges" : "overview",
   );
-  const [detailInvoice, setDetailInvoice] = useState<FinanceInvoice | null>(null);
+  const [detailInvoice, setDetailInvoice] = useState<FinanceInvoice | null>(
+    null,
+  );
   const [mobileDetailsVisible, setMobileDetailsVisible] = useState(false);
-  const [paymentInvoice, setPaymentInvoice] = useState<FinanceInvoice | null>(null);
+  const [paymentInvoice, setPaymentInvoice] = useState<FinanceInvoice | null>(
+    null,
+  );
   const [newChargeVisible, setNewChargeVisible] = useState(false);
-  const [workspaceModal, setWorkspaceModal] = useState<FinanceWorkspaceModal>(null);
+  const [workspaceModal, setWorkspaceModal] =
+    useState<FinanceWorkspaceModal>(null);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -1325,16 +1709,11 @@ function CoordinationFinanceDashboardOrganizationScope() {
     useState<OrganizationAsyncIdentity | null>(null);
   const dataIsCurrent = Boolean(
     dataIdentity &&
-      isOrganizationAsyncIdentityCurrent(
-        organizationIdentity,
-        dataIdentity,
-      ),
+    isOrganizationAsyncIdentityCurrent(organizationIdentity, dataIdentity),
   );
   const scopedServerSummary = useMemo(
     () =>
-      dataIsCurrent
-        ? serverSummary
-        : { ...EMPTY_SUMMARY, organizationId },
+      dataIsCurrent ? serverSummary : { ...EMPTY_SUMMARY, organizationId },
     [dataIsCurrent, organizationId, serverSummary],
   );
   const scopedInvoices = useMemo(
@@ -1384,12 +1763,13 @@ function CoordinationFinanceDashboardOrganizationScope() {
       try {
         const [nextSummary, nextInvoices, nextAgreements] = await measureAsync(
           "screen.coordFinance.load.dashboard",
-          () => Promise.all([
-            getOrganizationFinanceDashboard(organizationId),
-            listOrganizationInvoices(organizationId),
-            listTuitionAgreements(organizationId),
-          ]),
-          { organizationId }
+          () =>
+            Promise.all([
+              getOrganizationFinanceDashboard(organizationId),
+              listOrganizationInvoices(organizationId),
+              listTuitionAgreements(organizationId),
+            ]),
+          { organizationId },
         );
         if (
           requestId !== requestIdRef.current ||
@@ -1438,7 +1818,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
       organizationId,
       organizationIdentity,
       organizationIdentityRef,
-    ]
+    ],
   );
 
   useFocusEffect(
@@ -1447,7 +1827,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
       return () => {
         requestIdRef.current += 1;
       };
-    }, [load])
+    }, [load]),
   );
 
   const monthOptions = useMemo(() => {
@@ -1460,7 +1840,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
       scopedInvoices.filter(
         (invoice) => invoiceMonthKey(invoice) === selectedMonth,
       ),
-    [scopedInvoices, selectedMonth]
+    [scopedInvoices, selectedMonth],
   );
   const summary = useMemo(
     () =>
@@ -1469,9 +1849,9 @@ function CoordinationFinanceDashboardOrganizationScope() {
         : summarizeFinanceInvoices(
             monthlyInvoices,
             organizationId,
-            scopedServerSummary.activeAgreementsCount
+            scopedServerSummary.activeAgreementsCount,
           ),
-    [designPreview, monthlyInvoices, organizationId, scopedServerSummary]
+    [designPreview, monthlyInvoices, organizationId, scopedServerSummary],
   );
   const filteredInvoices = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
@@ -1486,7 +1866,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
           invoice.description,
           formatFinanceDate(invoice.dueDate),
         ].some((value) =>
-          value.toLocaleLowerCase("pt-BR").includes(normalizedQuery)
+          value.toLocaleLowerCase("pt-BR").includes(normalizedQuery),
         );
       })
       .sort((left, right) => left.dueDate.localeCompare(right.dueDate));
@@ -1494,15 +1874,21 @@ function CoordinationFinanceDashboardOrganizationScope() {
   const pageCount = Math.max(1, Math.ceil(filteredInvoices.length / pageSize));
   const visiblePage = Math.min(page, pageCount);
   const pageInvoices = useMemo(
-    () => filteredInvoices.slice((visiblePage - 1) * pageSize, visiblePage * pageSize),
-    [filteredInvoices, pageSize, visiblePage]
+    () =>
+      filteredInvoices.slice(
+        (visiblePage - 1) * pageSize,
+        visiblePage * pageSize,
+      ),
+    [filteredInvoices, pageSize, visiblePage],
   );
   const visibleDetailInvoice = useMemo(
     () =>
-      detailInvoice && filteredInvoices.some((invoice) => invoice.id === detailInvoice.id)
-        ? detailInvoice
+      detailInvoice
+        ? (filteredInvoices.find(
+            (invoice) => invoice.id === detailInvoice.id,
+          ) ?? null)
         : null,
-    [detailInvoice, filteredInvoices]
+    [detailInvoice, filteredInvoices],
   );
 
   const filters = useMemo(
@@ -1517,7 +1903,12 @@ function CoordinationFinanceDashboardOrganizationScope() {
         ["overdue", `Vencidas ${summary.overdueCount}`],
         ["paid", `Pagas ${summary.paidCount}`],
       ] as const,
-    [monthlyInvoices, summary.openCount, summary.overdueCount, summary.paidCount],
+    [
+      monthlyInvoices,
+      summary.openCount,
+      summary.overdueCount,
+      summary.paidCount,
+    ],
   );
 
   const handlePaymentSuccess = useCallback(
@@ -1527,7 +1918,9 @@ function CoordinationFinanceDashboardOrganizationScope() {
         organizationIdentity,
       );
       if (!identity) return;
-      setNotice(`${formatMoneyFromCents(result.amountCents)} registrado para ${result.studentName}.`);
+      setNotice(
+        `${formatMoneyFromCents(result.amountCents)} registrado para ${result.studentName}.`,
+      );
       setPaymentInvoice(null);
       setMobileDetailsVisible(false);
       await load(true);
@@ -1539,7 +1932,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
       )
         return;
     },
-    [load, organizationIdentity, organizationIdentityRef]
+    [load, organizationIdentity, organizationIdentityRef],
   );
 
   const handleInvoiceSuccess = useCallback(
@@ -1592,11 +1985,75 @@ function CoordinationFinanceDashboardOrganizationScope() {
     setMobileDetailsVisible(false);
   };
 
+  const financeChargeControls = (
+    <>
+      <View
+        style={{
+          minHeight: 42,
+          flexGrow: 1,
+          minWidth: compactHeader ? 220 : 250,
+          maxWidth: compactHeader ? undefined : 320,
+          borderRadius: radius.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.inputBg,
+          paddingHorizontal: 12,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <GoAtletaIcon name="search" size={17} color={colors.muted} />
+        <TextInput
+          accessibilityLabel="Buscar cobranças"
+          value={query}
+          onChangeText={(value) => {
+            setQuery(value);
+            setPage(1);
+          }}
+          placeholder="Buscar atleta, responsável..."
+          placeholderTextColor={colors.placeholder}
+          style={[
+            {
+              flex: 1,
+              minHeight: 40,
+              borderWidth: 0,
+              borderRadius: 0,
+              paddingVertical: 0,
+              color: colors.inputText,
+              backgroundColor: "transparent",
+              fontSize: 12,
+            },
+            Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : null,
+          ]}
+        />
+        {query ? (
+          <Pressable
+            accessibilityLabel="Limpar busca"
+            onPress={() => setQuery("")}
+          >
+            <GoAtletaIcon name="closeCircle" size={17} color={colors.muted} />
+          </Pressable>
+        ) : null}
+      </View>
+      <FinanceAction
+        label="Filtros"
+        icon="options"
+        onPress={() => {
+          setFilter((current) =>
+            current === "attention" ? "all" : "attention",
+          );
+          setPage(1);
+        }}
+      />
+    </>
+  );
+
   const financeHeaderControls = (
     <View
       style={{
         flexDirection: "row",
-        flexWrap: compactHeader ? "wrap" : "nowrap",
+        flexWrap: "nowrap",
         alignItems: "center",
         gap: 8,
       }}
@@ -1604,90 +2061,51 @@ function CoordinationFinanceDashboardOrganizationScope() {
       {activeSection === "overview" || activeSection === "charges" ? (
         <View ref={monthTriggerRef} collapsable={false}>
           <Pressable
-            accessibilityLabel="Selecionar mês"
+            accessibilityLabel={`Selecionar mês. ${formatFinanceMonthLabel(selectedMonth)}`}
             onPress={openMonthPicker}
             style={{
               minHeight: 42,
-              minWidth: 172,
+              minWidth: responsiveLayout.isMobile ? 116 : 172,
+              maxWidth: responsiveLayout.isMobile ? 124 : undefined,
               borderRadius: radius.card,
               borderWidth: 1,
               borderColor: colors.border,
               backgroundColor: colors.card,
-              paddingHorizontal: 12,
+              paddingHorizontal: responsiveLayout.isMobile ? 8 : 12,
               flexDirection: "row",
               alignItems: "center",
-              gap: 8,
+              gap: responsiveLayout.isMobile ? 5 : 8,
             }}
           >
-            <GoAtletaIcon name="calendar" size={17} color={colors.muted} />
+            <GoAtletaIcon
+              name="calendar"
+              size={responsiveLayout.isMobile ? 16 : 17}
+              color={colors.muted}
+            />
             <Text
               numberOfLines={1}
-              style={{ flex: 1, color: colors.text, fontSize: 12, fontWeight: "800" }}
+              style={{
+                flex: 1,
+                color: colors.text,
+                fontSize: responsiveLayout.isMobile ? 11 : 12,
+                fontWeight: "800",
+              }}
             >
-              {formatFinanceMonthLabel(selectedMonth)}
+              {responsiveLayout.isMobile
+                ? formatFinanceCompactMonthLabel(selectedMonth)
+                : formatFinanceMonthLabel(selectedMonth)}
             </Text>
-            <GoAtletaIcon name="chevronDown" size={16} color={colors.muted} />
+            <GoAtletaIcon
+              name="chevronDown"
+              size={responsiveLayout.isMobile ? 14 : 16}
+              color={colors.muted}
+            />
           </Pressable>
         </View>
       ) : null}
-      {activeSection === "charges" ? (
-        <>
-          <View
-            style={{
-              minHeight: 42,
-              flexGrow: 1,
-              minWidth: compactHeader ? 220 : 250,
-              maxWidth: compactHeader ? undefined : 320,
-              borderRadius: radius.card,
-              borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.inputBg,
-              paddingHorizontal: 12,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <GoAtletaIcon name="search" size={17} color={colors.muted} />
-            <TextInput
-              accessibilityLabel="Buscar cobranças"
-              value={query}
-              onChangeText={(value) => {
-                setQuery(value);
-                setPage(1);
-              }}
-              placeholder="Buscar atleta, responsável..."
-              placeholderTextColor={colors.placeholder}
-              style={[
-                {
-                  flex: 1,
-                  minHeight: 40,
-                  borderWidth: 0,
-                  borderRadius: 0,
-                  paddingVertical: 0,
-                  color: colors.inputText,
-                  backgroundColor: "transparent",
-                  fontSize: 12,
-                },
-                Platform.OS === "web" ? ({ outlineStyle: "none" } as never) : null,
-              ]}
-            />
-            {query ? (
-              <Pressable accessibilityLabel="Limpar busca" onPress={() => setQuery("")}>
-                <GoAtletaIcon name="closeCircle" size={17} color={colors.muted} />
-              </Pressable>
-            ) : null}
-          </View>
-          <FinanceAction
-            label="Filtros"
-            icon="options"
-            onPress={() => {
-              setFilter((current) => (current === "attention" ? "all" : "attention"));
-              setPage(1);
-            }}
-          />
-        </>
-      ) : null}
+      {!compactHeader && activeSection === "charges"
+        ? financeChargeControls
+        : null}
       <FinanceAction
         label="Configurar financeiro"
         icon="management"
@@ -1700,10 +2118,28 @@ function CoordinationFinanceDashboardOrganizationScope() {
   if (!permissionsLoading && !canAccess) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl }}>
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: spacing.xl,
+          }}
+        >
           <GoAtletaIcon name="lock" size={28} color={colors.muted} />
-          <Text style={{ marginTop: 12, color: colors.text, fontSize: 18, fontWeight: "800" }}>Financeiro restrito</Text>
-          <Text style={{ marginTop: 5, color: colors.muted, textAlign: "center" }}>
+          <Text
+            style={{
+              marginTop: 12,
+              color: colors.text,
+              fontSize: 18,
+              fontWeight: "800",
+            }}
+          >
+            Financeiro restrito
+          </Text>
+          <Text
+            style={{ marginTop: 5, color: colors.muted, textAlign: "center" }}
+          >
             Solicite à coordenação a permissão financeira.
           </Text>
         </View>
@@ -1712,10 +2148,16 @@ function CoordinationFinanceDashboardOrganizationScope() {
   }
 
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView
+      edges={["top"]}
+      style={{ flex: 1, backgroundColor: colors.background }}
+    >
       <ScreenPageHeader
         title="Financeiro"
-        subtitle={activeOrganization?.name ?? (designPreview ? "Rede Esportes Pinhais" : "Instituição")}
+        subtitle={
+          activeOrganization?.name ??
+          (designPreview ? "Rede Esportes Pinhais" : "Instituição")
+        }
         onBack={() =>
           navigateBackOrReplace({ router, fallback: "/coord/dashboard" })
         }
@@ -1724,16 +2166,21 @@ function CoordinationFinanceDashboardOrganizationScope() {
         contentStyle={{
           width: "100%",
           minWidth: 0,
-          maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2,
+          maxWidth:
+            responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2,
           alignSelf: "center",
           paddingHorizontal: responsiveLayout.gutter,
           paddingTop: Platform.OS === "web" ? 12 : 8,
           paddingBottom: 0,
           gap: 10,
         }}
-        right={compactHeader ? undefined : financeHeaderControls}
+        right={financeHeaderControls}
       >
-        {compactHeader ? financeHeaderControls : null}
+        {compactHeader && activeSection === "charges" ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {financeChargeControls}
+          </View>
+        ) : null}
         <FinanceSectionTabs
           active={activeSection}
           compact={responsiveLayout.isMobile}
@@ -1745,18 +2192,48 @@ function CoordinationFinanceDashboardOrganizationScope() {
         style={{ flex: 1 }}
         contentContainerStyle={{
           paddingTop: Platform.OS === "web" ? 12 : 8,
-          paddingBottom: Platform.OS === "web" ? 24 : insets.bottom + 108,
+          paddingBottom: resolveFinanceScrollBottomPadding({
+            usesWorkspaceShell: responsiveLayout.usesWorkspaceShell,
+            bottomInset: insets.bottom,
+          }),
         }}
-        refreshControl={<AppRefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.primaryBg} />}
+        refreshControl={
+          <AppRefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void load(true)}
+            tintColor={colors.primaryBg}
+          />
+        }
       >
         <ResponsivePage
           variant="dashboard"
-          gap={Platform.OS === "web" && !responsiveLayout.isMobile ? 24 : responsiveLayout.density.pageGap}
+          gap={
+            Platform.OS === "web" && !responsiveLayout.isMobile
+              ? 24
+              : responsiveLayout.density.pageGap
+          }
         >
           {scopedFoundationPending ? (
-            <View style={{ borderRadius: radius.container, borderWidth: 1, borderColor: colors.warningBorder, backgroundColor: colors.warningBg, padding: spacing.md, gap: 5 }}>
-              <Text style={{ color: colors.warningText, fontWeight: "800" }}>Financeiro aguardando ativação</Text>
-              <Text style={{ color: colors.warningText, fontSize: 13, lineHeight: 19 }}>
+            <View
+              style={{
+                borderRadius: radius.container,
+                borderWidth: 1,
+                borderColor: colors.warningBorder,
+                backgroundColor: colors.warningBg,
+                padding: spacing.md,
+                gap: 5,
+              }}
+            >
+              <Text style={{ color: colors.warningText, fontWeight: "800" }}>
+                Financeiro aguardando ativação
+              </Text>
+              <Text
+                style={{
+                  color: colors.warningText,
+                  fontSize: 13,
+                  lineHeight: 19,
+                }}
+              >
                 A estrutura financeira ainda não está disponível neste ambiente.
               </Text>
             </View>
@@ -1777,14 +2254,37 @@ function CoordinationFinanceDashboardOrganizationScope() {
                 gap: 9,
               }}
             >
-              <GoAtletaIcon name="success" size={19} color={colors.successText} />
-              <Text style={{ flex: 1, color: colors.successText, fontWeight: "800" }}>{scopedNotice}</Text>
+              <GoAtletaIcon
+                name="success"
+                size={19}
+                color={colors.successText}
+              />
+              <Text
+                style={{
+                  flex: 1,
+                  color: colors.successText,
+                  fontWeight: "800",
+                }}
+              >
+                {scopedNotice}
+              </Text>
             </Pressable>
           ) : null}
 
           {scopedError ? (
-            <Pressable onPress={() => void load()} style={{ borderRadius: radius.container, borderWidth: 1, borderColor: colors.dangerBorder, backgroundColor: colors.dangerBg, padding: spacing.md }}>
-              <Text style={{ color: colors.dangerText, fontWeight: "800" }}>{scopedError} Tocar para tentar novamente.</Text>
+            <Pressable
+              onPress={() => void load()}
+              style={{
+                borderRadius: radius.container,
+                borderWidth: 1,
+                borderColor: colors.dangerBorder,
+                backgroundColor: colors.dangerBg,
+                padding: spacing.md,
+              }}
+            >
+              <Text style={{ color: colors.dangerText, fontWeight: "800" }}>
+                {scopedError} Tocar para tentar novamente.
+              </Text>
             </Pressable>
           ) : null}
 
@@ -1807,6 +2307,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
               <CoordinationTuitionSetup
                 embedded
                 showHeader={false}
+                onInvoiceIssued={() => load(true)}
                 onOpenPeopleManagement={() =>
                   router.push("/coord/management" as never)
                 }
@@ -1817,13 +2318,14 @@ function CoordinationFinanceDashboardOrganizationScope() {
               agreements={scopedAgreements}
               invoices={monthlyInvoices}
               compact={compactHeader}
-              onManagePeople={() =>
-                router.push("/coord/management" as never)
-              }
+              onManagePeople={() => router.push("/coord/management" as never)}
             />
           ) : (
             <>
-              <FinanceSummaryStrip summary={summary} compact={responsiveLayout.isMobile} />
+              <FinanceSummaryStrip
+                summary={summary}
+                compact={responsiveLayout.isMobile}
+              />
               <View
                 ref={containerRef}
                 onLayout={onLayout}
@@ -1845,19 +2347,38 @@ function CoordinationFinanceDashboardOrganizationScope() {
                   <View style={{ gap: 12 }}>
                     <View
                       style={{
-                        flexDirection: responsiveLayout.isMobile ? "column" : "row",
-                        alignItems: responsiveLayout.isMobile ? "stretch" : "center",
+                        flexDirection: responsiveLayout.isMobile
+                          ? "column"
+                          : "row",
+                        alignItems: responsiveLayout.isMobile
+                          ? "stretch"
+                          : "center",
                         justifyContent: "space-between",
                         gap: 10,
                       }}
                     >
                       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                        <Text style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>Cobranças</Text>
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 17,
+                            fontWeight: "900",
+                          }}
+                        >
+                          Cobranças
+                        </Text>
                         <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          {filteredInvoices.length} de {monthlyInvoices.length} cobrança(s)
+                          {filteredInvoices.length} de {monthlyInvoices.length}{" "}
+                          cobrança(s)
                         </Text>
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <FinanceAction
                           label="Nova cobrança"
                           icon="add"
@@ -1866,7 +2387,9 @@ function CoordinationFinanceDashboardOrganizationScope() {
                         />
                       </View>
                     </View>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                    <View
+                      style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}
+                    >
                       {filters.map(([value, label]) => {
                         const selected = filter === value;
                         return (
@@ -1928,14 +2451,33 @@ function CoordinationFinanceDashboardOrganizationScope() {
                             gap: 12,
                           }}
                         >
-                          <Text style={{ flex: 1, color: colors.muted, fontSize: 11 }}>
-                            Mostrando {(visiblePage - 1) * pageSize + 1} a {Math.min(visiblePage * pageSize, filteredInvoices.length)} de {filteredInvoices.length} cobranças
+                          <Text
+                            style={{
+                              flex: 1,
+                              color: colors.muted,
+                              fontSize: 11,
+                            }}
+                          >
+                            Mostrando {(visiblePage - 1) * pageSize + 1} a{" "}
+                            {Math.min(
+                              visiblePage * pageSize,
+                              filteredInvoices.length,
+                            )}{" "}
+                            de {filteredInvoices.length} cobranças
                           </Text>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
                             <Pressable
                               accessibilityLabel="Página anterior"
                               disabled={visiblePage <= 1}
-                              onPress={() => setPage((current) => Math.max(1, current - 1))}
+                              onPress={() =>
+                                setPage((current) => Math.max(1, current - 1))
+                              }
                               style={{
                                 width: 32,
                                 height: 32,
@@ -1947,9 +2489,16 @@ function CoordinationFinanceDashboardOrganizationScope() {
                                 opacity: visiblePage <= 1 ? 0.4 : 1,
                               }}
                             >
-                              <GoAtletaIcon name="chevronBack" size={16} color={colors.text} />
+                              <GoAtletaIcon
+                                name="chevronBack"
+                                size={16}
+                                color={colors.text}
+                              />
                             </Pressable>
-                            {Array.from({ length: Math.min(pageCount, 5) }, (_, index) => index + 1).map((pageNumber) => (
+                            {Array.from(
+                              { length: Math.min(pageCount, 5) },
+                              (_, index) => index + 1,
+                            ).map((pageNumber) => (
                               <Pressable
                                 key={pageNumber}
                                 accessibilityLabel={`Página ${pageNumber}`}
@@ -1976,7 +2525,11 @@ function CoordinationFinanceDashboardOrganizationScope() {
                             <Pressable
                               accessibilityLabel="Próxima página"
                               disabled={visiblePage >= pageCount}
-                              onPress={() => setPage((current) => Math.min(pageCount, current + 1))}
+                              onPress={() =>
+                                setPage((current) =>
+                                  Math.min(pageCount, current + 1),
+                                )
+                              }
                               style={{
                                 width: 32,
                                 height: 32,
@@ -1988,12 +2541,18 @@ function CoordinationFinanceDashboardOrganizationScope() {
                                 opacity: visiblePage >= pageCount ? 0.4 : 1,
                               }}
                             >
-                              <GoAtletaIcon name="chevronForward" size={16} color={colors.text} />
+                              <GoAtletaIcon
+                                name="chevronForward"
+                                size={16}
+                                color={colors.text}
+                              />
                             </Pressable>
                             <Pressable
                               accessibilityLabel="Alternar quantidade por página"
                               onPress={() => {
-                                setPageSize((current) => (current === 12 ? 24 : 12));
+                                setPageSize((current) =>
+                                  current === 12 ? 24 : 12,
+                                );
                                 setPage(1);
                               }}
                               style={{
@@ -2008,20 +2567,60 @@ function CoordinationFinanceDashboardOrganizationScope() {
                                 gap: 6,
                               }}
                             >
-                              <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>
+                              <Text
+                                style={{
+                                  color: colors.text,
+                                  fontSize: 11,
+                                  fontWeight: "700",
+                                }}
+                              >
                                 {pageSize} por página
                               </Text>
-                              <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
+                              <GoAtletaIcon
+                                name="chevronDown"
+                                size={14}
+                                color={colors.muted}
+                              />
                             </Pressable>
                           </View>
                         </View>
                       </>
                     ) : (
-                      <View style={{ minHeight: 210, alignItems: "center", justifyContent: "center", gap: 7, padding: spacing.lg }}>
-                        <GoAtletaIcon name="receipt" size={24} color={colors.muted} />
-                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800", textAlign: "center" }}>Nenhuma cobrança encontrada</Text>
-                        <Text style={{ maxWidth: 340, color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: "center" }}>
-                          Ajuste o mês ou os filtros. Para começar, cadastre um plano e vincule os atletas.
+                      <View
+                        style={{
+                          minHeight: 210,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 7,
+                          padding: spacing.lg,
+                        }}
+                      >
+                        <GoAtletaIcon
+                          name="receipt"
+                          size={24}
+                          color={colors.muted}
+                        />
+                        <Text
+                          style={{
+                            color: colors.text,
+                            fontSize: 14,
+                            fontWeight: "800",
+                            textAlign: "center",
+                          }}
+                        >
+                          Nenhuma cobrança encontrada
+                        </Text>
+                        <Text
+                          style={{
+                            maxWidth: 340,
+                            color: colors.muted,
+                            fontSize: 12,
+                            lineHeight: 18,
+                            textAlign: "center",
+                          }}
+                        >
+                          Ajuste o mês ou os filtros. Para começar, cadastre um
+                          plano e vincule os atletas.
                         </Text>
                       </View>
                     )}
@@ -2034,7 +2633,11 @@ function CoordinationFinanceDashboardOrganizationScope() {
                       invoice={visibleDetailInvoice}
                       framed
                       showReminder={designPreview}
-                      onClose={visibleDetailInvoice ? () => setDetailInvoice(null) : undefined}
+                      onClose={
+                        visibleDetailInvoice
+                          ? () => setDetailInvoice(null)
+                          : undefined
+                      }
                       onRecord={setPaymentInvoice}
                     />
                   </View>
@@ -2063,11 +2666,11 @@ function CoordinationFinanceDashboardOrganizationScope() {
             key={month}
             active={selectedMonth === month}
             density="compact"
-              onPress={() => {
-                setSelectedMonth(month);
-                setPage(1);
-                setShowMonthPicker(false);
-              }}
+            onPress={() => {
+              setSelectedMonth(month);
+              setPage(1);
+              setShowMonthPicker(false);
+            }}
           >
             <Text
               style={[
@@ -2084,7 +2687,11 @@ function CoordinationFinanceDashboardOrganizationScope() {
       </AnchoredDropdown>
 
       <ModalSheet
-        visible={mobileDetailsVisible && Boolean(visibleDetailInvoice) && !showDetailPanel}
+        visible={
+          mobileDetailsVisible &&
+          Boolean(visibleDetailInvoice) &&
+          !showDetailPanel
+        }
         onClose={() => setMobileDetailsVisible(false)}
         position="bottom"
         cardStyle={{
@@ -2134,7 +2741,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
         cardStyle={{
           width: responsiveLayout.isMobile ? "100%" : 760,
           maxWidth: "100%",
-          height: responsiveLayout.isMobile ? "94%" : "82%",
+          height: responsiveLayout.isMobile ? "94%" : undefined,
           maxHeight: "94%",
           borderRadius: radius.container,
           borderWidth: 1,
@@ -2146,6 +2753,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
       >
         <CoordinationFinanceSettings
           embedded
+          allowLocalDemo={designPreview}
           onClose={() => setWorkspaceModal(null)}
         />
       </ModalSheet>

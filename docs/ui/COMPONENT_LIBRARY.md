@@ -60,6 +60,10 @@ superfícies automaticamente.
 
 - Toda ação que cria, salva, altera, duplica, remove ou exclui deve terminar com
   feedback visível de sucesso ou erro; nenhuma mutação pode falhar em silêncio.
+- Confirmações transitórias de sucesso usam o `useSaveToast` global, no topo e
+  com temporizador. Não renderizar alertas de sucesso dentro de telas ou modais.
+- Erros de campo, rede ou servidor permanecem próximos ao campo ou à ação que
+  precisa ser corrigida; não migrar esses erros para uma confirmação global.
 - A interface só fecha o modal, limpa o estado sujo ou atualiza a lista depois
   que o servidor confirmar a operação. Erros preservam os dados editados para
   nova tentativa.
@@ -68,7 +72,7 @@ superfícies automaticamente.
 - Mudanças que afetam outra pessoa devem gerar uma notificação para a pessoa
   impactada somente depois da confirmação da transação.
 - Ao tentar fechar um modal alterado, oferecer `Salvar e sair`, `Descartar
-  alterações` e `Continuar editando`; `X`, `Esc` e backdrop usam esse mesmo fluxo.
+alterações` e `Continuar editando`; `X`, `Esc` e backdrop usam esse mesmo fluxo.
 
 ## Formulários em modal
 

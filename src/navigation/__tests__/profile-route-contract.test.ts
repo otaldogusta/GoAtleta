@@ -14,20 +14,22 @@ describe("professor and coordination route contract", () => {
     expect(config).not.toContain('href: "/prof/reports"');
     expect(config).not.toContain('href: "/coord/reports"');
     expect(read("app/prof/reports.tsx")).toContain(
-      '<Redirect href="/prof/classes" />'
+      '<Redirect href="/prof/classes" />',
     );
     expect(config).not.toContain('role === "coord" ? "/prof/classes"');
     expect(read("app/coord/reports.tsx")).toContain(
-      '<Redirect href="/coord/management" />'
+      '<Redirect href="/coord/management" />',
     );
     expect(read("app/reports/index.tsx")).toContain(
-      '<Redirect href="/coord/management" />'
+      '<Redirect href="/coord/management" />',
     );
   });
 
   it("provides coordination wrappers for shared planning and NFC screens", () => {
     expect(read("app/coord/planning.tsx")).toContain('"../training"');
-    expect(read("app/coord/nfc-attendance.tsx")).toContain('"../nfc-attendance"');
+    expect(read("app/coord/nfc-attendance.tsx")).toContain(
+      '"../nfc-attendance"',
+    );
   });
 
   it("keeps member management in one coordination center", () => {
@@ -38,35 +40,43 @@ describe("professor and coordination route contract", () => {
     expect(sidebar).not.toContain('key: "members"');
     expect(sidebar).not.toContain('href: "/coord/org-members"');
     expect(read("app/coord/org-members.tsx")).toContain(
-      '<Redirect href="/coord/management" />'
+      '<Redirect href="/coord/management" />',
     );
     expect(read("app/org-members.tsx")).toContain(
-      '<Redirect href="/coord/management" />'
+      '<Redirect href="/coord/management" />',
     );
     expect(sidebar).toContain('href: "/coord/management/athletes"');
     expect(read("app/coord/students.tsx")).toContain(
-      '"/coord/management/athletes"'
+      '"/coord/management/athletes"',
     );
     expect(read("app/coord/management/athletes.tsx")).toContain(
-      '"../../students"'
+      '"../../students"',
     );
     expect(read("app/coordination.tsx")).toContain(
-      '<Redirect href="/coord/management" />'
+      '<Redirect href="/coord/management" />',
     );
   });
 
   it("keeps athlete management reachable from the compact coordination header", () => {
-    const workspace = read("src/screens/coordination/CoordinationPeopleWorkspace.tsx");
+    const workspace = read(
+      "src/screens/coordination/CoordinationPeopleWorkspace.tsx",
+    );
     const headerStart = workspace.indexOf("<ScreenPageHeader");
     const headerEnd = workspace.indexOf("<ScrollView", headerStart);
     const header = workspace.slice(headerStart, headerEnd);
 
     expect(headerStart).toBeGreaterThan(-1);
     expect(headerEnd).toBeGreaterThan(headerStart);
-    expect(header).toMatch(/right=\{\s*compact\s*\?\s*\(/);
+    expect(header).toMatch(/right=\{\s*<View/);
+    expect(header).toContain(
+      'accessibilityLabel="Gerenciar acessos familiares"',
+    );
     expect(header).toContain('accessibilityLabel="Abrir gestão de atletas"');
-    expect(header).toContain('router.push("/coord/management/athletes" as never)');
+    expect(header).toContain(
+      'router.push("/coord/management/athletes" as never)',
+    );
     expect(header).toContain("height: 44");
+    expect(header).toContain("width: compact ? 44 : undefined");
     expect(header).toContain("Atletas");
   });
 
@@ -75,11 +85,11 @@ describe("professor and coordination route contract", () => {
     const home = read("src/screens/home/HomeProfessorBelowFold.tsx");
     const professorItems = sidebar.slice(
       sidebar.indexOf("prof: ["),
-      sidebar.indexOf("coord: [")
+      sidebar.indexOf("coord: ["),
     );
     const coordinationItems = sidebar.slice(
       sidebar.indexOf("coord: ["),
-      sidebar.indexOf("student: [")
+      sidebar.indexOf("student: ["),
     );
     expect(professorItems).toContain('href: "/prof/nfc-attendance"');
     expect(professorItems).not.toContain('href: "/coord/nfc-attendance"');

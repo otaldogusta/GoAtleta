@@ -18,6 +18,7 @@ import { AuthProvider, useAuth } from "../src/auth/auth";
 import { FirstAccessProfileGate } from "../src/auth/FirstAccessProfileGate";
 import {
   getPendingInvite,
+  getPendingRelationshipInvite,
   getPendingTrainerInvite,
   resolveAuthenticatedTrainerInviteEntry,
   resolvePendingInviteRedirect,
@@ -799,13 +800,15 @@ function RootLayoutContent() {
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
       const redirectAfterAuth = async () => {
-        const [pendingStudentToken, pendingTrainerCode] = await Promise.all([
+        const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([
           getPendingInvite(),
+          getPendingRelationshipInvite(),
           getPendingTrainerInvite(),
         ]);
         const destination = resolvePendingInviteRedirect({
           pendingStudentToken,
           pendingTrainerCode,
+          pendingRelationshipToken,
           defaultTarget: nextAfterAuth ?? "/",
         });
         router.replace(destination as Parameters<typeof router.replace>[0]);
@@ -844,13 +847,15 @@ function RootLayoutContent() {
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
       const redirectAfterAuth = async () => {
-        const [pendingStudentToken, pendingTrainerCode] = await Promise.all([
+        const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([
           getPendingInvite(),
+          getPendingRelationshipInvite(),
           getPendingTrainerInvite(),
         ]);
         const destination = resolvePendingInviteRedirect({
           pendingStudentToken,
           pendingTrainerCode,
+          pendingRelationshipToken,
           defaultTarget: nextAfterAuth ?? "/",
         });
         router.replace(destination as Parameters<typeof router.replace>[0]);

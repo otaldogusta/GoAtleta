@@ -11,11 +11,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { claimStudentRelationshipInvite } from "../src/api/student-relationship-invite";
 import { useAuth } from "../src/auth/auth";
 import {
+  clearPendingRelationshipInvite,
   getPendingInvite,
+  getPendingRelationshipInvite,
   getPendingTrainerInvite,
+  resolvePendingInviteRedirect,
 } from "../src/auth/pending-invite";
+import { useRole } from "../src/auth/role";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { markRender } from "../src/observability/perf";
 import { Pressable } from "../src/ui/Pressable";
@@ -42,6 +47,7 @@ export default function VerifyEmailScreen() {
   const { width } = useWindowDimensions();
   const router = useRouter();
   const { session, resendSignupCode, verifySignupCode, refreshUser } = useAuth();
+  const { refresh: refreshRole } = useRole();
   const params = useLocalSearchParams<{ email?: string; delivery?: string }>();
 
   const [email, setEmail] = useState("");
@@ -130,12 +136,39 @@ export default function VerifyEmailScreen() {
     try {
       const verifiedSession = await verifySignupCode(email.trim(), code.trim());
       await refreshUser();
-      const [pendingStudentToken, pendingTrainerCode] = await Promise.all([
+      const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([
         getPendingInvite(),
+        getPendingRelationshipInvite(),
         getPendingTrainerInvite(),
       ]);
-      if (pendingStudentToken || pendingTrainerCode) {
-        router.replace("/pending");
+
+      const relationshipToken = pendingRelationshipToken.trim();
+      if (relationshipToken) {
+        try {
+          const receipt = await claimStudentRelationshipInvite(relationshipToken);
+          await clearPendingRelationshipInvite().catch(() => undefined);
+          await Promise.all([refreshUser(), refreshRole()]);
+          router.replace(
+            receipt.relationshipKind === "athlete" ? "/student/home" : "/family/home",
+          );
+        } catch {
+          router.replace(
+            `/family-invite/${encodeURIComponent(relationshipToken)}` as Parameters<
+              typeof router.replace
+            >[0],
+          );
+        }
+        return;
+      }
+
+      const pendingTarget = resolvePendingInviteRedirect({
+        pendingStudentToken,
+        pendingTrainerCode,
+        pendingRelationshipToken: "",
+        defaultTarget: "",
+      });
+      if (pendingTarget) {
+        router.replace(pendingTarget as Parameters<typeof router.replace>[0]);
         return;
       }
       setMessage("E-mail confirmado com sucesso.");

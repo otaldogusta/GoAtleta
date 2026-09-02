@@ -7,16 +7,15 @@ const workspaceSource = readFileSync(
 );
 
 describe("coordination mobile metrics layout", () => {
-  it("keeps the four operational counts aligned in a compact two-column grid", () => {
-    expect(workspaceSource).toContain('width: compact ? (index === 4 ? "100%" : "50%") : "20%"');
-    expect(workspaceSource).toContain('minHeight: compact ? (index === 4 ? 42 : 60) : undefined');
-    expect(workspaceSource).toContain('rowGap: compact ? 6 : 0');
+  it("keeps all five indicators side by side in one compact row", () => {
+    expect(workspaceSource).toContain("flex: 1");
+    expect(workspaceSource).toContain("minHeight: compact ? 72 : 78");
+    expect(workspaceSource).not.toContain('width: compact ? (index === 4 ? "100%" : "50%")');
   });
 
-  it("renders the health score as one short horizontal summary row", () => {
-    expect(workspaceSource).toContain(
-      'flexDirection: compact ? (index === 4 ? "row" : "column") : "row"'
-    );
-    expect(workspaceSource).toContain('flexDirection: index === 4 ? "row" : "column"');
+  it("stacks icon, value and description inside every indicator", () => {
+    expect(workspaceSource).toContain("size={compact ? 18 : 20}");
+    expect(workspaceSource).toContain("fontSize: compact ? 9 : 11");
+    expect(workspaceSource).toContain('textAlign: "center"');
   });
 });

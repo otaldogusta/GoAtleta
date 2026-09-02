@@ -171,6 +171,19 @@ describe("family access mapping", () => {
     expect(data.summary.openAmountMinor).toBe(0);
   });
 
+  it("removes a duplicated mensalidade prefix from legacy invoice titles", () => {
+    const data = mapFamilyFinanceData([
+      {
+        invoice_id: "invoice-duplicated-title",
+        amount_cents: 15000,
+        status: "paid",
+        description: "Mensalidade Mensalidade E2E Local",
+      },
+    ]);
+
+    expect(data.invoices[0]?.title).toBe("Mensalidade E2E Local");
+  });
+
   it("calls the family finance RPC without unsupported parameters", async () => {
     const fetchSpy = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true,

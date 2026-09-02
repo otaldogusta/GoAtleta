@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STUDENT_KEY = "pending_student_invite_v1";
 const TRAINER_KEY = "pending_trainer_invite_v1";
+const STUDENT_RELATIONSHIP_KEY = "pending_student_relationship_invite_v1";
 
 export const savePendingInvite = async (token: string) => {
   const trimmed = token.trim();
@@ -31,6 +32,21 @@ export const getPendingTrainerInvite = async (): Promise<string> => {
 
 export const clearPendingTrainerInvite = async () => {
   await AsyncStorage.removeItem(TRAINER_KEY);
+};
+
+export const savePendingRelationshipInvite = async (token: string) => {
+  const trimmed = token.trim();
+  if (!trimmed) return;
+  await AsyncStorage.setItem(STUDENT_RELATIONSHIP_KEY, trimmed);
+};
+
+export const getPendingRelationshipInvite = async (): Promise<string> => {
+  const value = await AsyncStorage.getItem(STUDENT_RELATIONSHIP_KEY);
+  return value ?? "";
+};
+
+export const clearPendingRelationshipInvite = async () => {
+  await AsyncStorage.removeItem(STUDENT_RELATIONSHIP_KEY);
 };
 
 export const resolvePendingTrainerCode = ({
@@ -85,15 +101,22 @@ export const resolveAuthenticatedTrainerInviteEntry = ({
 export const resolvePendingInviteRedirect = ({
   pendingStudentToken,
   pendingTrainerCode,
+  pendingRelationshipToken = "",
   defaultTarget,
 }: {
   pendingStudentToken: string;
   pendingTrainerCode: string;
+  pendingRelationshipToken?: string;
   defaultTarget: string;
-}) =>
-  pendingStudentToken.trim() || pendingTrainerCode.trim()
+}) => {
+  const relationshipToken = pendingRelationshipToken.trim();
+  if (relationshipToken) {
+    return `/family-invite/${encodeURIComponent(relationshipToken)}`;
+  }
+  return pendingStudentToken.trim() || pendingTrainerCode.trim()
     ? "/pending"
     : defaultTarget;
+};
 
 export const shouldReturnTrainerInviteToSignup = ({
   authLoading,

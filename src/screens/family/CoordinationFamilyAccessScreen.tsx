@@ -786,7 +786,14 @@ function CoordinationFamilyAccessOrganizationScope({
                 onChangeText={setQuery}
                 placeholder="Nome do atleta"
               />
-              <View style={{ maxHeight: 420, gap: 6 }}>
+              <ScrollView
+                accessibilityLabel="Lista de atletas"
+                style={{ maxHeight: 420, minHeight: 0 }}
+                contentContainerStyle={{ gap: 6, paddingRight: 4 }}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+              >
                 {loading ? (
                   <Text style={{ color: colors.muted }}>Carregando...</Text>
                 ) : null}
@@ -827,7 +834,7 @@ function CoordinationFamilyAccessOrganizationScope({
                     </Pressable>
                   );
                 })}
-              </View>
+              </ScrollView>
             </View>
 
             <View style={{ gap: spacing.md }}>

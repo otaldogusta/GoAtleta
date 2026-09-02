@@ -1,12 +1,11 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,23 +18,22 @@ import {
 } from "../../src/api/student-relationship-invite";
 import { getInviteErrorCode } from "../../src/api/invite-errors";
 import { useAuth } from "../../src/auth/auth";
-import { requiresInviteEmailVerification } from "../../src/auth/pending-invite";
+import {
+  clearPendingRelationshipInvite,
+  requiresInviteEmailVerification,
+  savePendingRelationshipInvite,
+} from "../../src/auth/pending-invite";
 import { useRole } from "../../src/auth/role";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { markRender, measureAsync } from "../../src/observability/perf";
-import { borders, radius, shadow, spacing } from "../../src/theme/tokens";
+import { radius, shadow, spacing } from "../../src/theme/tokens";
 import { Button } from "../../src/ui/Button";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 
-type AuthStep = "choice" | "login" | "signup" | "verify";
 type InviteState = "checking" | "valid" | "invalid";
-type InviteInputField = "otp" | "email" | "password" | "confirmPassword";
-
-const normalizeOtp = (value: string) => value.replace(/[^0-9]/g, "").slice(0, 6);
-const validEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
 
 const relationshipLabel = (preview: StudentRelationshipInvitePreview) => {
   if (preview.relationship.label) return preview.relationship.label;
@@ -61,46 +59,25 @@ const inviteErrorMessage = (error: unknown) => {
 
 export default function StudentRelationshipInviteScreen() {
   markRender("screen.studentRelationshipInvite.render.main");
-  const { colors, mode } = useAppTheme();
+  const { colors } = useAppTheme();
   const responsive = useResponsiveLayout("content");
   const router = useRouter();
   const { token } = useLocalSearchParams<{ token?: string | string[] }>();
   const tokenValue = Array.isArray(token) ? token[0] : token;
-  const {
-    session,
-    signIn,
-    signUp,
-    signOut,
-    resendSignupCode,
-    verifySignupCode,
-    refreshUser,
-  } = useAuth();
+  const { session, signOut, resendSignupCode, refreshUser } = useAuth();
   const { refresh: refreshRole } = useRole();
   const [inviteState, setInviteState] = useState<InviteState>("checking");
   const [preview, setPreview] = useState<StudentRelationshipInvitePreview | null>(null);
-  const [authStep, setAuthStep] = useState<AuthStep>("choice");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [focusedInputField, setFocusedInputField] =
-    useState<InviteInputField | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [enterAnim] = useState(() => new Animated.Value(0));
   const [shakeAnim] = useState(() => new Animated.Value(0));
-  const verificationSentForRef = useRef<string | null>(null);
+  const verificationRedirectStartedRef = useRef(false);
   const claimInFlightRef = useRef(false);
 
   const useNativeDriver = Platform.OS !== "web";
-  const solidInputBg = mode === "dark" ? "#121c30" : colors.inputBg;
   const normalizedSessionEmail = String(session?.user?.email ?? "").trim().toLowerCase();
   const sessionNeedsVerification = requiresInviteEmailVerification(session?.user);
-  const canSubmitAuth = useMemo(() => {
-    if (!validEmail(email) || password.length < 6) return false;
-    return authStep !== "signup" || confirmPassword === password;
-  }, [authStep, confirmPassword, email, password]);
 
   const runShake = useCallback(() => {
     shakeAnim.setValue(0);
@@ -138,7 +115,9 @@ export default function StudentRelationshipInviteScreen() {
       "screen.studentRelationshipInvite.load.validation",
       () => validateStudentRelationshipInvite(tokenValue),
     )
-      .then((result) => {
+      .then(async (result) => {
+        if (!active) return;
+        await savePendingRelationshipInvite(tokenValue);
         if (!active) return;
         setPreview(result.preview);
         setInviteState("valid");
@@ -156,34 +135,40 @@ export default function StudentRelationshipInviteScreen() {
   }, [tokenValue]);
 
   useEffect(() => {
-    if (!session) return;
-    let active = true;
-    void Promise.resolve().then(() => {
-      if (!active) return;
-      if (normalizedSessionEmail && !email) setEmail(normalizedSessionEmail);
-      if (sessionNeedsVerification) setAuthStep("verify");
-    });
-    if (!sessionNeedsVerification) {
-      return () => {
-        active = false;
-      };
-    }
     if (
+      !session ||
+      !sessionNeedsVerification ||
       !normalizedSessionEmail ||
-      verificationSentForRef.current === normalizedSessionEmail
+      inviteState !== "valid" ||
+      verificationRedirectStartedRef.current
     ) {
-      return () => {
-        active = false;
-      };
+      return;
     }
-    verificationSentForRef.current = normalizedSessionEmail;
-    void resendSignupCode(normalizedSessionEmail, `family-invite/${tokenValue ?? ""}`)
-      .then(() => setMessage("Enviamos um código para confirmar seu e-mail."))
-      .catch(() => setMessage("Não foi possível enviar o código. Tente reenviar."));
+
+    verificationRedirectStartedRef.current = true;
+    let active = true;
+    void (async () => {
+      let deliveryFailed = false;
+      try {
+        await resendSignupCode(normalizedSessionEmail, "verify-email");
+      } catch {
+        deliveryFailed = true;
+      }
+      if (!active) return;
+      router.replace({
+        pathname: "/verify-email",
+        params: {
+          email: normalizedSessionEmail,
+          delivery: deliveryFailed ? "failed" : undefined,
+        },
+      });
+    })();
+
     return () => {
       active = false;
+      verificationRedirectStartedRef.current = false;
     };
-  }, [email, normalizedSessionEmail, resendSignupCode, session, sessionNeedsVerification, tokenValue]);
+  }, [inviteState, normalizedSessionEmail, resendSignupCode, router, session, sessionNeedsVerification]);
 
   const claimAndEnter = useCallback(async () => {
     if (!tokenValue || claimInFlightRef.current) return;
@@ -195,6 +180,7 @@ export default function StudentRelationshipInviteScreen() {
         "screen.studentRelationshipInvite.action.claim",
         () => claimStudentRelationshipInvite(tokenValue),
       );
+      await clearPendingRelationshipInvite().catch(() => undefined);
       await Promise.all([refreshUser(), refreshRole()]);
       router.replace(
         receipt.relationshipKind === "athlete" ? "/student/home" : "/family/home",
@@ -208,123 +194,8 @@ export default function StudentRelationshipInviteScreen() {
     }
   }, [refreshRole, refreshUser, router, runShake, tokenValue]);
 
-  const handleLogin = async () => {
-    if (!canSubmitAuth || busy) {
-      setMessage("Preencha e-mail e senha para continuar.");
-      runShake();
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    try {
-      await signIn(email.trim().toLowerCase(), password);
-      setMessage("Conta confirmada. Revise o convite e continue.");
-    } catch {
-      setMessage("E-mail ou senha incorretos.");
-      runShake();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSignup = async () => {
-    if (!canSubmitAuth || busy) {
-      setMessage("Use um e-mail válido e senhas iguais com pelo menos 6 caracteres.");
-      runShake();
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    const normalizedEmail = email.trim().toLowerCase();
-    try {
-      const createdSession = await signUp(
-        normalizedEmail,
-        password,
-        `family-invite/${tokenValue ?? ""}`,
-        "",
-      );
-      if (!createdSession) {
-        setAuthStep("login");
-        setMessage("Conta criada. Entre para continuar.");
-        return;
-      }
-      try {
-        await resendSignupCode(
-          normalizedEmail,
-          `family-invite/${tokenValue ?? ""}`,
-        );
-        verificationSentForRef.current = normalizedEmail;
-        setMessage("Enviamos um código para confirmar seu e-mail.");
-      } catch {
-        setMessage("Conta criada. Toque em Reenviar código.");
-      }
-      setAuthStep("verify");
-    } catch (error) {
-      const detail = error instanceof Error ? error.message.toLowerCase() : "";
-      if (detail.includes("already registered")) {
-        setAuthStep("login");
-        setMessage("Este e-mail já possui conta. Entre para continuar.");
-      } else {
-        setMessage("Não foi possível criar a conta agora.");
-      }
-      runShake();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleVerify = async () => {
-    const verificationEmail = (normalizedSessionEmail || email).trim();
-    if (!verificationEmail || otp.length !== 6 || busy) {
-      setMessage("Digite o código de 6 dígitos recebido no e-mail.");
-      runShake();
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    try {
-      await verifySignupCode(verificationEmail, otp);
-      await refreshUser();
-    } catch (error) {
-      const detail = error instanceof Error ? error.message.toLowerCase() : "";
-      setMessage(
-        detail.includes("expired")
-          ? "Código expirado. Reenvie e tente novamente."
-          : "Código inválido. Confira e tente novamente.",
-      );
-      runShake();
-      setBusy(false);
-      return;
-    }
-    setBusy(false);
-    await claimAndEnter();
-  };
-
-  const handleResend = async () => {
-    const verificationEmail = (normalizedSessionEmail || email).trim();
-    if (!verificationEmail || busy) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      await resendSignupCode(
-        verificationEmail,
-        `family-invite/${tokenValue ?? ""}`,
-      );
-      setMessage("Código reenviado.");
-    } catch {
-      setMessage("Não foi possível reenviar o código agora.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleOtherAccount = async () => {
     await signOut();
-    setAuthStep("choice");
-    setEmail("");
-    setPassword("");
-    setConfirmPassword("");
-    setOtp("");
     setMessage("");
   };
 
@@ -332,29 +203,18 @@ export default function StudentRelationshipInviteScreen() {
     navigateBackOrReplace({ router, fallback: session ? "/" : "/welcome" });
   };
 
-  const inputShell = (field: InviteInputField) => ({
-    minHeight: 50,
-    borderRadius: radius.internal,
-    paddingHorizontal: 14,
-    backgroundColor: solidInputBg,
-    borderWidth: focusedInputField === field ? borders.focus : 1,
-    borderColor:
-      focusedInputField === field ? colors.borderStrong : colors.border,
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-  });
-  const inputText = {
-    flex: 1,
-    minHeight: 48,
-    color: colors.inputText,
-    fontSize: responsive.density.bodyFontSize,
-    borderRadius: 0,
-    paddingVertical: 0,
-    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
-  } as any;
+  const renderAccessAction = () => {
+    if (session && sessionNeedsVerification) {
+      return (
+        <View style={{ gap: spacing.xs, alignItems: "center" }}>
+          <Text style={{ color: colors.muted, textAlign: "center" }}>
+            Abrindo a confirmação de e-mail...
+          </Text>
+        </View>
+      );
+    }
 
-  const renderAuth = () => {
-    if (session && !sessionNeedsVerification) {
+    if (session) {
       return (
         <View style={{ gap: spacing.md }}>
           <View style={{ gap: spacing.xs }}>
@@ -380,159 +240,17 @@ export default function StudentRelationshipInviteScreen() {
       );
     }
 
-    if (authStep === "choice") {
-      return (
-        <View style={{ gap: spacing.sm }}>
-          <Text style={{ color: colors.muted, lineHeight: 20 }}>
-            Use o mesmo e-mail que recebeu este convite.
-          </Text>
-          <Button label="Criar conta" onPress={() => setAuthStep("signup")} />
-          <Button
-            label="Já tenho conta"
-            variant="outline"
-            onPress={() => setAuthStep("login")}
-          />
-        </View>
-      );
-    }
-
-    if (authStep === "verify") {
-      return (
-        <View style={{ gap: spacing.md }}>
-          <View style={{ gap: spacing.xs }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: responsive.density.sectionTitleFontSize }}>
-              Confirmar e-mail
-            </Text>
-            <Text style={{ color: colors.muted }}>
-              Digite o código enviado para {normalizedSessionEmail || email}.
-            </Text>
-          </View>
-          <View style={inputShell("otp")}>
-            <TextInput
-              value={otp}
-              onChangeText={(value) => {
-                setOtp(normalizeOtp(value));
-                setMessage("");
-              }}
-              keyboardType="number-pad"
-              textContentType="oneTimeCode"
-              autoComplete="one-time-code"
-              placeholder="Código de 6 dígitos"
-              placeholderTextColor={colors.placeholder}
-              maxLength={6}
-              style={[inputText, { letterSpacing: 6, textAlign: "center" }]}
-              onFocus={() => setFocusedInputField("otp")}
-              onBlur={() => setFocusedInputField(null)}
-              onSubmitEditing={() => void handleVerify()}
-            />
-          </View>
-          <Button
-            label="Confirmar e continuar"
-            loading={busy}
-            loadingLabel="Confirmando..."
-            disabled={otp.length !== 6}
-            onPress={() => void handleVerify()}
-          />
-          <Pressable suppressWebHoverFeedback onPress={() => void handleResend()}>
-            <Text style={{ color: colors.primaryBg, fontWeight: "700", textAlign: "center" }}>
-              Reenviar código
-            </Text>
-          </Pressable>
-        </View>
-      );
-    }
-
-    const isSignup = authStep === "signup";
     return (
       <View style={{ gap: spacing.sm }}>
-        <Text style={{ color: colors.text, fontWeight: "800", fontSize: responsive.density.sectionTitleFontSize }}>
-          {isSignup ? "Criar conta" : "Entrar"}
+        <Text style={{ color: colors.muted, lineHeight: 20 }}>
+          Use o mesmo e-mail que recebeu este convite.
         </Text>
-        <View style={inputShell("email")}>
-          <TextInput
-            value={email}
-            onChangeText={(value) => {
-              setEmail(value);
-              setMessage("");
-            }}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            autoComplete="email"
-            placeholder="E-mail"
-            placeholderTextColor={colors.placeholder}
-            style={inputText}
-            onFocus={() => setFocusedInputField("email")}
-            onBlur={() => setFocusedInputField(null)}
-          />
-        </View>
-        <View style={inputShell("password")}>
-          <TextInput
-            value={password}
-            onChangeText={(value) => {
-              setPassword(value);
-              setMessage("");
-            }}
-            secureTextEntry={!showPassword}
-            textContentType={isSignup ? "newPassword" : "password"}
-            autoComplete={isSignup ? "new-password" : "current-password"}
-            placeholder="Senha"
-            placeholderTextColor={colors.placeholder}
-            style={inputText}
-            onFocus={() => setFocusedInputField("password")}
-            onBlur={() => setFocusedInputField(null)}
-          />
-          <Pressable
-            accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}
-            onPress={() => setShowPassword((current) => !current)}
-            style={{ padding: spacing.xs }}
-          >
-            <GoAtletaIcon
-              name={showPassword ? "eyeOff" : "view"}
-              size={20}
-              color={colors.muted}
-            />
-          </Pressable>
-        </View>
-        {isSignup ? (
-          <View style={inputShell("confirmPassword")}>
-            <TextInput
-              value={confirmPassword}
-              onChangeText={(value) => {
-                setConfirmPassword(value);
-                setMessage("");
-              }}
-              secureTextEntry={!showPassword}
-              textContentType="newPassword"
-              autoComplete="new-password"
-              placeholder="Confirmar senha"
-              placeholderTextColor={colors.placeholder}
-              style={inputText}
-              onFocus={() => setFocusedInputField("confirmPassword")}
-              onBlur={() => setFocusedInputField(null)}
-              onSubmitEditing={() => void handleSignup()}
-            />
-          </View>
-        ) : null}
+        <Button label="Criar conta" onPress={() => router.push("/signup")} />
         <Button
-          label={isSignup ? "Criar conta" : "Entrar"}
-          loading={busy}
-          loadingLabel={isSignup ? "Criando..." : "Entrando..."}
-          disabled={!canSubmitAuth}
-          onPress={() => void (isSignup ? handleSignup() : handleLogin())}
+          label="Já tenho conta"
+          variant="outline"
+          onPress={() => router.push("/login")}
         />
-        <Pressable
-          suppressWebHoverFeedback
-          onPress={() => {
-            setAuthStep(isSignup ? "login" : "signup");
-            setMessage("");
-          }}
-        >
-          <Text style={{ color: colors.primaryBg, fontWeight: "700", textAlign: "center" }}>
-            {isSignup ? "Já tenho conta" : "Criar uma conta"}
-          </Text>
-        </Pressable>
       </View>
     );
   };
@@ -656,7 +374,7 @@ export default function StudentRelationshipInviteScreen() {
                       </Text>
                     </View>
                   ) : null}
-                  {renderAuth()}
+                  {renderAccessAction()}
                 </>
               )}
             </View>

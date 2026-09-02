@@ -864,9 +864,7 @@ function CoordinationReceivablesOrganizationScope() {
       setDataIdentity(identity);
       setRows(next);
       setSelectedInvoice((current) =>
-        current && next.some((invoice) => invoice.id === current.id)
-          ? current
-          : null,
+        current ? next.find((invoice) => invoice.id === current.id) ?? null : null,
       );
     } catch {
       if (

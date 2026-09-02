@@ -2,14 +2,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   clearPendingInvite,
+  clearPendingRelationshipInvite,
   clearPendingTrainerInvite,
   getPendingInvite,
+  getPendingRelationshipInvite,
   getPendingTrainerInvite,
   resolveAuthenticatedTrainerInviteEntry,
   resolvePendingInviteRedirect,
   resolvePendingTrainerCode,
   requiresTrainerInviteEmailVerification,
   savePendingInvite,
+  savePendingRelationshipInvite,
   savePendingTrainerInvite,
   shouldReturnTrainerInviteToSignup,
   shouldRedirectPendingRole,
@@ -26,8 +29,9 @@ describe("pending invite storage", () => {
     jest.clearAllMocks();
   });
 
-  test("keeps student and trainer invitations in separate keys", async () => {
+  test("keeps student, relationship and trainer invitations in separate keys", async () => {
     await savePendingInvite(" student-token ");
+    await savePendingRelationshipInvite(" relationship-token ");
     await savePendingTrainerInvite(" abcd-1234 ");
 
     expect(AsyncStorage.setItem).toHaveBeenNthCalledWith(
@@ -37,24 +41,35 @@ describe("pending invite storage", () => {
     );
     expect(AsyncStorage.setItem).toHaveBeenNthCalledWith(
       2,
+      "pending_student_relationship_invite_v1",
+      "relationship-token"
+    );
+    expect(AsyncStorage.setItem).toHaveBeenNthCalledWith(
+      3,
       "pending_trainer_invite_v1",
       "ABCD-1234"
     );
   });
 
-  test("reads and clears both invitation types independently", async () => {
+  test("reads and clears all invitation types independently", async () => {
     (AsyncStorage.getItem as jest.Mock)
       .mockResolvedValueOnce("student-token")
+      .mockResolvedValueOnce("relationship-token")
       .mockResolvedValueOnce("TRAINER-CODE");
 
     await expect(getPendingInvite()).resolves.toBe("student-token");
+    await expect(getPendingRelationshipInvite()).resolves.toBe("relationship-token");
     await expect(getPendingTrainerInvite()).resolves.toBe("TRAINER-CODE");
 
     await clearPendingInvite();
+    await clearPendingRelationshipInvite();
     await clearPendingTrainerInvite();
 
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith(
       "pending_student_invite_v1"
+    );
+    expect(AsyncStorage.removeItem).toHaveBeenCalledWith(
+      "pending_student_relationship_invite_v1"
     );
     expect(AsyncStorage.removeItem).toHaveBeenCalledWith(
       "pending_trainer_invite_v1"
@@ -64,25 +79,35 @@ describe("pending invite storage", () => {
   test.each([
     {
       pendingStudentToken: "student-token",
+      pendingRelationshipToken: "",
       pendingTrainerCode: "",
       expected: "/pending",
     },
     {
       pendingStudentToken: "",
+      pendingRelationshipToken: "",
       pendingTrainerCode: "TRAINER-CODE",
       expected: "/pending",
     },
     {
       pendingStudentToken: "",
+      pendingRelationshipToken: " relationship/token ",
+      pendingTrainerCode: "TRAINER-CODE",
+      expected: "/family-invite/relationship%2Ftoken",
+    },
+    {
+      pendingStudentToken: "",
+      pendingRelationshipToken: "",
       pendingTrainerCode: "",
       expected: "/prof/home",
     },
   ])(
     "routes pending invitations before the default post-login target",
-    ({ pendingStudentToken, pendingTrainerCode, expected }) => {
+    ({ pendingStudentToken, pendingRelationshipToken, pendingTrainerCode, expected }) => {
       expect(
         resolvePendingInviteRedirect({
           pendingStudentToken,
+          pendingRelationshipToken,
           pendingTrainerCode,
           defaultTarget: "/prof/home",
         })

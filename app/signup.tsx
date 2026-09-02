@@ -489,6 +489,9 @@ export default function SignupScreen() {
                       borderWidth: 0,
                       fontSize: 15,
                       borderRadius: 0,
+                      ...(Platform.OS === "web"
+                        ? ({ outlineStyle: "none" } as any)
+                        : {}),
                     }}
                   />
                 </View>
@@ -583,6 +586,9 @@ export default function SignupScreen() {
                       borderWidth: 0,
                       fontSize: 15,
                       borderRadius: 0,
+                      ...(Platform.OS === "web"
+                        ? ({ outlineStyle: "none" } as any)
+                        : {}),
                     }}
                   />
                   <Pressable
@@ -693,6 +699,9 @@ export default function SignupScreen() {
                         borderWidth: 0,
                         fontSize: 15,
                         borderRadius: 0,
+                        ...(Platform.OS === "web"
+                          ? ({ outlineStyle: "none" } as any)
+                          : {}),
                       }}
                     />
                     <Pressable
@@ -839,6 +848,10 @@ export default function SignupScreen() {
                         backgroundColor: "transparent",
                         borderWidth: 0,
                         fontSize: 13,
+                        borderRadius: 0,
+                        ...(Platform.OS === "web"
+                          ? ({ outlineStyle: "none" } as any)
+                          : {}),
                       }}
                     />
                     {inviteCode.length > 0 ? (

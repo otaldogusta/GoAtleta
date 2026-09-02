@@ -86,3 +86,11 @@ verify_jwt = false
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.finance-provider-connection]
+verify_jwt = true
+
+# Asaas sends this request without a Supabase JWT. The endpoint authenticates
+# every event with a per-organization hash of the asaas-access-token header.
+[functions.asaas-webhook]
+verify_jwt = false

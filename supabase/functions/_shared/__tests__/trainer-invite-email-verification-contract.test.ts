@@ -3,27 +3,30 @@ import { resolve } from "node:path";
 
 const verifySource = readFileSync(
   resolve(__dirname, "../../verify-signup-email-code/index.ts"),
-  "utf8"
+  "utf8",
 );
 const claimSource = readFileSync(
   resolve(__dirname, "../../claim-trainer-invite/index.ts"),
-  "utf8"
+  "utf8",
 );
 const verificationSource = readFileSync(
   resolve(__dirname, "../invite-email-verification.ts"),
-  "utf8"
+  "utf8",
 );
 const claimMigrationSource = readFileSync(
   resolve(
     __dirname,
-    "../../../migrations/20260825212548_include_financial_permission_in_trainer_invites.sql"
+    "../../../migrations/20260825212548_include_financial_permission_in_trainer_invites.sql",
   ),
-  "utf8"
+  "utf8",
 );
-const signupSource = readFileSync(resolve(__dirname, "../../../../app/signup.tsx"), "utf8");
+const signupSource = readFileSync(
+  resolve(__dirname, "../../../../app/signup.tsx"),
+  "utf8",
+);
 const verifyScreenSource = readFileSync(
   resolve(__dirname, "../../../../app/verify-email.tsx"),
-  "utf8"
+  "utf8",
 );
 
 describe("trainer invite email verification contract", () => {
@@ -39,9 +42,11 @@ describe("trainer invite email verification contract", () => {
     expect(claimSource).toContain("hasTrustedInviteIdentity(user)");
     expect(claimSource).toContain("EMAIL_NOT_VERIFIED");
     expect(claimSource).not.toContain("user.user_metadata");
-    expect(claimSource).toContain("initial_permissions, invited_via, invited_to");
     expect(claimSource).toContain(
-      'invite.invited_via === "email" && invitedEmail && invitedEmail !== authenticatedEmail'
+      "initial_permissions, invited_via, invited_to",
+    );
+    expect(claimSource).toContain(
+      'invite.invited_via === "email" && invitedEmail && invitedEmail !== authenticatedEmail',
     );
     expect(verificationSource).toContain("user.app_metadata");
     expect(verificationSource).toContain("TRUSTED_EXTERNAL_PROVIDERS");
@@ -59,15 +64,21 @@ describe("trainer invite email verification contract", () => {
   test("keeps the invite pending until the verified pending route claims it", () => {
     expect(signupSource).toContain("savePendingTrainerInvite");
     expect(signupSource).not.toContain("claimTrainerInvite");
-    expect(verifyScreenSource).toContain('router.replace("/pending")');
+    expect(verifyScreenSource).toContain("resolvePendingInviteRedirect({");
+    expect(verifyScreenSource).toContain("pendingTrainerCode,");
+    expect(verifyScreenSource).toContain(
+      "router.replace(pendingTarget as Parameters<typeof router.replace>[0])",
+    );
     expect(verifyScreenSource).not.toContain("claimTrainerInvite");
   });
 
   test("sends the first hybrid verification code during signup", () => {
     expect(signupSource).toContain("resendSignupCode");
     expect(signupSource).toContain(
-      'await resendSignupCode(normalizedEmail, "verify-email")'
+      'await resendSignupCode(normalizedEmail, "verify-email")',
     );
-    expect(signupSource).toContain('delivery: initialCodeDeliveryFailed ? "failed" : undefined');
+    expect(signupSource).toContain(
+      'delivery: initialCodeDeliveryFailed ? "failed" : undefined',
+    );
   });
 });

@@ -23,6 +23,7 @@ import { Pressable } from "../src/ui/Pressable";
 import { useAuth } from "../src/auth/auth";
 import {
   getPendingInvite,
+  getPendingRelationshipInvite,
   getPendingTrainerInvite,
   resolvePendingInviteRedirect,
   resolvePendingTrainerCode,
@@ -262,8 +263,9 @@ export default function LoginScreen() {
     if (!session) return;
     let alive = true;
     void (async () => {
-      const [pendingStudentToken, storedTrainerCode] = await Promise.all([
+      const [pendingStudentToken, pendingRelationshipToken, storedTrainerCode] = await Promise.all([
         getPendingInvite(),
+        getPendingRelationshipInvite(),
         getPendingTrainerInvite(),
       ]);
       if (!alive) return;
@@ -274,6 +276,7 @@ export default function LoginScreen() {
       const target = resolvePendingInviteRedirect({
         pendingStudentToken,
         pendingTrainerCode,
+        pendingRelationshipToken,
         defaultTarget: loginRedirectTarget ?? "/",
       });
       router.replace(target as Parameters<typeof router.replace>[0]);

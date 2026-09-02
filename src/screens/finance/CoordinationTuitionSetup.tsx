@@ -155,6 +155,7 @@ type CoordinationTuitionSetupProps = {
   showHeader?: boolean;
   onClose?: () => void;
   onOpenPeopleManagement?: () => void;
+  onInvoiceIssued?: (agreement: TuitionAgreement) => void | Promise<void>;
 };
 
 export default function CoordinationTuitionSetup(
@@ -176,6 +177,7 @@ function CoordinationTuitionSetupOrganizationScope({
   showHeader = true,
   onClose,
   onOpenPeopleManagement,
+  onInvoiceIssued,
 }: CoordinationTuitionSetupProps = {}) {
   markRender("screen.coordTuitionSetup.render.root");
   const router = useRouter();
@@ -381,9 +383,10 @@ function CoordinationTuitionSetupOrganizationScope({
         agreementId: agreement.id,
         competenceMonth: dates.competenceMonth,
         dueDate: dates.dueDate,
-        description: `Mensalidade ${agreement.planName}`,
+        description: agreement.planName,
         idempotencyKey: `tuition:${agreement.id}:${dates.competenceMonth}`,
       });
+      await onInvoiceIssued?.(agreement);
       if (
         !isOrganizationAsyncIdentityCurrent(
           organizationIdentityRef.current,

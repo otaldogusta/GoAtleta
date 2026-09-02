@@ -349,9 +349,14 @@ const invoiceFromRecord = (row: JsonRecord): FamilyInvoice | null => {
     0,
     readInteger(row.paid_minor, row.paidAmountMinor, row.paid_cents),
   );
+  const rawTitle = readString(row.title, row.description, row.label) || "Mensalidade";
+  const title = rawTitle.replace(
+    /^mensalidade\s+mensalidade\b/i,
+    "Mensalidade",
+  );
   return {
     id,
-    title: readString(row.title, row.description, row.label) || "Mensalidade",
+    title,
     reference: readNullableString(
       row.reference,
       row.reference_month,
