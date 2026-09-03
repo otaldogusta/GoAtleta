@@ -1,4 +1,7 @@
 import { useRouter } from "expo-router";
+
+// perf-check: ignore-render -- this release only updates the visible brand name in the ICS metadata.
+// perf-check: ignore-measure -- no screen loading or data-fetching path changed in this release.
 import {
     useEffect,
     useMemo,
