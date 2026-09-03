@@ -72,7 +72,7 @@ describe("PlanningBlockActivityCards", () => {
     const text = collectRenderedText(renderer!);
     expect(text).toContain("Aquecimento");
     expect(text).toContain("Caça da bola jogável");
-    expect(text).toContain("Catálogo GoAtleta");
+    expect(text).toContain("Catálogo Go Atleta");
     expect(text).toContain("play-circle-outline");
     expect(text).toContain("eye-outline");
     expect(text).toContain("trash-outline");

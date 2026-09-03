@@ -3,7 +3,7 @@
   "lastUpdated": "2026-04-07T00:00:00Z",
   "description": "Pedagogical Dimensions System - Science-based, updatable configuration for training session design",
   "metadata": {
-    "author": "GoAtleta Coaching System",
+    "author": "Go Atleta Coaching System",
     "sources": [
       "Schmidt & Lee (2020) - Motor Control and Learning",
       "Davids et al. (2008+) - Ecological Dynamics",
@@ -286,8 +286,8 @@
       "version": "2026.04.07.1",
       "date": "2026-04-07T00:00:00Z",
       "changes": "Initial pedagogical dimensions system. 5 dimensions (variability, representativeness, decisionMaking, taskComplexity, feedbackFrequency) with 3 levels each. 4 age profiles (8-11, 10-12, 12-14, 14+). 3 level adjustments. 4 phase modifiers. 5 refinement rules + safety gates.",
-      "motivation": "Transform GoAtleta from static author-anchored pedagogy to science-driven, updatable system. Dimensions derive from motor learning consensus (Schmidt & Lee, Ecological Dynamics, Constraint-Led Approach).",
-      "reviewedBy": "GoAtleta Coaching Team"
+      "motivation": "Transform Go Atleta from static author-anchored pedagogy to science-driven, updatable system. Dimensions derive from motor learning consensus (Schmidt & Lee, Ecological Dynamics, Constraint-Led Approach).",
+      "reviewedBy": "Go Atleta Coaching Team"
     }
   ]
 }

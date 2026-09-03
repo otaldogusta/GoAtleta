@@ -4,7 +4,7 @@ describe("attendance export binary artifacts", () => {
   test("serializes the detailed attendance workbook as an XLSX zip", () => {
     const workbook = XLSX.utils.book_new();
     const contextRows = [
-      ["Organização", "GoAtleta Teste"],
+      ["Organização", "Go Atleta Teste"],
       ["Fuso IANA", "America/Sao_Paulo"],
     ];
     const summaryRows = [

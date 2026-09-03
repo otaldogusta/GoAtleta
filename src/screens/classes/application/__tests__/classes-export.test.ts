@@ -54,7 +54,7 @@ describe("classes export", () => {
       new Date("2026-07-29T12:00:00-03:00")
     );
 
-    expect(content).toContain("X-WR-CALNAME:GoAtleta - Turmas");
+    expect(content).toContain("X-WR-CALNAME:Go Atleta - Turmas");
     expect(content.match(/BEGIN:VEVENT/g)).toHaveLength(2);
     expect(content).toContain("SUMMARY:Aula - Turma 12-14");
     expect(content).toContain("RRULE:FREQ=WEEKLY");

@@ -112,8 +112,8 @@ export function buildClassesIcs(classes: ClassGroup[], now = new Date()) {
     "VERSION:2.0",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "PRODID:-//GoAtleta//Agenda de Turmas//PT-BR",
-    "X-WR-CALNAME:GoAtleta - Turmas",
+    "PRODID:-//Go Atleta//Agenda de Turmas//PT-BR",
+    "X-WR-CALNAME:Go Atleta - Turmas",
   ];
 
   classes.forEach((classGroup) => {

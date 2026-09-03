@@ -28,7 +28,7 @@ export function BiometricGate({
         App bloqueado
       </Text>
       <Text style={{ color: colors.muted, textAlign: "center", maxWidth: 320 }}>
-        Confirme sua biometria para continuar usando o GoAtleta.
+        Confirme sua biometria para continuar usando o Go Atleta.
       </Text>
       <Pressable
         onPress={onUnlock}

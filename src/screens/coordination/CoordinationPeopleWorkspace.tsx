@@ -1107,7 +1107,7 @@ export function CoordinationPeopleWorkspace({
           ? "estagiário"
           : "professor";
     const buildWhatsAppMessage = (link: string) =>
-      `Você recebeu um convite para acessar ${organizationName} no GoAtleta como ${roleText}.\n\nAbra o link para aceitar:\n${link}`;
+      `Você recebeu um convite para acessar ${organizationName} no Go Atleta como ${roleText}.\n\nAbra o link para aceitar:\n${link}`;
 
     setInviteBusyChannel(channel);
     try {
@@ -1236,7 +1236,7 @@ export function CoordinationPeopleWorkspace({
         selectedAttendance.length
           ? `Há ${selectedAttendance.length} chamada(s) pendente(s) nas suas turmas.`
           : "Sua operação está em dia."
-      } Acesse o GoAtleta para conferir os detalhes.`
+      } Acesse o Go Atleta para conferir os detalhes.`
     : "";
 
   const uniqueClasses = new Set(memberClassHeads.map((item) => item.classId)).size;

@@ -15,7 +15,7 @@ describe("training plan activity source metadata", () => {
           addedAt: "2026-06-14T12:00:00.000Z",
         },
       })
-    ).toBe("Catálogo GoAtleta");
+    ).toBe("Catálogo Go Atleta");
 
     expect(getTrainingPlanActivitySourceLabel({ catalog: undefined })).toBeNull();
   });

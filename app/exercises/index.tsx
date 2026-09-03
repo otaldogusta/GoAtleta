@@ -653,7 +653,7 @@ export default function ExercisesScreen() {
           <AnimatedSegmentedTabs<LibraryTab>
             tabs={[
               { id: "links", label: "Meus Links" },
-              { id: "catalog", label: "Catálogo GoAtleta" },
+              { id: "catalog", label: "Catálogo Go Atleta" },
             ]}
             activeTab={activeLibraryTab}
             onChange={setActiveLibraryTab}

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Idempotent fixtures for authenticated GoAtleta E2E checks against Supabase
+ * Idempotent fixtures for authenticated Go Atleta E2E checks against Supabase
  * Local only.
  *
  * Safety contract:
@@ -40,7 +40,7 @@ const FIXTURE = Object.freeze({
   marker: "goatleta-local-e2e-v1",
   organization: {
     id: "e2e00000-0000-4000-8000-000000000001",
-    name: "E2E Local - GoAtleta",
+    name: "E2E Local - Go Atleta",
     timezone: "America/Sao_Paulo",
   },
   class: {

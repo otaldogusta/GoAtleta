@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Domínio canônico da pedagogia do voleibol no GoAtleta
+// Domínio canônico da pedagogia do voleibol no Go Atleta
 //
 // Regra de ouro:
 //   Fonte metodológica (CMV, Compartilhar, Rede Esperança, etc.)

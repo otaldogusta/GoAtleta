@@ -48,9 +48,9 @@ import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 
 const INTEGRATION_DETAILS = [
   ["Histórico", "Clientes, cobranças e assinaturas são apenas importados."],
-  ["Cobranças", "O GoAtleta não emite pagamentos nesta etapa."],
+  ["Cobranças", "O Go Atleta não emite pagamentos nesta etapa."],
   ["Vencimentos", "Continuam definidos em cada plano."],
-  ["Assinatura GoAtleta", "Permanece nas configurações da instituição."],
+  ["Assinatura Go Atleta", "Permanece nas configurações da instituição."],
 ] as const;
 
 const emptyStatus = (

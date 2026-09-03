@@ -125,7 +125,7 @@ export function formatCatalogInsightActionMarkdown(
   insight: ActivityCatalogInsight
 ): string {
   return [
-    "# Ação sugerida - Catálogo GoAtleta",
+    "# Ação sugerida - Catálogo Go Atleta",
     "",
     "## Problema",
     insight.title,
@@ -188,7 +188,7 @@ export function formatCatalogAuditAsMarkdown(
     : "- Nenhuma referência desconhecida registrada.";
 
   return [
-    "# Relatório de Auditoria do Catálogo GoAtleta",
+    "# Relatório de Auditoria do Catálogo Go Atleta",
     "",
     `Gerado em: ${payload.generatedAt}`,
     "",

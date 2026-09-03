@@ -16,7 +16,7 @@ const getTrainingPlanActivityNameDedupeKey = (
 export const getTrainingPlanActivitySourceLabel = (
   activity: Pick<TrainingPlanActivity, "catalog"> | null | undefined
 ) => {
-  if (activity?.catalog?.source === "goAtletaCatalog") return "Catálogo GoAtleta";
+  if (activity?.catalog?.source === "goAtletaCatalog") return "Catálogo Go Atleta";
   return null;
 };
 

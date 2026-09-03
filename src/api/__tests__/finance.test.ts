@@ -3,10 +3,12 @@ import {
   getOrganizationFinanceDashboard,
   issueTuitionInvoice,
   listOrganizationInvoices,
+  listOrganizationProviderReceivables,
   listTuitionAgreements,
   listTuitionPlans,
   mapFinanceSummary,
   mapOrganizationInvoice,
+  mapOrganizationProviderReceivable,
   mapTuitionAgreement,
   mapTuitionPlan,
   recordManualPayment,
@@ -15,7 +17,9 @@ import { supabaseRestPost } from "../rest";
 
 jest.mock("../rest", () => ({ supabaseRestPost: jest.fn() }));
 
-const postMock = supabaseRestPost as jest.MockedFunction<typeof supabaseRestPost>;
+const postMock = supabaseRestPost as jest.MockedFunction<
+  typeof supabaseRestPost
+>;
 
 describe("finance API", () => {
   beforeEach(() => postMock.mockReset());
@@ -34,8 +38,8 @@ describe("finance API", () => {
           paid_count: "2",
           active_agreements_count: "6",
         },
-        "fallback"
-      )
+        "fallback",
+      ),
     ).toEqual({
       organizationId: "org-1",
       expectedCents: 123400,
@@ -63,7 +67,7 @@ describe("finance API", () => {
         description: null,
         created_at: "2026-08-01T00:00:00Z",
         paid_at: null,
-      })
+      }),
     ).toMatchObject({
       id: "invoice-1",
       studentName: "Júlia",
@@ -85,8 +89,13 @@ describe("finance API", () => {
         due_day: "10",
         active: true,
         created_at: "2026-08-30T00:00:00Z",
-      })
-    ).toMatchObject({ id: "plan-1", name: "Mensal", amountCents: 12000, dueDay: 10 });
+      }),
+    ).toMatchObject({
+      id: "plan-1",
+      name: "Mensal",
+      amountCents: 12000,
+      dueDay: 10,
+    });
     expect(
       mapTuitionAgreement({
         agreement_id: "agreement-1",
@@ -100,27 +109,68 @@ describe("finance API", () => {
         end_date: null,
         amount_cents: "12000",
         due_day: "10",
-      })
-    ).toMatchObject({ id: "agreement-1", studentName: "Júlia", payerUserId: "user-1" });
+      }),
+    ).toMatchObject({
+      id: "agreement-1",
+      studentName: "Júlia",
+      payerUserId: "user-1",
+    });
+  });
+
+  it("maps the sanitized provider receivable projection", () => {
+    expect(
+      mapOrganizationProviderReceivable({
+        receivable_id: "receivable-1",
+        customer_name: "  Maria  ",
+        provider_status: "received",
+        billing_type: "boleto",
+        amount_cents: "1000",
+        net_amount_cents: "901",
+        due_date: "2026-09-15",
+        paid_at: "2026-09-02T12:00:00Z",
+        match_status: "matched",
+        invoice_id: null,
+        imported_at: "2026-09-02T12:01:00Z",
+      }),
+    ).toEqual({
+      id: "receivable-1",
+      customerName: "Maria",
+      providerStatus: "RECEIVED",
+      billingType: "BOLETO",
+      amountCents: 1000,
+      netAmountCents: 901,
+      dueDate: "2026-09-15",
+      paidAt: "2026-09-02T12:00:00Z",
+      matchStatus: "matched",
+      invoiceId: null,
+      importedAt: "2026-09-02T12:01:00Z",
+    });
   });
 
   it("uses organization-scoped RPCs", async () => {
     postMock
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
 
     await getOrganizationFinanceDashboard("org-1");
     await listOrganizationInvoices("org-1", "overdue");
+    await listOrganizationProviderReceivables("org-1", "2026-09", 900);
 
     expect(postMock).toHaveBeenNthCalledWith(
       1,
       "/rpc/get_organization_finance_dashboard_v1",
-      { p_org_id: "org-1" }
+      { p_org_id: "org-1" },
     );
     expect(postMock).toHaveBeenNthCalledWith(
       2,
       "/rpc/list_organization_invoices_v1",
-      { p_org_id: "org-1", p_status: "overdue" }
+      { p_org_id: "org-1", p_status: "overdue" },
+    );
+    expect(postMock).toHaveBeenNthCalledWith(
+      3,
+      "/rpc/list_organization_provider_receivables_v1",
+      { p_org_id: "org-1", p_month: "2026-09-01", p_limit: 500 },
     );
   });
 
@@ -131,7 +181,11 @@ describe("finance API", () => {
       .mockResolvedValueOnce("plan-1")
       .mockResolvedValueOnce("invoice-1")
       .mockResolvedValueOnce([
-        { payment_id: "payment-1", invoice_status: "paid", paid_cents: "12000" },
+        {
+          payment_id: "payment-1",
+          invoice_status: "paid",
+          paid_cents: "12000",
+        },
       ]);
 
     await listTuitionPlans("org-1");
@@ -162,13 +216,20 @@ describe("finance API", () => {
     expect(postMock).toHaveBeenNthCalledWith(1, "/rpc/list_tuition_plans_v1", {
       p_org_id: "org-1",
     });
-    expect(postMock).toHaveBeenNthCalledWith(2, "/rpc/list_tuition_agreements_v1", {
-      p_org_id: "org-1",
-    });
+    expect(postMock).toHaveBeenNthCalledWith(
+      2,
+      "/rpc/list_tuition_agreements_v1",
+      {
+        p_org_id: "org-1",
+      },
+    );
     expect(postMock).toHaveBeenNthCalledWith(
       3,
       "/rpc/create_tuition_plan_v1",
-      expect.objectContaining({ p_org_id: "org-1", p_idempotency_key: "plan-key" })
+      expect.objectContaining({
+        p_org_id: "org-1",
+        p_idempotency_key: "plan-key",
+      }),
     );
     expect(payment).toEqual({
       paymentId: "payment-1",

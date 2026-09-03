@@ -72,7 +72,7 @@ describe("TrainingPlanDetailsModalContent", () => {
 
     expect(text).toContain("Caça da bola jogável");
     expect(text).toContain("Aumentar cooperação");
-    expect(text).toContain("Catálogo GoAtleta");
+    expect(text).toContain("Catálogo Go Atleta");
     expect(text).not.toContain("Aquecimento legado");
     expect(text).not.toContain("goAtletaCatalog");
     expect(text).not.toContain("variantId");

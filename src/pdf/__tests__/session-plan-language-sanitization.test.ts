@@ -213,7 +213,7 @@ describe("session-plan language sanitization", () => {
     expect(html).toContain("quadra reduzida");
     expect(html).toContain("lançamento");
     expect(html).toContain("ponto extra");
-    expect(html).not.toContain("Catálogo GoAtleta");
+    expect(html).not.toContain("Catálogo Go Atleta");
     expect(html).not.toContain("goAtletaCatalog");
     expect(html).not.toContain("source");
     expect(html).not.toContain("sourcePatternId");

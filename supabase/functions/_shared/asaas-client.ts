@@ -290,7 +290,7 @@ export async function createAsaasWebhook(params: {
     pathname: "/webhooks",
     method: "POST",
     body: {
-      name: "GoAtleta - recebimentos",
+      name: "Go Atleta - recebimentos",
       url: params.url,
       email: params.email,
       enabled: true,

@@ -76,7 +76,7 @@ describe("Google Drive credential helpers", () => {
     );
   });
 
-  test("aceita somente retornos conhecidos do GoAtleta", () => {
+  test("aceita somente retornos conhecidos do Go Atleta", () => {
     expect(
       resolveSafeDriveReturnUrl(
         "http://localhost:8081/profile?drive=connect",

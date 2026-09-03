@@ -36,7 +36,7 @@ const { AttendanceSummaryDocument } = await import(documentModuleUrl);
 const { pdf } = await import(rendererUrl);
 
 const data = {
-  organizationName: "GoAtleta Teste",
+  organizationName: "Go Atleta Teste",
   periodLabel: "01/08/2026 a 31/08/2026",
   scopeLabel: "Centro · Águias · Somente faltas",
   timeZone: "America/Sao_Paulo",
@@ -80,7 +80,7 @@ if (pdfBlob.type !== "application/pdf" || pdfBytes.length < 500 || pdfSignature 
 
 const workbook = XLSX.utils.book_new();
 const contextRows = [
-  ["Organização", "GoAtleta Teste"],
+  ["Organização", "Go Atleta Teste"],
   ["Fuso IANA", "America/Sao_Paulo"],
 ];
 const summaryRows = [

@@ -45,7 +45,7 @@ const plugins = [
 	[
 		"expo-local-authentication",
 		{
-			faceIDPermission: "Permitir uso do Face ID para desbloquear o GoAtleta.",
+			faceIDPermission: "Permitir uso do Face ID para desbloquear o Go Atleta.",
 		},
 	],
 	"expo-secure-store",
@@ -71,7 +71,7 @@ if (useDevClient) {
 
 module.exports = {
 	expo: {
-		name: "GoAtleta",
+		name: "Go Atleta",
 		slug: "goatleta",
 		version: "1.0.2",
 		orientation: "portrait",

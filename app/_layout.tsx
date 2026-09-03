@@ -1229,7 +1229,7 @@ function RootLayout() {
   return (
     <>
       <Head>
-        <title>GoAtleta</title>
+        <title>Go Atleta</title>
       </Head>
       <VercelWebAnalytics />
       <AppThemeProvider>

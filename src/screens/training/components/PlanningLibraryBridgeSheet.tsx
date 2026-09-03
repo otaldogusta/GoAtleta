@@ -57,7 +57,7 @@ type Props = {
 };
 
 const tabs = [
-  { id: "catalog", label: "Catálogo GoAtleta" },
+  { id: "catalog", label: "Catálogo Go Atleta" },
   { id: "links", label: "Meus Links" },
 ] satisfies ReadonlyArray<{ id: LibraryTab; label: string }>;
 

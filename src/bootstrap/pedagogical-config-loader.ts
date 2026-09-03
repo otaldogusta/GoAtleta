@@ -29,7 +29,7 @@ function createFallbackConfig(): PedagogicalDimensionsConfig {
     lastUpdated: new Date().toISOString(),
     description: "Fallback pedagogical dimensions config (file failed to load)",
     metadata: {
-      author: "GoAtleta (Fallback)",
+      author: "Go Atleta (Fallback)",
       sources: [],
     },
     dimensions: {
@@ -259,7 +259,7 @@ function createFallbackConfig(): PedagogicalDimensionsConfig {
         date: new Date().toISOString(),
         changes: "Fallback configuration generated at runtime",
         motivation: "JSON file failed to load during bootstrap",
-        reviewedBy: "GoAtleta System",
+        reviewedBy: "Go Atleta System",
       },
     ],
   };

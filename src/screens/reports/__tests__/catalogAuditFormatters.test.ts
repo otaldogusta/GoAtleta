@@ -100,7 +100,7 @@ describe("catalog audit formatters", () => {
     const payload = buildCatalogAuditExportPayload(auditReport, insightReport);
     const markdown = formatCatalogAuditAsMarkdown(payload);
 
-    expect(markdown).toContain("# Relatório de Auditoria do Catálogo GoAtleta");
+    expect(markdown).toContain("# Relatório de Auditoria do Catálogo Go Atleta");
     expect(markdown).toContain("- Famílias: 11");
     expect(markdown).toContain("### [Média] Variantes sem uso em defesa");
     expect(markdown).toContain("Revisar variantes não usadas");
@@ -119,7 +119,7 @@ describe("catalog audit formatters", () => {
   it("formats a single insight action package", () => {
     const markdown = formatCatalogInsightActionMarkdown(insight);
 
-    expect(markdown).toContain("# Ação sugerida - Catálogo GoAtleta");
+    expect(markdown).toContain("# Ação sugerida - Catálogo Go Atleta");
     expect(markdown).toContain("## Problema");
     expect(markdown).toContain("Variantes sem uso em defesa");
     expect(markdown).toContain("## Evidência");

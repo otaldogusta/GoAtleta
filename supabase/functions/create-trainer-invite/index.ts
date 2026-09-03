@@ -73,7 +73,7 @@ const sendInviteEmail = async (to: string, signupLink: string, roleLabel: string
   }
   const from =
     (Deno.env.get("INVITE_EMAIL_FROM") ?? "").trim() ||
-    "GoAtleta <nao-responda@auth.goatleta.com>";
+    "Go Atleta <nao-responda@auth.goatleta.com>";
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -83,10 +83,10 @@ const sendInviteEmail = async (to: string, signupLink: string, roleLabel: string
     body: JSON.stringify({
       from,
       to: [to],
-      subject: "Você recebeu um convite para o GoAtleta",
+      subject: "Você recebeu um convite para o Go Atleta",
       html: `
         <div style="font-family:Arial,sans-serif;line-height:1.5;color:#102038">
-          <h1 style="font-size:22px">Convite para o GoAtleta</h1>
+          <h1 style="font-size:22px">Convite para o Go Atleta</h1>
           <p>Você recebeu acesso como <strong>${roleLabel}</strong>.</p>
           <p><a href="${signupLink}" style="display:inline-block;padding:12px 18px;background:#41d984;color:#07111f;text-decoration:none;border-radius:8px;font-weight:700">Aceitar convite</a></p>
           <p style="font-size:12px;color:#5f6f85">Se você não esperava este convite, ignore esta mensagem.</p>

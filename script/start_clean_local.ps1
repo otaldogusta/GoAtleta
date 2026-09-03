@@ -35,7 +35,7 @@ function Stop-GoAtletaExpoOnPort {
       ($commandLine.Contains("expo") -or $commandLine.Contains("npm-cli.js"))
 
     if ($isGoAtletaExpo) {
-      Write-Host "Stopping stale GoAtleta Expo process $processId on port $TargetPort"
+      Write-Host "Stopping stale Go Atleta Expo process $processId on port $TargetPort"
       Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
   }
@@ -69,5 +69,5 @@ switch ($Mode) {
   }
 }
 
-Write-Host "Starting GoAtleta Expo: npx $($expoArgs -join ' ')"
+Write-Host "Starting Go Atleta Expo: npx $($expoArgs -join ' ')"
 & npx @expoArgs

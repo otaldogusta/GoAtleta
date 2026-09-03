@@ -62,6 +62,20 @@ export type ManualPaymentResult = {
   paidCents: number;
 };
 
+export type OrganizationProviderReceivable = {
+  id: string;
+  customerName: string;
+  providerStatus: string;
+  billingType: string;
+  amountCents: number;
+  netAmountCents: number;
+  dueDate: string | null;
+  paidAt: string | null;
+  matchStatus: "matched" | "ambiguous" | "unmatched";
+  invoiceId: string | null;
+  importedAt: string;
+};
+
 type FinanceSummaryRow = {
   organization_id: string;
   expected_cents: number | string | null;
@@ -119,6 +133,20 @@ type ManualPaymentRow = {
   paid_cents: number | string;
 };
 
+type OrganizationProviderReceivableRow = {
+  receivable_id: string;
+  customer_name: string | null;
+  provider_status: string;
+  billing_type: string;
+  amount_cents: number | string;
+  net_amount_cents: number | string | null;
+  due_date: string | null;
+  paid_at: string | null;
+  match_status: string;
+  invoice_id: string | null;
+  imported_at: string;
+};
+
 const toSafeInteger = (value: number | string | null | undefined) => {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
   return Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
@@ -126,7 +154,7 @@ const toSafeInteger = (value: number | string | null | undefined) => {
 
 export const mapFinanceSummary = (
   row: FinanceSummaryRow | null | undefined,
-  organizationId: string
+  organizationId: string,
 ): OrganizationFinanceSummary => ({
   organizationId: row?.organization_id ?? organizationId,
   expectedCents: toSafeInteger(row?.expected_cents),
@@ -140,7 +168,7 @@ export const mapFinanceSummary = (
 });
 
 export const mapOrganizationInvoice = (
-  row: OrganizationInvoiceRow
+  row: OrganizationInvoiceRow,
 ): OrganizationInvoice => ({
   id: row.invoice_id,
   studentId: row.student_id,
@@ -167,7 +195,7 @@ export const mapTuitionPlan = (row: TuitionPlanRow): TuitionPlan => ({
 });
 
 export const mapTuitionAgreement = (
-  row: TuitionAgreementRow
+  row: TuitionAgreementRow,
 ): TuitionAgreement => ({
   id: row.agreement_id,
   studentId: row.student_id,
@@ -182,51 +210,89 @@ export const mapTuitionAgreement = (
   dueDay: toSafeInteger(row.due_day),
 });
 
+export const mapOrganizationProviderReceivable = (
+  row: OrganizationProviderReceivableRow,
+): OrganizationProviderReceivable => ({
+  id: row.receivable_id,
+  customerName: row.customer_name?.trim() || "Cliente Asaas",
+  providerStatus: row.provider_status.trim().toUpperCase(),
+  billingType: row.billing_type.trim().toUpperCase(),
+  amountCents: toSafeInteger(row.amount_cents),
+  netAmountCents: toSafeInteger(row.net_amount_cents ?? row.amount_cents),
+  dueDate: row.due_date,
+  paidAt: row.paid_at,
+  matchStatus: ["matched", "ambiguous", "unmatched"].includes(row.match_status)
+    ? (row.match_status as OrganizationProviderReceivable["matchStatus"])
+    : "unmatched",
+  invoiceId: row.invoice_id,
+  importedAt: row.imported_at,
+});
+
 const unwrapScalarId = (payload: unknown) => {
   if (typeof payload === "string") return payload;
-  if (Array.isArray(payload) && payload.length === 1 && typeof payload[0] === "string") {
+  if (
+    Array.isArray(payload) &&
+    payload.length === 1 &&
+    typeof payload[0] === "string"
+  ) {
     return payload[0];
   }
   return "";
 };
 
 export async function getOrganizationFinanceDashboard(
-  organizationId: string
+  organizationId: string,
 ): Promise<OrganizationFinanceSummary> {
   const rows = await supabaseRestPost<FinanceSummaryRow[]>(
     "/rpc/get_organization_finance_dashboard_v1",
-    { p_org_id: organizationId }
+    { p_org_id: organizationId },
   );
   return mapFinanceSummary(rows?.[0], organizationId);
 }
 
 export async function listOrganizationInvoices(
   organizationId: string,
-  status?: InvoiceStatus | null
+  status?: InvoiceStatus | null,
 ): Promise<OrganizationInvoice[]> {
   const rows = await supabaseRestPost<OrganizationInvoiceRow[]>(
     "/rpc/list_organization_invoices_v1",
-    { p_org_id: organizationId, p_status: status ?? null }
+    { p_org_id: organizationId, p_status: status ?? null },
   );
   return (rows ?? []).map(mapOrganizationInvoice);
 }
 
+export async function listOrganizationProviderReceivables(
+  organizationId: string,
+  month: string,
+  limit = 250,
+): Promise<OrganizationProviderReceivable[]> {
+  const rows = await supabaseRestPost<OrganizationProviderReceivableRow[]>(
+    "/rpc/list_organization_provider_receivables_v1",
+    {
+      p_org_id: organizationId,
+      p_month: `${month}-01`,
+      p_limit: Math.min(Math.max(Math.trunc(limit), 1), 500),
+    },
+  );
+  return (rows ?? []).map(mapOrganizationProviderReceivable);
+}
+
 export async function listTuitionPlans(
-  organizationId: string
+  organizationId: string,
 ): Promise<TuitionPlan[]> {
   const rows = await supabaseRestPost<TuitionPlanRow[]>(
     "/rpc/list_tuition_plans_v1",
-    { p_org_id: organizationId }
+    { p_org_id: organizationId },
   );
   return (rows ?? []).map(mapTuitionPlan);
 }
 
 export async function listTuitionAgreements(
-  organizationId: string
+  organizationId: string,
 ): Promise<TuitionAgreement[]> {
   const rows = await supabaseRestPost<TuitionAgreementRow[]>(
     "/rpc/list_tuition_agreements_v1",
-    { p_org_id: organizationId }
+    { p_org_id: organizationId },
   );
   return (rows ?? []).map(mapTuitionAgreement);
 }
@@ -239,14 +305,17 @@ export async function createTuitionPlan(input: {
   description?: string | null;
   idempotencyKey?: string;
 }) {
-  const result = await supabaseRestPost<unknown>("/rpc/create_tuition_plan_v1", {
-    p_org_id: input.organizationId,
-    p_name: input.name.trim(),
-    p_amount_cents: Math.trunc(input.amountCents),
-    p_billing_day: Math.trunc(input.dueDay),
-    p_idempotency_key: input.idempotencyKey ?? createClientId(),
-    p_description: input.description?.trim() || null,
-  });
+  const result = await supabaseRestPost<unknown>(
+    "/rpc/create_tuition_plan_v1",
+    {
+      p_org_id: input.organizationId,
+      p_name: input.name.trim(),
+      p_amount_cents: Math.trunc(input.amountCents),
+      p_billing_day: Math.trunc(input.dueDay),
+      p_idempotency_key: input.idempotencyKey ?? createClientId(),
+      p_description: input.description?.trim() || null,
+    },
+  );
   const id = unwrapScalarId(result);
   if (!id) throw new Error("A criação do plano não retornou um identificador.");
   return id;
@@ -276,10 +345,11 @@ export async function createTuitionAgreement(input: {
       p_amount_cents:
         input.amountCents == null ? null : Math.trunc(input.amountCents),
       p_billing_day: input.dueDay == null ? null : Math.trunc(input.dueDay),
-    }
+    },
   );
   const id = unwrapScalarId(result);
-  if (!id) throw new Error("A criação do acordo não retornou um identificador.");
+  if (!id)
+    throw new Error("A criação do acordo não retornou um identificador.");
   return id;
 }
 
@@ -291,14 +361,17 @@ export async function issueTuitionInvoice(input: {
   description?: string | null;
   idempotencyKey?: string;
 }) {
-  const result = await supabaseRestPost<unknown>("/rpc/issue_tuition_invoice_v1", {
-    p_org_id: input.organizationId,
-    p_agreement_id: input.agreementId,
-    p_competence_month: input.competenceMonth,
-    p_due_date: input.dueDate,
-    p_idempotency_key: input.idempotencyKey ?? createClientId(),
-    p_description: input.description?.trim() || null,
-  });
+  const result = await supabaseRestPost<unknown>(
+    "/rpc/issue_tuition_invoice_v1",
+    {
+      p_org_id: input.organizationId,
+      p_agreement_id: input.agreementId,
+      p_competence_month: input.competenceMonth,
+      p_due_date: input.dueDate,
+      p_idempotency_key: input.idempotencyKey ?? createClientId(),
+      p_description: input.description?.trim() || null,
+    },
+  );
   const id = unwrapScalarId(result);
   if (!id) throw new Error("A emissão não retornou um identificador.");
   return id;
@@ -323,10 +396,11 @@ export async function recordManualPayment(input: {
       p_idempotency_key: input.idempotencyKey ?? createClientId(),
       p_paid_at: input.paidAt ?? new Date().toISOString(),
       p_notes: input.notes?.trim() || null,
-    }
+    },
   );
   const row = rows?.[0];
-  if (!row?.payment_id) throw new Error("O registro não retornou um pagamento.");
+  if (!row?.payment_id)
+    throw new Error("O registro não retornou um pagamento.");
   return {
     paymentId: row.payment_id,
     invoiceStatus: normalizeInvoiceStatus(row.invoice_status),

@@ -4978,7 +4978,7 @@ export default function TrainingList() {
                 />
                 <Text style={planningDetailSourceStyle}>
                   {planningDetailActivity.catalog
-                    ? "Catálogo GoAtleta"
+                    ? "Catálogo Go Atleta"
                     : planningDetailActivity.execution
                       ? "Vídeo/link"
                       : "Atividade manual"}

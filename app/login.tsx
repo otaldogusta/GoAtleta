@@ -432,7 +432,7 @@ export default function LoginScreen() {
     setMessage("");
     setBiometricBusy(true);
     try {
-      const ok = await unlockForLogin("Entrar no GoAtleta");
+      const ok = await unlockForLogin("Entrar no Go Atleta");
       if (!ok) {
         setMessage("Nao foi possivel validar biometria. Use email e senha.");
         return;

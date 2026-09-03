@@ -67,7 +67,7 @@ const humanizeKey = (value: unknown, fallback: string) => {
 
 const SOURCE_SCOPE_LABELS: Record<string, string> = {
   user_academic: "Base acadêmica pessoal",
-  system_academic: "Apoio pedagógico GoAtleta",
+  system_academic: "Apoio pedagógico Go Atleta",
   workspace_academic: "Base acadêmica da organização",
   institutional: "Base institucional",
   class_planning: "Planejamento da turma",

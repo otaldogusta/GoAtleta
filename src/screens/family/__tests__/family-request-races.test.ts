@@ -68,7 +68,7 @@ const buildOverview = (
 ): FamilyOverview => ({
   relationshipId,
   organizationId: "org-1",
-  organizationName: "GoAtleta",
+  organizationName: "Go Atleta",
   studentId,
   studentName: studentId,
   classId: "class-1",

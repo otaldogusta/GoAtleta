@@ -841,7 +841,7 @@ export default function ProfileScreen() {
       const normalizedName = normalizeProfileName(nameDraft);
       await updateProfileName(normalizedName);
       setShowNameEditor(false);
-      Alert.alert("Nome atualizado", "O novo nome já será usado no GoAtleta.");
+      Alert.alert("Nome atualizado", "O novo nome já será usado no Go Atleta.");
     } catch (error) {
       setNameError(getFriendlyErrorMessage(error, "Não foi possível atualizar o nome."));
     } finally {
@@ -1331,7 +1331,7 @@ export default function ProfileScreen() {
         );
         return;
       }
-      const result = await promptBiometrics("Ativar biometria no GoAtleta");
+      const result = await promptBiometrics("Ativar biometria no Go Atleta");
       if (!result.success) return;
       if (session) {
         await saveSession(session);

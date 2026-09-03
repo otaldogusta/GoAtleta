@@ -215,7 +215,7 @@ const buildParentMessageFromSignal = (signal: Signal) => {
     "Queremos alinhar um plano simples para manter continuidade no processo do atleta.",
     "Podemos confirmar disponibilidade para um contato rápido hoje?",
     "",
-    "Equipe GoAtleta",
+    "Equipe Go Atleta",
   ].join("\n");
 };
 

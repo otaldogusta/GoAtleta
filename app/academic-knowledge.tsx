@@ -240,7 +240,7 @@ export default function AcademicKnowledgeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={{ width: "100%", maxWidth: 1200, alignSelf: "center", padding: 16, gap: 16 }}>
-        <BackTitleHeader title="Base pedagógica do GoAtleta" onBack={() => router.replace("/profile")} />
+        <BackTitleHeader title="Base pedagógica do Go Atleta" onBack={() => router.replace("/profile")} />
         {loading ? <ActivityIndicator color={colors.text} /> : null}
         {!loading && !allowed ? (
           <Text style={{ color: colors.muted }}>Esta área está disponível somente para curadores autorizados.</Text>

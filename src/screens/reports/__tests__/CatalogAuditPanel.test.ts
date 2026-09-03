@@ -272,7 +272,7 @@ describe("CatalogAuditPanel", () => {
       await copyMarkdown.props.onPress();
     });
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
-      expect.stringContaining("# Relatório de Auditoria do Catálogo GoAtleta")
+      expect.stringContaining("# Relatório de Auditoria do Catálogo Go Atleta")
     );
 
     const copyAction = renderer.root.findByProps({
@@ -282,7 +282,7 @@ describe("CatalogAuditPanel", () => {
       await copyAction.props.onPress();
     });
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
-      expect.stringContaining("# Ação sugerida - Catálogo GoAtleta")
+      expect.stringContaining("# Ação sugerida - Catálogo Go Atleta")
     );
   });
 

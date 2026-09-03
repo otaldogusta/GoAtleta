@@ -117,7 +117,7 @@ describe("LessonActivityEditor", () => {
 
     const text = collectRendererText(tree);
 
-    expect(text).toContain("Catálogo GoAtleta");
+    expect(text).toContain("Catálogo Go Atleta");
     expect(text).not.toContain("goAtletaCatalog");
     expect(text).not.toContain("variantId");
   });

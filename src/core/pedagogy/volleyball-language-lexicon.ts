@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Léxico oficial de linguagem do vôlei para o GoAtleta
+// Léxico oficial de linguagem do vôlei para o Go Atleta
 //
 // Este arquivo é a única fonte de verdade para a tradução de conceitos
 // canônicos para a linguagem exibida ao professor, na UI, no PDF e
