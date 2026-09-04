@@ -92,6 +92,20 @@ export type StudentRelationship = StudentRelationshipPermissions & {
   revokedAt: string | null;
 };
 
+export type StudentFamilyAccessStatus = "active" | "invited" | "none";
+
+export type StudentFamilyAccessSummary = {
+  studentId: string;
+  status: StudentFamilyAccessStatus;
+  relationshipId: string | null;
+  inviteId: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  relationshipKind: Exclude<StudentRelationshipKind, "athlete"> | null;
+  relationshipLabel: string | null;
+  expiresAt: string | null;
+};
+
 export type RevokeStudentRelationshipInput = {
   organizationId: string;
   studentId: string;
@@ -105,6 +119,15 @@ export type RevokeStudentRelationshipInviteInput = {
   studentId: string;
   inviteId: string;
   reason: string;
+};
+
+export type UpdateStudentRelationshipInput = {
+  organizationId: string;
+  studentId: string;
+  relationshipId: string;
+  relationshipKind: Exclude<StudentRelationshipKind, "athlete">;
+  relationshipLabel?: string;
+  permissions: StudentRelationshipPermissions;
 };
 
 type StudentRelationshipRow = {
@@ -139,6 +162,18 @@ type StudentRelationshipInviteRow = {
   used_at?: unknown;
   claimed_by?: unknown;
   revoked_at?: unknown;
+};
+
+type StudentFamilyAccessSummaryRow = {
+  student_id?: unknown;
+  access_status?: unknown;
+  relationship_id?: unknown;
+  invite_id?: unknown;
+  contact_name?: unknown;
+  contact_email?: unknown;
+  relationship_kind?: unknown;
+  relationship_label?: unknown;
+  expires_at?: unknown;
 };
 
 const edgeBaseUrl = SUPABASE_URL.replace(/\/$/, "") + "/functions/v1";
@@ -235,6 +270,25 @@ export const mapStudentRelationshipInvite = (
   revokedAt: optionalString(row.revoked_at),
 });
 
+export const mapStudentFamilyAccessSummary = (
+  row: StudentFamilyAccessSummaryRow,
+): StudentFamilyAccessSummary => ({
+  studentId: requiredString(row.student_id, "student_id"),
+  status: requiredString(
+    row.access_status,
+    "access_status",
+  ) as StudentFamilyAccessStatus,
+  relationshipId: optionalString(row.relationship_id),
+  inviteId: optionalString(row.invite_id),
+  contactName: optionalString(row.contact_name),
+  contactEmail: optionalString(row.contact_email),
+  relationshipKind: optionalString(
+    row.relationship_kind,
+  ) as StudentFamilyAccessSummary["relationshipKind"],
+  relationshipLabel: optionalString(row.relationship_label),
+  expiresAt: optionalString(row.expires_at),
+});
+
 export async function createStudentRelationshipInvite(
   input: CreateStudentRelationshipInviteInput,
 ) {
@@ -303,6 +357,17 @@ export async function listStudentRelationshipInvites(
   return (rows ?? []).map(mapStudentRelationshipInvite);
 }
 
+export async function listStudentFamilyAccessSummaries(
+  organizationId: string,
+) {
+  if (!organizationId.trim()) return [];
+  const rows = await supabaseRestPost<StudentFamilyAccessSummaryRow[]>(
+    "/rpc/list_student_family_access_summaries_v1",
+    { p_org_id: organizationId },
+  );
+  return (rows ?? []).map(mapStudentFamilyAccessSummary);
+}
+
 export async function revokeStudentRelationshipInvite(
   input: RevokeStudentRelationshipInviteInput,
 ) {
@@ -341,5 +406,36 @@ export async function revokeStudentRelationship(
     },
     "return=minimal",
   );
+  return listStudentRelationships(input.organizationId, input.studentId);
+}
+
+export async function updateStudentRelationship(
+  input: UpdateStudentRelationshipInput,
+) {
+  if (!input.organizationId.trim() || !input.studentId.trim()) {
+    throw new Error("Organization and student are required");
+  }
+  if (!input.relationshipId.trim()) {
+    throw new Error("Relationship is required");
+  }
+  await supabaseRestPost<null>(
+    "/rpc/update_student_relationship_v1",
+    {
+      p_relationship_id: input.relationshipId,
+      p_relationship_kind: input.relationshipKind,
+      p_relationship_label: input.relationshipLabel?.trim() || null,
+      p_can_view_profile: input.permissions.canViewProfile,
+      p_can_view_schedule: input.permissions.canViewSchedule,
+      p_can_view_attendance: input.permissions.canViewAttendance,
+      p_can_view_progress: input.permissions.canViewProgress,
+      p_can_view_health: false,
+      p_can_sign_consents: false,
+      p_can_view_financial:
+        input.permissions.canViewFinancial || input.permissions.canPay,
+      p_can_pay: input.permissions.canPay,
+    },
+    "return=minimal",
+  );
+
   return listStudentRelationships(input.organizationId, input.studentId);
 }

@@ -10,6 +10,7 @@ import {
     Animated,
     Platform,
     ScrollView,
+    StyleSheet,
     StyleProp,
     Text,
     TextInput,
@@ -26,6 +27,8 @@ import { normalizeRaDigits } from "../../../utils/student-ra";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { ConfirmCloseOverlay } from "../../../ui/ConfirmCloseOverlay";
 import { DateInput } from "../../../ui/DateInput";
+import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
+import { AnchoredDropdownOption } from "../../../ui/AnchoredDropdownOption";
 import {
     FormFieldValidationFeedback,
     type FormValidationIssue,
@@ -41,9 +44,12 @@ import { StudentDocumentsFields } from "../components/StudentDocumentsFields";
 import { StudentMultiSelectOption } from "../components/StudentDropdownOptions";
 import { GoAtletaIcon } from "../../../ui/icon-registry";
 import { useCollapsibleAnimation } from "../../../ui/use-collapsible";
+import { useResponsiveLayout } from "../../../ui/use-responsive-layout";
 import { BirthdayAvatar } from "../components/BirthdayAvatar";
-import { STUDENT_FINANCIAL_STATUS_OPTIONS } from "../application/student-operational-status";
+import type { StudentFinanceSummary, StudentOperationalIndicator } from "../application/student-operational-indicators";
+import { StudentFinanceSummaryPopover } from "../components/StudentFinanceSummaryPopover";
 import { StudentOperationalHistoryModal } from "./StudentOperationalHistoryModal";
+import { overlayLayers } from "../../../ui/overlay-layers";
 
 type CollapsibleAnim = {
     animatedStyle: any;
@@ -53,6 +59,319 @@ type CollapsibleAnim = {
 type Layout = { x: number; y: number; width: number; height: number };
 type Point = { x: number; y: number };
 type StudentValidationField = "unitClass" | "name" | "birthDate" | "ra";
+
+const operationalStyles = StyleSheet.create({
+    card: {
+        borderWidth: 1,
+        borderRadius: 14,
+        flex: 1,
+        minWidth: 280,
+        overflow: "hidden",
+    },
+    strip: {
+        flexDirection: "row",
+        alignItems: "stretch",
+    },
+    cardTablet: {
+        flexBasis: "100%",
+    },
+    stripStacked: {
+        flexDirection: "column",
+    },
+    tile: {
+        flex: 1,
+        minWidth: 0,
+        minHeight: 62,
+        paddingVertical: 12,
+        paddingHorizontal: 10,
+        justifyContent: "center",
+    },
+    tileStacked: {
+        width: "100%",
+        minHeight: 56,
+    },
+    tileDividerHorizontal: {
+        borderRightWidth: 1,
+    },
+    tileDividerVertical: {
+        borderBottomWidth: 1,
+    },
+    tileHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 6,
+    },
+    tileHeaderMain: {
+        flexShrink: 0,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    tileState: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        gap: 6,
+    },
+    badgeContainer: { flexShrink: 1, minWidth: 0 },
+    badgeLabel: { flexShrink: 1, fontSize: 11, fontWeight: "800" },
+    badge: {
+        flexShrink: 1,
+        minWidth: 0,
+        minHeight: 30,
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingHorizontal: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    statusTrigger: {
+        minHeight: 34,
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    badgeDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
+    },
+    badgeReason: {
+        padding: 8,
+        fontSize: 12,
+        fontWeight: "700",
+    },
+    interactiveTile: {
+        flex: 1,
+        minWidth: 0,
+    },
+    action: {
+        minHeight: 34,
+        paddingHorizontal: 4,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    modalHeaderActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    historyAction: {
+        minHeight: 40,
+        borderRadius: 20,
+        borderWidth: 1,
+        paddingHorizontal: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+    },
+    statusOption: {
+        minHeight: 24,
+        justifyContent: "center",
+    },
+    statusOptionLabel: {
+        fontSize: 12,
+        fontWeight: "800",
+    },
+    inactivationForm: {
+        gap: 8,
+        borderTopWidth: 1,
+        padding: 12,
+    },
+    inactivationActions: {
+        flexDirection: "row",
+        justifyContent: "flex-end",
+        alignItems: "center",
+        gap: 8,
+    },
+});
+
+const indicatorPalette = (indicator: StudentOperationalIndicator, colors: ThemeColors) => {
+    if (indicator.tone === "success") {
+        return { backgroundColor: colors.successBg, borderColor: colors.successBorder, color: colors.successText };
+    }
+    if (indicator.tone === "warning") {
+        return { backgroundColor: colors.warningBg, borderColor: colors.warningBorder, color: colors.warningText };
+    }
+    if (indicator.tone === "danger") {
+        return { backgroundColor: colors.dangerBg, borderColor: colors.dangerBorder, color: colors.dangerText };
+    }
+    return { backgroundColor: colors.secondaryBg, borderColor: colors.border, color: colors.muted };
+};
+
+function OperationalIndicatorBadge({
+    indicator,
+    colors,
+    showReason = false,
+    reasonVisible = false,
+    onShowReason,
+    onHideReason,
+}: {
+    indicator: StudentOperationalIndicator;
+    colors: ThemeColors;
+    showReason?: boolean;
+    reasonVisible?: boolean;
+    onShowReason?: () => void;
+    onHideReason?: () => void;
+}) {
+    const reasonTriggerRef = useRef<View | null>(null);
+    const [reasonLayout, setReasonLayout] = useState<Layout | null>(null);
+    const openReason = () => {
+        reasonTriggerRef.current?.measureInWindow((x, y, width, height) => {
+            setReasonLayout({ x, y, width, height });
+            onShowReason?.();
+        });
+    };
+    const palette = indicatorPalette(indicator, colors);
+    const badge = (
+        <View
+            style={[operationalStyles.badge, { backgroundColor: palette.backgroundColor, borderColor: palette.borderColor }]}
+        >
+            <View style={[operationalStyles.badgeDot, { backgroundColor: palette.color }]} />
+            <Text style={[operationalStyles.badgeLabel, { color: palette.color }]}>{indicator.label}</Text>
+        </View>
+    );
+
+    if (!showReason) {
+        return (
+            <View accessibilityRole="text" accessibilityLabel={indicator.label} style={operationalStyles.badgeContainer}>
+                {badge}
+            </View>
+        );
+    }
+
+    return (
+        <View ref={reasonTriggerRef} style={operationalStyles.badgeContainer}>
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${indicator.label}. ${indicator.detail}`}
+                accessibilityHint="Mostra o motivo do aviso"
+                accessibilityState={{ expanded: reasonVisible }}
+                onPress={openReason}
+                onFocus={openReason}
+                onBlur={onHideReason}
+                onHoverIn={() => {
+                    if (Platform.OS === "web") openReason();
+                }}
+                onHoverOut={() => {
+                    if (Platform.OS === "web") onHideReason?.();
+                }}
+                suppressWebHoverFeedback
+            >
+                {badge}
+            </Pressable>
+            <AnchoredDropdown
+                visible={reasonVisible}
+                layout={reasonLayout}
+                container={null}
+                animationStyle={null}
+                zIndex={overlayLayers.floatingList}
+                maxHeight={100}
+                nestedScrollEnabled={false}
+                density="menu"
+                preferredWidth={220}
+                fitContent
+                portalToBodyOnWeb
+                interactiveRefs={[reasonTriggerRef]}
+                onRequestClose={onHideReason}
+                showVerticalScrollIndicator={false}
+            >
+                <Text accessibilityRole="text" style={[operationalStyles.badgeReason, { color: colors.text }]}>
+                    {indicator.detail}
+                </Text>
+            </AnchoredDropdown>
+        </View>
+    );
+}
+function OperationalIndicatorTile({
+    title,
+    indicator,
+    colors,
+    stacked,
+    isLast,
+    onPress,
+    accessibilityLabel,
+    showReason,
+    reasonVisible,
+    onShowReason,
+    onHideReason,
+    triggerRef,
+    expanded,
+}: {
+    title: string;
+    indicator: StudentOperationalIndicator;
+    colors: ThemeColors;
+    stacked: boolean;
+    isLast: boolean;
+    onPress?: () => void;
+    accessibilityLabel?: string;
+    showReason?: boolean;
+    reasonVisible?: boolean;
+    onShowReason?: () => void;
+    onHideReason?: () => void;
+    triggerRef?: RefObject<View | null>;
+    expanded?: boolean;
+}) {
+    const content = (
+        <View style={operationalStyles.tileHeader}>
+            <View style={operationalStyles.tileHeaderMain}>
+                <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                    {title}
+                </Text>
+            </View>
+            <View style={operationalStyles.tileState}>
+                <OperationalIndicatorBadge
+                    indicator={indicator}
+                    colors={colors}
+                    showReason={showReason}
+                    reasonVisible={reasonVisible}
+                    onShowReason={onShowReason}
+                    onHideReason={onHideReason}
+                />
+                {onPress ? <GoAtletaIcon name="chevronForward" size={16} color={colors.muted} /> : null}
+            </View>
+        </View>
+    );
+    const tileStyle = [
+        operationalStyles.tile,
+        stacked ? operationalStyles.tileStacked : null,
+        !isLast
+            ? stacked
+                ? operationalStyles.tileDividerVertical
+                : operationalStyles.tileDividerHorizontal
+            : null,
+        { borderColor: colors.border, backgroundColor: colors.card },
+    ];
+
+    if (onPress) {
+        return (
+            <View ref={triggerRef} style={operationalStyles.interactiveTile}>
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={accessibilityLabel}
+                accessibilityState={{ expanded }}
+                onPress={onPress}
+                style={({ pressed, hovered }: any) => [
+                    tileStyle,
+                    { backgroundColor: hovered ? colors.secondaryBg : colors.card, opacity: pressed ? 0.76 : 1 },
+                ]}
+            >
+                {content}
+            </Pressable>
+            </View>
+        );
+    }
+
+    return <View style={tileStyle}>{content}</View>;
+}
 
 const VOLLEYBALL_POSITION_OPTIONS: Array<{ value: Student["positionPrimary"]; label: string }> = [
     { value: "levantador", label: "Levantador" },
@@ -216,15 +535,18 @@ export type StudentEditModalProps = {
     operationalStudent: Student | null;
     operationalStatusSaving: boolean;
     canManageFinancialStatus: boolean;
+    financeIndicator: StudentOperationalIndicator;
+    financeSummary: StudentFinanceSummary | null;
+    attendanceIndicator: StudentOperationalIndicator;
     operationalHistory: StudentOperationalEvent[];
     operationalHistoryLoading: boolean;
     operationalHistoryError: string;
     onRetryOperationalHistory: () => Promise<void>;
     onUpdateOperationalStatus: (patch: {
         membershipStatus?: Student["membershipStatus"];
-        financialStatus?: Student["financialStatus"];
         inactivationReason?: string | null;
     }) => Promise<boolean>;
+    onOpenFinance: () => void;
     editSaving: boolean;
     setEditSaving: (value: boolean) => void;
     onSave: () => Promise<boolean>;
@@ -353,11 +675,15 @@ export function StudentEditModal({
     operationalStudent,
     operationalStatusSaving,
     canManageFinancialStatus,
+    financeIndicator,
+    financeSummary,
+    attendanceIndicator,
     operationalHistory,
     operationalHistoryLoading,
     operationalHistoryError,
     onRetryOperationalHistory,
     onUpdateOperationalStatus,
+    onOpenFinance,
     editSaving,
     setEditSaving,
     onSave,
@@ -366,12 +692,41 @@ export function StudentEditModal({
     colors,
     SelectOption,
 }: StudentEditModalProps) {
+    const responsiveLayout = useResponsiveLayout("content");
     const nameInputRef = useRef<TextInput | null>(null);
     const birthDateInputRef = useRef<TextInput | null>(null);
     const raInputRef = useRef<TextInput | null>(null);
+    const membershipStatusTriggerRef = useRef<View | null>(null);
+    const financeTriggerRef = useRef<View | null>(null);
+    const [financeTriggerLayout, setFinanceTriggerLayout] = useState<Layout | null>(null);
     const [showInactivationForm, setShowInactivationForm] = useState(false);
     const [inactivationReason, setInactivationReason] = useState("");
     const [showOperationalHistory, setShowOperationalHistory] = useState(false);
+    const [activeOperationalOverlay, setActiveOperationalOverlay] = useState<"membership" | "finance" | "attendance" | null>(null);
+    const showMembershipStatusMenu = activeOperationalOverlay === "membership";
+    const closeOperationalOverlay = (overlay: "membership" | "finance" | "attendance") => {
+        setActiveOperationalOverlay((current) => current === overlay ? null : current);
+    };
+    const setShowMembershipStatusMenu = (visible: boolean) => {
+        if (visible) setActiveOperationalOverlay("membership");
+        else closeOperationalOverlay("membership");
+    };
+    const openFinanceSummary = () => {
+        financeTriggerRef.current?.measureInWindow((x, y, width, height) => {
+            setFinanceTriggerLayout({ x, y, width, height });
+            setActiveOperationalOverlay("finance");
+        });
+    };
+    const [membershipStatusTriggerLayout, setMembershipStatusTriggerLayout] = useState<Layout | null>(null);
+    const membershipStatusMenuAnim = useCollapsibleAnimation(showMembershipStatusMenu, {
+        durationIn: 150,
+        durationOut: 110,
+        translateY: -3,
+    });
+
+    useEffect(() => {
+        setActiveOperationalOverlay(null);
+    }, [operationalStudent?.id, showEditModal]);
 
     useEffect(() => {
         if (!showEditModal || operationalStudent?.membershipStatus === "inactive") {
@@ -380,8 +735,35 @@ export function StudentEditModal({
         }
         if (!showEditModal) {
             setShowOperationalHistory(false);
+            setShowMembershipStatusMenu(false);
         }
     }, [operationalStudent?.id, operationalStudent?.membershipStatus, showEditModal]);
+
+    const toggleMembershipStatusMenu = () => {
+        if (operationalStatusSaving) return;
+        if (showMembershipStatusMenu) {
+            setShowMembershipStatusMenu(false);
+            return;
+        }
+        membershipStatusTriggerRef.current?.measureInWindow((x, y, width, height) => {
+            setMembershipStatusTriggerLayout({ x, y, width, height });
+            setShowMembershipStatusMenu(true);
+        });
+    };
+
+    const selectMembershipStatus = (membershipStatus: NonNullable<Student["membershipStatus"]>) => {
+        setShowMembershipStatusMenu(false);
+        if (membershipStatus === operationalStudent?.membershipStatus) return;
+        if (membershipStatus === "inactive") {
+            setShowInactivationForm(true);
+            return;
+        }
+        void onUpdateOperationalStatus({ membershipStatus: "active" });
+    };
+
+    const membershipIndicator: StudentOperationalIndicator = operationalStudent?.membershipStatus === "inactive"
+        ? { label: "Inativo", detail: "Fora das novas chamadas", tone: "danger" }
+        : { label: "Ativo", detail: "Disponível nas turmas e chamadas", tone: "success" };
 
     useEffect(() => {
         if (!showEditModal || !validationIssue) return undefined;
@@ -480,7 +862,9 @@ export function StudentEditModal({
             onClose={
                 showOperationalHistory
                     ? () => setShowOperationalHistory(false)
-                    : requestCloseEditModal
+                    : activeOperationalOverlay
+                        ? () => setActiveOperationalOverlay(null)
+                        : requestCloseEditModal
             }
             cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "90%" }]}
             position="center"
@@ -508,31 +892,56 @@ export function StudentEditModal({
                         <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>
                             Editar aluno
                         </Text>
-                        <Pressable
-                            onPress={requestCloseEditModal}
-                            accessibilityRole="button"
-                            accessibilityLabel="Fechar edição do aluno"
-                            hitSlop={8}
-                            style={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: 20,
-                                alignItems: "center",
-                                justifyContent: "center",
-                                backgroundColor: colors.secondaryBg,
-                                borderWidth: 1,
-                                borderColor: colors.border,
-                            }}
-                        >
-                            <GoAtletaIcon name="close" size={18} color={colors.text} />
-                        </Pressable>
+                        <View style={operationalStyles.modalHeaderActions}>
+                            {operationalStudent ? (
+                                <Pressable
+                                    onPress={() => setShowOperationalHistory(true)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Ver histórico do aluno"
+                                    hitSlop={8}
+                                    style={({ pressed, hovered }: any) => [
+                                        operationalStyles.historyAction,
+                                        {
+                                            backgroundColor: hovered ? colors.secondaryBg : colors.card,
+                                            borderColor: hovered ? colors.primaryBg : colors.border,
+                                            opacity: pressed ? 0.76 : 1,
+                                        },
+                                    ]}
+                                    suppressWebHoverFeedback
+                                >
+                                    <GoAtletaIcon name="time" size={15} color={colors.muted} />
+                                    <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>Histórico</Text>
+                                </Pressable>
+                            ) : null}
+                            <Pressable
+                                onPress={requestCloseEditModal}
+                                accessibilityRole="button"
+                                accessibilityLabel="Fechar edição do aluno"
+                                hitSlop={8}
+                                style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 20,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: colors.secondaryBg,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                }}
+                            >
+                                <GoAtletaIcon name="close" size={18} color={colors.text} />
+                            </Pressable>
+                        </View>
                     </View>
                     <ScrollView
                         style={{ width: "100%", flex: 1 }}
                         contentContainerStyle={{ gap: 10, paddingBottom: 96 }}
                         keyboardShouldPersistTaps="handled"
                         automaticallyAdjustKeyboardInsets
-                        onScrollBeginDrag={closeAllEditPickers}
+                        onScrollBeginDrag={() => {
+                            closeAllEditPickers();
+                            setActiveOperationalOverlay(null);
+                        }}
                     >
                         <View style={{ gap: 10 }}>
                             <View style={{ flexDirection: "row", alignItems: "stretch", flexWrap: "wrap", gap: 12 }}>
@@ -584,53 +993,184 @@ export function StudentEditModal({
 
                             {operationalStudent ? (
                                 <View
-                                    style={{
-                                        borderWidth: 1,
-                                        borderColor: colors.border,
-                                        borderRadius: 14,
-                                        backgroundColor: colors.card,
-                                        padding: 12,
-                                        gap: 10,
-                                        flex: 1,
-                                        minWidth: 280,
-                                    }}
+                                    style={[
+                                        operationalStyles.card,
+                                        responsiveLayout.tier === "tablet" ? operationalStyles.cardTablet : null,
+                                        { borderColor: colors.border, backgroundColor: colors.card },
+                                    ]}
                                 >
                                     <View
-                                        style={{
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            gap: 12,
-                                        }}
+                                        style={[
+                                            operationalStyles.strip,
+                                            responsiveLayout.isMobile ? operationalStyles.stripStacked : null,
+                                        ]}
                                     >
-                                        <Text style={{ flex: 1, color: colors.text, fontSize: 14, fontWeight: "800" }}>
-                                            Situação do aluno
-                                        </Text>
-                                        <Pressable
-                                            onPress={() => setShowOperationalHistory(true)}
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Ver histórico do aluno"
-                                            hitSlop={8}
-                                            style={({ pressed, hovered }: any) => ({
-                                                width: 40,
-                                                height: 40,
-                                                borderRadius: 20,
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                backgroundColor: hovered ? colors.secondaryBg : colors.card,
-                                                borderWidth: 1,
-                                                borderColor: hovered ? colors.primaryBg : colors.border,
-                                                opacity: pressed ? 0.76 : 1,
-                                            })}
+                                        <View
+                                            style={[
+                                                operationalStyles.tile,
+                                                responsiveLayout.isMobile ? operationalStyles.tileStacked : null,
+                                                responsiveLayout.isMobile
+                                                    ? operationalStyles.tileDividerVertical
+                                                    : operationalStyles.tileDividerHorizontal,
+                                                { borderColor: colors.border, backgroundColor: colors.card },
+                                            ]}
                                         >
-                                            <GoAtletaIcon name="time" size={19} color={colors.text} />
-                                        </Pressable>
+                                            <View style={operationalStyles.tileHeader}>
+                                                <View style={operationalStyles.tileHeaderMain}>
+                                                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>Cadastro</Text>
+                                                </View>
+                                                <View ref={membershipStatusTriggerRef} collapsable={false}>
+                                                    <Pressable
+                                                        disabled={operationalStatusSaving}
+                                                        onPress={toggleMembershipStatusMenu}
+                                                        accessibilityRole="button"
+                                                        accessibilityLabel={`Cadastro: ${membershipIndicator.label}`}
+                                                        accessibilityState={{ expanded: showMembershipStatusMenu }}
+                                                        style={(state) => {
+                                                            const palette = indicatorPalette(membershipIndicator, colors);
+                                                            return [
+                                                                operationalStyles.statusTrigger,
+                                                                {
+                                                                    backgroundColor: palette.backgroundColor,
+                                                                    borderColor: showMembershipStatusMenu || state.hovered
+                                                                        ? palette.color
+                                                                        : palette.borderColor,
+                                                                    opacity: operationalStatusSaving || state.pressed ? 0.62 : 1,
+                                                                },
+                                                            ];
+                                                        }}
+                                                    >
+                                                        <View
+                                                            style={[
+                                                                operationalStyles.badgeDot,
+                                                                { backgroundColor: indicatorPalette(membershipIndicator, colors).color },
+                                                            ]}
+                                                        />
+                                                        <Text
+                                                            style={{
+                                                                color: indicatorPalette(membershipIndicator, colors).color,
+                                                                fontSize: 11,
+                                                                fontWeight: "800",
+                                                            }}
+                                                        >
+                                                            {membershipIndicator.label}
+                                                        </Text>
+                                                        <GoAtletaIcon
+                                                            name={showMembershipStatusMenu ? "chevronUp" : "chevronDown"}
+                                                            size={13}
+                                                            color={indicatorPalette(membershipIndicator, colors).color}
+                                                        />
+                                                    </Pressable>
+                                                </View>
+                                            </View>
+                                        </View>
+
+                                        {canManageFinancialStatus ? (
+                                            <OperationalIndicatorTile
+                                                title="Financeiro"
+                                                indicator={financeIndicator}
+                                                colors={colors}
+                                                stacked={responsiveLayout.isMobile}
+                                                isLast={false}
+                                                onPress={openFinanceSummary}
+                                                triggerRef={financeTriggerRef}
+                                                expanded={activeOperationalOverlay === "finance"}
+                                                accessibilityLabel={"Ver resumo financeiro de " + operationalStudent.name}
+                                            />
+                                        ) : null}
+                                        <OperationalIndicatorTile
+                                            title="Frequência"
+                                            indicator={attendanceIndicator}
+                                            colors={colors}
+                                            stacked={responsiveLayout.isMobile}
+                                            isLast
+                                            showReason={attendanceIndicator.tone === "warning" || attendanceIndicator.tone === "danger"}
+                                            reasonVisible={activeOperationalOverlay === "attendance"}
+                                            onShowReason={() => setActiveOperationalOverlay("attendance")}
+                                            onHideReason={() => closeOperationalOverlay("attendance")}
+                                        />
                                     </View>
+
+                                    {canManageFinancialStatus ? (
+                                        <StudentFinanceSummaryPopover
+                                            visible={activeOperationalOverlay === "finance"}
+                                            layout={financeTriggerLayout}
+                                            triggerRef={financeTriggerRef}
+                                            summary={financeSummary}
+                                            indicator={financeIndicator}
+                                            colors={colors}
+                                            onClose={() => closeOperationalOverlay("finance")}
+                                            onOpenFinance={onOpenFinance}
+                                        />
+                                    ) : null}
+
+                                    <AnchoredDropdown
+                                        visible={showMembershipStatusMenu}
+                                        layout={membershipStatusTriggerLayout}
+                                        container={null}
+                                        animationStyle={membershipStatusMenuAnim.animatedStyle}
+                                        zIndex={22000}
+                                        maxHeight={180}
+                                        nestedScrollEnabled
+                                        density="menu"
+                                        fitContent
+                                        preferredWidth={190}
+                                        portalToBodyOnWeb
+                                        interactiveRefs={[membershipStatusTriggerRef]}
+                                        showVerticalScrollIndicator={false}
+                                        onRequestClose={() => setShowMembershipStatusMenu(false)}
+                                        panelStyle={{ backgroundColor: colors.card }}
+                                    >
+                                        <AnchoredDropdownOption
+                                            active={operationalStudent.membershipStatus !== "inactive"}
+                                            density="compact"
+                                            onPress={() => selectMembershipStatus("active")}
+                                            rightAccessory={operationalStudent.membershipStatus !== "inactive"
+                                                ? <GoAtletaIcon name="checkmark" size={15} color={colors.successText} />
+                                                : undefined}
+                                        >
+                                            <View style={operationalStyles.statusOption}>
+                                                <Text
+                                                    style={[
+                                                        operationalStyles.statusOptionLabel,
+                                                        {
+                                                            color: operationalStudent.membershipStatus !== "inactive"
+                                                                ? colors.primaryText
+                                                                : colors.text,
+                                                        },
+                                                    ]}
+                                                >
+                                                    Ativo
+                                                </Text>
+                                            </View>
+                                        </AnchoredDropdownOption>
+                                        <AnchoredDropdownOption
+                                            active={operationalStudent.membershipStatus === "inactive"}
+                                            density="compact"
+                                            onPress={() => selectMembershipStatus("inactive")}
+                                            rightAccessory={operationalStudent.membershipStatus === "inactive"
+                                                ? <GoAtletaIcon name="checkmark" size={15} color={colors.dangerText} />
+                                                : undefined}
+                                        >
+                                            <View style={operationalStyles.statusOption}>
+                                                <Text
+                                                    style={[
+                                                        operationalStyles.statusOptionLabel,
+                                                        {
+                                                            color: operationalStudent.membershipStatus === "inactive"
+                                                                ? colors.primaryText
+                                                                : colors.text,
+                                                        },
+                                                    ]}
+                                                >
+                                                    Inativo
+                                                </Text>
+                                            </View>
+                                        </AnchoredDropdownOption>
+                                    </AnchoredDropdown>
+
                                     {showInactivationForm ? (
-                                        <View style={{ gap: 8 }}>
-                                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                                                Motivo
-                                            </Text>
+                                        <View style={[operationalStyles.inactivationForm, { borderTopColor: colors.border }]}>
                                             <View
                                                 style={{
                                                     minHeight: 50,
@@ -645,7 +1185,7 @@ export function StudentEditModal({
                                                 <TextInput
                                                     value={inactivationReason}
                                                     onChangeText={(value) => setInactivationReason(value.slice(0, 240))}
-                                                    placeholder="Pausa, saída ou mudança de rotina"
+                                                    placeholder="Motivo da inativação"
                                                     placeholderTextColor={colors.muted}
                                                     maxLength={240}
                                                     style={{
@@ -658,25 +1198,22 @@ export function StudentEditModal({
                                                 />
                                             </View>
                                             <Text style={{ color: colors.muted, fontSize: 11 }}>
-                                                O histórico, as avaliações e as presenças serão preservados.
+                                                Histórico, avaliações e presenças serão preservados.
                                             </Text>
-                                            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+                                            <View style={operationalStyles.inactivationActions}>
                                                 <Pressable
                                                     disabled={operationalStatusSaving}
                                                     onPress={() => {
                                                         setShowInactivationForm(false);
                                                         setInactivationReason("");
                                                     }}
-                                                    style={{ minHeight: 44, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" }}
+                                                    style={operationalStyles.action}
                                                     suppressWebHoverFeedback
                                                 >
                                                     <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Cancelar</Text>
                                                 </Pressable>
                                                 <Pressable
-                                                    disabled={
-                                                        operationalStatusSaving ||
-                                                        !inactivationReason.trim()
-                                                    }
+                                                    disabled={operationalStatusSaving || !inactivationReason.trim()}
                                                     onPress={() => {
                                                         void onUpdateOperationalStatus({
                                                             membershipStatus: "inactive",
@@ -689,114 +1226,19 @@ export function StudentEditModal({
                                                         });
                                                     }}
                                                     style={{
-                                                        minHeight: 44,
-                                                        borderRadius: 11,
+                                                        minHeight: 40,
+                                                        borderRadius: 10,
                                                         backgroundColor: colors.dangerSolidBg,
                                                         paddingHorizontal: 12,
                                                         alignItems: "center",
                                                         justifyContent: "center",
-                                                        opacity:
-                                                            operationalStatusSaving ||
-                                                            !inactivationReason.trim()
-                                                                ? 0.55
-                                                                : 1,
+                                                        opacity: operationalStatusSaving || !inactivationReason.trim() ? 0.55 : 1,
                                                     }}
                                                 >
-                                                    <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "800" }}>
-                                                        {operationalStatusSaving ? "Inativando..." : "Confirmar inativação"}
+                                                    <Text style={{ color: colors.dangerSolidText, fontSize: 12, fontWeight: "800" }}>
+                                                        {operationalStatusSaving ? "Inativando..." : "Confirmar"}
                                                     </Text>
                                                 </Pressable>
-                                            </View>
-                                        </View>
-                                    ) : (
-                                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                                        <Pressable
-                                            disabled={operationalStatusSaving}
-                                            onPress={() => {
-                                                if (operationalStudent.membershipStatus === "inactive") {
-                                                    void onUpdateOperationalStatus({ membershipStatus: "active" });
-                                                    return;
-                                                }
-                                                setShowInactivationForm(true);
-                                            }}
-                                            style={{
-                                                minHeight: 44,
-                                                borderRadius: 11,
-                                                borderWidth: 1,
-                                                borderColor:
-                                                    operationalStudent.membershipStatus === "inactive"
-                                                        ? colors.successBorder
-                                                        : colors.border,
-                                                backgroundColor:
-                                                    operationalStudent.membershipStatus === "inactive"
-                                                        ? colors.successBg
-                                                        : colors.secondaryBg,
-                                                paddingHorizontal: 12,
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                opacity: operationalStatusSaving ? 0.55 : 1,
-                                            }}
-                                        >
-                                            <Text
-                                                style={{
-                                                    color:
-                                                        operationalStudent.membershipStatus === "inactive"
-                                                            ? colors.successText
-                                                            : colors.text,
-                                                    fontSize: 12,
-                                                    fontWeight: "800",
-                                                }}
-                                            >
-                                                {operationalStudent.membershipStatus === "inactive"
-                                                    ? "Reativar aluno"
-                                                    : "Inativar aluno"}
-                                            </Text>
-                                        </Pressable>
-                                    </View>
-                                    )}
-                                    {canManageFinancialStatus ? (
-                                        <View style={{ gap: 7 }}>
-                                            <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                                                Financeiro
-                                            </Text>
-                                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                                                {STUDENT_FINANCIAL_STATUS_OPTIONS.map((option) => {
-                                                    const active = operationalStudent.financialStatus === option.value;
-                                                    return (
-                                                        <Pressable
-                                                            key={option.value}
-                                                            disabled={operationalStatusSaving || active}
-                                                            accessibilityRole="radio"
-                                                            accessibilityState={{ checked: active, disabled: operationalStatusSaving || active }}
-                                                            onPress={() =>
-                                                                void onUpdateOperationalStatus({
-                                                                    financialStatus: option.value,
-                                                                })
-                                                            }
-                                                            style={{
-                                                                minHeight: 44,
-                                                                borderRadius: 11,
-                                                                borderWidth: 1,
-                                                                borderColor: active ? colors.primaryBg : colors.border,
-                                                                backgroundColor: active ? colors.secondaryBg : colors.card,
-                                                                paddingHorizontal: 12,
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                opacity: operationalStatusSaving && !active ? 0.55 : 1,
-                                                            }}
-                                                        >
-                                                            <Text
-                                                                style={{
-                                                                    color: active ? colors.primaryBg : colors.text,
-                                                                    fontSize: 12,
-                                                                    fontWeight: "800",
-                                                                }}
-                                                            >
-                                                                {option.label}
-                                                            </Text>
-                                                        </Pressable>
-                                                    );
-                                                })}
                                             </View>
                                         </View>
                                     ) : null}

@@ -15,9 +15,11 @@ describe("student operational history layout", () => {
 
     expect(editModal).toContain('accessibilityLabel="Ver histórico do aluno"');
     expect(editModal).toContain('accessibilityLabel="Fechar edição do aluno"');
-    expect(editModal).toContain('name="time"');
+    expect(editModal).toContain("setShowOperationalHistory(true)");
     expect(editModal).toContain("<StudentOperationalHistoryModal");
-    expect(editModal).toContain("showOperationalHistory\n                    ? () => setShowOperationalHistory(false)");
+    expect(editModal).toMatch(
+      /showOperationalHistory\s*\? \(\) => setShowOperationalHistory\(false\)/,
+    );
     expect(editModal).not.toContain("operationalHistory.map");
     expect(editModal).not.toContain(
       "O financeiro não altera presença. Inativos saem de novas chamadas e mantêm o histórico.",

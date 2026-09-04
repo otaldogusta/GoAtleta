@@ -118,4 +118,23 @@ describe("native mobile sidebar", () => {
     });
     expect(renderer!.root.findAllByProps({ accessibilityLabel: "Menu de perfil" })).toHaveLength(0);
   });
+
+  it("keeps athletes as a primary coordination drawer destination", () => {
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(NativeSidebar, {
+          role: "coord",
+          visible: true,
+          canExpand: false,
+          forceExpanded: true,
+        }),
+      );
+    });
+
+    const athletes = renderer!.root.findByProps({ accessibilityLabel: "Atletas" });
+    act(() => athletes.props.onPress());
+
+    expect(mockPush).toHaveBeenCalledWith("/coord/students");
+  });
 });

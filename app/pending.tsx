@@ -23,6 +23,7 @@ import {
   type PendingInviteIssue,
 } from "../src/auth/pending-invite-view";
 import { useRole } from "../src/auth/role";
+import { getStudentAccessPendingCopy } from "../src/auth/student-access-reconciliation";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { radius, spacing } from "../src/theme/tokens";
@@ -201,10 +202,11 @@ export default function PendingScreen() {
   markRender("screen.pending.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
-  const { session, signOut, loading: authLoading } = useAuth();
-  const { refresh, role } = useRole();
+  const { session, signOut, resendSignupCode, loading: authLoading } = useAuth();
+  const { refresh, role, loading: roleLoading, studentAccessResolution } = useRole();
   const { createOrganization } = useOrganization();
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [inviteIssue, setInviteIssue] = useState<PendingInviteIssue>(null);
   const [storedToken, setStoredToken] = useState("");
@@ -402,7 +404,11 @@ export default function PendingScreen() {
     issue: inviteIssue,
     hasStoredInvite: Boolean(storedToken || storedTrainerCode),
   });
-  const pendingCopy = getPendingInviteCopy(pendingViewState);
+  const studentAccessCopy = pendingViewState === "waiting"
+    ? getStudentAccessPendingCopy(studentAccessResolution) : null;
+  const pendingCopy = studentAccessCopy
+    ? { ...studentAccessCopy, subtitle: message || studentAccessCopy.subtitle }
+    : getPendingInviteCopy(pendingViewState);
   const hasTerminalInviteIssue = isTerminalPendingInviteIssue(pendingViewState);
 
   return (
@@ -497,7 +503,31 @@ export default function PendingScreen() {
               </View>
             )}
 
-            {pendingViewState === "waiting" ? (
+            {studentAccessCopy ? (
+              <Button
+                label={verificationBusy ? "Enviando..." : roleLoading ? "Verificando..." : studentAccessCopy.action}
+                disabled={roleLoading || verificationBusy}
+                onPress={async () => {
+                  if (studentAccessResolution === "verification_required") {
+                    setVerificationBusy(true);
+                    setMessage("");
+                    try {
+                      const email = session?.user.email ?? "";
+                      await resendSignupCode(email, "verify-email");
+                      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+                    } catch {
+                      setMessage("Não foi possível enviar o código. Tente novamente.");
+                    } finally {
+                      setVerificationBusy(false);
+                    }
+                  } else {
+                    void refresh();
+                  }
+                }}
+              />
+            ) : null}
+
+            {pendingViewState === "waiting" && !studentAccessCopy ? (
               <View
                 style={{
                   width: "100%",

@@ -1,5 +1,7 @@
-// perf-check: ignore-render -- route-only wrapper; shared screen owns render instrumentation.
-// perf-check: ignore-measure -- route-only wrapper; shared screen owns data-loading instrumentation.
-import StudentsScreen from "../../students";
+import { Redirect } from "expo-router";
 
-export default StudentsScreen;
+// perf-check: ignore-render -- compatibility redirect to the canonical coordination route.
+// perf-check: ignore-measure -- compatibility redirect; no data is loaded here.
+export default function LegacyCoordinationAthletesRedirect() {
+  return <Redirect href="/coord/students" />;
+}

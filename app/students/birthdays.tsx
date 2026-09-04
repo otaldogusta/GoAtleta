@@ -11,7 +11,7 @@ export default function StudentsBirthdaysRedirect() {
     <Redirect
       href={
         effectiveProfile === "admin"
-          ? ("/coord/management/athletes" as never)
+          ? ("/coord/students" as never)
           : "/prof/students"
       }
     />

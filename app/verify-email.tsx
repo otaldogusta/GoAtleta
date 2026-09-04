@@ -173,6 +173,7 @@ export default function VerifyEmailScreen() {
       }
       setMessage("E-mail confirmado com sucesso.");
       if (verifiedSession || session) {
+        await refreshRole();
         router.replace("/");
       } else {
         router.replace("/login");

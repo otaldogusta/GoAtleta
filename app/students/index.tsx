@@ -29,6 +29,7 @@ import {
   StudentInvitePendingItem,
   listStudentPendingInvites,
 } from "../../src/api/student-invite";
+import { listOrganizationInvoices } from "../../src/api/finance";
 import {
   getStudentPhotoAccessUrl,
   getStudentPhotoObjectPath,
@@ -53,6 +54,7 @@ import { isStudentBirthdayToday } from "../../src/core/students/student-birthday
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
   getClasses,
+  getAttendanceByStudent,
   getStudentOperationalHistory,
   getStudents,
   revealStudentCpf,
@@ -89,6 +91,16 @@ import {
   buildStudentListGroups,
   groupStudentsByClassId,
 } from "../../src/screens/students/application/student-list-selectors";
+import {
+  LOADING_ATTENDANCE_INDICATOR,
+  LOADING_FINANCE_INDICATOR,
+  UNAVAILABLE_ATTENDANCE_INDICATOR,
+  UNAVAILABLE_FINANCE_INDICATOR,
+  deriveStudentAttendanceIndicator,
+  deriveStudentFinanceIndicator,
+  deriveStudentFinanceSummary,
+  type StudentFinanceSummary,
+} from "../../src/screens/students/application/student-operational-indicators";
 import {
   buildStudentOperationalHistoryScopeKey,
   isStudentOperationalHistoryScopeCurrent,
@@ -238,14 +250,12 @@ export default function StudentsScreen() {
   const { session } = useAuth();
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
-  const canRevealCpf = scopedRoutes.scope === "coord" && effectiveProfile === "admin";
+  const canRevealCpf =
+    scopedRoutes.scope === "coord" && effectiveProfile === "admin";
   const { colors, mode } = useAppTheme();
   const { showSaveToast } = useSaveToast();
-  const {
-    activeOrganization,
-    memberPermissions,
-    permissionsLoading,
-  } = useOrganization();
+  const { activeOrganization, memberPermissions, permissionsLoading } =
+    useOrganization();
   const canManageFinancialStatus =
     !permissionsLoading &&
     ((activeOrganization?.role_level ?? 0) >= 50 ||
@@ -313,6 +323,14 @@ export default function StudentsScreen() {
   const [operationalHistoryError, setOperationalHistoryError] = useState("");
   const operationalHistoryRequestIdRef = useRef(0);
   const operationalHistoryScopeKeyRef = useRef("");
+  const operationalIndicatorsRequestIdRef = useRef(0);
+  const [financeIndicator, setFinanceIndicator] = useState(
+    LOADING_FINANCE_INDICATOR,
+  );
+  const [studentFinanceSummary, setStudentFinanceSummary] = useState<StudentFinanceSummary | null>(null);
+  const [attendanceIndicator, setAttendanceIndicator] = useState(
+    LOADING_ATTENDANCE_INDICATOR,
+  );
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] =
     useState<StudentsTab | null>(null);
@@ -786,13 +804,10 @@ export default function StudentsScreen() {
     setOperationalHistoryLoading(true);
     setOperationalHistoryError("");
     try {
-      const history = await getStudentOperationalHistory(
-        operationalStudentId,
-        {
-          organizationId: operationalOrganizationId,
-          includeFinancial: canManageFinancialStatus,
-        },
-      );
+      const history = await getStudentOperationalHistory(operationalStudentId, {
+        organizationId: operationalOrganizationId,
+        includeFinancial: canManageFinancialStatus,
+      });
       if (
         requestId !== operationalHistoryRequestIdRef.current ||
         !isStudentOperationalHistoryScopeCurrent(
@@ -841,25 +856,75 @@ export default function StudentsScreen() {
     };
   }, [refreshOperationalHistory]);
 
+  useEffect(() => {
+    const requestId = operationalIndicatorsRequestIdRef.current + 1;
+    operationalIndicatorsRequestIdRef.current = requestId;
+    setStudentFinanceSummary(null);
+    if (!showEditModal || !operationalStudentId || !operationalOrganizationId) {
+      setFinanceIndicator(LOADING_FINANCE_INDICATOR);
+      setAttendanceIndicator(LOADING_ATTENDANCE_INDICATOR);
+      return undefined;
+    }
+
+    setFinanceIndicator(LOADING_FINANCE_INDICATOR);
+    setAttendanceIndicator(LOADING_ATTENDANCE_INDICATOR);
+    void Promise.allSettled([
+      canManageFinancialStatus
+        ? listOrganizationInvoices(operationalOrganizationId)
+        : Promise.resolve(null),
+      getAttendanceByStudent(operationalStudentId, {
+        organizationId: operationalOrganizationId,
+      }),
+    ]).then(([invoiceResult, attendanceResult]) => {
+      if (requestId !== operationalIndicatorsRequestIdRef.current) return;
+
+      if (invoiceResult.status === "fulfilled") {
+        const studentInvoices = invoiceResult.value?.filter(
+          (invoice) => invoice.studentId === operationalStudentId,
+        );
+        setFinanceIndicator(studentInvoices
+          ? deriveStudentFinanceIndicator(studentInvoices)
+          : UNAVAILABLE_FINANCE_INDICATOR);
+        setStudentFinanceSummary(studentInvoices
+          ? deriveStudentFinanceSummary(studentInvoices)
+          : null);
+      } else {
+        console.warn("StudentsScreen finance indicator failed");
+        setFinanceIndicator(UNAVAILABLE_FINANCE_INDICATOR);
+      }
+
+      if (attendanceResult.status === "fulfilled") {
+        setAttendanceIndicator(
+          deriveStudentAttendanceIndicator(attendanceResult.value),
+        );
+      } else {
+        console.warn("StudentsScreen attendance indicator failed");
+        setAttendanceIndicator(UNAVAILABLE_ATTENDANCE_INDICATOR);
+      }
+    });
+
+    return () => {
+      operationalIndicatorsRequestIdRef.current += 1;
+    };
+  }, [
+    canManageFinancialStatus,
+    operationalOrganizationId,
+    operationalStudentId,
+    showEditModal,
+  ]);
+
   const handleUpdateOperationalStatus = useCallback(
     async (patch: {
       membershipStatus?: Student["membershipStatus"];
-      financialStatus?: Student["financialStatus"];
       inactivationReason?: string | null;
     }) => {
       if (!operationalStudent || operationalStatusSaving) return false;
-      if (patch.financialStatus && !canManageFinancialStatus) {
-        showSaveToast({
-          message: "Você não tem permissão para alterar o financeiro.",
-          variant: "error",
-        });
-        return false;
-      }
       const nextMembership = patch.membershipStatus;
       if (nextMembership === "active") {
         const confirmed = await confirmDialog({
           title: "Reativar aluno?",
-          message: "O aluno voltará a aparecer nas chamadas das turmas vinculadas.",
+          message:
+            "O aluno voltará a aparecer nas chamadas das turmas vinculadas.",
           confirmLabel: "Reativar",
           cancelLabel: "Cancelar",
           tone: "default",
@@ -884,11 +949,10 @@ export default function StudentsScreen() {
         );
         await refreshOperationalHistory();
         showSaveToast({
-          message: patch.membershipStatus
-            ? patch.membershipStatus === "inactive"
+          message:
+            patch.membershipStatus === "inactive"
               ? "Aluno inativado. O histórico foi preservado."
-              : "Aluno reativado."
-            : "Situação financeira atualizada.",
+              : "Aluno reativado.",
           variant: "success",
         });
         return true;
@@ -902,8 +966,8 @@ export default function StudentsScreen() {
       } finally {
         setOperationalStatusSaving(false);
       }
-    }, [
-      canManageFinancialStatus,
+    },
+    [
       confirmDialog,
       operationalOrganizationId,
       operationalStatusSaving,
@@ -1327,7 +1391,9 @@ export default function StudentsScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    const studentsWithPhoto = students.filter((student) => student.photoUrl?.trim());
+    const studentsWithPhoto = students.filter((student) =>
+      student.photoUrl?.trim(),
+    );
 
     if (studentsWithPhoto.length === 0) {
       setStudentPhotoAccessUrls({});
@@ -1709,6 +1775,33 @@ export default function StudentsScreen() {
       return;
     }
     closeEditModal();
+  };
+
+  const openOperationalStudentFinance = () => {
+    if (!operationalStudent || !canManageFinancialStatus) return;
+    const targetStudent = operationalStudent;
+    void (async () => {
+      if (isEditDirty) {
+        const confirmed = await confirmDialog({
+          title: "Abrir financeiro?",
+          message: "As alterações não salvas deste cadastro serão descartadas.",
+          confirmLabel: "Continuar",
+          cancelLabel: "Cancelar",
+          tone: "default",
+          onConfirm: () => undefined,
+        });
+        if (!confirmed) return;
+      }
+      closeEditModal();
+      router.push({
+        pathname: "/coord/finance",
+        params: {
+          section: "charges",
+          studentId: targetStudent.id,
+          studentName: targetStudent.name,
+        },
+      });
+    })();
   };
 
   const handleRevealEditingCpf = useCallback(async () => {
@@ -2232,12 +2325,9 @@ export default function StudentsScreen() {
   const goBackFromStudents = useCallback(() => {
     navigateBackOrReplace({
       router,
-      fallback:
-        scopedRoutes.scope === "coord"
-          ? "/coord/management"
-          : scopedRoutes.home,
+      fallback: scopedRoutes.home,
     });
-  }, [router, scopedRoutes.home, scopedRoutes.scope]);
+  }, [router, scopedRoutes.home]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -2250,7 +2340,7 @@ export default function StudentsScreen() {
           style={{ flex: 1, position: "relative", overflow: "visible" }}
         >
           <ScreenPageHeader
-            title={scopedRoutes.scope === "coord" ? "Gestão de atletas" : "Alunos"}
+            title={scopedRoutes.scope === "coord" ? "Atletas" : "Alunos"}
             onBack={goBackFromStudents}
             right={
               <View
@@ -2273,7 +2363,11 @@ export default function StudentsScreen() {
                 />
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Adicionar aluno"
+                  accessibilityLabel={
+                    scopedRoutes.scope === "coord"
+                      ? "Adicionar atleta"
+                      : "Adicionar aluno"
+                  }
                   onPress={() => requestSwitchStudentsTab("cadastro")}
                   style={{
                     height: 44,
@@ -2299,7 +2393,9 @@ export default function StudentsScreen() {
                         fontWeight: "900",
                       }}
                     >
-                      Adicionar aluno
+                      {scopedRoutes.scope === "coord"
+                        ? "Adicionar atleta"
+                        : "Adicionar aluno"}
                     </Text>
                   ) : null}
                 </Pressable>
@@ -2362,88 +2458,90 @@ export default function StudentsScreen() {
               />
             }
           >
-              {isCadastroTab && (
-                <ModalSheet
-                  visible={isCadastroTab}
-                  onClose={() => requestSwitchStudentsTab("alunos")}
-                  position={windowWidth < 720 ? "center" : "right"}
-                  slideOffset={560}
-                  containerPadding={windowWidth < 720 ? 8 : 0}
-                  backdropOpacity={0.7}
-                  cardStyle={{
-                    width: windowWidth < 720 ? "100%" : "42%",
-                    minWidth: windowWidth < 720 ? 0 : 480,
-                    maxWidth: 560,
-                    height: windowWidth < 720 ? "90%" : "100%",
-                    maxHeight: windowWidth < 720 ? "90%" : "100%",
-                    alignSelf: windowWidth < 720 ? "center" : "flex-end",
-                    marginBottom: 0,
-                    borderRadius: windowWidth < 720 ? 18 : 0,
-                    padding: 0,
-                    overflow: "hidden",
+            {isCadastroTab && (
+              <ModalSheet
+                visible={isCadastroTab}
+                onClose={() => requestSwitchStudentsTab("alunos")}
+                position={windowWidth < 720 ? "center" : "right"}
+                slideOffset={560}
+                containerPadding={windowWidth < 720 ? 8 : 0}
+                backdropOpacity={0.7}
+                cardStyle={{
+                  width: windowWidth < 720 ? "100%" : "42%",
+                  minWidth: windowWidth < 720 ? 0 : 480,
+                  maxWidth: 560,
+                  height: windowWidth < 720 ? "90%" : "100%",
+                  maxHeight: windowWidth < 720 ? "90%" : "100%",
+                  alignSelf: windowWidth < 720 ? "center" : "flex-end",
+                  marginBottom: 0,
+                  borderRadius: windowWidth < 720 ? 18 : 0,
+                  padding: 0,
+                  overflow: "hidden",
+                }}
+              >
+                <View
+                  style={{
+                    paddingHorizontal: windowWidth < 720 ? 14 : 20,
+                    paddingVertical: windowWidth < 720 ? 10 : 16,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                   }}
                 >
-                  <View
+                  <Text
                     style={{
-                      paddingHorizontal: windowWidth < 720 ? 14 : 20,
-                      paddingVertical: windowWidth < 720 ? 10 : 16,
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.border,
-                      flexDirection: "row",
+                      color: colors.text,
+                      fontSize: windowWidth < 720 ? 18 : 20,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {editingId
+                      ? scopedRoutes.scope === "coord"
+                        ? "Editar atleta"
+                        : "Editar aluno"
+                      : scopedRoutes.scope === "coord"
+                        ? "Adicionar atleta"
+                        : "Adicionar aluno"}
+                  </Text>
+                  <Pressable
+                    onPress={() => requestSwitchStudentsTab("alunos")}
+                    style={{
+                      width: 38,
+                      height: 38,
                       alignItems: "center",
-                      justifyContent: "space-between",
+                      justifyContent: "center",
+                      borderRadius: 19,
+                      borderWidth: 1,
+                      borderColor: colors.border,
                     }}
                   >
-                    <Text
-                      style={{
-                        color: colors.text,
-                        fontSize: windowWidth < 720 ? 18 : 20,
-                        fontWeight: "900",
-                      }}
-                    >
-                      {editingId ? "Editar aluno" : "Adicionar aluno"}
-                    </Text>
-                    <Pressable
-                      onPress={() => requestSwitchStudentsTab("alunos")}
-                      style={{
-                        width: 38,
-                        height: 38,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: 19,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <GoAtletaIcon
-                        name="close"
-                        size={19}
-                        color={colors.text}
-                      />
-                    </Pressable>
-                  </View>
-                  <ScrollView
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{
-                      padding: windowWidth < 720 ? 12 : 20,
-                      paddingBottom: windowWidth < 720 ? 20 : 28,
-                    }}
-                    keyboardShouldPersistTaps="handled"
-                    automaticallyAdjustKeyboardInsets
+                    <GoAtletaIcon name="close" size={19} color={colors.text} />
+                  </Pressable>
+                </View>
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{
+                    padding: windowWidth < 720 ? 12 : 20,
+                    paddingBottom: windowWidth < 720 ? 20 : 28,
+                  }}
+                  keyboardShouldPersistTaps="handled"
+                  automaticallyAdjustKeyboardInsets
+                >
+                  <Suspense
+                    fallback={
+                      <View style={{ gap: 12 }}>
+                        <ShimmerBlock
+                          style={{ height: 120, borderRadius: 16 }}
+                        />
+                        <ShimmerBlock
+                          style={{ height: 220, borderRadius: 16 }}
+                        />
+                      </View>
+                    }
                   >
-                    <Suspense
-                      fallback={
-                        <View style={{ gap: 12 }}>
-                          <ShimmerBlock
-                            style={{ height: 120, borderRadius: 16 }}
-                          />
-                          <ShimmerBlock
-                            style={{ height: 220, borderRadius: 16 }}
-                          />
-                        </View>
-                      }
-                    >
-                      <StudentRegistrationTab
+                    <StudentRegistrationTab
                       colors={colors}
                       selectFieldStyle={selectFieldStyle}
                       photoUrl={photoUrl}
@@ -2539,70 +2637,78 @@ export default function StudentsScreen() {
                       isFormDirty={isFormDirty}
                       doResetForm={doResetForm}
                       confirmDialog={confirmDialog}
-                      />
-                    </Suspense>
-                  </ScrollView>
-                  <View
-                    style={{
-                      padding: windowWidth < 720 ? 10 : 16,
-                      borderTopWidth: 1,
-    borderTopColor: colors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 12,
-  }}
->
-  <View style={{ flexDirection: "row", gap: 8 }}>
-                      <Pressable
-                        onPress={() => requestSwitchStudentsTab("alunos")}
-                        style={{
-                          minHeight: 42,
-                          paddingHorizontal: 18,
-                          borderRadius: 11,
-                          borderWidth: 1,
-                          borderColor: colors.border,
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Text style={{ color: colors.text, fontWeight: "800" }}>
-                          Cancelar
-                        </Text>
-                      </Pressable>
-                      <Button
-                        label={editingId ? "Salvar alterações" : "Salvar aluno"}
-                        onPress={onSave}
-                        disabled={!canSaveStudent}
-                      />
-                    </View>
+                    />
+                  </Suspense>
+                </ScrollView>
+                <View
+                  style={{
+                    padding: windowWidth < 720 ? 10 : 16,
+                    borderTopWidth: 1,
+                    borderTopColor: colors.border,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: 12,
+                  }}
+                >
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <Pressable
+                      onPress={() => requestSwitchStudentsTab("alunos")}
+                      style={{
+                        minHeight: 42,
+                        paddingHorizontal: 18,
+                        borderRadius: 11,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ color: colors.text, fontWeight: "800" }}>
+                        Cancelar
+                      </Text>
+                    </Pressable>
+                    <Button
+                      label={
+                        editingId
+                          ? "Salvar alterações"
+                          : scopedRoutes.scope === "coord"
+                            ? "Salvar atleta"
+                            : "Salvar aluno"
+                      }
+                      onPress={onSave}
+                      disabled={!canSaveStudent}
+                    />
                   </View>
-                </ModalSheet>
-              )}
+                </View>
+              </ModalSheet>
+            )}
 
-              <StudentsListTab
-                studentsUnitOptions={studentsUnitOptions}
-                studentsUnitFilter={studentsUnitFilter}
-                setStudentsUnitFilter={setStudentsUnitFilter}
-                studentsSearch={studentsSearch}
-                setStudentsSearch={setStudentsSearch}
-                students={students}
-                studentsFiltered={studentsFiltered}
-                studentsGrouped={studentsGrouped}
-                classById={classById}
-                unitLabel={unitLabel}
-                expandedUnits={expandedUnits}
-                expandedClasses={expandedClasses}
-                toggleUnitExpanded={toggleUnitExpanded}
-                toggleClassExpanded={toggleClassExpanded}
-                renderStudentItem={renderStudentItem}
-                onStudentPress={onEdit}
-                onPhotoPress={openPhotoPreview}
-                resolveStudentPhotoUrl={resolveStudentPhotoUrl}
-                onStudentWhatsApp={openStudentWhatsApp}
-                birthdayStudentIds={birthdayStudentIds}
-                loading={loading}
-                canViewFinancialStatus={canManageFinancialStatus}
-              />
+            <StudentsListTab
+              studentsUnitOptions={studentsUnitOptions}
+              studentsUnitFilter={studentsUnitFilter}
+              setStudentsUnitFilter={setStudentsUnitFilter}
+              studentsSearch={studentsSearch}
+              setStudentsSearch={setStudentsSearch}
+              students={students}
+              studentsFiltered={studentsFiltered}
+              studentsGrouped={studentsGrouped}
+              classById={classById}
+              unitLabel={unitLabel}
+              expandedUnits={expandedUnits}
+              expandedClasses={expandedClasses}
+              toggleUnitExpanded={toggleUnitExpanded}
+              toggleClassExpanded={toggleClassExpanded}
+              renderStudentItem={renderStudentItem}
+              onStudentPress={onEdit}
+              onPhotoPress={openPhotoPreview}
+              resolveStudentPhotoUrl={resolveStudentPhotoUrl}
+              onStudentWhatsApp={openStudentWhatsApp}
+              birthdayStudentIds={birthdayStudentIds}
+              loading={loading}
+              canViewFinancialStatus={canManageFinancialStatus}
+              organizationId={activeOrganization?.id ?? null}
+              canManageFamilyAccess={scopedRoutes.scope === "coord"}
+            />
           </ScrollView>
 
           {false ? (
@@ -2646,7 +2752,13 @@ export default function StudentsScreen() {
               }}
             >
               <Button
-                label={editingId ? "Salvar alterações" : "Adicionar aluno"}
+                label={
+                  editingId
+                    ? "Salvar alterações"
+                    : scopedRoutes.scope === "coord"
+                      ? "Adicionar atleta"
+                      : "Adicionar aluno"
+                }
                 onPress={onSave}
                 disabled={!canSaveStudent}
               />
@@ -2927,11 +3039,15 @@ export default function StudentsScreen() {
           operationalStudent={operationalStudent}
           operationalStatusSaving={operationalStatusSaving}
           canManageFinancialStatus={canManageFinancialStatus}
+          financeIndicator={financeIndicator}
+          financeSummary={studentFinanceSummary}
+          attendanceIndicator={attendanceIndicator}
           operationalHistory={operationalHistory}
           operationalHistoryLoading={operationalHistoryLoading}
           operationalHistoryError={operationalHistoryError}
           onRetryOperationalHistory={refreshOperationalHistory}
           onUpdateOperationalStatus={handleUpdateOperationalStatus}
+          onOpenFinance={openOperationalStudentFinance}
           editSaving={editSaving}
           setEditSaving={setEditSaving}
           onSave={onSave}
@@ -3028,9 +3144,7 @@ export default function StudentsScreen() {
                 justifyContent: "center",
               }}
             >
-              {(editingId
-                ? editStudentPhotoDisplayUrl
-                : photoUrl?.trim()) ? (
+              {(editingId ? editStudentPhotoDisplayUrl : photoUrl?.trim()) ? (
                 <Image
                   source={{
                     uri:
@@ -3109,9 +3223,7 @@ export default function StudentsScreen() {
                     <GoAtletaIcon
                       name={action.icon}
                       size={20}
-                      color={
-                        action.danger ? colors.dangerSolidText : "#FFFFFF"
-                      }
+                      color={action.danger ? colors.dangerSolidText : "#FFFFFF"}
                     />
                   </Pressable>
                 ))}

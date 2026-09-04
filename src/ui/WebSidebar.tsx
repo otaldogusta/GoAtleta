@@ -365,7 +365,7 @@ export function WebSidebar({
       if (href === pathname) {
         if (
           typeof window !== "undefined" &&
-          (href === "/prof/students" || href === "/coord/management/athletes")
+          (href === "/prof/students" || href === "/coord/students")
         ) {
           window.dispatchEvent(new Event("goatleta:open-students-list"));
         }
@@ -842,7 +842,7 @@ export function WebSidebar({
       {
         key: "students",
         label: "Atletas",
-        href: "/coord/management/athletes",
+        href: "/coord/students",
         icon: "students",
       },
       {

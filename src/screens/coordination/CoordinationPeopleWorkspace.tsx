@@ -56,7 +56,6 @@ import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
 import { useUndoableListDelete } from "../../ui/useUndoableListDelete";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
-import CoordinationFamilyAccessScreen from "../family/CoordinationFamilyAccessScreen";
 import { resolveAccessModalLayout } from "./application/access-modal-layout";
 import {
   getClassAssignmentScheduleLabels,
@@ -635,7 +634,6 @@ export function CoordinationPeopleWorkspace({
     Partial<Record<SecondaryModuleKey, boolean>>
   >({ attendance: true });
   const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [showFamilyAccess, setShowFamilyAccess] = useState(false);
   const [modalMember, setModalMember] = useState<OrgMember | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InviteAudience>("professor");
@@ -1087,7 +1085,7 @@ export function CoordinationPeopleWorkspace({
 
   const submitInvite = async (channel: "email" | "link") => {
     if (inviteRole === "student") {
-      router.push("/coord/management/athletes" as never);
+      router.push("/coord/students" as never);
       closeInviteModal();
       return;
     }
@@ -1568,60 +1566,6 @@ export function CoordinationPeopleWorkspace({
           year: "numeric",
         })}`}
         onBack={() => router.push("/coord/dashboard")}
-        right={
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Gerenciar acessos familiares"
-              onPress={() => setShowFamilyAccess(true)}
-              style={{
-                height: 44,
-                width: compact ? 44 : undefined,
-                paddingHorizontal: compact ? 0 : 12,
-                borderRadius: radius.internal,
-                borderWidth: 1,
-                borderColor: border,
-                backgroundColor: colors.secondaryBg,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 7,
-              }}
-            >
-              <GoAtletaIcon name="family" size={17} color={colors.text} />
-              {!compact ? (
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                  Acessos familiares
-                </Text>
-              ) : null}
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Abrir gestão de atletas"
-              onPress={() => router.push("/coord/management/athletes" as never)}
-              style={{
-                height: 44,
-                width: compact ? 44 : undefined,
-                paddingHorizontal: compact ? 0 : 12,
-                borderRadius: radius.internal,
-                borderWidth: 1,
-                borderColor: border,
-                backgroundColor: colors.secondaryBg,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 7,
-              }}
-            >
-              <GoAtletaIcon name="students" size={17} color={colors.text} />
-              {!compact ? (
-                <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                  Atletas
-                </Text>
-              ) : null}
-            </Pressable>
-          </View>
-        }
         horizontalBleed={pageHorizontalGutter}
         style={
           Platform.OS === "web" && compact
@@ -2393,26 +2337,6 @@ export function CoordinationPeopleWorkspace({
       </ScrollView>
 
       <ModalSheet
-        visible={showFamilyAccess}
-        onClose={() => setShowFamilyAccess(false)}
-        position="center"
-        cardStyle={{
-          width: compact ? Math.max(0, width - 32) : 1120,
-          maxWidth: "100%",
-          height: compact ? "94%" : "88%",
-          maxHeight: "94%",
-          borderRadius: radius.container,
-          borderWidth: 1,
-          borderColor: border,
-          backgroundColor: colors.card,
-          overflow: "hidden",
-          padding: 0,
-        }}
-      >
-        <CoordinationFamilyAccessScreen embedded onClose={() => setShowFamilyAccess(false)} />
-      </ModalSheet>
-
-      <ModalSheet
         visible={modalMode === "invite"}
         onClose={requestCloseInviteModal}
         position="center"
@@ -2600,7 +2524,7 @@ export function CoordinationPeopleWorkspace({
                 <Pressable
                   onPress={() => {
                     closeInviteModal();
-                    router.push("/coord/management/athletes" as never);
+                    router.push("/coord/students" as never);
                   }}
                   style={{
                     borderRadius: radius.internal,

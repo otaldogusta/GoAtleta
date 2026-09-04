@@ -74,6 +74,15 @@ type FilterValue =
   | "attention"
   | Extract<InvoiceStatus, "open" | "overdue" | "paid">;
 type FinanceSection = "overview" | "charges" | "plans" | "payers";
+type CoordinationFinanceParams = {
+  designPreview?: string | string[];
+  section?: string | string[];
+  studentId?: string | string[];
+  studentName?: string | string[];
+};
+
+const firstSearchParam = (value: string | string[] | undefined) =>
+  Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 type FinanceWorkspaceModal = "settings" | null;
 type AnchorLayout = { x: number; y: number; width: number; height: number };
 type FinanceInvoice = OrganizationInvoice & {
@@ -1900,18 +1909,28 @@ function InvoiceList({
 }
 
 export default function CoordinationFinanceDashboard() {
-  const params = useLocalSearchParams<{ designPreview?: string }>();
+  const params = useLocalSearchParams<CoordinationFinanceParams>();
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id ?? "";
-  const scopeKey = `${organizationId}:${params.designPreview ?? ""}`;
+  const scopeKey = [
+    organizationId,
+    firstSearchParam(params.designPreview),
+    firstSearchParam(params.section),
+    firstSearchParam(params.studentId),
+    firstSearchParam(params.studentName),
+  ].join(":");
 
   return <CoordinationFinanceDashboardOrganizationScope key={scopeKey} />;
 }
 
 function CoordinationFinanceDashboardOrganizationScope() {
   markRender("screen.coordFinance.render.root");
-  const params = useLocalSearchParams<{ designPreview?: string }>();
-  const designPreview = __DEV__ && params.designPreview === "finance";
+  const params = useLocalSearchParams<CoordinationFinanceParams>();
+  const designPreview =
+    __DEV__ && firstSearchParam(params.designPreview) === "finance";
+  const requestedSection = firstSearchParam(params.section);
+  const requestedStudentId = firstSearchParam(params.studentId);
+  const requestedStudentName = firstSearchParam(params.studentName);
   const router = useRouter();
   const { colors } = useAppTheme();
   const dashboardStyles = useFinanceDashboardStyles(colors);
@@ -1950,7 +1969,9 @@ function CoordinationFinanceDashboardOrganizationScope() {
   >([]);
   const [agreements, setAgreements] = useState<TuitionAgreement[]>([]);
   const [activeSection, setActiveSection] = useState<FinanceSection>(
-    designPreview ? "charges" : "overview",
+    designPreview || requestedSection === "charges" || requestedStudentId
+      ? "charges"
+      : "overview",
   );
   const [detailInvoice, setDetailInvoice] = useState<FinanceInvoice | null>(
     null,
@@ -1963,7 +1984,10 @@ function CoordinationFinanceDashboardOrganizationScope() {
   const [workspaceModal, setWorkspaceModal] =
     useState<FinanceWorkspaceModal>(null);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(requestedStudentName);
+  const [linkedStudentFilterId, setLinkedStudentFilterId] = useState(
+    requestedStudentId || null,
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [notice, setNotice] = useState("");
@@ -1973,6 +1997,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
   const [foundationPending, setFoundationPending] = useState(false);
   const [error, setError] = useState("");
   const requestIdRef = useRef(0);
+  const initialStudentMonthResolved = useRef(false);
   const [dataIdentity, setDataIdentity] =
     useState<OrganizationAsyncIdentity | null>(null);
   const dataIsCurrent = Boolean(
@@ -2070,6 +2095,20 @@ function CoordinationFinanceDashboardOrganizationScope() {
         setDataIdentity(identity);
         setServerSummary(nextSummary);
         setInvoices(nextInvoices);
+        if (requestedStudentId && !initialStudentMonthResolved.current) {
+          // A deep link chooses the first month once; later user selections win.
+          initialStudentMonthResolved.current = true;
+          const linkedInvoices = nextInvoices
+            .filter((invoice) => invoice.studentId === requestedStudentId)
+            .sort((left, right) => right.dueDate.localeCompare(left.dueDate));
+          const linkedInvoice =
+            linkedInvoices.find((invoice) =>
+              invoiceMatchesFilter(invoice, "attention"),
+            ) ?? linkedInvoices[0];
+          if (linkedInvoice) {
+            setSelectedMonth(invoiceMonthKey(linkedInvoice));
+          }
+        }
         setProviderReceivables(nextProviderReceivables);
         setAgreements(nextAgreements);
         setFoundationPending(false);
@@ -2108,6 +2147,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
       organizationId,
       organizationIdentity,
       organizationIdentityRef,
+      requestedStudentId,
       selectedMonth,
     ],
   );
@@ -2147,6 +2187,10 @@ function CoordinationFinanceDashboardOrganizationScope() {
   const filteredInvoices = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
     return monthlyInvoices
+      .filter(
+        (invoice) =>
+          !linkedStudentFilterId || invoice.studentId === linkedStudentFilterId,
+      )
       .filter((invoice) => invoiceMatchesFilter(invoice, filter))
       .filter((invoice) => {
         if (!normalizedQuery) return true;
@@ -2161,7 +2205,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
         );
       })
       .sort((left, right) => left.dueDate.localeCompare(right.dueDate));
-  }, [filter, monthlyInvoices, query]);
+  }, [filter, linkedStudentFilterId, monthlyInvoices, query]);
   const filteredProviderReceivables = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
     if (!normalizedQuery) return scopedProviderReceivables;
@@ -2321,6 +2365,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
           value={query}
           onChangeText={(value) => {
             setQuery(value);
+            setLinkedStudentFilterId(null);
             setPage(1);
           }}
           placeholder={
@@ -2346,7 +2391,10 @@ function CoordinationFinanceDashboardOrganizationScope() {
         {query ? (
           <Pressable
             accessibilityLabel="Limpar busca"
-            onPress={() => setQuery("")}
+            onPress={() => {
+              setQuery("");
+              setLinkedStudentFilterId(null);
+            }}
           >
             <GoAtletaIcon name="closeCircle" size={17} color={colors.muted} />
           </Pressable>

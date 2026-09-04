@@ -32,7 +32,7 @@ describe("professor and coordination route contract", () => {
     );
   });
 
-  it("keeps member management in one coordination center", () => {
+  it("keeps member management centralized and athletes as a primary destination", () => {
     const config = read("src/components/navigation/tab-config.ts");
     const sidebar = read("src/ui/WebSidebar.tsx");
     expect(config).toContain('href: "/coord/management"');
@@ -45,19 +45,19 @@ describe("professor and coordination route contract", () => {
     expect(read("app/org-members.tsx")).toContain(
       '<Redirect href="/coord/management" />',
     );
-    expect(sidebar).toContain('href: "/coord/management/athletes"');
+    expect(sidebar).toContain('href: "/coord/students"');
     expect(read("app/coord/students.tsx")).toContain(
-      '"/coord/management/athletes"',
+      '"../students"',
     );
     expect(read("app/coord/management/athletes.tsx")).toContain(
-      '"../../students"',
+      '<Redirect href="/coord/students" />',
     );
     expect(read("app/coordination.tsx")).toContain(
       '<Redirect href="/coord/management" />',
     );
   });
 
-  it("keeps athlete management reachable from the compact coordination header", () => {
+  it("keeps family access in the athlete workspace, not the coordination header", () => {
     const workspace = read(
       "src/screens/coordination/CoordinationPeopleWorkspace.tsx",
     );
@@ -67,17 +67,13 @@ describe("professor and coordination route contract", () => {
 
     expect(headerStart).toBeGreaterThan(-1);
     expect(headerEnd).toBeGreaterThan(headerStart);
-    expect(header).toMatch(/right=\{\s*<View/);
-    expect(header).toContain(
+    expect(header).not.toContain(
       'accessibilityLabel="Gerenciar acessos familiares"',
     );
-    expect(header).toContain('accessibilityLabel="Abrir gestão de atletas"');
-    expect(header).toContain(
-      'router.push("/coord/management/athletes" as never)',
-    );
-    expect(header).toContain("height: 44");
-    expect(header).toContain("width: compact ? 44 : undefined");
-    expect(header).toContain("Atletas");
+    expect(header).not.toContain('accessibilityLabel="Abrir gestão de atletas"');
+    expect(header).not.toContain("Atletas");
+    expect(workspace).not.toContain("FamilyAccessWorkspace");
+    expect(read("src/screens/students/StudentsListTab.tsx")).toContain("StudentFamilyAccessPanels");
   });
 
   it("does not send coordination shortcuts into the professor shell", () => {

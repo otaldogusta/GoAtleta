@@ -1,12 +1,15 @@
 import {
   claimStudentRelationshipInvite,
   createStudentRelationshipInvite,
+  listStudentFamilyAccessSummaries,
   listStudentRelationshipInvites,
   listStudentRelationships,
+  mapStudentFamilyAccessSummary,
   mapStudentRelationshipInvite,
   mapStudentRelationship,
   revokeStudentRelationshipInvite,
   revokeStudentRelationship,
+  updateStudentRelationship,
   validateStudentRelationshipInvite,
 } from "../student-relationship-invite";
 import {
@@ -196,6 +199,54 @@ describe("student relationship invite API", () => {
     });
   });
 
+  it("maps the family directory summary without exposing invite tokens", () => {
+    expect(
+      mapStudentFamilyAccessSummary({
+        student_id: "student-1",
+        access_status: "invited",
+        invite_id: "invite-1",
+        contact_name: "Patrícia Costa",
+        contact_email: "patricia@example.com",
+        relationship_kind: "guardian",
+        relationship_label: "Mãe",
+        expires_at: "2026-10-03T00:00:00Z",
+        token_hash: "must-not-leak",
+      } as never),
+    ).toEqual({
+      studentId: "student-1",
+      status: "invited",
+      relationshipId: null,
+      inviteId: "invite-1",
+      contactName: "Patrícia Costa",
+      contactEmail: "patricia@example.com",
+      relationshipKind: "guardian",
+      relationshipLabel: "Mãe",
+      expiresAt: "2026-10-03T00:00:00Z",
+    });
+  });
+
+  it("loads one organization-scoped family access summary for the directory", async () => {
+    postMock.mockResolvedValueOnce([
+      {
+        student_id: "student-1",
+        access_status: "active",
+        relationship_id: "relationship-1",
+      },
+    ]);
+
+    await expect(listStudentFamilyAccessSummaries("org-1")).resolves.toEqual([
+      expect.objectContaining({
+        studentId: "student-1",
+        status: "active",
+        relationshipId: "relationship-1",
+      }),
+    ]);
+    expect(postMock).toHaveBeenCalledWith(
+      "/rpc/list_student_family_access_summaries_v1",
+      { p_org_id: "org-1" },
+    );
+  });
+
   it("lists by organization and student, then refreshes that scope after revoke", async () => {
     postMock
       .mockResolvedValueOnce([])
@@ -260,6 +311,47 @@ describe("student relationship invite API", () => {
     expect(postMock).toHaveBeenNthCalledWith(
       3,
       "/rpc/list_student_relationship_invites_v1",
+      { p_org_id: "org-1", p_student_id: "student-1" },
+    );
+  });
+
+  it("updates a non-athlete relationship inside the selected scope", async () => {
+    postMock.mockResolvedValueOnce(null).mockResolvedValueOnce([]);
+
+    await updateStudentRelationship({
+      organizationId: "org-1",
+      studentId: "student-1",
+      relationshipId: "relationship-1",
+      relationshipKind: "payer",
+      relationshipLabel: "Responsável financeiro",
+      permissions: {
+        canViewProfile: false,
+        canViewSchedule: false,
+        canViewAttendance: false,
+        canViewProgress: false,
+        canViewHealth: false,
+        canSignConsents: false,
+        canViewFinancial: false,
+        canPay: true,
+      },
+    });
+
+    expect(postMock).toHaveBeenNthCalledWith(
+      1,
+      "/rpc/update_student_relationship_v1",
+      expect.objectContaining({
+        p_relationship_id: "relationship-1",
+        p_relationship_kind: "payer",
+        p_can_view_financial: true,
+        p_can_pay: true,
+        p_can_view_health: false,
+        p_can_sign_consents: false,
+      }),
+      "return=minimal",
+    );
+    expect(postMock).toHaveBeenNthCalledWith(
+      2,
+      "/rpc/list_student_relationships_v1",
       { p_org_id: "org-1", p_student_id: "student-1" },
     );
   });

@@ -148,15 +148,13 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const { data, error } = await supabase
-    .from("students")
-    .update({ student_user_id: userId })
-    .is("student_user_id", null)
-    .eq("login_email", normalizedEmail)
-    .select("id");
+  // The database rechecks authoritative email proof, conflicts and revocations.
+  const { data, error } = await supabase.rpc("reconcile_student_access_for_user_v1", {
+    p_user_id: userId,
+  });
 
   if (error) {
-    console.error("auto-link-student: update failed", error.message);
+    console.error("auto-link-student: reconciliation failed", error.code);
     return new Response(JSON.stringify({ error: "Update failed" }), {
       status: 500,
       headers: makeJsonHeaders(req),
@@ -164,7 +162,7 @@ Deno.serve(async (req) => {
   }
   
   return new Response(
-    JSON.stringify({ status: "ok", linked: data ? data.length : 0 }),
+    JSON.stringify({ status: "ok", linked: data === "linked" ? 1 : 0, resolution: data }),
     { headers: makeJsonHeaders(req) }
   );
 });

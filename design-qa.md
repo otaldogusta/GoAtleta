@@ -66,6 +66,106 @@ final result: passed
 
 ---
 
+# Design QA — Motivo do alerta de frequência
+
+## Evidências
+
+- Fluxo autenticado validado em `http://localhost:8081/coord/students`.
+- Capturas locais: `artifacts/design-qa/student-attendance-reason-tooltip-1360x914.jpg`, `artifacts/design-qa/student-attendance-reason-tooltip-mobile-390x844.jpg`, `artifacts/design-qa/student-attendance-reason-tooltip-tablet-834x1194.jpg` e `artifacts/design-qa/student-attendance-reason-tooltip-wide-1440x1024.jpg`.
+
+## Resultado
+
+- O badge de frequência com alerta exibe o motivo em um balão flutuante por clique, foco ou hover no web.
+- O conteúdo permanece oculto no estado padrão e não adiciona subtexto permanente ao resumo operacional.
+- O balão usa posicionamento absoluto e não altera a altura do modal nem desloca as seções seguintes.
+- No layout empilhado de 390 × 844, o balão abre acima do badge; em 834 × 1194 e 1440 × 1024, abre abaixo.
+- Leitura assistiva anuncia o estado e o motivo, com estado expandido exposto pelo gatilho.
+- Nenhum erro foi observado no console durante o smoke visual.
+- O comportamento do bloco Financeiro permaneceu inalterado, aguardando decisão de produto sobre o resumo contextual.
+
+final result: passed
+
+---
+
+# Design QA — Simplificação dos estados do atleta
+
+## Evidências
+
+- Referência do problema: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-9abd906e-a3b4-4f95-b441-86c892edf8ee.png`.
+- Estado principal revisado: `artifacts/design-qa/student-operational-strip-simplified-1360x914.jpg`.
+- Dropdown revisado: `artifacts/design-qa/student-operational-strip-simplified-dropdown.jpg`.
+- Responsividade: `artifacts/design-qa/student-operational-strip-simplified-mobile-390x844.jpg`, `student-operational-strip-simplified-tablet-834x1194.jpg` e `student-operational-strip-simplified-wide-1440x1024.jpg`.
+
+## Comparação e resultado
+
+- Cadastro, Financeiro e Frequência exibem somente título e estado atual, sem frases explicativas.
+- O estado fica alinhado à direita do respectivo título; no mobile, os três itens permanecem empilhados e compactos.
+- `Histórico` foi movido para o cabeçalho do modal, imediatamente antes do botão de fechar.
+- O dropdown mostra somente `Ativo` e `Inativo`; a opção selecionada usa `primaryText` sobre `primaryBg`, eliminando o contraste insuficiente da referência.
+- Os ícones redundantes dos três títulos foram removidos para preservar a leitura de `Financeiro` em larguras compactas.
+- Comparação visual conjunta concluída sem diferenças P0, P1 ou P2 restantes.
+- Nenhuma alteração de cadastro foi confirmada durante o smoke visual.
+
+final result: passed
+
+---
+
+# Design QA — Faixa operacional do perfil do atleta
+
+## Fonte de verdade e estado
+
+- Referência autenticada da coordenação: `artifacts/design-qa/coordination-horizontal-reference-1360x914.jpg`.
+- Implementação autenticada: `artifacts/design-qa/student-operational-strip-implementation-1360x914.jpg`.
+- Comparação completa: `artifacts/design-qa/student-operational-strip-comparison-full.jpg`.
+- Comparação focada: `artifacts/design-qa/student-operational-strip-comparison-focused.jpg`.
+- Estado adicional do seletor: `artifacts/design-qa/student-operational-strip-dropdown-open.jpg`.
+- Viewport solicitado: 1360 × 914 CSS px. As duas capturas principais foram normalizadas na mesma escala do navegador, 2125 × 1428 px renderizados.
+- Estado comparado: coordenação carregada e modal `Editar aluno` de um atleta da organização, com o seletor de cadastro fechado na captura principal.
+
+## Resultado visual e funcional
+
+- Cadastro, Financeiro e Frequência formam uma única faixa horizontal no desktop e tablet, seguindo a organização visual do painel de Coordenação.
+- No mobile, os três indicadores empilham verticalmente sem overflow horizontal.
+- Cada indicador mostra somente o estado atual. As opções não selecionadas de cadastro aparecem apenas no dropdown ancorado do produto.
+- O dropdown abre como sobreposição e não desloca os dados do aluno; contém somente `Ativo` e `Inativo` e preserva o fluxo existente de motivo para inativação.
+- Financeiro continua derivado da mensalidade e abre a área financeira do atleta. Frequência continua derivada das faltas consecutivas e mantém o aviso contextual.
+- `Histórico` permanece disponível na célula de cadastro.
+- Responsividade conferida em 390 × 844, 834 × 1194 e 1440 × 1024 CSS px.
+- A comparação focada não revelou diferenças P0, P1 ou P2. P3 intencional: os indicadores do atleta mantêm rótulo e detalhe operacional, portanto são mais densos do que os contadores numéricos da referência.
+
+## Histórico da iteração
+
+- Primeira comparação pós-implementação: sem diferenças P0, P1 ou P2; nenhum ciclo corretivo adicional necessário.
+- Nenhuma mutação de cadastro, mensalidade ou presença foi executada durante o smoke visual.
+
+final result: passed
+
+---
+
+# Design QA — Novo responsável e situação do aluno
+
+## Fonte e estado comparados
+
+- Fonte visual: comentários do Browser em `http://localhost:8081/coord/students`, nos estados `Adicionar outro responsável` e `Situação do aluno`.
+- Implementação autenticada: mesma rota local, com o drawer de acessos familiares e o modal `Editar aluno` abertos separadamente.
+- Viewports conferidos: 1360 × 914, 834 × 1194 e 390 × 844; a escala interna do navegador resultou em 1360, 1042 e 487 px de largura CSS.
+
+## Correções verificadas
+
+- P1 corrigido: `Adicionar` abria o formulário e um recarregamento do painel o fechava imediatamente. O estado agora é reiniciado somente quando o atleta ou o modo do painel muda.
+- O formulário permaneceu visível após a conclusão da busca de acessos, com e-mail, relação, permissões e ação `Salvar e convidar`.
+- P2 corrigido: a antiga caixa `Situação do aluno` misturava cadastro, ação destrutiva, histórico e financeiro sem hierarquia.
+- A composição final usa três linhas operacionais: `Cadastro`, `Financeiro` e `Frequência`. Cada linha mostra somente o badge do estado atual; não há seletor manual de situação financeira.
+- O badge financeiro é derivado das cobranças reais da organização para o atleta. O clique abriu `/coord/finance` em `Cobranças`, com o atleta preenchido na busca e filtrado por ID.
+- O badge de frequência é derivado das chamadas. No caso autenticado verificado, quatro faltas consecutivas produziram o estado vermelho `Atenção` com o detalhe `4 faltas seguidas`.
+- A inativação continua exigindo motivo e preserva histórico, avaliações e presenças; nenhuma alteração operacional foi submetida durante o smoke.
+- O documento permaneceu sem overflow horizontal navegável nos três viewports. No mobile, as ações e badges permaneceram legíveis dentro da mesma lista compacta.
+- Não restaram diferenças P0, P1 ou P2 nos dois estados revisados.
+
+final result: passed
+
+---
+
 # Design QA - gestos, relatório, periodização e cadastros no mobile
 
 **Fontes visuais do problema**
@@ -537,6 +637,56 @@ A direção visual foi aprovada; contratos, testes focados e typecheck da implem
 
 final result: passed with visual revalidation pending
 
+---
+
+# Design QA — Acessos familiares na lista de Atletas
+
+## Fonte de verdade
+
+- Popover desktop aprovado: `C:\Users\gusta\.codex\generated_images\01a05a30-94a7-7091-b778-f9582a39aa3a\exec-a81948b8-64eb-4b29-b041-9dbbb3ec64c1.png`.
+- Drawer desktop aprovado: `C:\Users\gusta\.codex\generated_images\01a05a30-94a7-7091-b778-f9582a39aa3a\exec-848ab963-00e9-4a5b-897c-7cf5ea1c9fe9.png`.
+- Bottom sheet mobile aprovado: `C:\Users\gusta\.codex\generated_images\01a05a30-94a7-7091-b778-f9582a39aa3a\exec-86b9d42c-5d5d-463e-93d9-0df33e8b1be6.png`.
+- Barra de filtros aprovada: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-9e55a8c8-34c5-46f2-974d-f5991d0c9afd.png`.
+- Referência ampliada do encaixe dos rótulos na borda: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-90b3db2a-e92d-4db6-8ea3-1e894254598e.png`.
+- Captura local focada após o ajuste: `C:\Users\gusta\AppData\Local\Temp\goatleta-filter-legend.png`.
+- Lista mobile aprovada: `C:\Users\gusta\AppData\Local\Temp\codex-clipboard-df0ad7a4-40c0-42e2-8ecb-83fb09252473.png`.
+- Implementação autenticada: `http://localhost:8081/coord/students`.
+
+## Implementação comparada
+
+- A tela permanece dedicada a `Atletas` na navegação lateral e usa `ATLETA`, `Adicionar atleta`, `Editar atleta` e `Salvar atleta` no escopo da coordenação.
+- No desktop, a barra principal repete o mockup com busca, `Turma`, `Status`, `Responsável / acesso` e `Limpar filtros` em uma única superfície horizontal.
+- Os três seletores usam rótulos flutuantes que interrompem visualmente a borda superior, como um `legend`, em vez de empilhar o rótulo dentro do campo.
+- No mobile, a busca permanece visível e `Filtros` abre um bottom sheet funcional com as mesmas três dimensões, sem duplicar controles antigos.
+- A lista usa as quatro colunas aprovadas: atleta com idade, turma, status e responsável/contato. O estado familiar aparece como `Acesso ativo`, `Convite enviado` ou `Adicionar responsável`.
+- `Adicionar responsável` abre um popover ancorado à linha no desktop e um bottom sheet no mobile. A segunda linha preservou exatamente a mesma coordenada vertical antes e depois da abertura, comprovando que a lista não sofre reflow.
+- A ação de mais opções abre um drawer alinhado à direita, acima da tabela. A caixa de busca preservou posição e largura antes e depois da abertura, comprovando que o conteúdo não encolhe.
+- Somente uma superfície contextual pode permanecer aberta. Abrir o convite rápido fecha o drawer e abrir o drawer fecha o convite rápido.
+- O drawer usa os vínculos e convites reais do atleta e oferece editar permissões, duplicar acesso, gerar novo link, revogar vínculo e cancelar convite. Ações destrutivas usam confirmação global.
+- A antiga entrada de `Acessos familiares` foi removida de Gestão para não duplicar o diretório de atletas.
+
+## Responsividade e interação
+
+- Viewports conferidos pelo controle responsivo em 390 × 844, 834 × 1194 e 1440 × 1024; a escala interna do navegador resultou em 487, 1042 e 1800 px de largura CSS.
+- Não houve overflow horizontal em nenhum breakpoint.
+- No mobile, busca e filtros dividem a primeira linha e a tabela densa preserva as quatro colunas do mockup.
+- O formulário mantém e-mail, relação e permissões em composição compacta; o botão permanece desabilitado até o e-mail ser válido.
+- Nenhum convite, vínculo ou remoção foi submetido durante o smoke visual.
+- Nenhum erro foi observado no console após a revisão final.
+
+## Iteração visual — 03/09/2026
+
+- P2 corrigido: os rótulos dos seletores apareciam dentro das caixas e não recortavam a borda como na referência.
+- A correção posiciona o rótulo sobre a borda, mascara apenas o trecho necessário e mantém valor e seta centralizados.
+- A comparação conjunta entre a referência ampliada e a captura local não revelou diferenças P0, P1 ou P2 nesse detalhe.
+
+## Diferenças intencionais P3
+
+- Os mockups usam fotos, nomes, turmas e estados demonstrativos. A implementação preserva os atletas, fotos disponíveis e vínculos reais da organização autenticada; quando não há foto ou responsável, usa os estados vazios do produto.
+- A lista não faz consultas individuais por atleta. Um RPC com escopo de organização entrega o resumo de vínculo ou convite de todos os atletas; o drawer busca os detalhes somente quando aberto.
+
+final result: passed
+
 ## Fluxos modais e acessos familiares — 31/08/2026
 
 - `Nova cobrança` abre um modal próprio e mantém `/coord/finance`.
@@ -548,3 +698,40 @@ final result: passed with visual revalidation pending
 - Uma nova inspeção autenticada dos três viewports permanece pendente após a arquitetura final em abas.
 
 final result: passed with visual revalidation pending
+
+---
+
+# Design QA — Dropdown de relação familiar
+
+## Evidências
+
+- Fonte visual: comentário do Browser na tela `http://localhost:8081/coord/students`, estado do drawer de acessos familiares com `Relação` aberto.
+- Implementação capturada localmente: `goatleta-family-relation-overlay.png`, viewport solicitado de 1360 × 914, tema escuro e drawer de um atleta da organização. A captura contém dados pessoais e não integra a publicação.
+- Estado conferido: formulário `Adicionar responsável`, permissões expandidas e dropdown de relação aberto.
+
+## Comparação e iteração
+
+- P2 inicial: a lista de relações participava do fluxo vertical do formulário e empurrava permissões, ações e estado vazio para baixo.
+- Correção: a lista passou para a camada flutuante compartilhada do produto, ancorada ao seletor e renderizada acima do drawer no web.
+- Evidência pós-correção: `Ocultar opções` manteve exatamente `y = 362,83203125` antes e depois da abertura, comprovando ausência de reflow.
+- Tipografia, cores, ícones, textos e opções permanecem iguais; a alteração é somente de empilhamento e posicionamento.
+- A lista usa a largura medida do gatilho e altura limitada à viewport. Não há diferenças P0, P1 ou P2 restantes neste estado.
+
+final result: passed
+
+---
+
+# Design QA — Balão de frequência e resumo financeiro do aluno — 03/09/2026
+
+- Esta revalidação substitui a conclusão anterior sobre o balão de frequência: o print do usuário demonstrou que o overlay interno ainda ficava atrás de `Dados do aluno`.
+- O aviso agora usa `AnchoredDropdown` em portal no `document.body`, na camada flutuante 50000. A inspeção com `elementFromPoint` confirmou o texto no topo; no celular, `Dados do aluno` permaneceu em y=383,544921875 antes e depois da abertura.
+- Viewports CSS reais conferidos: 390×844, 834×1194 e 1440×1024; foi compensado o zoom de 80% do navegador. Não houve overflow horizontal do documento. O tema claro também foi conferido a 1600×900; a preferência escura foi restaurada ao terminar.
+- P2 adicional corrigido: o limite do portal usava as dimensões visuais do React Native, divergentes dos pixels CSS sob zoom. Agora usa a área útil do documento na web e fecha ao redimensionar; o nativo conserva suas dimensões de janela.
+- No tablet, os indicadores usam a largura disponível abaixo da foto. Os títulos não são comprimidos pelos badges; textos longos de estado podem quebrar dentro do badge.
+- O clique em Financeiro abre um resumo de leitura sem navegar. Apenas `Abrir financeiro` mantém a ação de navegação já existente. Cadastro, financeiro e aviso de frequência abrem um overlay por vez; Escape fecha o overlay sem fechar o perfil.
+- O aluno utilizado no smoke não tem cobrança vinculada e exibiu o estado vazio correto. Valores, saldo parcial, vencidos, exclusão de rascunhos/canceladas/estornadas e ausência de quitação inventada foram validados em testes isolados, sem criar dados na organização.
+- O resumo reutiliza a consulta existente, com filtro de aluno, escopo de organização, permissão e proteção contra respostas atrasadas. Não libera edição financeira nem altera permissões de aluno ou responsável.
+- Validação: 23 testes focados (5 suítes), typecheck do app, org-scope, perf-hygiene estrito, build web e diff check. Console da conferência final sem erros. O build mantém o aviso preexistente de resolução de `expo-font`.
+- Limite: web autenticado e testes automatizados; não foi executado em dispositivo nativo. Alterações locais, sem commit, push ou deploy.
+
+final result: passed for local web scope

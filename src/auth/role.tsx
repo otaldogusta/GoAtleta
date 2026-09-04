@@ -34,6 +34,7 @@ import {
   resolveSelectedFamilyStudent,
 } from "./role-resolution";
 import { getSessionUserId, getValidAccessToken } from "./session";
+import { reconcileMyStudentAccess, type StudentAccessResolution } from "./student-access-reconciliation";
 
 export type { UserRole } from "./role-types";
 
@@ -42,6 +43,7 @@ type RoleState = {
   availableRoles: SelectableUserRole[];
   devProfilePreview: DevProfilePreview;
   student: Student | null;
+  studentAccessResolution: StudentAccessResolution | null;
   familyContexts: FamilyStudentContext[];
   selectedFamilyStudent: FamilyStudentContext | null;
   loading: boolean;
@@ -258,6 +260,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [devProfilePreview, setDevProfilePreviewState] =
     useState<DevProfilePreview>("auto");
   const [student, setStudent] = useState<Student | null>(null);
+  const [studentAccessResolution, setStudentAccessResolution] = useState<StudentAccessResolution | null>(null);
   const [familyContexts, setFamilyContexts] = useState<FamilyStudentContext[]>(
     [],
   );
@@ -288,6 +291,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     setRole(null);
     setAvailableRoles([]);
     setStudent(null);
+    setStudentAccessResolution(null);
     setFamilyContexts([]);
     setSelectedFamilyStudent(null);
   }, [hasSession, sessionSnapshotKey, sessionUserId]);
@@ -318,6 +322,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           setRole(null);
           setAvailableRoles([]);
           setStudent(null);
+          setStudentAccessResolution(null);
           setFamilyContexts([]);
           setSelectedFamilyStudent(null);
           return;
@@ -419,8 +424,8 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         }
         const [
           isTrainer,
-          studentRow,
-          familyRows,
+          initialStudentRow,
+          initialFamilyRows,
           preferredRole,
           preferredFamilyStudentId,
         ] = await Promise.all([
@@ -431,6 +436,22 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           getActiveFamilyStudentPreference(userId),
         ]);
         if (!isCurrentRefresh()) return;
+        let studentRow = initialStudentRow;
+        let familyRows = initialFamilyRows;
+        let accessResolution: StudentAccessResolution | null = null;
+        if (!studentRow && !isTrainer && !familyRows.some((context) => context.relationshipType !== "self")) {
+          accessResolution = await reconcileMyStudentAccess(token);
+          if (!isCurrentRefresh()) return;
+          if (accessResolution === "linked" || accessResolution === "already_linked") {
+            // A successful claim is not itself authorization: reload under RLS.
+            [studentRow, familyRows] = await Promise.all([
+              fetchStudentSelf(token, userId), fetchFamilyContexts(token),
+            ]);
+            if (!isCurrentRefresh()) return;
+            if (!studentRow) accessResolution = "unavailable";
+          }
+        }
+        setStudentAccessResolution(accessResolution);
         const resolvedRoles = resolveAvailableUserRoles({
           isTrainer,
           hasStudent: Boolean(studentRow),
@@ -532,6 +553,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       availableRoles: isPublishedSessionCurrent ? availableRoles : [],
       devProfilePreview,
       student: isPublishedSessionCurrent ? student : null,
+      studentAccessResolution: isPublishedSessionCurrent ? studentAccessResolution : null,
       familyContexts: isPublishedSessionCurrent ? familyContexts : [],
       selectedFamilyStudent: isPublishedSessionCurrent
         ? selectedFamilyStudent
@@ -558,6 +580,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       setActiveFamilyStudent,
       setActiveRole,
       student,
+      studentAccessResolution,
     ],
   );
 
@@ -572,6 +595,7 @@ export const useRole = () => {
       availableRoles: [],
       devProfilePreview: "auto",
       student: null,
+      studentAccessResolution: null,
       familyContexts: [],
       selectedFamilyStudent: null,
       loading: false,

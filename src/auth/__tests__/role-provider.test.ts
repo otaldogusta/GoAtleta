@@ -12,6 +12,11 @@ const mockIsFamilyFoundationUnavailable = jest.fn();
 const mockGetSessionUserId = jest.fn();
 const mockGetValidAccessToken = jest.fn();
 const mockCaptureException = jest.fn();
+const mockReconcileMyStudentAccess = jest.fn();
+
+jest.mock("../student-access-reconciliation", () => ({
+  reconcileMyStudentAccess: (...args: unknown[]) => mockReconcileMyStudentAccess(...args),
+}));
 
 jest.mock("@sentry/react-native", () => ({
   captureException: mockCaptureException,
@@ -57,6 +62,7 @@ type RoleSnapshot = {
   role: string | null;
   availableRoles: string[];
   student: unknown | null;
+  studentAccessResolution: string | null;
   familyContexts: { studentId: string }[];
   selectedFamilyStudent: { studentId: string } | null;
   loading: boolean;
@@ -152,6 +158,7 @@ describe("RoleProvider bootstrap resilience", () => {
     mockSetActiveFamilyStudentPreference.mockResolvedValue(undefined);
     mockGetMyStudentContexts.mockResolvedValue([]);
     mockIsFamilyFoundationUnavailable.mockReturnValue(false);
+    mockReconcileMyStudentAccess.mockReset().mockResolvedValue("not_found");
   });
 
   afterEach(() => {
@@ -161,6 +168,91 @@ describe("RoleProvider bootstrap resilience", () => {
     }
     jest.useRealTimers();
     jest.restoreAllMocks();
+  });
+
+  it("waits for reconciliation and reloads RLS before publishing the student role", async () => {
+    const reconciliation = createDeferred<string>();
+    mockReconcileMyStudentAccess.mockReturnValue(reconciliation.promise);
+    let studentReads = 0;
+    jest.spyOn(global, "fetch").mockImplementation(async (input) => ({
+      ok: true, status: 200,
+      text: async () => String(input).includes("/rpc/is_trainer") ? "false"
+        : JSON.stringify(++studentReads > 1 ? [{ id: "existing-student", name: "Existing", organization_id: "org-1" }] : []),
+    }) as Response);
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+      await flushMicrotasks();
+    });
+    expect(latestRoleState.loading).toBe(true);
+    expect(latestRoleState.role).toBeNull();
+    expect(mockReconcileMyStudentAccess).toHaveBeenCalledWith("valid-access-token");
+    await act(async () => { reconciliation.resolve("linked"); await flushMicrotasks(); });
+    expect(latestRoleState.role).toBe("student");
+    expect(latestRoleState.student).toMatchObject({ id: "existing-student" });
+    expect(roleStateSnapshots.some(snapshot => snapshot.role === "pending")).toBe(false);
+    expect(studentReads).toBe(2);
+  });
+
+  it.each(["verification_required", "review_required", "invite_required", "unavailable", "not_found"])(
+    "keeps %s pending without granting access", async (status) => {
+      mockReconcileMyStudentAccess.mockResolvedValue(status);
+      jest.spyOn(global, "fetch").mockImplementation(async (input) => ({
+        ok: true, status: 200, text: async () => String(input).includes("/rpc/is_trainer") ? "false" : "[]",
+      }) as Response);
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+        await flushMicrotasks();
+      });
+      expect(latestRoleState).toMatchObject({ role: "pending", student: null, studentAccessResolution: status });
+    },
+  );
+
+  it("never trusts a claim receipt when RLS still returns no student", async () => {
+    mockReconcileMyStudentAccess.mockResolvedValue("linked");
+    jest.spyOn(global, "fetch").mockImplementation(async (input) => ({
+      ok: true, status: 200, text: async () => String(input).includes("/rpc/is_trainer") ? "false" : "[]",
+    }) as Response);
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+      await flushMicrotasks();
+    });
+    expect(latestRoleState).toMatchObject({ role: "pending", student: null, studentAccessResolution: "unavailable" });
+  });
+
+  it("discards a reconciliation response after logout", async () => {
+    const reconciliation = createDeferred<string>();
+    mockReconcileMyStudentAccess.mockReturnValue(reconciliation.promise);
+    const fetchSpy = jest.spyOn(global, "fetch").mockImplementation(async (input) => ({
+      ok: true, status: 200, text: async () => String(input).includes("/rpc/is_trainer") ? "false" : "[]",
+    }) as Response);
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+      await flushMicrotasks();
+    });
+    mockUseAuth.mockReturnValue({ session: null });
+    await act(async () => {
+      renderer?.update(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+      await flushMicrotasks();
+    });
+    await act(async () => {
+      reconciliation.resolve("linked");
+      await flushMicrotasks();
+    });
+    expect(latestRoleState).toMatchObject({ role: null, student: null, studentAccessResolution: null });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not reconcile existing guardian access", async () => {
+    mockGetMyStudentContexts.mockResolvedValue([buildFamilyContext("child")]);
+    jest.spyOn(global, "fetch").mockImplementation(async (input) => ({
+      ok: true, status: 200, text: async () => String(input).includes("/rpc/is_trainer") ? "false" : "[]",
+    }) as Response);
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+      await flushMicrotasks();
+    });
+    expect(latestRoleState.role).toBe("family");
+    expect(mockReconcileMyStudentAccess).not.toHaveBeenCalled();
   });
 
   it("bounds both role requests and never grants the cached role after a timeout", async () => {

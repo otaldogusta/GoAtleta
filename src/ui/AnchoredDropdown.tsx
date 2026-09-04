@@ -33,8 +33,9 @@ type AnchoredDropdownProps = {
   showVerticalScrollIndicator?: boolean;
   portalToBodyOnWeb?: boolean;
   interactiveRefs?: Array<React.RefObject<View | null>>;
-  density?: "default" | "compact" | "menu";
+  density?: "default" | "compact" | "menu" | "popover";
   fitContent?: boolean;
+  preferredWidth?: number;
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;
@@ -58,6 +59,7 @@ export function AnchoredDropdown({
   interactiveRefs,
   density = "default",
   fitContent = false,
+  preferredWidth,
 }: AnchoredDropdownProps) {
   const { colors, mode } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
@@ -133,6 +135,8 @@ export function AnchoredDropdown({
     };
 
     window.addEventListener("blur", handleVisibilityOrBlur);
+    window.addEventListener("resize", handleVisibilityOrBlur);
+    window.visualViewport?.addEventListener("resize", handleVisibilityOrBlur);
     document.addEventListener("visibilitychange", handleVisibilityOrBlur);
     document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("focusin", handleFocusIn);
@@ -141,6 +145,8 @@ export function AnchoredDropdown({
 
     return () => {
       window.removeEventListener("blur", handleVisibilityOrBlur);
+      window.removeEventListener("resize", handleVisibilityOrBlur);
+      window.visualViewport?.removeEventListener("resize", handleVisibilityOrBlur);
       document.removeEventListener("visibilitychange", handleVisibilityOrBlur);
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("focusin", handleFocusIn);
@@ -207,7 +213,7 @@ export function AnchoredDropdown({
     };
 
     element.style.overflowX = "hidden";
-    element.style.overflowY = "scroll";
+    element.style.overflowY = fitContent ? "auto" : "scroll";
     element.style.scrollbarWidth = "thin";
     element.style.scrollbarColor = `${colors.border} transparent`;
     (element.style as CSSStyleDeclaration & { msOverflowStyle?: string }).msOverflowStyle = "auto";
@@ -219,30 +225,40 @@ export function AnchoredDropdown({
       element.style.scrollbarColor = previous.scrollbarColor;
       (element.style as CSSStyleDeclaration & { msOverflowStyle?: string }).msOverflowStyle = previous.msOverflowStyle;
     };
-  }, [colors.border, visible]);
+  }, [colors.border, fitContent, visible]);
 
   if (!visible || !layout) return null;
 
-  const windowWidth = Dimensions.get("window").width;
-  const windowHeight = Dimensions.get("window").height;
   const useViewportCoordinates = Platform.OS === "web" && portalToBodyOnWeb;
+  // Fixed portals and measureInWindow use CSS layout pixels. RN's visual
+  // viewport dimensions can differ when browser zoom/scaling is active.
+  const layoutViewport = useViewportCoordinates && typeof document !== "undefined"
+    ? document.documentElement
+    : null;
+  const windowWidth = layoutViewport?.clientWidth || Dimensions.get("window").width;
+  const windowHeight = layoutViewport?.clientHeight || Dimensions.get("window").height;
   const useWindowCoordinates = Platform.OS !== "web" || useViewportCoordinates;
   const resolvedZIndex = useViewportCoordinates
     ? resolveFloatingListZIndex(zIndex)
     : zIndex;
   const availableWidth = Math.max(180, windowWidth - 24);
   const measuredWidth = layout.width > 0 ? layout.width : 240;
-  const resolvedWidth = Math.min(measuredWidth, availableWidth);
+  const resolvedWidth = Math.min(preferredWidth ?? measuredWidth, availableWidth);
   const isCompact = density === "compact";
   const isMenu = density === "menu";
+  const isPopover = density === "popover";
   const resolvedMaxHeight = Math.min(
     maxHeight,
-    isMenu
+    isPopover
+      ? 440
+      : isMenu
       ? MENU_DROPDOWN_MAX_HEIGHT
       : isCompact
         ? COMPACT_DROPDOWN_MAX_HEIGHT
         : DEFAULT_DROPDOWN_MAX_HEIGHT,
-    Math.floor(windowHeight * (isMenu ? 0.45 : isCompact ? 0.35 : 0.23))
+    Math.floor(
+      windowHeight * (isPopover ? 0.72 : isMenu ? 0.45 : isCompact ? 0.35 : 0.23),
+    )
   );
   const leftBase = useWindowCoordinates || !container ? layout.x : layout.x - container.x;
   const left = Math.max(16, Math.min(leftBase, windowWidth - 16 - resolvedWidth));
@@ -296,7 +312,7 @@ export function AnchoredDropdown({
           {
             height: fitContent ? undefined : resolvedMaxHeight,
             maxHeight: resolvedMaxHeight,
-            borderRadius: isCompact || isMenu ? 14 : 18,
+            borderRadius: isCompact || isMenu || isPopover ? 14 : 18,
             overflow: "hidden",
             borderWidth: 1,
             borderColor: colors.border,
@@ -319,7 +335,7 @@ export function AnchoredDropdown({
             },
           ]}
           contentContainerStyle={[
-            isCompact || isMenu
+            isCompact || isMenu || isPopover
               ? { padding: 6, gap: 4 }
               : { padding: 8, gap: 6, paddingBottom: 10 },
             scrollContentStyle,

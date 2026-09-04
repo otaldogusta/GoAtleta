@@ -71,15 +71,21 @@ describe("coordination finance modal navigation", () => {
     expect(dashboardSource).toContain("resolveFinanceScrollBottomPadding({");
   });
 
-  it("keeps family access in people management instead of finance", () => {
-    expect(peopleSource).toContain(
+  it("keeps family access in athletes instead of management or finance", () => {
+    expect(peopleSource).not.toContain(
       'accessibilityLabel="Gerenciar acessos familiares"',
     );
-    expect(peopleSource).toContain("<CoordinationFamilyAccessScreen embedded");
+    expect(peopleSource).not.toContain("<CoordinationFamilyAccessScreen embedded");
+    expect(readSource("src/screens/students/StudentsListTab.tsx")).toContain("<StudentFamilyAccessPanels");
     expect(dashboardSource).toContain(
       'router.push("/coord/management" as never)',
     );
     expect(dashboardSource).not.toContain("<CoordinationFamilyAccessScreen");
+  });
+
+  it("only selects the linked athlete billing month on initial load", () => {
+    expect(dashboardSource).toContain("requestedStudentId && !initialStudentMonthResolved.current");
+    expect(dashboardSource).toContain("initialStudentMonthResolved.current = true");
   });
 
   it("closes the embedded flow and returns standalone access to management", () => {

@@ -129,6 +129,21 @@ export function NativeSidebar({
         icon: item.icon,
         href: String(item.href),
       }));
+    const coordinationStudents: NativeNavItem[] =
+      role === "coord" &&
+      (isOrgAdmin || (!permissionsLoading && memberPermissions.students === true))
+        ? [
+            {
+              key: "students",
+              label: "Atletas",
+              icon: "students",
+              href: "/coord/students",
+            },
+          ]
+        : [];
+    const primaryWithCoordinationStudents = primary.flatMap((item) =>
+      item.key === "classes" ? [item, ...coordinationStudents] : [item]
+    );
     const actions = ROLE_RADIAL_ACTIONS[role]
       .filter((item) => {
         if (role === "student" || role === "family" || isOrgAdmin) return true;
@@ -141,7 +156,15 @@ export function NativeSidebar({
         icon: item.icon,
         href: String(item.href),
       }));
-    return [...primary, ...actions.filter((item) => !primary.some((primaryItem) => primaryItem.href === item.href))];
+    return [
+      ...primaryWithCoordinationStudents,
+      ...actions.filter(
+        (item) =>
+          !primaryWithCoordinationStudents.some(
+            (primaryItem) => primaryItem.href === item.href
+          )
+      ),
+    ];
   }, [activeOrganization?.role_level, memberPermissions, permissionsLoading, role]);
 
   if (!visible) return null;
