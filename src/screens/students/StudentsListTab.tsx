@@ -34,7 +34,7 @@ import {
   type StudentMembershipScope,
 } from "./application/student-list-filters";
 import { STUDENT_FINANCIAL_STATUS_OPTIONS } from "./application/student-operational-status";
-import { resolveStudentListPrimaryStatus } from "./application/student-list-status";
+import { resolveStudentDirectoryStatus, resolveStudentListPrimaryStatus } from "./application/student-list-status";
 import { radius } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -54,6 +54,7 @@ import {
 } from "./components/StudentDirectoryFilterBar";
 import { StudentFamilyAccessPanels } from "./components/StudentFamilyAccessPanels";
 import { StudentLoginAccessStatus } from "./components/StudentLoginAccessStatus";
+import { StudentDirectoryStatusBadge } from "./components/StudentDirectoryStatusBadge";
 import { StudentsEmptyState } from "./components/StudentsEmptyState";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
@@ -1219,9 +1220,8 @@ export const StudentsListTab = memo(function StudentsListTab({
                             >
                               {cls?.name ?? "Turma"}
                             </Text>
-                            {scheduleLabel && !canManageFamilyAccess ? (
+                            {scheduleLabel ? (
                               <Text
-                                numberOfLines={1}
                                 style={{
                                   color: colors.textMuted ?? colors.muted,
                                   marginTop: 2,
@@ -1240,7 +1240,9 @@ export const StudentsListTab = memo(function StudentsListTab({
                                 canManageFamilyAccess && !showTable ? 5 : 10,
                             }}
                           >
-                            <View
+                            {canManageFamilyAccess ? (
+                              <StudentDirectoryStatusBadge status={resolveStudentDirectoryStatus(student, familyAccess?.status)} />
+                            ) : <View
                               style={{
                                 alignSelf: "flex-start",
                                 borderRadius: 999,
@@ -1258,21 +1260,6 @@ export const StudentsListTab = memo(function StudentsListTab({
                                 gap: 5,
                               }}
                             >
-                              {canManageFamilyAccess ? (
-                                <View
-                                  style={{
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: 3,
-                                    backgroundColor:
-                                      primaryStatus === "inactive"
-                                        ? colors.muted
-                                        : primaryStatus === "experimental"
-                                          ? colors.warningText
-                                          : colors.successText,
-                                  }}
-                                />
-                              ) : null}
                               <Text
                                 style={{
                                   color:
@@ -1291,7 +1278,7 @@ export const StudentsListTab = memo(function StudentsListTab({
                                     ? "Experimental"
                                     : "Ativo"}
                               </Text>
-                            </View>
+                            </View>}
                             {canManageFamilyAccess ? <StudentLoginAccessStatus student={student} compact={!showTable} /> : null}
                           </View>
                           <View

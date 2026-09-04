@@ -38,6 +38,13 @@ const migrationSource = readFileSync(
 );
 
 describe("student family access integration", () => {
+  test("shows schedule below class in the same column at every viewport size", () => {
+    expect(studentsListSource).not.toContain("HORÁRIO");
+    expect(studentsListSource).not.toContain("directoryStyles.scheduleColumn");
+    expect(studentsListSource).toMatch(/\{cls\?\.name \?\? "Turma"\}[\s\S]*?\{scheduleLabel \? \([\s\S]*?\{scheduleLabel\}[\s\S]*?<\/View>/);
+    expect(studentsListSource).toContain("<StudentDirectoryStatusBadge");
+    expect(studentsListSource).toContain("resolveStudentDirectoryStatus(student, familyAccess?.status)");
+  });
   test("keeps one row-scoped access surface and switches by viewport capacity", () => {
     expect(studentsListSource).toContain('mode: "quick" | "drawer"');
     expect(studentsListSource).toContain("<StudentFamilyAccessPanels");
