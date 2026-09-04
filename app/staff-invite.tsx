@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { StaffInviteResult, StaffSignupFields } from "../src/api/staff-invite";
 import { resumeStaffSignup } from "../src/api/staff-invite";
-import { StaffInviteSignupForm } from "../src/screens/auth/StaffInviteSignupForm";
+import SignupScreen from "../src/screens/auth/SignupScreen";
+import { markRender } from "../src/observability/perf";
 import { useAuth } from "../src/auth/auth";
 import { parseStaffInviteFragment, type StaffInviteProof } from "../src/auth/staff-invite-link";
 import { clearPendingTrainerInvite, savePendingTrainerInvite } from "../src/auth/pending-invite";
@@ -11,7 +12,9 @@ import { useOrganization } from "../src/providers/OrganizationProvider";
 import { Button } from "../src/ui/Button";
 import { useAppTheme } from "../src/ui/app-theme";
 
+// perf-check: ignore-measure - validation runs only after explicit acceptance, not on load.
 export default function StaffInviteScreen() {
+  markRender("screen.staff-invite.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ code?: string }>();
@@ -99,20 +102,34 @@ export default function StaffInviteScreen() {
     router.replace({ pathname: "/login", params: { inviteCode: code } });
   };
   const invalid = ready && !proof.current && !resumeCode;
+  if (setup) {
+    return <SignupScreen completion={{
+      email: setup.session.user.email ?? "",
+      busy,
+      error,
+      onChange: () => setError(""),
+      onSubmit: complete,
+      onCancel: () => {
+        setSetup(null);
+        proof.current = null;
+        router.replace("/");
+      },
+    }} />;
+  }
   return <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
     <View style={styles.block}>
-      <Text style={[styles.title, { color: colors.text }]}>{setup ? "Complete seu cadastro" : invalid ? "Convite indisponível" : "Convite de funcionário"}</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{invalid ? "Convite indisponível" : "Convite de funcionário"}</Text>
       <Text style={[styles.copy, { color: colors.muted }]}>
-        {setup ? setup.session.user.email : invalid ? "Abra novamente o link recebido por e-mail." : resumeCode
+        {invalid ? "Abra novamente o link recebido por e-mail." : resumeCode
           ? "Continue o cadastro da conta convidada."
           : session
           ? `Você está conectado como ${session.user.email}. Continuar troca para a conta convidada.`
           : "Aceite para entrar com a conta que recebeu este convite."}
       </Text>
-      {setup ? <StaffInviteSignupForm busy={busy} error={error} onChange={() => setError("")} onSubmit={complete} /> : error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
-      {!invalid && !setup ? <Button label={busy ? "Validando convite..." : resumeCode ? "Continuar cadastro" : session ? "Trocar conta e aceitar" : "Aceitar e entrar"}
+      {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
+      {!invalid ? <Button label={busy ? "Validando convite..." : resumeCode ? "Continuar cadastro" : session ? "Trocar conta e aceitar" : "Aceitar e entrar"}
         disabled={!ready || loading || busy} onPress={() => void accept()} /> : null}
-      {error && proof.current && !setup ? <Button label="Entrar com a conta convidada" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
+      {error && proof.current ? <Button label="Entrar com a conta convidada" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
       <Button label={session ? "Manter minha conta" : "Voltar"} variant="secondary" disabled={busy} onPress={() => router.replace("/")} />
     </View>
   </ScrollView>;

@@ -2,6 +2,7 @@ import React from "react";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import StaffInviteScreen from "../../../../app/staff-invite";
+import SignupScreen from "../SignupScreen";
 
 const mockAccept = jest.fn();
 const mockComplete = jest.fn();
@@ -17,6 +18,10 @@ jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { em
 jest.mock("../../../auth/pending-invite", () => ({ savePendingTrainerInvite: jest.fn().mockResolvedValue(undefined), clearPendingTrainerInvite: (...args: unknown[]) => mockClearPending(...args) }));
 jest.mock("../../../providers/OrganizationProvider", () => ({ useOrganization: () => ({ setActiveOrganizationId: mockSetOrganization }) }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
+jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: require("react-native").View }));
+jest.mock("../../../components/ui/ScreenBackdrop", () => ({ ScreenBackdrop: () => null }));
+jest.mock("../../../ui/ScreenHeader", () => ({ ScreenHeader: ({ title }: any) => require("react").createElement(require("react-native").Text, {}, title) }));
+jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
 jest.mock("../../../ui/Button", () => ({ Button: ({ label, disabled, onPress }: any) => require("react").createElement(require("react-native").Pressable, { accessibilityRole: "button", accessibilityLabel: label, disabled, onPress }) }));
 
 describe("employee invitation screen", () => {
@@ -41,13 +46,16 @@ describe("employee invitation screen", () => {
   it("holds new employees at the signup form until completion succeeds", async () => {
     const screen = render(React.createElement(StaffInviteScreen));
     await act(async () => fireEvent.press(screen.getByRole("button", { name: "Trocar conta e aceitar" })));
-    expect(screen.getByText("Complete seu cadastro")).toBeTruthy();
+    expect(screen.UNSAFE_getByType(SignupScreen)).toBeTruthy();
+    expect(screen.getByText("Conclua seu cadastro")).toBeTruthy();
+    expect(screen.getByLabelText("E-mail").props.value).toBe("recipient@example.com");
+    expect(screen.getByLabelText("E-mail").props.editable).toBe(false);
     expect(mockSetOrganization).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
     fireEvent.changeText(screen.getByLabelText("Nome"), "Ana Silva");
-    fireEvent.changeText(screen.getByLabelText("Criar senha"), "secret123");
+    fireEvent.changeText(screen.getByLabelText("Senha"), "secret123");
     fireEvent.changeText(screen.getByLabelText("Confirmar senha"), "secret123");
-    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Concluir e entrar" })));
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Concluir cadastro" })));
     expect(mockComplete).toHaveBeenCalledWith("TEST-CODE", mockSetup, { full_name: "Ana Silva", password: "secret123" });
     expect(mockSetOrganization).toHaveBeenCalledWith("org-1");
     expect(mockClearPending).toHaveBeenCalled();

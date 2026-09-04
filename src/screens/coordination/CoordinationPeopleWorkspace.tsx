@@ -83,9 +83,13 @@ import {
 import { formatMemberLastAccess } from "./application/member-last-access";
 import { getMemberDisplayLabel } from "./application/member-display-label";
 import {
+  formatInviteValidity,
+  inviteAppearsInPeople,
   inviteNeedsAction,
+  INVITE_STATUS_LABELS,
   resolveInviteLifecycleStatus,
 } from "./application/invite-lifecycle";
+import { useInviteClock } from "./application/use-invite-clock";
 
 type SecondaryModuleKey = "attendance" | "access" | "reports" | "activity";
 type PeopleSortKey = "name" | "role" | "classes" | "attendance" | "lastAccess";
@@ -531,7 +535,7 @@ function InviteActionMenu({
   const triggerRef = useRef<ViewType | null>(null);
   const [open, setOpen] = useState(false);
   const [layout, setLayout] = useState<Layout | null>(null);
-  const inviteLabel = invite.invited_to ?? "pendente";
+  const inviteLabel = invite.invited_to ?? "por link";
 
   return (
     <>
@@ -670,6 +674,7 @@ export function CoordinationPeopleWorkspace({
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState<MemberPermissionKey[]>([]);
   const [selectedPermissionsLoading, setSelectedPermissionsLoading] = useState(false);
   const [visibleInvites, setVisibleInvites] = useState(pendingInvites);
+  const inviteNowMs = useInviteClock(visibleInvites);
   const [accessRequestRoles, setAccessRequestRoles] = useState<Record<string, 5 | 10 | 50>>({});
   const [accessRequestBusyId, setAccessRequestBusyId] = useState<string | null>(null);
   const selectedPermissionRequestRef = useRef(0);
@@ -779,11 +784,11 @@ export function CoordinationPeopleWorkspace({
     const query = search.trim().toLowerCase();
     return visibleInvites.filter((invite) => {
       return (
-        inviteNeedsAction(invite) &&
-        (!query || (invite.invited_to ?? "convite pendente").toLowerCase().includes(query))
+        inviteAppearsInPeople(invite, inviteNowMs) &&
+        (!query || (invite.invited_to ?? "convite por link").toLowerCase().includes(query))
       );
     });
-  }, [search, visibleInvites]);
+  }, [search, visibleInvites, inviteNowMs]);
 
   const selectPeopleSort = useCallback(
     (key: PeopleSortKey) => {
@@ -1240,7 +1245,7 @@ export function CoordinationPeopleWorkspace({
 
   const uniqueClasses = new Set(memberClassHeads.map((item) => item.classId)).size;
   const pendingAccessCount =
-    visibleInvites.filter((invite) => inviteNeedsAction(invite)).length + accessRequests.length;
+    visibleInvites.filter((invite) => inviteNeedsAction(invite, inviteNowMs)).length + accessRequests.length;
   const moduleMeta: Record<SecondaryModuleKey, { label: string; value: string | number }> = {
     attendance: { label: "Chamadas pendentes", value: pendingAttendance.length },
     access: { label: "Convites e solicitações", value: pendingAccessCount },
@@ -1418,19 +1423,8 @@ export function CoordinationPeopleWorkspace({
             </View>
           ) : null}
           {visibleInvites.map((invite) => {
-            const lifecycleStatus = resolveInviteLifecycleStatus(invite);
-            const status =
-              lifecycleStatus === "accepted"
-                ? "Aceito automaticamente"
-                : lifecycleStatus === "revoked"
-                  ? "Cancelado"
-                  : lifecycleStatus === "claim_failed"
-                    ? "Falha no vínculo"
-                    : lifecycleStatus === "delivery_failed"
-                      ? "Falha no envio"
-                      : lifecycleStatus === "expired"
-                        ? "Expirado"
-                        : "Convite enviado";
+            const lifecycleStatus = resolveInviteLifecycleStatus(invite, inviteNowMs);
+            const status = INVITE_STATUS_LABELS[lifecycleStatus];
             const statusColor =
               lifecycleStatus === "accepted"
                 ? colors.successText
@@ -1456,7 +1450,7 @@ export function CoordinationPeopleWorkspace({
                   </Text>
                   <Text style={{ color: statusColor, fontSize: 11 }}>{status}</Text>
                 </View>
-                {inviteNeedsAction(invite) ? (
+                {inviteNeedsAction(invite, inviteNowMs) ? (
                   <InviteActionMenu
                     invite={invite}
                     onCancel={(target) => undoableInviteCancel.deleteOne(target)}
@@ -1959,7 +1953,10 @@ export function CoordinationPeopleWorkspace({
                     );
                   })}
 
-                  {filteredInvites.map((invite) => (
+                  {filteredInvites.map((invite) => {
+                    const lifecycleStatus = resolveInviteLifecycleStatus(invite, inviteNowMs);
+                    const statusColor = lifecycleStatus === "sent" ? colors.warningText : colors.dangerText;
+                    return (
                     <View
                       key={invite.id}
                       style={{
@@ -1970,6 +1967,7 @@ export function CoordinationPeopleWorkspace({
                         borderTopColor: border,
                         flexDirection: "row",
                         alignItems: "center",
+                        gap: 8,
                       }}
                     >
                       <View
@@ -1992,13 +1990,15 @@ export function CoordinationPeopleWorkspace({
                             backgroundColor: inner,
                           }}
                         >
-                          <GoAtletaIcon name="communications" size={15} color={colors.warningText} />
+                          <GoAtletaIcon name="communications" size={15} color={statusColor} />
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700" }}>
-                            {invite.invited_to ?? "Convite pendente"}
+                            {invite.invited_to ?? "Convite por link"}
                           </Text>
-                          <Text style={{ color: colors.muted, fontSize: 10 }}>Aguardando aceite</Text>
+                          <Text style={{ color: colors.muted, fontSize: 10 }}>
+                            {formatInviteValidity(invite, inviteNowMs)}
+                          </Text>
                         </View>
                       </View>
                       <View
@@ -2009,16 +2009,17 @@ export function CoordinationPeopleWorkspace({
                           gap: 8,
                         }}
                       >
-                        {!compact ? (
-                          <Text style={{ color: colors.warningText, fontSize: 11 }}>Pendente</Text>
-                        ) : null}
+                        <Text style={{ color: statusColor, fontSize: 11 }}>
+                          {INVITE_STATUS_LABELS[lifecycleStatus]}
+                        </Text>
                         <InviteActionMenu
                           invite={invite}
                           onCancel={(target) => undoableInviteCancel.deleteOne(target)}
                         />
                       </View>
                     </View>
-                  ))}
+                  );
+                  })}
                 </ScrollView>
                 <Text
                   style={{

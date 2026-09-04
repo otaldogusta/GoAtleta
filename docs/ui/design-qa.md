@@ -1,5 +1,21 @@
 # Design QA
 
+## Cadastro canônico para concluir convite — 2026-09-04
+
+- `/signup` e a conclusão do convite agora renderizam o mesmo `SignupScreen`; removido o formulário duplicado. A rota de convite permanece como controlador seguro, preservando os links existentes.
+- Destinatário bloqueado, nome, senha, confirmação e indicador de força compartilhados. Conclusão não cria outra conta; contas existentes continuam sem redefinição de senha. Código de convite, Google e links de criação de conta ficam ocultos nesse modo.
+- 44 testes focados passaram, incluindo cadastro comum, identidade do componente compartilhado, confirmação de conta, erro/repetição e validade dos convites. Typecheck, org-scope, perf-hygiene estrito, diff check e build web passaram.
+- QA local com dados fictícios e fixture temporária sem autenticação/escrita: 390×844, 834×1194 e 1440×1024 sem overflow horizontal; e-mail bloqueado, erro único, campos preservados e erro limpo ao digitar. Fixture removida antes da publicação. Viewport restaurada e tab de teste fechada; sessão do usuário preservada.
+- Tema escuro conferido; tema claro não revalidado. Aceite ponta a ponta com destinatário real permanece pendente. Nenhum convite consumido, e-mail enviado ou senha real alterada nos testes. Publicação autorizada inclui também a validade dos convites abaixo, sem mudanças de banco ou Edge Functions.
+
+## Coordenação: validade dos convites — 2026-09-04
+
+- Pessoas e responsabilidades passa a manter convites vencidos visíveis com `Expirado`, em vez de removê-los da lista; status e contagem usam o mesmo resolver das solicitações. Aceitos e cancelados continuam fora da lista de pessoas.
+- A validade aparece na linha. O prazo exato (`expires_at <= now`) prevalece sobre falhas antigas de envio/vínculo; aceites e cancelamentos já concluídos são preservados. Um relógio agenda a próxima expiração e reavalia no retorno à tela, sem alterar o banco.
+- Consulta somente leitura confirmou que o convite apontado pelo usuário vence em 18/09/2026 às 09h10 de Brasília. Ele não foi artificialmente marcado como expirado. Validade do convite e validade do link de autenticação são distintas; esta revisão não muda os prazos do Auth.
+- Smoke autenticado no localhost: convite antigo vencido visível com `Expirado`, dois convites válidos contados como pendentes, busca e endereço longo conferidos. Viewports efetivos 390×844, 834×1194 e 1440×1024 sem overflow horizontal, no tema escuro; tema claro não revalidado. Tab temporária fechada e viewport restaurada, preservando o formulário aberto pelo usuário.
+- 15 testes focados passaram, cobrindo prazo exato, precedência, contagem, visibilidade, atualização automática e limpeza do timer. Ajuste local, sem publicação nem mutação de convites.
+
 ## Preparação da publicação autorizada — 2026-09-04
 
 - Pacote acumulado de permissões, alternância de perfil, foco dos campos e convite de funcionário reconciliado com origin/main (sem divergência). Capturas privadas excluídas do versionamento.
