@@ -31,7 +31,6 @@ import { ScreenHeader } from "../../ui/ScreenHeader";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Button } from "../../ui/Button";
 import type { StaffSignupFields } from "../../api/staff-invite";
-import { getProfileNameValidationError, normalizeProfileName } from "../../core/profile-name";
 
 export type SignupCompletion = {
   email: string;
@@ -57,7 +56,6 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
   const router = useRouter();
   const [emailInput, setEmail] = useState("");
   const email = completion ? completion.email : emailInput;
-  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -243,9 +241,8 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
       return;
     }
     if (completion) {
-      const nameError = getProfileNameValidationError(name);
-      if (nameError || password.length > 128) {
-        setMessage(nameError || "Use no máximo 128 caracteres na senha.");
+      if (password.length > 128) {
+        setMessage("Use no máximo 128 caracteres na senha.");
         runShake(shakeAnim);
         return;
       }
@@ -253,7 +250,7 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
       submitting.current = true;
       setBusy(true);
       try {
-        await completion.onSubmit({ full_name: normalizeProfileName(name), password });
+        await completion.onSubmit({ password });
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "Não foi possível concluir o cadastro.");
         runShake(shakeAnim);
@@ -547,20 +544,6 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
                   />
                 </View>
               </Animated.View>
-
-              {completion ? (
-                <View style={{ minHeight: 50, borderRadius: 12, paddingHorizontal: 14,
-                  paddingVertical: 10, justifyContent: "center", backgroundColor: solidInputBg,
-                  borderWidth: 1, borderColor: mode === "light" ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.08)" }}>
-                  <TextInput accessibilityLabel="Nome" placeholder="Nome" autoComplete="name"
-                    value={name} editable={!busy} maxLength={80}
-                    placeholderTextColor={colors.placeholder}
-                    onChangeText={(value) => { setName(value); setMessage(""); completion.onChange(); }}
-                    style={{ padding: 0, borderWidth: 0, borderRadius: 0, fontSize: 15,
-                      color: colors.inputText, backgroundColor: "transparent",
-                      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
-                </View>
-              ) : null}
 
               <Animated.View style={{ position: "relative", zIndex: passwordTooShort ? 50 : 1, transform: [{ translateX: passwordShakeAnim }] }}>
                 {passwordTooShort ? (
@@ -986,7 +969,7 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
                 onPress={handleSignup}
                 disabled={
                   busy ||
-                  Boolean(completion && (getProfileNameValidationError(name) || password.length > 128)) ||
+                  Boolean(completion && password.length > 128) ||
                   !email.trim() ||
                   !hasValidEmailFormat(email) ||
                   !password.trim() ||

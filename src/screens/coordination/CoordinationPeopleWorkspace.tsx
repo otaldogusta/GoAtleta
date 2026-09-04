@@ -1118,11 +1118,8 @@ export function CoordinationPeopleWorkspace({
       if (channel === "link" && inviteResult && inviteResultChannel === "link") {
         try {
           await Clipboard.setStringAsync(buildWhatsAppMessage(inviteResult));
-          setInviteNotice({
-            tone: "success",
-            title: "Mensagem copiada",
-            message: "Agora é só colar a mensagem com o link no WhatsApp.",
-          });
+          setInviteNotice(null);
+          showSaveToast({ variant: "success", message: "Mensagem copiada para o WhatsApp." });
         } catch {
           setInviteNotice({
             tone: "error",
@@ -1155,25 +1152,29 @@ export function CoordinationPeopleWorkspace({
       }
       onRefresh();
       if (channel === "link") {
-        setInviteNotice({
-          tone: "success",
-          title: copied ? "Link gerado e copiado" : "Link gerado",
-          message: copied
-            ? "A mensagem está pronta para colar no WhatsApp."
-            : "Copie o link abaixo para enviar no WhatsApp.",
-        });
+        if (copied) {
+          setInviteNotice(null);
+          showSaveToast({ variant: "success", message: "Link do convite copiado." });
+        } else {
+          setInviteNotice({
+            tone: "warning",
+            title: "Link gerado",
+            message: "Não foi possível copiar. Tente novamente pelo botão abaixo.",
+          });
+        }
       } else {
-        setInviteNotice({
-          tone: result.email_sent ? "success" : "warning",
-          title: result.email_sent ? "Convite enviado por e-mail" : "Convite criado sem envio",
-          message: result.email_sent
-            ? copied
-              ? "O envio foi confirmado e o link também foi copiado."
-              : "O envio por e-mail foi confirmado."
-            : copied
-              ? "O provedor não enviou o e-mail; o link foi copiado para compartilhamento manual."
-              : "O provedor não enviou o e-mail; copie o link abaixo para compartilhar.",
-        });
+        if (result.email_sent) {
+          setInviteNotice(null);
+          showSaveToast({ variant: "success", message: "Convite enviado por e-mail." });
+        } else {
+          setInviteNotice({
+            tone: "warning",
+            title: "Convite criado sem envio",
+            message: copied
+              ? "O e-mail não foi enviado; o link foi copiado."
+              : "O e-mail não foi enviado. Gere um link para compartilhar.",
+          });
+        }
       }
     } catch (error) {
       setInviteNotice({

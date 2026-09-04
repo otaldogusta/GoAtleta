@@ -48,25 +48,21 @@ Deno.serve(async (req) => {
       if (invite.invited_via === "email") assertStaffInviteRecipient(invite.invited_to, user.email);
       if (invite.uses >= invite.max_uses && invite.claimed_by !== user.id) return respond(400, { code: "INVITE_INVALID" });
       if (preparing) return respond(200, { user, organization_id: invite.organization_id });
-      const name = typeof body.full_name === "string" ? body.full_name.replace(/\s+/g, " ").trim() : "";
-      if (name.length > 80 || name.includes("@") || (name.match(/\p{L}/gu)?.length ?? 0) < 2 ||
-          typeof body.password !== "string" || body.password.trim().length < 6 || body.password.length > 128) {
+      if (typeof body.password !== "string" || body.password.trim().length < 6 || body.password.length > 128) {
         return respond(400, { code: "SETUP_FIELDS_INVALID" });
       }
       // Use the recipient's authenticated update, not an admin password reset:
       // admin resets revoke every refresh session, including this signup session.
-      const metadata = { ...user.user_metadata, full_name: name, name };
       const updateAccount = (attributes: Record<string, unknown>) => fetch(`${url}/auth/v1/user`, {
         method: "PUT",
         headers: { apikey: Deno.env.get("SUPABASE_ANON_KEY")!, Authorization: bearer, "Content-Type": "application/json" },
         body: JSON.stringify(attributes),
       });
-      let passwordResponse = await updateAccount({ password: body.password, data: metadata });
+      const passwordResponse = await updateAccount({ password: body.password });
       if (!passwordResponse.ok) {
         const failure = await passwordResponse.json().catch(() => ({}));
         // A previous attempt may have saved the password before claim failed.
-        if (failure.code === "same_password") passwordResponse = await updateAccount({ data: metadata });
-        if (!passwordResponse.ok) return respond(400, { code: "SETUP_PASSWORD_REJECTED" });
+        if (failure.code !== "same_password") return respond(400, { code: "SETUP_PASSWORD_REJECTED" });
       }
       const { error: claimError } = await admin.rpc("claim_trainer_invite_access", { p_invite_id: invite.id, p_user_id: user.id });
       if (claimError) return respond(409, { code: "INVITE_NOT_APPLIED" });

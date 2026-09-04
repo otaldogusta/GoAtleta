@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { StaffInviteResult, StaffSignupFields } from "../src/api/staff-invite";
-import { resumeStaffSignup } from "../src/api/staff-invite";
+import { refreshStaffSignupSession, resumeStaffSignup } from "../src/api/staff-invite";
 import SignupScreen from "../src/screens/auth/SignupScreen";
 import { markRender } from "../src/observability/perf";
 import { useAuth } from "../src/auth/auth";
@@ -81,7 +81,11 @@ export default function StaffInviteScreen() {
     setBusy(true);
     setError("");
     try {
-      const result = await completeStaffInvite(proof.current?.code ?? resumeCode, setup, fields);
+      const activeSetup = await refreshStaffSignupSession(setup);
+      // Preserve a rotated refresh token in memory if applying the membership
+      // fails, so retrying never falls back to the expired temporary session.
+      setSetup(activeSetup);
+      const result = await completeStaffInvite(proof.current?.code ?? resumeCode, activeSetup, fields);
       await setActiveOrganizationId(result.organization_id);
       await clearPendingTrainerInvite();
       setSetup(null);

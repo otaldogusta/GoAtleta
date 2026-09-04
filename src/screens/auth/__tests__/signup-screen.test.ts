@@ -32,6 +32,7 @@ describe("canonical signup screen", () => {
     const screen = render(React.createElement(SignupScreen, { completion: completion() }));
     expect(screen.getByLabelText("E-mail").props.value).toBe("recipient@example.com");
     expect(screen.getByLabelText("E-mail").props.editable).toBe(false);
+    expect(screen.queryByLabelText("Nome")).toBeNull();
     expect(screen.queryByText("Possui um código de convite?")).toBeNull();
     expect(screen.queryByText("Já tem conta?")).toBeNull();
     expect(screen.queryByRole("button", { name: "Criar conta" })).toBeNull();
@@ -41,7 +42,6 @@ describe("canonical signup screen", () => {
   it("shares password strength, visibility and matching validation without creating another account", async () => {
     const props = completion();
     const screen = render(React.createElement(SignupScreen, { completion: props }));
-    fireEvent.changeText(screen.getByLabelText("Nome"), " Ana  Silva ");
     fireEvent.changeText(screen.getByLabelText("Senha"), "Secret123!");
     expect(screen.getByText("Forte")).toBeTruthy();
     fireEvent.press(screen.getByLabelText("Mostrar senha"));
@@ -53,7 +53,7 @@ describe("canonical signup screen", () => {
     expect(button.props.accessibilityState.disabled).toBe(false);
     await act(async () => { fireEvent.press(button); fireEvent.press(button); });
     expect(props.onSubmit).toHaveBeenCalledTimes(1);
-    expect(props.onSubmit).toHaveBeenCalledWith({ full_name: "Ana Silva", password: "Secret123!" });
+    expect(props.onSubmit).toHaveBeenCalledWith({ password: "Secret123!" });
     expect(mockSignUp).not.toHaveBeenCalled();
     expect(mockResend).not.toHaveBeenCalled();
   });
@@ -61,7 +61,6 @@ describe("canonical signup screen", () => {
   it("locks fields while completing and shows one error without an OTP detour", () => {
     const props = completion({ busy: true, error: "Falha no cadastro" });
     const screen = render(React.createElement(SignupScreen, { completion: props }));
-    expect(screen.getByLabelText("Nome").props.editable).toBe(false);
     expect(screen.getByLabelText("Senha").props.editable).toBe(false);
     expect(screen.getByRole("button", { name: "Concluindo..." }).props.accessibilityState.disabled).toBe(true);
     expect(screen.getAllByText("Falha no cadastro")).toHaveLength(1);
@@ -71,13 +70,12 @@ describe("canonical signup screen", () => {
   it("preserves data on a failed completion and allows cancelling without signing up", async () => {
     const props = completion({ onSubmit: jest.fn().mockRejectedValue(new Error("Tente novamente")) });
     const screen = render(React.createElement(SignupScreen, { completion: props }));
-    fireEvent.changeText(screen.getByLabelText("Nome"), "Ana Silva");
     fireEvent.changeText(screen.getByLabelText("Senha"), "Secret123!");
     fireEvent.changeText(screen.getByLabelText("Confirmar senha"), "Secret123!");
     await act(async () => fireEvent.press(screen.getByRole("button", { name: "Concluir cadastro" })));
     expect(screen.getByText("Tente novamente")).toBeTruthy();
-    expect(screen.getByLabelText("Nome").props.value).toBe("Ana Silva");
-    fireEvent.changeText(screen.getByLabelText("Nome"), "Ana Santos");
+    expect(screen.getByLabelText("Senha").props.value).toBe("Secret123!");
+    fireEvent.changeText(screen.getByLabelText("Senha"), "Secret123!!");
     expect(screen.queryByText("Tente novamente")).toBeNull();
     fireEvent.press(screen.getByLabelText("Voltar"));
     expect(props.onCancel).toHaveBeenCalledTimes(1);

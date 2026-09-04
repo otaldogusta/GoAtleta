@@ -71,37 +71,38 @@ describe("staff email authentication", () => {
   });
   it.each([{ newUser: false }, { newUser: true, trusted: false }, { newUser: true, email: "other@example.com" }])("cannot reset an existing or unverified/wrong account %o", async options => {
     const ctx = setup(options);
-    const response = await ctx.call({ action: "complete", full_name: "Ana Silva", password: "New-password-123", setup_required: true });
+    const response = await ctx.call({ action: "complete", password: "New-password-123", setup_required: true });
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(ctx.update).not.toHaveBeenCalled();
     expect(ctx.rpc).not.toHaveBeenCalled();
   });
-  it.each([{ full_name: "", password: "secret123" }, { full_name: "Ana Silva", password: "123" }])("rejects invalid signup fields %o", async fields => {
+  it.each([{ password: "123" }, { password: " ".repeat(6) }, { password: "x".repeat(129) }])("rejects invalid signup fields %o", async fields => {
     const ctx = setup({ newUser: true });
     expect((await ctx.call({ action: "complete", ...fields })).status).toBe(400);
     expect(ctx.update).not.toHaveBeenCalled();
   });
   it.each([false, true])("sets credentials, claims and clears onboarding (own retry: %s)", async claimed => {
     const ctx = setup({ newUser: true, claimed });
-    const response = await ctx.call({ action: "complete", full_name: " Ana  Silva ", password: "secret123" });
+    const response = await ctx.call({ action: "complete", password: "secret123" });
     expect(response.status).toBe(200);
-    expect(JSON.parse(ctx.accountUpdate.mock.calls[0][1].body)).toEqual({ password: "secret123", data: { full_name: "Ana Silva", name: "Ana Silva" } });
+    expect(JSON.parse(ctx.accountUpdate.mock.calls[0][1].body)).toEqual({ password: "secret123" });
     expect(ctx.accountUpdate.mock.calls[0][1].headers.Authorization).toBe("Bearer test-session");
     expect(ctx.update.mock.calls.some(([, value]) => "password" in value)).toBe(false);
     expect(ctx.rpc).toHaveBeenCalledWith("claim_trainer_invite_access", { p_invite_id: "invite-1", p_user_id: "recipient-id" });
-    expect((await response.json()).user.app_metadata.staff_invite_setup_required).toBe(false);
+    const payload = await response.json();
+    expect(payload.user.app_metadata.staff_invite_setup_required).toBe(false);
+    expect(payload.user.user_metadata).toEqual({});
   });
   it("does not finish onboarding on claim failure", async () => {
     const ctx = setup({ newUser: true, claimError: true });
-    expect((await ctx.call({ action: "complete", full_name: "Ana Silva", password: "secret123" })).status).toBe(409);
+    expect((await ctx.call({ action: "complete", password: "secret123" })).status).toBe(409);
     expect(ctx.accountUpdate).toHaveBeenCalledTimes(1);
     expect(ctx.update).not.toHaveBeenCalled();
   });
   it("allows retry after a password was saved but the claim failed", async () => {
     const ctx = setup({ newUser: true, samePassword: true });
-    expect((await ctx.call({ action: "complete", full_name: "Ana Silva", password: "secret123" })).status).toBe(200);
-    expect(ctx.accountUpdate).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(ctx.accountUpdate.mock.calls[1][1].body)).toEqual({ data: { full_name: "Ana Silva", name: "Ana Silva" } });
+    expect((await ctx.call({ action: "complete", password: "secret123" })).status).toBe(200);
+    expect(ctx.accountUpdate).toHaveBeenCalledTimes(1);
   });
   it("resumes through canonical verified login without requiring a new email credential", async () => {
     const ctx = setup({ newUser: true });

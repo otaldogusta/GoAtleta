@@ -18,4 +18,13 @@ describe("coordination permission and failure boundaries", () => {
   it("renders a friendly invite error", () => {
     expect(workspace).toContain('getFriendlyErrorMessage(error, "Tente novamente em instantes.")');
   });
+  it("uses the global floating toast for successful invitations", () => {
+    expect(workspace).toContain(
+      'showSaveToast({ variant: "success", message: "Convite enviado por e-mail." });'
+    );
+    expect(workspace).toContain(
+      'showSaveToast({ variant: "success", message: "Link do convite copiado." });'
+    );
+    expect(workspace).not.toContain('title: "Convite enviado por e-mail"');
+  });
 });

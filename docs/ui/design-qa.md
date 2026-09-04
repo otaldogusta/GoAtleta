@@ -1,5 +1,18 @@
 # Design QA
 
+## Convite de funcionário: credencial sem perfil duplicado — 2026-09-04
+
+- A conclusão do convite pede somente o e-mail bloqueado, senha e confirmação. Nome e foto permanecem na etapa existente `Como quer ser chamado?`, exibida após o vínculo ser aplicado.
+- A sessão temporária do destinatário é renovada em memória antes da conclusão quando estiver vencida ou próxima de vencer. A identidade renovada precisa ser a mesma do convite; a conta que já estava aberta no navegador não é publicada nem substituída antes do sucesso.
+- A função `accept-staff-invite` grava apenas a senha nessa etapa. Ela não preenche `full_name` ou `name`; depois do aceite, o gate canônico de primeiro acesso continua sendo a fonte única para nome e foto.
+- Validação local: 43 testes focados passaram, incluindo renovação, rejeição de troca de identidade, formulário sem nome, repetição após senha já salva, vínculo seguro e abertura do perfil inicial sem nome. Typecheck, org-scope, edge-jwt, perf-hygiene estrito, Deno check, diff check e build web passaram. `accept-staff-invite` v2 foi ativada no Supabase; o teste ponta a ponta com destinatário controlado permanece pendente.
+
+## Coordenação: confirmação flutuante do convite — 2026-09-04
+
+- O sucesso de envio por e-mail e de cópia do link usa o `useSaveToast` global no topo, com fechamento automático, sem ocupar espaço no rodapé do modal.
+- Texto reduzido à ação concluída. Avisos de envio/cópia parcial e erros continuam na região da ação para permitir correção, conforme o padrão transacional do app.
+- Smoke local no tema escuro confirmou o toast acima da tela e do modal, sem bloquear a interface, em 1360×914. O acionamento foi sintético e removido após a conferência; nenhum convite foi criado ou enviado. O componente global já preserva largura fluida para telas menores; tablet, celular e tema claro não foram revalidados nesta rodada.
+
 ## Cadastro canônico para concluir convite — 2026-09-04
 
 - `/signup` e a conclusão do convite agora renderizam o mesmo `SignupScreen`; removido o formulário duplicado. A rota de convite permanece como controlador seguro, preservando os links existentes.
