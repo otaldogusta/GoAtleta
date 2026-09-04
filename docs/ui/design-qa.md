@@ -1,5 +1,43 @@
 # Design QA
 
+## Preparação da publicação autorizada — 2026-09-04
+
+- Pacote acumulado de permissões, alternância de perfil, foco dos campos e convite de funcionário reconciliado com origin/main (sem divergência). Capturas privadas excluídas do versionamento.
+- 121 testes em 15 suites, typecheck:app, check:org-scope, check:edge-jwt, perf-hygiene estrito, Deno check e build web passaram. Migrações locais e remotas sincronizadas; nenhuma alteração de esquema ou segredo necessária.
+- Smoke autenticado em localhost: tela de convite mantém a conta atual e exige confirmação. Em carregamento novo, a URL passou a /staff-invite sem fragmento, resolvendo a pendência de limpeza da URL da revisão anterior. Prova sintética não consumida.
+- Entrega prevista: validação/aceite no Supabase, uma publicação Vercel pela main e ativação do envio do novo link somente com a tela disponível. Teste completo com destinatário real e QA visual do formulário após autenticação continuam pendentes; nenhum convite real enviado nesta validação.
+
+## Convite de funcionário: identidade e primeiro acesso — 2026-09-04
+
+- Implementação local: convite por e-mail usa prova de autenticação de uso único do destinatário; uma sessão já aberta exige confirmação e só é substituída após sucesso. O link copiável continua sendo apenas um convite, sem credencial de autenticação.
+- Conta criada pelo envio recebe marcação em app_metadata no servidor. O primeiro acesso pede nome, senha e confirmação em bloco compacto de 440px. Contas existentes nunca são marcadas nem têm a senha redefinida por esse fluxo.
+- Cadastro incompleto não concede vínculo de funcionário. A conclusão valida a identidade novamente, atualiza nome/senha com a sessão do próprio destinatário e aplica o aceite pelo RPC existente. Isso preserva a sessão de cadastro e permite retomar uma falha no aceite sem redefinição administrativa de senha.
+- Convite compartilhado por WhatsApp preserva cadastro/login/verificação canônicos; contas com primeiro acesso pendente retomam o mesmo formulário. A tela pending não exibe mais acesso aprovado só porque a conta aberta já tinha outro papel.
+- Validação: 55 testes focados cobrem troca explícita, conta existente, cadastro novo, campos inválidos, e-mail divergente, expiração, falha/repetição do aceite e link compartilhado. Typecheck do app, Deno check das duas funções novas/alteradas do fluxo de e-mail, org-scope, edge-jwt, perf-hygiene estrito e diff check passaram. Build web exportou a rota staff-invite.
+- Smoke autenticado em localhost apenas da confirmação, com prova sintética não consumida: bloco central conferido em 1360px e medições sem overflow horizontal em 390×844 e 834×1194. A limpeza do fragmento também remove o parâmetro do roteador; coberta por teste, mas não confirmada pelo estado de URL retornado pelo navegador integrado.
+- Pendentes antes de produção: QA visual do formulário após autenticação nos três viewports/temas, confirmação da limpeza da URL em navegador real e teste ponta a ponta com destinatário controlado (conta nova, existente e WhatsApp). Publicar web + create-trainer-invite + accept-staff-invite + claim-trainer-invite de forma coordenada; convites enviados anteriormente mantêm o link antigo. Sem publicação, envio real, aceite real ou alterações manuais de contas nesta rodada.
+
+## Alternância de perfil por vínculo real — 2026-09-04
+
+- Menu lateral exibe Alternar perfil somente com mais de uma opção autorizada. Prévia administrativa não conta como vínculo e a ausência de conta híbrida não inventa perfis de aluno/coordenação.
+- Reutilizada a exceção de desenvolvimento já existente na tela de perfil; aplicada também ao menu, carregamento do papel, organização e perfil efetivo. Contas comuns ignoram prévias salvas e não conseguem gravar novas prévias.
+- Smoke autenticado local: conta de professor redirecionada de Coordenação para /prof/home; menu contém somente Perfil e configurações e Sair. Conferidas larguras 390×844, 834×1194 e 1440×1024 sem overflow horizontal; viewport restaurada. Tema claro não revalidado, sem alteração de estilos.
+- 43 testes passaram, incluindo prévias salvas indevidas, menu sem alternância e múltiplos vínculos reais. Typecheck, org-scope, perf-hygiene estrito e diff check passaram. Revisão de React manteve opções derivadas dos vínculos, sem novas consultas. Sem alteração de permissões no servidor e sem publicação.
+
+## Coordenação: permissão real e erros de consulta — 2026-09-04
+
+- A prévia administrativa de desenvolvimento não autoriza operações reais: o acesso exige também o vínculo original retornado pela organização, com nível de coordenação.
+- Consultas administrativas recusadas deixam de virar listas vazias e indicadores zerados; a tela mostra o erro e permite tentar novamente. Forbidden recebe mensagem de permissão em português.
+- Smoke autenticado em localhost:8081/coord/management: conta sem permissão de coordenação recebe o estado de acesso negado, sem formulário de convite. Nenhum convite enviado e nenhum vínculo alterado.
+- Validação: 30 testes focados, typecheck:app, check:org-scope, perf-hygiene estrito e git diff --check passaram. Envio com conta autorizada não testado nesta revisão. Ajuste local, sem publicação.
+
+## Campos de texto sem contorno de foco — 2026-09-04
+
+- A revisão inicial trocou o verde por cinza, mas o usuário solicitou remover o contorno por completo. Inputs e textareas agora usam outline e box-shadow de foco desativados, inclusive nos modais; sem anel substituto.
+- Por solicitação explícita, a exceção aplica-se ao contorno de foco dos campos de texto. Preservados foco funcional, cursor, bordas de validação, autofill e comportamento dos demais controles.
+- Smoke local na busca de atletas: INPUT focado com outline-style none e box-shadow none, conferidos no estilo computado. Modal de convite não reaberto, pois a conta atual não tem autorização real.
+- Ajuste local, sem publicação.
+
 ## Atletas: status de acesso e horário — 2026-09-03
 
 - Turma em cima e dias/horário abaixo, na mesma coluna em todas as larguras, conforme referência atualizada do usuário; removida a coluna separada Horário.

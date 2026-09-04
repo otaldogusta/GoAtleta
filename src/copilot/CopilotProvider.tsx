@@ -107,6 +107,7 @@ const publicRoutes = new Set([
   "/reset-password",
   "/pending",
   "/auth-callback",
+  "/staff-invite",
 ]);
 
 const categoryLabelById: Record<InsightsCategory, string> = {

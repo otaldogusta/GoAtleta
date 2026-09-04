@@ -9,8 +9,11 @@ const mockReplace = jest.fn();
 const mockHistoryPushState = jest.fn();
 const mockHistoryReplaceState = jest.fn();
 let mockPathname = "/prof/home";
+let mockAvailableRoles = ["trainer", "student"];
 const mockOrganizationContext = {
-  activeOrganization: { role_level: 50 },
+  activeOrganization: { id: "org-1", role_level: 50 },
+  organizations: [{ id: "org-1", role_level: 50 }],
+  setDevProfilePreview: jest.fn(),
   memberPermissions: {
     calendar: true,
     classes: true,
@@ -55,7 +58,7 @@ jest.mock("../../auth/auth", () => ({
 
 jest.mock("../../auth/role", () => ({
   useRole: () => ({
-    availableRoles: ["trainer", "student"],
+    availableRoles: mockAvailableRoles,
     refresh: jest.fn(),
     setActiveRole: jest.fn(),
   }),
@@ -78,6 +81,8 @@ describe("WebSidebar profile menu", () => {
       value: "web",
     });
     mockPathname = "/prof/home";
+    mockAvailableRoles = ["trainer", "student"];
+    mockOrganizationContext.organizations = [{ id: "org-1", role_level: 50 }];
     mockPush.mockClear();
     mockReplace.mockClear();
     mockHistoryPushState.mockClear();
@@ -137,6 +142,7 @@ describe("WebSidebar profile menu", () => {
   });
 
   it("keeps only unrestricted professor navigation visible while permissions are loading", () => {
+    mockOrganizationContext.organizations[0].role_level = 10;
     mockOrganizationContext.activeOrganization.role_level = 10;
     mockOrganizationContext.memberPermissions = {};
     mockOrganizationContext.permissionsLoading = true;
@@ -158,6 +164,7 @@ describe("WebSidebar profile menu", () => {
   });
 
   it("shows only routes with an explicit granted permission", () => {
+    mockOrganizationContext.organizations[0].role_level = 10;
     mockOrganizationContext.activeOrganization.role_level = 10;
     mockOrganizationContext.memberPermissions = { classes: false, training: true };
 
@@ -175,6 +182,7 @@ describe("WebSidebar profile menu", () => {
   });
 
   it("does not expand the default invite permissions into unrelated areas", () => {
+    mockOrganizationContext.organizations[0].role_level = 10;
     mockOrganizationContext.activeOrganization.role_level = 10;
     mockOrganizationContext.memberPermissions = {
       classes: true,
@@ -261,6 +269,18 @@ describe("WebSidebar profile menu", () => {
     expect(screen.getAllByLabelText("Menu de perfil")).toHaveLength(1);
     expect(screen.getByLabelText("Fechar menu de perfil")).toBeTruthy();
     expect(screen.queryByText("Gustavo Ribeiro")).toBeNull();
+    expect(screen.getByText("Perfil e configurações")).toBeTruthy();
+    expect(screen.getByText("Sair")).toBeTruthy();
+  });
+
+  it("hides the switcher for a professor even with an admin preview in development", () => {
+    mockAvailableRoles = ["trainer"];
+    mockOrganizationContext.organizations = [{ id: "org-1", role_level: 10 }];
+    const screen = render(React.createElement(WebSidebar, {
+      role: "coord", showCompact: true, canExpand: true, canPersistExpansion: true,
+    }));
+    fireEvent.press(screen.getByLabelText("Abrir menu de perfil"));
+    expect(screen.queryByLabelText("Alternar perfil")).toBeNull();
     expect(screen.getByText("Perfil e configurações")).toBeTruthy();
     expect(screen.getByText("Sair")).toBeTruthy();
   });

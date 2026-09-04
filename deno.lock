@@ -1,0 +1,92 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.110.7"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.110.7": "271bd1acce2a284be1c9539bc960a705314a71a322a88705f0ffce88f9e7b97c",
+    "https://esm.sh/@supabase/supabase-js@2.115.0": "f4e488ef8059a64be766b58feb4d6a18aa812038fdcf9c7c916efbdf26ab9585"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@e965/xlsx@~0.20.3",
+        "npm:@expo/vector-icons@^15.0.3",
+        "npm:@react-native-async-storage/async-storage@2.2.0",
+        "npm:@react-native-community/datetimepicker@9.1.0",
+        "npm:@react-native/jest-preset@0.86.3",
+        "npm:@react-pdf/renderer@^4.3.2",
+        "npm:@sentry/react-native@7.11",
+        "npm:@shopify/react-native-skia@2.6.2",
+        "npm:@swc/helpers@~0.5.18",
+        "npm:@testing-library/react-native@^13.3.3",
+        "npm:@types/jest@^29.5.14",
+        "npm:@types/react@~19.2.10",
+        "npm:@vercel/analytics@^2.0.1",
+        "npm:@vercel/speed-insights@2",
+        "npm:babel-jest@^29.7.0",
+        "npm:dotenv@^17.3.1",
+        "npm:eslint-config-expo@~57.0.2",
+        "npm:eslint@^9.25.0",
+        "npm:expo-calendar@~57.0.2",
+        "npm:expo-camera@~57.0.4",
+        "npm:expo-clipboard@~57.0.1",
+        "npm:expo-constants@~57.0.15",
+        "npm:expo-dev-client@~57.0.16",
+        "npm:expo-document-picker@~57.0.1",
+        "npm:expo-file-system@~57.0.6",
+        "npm:expo-font@~57.0.1",
+        "npm:expo-haptics@~57.0.2",
+        "npm:expo-image-manipulator@~57.0.14",
+        "npm:expo-image-picker@~57.0.14",
+        "npm:expo-image@~57.0.3",
+        "npm:expo-intent-launcher@~57.0.1",
+        "npm:expo-keep-awake@~57.0.1",
+        "npm:expo-linear-gradient@~57.0.1",
+        "npm:expo-linking@~57.0.8",
+        "npm:expo-local-authentication@~57.0.2",
+        "npm:expo-network@~57.0.1",
+        "npm:expo-notifications@~57.0.15",
+        "npm:expo-print@~57.0.1",
+        "npm:expo-router@~57.0.17",
+        "npm:expo-secure-store@~57.0.2",
+        "npm:expo-sharing@~57.0.16",
+        "npm:expo-splash-screen@~57.0.8",
+        "npm:expo-sqlite@~57.0.2",
+        "npm:expo-status-bar@~57.0.1",
+        "npm:expo-symbols@~57.0.2",
+        "npm:expo-system-ui@~57.0.3",
+        "npm:expo-updates@~57.0.19",
+        "npm:expo-web-browser@~57.0.2",
+        "npm:expo@~57.0.18",
+        "npm:image-size@1.2.1",
+        "npm:jest-expo@~57.0.5",
+        "npm:jest@^29.7.0",
+        "npm:lodash.isempty@^4.4.0",
+        "npm:lodash@^4.17.21",
+        "npm:patch-package@^8.0.1",
+        "npm:react-dom@19.2.3",
+        "npm:react-native-gesture-handler@2.32",
+        "npm:react-native-nfc-manager@^3.17.2",
+        "npm:react-native-reanimated@4.5.1",
+        "npm:react-native-safe-area-context@5.7",
+        "npm:react-native-screens@4.26",
+        "npm:react-native-svg@15.15.4",
+        "npm:react-native-web@0.21",
+        "npm:react-native-webview@13.16.1",
+        "npm:react-native-worklets@0.10.1",
+        "npm:react-native@0.86.3",
+        "npm:react-test-renderer@^19.2.3",
+        "npm:react@19.2.3",
+        "npm:typescript@~6.0.3",
+        "npm:yoga-layout@^3.2.1"
+      ],
+      "overrides": {
+        "xcode": {
+          "uuid": "^11.1.1"
+        },
+        "image-size": "1.2.1"
+      }
+    }
+  }
+}

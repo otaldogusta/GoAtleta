@@ -14,6 +14,7 @@ export type InviteErrorCode =
   | "UNAUTHORIZED"
   | "MISSING_AUTH_TOKEN"
   | "EMAIL_NOT_VERIFIED"
+  | "STAFF_SETUP_REQUIRED"
   | "INVALID_REQUEST"
   | "SERVER_ERROR";
 

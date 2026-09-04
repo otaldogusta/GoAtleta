@@ -94,3 +94,7 @@ verify_jwt = true
 # every event with a per-organization hash of the asaas-access-token header.
 [functions.asaas-webhook]
 verify_jwt = false
+
+# Authenticated by single-use Supabase email proof, not the old browser session.
+[functions.accept-staff-invite]
+verify_jwt = false

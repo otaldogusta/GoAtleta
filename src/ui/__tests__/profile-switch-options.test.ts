@@ -22,13 +22,13 @@ describe("profile switch options", () => {
     ).toEqual(["professor", "student"]);
   });
 
-  test("preserva todos os previews no fluxo local sem conta híbrida", () => {
+  test("não inventa perfis quando a conta não tem vínculos", () => {
     expect(
       resolveVisibleProfileSwitchIds({
         hasHybridAccount: false,
         isOrgAdmin: false,
       }),
-    ).toEqual(["professor", "admin", "student"]);
+    ).toEqual([]);
   });
 
   test("preserva Coordenação quando canUseDevPreview estiver ativo", () => {

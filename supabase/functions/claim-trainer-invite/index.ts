@@ -63,6 +63,9 @@ Deno.serve(async (req) => {
   if (!hasTrustedInviteIdentity(user)) {
     return createError(req, 403, "EMAIL_NOT_VERIFIED", "Email verification required");
   }
+  if (user.app_metadata?.staff_invite_setup_required === true) {
+    return createError(req, 409, "STAFF_SETUP_REQUIRED", "Complete staff signup before accepting");
+  }
 
   let payload: { code: string } = { code: "" };
   try {

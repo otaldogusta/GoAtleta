@@ -72,7 +72,8 @@ import { markRender, measureAsync } from "../src/observability/perf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
-import { resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
+import { hasCoordinationAccess, resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
+import { getFriendlyErrorMessage } from "../src/ui/error-messages";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
@@ -343,9 +344,9 @@ function CoordinationScreenContent() {
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const responsiveLayout = useResponsiveLayout("dashboard");
-  const { activeOrganization, isLoading: organizationLoading } = useOrganization();
+  const { organizations, activeOrganization, isLoading: organizationLoading } = useOrganization();
   const { syncPausedReason, resumeSync } = useSmartSync();
-  const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+  const isAdmin = hasCoordinationAccess(organizations, activeOrganization);
   const organizationId = activeOrganization?.id ?? null;
   const organizationName = activeOrganization?.name ?? "Organização";
 
@@ -703,16 +704,13 @@ function CoordinationScreenContent() {
               getClasses({ organizationId }),
               getPendingWritesDiagnostics(10),
               listPendingWriteFailures(12),
-              adminListOrgMembers(organizationId).catch(() => [] as OrgMember[]),
+              adminListOrgMembers(organizationId),
               adminListOrgMemberClassAssignments(organizationId)
-                .catch(() => adminListOrgMemberClassHeads(organizationId))
-                .catch(() => [] as MemberClassHead[]),
-              adminListOrgClasses(organizationId).catch(() => [] as OrgClass[]),
+                .catch(() => adminListOrgMemberClassHeads(organizationId)),
+              adminListOrgClasses(organizationId),
               listTrainerInvites(organizationId)
-                .then((result) => result.invites)
-                .catch(() => [] as TrainerInviteItem[]),
-              adminListOrgAccessRequests(organizationId)
-                .catch(() => [] as OrganizationAccessRequest[]),
+                .then((result) => result.invites),
+              adminListOrgAccessRequests(organizationId),
             ]),
           { screen: "coordination", organizationId }
         );
@@ -816,7 +814,7 @@ function CoordinationScreenContent() {
       setClassRadarItems([]);
       setSignals([]);
       setAiMessage(null);
-      setError(err instanceof Error ? err.message : "Falha ao carregar dados da coordenação.");
+      setError(getFriendlyErrorMessage(err, "Falha ao carregar dados da coordenação."));
     } finally {
       if (requestId !== dashboardRequestRef.current) return;
       setLoadedOrganizationId(organizationId);
@@ -1550,7 +1548,7 @@ function CoordinationScreenContent() {
               Coordenação
             </Text>
             <Text style={{ color: colors.muted }}>
-              Você não tem acesso a esta área.
+              Sua conta não tem permissão de coordenação nesta instituição.
             </Text>
             <Pressable
               onPress={() => router.replace("/")}
@@ -1599,10 +1597,13 @@ function CoordinationScreenContent() {
             >
               <Text style={{ color: colors.dangerSolidBg, fontWeight: "700" }}>Erro</Text>
               <Text style={{ color: colors.muted, marginTop: 4 }}>{error}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Tentar carregar coordenação novamente" onPress={() => void loadDashboard()}>
+                <Text style={{ color: colors.text, marginTop: 12 }}>Tentar novamente</Text>
+              </Pressable>
             </View>
           ) : null}
 
-          <CoordinationPeopleWorkspace
+          {!error ? <CoordinationPeopleWorkspace
             organizationId={organizationId ?? ""}
             organizationName={organizationName}
             pageHorizontalGutter={pageHorizontalGutter}
@@ -1637,7 +1638,7 @@ function CoordinationScreenContent() {
             onNotifyAttendance={(item, member) =>
               void handleNotifyAttendanceMember(item, member)
             }
-          />
+          /> : null}
 
           {false && (
           <>

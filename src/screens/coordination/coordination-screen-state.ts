@@ -1,5 +1,14 @@
 export type CoordinationScreenPhase = "loading" | "forbidden" | "ready";
 
+// A development preview may reduce access, but must never grant real operations.
+export function hasCoordinationAccess(
+  memberships: readonly { id: string; role_level: number }[],
+  displayedOrganization: { id: string; role_level: number } | null,
+) {
+  if (!displayedOrganization || displayedOrganization.role_level < 50) return false;
+  return (memberships.find((membership) => membership.id === displayedOrganization.id)?.role_level ?? 0) >= 50;
+}
+
 type ResolveCoordinationScreenPhaseParams = {
   organizationLoading: boolean;
   organizationId: string | null;

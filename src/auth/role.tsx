@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react-native";
+import { canUseProfilePreview } from "../dev/profile-preview-access";
 import {
   createContext,
   useCallback,
@@ -314,7 +315,8 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       }
       setError(null);
       try {
-        const preview = await getDevProfilePreview();
+        const preview = canUseProfilePreview(refreshSession?.user?.email)
+          ? await getDevProfilePreview() : "auto";
         if (!isCurrentRefresh()) return;
         setDevProfilePreviewState(preview);
 

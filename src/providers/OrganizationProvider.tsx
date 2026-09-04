@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Platform } from "react-native";
 import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
+import { canUseProfilePreview } from "../dev/profile-preview-access";
 
 import { clearAiCache } from "../api/ai";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
@@ -170,6 +171,7 @@ const OrganizationContext = createContext<OrganizationContextValue | null>(null)
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
+  const canPreview = canUseProfilePreview(session?.user?.email);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrganizationId, setActiveOrgId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -206,7 +208,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     let alive = true;
     (async () => {
       try {
-        const preview = await getDevProfilePreview();
+        const preview = canPreview ? await getDevProfilePreview() : "auto";
         if (!alive) return;
         setDevProfilePreviewState(preview);
       } catch {
@@ -217,12 +219,13 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     return () => {
       alive = false;
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, canPreview]);
 
   const setDevProfilePreview = useCallback(async (preview: DevProfilePreview) => {
+    if (preview !== "auto" && !canPreview) return;
     setDevProfilePreviewState(preview);
     await persistDevProfilePreview(preview);
-  }, []);
+  }, [canPreview]);
 
   const refreshMemberPermissions = useCallback(async () => {
     const userId = session?.user?.id ?? "";
@@ -463,14 +466,14 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     const org = organizations.find((o) => o.id === activeOrganizationId) ?? null;
     if (!org) return null;
 
-    if (__DEV__ && devProfilePreview === "admin") {
+    if (canPreview && devProfilePreview === "admin") {
       return { ...org, role_level: Math.max(org.role_level ?? 0, 50) };
     }
-    if (__DEV__ && (devProfilePreview === "professor" || devProfilePreview === "student")) {
+    if (canPreview && (devProfilePreview === "professor" || devProfilePreview === "student")) {
       return { ...org, role_level: Math.min(org.role_level ?? 0, 10) };
     }
     return org;
-  }, [organizations, activeOrganizationId, devProfilePreview]);
+  }, [organizations, activeOrganizationId, devProfilePreview, canPreview]);
 
   const value = useMemo(
     () => ({

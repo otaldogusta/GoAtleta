@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Platform } from "react-native";
 
 import { clearAiCache } from "../api/ai";
+import { redeemStaffInvite, completeStaffSignup, type StaffInviteResult, type StaffSignupFields } from "../api/staff-invite";
+import type { StaffInviteProof } from "./staff-invite-link";
 import { updatePasswordWithAccessToken } from "../api/auth-password";
 import { verifySignupEmailCode } from "../api/email-verification";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
@@ -44,6 +46,8 @@ type AuthContextValue = {
   signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath: string) => Promise<void>;
   exchangeCodeForSession: (code: string) => Promise<void>;
   consumeAuthUrl: (url: string) => Promise<AuthSession | null>;
+  acceptStaffInvite: (proof: StaffInviteProof) => Promise<StaffInviteResult>;
+  completeStaffInvite: (code: string, setup: StaffInviteResult, fields: StaffSignupFields) => Promise<StaffInviteResult>;
   resendSignupCode: (email: string, redirectPath?: string) => Promise<void>;
   verifySignupCode: (email: string, code: string) => Promise<AuthSession | null>;
   unlinkIdentityProvider: (provider: "google" | "facebook" | "apple") => Promise<void>;
@@ -476,6 +480,27 @@ export function AuthProvider({
     return next;
   }, []);
 
+  const acceptStaffInvite = useCallback(async (proof: StaffInviteProof) => {
+    const result = await redeemStaffInvite(proof);
+    if (result.setup_required) return result;
+    const next = normalizeAuthSession(result.session);
+    clearAiCache();
+    await setDevProfilePreview("auto");
+    await saveSession(next, true);
+    setSession(next);
+    return result;
+  }, []);
+
+  const completeStaffInvite = useCallback(async (code: string, setup: StaffInviteResult, fields: StaffSignupFields) => {
+    const result = await completeStaffSignup(code, setup, fields);
+    const next = normalizeAuthSession(result.session);
+    clearAiCache();
+    await setDevProfilePreview("auto");
+    await saveSession(next, true);
+    setSession(next);
+    return result;
+  }, []);
+
   const resetPassword = useCallback(async (email: string, redirectTo: string) => {
     await authFetch("/auth/v1/recover", {
       email,
@@ -689,6 +714,8 @@ export function AuthProvider({
       signInWithOAuth,
       exchangeCodeForSession,
       consumeAuthUrl,
+      acceptStaffInvite,
+      completeStaffInvite,
       resendSignupCode,
       verifySignupCode,
       unlinkIdentityProvider,
@@ -701,6 +728,8 @@ export function AuthProvider({
     }),
     [
       consumeAuthUrl,
+      acceptStaffInvite,
+      completeStaffInvite,
       exchangeCodeForSession,
       loading,
       refreshUser,
@@ -741,6 +770,8 @@ export const useAuth = () => {
       updatePassword: async () => {},
       resetPassword: async () => {},
       consumeAuthUrl: async () => null,
+      acceptStaffInvite: async (): Promise<StaffInviteResult> => { throw new Error("Autenticação indisponível."); },
+      completeStaffInvite: async (): Promise<StaffInviteResult> => { throw new Error("Autenticação indisponível."); },
       signOut: async () => {},
     };
   }

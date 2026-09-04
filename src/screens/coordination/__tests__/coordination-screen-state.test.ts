@@ -1,4 +1,21 @@
-import { resolveCoordinationScreenPhase } from "../coordination-screen-state";
+import { hasCoordinationAccess, resolveCoordinationScreenPhase } from "../coordination-screen-state";
+
+describe("real coordination access", () => {
+  it("does not authorize a professor through an admin preview", () => {
+    expect(hasCoordinationAccess([{ id: "org", role_level: 10 }], { id: "org", role_level: 50 })).toBe(false);
+  });
+  it("allows a real coordinator in the same institution", () => {
+    expect(hasCoordinationAccess([{ id: "org", role_level: 50 }], { id: "org", role_level: 50 })).toBe(true);
+  });
+  it("does not borrow permissions from another institution or an unavailable membership", () => {
+    expect(hasCoordinationAccess([{ id: "other", role_level: 50 }], { id: "org", role_level: 50 })).toBe(false);
+    expect(hasCoordinationAccess([], { id: "org", role_level: 50 })).toBe(false);
+    expect(hasCoordinationAccess([], null)).toBe(false);
+  });
+  it("still honors a lower-privilege visual preview", () => {
+    expect(hasCoordinationAccess([{ id: "org", role_level: 50 }], { id: "org", role_level: 10 })).toBe(false);
+  });
+});
 
 describe("resolveCoordinationScreenPhase", () => {
   it("mantém o shimmer enquanto a organização ainda está sendo resolvida", () => {

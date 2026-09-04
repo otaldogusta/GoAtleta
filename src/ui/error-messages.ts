@@ -112,6 +112,8 @@ export const getFriendlyErrorMessage = (
   if (
     lower.includes("row-level security") ||
     lower.includes("permission denied") ||
+    lower.includes("forbidden") ||
+    lower.includes("not_authorized") ||
     lower.includes("not authorized") ||
     parsed?.code === "42501"
   ) {

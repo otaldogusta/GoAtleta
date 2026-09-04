@@ -1,5 +1,6 @@
 ﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.115.0";
+import { buildStaffInviteEmailLink } from "../_shared/staff-invite-auth.ts";
 import {
   validateObjectPayload,
   validateStringField,
@@ -249,10 +250,29 @@ Deno.serve(async (req) => {
   const signupLink = buildSignupLink(code);
   const roleLabel =
     role === "moderator" ? "coordenação" : role === "intern" ? "estagiário" : "professor";
-  const emailResult =
-    invitedTo && invitedVia === "email"
-      ? await sendInviteEmail(invitedTo, signupLink, roleLabel)
-      : { sent: false, error: undefined, providerId: undefined };
+  let emailResult: { sent: boolean; error: string | undefined; providerId: string | undefined } =
+    { sent: false, error: undefined, providerId: undefined };
+  if (invitedTo && invitedVia === "email") {
+    try {
+      // Mark only an account created by this request. Never mark/reset an
+      // existing account, even if its profile or password is incomplete.
+      const { error: createError } = await admin.auth.admin.createUser({
+        email: invitedTo, email_confirm: false,
+        app_metadata: { staff_invite_setup_required: true },
+      });
+      if (createError && !["email_exists", "user_already_exists"].includes(createError.code ?? "")) {
+        throw new Error("AUTH_ACCOUNT_UNAVAILABLE");
+      }
+      const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email: invitedTo });
+      if (error || !data?.properties?.hashed_token) throw new Error("AUTH_LINK_UNAVAILABLE");
+      const emailOnlyLink = buildStaffInviteEmailLink(signupLink, code,
+        data.properties.hashed_token, data.properties.verification_type, invitedTo);
+      emailResult = await sendInviteEmail(invitedTo, emailOnlyLink, roleLabel);
+    } catch {
+      // Never persist provider errors that could contain the authentication link.
+      emailResult = { sent: false, error: "AUTH_EMAIL_DELIVERY_FAILED", providerId: undefined };
+    }
+  }
 
   if (inviteId && invitedVia === "email") {
     await admin

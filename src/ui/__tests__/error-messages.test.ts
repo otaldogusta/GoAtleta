@@ -8,6 +8,9 @@ import {
 } from "../error-messages";
 
 describe("error-messages", () => {
+  it.each(["Forbidden", "ORG_FORBIDDEN", "NOT_AUTHORIZED"])("translates permission failure %s", (message) => {
+    expect(getFriendlyErrorMessage(new Error(message))).toBe("Você não tem permissão para essa ação.");
+  });
   it("classifies expired auth tokens as session errors", () => {
     const error = new Error('Supabase GET error: 401 {"message":"Invalid JWT"}');
 

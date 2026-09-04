@@ -27,7 +27,6 @@ export function resolveVisibleProfileSwitchIds(params: {
     (profileId) => profileId !== "family" || hasFamilyRole,
   );
   if (params.canUseDevPreview) return previewProfiles;
-  if (!params.hasHybridAccount && !hasFamilyRole) return previewProfiles;
   const hasTrainerRole = params.hasTrainerRole ?? params.hasHybridAccount;
   const hasStudentRole = params.hasStudentRole ?? params.hasHybridAccount;
 

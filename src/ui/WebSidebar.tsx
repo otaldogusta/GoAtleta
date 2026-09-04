@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
+import { canUseProfilePreview } from "../dev/profile-preview-access";
 import { useRole, type UserRole } from "../auth/role";
 import {
   getTrainerPermissionKey,
@@ -344,13 +345,19 @@ export function WebSidebar({
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
   const memberPermissions = organizationContext?.memberPermissions ?? {};
   const permissionsLoading = organizationContext?.permissionsLoading ?? true;
-  const isOrgAdmin = (organizationContext?.activeOrganization?.role_level ?? 0) >= 50;
+  const isOrgAdmin = (organizationContext?.organizations?.find(
+    (org) => org.id === organizationContext.activeOrganization?.id,
+  )?.role_level ?? 0) >= 50;
   const hasTrainerRole = availableRoles.includes("trainer");
   const hasStudentRole = availableRoles.includes("student");
   const hasFamilyRole = availableRoles.includes("family");
   const hasHybridAccount = availableRoles.length > 1;
-  const canSwitchProfile = hasHybridAccount || (__DEV__ && Boolean(setDevProfilePreview));
-  const canUseDevPreview = __DEV__ && Boolean(setDevProfilePreview);
+  const canUseDevPreview = canUseProfilePreview(session?.user?.email) && Boolean(setDevProfilePreview);
+  const visibleProfileSwitchIds = resolveVisibleProfileSwitchIds({
+    hasHybridAccount, isOrgAdmin, canUseDevPreview,
+    hasTrainerRole, hasStudentRole, hasFamilyRole,
+  });
+  const canSwitchProfile = visibleProfileSwitchIds.length > 1;
   const selectedPreview = rolePreview[role];
   const profilePath = getScopedProfilePath(pathname || "/");
   const isProfileMenuOpen = profileMenuOpen;
@@ -471,6 +478,7 @@ export function WebSidebar({
 
   const applyProfilePreview = useCallback(
     async (preview: ProfileSwitchId) => {
+      if (!visibleProfileSwitchIds.includes(preview)) return;
       closeProfileMenu();
       setSidebarExpanded(false);
       const realRole: Extract<UserRole, "trainer" | "student" | "family"> =
@@ -479,7 +487,7 @@ export function WebSidebar({
           : preview === "family"
             ? "family"
             : "trainer";
-      if (hasHybridAccount) {
+      if (!canUseDevPreview) {
         if (setDevProfilePreview) {
           await setDevProfilePreview("auto");
         }
@@ -498,17 +506,9 @@ export function WebSidebar({
       }
       router.replace(previewRoutes[preview] as never);
     },
-    [closeProfileMenu, setSidebarExpanded, hasHybridAccount, refreshRole, router, setActiveRole, setDevProfilePreview]
+    [closeProfileMenu, setSidebarExpanded, canUseDevPreview, visibleProfileSwitchIds, refreshRole, router, setActiveRole, setDevProfilePreview]
   );
 
-  const visibleProfileSwitchIds = resolveVisibleProfileSwitchIds({
-    hasHybridAccount,
-    isOrgAdmin,
-    canUseDevPreview,
-    hasTrainerRole,
-    hasStudentRole,
-    hasFamilyRole,
-  });
   const visibleProfileSwitchOptions = profileSwitchOptions.filter((option) =>
     visibleProfileSwitchIds.includes(option.id)
   );

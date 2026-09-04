@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getFriendlyErrorMessage } from "../../ui/error-messages";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1173,7 +1174,7 @@ export function CoordinationPeopleWorkspace({
       setInviteNotice({
         tone: "error",
         title: "Não foi possível criar o convite",
-        message: error instanceof Error ? error.message : "Tente novamente em instantes.",
+        message: getFriendlyErrorMessage(error, "Tente novamente em instantes."),
       });
     } finally {
       setInviteBusyChannel(null);

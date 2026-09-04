@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { canUseProfilePreview } from "../src/dev/profile-preview-access";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { usePathname, useRouter } from "expo-router";
@@ -515,10 +516,7 @@ export default function ProfileScreen() {
   const hasStudentRole = userRole === "student" || availableRoles.includes("student");
   const hasFamilyRole = userRole === "family" || availableRoles.includes("family");
   const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-  const canUseDevPreview =
-    __DEV__ &&
-    session?.user?.email === "gusantinho753@gmail.com" &&
-    Boolean(setDevProfilePreview);
+  const canUseDevPreview = canUseProfilePreview(session?.user?.email) && Boolean(setDevProfilePreview);
   const authorizedProfileSwitchIds = useMemo(
     () =>
       resolveAuthorizedProfileSwitchIds({

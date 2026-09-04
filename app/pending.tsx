@@ -220,8 +220,7 @@ export default function PendingScreen() {
   const resolvedRoleHome = resolvePendingRoleHome(role);
 
   useEffect(() => {
-    if (resolvedRoleHome || accessApproved) {
-      setAccessApproved(true);
+    if (accessApproved) {
       Animated.timing(textAnim, {
         toValue: 1,
         duration: 450,
@@ -275,11 +274,20 @@ export default function PendingScreen() {
     setInviteIssue(null);
     setMessage("");
     try {
+      if (session?.user.app_metadata?.staff_invite_setup_required === true) {
+        router.replace({ pathname: "/staff-invite", params: { code } });
+        return;
+      }
       await claimTrainerInvite(code);
+      setAccessApproved(true);
       await clearPendingTrainerInvite();
       await refresh();
-      router.replace("/prof/home");
+      router.replace("/");
     } catch (error) {
+      if (getInviteErrorCode(error) === "STAFF_SETUP_REQUIRED") {
+        router.replace({ pathname: "/staff-invite", params: { code } });
+        return;
+      }
       const parsed = parseInviteError(error);
       setInviteIssue(parsed.issue);
       setMessage(parsed.message);
@@ -296,6 +304,7 @@ export default function PendingScreen() {
     setMessage("");
     try {
       await claimStudentInvite(tokenValue);
+      setAccessApproved(true);
       await clearPendingInvite();
       await refresh();
       router.replace("/student/home");

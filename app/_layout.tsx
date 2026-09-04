@@ -88,6 +88,10 @@ const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
 Sentry.init({
   dsn: sentryDsn,
   enabled: Boolean(sentryDsn),
+  // Email proof is a credential. Do not collect events or breadcrumbs while
+  // the confirmation entry still owns it (including before React mounts).
+  beforeSend: (event) => typeof window !== "undefined" && window.location.pathname === "/staff-invite" ? null : event,
+  beforeBreadcrumb: (breadcrumb) => typeof window !== "undefined" && window.location.pathname === "/staff-invite" ? null : breadcrumb,
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -300,7 +304,7 @@ function RootLayoutContent() {
     "/reset-password",
     ...(__DEV__ ? ["/admin"] : []),
   ];
-  const publicPrefixes = ["/invite", "/family-invite"];
+  const publicPrefixes = ["/invite", "/family-invite", "/staff-invite"];
   const normalizedPathname =
     pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   const isDevStudentConsultationPreview =
@@ -315,6 +319,7 @@ function RootLayoutContent() {
       );
     })();
   const isInviteRoute =
+    normalizedPathname === "/staff-invite" ||
     normalizedPathname === "/invite" ||
     normalizedPathname.startsWith("/invite/") ||
     normalizedPathname === "/family-invite" ||
@@ -538,6 +543,9 @@ function RootLayoutContent() {
   useEffect(() => {
     if (initialRouteGuardAppliedRef.current) return;
     if (bootstrapLoading || !navReady || loading) return;
+    // This entry owns explicit account-switch confirmation; do not let an old
+    // session or a pending role redirect before the email proof is redeemed.
+    if (normalizedPathname === "/staff-invite") return;
     initialRouteGuardAppliedRef.current = true;
 
     // Guard against stale deep-link/navigation state restoring users into /events on app boot.
@@ -894,7 +902,10 @@ select:focus {
   box-shadow: none;
 }
 input:focus-visible,
-textarea:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
 select:focus-visible {
   outline: 2px solid ${colors.primaryBg};
   outline-offset: -2px;

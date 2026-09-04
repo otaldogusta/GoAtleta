@@ -170,6 +170,20 @@ describe("RoleProvider bootstrap resilience", () => {
     jest.restoreAllMocks();
   });
 
+  it.each(["admin", "student"])("ignores a saved %s preview for an ordinary professor", async (preview) => {
+    mockGetDevProfilePreview.mockResolvedValue(preview);
+    jest.spyOn(global, "fetch").mockImplementation(async (input) => ({
+      ok: true, status: 200,
+      text: async () => String(input).includes("/rpc/is_trainer") ? "true" : "[]",
+    }) as Response);
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(RoleProvider, null, React.createElement(RoleProbe)));
+      await flushMicrotasks();
+    });
+    expect(latestRoleState).toMatchObject({ role: "trainer", availableRoles: ["trainer"], student: null });
+    expect(mockGetDevProfilePreview).not.toHaveBeenCalled();
+  });
+
   it("waits for reconciliation and reloads RLS before publishing the student role", async () => {
     const reconciliation = createDeferred<string>();
     mockReconcileMyStudentAccess.mockReturnValue(reconciliation.promise);
