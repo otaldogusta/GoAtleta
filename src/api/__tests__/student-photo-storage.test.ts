@@ -53,7 +53,7 @@ describe("student photo storage access", () => {
     );
 
     expect(result).toBe(
-      "https://project.supabase.co/storage/v1/object/sign/student-photos/org-1/student-1/avatar?token=signed-token"
+      "https://project.supabase.co/storage/v1/object/sign/student-photos/org-1/student-1/avatar?token=signed-token&v=456"
     );
     expect(global.fetch).toHaveBeenCalledWith(
       "https://project.supabase.co/storage/v1/object/sign/student-photos/org-1/student-1/avatar",

@@ -35,6 +35,7 @@ import {
     uploadMyProfilePhoto,
 } from "../src/api/profile-photo-storage";
 import {
+    getStudentPhotoAccessUrl,
     removeStudentPhotoObject,
     uploadStudentPhoto,
 } from "../src/api/student-photo-storage";
@@ -55,7 +56,9 @@ import {
   normalizeProfileName,
   resolveProfileDisplayName,
 } from "../src/core/profile-name";
-import { getClasses, updateStudentPhoto } from "../src/db/seed";
+import { getClasses } from "../src/db/seed";
+import { setMyStudentPhoto } from "../src/api/student-self-photo";
+import { useStudentProfilePhoto } from "../src/hooks/use-student-profile-photo";
 import {
   canManageGlobalAcademicKnowledge,
   disconnectPersonalAcademicDrive,
@@ -339,6 +342,7 @@ export default function ProfileScreen() {
     left: number;
   } | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const studentPhotoUri = useStudentProfilePhoto(student);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [updatingBiometrics, setUpdatingBiometrics] = useState(false);
   const [unlinkingGoogle, setUnlinkingGoogle] = useState(false);
@@ -422,7 +426,7 @@ export default function ProfileScreen() {
     (async () => {
       if (student) {
         if (alive) {
-          setPhotoUri(student.photoUrl ?? null);
+          setPhotoUri(studentPhotoUri);
           setLoadingPhoto(false);
         }
         return;
@@ -470,7 +474,7 @@ export default function ProfileScreen() {
     return () => {
       alive = false;
     };
-  }, [session?.user?.id, student]);
+  }, [session?.user?.id, student, studentPhotoUri]);
 
   useEffect(() => {
     let alive = true;
@@ -1402,9 +1406,11 @@ export default function ProfileScreen() {
             studentId: student.id,
           });
         }
-        await updateStudentPhoto(student.id, uri);
+        await setMyStudentPhoto(student.id, uri);
+        setPhotoUri(await getStudentPhotoAccessUrl(uri));
         await refreshRole();
       } catch (error) {
+        setPhotoUri(previousPhotoUri);
         console.error("Failed to update student photo", error);
         Alert.alert("Erro", "Não foi possível salvar a foto.");
       }

@@ -83,9 +83,14 @@ export const getStudentPhotoAccessUrl = async (
   const signedPath = payload.signedURL ?? payload.signedUrl;
   if (!signedPath) throw new Error("Student photo signed URL was not returned");
 
-  const signedUrl = /^https?:\/\//i.test(signedPath)
+  const signedUrlBase = /^https?:\/\//i.test(signedPath)
     ? signedPath
     : `${base}/storage/v1${signedPath.startsWith("/") ? "" : "/"}${signedPath}`;
+  // Keep the stored version on the signed URL so replacing an avatar invalidates image caches.
+  const version = new URL(value).searchParams.get("v");
+  const signedUrl = version
+    ? `${signedUrlBase}${signedUrlBase.includes("?") ? "&" : "?"}v=${encodeURIComponent(version)}`
+    : signedUrlBase;
   signedUrlCache.set(value, {
     url: signedUrl,
     expiresAt: Date.now() + SIGNED_URL_CACHE_MS,

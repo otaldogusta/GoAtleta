@@ -7,6 +7,7 @@ import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Text, Vi
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../src/auth/role";
+import { useStudentProfilePhoto } from "../src/hooks/use-student-profile-photo";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import type { ClassGroup } from "../src/core/models";
 import { getClassById } from "../src/db/seed";
@@ -64,7 +65,7 @@ export default function StudentHome() {
   const [inbox, setInbox] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const profilePhotoUri = student?.photoUrl ?? null;
+  const profilePhotoUri = useStudentProfilePhoto(student);
   const studentClassId = student?.classId ?? "";
   const studentNameFirst = useMemo(() => {
     const name = student?.name?.trim() ?? "";
