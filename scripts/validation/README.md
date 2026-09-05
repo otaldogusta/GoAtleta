@@ -1,6 +1,24 @@
 NFC Validation Scripts
 ======================
 
+PostgreSQL concurrency regression
+--------------------------------
+
+Run `npm run test:sql:concurrency` with Docker available. The runner creates its
+own PostgreSQL 17.6 container, pinned by image digest, with no network, published
+ports, host mounts or persistent database. It removes that container on exit.
+Only synthetic identities and the repository's actual finance migrations are used.
+
+Separate `psql` connections verify an overlapping replay after commit and rollback,
+conflicting payload rejection, progress of unrelated events and a 12-connection
+replay burst. The observer verifies lock contention in `pg_stat_activity` before
+the owner releases its transaction, so this does not rely on assumed overlap.
+The existing `npm run test:sql` remains the fast PGlite regression suite.
+
+Core CI runs the Docker check before allowing the EAS job to publish. Vercel's
+`build:verified` does not require Docker. This validates database concurrency;
+delivery from the external Asaas webhook queue needs separate integration evidence.
+
 security-fixes-smoke.ps1
 ------------------------
 Negative smoke tests for security hardening of edge functions (FIX #2).

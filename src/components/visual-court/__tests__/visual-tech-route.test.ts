@@ -11,6 +11,13 @@ const mockGetClassById = jest.fn();
 const mockEnsureDefaultVisualPresets = jest.fn();
 const mockSaveTechnicalVisual = jest.fn();
 const keyboardListeners: ((event: KeyboardEvent) => void)[] = [];
+const mountedRoutes: TestRenderer.ReactTestRenderer[] = [];
+
+const mountRoute = () => {
+  const tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+  mountedRoutes.push(tree);
+  return tree;
+};
 
 const dispatchKeyboardShortcut = (event: Partial<KeyboardEvent>) => {
   const preventDefault = jest.fn();
@@ -27,6 +34,22 @@ const dispatchKeyboardShortcut = (event: Partial<KeyboardEvent>) => {
   return preventDefault;
 };
 
+// This suite exercises route interactions and persistence, not native rendering.
+// Host primitives avoid loading native view internals inside the first timed act.
+jest.mock("react-native", () => {
+  const native = jest.requireActual("react-native");
+  return {
+    ActivityIndicator: "ActivityIndicator",
+    Pressable: "Pressable",
+    ScrollView: "ScrollView",
+    Text: "Text",
+    View: "View",
+    Platform: native.Platform,
+    StyleSheet: native.StyleSheet,
+    useWindowDimensions: () => ({ width: 1024, height: 768, scale: 1, fontScale: 1 }),
+  };
+});
+
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "class_1" }),
   usePathname: () => "/class/class_1/visual-tech",
@@ -36,6 +59,12 @@ jest.mock("expo-router", () => ({
     replace: jest.fn(),
   }),
 }));
+
+jest.mock("../../../navigation/use-trainer-route-scope", () => ({
+  useTrainerRouteScope: () => ({ classes: "/class" }),
+}));
+
+jest.mock("@sentry/react-native", () => ({ addBreadcrumb: jest.fn() }));
 
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => {
@@ -49,11 +78,14 @@ jest.mock("@expo/vector-icons", () => ({
   Ionicons: "Ionicons",
 }));
 
-jest.mock("../../ui/BackTitleHeader", () => ({
-  BackTitleHeader: ({ title }: { title: string }) => {
+jest.mock("../../ui/ScreenPageHeader", () => ({
+  ScreenPageHeader: ({ title, children, right }: {
+    title: string; children?: React.ReactNode; right?: React.ReactNode;
+  }) => {
     const ReactMock = jest.requireActual("react");
-    const { Text } = jest.requireActual("react-native");
-    return ReactMock.createElement(Text, null, title);
+    const { Text } = jest.requireMock("react-native");
+    return ReactMock.createElement(ReactMock.Fragment, null,
+      ReactMock.createElement(Text, null, title), right, children);
   },
 }));
 
@@ -80,7 +112,7 @@ jest.mock("../VisualCourtCanvas", () => ({
     stepIndex: number;
   }) => {
     const ReactMock = jest.requireActual("react");
-    const { Pressable, Text } = jest.requireActual("react-native");
+    const { Pressable, Text } = jest.requireMock("react-native");
     return ReactMock.createElement(
       ReactMock.Fragment,
       null,
@@ -131,7 +163,7 @@ jest.mock("../../../ui/Button", () => ({
     onPress: () => void;
   }) => {
     const ReactMock = jest.requireActual("react");
-    const { Pressable, Text } = jest.requireActual("react-native");
+    const { Pressable, Text } = jest.requireMock("react-native");
     return ReactMock.createElement(
       Pressable,
       {
@@ -204,6 +236,12 @@ const findPressableByText = (
 };
 
 describe("ClassVisualTechRoute", () => {
+  afterEach(() => {
+    act(() => {
+      for (const tree of mountedRoutes.splice(0)) tree.unmount();
+    });
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     keyboardListeners.length = 0;
@@ -232,7 +270,7 @@ describe("ClassVisualTechRoute", () => {
   it("loads the local preset, advances steps and handles save fallback", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     expect(collectText(tree!.root)).toContain("Quadra visual local carregada");
@@ -309,7 +347,7 @@ describe("ClassVisualTechRoute", () => {
   it("edits actor position with the pencil mode without creating a manual trajectory", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     act(() => {
@@ -340,7 +378,7 @@ describe("ClassVisualTechRoute", () => {
   it("adds an extra actor from the legend and saves it in the current frame", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     act(() => {
@@ -397,7 +435,7 @@ describe("ClassVisualTechRoute", () => {
 
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     expect(collectText(tree!.root)).toContain(
@@ -425,7 +463,7 @@ describe("ClassVisualTechRoute", () => {
   it("selects an actor on the court and duplicates it in the current frame", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     act(() => {
@@ -471,7 +509,7 @@ describe("ClassVisualTechRoute", () => {
   it("deselects the current actor when pressing the court background", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     act(() => {
@@ -494,7 +532,7 @@ describe("ClassVisualTechRoute", () => {
   it("selects an actor on the court and removes it from the current frame", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     act(() => {
@@ -528,7 +566,7 @@ describe("ClassVisualTechRoute", () => {
   it("keeps align pass disabled when no animation exists", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     expect(
@@ -554,7 +592,7 @@ describe("ClassVisualTechRoute", () => {
   it("shows align positions outside the reception card without marking the court dirty", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     act(() => {
@@ -588,7 +626,7 @@ describe("ClassVisualTechRoute", () => {
   it("creates and saves a play animation only when animation mode is enabled", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     await act(async () => {
@@ -625,7 +663,7 @@ describe("ClassVisualTechRoute", () => {
   it("resets saved animations for the current frame without moving actors", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     act(() => {
@@ -661,7 +699,7 @@ describe("ClassVisualTechRoute", () => {
   it("saves the latest dragged position even when save is pressed immediately", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     await act(async () => {
@@ -679,7 +717,7 @@ describe("ClassVisualTechRoute", () => {
   it("keeps the final animation preview after playback finishes", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     jest.useFakeTimers();
@@ -711,7 +749,7 @@ describe("ClassVisualTechRoute", () => {
   it("undoes and redoes local court edits with keyboard shortcuts", async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
+      tree = mountRoute();
     });
 
     act(() => {

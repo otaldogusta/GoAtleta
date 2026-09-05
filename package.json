@@ -19,6 +19,7 @@
     "test:attendance-artifacts": "node scripts/validate-attendance-artifacts.mjs",
     "test:core": "jest src/core/consultation/__tests__ src/copilot/__tests__ src/api/__tests__ src/push/__tests__ supabase/functions/assistant/__tests__ --passWithNoTests",
     "test:sql": "node scripts/validation/run-sql-tests.mjs",
+    "test:sql:concurrency": "node scripts/validation/postgres-concurrency.mjs",
     "lint": "expo lint",
     "check:lint-hygiene": "node scripts/check-lint-hygiene.js",
     "typecheck:core": "tsc -p tsconfig.check.json --noEmit",

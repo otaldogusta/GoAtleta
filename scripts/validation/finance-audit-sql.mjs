@@ -20,45 +20,49 @@ function extractFunction(source, name) {
   return source.slice(start, end + 4);
 }
 
+export async function initializeFinanceAuditDatabase(db) {
+  // Only pre-existing cross-domain dependencies are fixtures. Relationships,
+  // financial tables, constraints, RPCs and the changes under test are real SQL.
+  await db.exec(`
+    create role anon; create role authenticated; create role service_role bypassrls;
+    create schema auth; create schema private;
+    grant usage on schema private, auth to authenticated, service_role;
+    create function auth.uid() returns uuid language sql stable as
+      $$ select nullif(current_setting('app.user_id',true),'')::uuid $$;
+    create function auth.role() returns text language sql stable as $$ select 'authenticated'::text $$;
+    create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
+    create table public.organizations(id uuid primary key, name text not null);
+    create table public.students(id text primary key, organization_id uuid not null references public.organizations,
+      name text, student_user_id uuid references auth.users, login_email text, createdat text,
+      guardian_name text, membership_status text default 'active', unique(id,organization_id));
+    create function public.has_org_member_permission(p_org_id uuid,p_permission text) returns boolean language sql stable
+      as $$ select p_org_id::text = current_setting('app.allowed_org',true) and auth.uid() is not null $$;
+    create function public.can_manage_student_invites(p_student_id text,p_org_id uuid) returns boolean language sql stable
+      as $$ select public.has_org_member_permission(p_org_id,'students') $$;
+    select set_config('app.user_id','${actor}',false), set_config('app.allowed_org','${org}',false);
+    insert into auth.users(id,email) values('${actor}','staff@example.test'),('${athlete}','athlete@example.test'),('${payer}','payer@example.test');
+    insert into public.organizations values('${org}','Test'),('${otherOrg}','Other');
+    insert into public.students(id,organization_id,name) values('student-1','${org}','Atleta');
+  `);
+  const family = await migration("20260831005113_family_access_foundation.sql");
+  await db.exec(family.slice(0, family.indexOf("create or replace function public.get_my_student_contexts_v1")));
+  await db.exec(extractFunction(family, "create_student_relationship_invite_v1"));
+  await db.exec(extractFunction(family, "claim_student_relationship_invite_v1"));
+  await db.exec(await migration("20260831005127_finance_foundation.sql"));
+  await db.exec(await migration("20260901000346_pause_tuition_agreements_on_payer_revocation.sql"));
+  await db.exec(await migration("20260901160250_add_asaas_receivables_connector.sql"));
+  await db.exec(await migration("20260902110857_rotate_asaas_receivables_key.sql"));
+  await db.exec(await migration("20260903174500_update_student_family_relationship.sql"));
+  return { org, otherOrg, actor, athlete, payer };
+}
+
 export async function runFinanceAuditSql() {
   const db = new PGlite();
   const checks = [];
   const query = (sql, params = []) => db.query(sql, params);
   const scalar = async (sql, params = []) => (await query(sql, params)).rows[0].value;
   try {
-    // Only pre-existing cross-domain dependencies are fixtures. Relationships,
-    // financial tables, constraints, RPCs and the changes under test are real SQL.
-    await db.exec(`
-      create role anon; create role authenticated; create role service_role bypassrls;
-      create schema auth; create schema private;
-      grant usage on schema private, auth to authenticated, service_role;
-      create function auth.uid() returns uuid language sql stable as
-        $$ select nullif(current_setting('app.user_id',true),'')::uuid $$;
-      create function auth.role() returns text language sql stable as $$ select 'authenticated'::text $$;
-      create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
-      create table public.organizations(id uuid primary key, name text not null);
-      create table public.students(id text primary key, organization_id uuid not null references public.organizations,
-        name text, student_user_id uuid references auth.users, login_email text, createdat text,
-        guardian_name text, membership_status text default 'active', unique(id,organization_id));
-      create function public.has_org_member_permission(p_org_id uuid,p_permission text) returns boolean language sql stable
-        as $$ select p_org_id::text = current_setting('app.allowed_org',true) and auth.uid() is not null $$;
-      create function public.can_manage_student_invites(p_student_id text,p_org_id uuid) returns boolean language sql stable
-        as $$ select public.has_org_member_permission(p_org_id,'students') $$;
-      select set_config('app.user_id','${actor}',false), set_config('app.allowed_org','${org}',false);
-      insert into auth.users(id,email) values('${actor}','staff@example.test'),('${athlete}','athlete@example.test'),('${payer}','payer@example.test');
-      insert into public.organizations values('${org}','Test'),('${otherOrg}','Other');
-      insert into public.students(id,organization_id,name) values('student-1','${org}','Atleta');
-    `);
-    const family = await migration("20260831005113_family_access_foundation.sql");
-    await db.exec(family.slice(0, family.indexOf("create or replace function public.get_my_student_contexts_v1")));
-    await db.exec(extractFunction(family, "create_student_relationship_invite_v1"));
-    await db.exec(extractFunction(family, "claim_student_relationship_invite_v1"));
-    await db.exec(await migration("20260831005127_finance_foundation.sql"));
-    await db.exec(await migration("20260901000346_pause_tuition_agreements_on_payer_revocation.sql"));
-    await db.exec(await migration("20260901160250_add_asaas_receivables_connector.sql"));
-    await db.exec(await migration("20260902110857_rotate_asaas_receivables_key.sql"));
-    await db.exec(await migration("20260903174500_update_student_family_relationship.sql"));
-
+    await initializeFinanceAuditDatabase(db);
     const connect = (environment, account) => query(
       "select public.connect_asaas_receivables_v1($1,$2,$3,'APPROVED','fake',repeat('x',48),repeat('i',16),$4,$5)",
       [org, environment, account, "a".repeat(64), actor],

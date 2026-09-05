@@ -36,3 +36,6 @@ jobs:
 
       - name: Build web
         run: npm run build
+
+      - name: Verify PostgreSQL transactions across independent connections
+        run: npm run test:sql:concurrency
