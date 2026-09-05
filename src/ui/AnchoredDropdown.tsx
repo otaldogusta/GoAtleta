@@ -1,3 +1,4 @@
+import { createWebPortal } from "./web-portal";
 import { usePathname } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import {
@@ -32,7 +33,7 @@ type AnchoredDropdownProps = {
   onRequestClose?: () => void;
   showVerticalScrollIndicator?: boolean;
   portalToBodyOnWeb?: boolean;
-  interactiveRefs?: Array<React.RefObject<View | null>>;
+  interactiveRefs?: React.RefObject<View | null>[];
   density?: "default" | "compact" | "menu" | "popover";
   fitContent?: boolean;
   preferredWidth?: number;
@@ -354,8 +355,7 @@ export function AnchoredDropdown({
   );
 
   if (Platform.OS === "web" && portalToBodyOnWeb && typeof document !== "undefined") {
-    const ReactDOM = require("react-dom");
-    return ReactDOM.createPortal(dropdown, document.body);
+    return createWebPortal(dropdown, document.body);
   }
 
   if (Platform.OS !== "web") {

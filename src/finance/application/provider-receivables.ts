@@ -1,4 +1,9 @@
-import type { OrganizationProviderReceivable } from "../../api/finance";
+import type {
+  OrganizationProviderReceivable,
+  ProviderReceivablesSummary,
+} from "../domain/provider-receivables";
+
+export type { ProviderReceivablesSummary } from "../domain/provider-receivables";
 
 const RECEIVED_STATUSES = new Set([
   "RECEIVED",
@@ -28,15 +33,6 @@ const BILLING_TYPE_LABELS: Record<string, string> = {
   PIX: "Pix",
   TRANSFER: "Transferência",
   UNDEFINED: "Não informado",
-};
-
-export type ProviderReceivablesSummary = {
-  totalCount: number;
-  receivedCount: number;
-  receivedGrossCents: number;
-  receivedNetCents: number;
-  identifiedCustomerCount: number;
-  reconciliationCount: number;
 };
 
 export const isProviderReceivableReceived = (

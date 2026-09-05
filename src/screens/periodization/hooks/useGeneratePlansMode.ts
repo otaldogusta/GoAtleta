@@ -118,7 +118,7 @@ export function useGeneratePlansMode({
                 cycleStartDate: resolvedCycleStartDate,
                 daysOfWeek: selectedClass.daysOfWeek ?? [],
                 exceptions: calendarExceptions,
-                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
                 profile: competitiveProfile!,
               })
             : isAnnualCycle(cycleLength)

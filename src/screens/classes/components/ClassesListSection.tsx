@@ -75,7 +75,7 @@ export const ClassesListSection = memo(function ClassesListSection({
   const [classSearch, setClassSearch] = useState("");
   const [tableAscending, setTableAscending] = useState(true);
   const [sortKey, setSortKey] = useState<"name" | "time" | "age" | "students" | "teacher" | null>(null);
-  const sortIndicator = useRef(new Animated.Value(0)).current;
+  const [sortIndicator] = useState(() => new Animated.Value(0));
   const unitTriggerRef = useRef<View | null>(null);
   const [unitDropdownOpen, setUnitDropdownOpen] = useState(false);
   const [unitDropdownLayout, setUnitDropdownLayout] = useState<Layout | null>(null);

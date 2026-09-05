@@ -11,7 +11,7 @@ type TestItem = {
 type Snapshot = {
   items: TestItem[];
   deleteOne: (target: TestItem | string) => void;
-  deleteMany: (targets: Array<TestItem | string>) => void;
+  deleteMany: (targets: (TestItem | string)[]) => void;
 };
 
 const initialItems = (): TestItem[] => [

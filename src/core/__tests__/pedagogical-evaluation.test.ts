@@ -1,4 +1,4 @@
-﻿import {
+import {
     evaluateSessionOutcome,
     type SessionSkillHistoryEntry,
 } from "../pedagogical-evaluation";

@@ -1,5 +1,36 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import type { Student } from "../../../core/models";
+import { listStudentRelationships } from "../../../api/student-relationship-invite";
+import { StudentFamilyAccessPanels } from "../components/StudentFamilyAccessPanels";
+
+jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn() }));
+jest.mock("react-native", () => ({
+  ActivityIndicator: "ActivityIndicator", View: "View", Text: "Text", TextInput: "TextInput", ScrollView: "ScrollView",
+  Platform: { OS: "ios", select: (values: { ios?: unknown; default?: unknown }) => values.ios ?? values.default },
+  Share: { share: jest.fn() }, StyleSheet: { create: (styles: unknown) => styles },
+}));
+jest.mock("../../../ui/Pressable", () => ({ Pressable: "Pressable" }));
+
+jest.mock("../../../api/student-relationship-invite", () => ({
+  listStudentRelationships: jest.fn(),
+  listStudentRelationshipInvites: jest.fn().mockResolvedValue([]),
+}));
+jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: {} }) }));
+jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
+jest.mock("../../../ui/save-toast", () => {
+  const showSaveToast = jest.fn();
+  return { useSaveToast: () => ({ showSaveToast }) };
+});
+jest.mock("../../../ui/confirm-dialog", () => ({ useConfirmDialog: () => ({ confirm: jest.fn() }) }));
+jest.mock("../../../ui/ModalSheet", () => ({
+  ModalSheet: ({ visible, children }: { visible: boolean; children: React.ReactNode }) => visible ? children : null,
+}));
+jest.mock("../../../ui/AnchoredDropdown", () => ({
+  AnchoredDropdown: ({ visible, children }: { visible: boolean; children: React.ReactNode }) => visible ? children : null,
+}));
 
 const studentsListSource = readFileSync(
   resolve(__dirname, "../StudentsListTab.tsx"),
@@ -57,10 +88,24 @@ describe("student family access integration", () => {
     expect(panelsSource).toContain("portalToBodyOnWeb");
   });
 
-  test("keeps the family composer open while access data refreshes", () => {
-    expect(panelsSource).toContain("const studentId = student?.id ?? null;");
-    expect(panelsSource).toContain("}, [mode, studentId]);");
-    expect(panelsSource).toContain('if (mode === "drawer") void loadAccess();');
+  test("preserves typed family access while data arrives and resets it on organization change", async () => {
+    let finishLoad!: (rows: []) => void;
+    (listStudentRelationships as jest.Mock).mockImplementationOnce(() => new Promise(resolveLoad => { finishLoad = resolveLoad; })).mockResolvedValue([]);
+    const props = {
+      mode: "drawer" as const, organizationId: "org-a", student: { id: "student-a", name: "Atleta de teste" } as Student,
+      className: "Turma de teste", compact: false, anchorLayout: null, anchorAnimationStyle: {}, onClose: jest.fn(),
+    };
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(StudentFamilyAccessPanels, props)); });
+    act(() => renderer.root.findAllByProps({ accessibilityLabel: "Adicionar outro responsável" })[0].props.onPress());
+    act(() => renderer.root.findAllByProps({ accessibilityLabel: "E-mail do responsável" })[0].props.onChangeText("family@example.test"));
+    await act(async () => { finishLoad([]); });
+    expect(renderer.root.findAllByProps({ accessibilityLabel: "E-mail do responsável" })[0].props.value).toBe("family@example.test");
+    await act(async () => { renderer.update(React.createElement(StudentFamilyAccessPanels, { ...props, student: { ...props.student! } })); });
+    expect(renderer.root.findAllByProps({ accessibilityLabel: "E-mail do responsável" })[0].props.value).toBe("family@example.test");
+    await act(async () => { renderer.update(React.createElement(StudentFamilyAccessPanels, { ...props, organizationId: "org-b" })); });
+    expect(renderer.root.findAllByProps({ accessibilityLabel: "E-mail do responsável" })).toHaveLength(0);
+    act(() => renderer.unmount());
   });
 
   test("shows linked operational badges instead of manual finance selectors", () => {

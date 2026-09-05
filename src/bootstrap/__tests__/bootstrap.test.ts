@@ -51,7 +51,7 @@ describe("bootstrapApp", () => {
   });
 
   test("returns persisted session from bootstrap", async () => {
-    const { bootstrapApp } = require("../bootstrap") as typeof import("../bootstrap");
+    const { bootstrapApp } = jest.requireActual("../bootstrap") as typeof import("../bootstrap");
 
     const result = await bootstrapApp();
 
@@ -73,7 +73,7 @@ describe("bootstrapApp", () => {
       error: configError,
     });
 
-    const { bootstrapApp } = require("../bootstrap") as typeof import("../bootstrap");
+    const { bootstrapApp } = jest.requireActual("../bootstrap") as typeof import("../bootstrap");
 
     await bootstrapApp();
 

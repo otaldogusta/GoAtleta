@@ -161,7 +161,7 @@ function DropdownButton<T extends string | number>({
   disabled = false,
 }: {
   value: T;
-  options: Array<{ value: T; label: string }>;
+  options: { value: T; label: string }[];
   onChange: (value: T) => void;
   compact?: boolean;
   density?: "default" | "compact";
@@ -352,12 +352,12 @@ export function MemberActionMenu({
   const triggerRef = useRef<ViewType | null>(null);
   const [open, setOpen] = useState(false);
   const [layout, setLayout] = useState<Layout | null>(null);
-  const actions: Array<{
+  const actions: {
     label: string;
     icon: GoAtletaIconName;
     destructive?: boolean;
     onPress: () => void;
-  }> = [
+  }[] = [
     { label: "Perfil e permissões", icon: "edit", onPress: () => onEdit(member) },
     { label: "Editar turmas", icon: "classes", onPress: () => onEdit(member) },
     { label: "Gerar mensagem", icon: "message", onPress: () => onMessage(member) },

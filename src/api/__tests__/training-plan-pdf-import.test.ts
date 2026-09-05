@@ -1,3 +1,5 @@
+import { analyzeTrainingPlanPdf } from "../training-plan-pdf-import";
+
 const mockGetValidAccessToken = jest.fn();
 
 jest.mock("../../auth/session", () => ({
@@ -8,8 +10,6 @@ jest.mock("../config", () => ({
   SUPABASE_ANON_KEY: "anon-key",
   SUPABASE_URL: "https://example.supabase.co",
 }));
-
-import { analyzeTrainingPlanPdf } from "../training-plan-pdf-import";
 
 describe("training plan PDF import retries", () => {
   const originalFetch = global.fetch;

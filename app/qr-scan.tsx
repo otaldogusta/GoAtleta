@@ -1,3 +1,5 @@
+import { markRender } from "../src/observability/perf";
+// perf-check: ignore-measure -- camera permission state is owned by the Expo camera hook; no application data load.
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
@@ -15,6 +17,7 @@ import { useModalCardStyle } from "../src/ui/use-modal-card-style";
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
 
 export default function QrScanScreen() {
+  markRender("screen.qrScan.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();

@@ -1,3 +1,5 @@
+import { markRender } from "../src/observability/perf";
+// perf-check: ignore-measure -- preference loading belongs to the instrumented WhatsAppSettingsProvider.
 import { useRouter } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,6 +10,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { useWhatsAppSettings } from "../src/ui/whatsapp-settings-context";
 
 export default function WhatsAppSettingsScreen() {
+  markRender("screen.whatsappSettings.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const { defaultMessageEnabled, setDefaultMessageEnabled, loading } = useWhatsAppSettings();

@@ -32,7 +32,7 @@ jest.mock("../../../../ui/app-theme", () => ({
 
 jest.mock("../../../../ui/icon-registry", () => ({
   GoAtletaIcon: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("GoAtletaIcon", props);
   },
 }));

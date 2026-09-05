@@ -5,6 +5,7 @@ const read = (path: string) => readFileSync(resolve(__dirname, path), "utf8");
 
 const connectionSource = read("../../finance-provider-connection/index.ts");
 const webhookSource = read("../../asaas-webhook/index.ts");
+const webhookHandlerSource = read("../asaas-webhook-handler.ts");
 const migrationSource = read(
   "../../../migrations/20260901160250_add_asaas_receivables_connector.sql",
 );
@@ -91,9 +92,9 @@ describe("Asaas connector security contract", () => {
     expect(configSource).toContain(
       "[functions.asaas-webhook]\nverify_jwt = false",
     );
-    expect(webhookSource).toContain('req.headers.get("asaas-access-token")');
-    expect(webhookSource).toContain('.from("provider_events")');
-    expect(webhookSource).toContain('eventError?.code === "23505"');
+    expect(webhookHandlerSource).toContain('req.headers.get("asaas-access-token")');
+    expect(webhookSource).toContain('rpc("process_asaas_event_v2", command)');
+    expect(webhookSource).not.toContain('eventError?.code === "23505"');
     expect(webhookSource).not.toContain("console.log");
   });
 });

@@ -109,33 +109,7 @@ export const buildTrainingSessionWindow = (
   return { startAt, endAt };
 };
 
-export const resolveTrainingPlanForDate = (
-  plans: TrainingPlan[],
-  classId: string,
-  date: string,
-  weekdayId?: number
-) => {
-  const relevant = plans.filter((plan) => plan.classId === classId);
-  if (!relevant.length) return null;
-  const resolvedWeekday =
-    typeof weekdayId === "number" && Number.isFinite(weekdayId)
-      ? weekdayId
-      : new Date(date).getDay();
-  const normalizedWeekday = resolvedWeekday === 0 ? 7 : resolvedWeekday;
-  const exactDate = relevant
-    .filter((plan) => plan.applyDate === date)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  if (exactDate) return exactDate;
-  return (
-    relevant
-      .filter(
-        (plan) =>
-          !plan.applyDate &&
-          (plan.applyDays ?? []).includes(normalizedWeekday)
-      )
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null
-  );
-};
+export { resolveTrainingPlanForDate } from "../core/resolve-training-plan-for-date";
 
 const mapTrainingSessionRow = (
   row: TrainingSessionRow,

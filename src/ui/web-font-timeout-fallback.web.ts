@@ -9,7 +9,7 @@ const isFontTimeoutError = (error: unknown) => {
   return /timeout exceeded/i.test(message);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Expo's internal web loader is patched synchronously before font bootstrap.
 const ExpoFontLoader = require("expo-font/build/ExpoFontLoader").default as FontLoader;
 const loader = ExpoFontLoader;
 

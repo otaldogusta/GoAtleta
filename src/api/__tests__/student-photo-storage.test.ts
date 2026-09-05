@@ -1,3 +1,8 @@
+import {
+  getStudentPhotoAccessUrl,
+  getStudentPhotoObjectPath,
+} from "../student-photo-storage";
+
 const mockGetValidAccessToken = jest.fn();
 
 jest.mock("../../auth/session", () => ({
@@ -8,11 +13,6 @@ jest.mock("../config", () => ({
   SUPABASE_URL: "https://project.supabase.co",
   SUPABASE_ANON_KEY: "anon-key",
 }));
-
-import {
-  getStudentPhotoAccessUrl,
-  getStudentPhotoObjectPath,
-} from "../student-photo-storage";
 
 describe("student photo storage access", () => {
   const originalFetch = global.fetch;

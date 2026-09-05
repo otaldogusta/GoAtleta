@@ -42,11 +42,7 @@ import { ScreenBackdrop } from "../src/components/ui/ScreenBackdrop";
 import { ScreenHeader } from "../src/ui/ScreenHeader";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 
-const formatCountdown = (seconds: number) => {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s < 10 ? "0" : ""}${s}`;
-};
+
 
 export default function LoginScreen() {
   markRender("screen.login.render.root");
@@ -61,7 +57,6 @@ export default function LoginScreen() {
   const router = useRouter();
   const {
     email: prefillEmail,
-    password: prefillPassword,
     fromSignup,
     next,
     pendingHint,
@@ -69,31 +64,34 @@ export default function LoginScreen() {
     reset: resetParam,
   } = useLocalSearchParams<{
     email?: string;
-    password?: string;
     fromSignup?: string;
     next?: string;
     pendingHint?: string;
     inviteCode?: string;
     reset?: string;
   }>();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(typeof prefillEmail === "string" ? prefillEmail.trim() : "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const routeMessage = pendingHint === "1"
+    ? "Conta encontrada sem vínculo ativo. Entre para validar seu convite na tela de acesso pendente."
+    : fromSignup === "1" ? "Este email já está cadastrado. Entrar com os dados preenchidos." : "";
+  const [message, setMessage] = useState(routeMessage);
   const [failedLoginAttempt, setFailedLoginAttempt] = useState(false);
-  const [showReset, setShowReset] = useState(false);
+  const requestedReset = resetParam === "1" || resetParam === "true";
+  const [showReset, setShowReset] = useState(requestedReset);
   const [resetCountdown, setResetCountdown] = useState(0);
   const [resetSent, setResetSent] = useState(false);
-  const enterAnim = useRef(new Animated.Value(0)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const [enterAnim] = useState(() => new Animated.Value(0));
+  const [shakeAnim] = useState(() => new Animated.Value(0));
   const [rememberMe, setRememberMe] = useState(false);
   const [rememberTouched, setRememberTouched] = useState(false);
   const [showRememberToast, setShowRememberToast] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricHint, setBiometricHint] = useState("");
-  const rememberToastAnim = useRef(new Animated.Value(0)).current;
+  const [rememberToastAnim] = useState(() => new Animated.Value(0));
   const loginInFlightRef = useRef(false);
   const passwordInputRef = useRef<TextInput>(null);
   const rememberKey = "auth_remember_email";
@@ -136,35 +134,20 @@ export default function LoginScreen() {
     };
   }, []);
 
+  const routeInput = [prefillEmail, routeMessage, requestedReset].join("|");
+  const [appliedRouteInput, setAppliedRouteInput] = useState(routeInput);
+  if (appliedRouteInput !== routeInput) {
+    setAppliedRouteInput(routeInput);
+    if (requestedReset) setShowReset(true);
+    if (typeof prefillEmail === "string" && prefillEmail.trim()) setEmail(prefillEmail.trim());
+    if (routeMessage) setMessage(routeMessage);
+  }
   useEffect(() => {
-    if (resetParam === "1" || resetParam === "true") {
-      setShowReset(true);
-    }
     if (typeof inviteCode === "string" && inviteCode.trim()) {
       void savePendingTrainerInvite(inviteCode);
     }
-    if (typeof prefillEmail === "string" && prefillEmail.trim()) {
-      Promise.resolve().then(() => {
-        setEmail(prefillEmail.trim());
-      });
-    }
-    if (typeof prefillPassword === "string" && prefillPassword) {
-      Promise.resolve().then(() => {
-        setPassword(prefillPassword);
-      });
-    }
-    if (pendingHint === "1") {
-      Promise.resolve().then(() => {
-        setMessage("Conta encontrada sem vínculo ativo. Entre para validar seu convite na tela de acesso pendente.");
-      });
-      return;
-    }
-    if (fromSignup === "1") {
-      Promise.resolve().then(() => {
-        setMessage("Este email já está cadastrado. Entrar com os dados preenchidos.");
-      });
-    }
-  }, [fromSignup, inviteCode, pendingHint, prefillEmail, prefillPassword, resetParam]);
+  }, [inviteCode]);
+
 
   useEffect(() => {
     Animated.timing(enterAnim, {

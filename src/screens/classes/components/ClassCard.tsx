@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ClassGroup } from "../../../core/models";
 import { markRender } from "../../../observability/perf";
 import type { ClassCardViewModel } from "../application/class-card-view-model";
-import { radius, shadow } from "../../../theme/tokens";
+import { radius, } from "../../../theme/tokens";
 import { ClassGenderBadge } from "../../../ui/ClassGenderBadge";
 import { Pressable } from "../../../ui/Pressable";
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";

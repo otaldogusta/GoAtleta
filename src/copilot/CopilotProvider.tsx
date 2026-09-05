@@ -878,19 +878,19 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const sheetMaxWidth = Platform.OS === "web" ? Math.max(420, Math.min(viewportWidth - 28, 1100)) : undefined;
   const isWebModal = Platform.OS === "web";
 
-  const [isPulsing, setIsPulsing] = useState(false);
-
+  const pulseKey = shouldPulseFab ? fabHint?.message ?? "hint" : null;
+  const [finishedPulseKey, setFinishedPulseKey] = useState<string | null>(null);
+  const [previousPulseKey, setPreviousPulseKey] = useState(pulseKey);
+  if (previousPulseKey !== pulseKey) {
+    setPreviousPulseKey(pulseKey);
+    setFinishedPulseKey(null);
+  }
+  const isPulsing = pulseKey !== null && finishedPulseKey !== pulseKey;
   useEffect(() => {
-    if (!shouldPulseFab) {
-      setIsPulsing(false);
-      return;
-    }
-    setIsPulsing(true);
-    const timer = setTimeout(() => {
-      setIsPulsing(false);
-    }, 4000);
+    if (!pulseKey) return;
+    const timer = setTimeout(() => setFinishedPulseKey(pulseKey), 4000);
     return () => clearTimeout(timer);
-  }, [shouldPulseFab, fabHint?.message]);
+  }, [pulseKey]);
 
   useEffect(() => {
     pulseLoopRef.current?.stop();

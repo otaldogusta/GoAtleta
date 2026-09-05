@@ -7,13 +7,13 @@ import { PeriodizationOverviewWorkspace } from "../PeriodizationOverviewWorkspac
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("Ionicons", props);
   },
 }));
 
 jest.mock("react-native-svg", () => {
-  const ReactRuntime = require("react");
+  const ReactRuntime = jest.requireActual("react");
   const component = (name: string) => (props: Record<string, unknown>) =>
     ReactRuntime.createElement(name, props, props.children);
   return {

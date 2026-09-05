@@ -50,12 +50,14 @@ export const matchStatusForCount = (count: number): ProviderMatchStatus =>
 
 export const mapAsaasCustomerRecord = (params: {
   organizationId: string;
+  connectionId: string;
   customer: AsaasCustomer;
   matchStatus: ProviderMatchStatus;
 }) => {
   const document = textValue(params.customer.cpfCnpj).replace(/\D/g, "");
   return {
     organization_id: params.organizationId,
+    connection_id: params.connectionId,
     provider: "asaas",
     external_customer_id: textValue(params.customer.id),
     external_reference: safeExternalValue(params.customer.externalReference),
@@ -77,11 +79,13 @@ const paymentDate = (payment: AsaasPayment) => {
 
 export const mapAsaasPaymentRecord = (params: {
   organizationId: string;
+  connectionId: string;
   payment: AsaasPayment;
   matchStatus: ProviderMatchStatus;
   invoiceId?: string | null;
 }) => ({
   organization_id: params.organizationId,
+  connection_id: params.connectionId,
   provider: "asaas",
   external_payment_id: textValue(params.payment.id),
   external_customer_id: textValue(params.payment.customer),
@@ -105,10 +109,12 @@ export const mapAsaasPaymentRecord = (params: {
 
 export const mapAsaasSubscriptionRecord = (params: {
   organizationId: string;
+  connectionId: string;
   subscription: AsaasSubscription;
   matchStatus: ProviderMatchStatus;
 }) => ({
   organization_id: params.organizationId,
+  connection_id: params.connectionId,
   provider: "asaas",
   external_subscription_id: textValue(params.subscription.id),
   external_customer_id: textValue(params.subscription.customer),

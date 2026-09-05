@@ -10,7 +10,7 @@ import {
 const mockGetClassById = jest.fn();
 const mockEnsureDefaultVisualPresets = jest.fn();
 const mockSaveTechnicalVisual = jest.fn();
-const keyboardListeners: Array<(event: KeyboardEvent) => void> = [];
+const keyboardListeners: ((event: KeyboardEvent) => void)[] = [];
 
 const dispatchKeyboardShortcut = (event: Partial<KeyboardEvent>) => {
   const preventDefault = jest.fn();
@@ -39,7 +39,7 @@ jest.mock("expo-router", () => ({
 
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => {
-    const ReactMock = require("react");
+    const ReactMock = jest.requireActual("react");
     return ReactMock.createElement(ReactMock.Fragment, null, children);
   },
   useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
@@ -51,8 +51,8 @@ jest.mock("@expo/vector-icons", () => ({
 
 jest.mock("../../ui/BackTitleHeader", () => ({
   BackTitleHeader: ({ title }: { title: string }) => {
-    const ReactMock = require("react");
-    const { Text } = require("react-native");
+    const ReactMock = jest.requireActual("react");
+    const { Text } = jest.requireActual("react-native");
     return ReactMock.createElement(Text, null, title);
   },
 }));
@@ -79,8 +79,8 @@ jest.mock("../VisualCourtCanvas", () => ({
     showMovementLines?: boolean;
     stepIndex: number;
   }) => {
-    const ReactMock = require("react");
-    const { Pressable, Text } = require("react-native");
+    const ReactMock = jest.requireActual("react");
+    const { Pressable, Text } = jest.requireActual("react-native");
     return ReactMock.createElement(
       ReactMock.Fragment,
       null,
@@ -130,8 +130,8 @@ jest.mock("../../../ui/Button", () => ({
     label: string;
     onPress: () => void;
   }) => {
-    const ReactMock = require("react");
-    const { Pressable, Text } = require("react-native");
+    const ReactMock = jest.requireActual("react");
+    const { Pressable, Text } = jest.requireActual("react-native");
     return ReactMock.createElement(
       Pressable,
       {

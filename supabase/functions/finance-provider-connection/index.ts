@@ -49,6 +49,7 @@ type ConnectionRequest = {
 };
 
 type CredentialRow = {
+  connection_id?: unknown;
   environment?: unknown;
   secret_ciphertext?: unknown;
   secret_iv?: unknown;
@@ -245,7 +246,7 @@ const readCredential = async (
 ) => {
   const { data, error } = await admin
     .from("payment_provider_credentials")
-    .select("environment,secret_ciphertext,secret_iv,key_hint")
+    .select("connection_id,environment,secret_ciphertext,secret_iv,key_hint")
     .eq("organization_id", organizationId)
     .eq("provider", PROVIDER)
     .maybeSingle();
@@ -279,13 +280,16 @@ const decryptApiKey = async (
 const latestSync = async (
   admin: ReturnType<typeof adminClient>,
   organizationId: string,
+  connectionId: string,
 ) => {
+  if (!connectionId) return null;
   const { data } = await admin
     .from("finance_provider_sync_runs")
     .select(
       "customer_count,matched_customer_count,ambiguous_customer_count,payment_count,subscription_count,truncated,completed_at",
     )
     .eq("organization_id", organizationId)
+    .eq("connection_id", connectionId)
     .eq("provider", PROVIDER)
     .eq("status", "completed")
     .order("started_at", { ascending: false })
@@ -299,7 +303,7 @@ const connectionStatus = async (params: {
   organizationId: string;
   canManage: boolean;
 }) => {
-  const [{ data: merchant }, credential, sync] = await Promise.all([
+  const [{ data: merchant }, credential] = await Promise.all([
     params.admin
       .from("merchant_accounts")
       .select(
@@ -309,8 +313,8 @@ const connectionStatus = async (params: {
       .eq("provider", PROVIDER)
       .maybeSingle(),
     readCredential(params.admin, params.organizationId),
-    latestSync(params.admin, params.organizationId),
   ]);
+  const sync = await latestSync(params.admin, params.organizationId, textValue(credential?.connection_id));
   const safeMerchant = (merchant ?? null) as MerchantRow | null;
   const connected = Boolean(credential && safeMerchant?.id);
   return {
@@ -399,6 +403,7 @@ const findInvoiceIds = async (
 const syncHistory = async (params: {
   admin: ReturnType<typeof adminClient>;
   organizationId: string;
+  connectionId: string;
   userId: string;
   apiKey: string;
   environment: AsaasEnvironment;
@@ -407,6 +412,7 @@ const syncHistory = async (params: {
     .from("finance_provider_sync_runs")
     .insert({
       organization_id: params.organizationId,
+      connection_id: params.connectionId,
       provider: PROVIDER,
       environment: params.environment,
       status: "running",
@@ -473,6 +479,7 @@ const syncHistory = async (params: {
       statusByCustomer.set(externalId, matchStatus);
       return mapAsaasCustomerRecord({
         organizationId: params.organizationId,
+        connectionId: params.connectionId,
         customer,
         matchStatus,
       });
@@ -481,7 +488,7 @@ const syncHistory = async (params: {
       admin: params.admin,
       table: "provider_customers",
       rows: customerRows,
-      onConflict: "organization_id,provider,external_customer_id",
+      onConflict: "connection_id,external_customer_id",
     });
 
     const providerCustomerIds = new Map<string, string>();
@@ -491,6 +498,7 @@ const syncHistory = async (params: {
         .from("provider_customers")
         .select("id,external_customer_id")
         .eq("organization_id", params.organizationId)
+        .eq("connection_id", params.connectionId)
         .eq("provider", PROVIDER)
         .in("external_customer_id", batch);
       if (error) throw new Error("provider_customer_link_read_failed");
@@ -551,6 +559,7 @@ const syncHistory = async (params: {
         : (statusByCustomer.get(customerId) ?? "unmatched");
       return mapAsaasPaymentRecord({
         organizationId: params.organizationId,
+        connectionId: params.connectionId,
         payment,
         matchStatus,
         invoiceId: linkedInvoice,
@@ -560,7 +569,7 @@ const syncHistory = async (params: {
       admin: params.admin,
       table: "provider_receivables",
       rows: paymentRows,
-      onConflict: "organization_id,provider,external_payment_id",
+      onConflict: "connection_id,external_payment_id",
     });
 
     const subscriptions = subscriptionResult.records.filter(
@@ -569,6 +578,7 @@ const syncHistory = async (params: {
     const subscriptionRows = subscriptions.map((subscription) =>
       mapAsaasSubscriptionRecord({
         organizationId: params.organizationId,
+        connectionId: params.connectionId,
         subscription,
         matchStatus:
           statusByCustomer.get(textValue(subscription.customer)) ?? "unmatched",
@@ -578,7 +588,7 @@ const syncHistory = async (params: {
       admin: params.admin,
       table: "provider_subscriptions",
       rows: subscriptionRows,
-      onConflict: "organization_id,provider,external_subscription_id",
+      onConflict: "connection_id,external_subscription_id",
     });
 
     const matchedCustomerCount = Array.from(statusByCustomer.values()).filter(
@@ -616,6 +626,7 @@ const syncHistory = async (params: {
       })
       .eq("organization_id", params.organizationId)
       .eq("provider", PROVIDER)
+      .eq("connection_id", params.connectionId)
       .select("id")
       .single();
     if (merchant?.id) {
@@ -652,6 +663,7 @@ const syncHistory = async (params: {
       params.admin
         .from("merchant_accounts")
         .update({ sync_error_code: errorCode })
+        .eq("connection_id", params.connectionId)
         .eq("organization_id", params.organizationId)
         .eq("provider", PROVIDER),
     ]);
@@ -876,9 +888,12 @@ Deno.serve(async (req) => {
     }
 
     if (action === "sync") {
+      const connectionId = textValue(credential.connection_id);
+      if (!connectionId) throw new Error("provider_account_scope_missing");
       const receipt = await syncHistory({
         admin,
         organizationId,
+        connectionId,
         userId: auth.user.id,
         apiKey,
         environment,

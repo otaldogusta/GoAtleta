@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import type { GestureResponderEvent } from "react-native";
 
 export const HORIZONTAL_GESTURE_THRESHOLD = 6;
@@ -44,6 +44,9 @@ export function createHorizontalGestureArbitrator(
   };
 
   return {
+    setOnChange(callback?: (active: boolean) => void) {
+      onHorizontalGestureChange = callback;
+    },
     start(x: number, y: number) {
       reset();
       startPoint = { x, y };
@@ -68,36 +71,29 @@ export function createHorizontalGestureArbitrator(
 export function useHorizontalGestureArbitration(
   onHorizontalGestureChange?: (active: boolean) => void
 ) {
-  const callbackRef = useRef(onHorizontalGestureChange);
-  callbackRef.current = onHorizontalGestureChange;
-
-  const arbitratorRef = useRef<
-    ReturnType<typeof createHorizontalGestureArbitrator> | undefined
-  >(undefined);
-  if (!arbitratorRef.current) {
-    arbitratorRef.current = createHorizontalGestureArbitrator((active) => {
-      callbackRef.current?.(active);
-    });
-  }
+  const [arbitrator] = useState(() => createHorizontalGestureArbitrator());
+  useLayoutEffect(() => {
+    arbitrator.setOnChange(onHorizontalGestureChange);
+  }, [arbitrator, onHorizontalGestureChange]);
 
   const onTouchStart = useCallback((event: GestureResponderEvent) => {
-    arbitratorRef.current?.start(
+    arbitrator.start(
       event.nativeEvent.pageX,
       event.nativeEvent.pageY
     );
-  }, []);
+  }, [arbitrator]);
   const onTouchMove = useCallback((event: GestureResponderEvent) => {
-    arbitratorRef.current?.move(
+    arbitrator.move(
       event.nativeEvent.pageX,
       event.nativeEvent.pageY
     );
-  }, []);
+  }, [arbitrator]);
   const onTouchEnd = useCallback(() => {
-    arbitratorRef.current?.end();
-  }, []);
+    arbitrator.end();
+  }, [arbitrator]);
   const onTouchCancel = useCallback(() => {
-    arbitratorRef.current?.cancel();
-  }, []);
+    arbitrator.cancel();
+  }, [arbitrator]);
 
   return useMemo(
     () => ({ onTouchStart, onTouchMove, onTouchEnd, onTouchCancel }),

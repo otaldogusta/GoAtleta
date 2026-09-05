@@ -21,7 +21,7 @@ export type CatalogAuditExportPayload = {
     unusedVariantCount: number;
     unknownReferenceCount: number;
   };
-  insights: Array<{
+  insights: {
     id: string;
     priority: string;
     category: string;
@@ -29,18 +29,18 @@ export type CatalogAuditExportPayload = {
     message: string;
     evidence: string[];
     suggestedActions: string[];
-  }>;
-  unusedVariants: Array<{
+  }[];
+  unusedVariants: {
     variantId: string;
     familyId: string;
     title: string;
     primarySkill: string;
-  }>;
-  unknownReferences: Array<{
+  }[];
+  unknownReferences: {
     variantId?: string;
     familyId?: string;
     reason: string;
-  }>;
+  }[];
 };
 
 const priorityLabels: Record<string, string> = {

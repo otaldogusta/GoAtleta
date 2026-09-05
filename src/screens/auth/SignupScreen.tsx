@@ -67,12 +67,12 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
   const submitting = useRef(false);
   const [inviteCode, setInviteCode] = useState("");
   const [showInviteCode, setShowInviteCode] = useState(false);
-  const strengthAnim = useRef(new Animated.Value(0)).current;
-  const enterAnim = useRef(new Animated.Value(0)).current;
-  const emailShakeAnim = useRef(new Animated.Value(0)).current;
-  const passwordShakeAnim = useRef(new Animated.Value(0)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
-  const formShakeAnim = useRef(new Animated.Value(0)).current;
+  const [strengthAnim] = useState(() => new Animated.Value(0));
+  const [enterAnim] = useState(() => new Animated.Value(0));
+  const [emailShakeAnim] = useState(() => new Animated.Value(0));
+  const [passwordShakeAnim] = useState(() => new Animated.Value(0));
+  const [shakeAnim] = useState(() => new Animated.Value(0));
+  const [formShakeAnim] = useState(() => new Animated.Value(0));
   const emailInputRef = useRef<TextInput | null>(null);
   const [emailError, setEmailError] = useState<"missing" | "invalid" | null>(
     null,
@@ -157,10 +157,7 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
   }, [completion?.error, formShakeAnim, runShake]);
 
   useEffect(() => {
-    if (!email.trim()) {
-      setEmailError(null);
-      return;
-    }
+    if (!email.trim()) return;
     const timer = setTimeout(() => {
       if (email.trim() && !hasValidEmailFormat(email)) {
         setEmailError("invalid");
@@ -171,29 +168,8 @@ export default function SignupScreen({ completion }: { completion?: SignupComple
     return () => clearTimeout(timer);
   }, [email]);
 
-  useEffect(() => {
-    if (!password) {
-      setPasswordTooShort(false);
-      return;
-    }
-    if (password.length >= 6) {
-      setPasswordTooShort(false);
-    }
-  }, [password]);
-
-  useEffect(() => {
-    if (!confirm.trim()) {
-      setConfirmError(null);
-      return;
-    }
-    if (confirm === password) {
-      setConfirmError(null);
-      return;
-    }
-    if (confirm.length >= password.length) {
-      setConfirmError("mismatch");
-      return;
-    }
+useEffect(() => {
+    if (!confirm.trim() || confirm === password) return;
     const timer = setTimeout(() => {
       if (confirm && confirm !== password) {
         setConfirmError("mismatch");

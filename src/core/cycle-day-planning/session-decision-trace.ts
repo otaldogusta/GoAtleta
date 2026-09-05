@@ -16,7 +16,7 @@ import type { CycleDayGenerationExplanation } from "./format-generation-explanat
 import type { SessionDecisionTrace } from "./session-decision-trace-types";
 export type { SessionDecisionTrace } from "./session-decision-trace-types";
 
-const cleanList = (values: Array<string | null | undefined>) =>
+const cleanList = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))];
 
 const hasRealClassPlan = (classPlan?: ClassPlan | null) =>

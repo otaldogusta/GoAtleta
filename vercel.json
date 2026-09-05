@@ -1,8 +1,8 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build:verified",
   "outputDirectory": "dist",
   "devCommand": "npm run web",
-  "installCommand": "npm install",
+  "installCommand": "npm ci",
   "framework": null,
   "redirects": [
     {

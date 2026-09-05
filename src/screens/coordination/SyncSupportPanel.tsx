@@ -58,11 +58,13 @@ export function SyncSupportPanel({
   const { width } = useWindowDimensions();
   const isCompactLayout = width < 430;
   const [showAdvancedSyncActions, setShowAdvancedSyncActions] = useState(false);
+  const quarantinedCount = pendingWritesDiagnostics.quarantinedMissingOrigin ?? 0;
 
   const visible =
     !loading &&
     (pendingWritesDiagnostics.deadLetterCandidates > 0 ||
       pendingWritesDiagnostics.deadLetterStored > 0 ||
+      quarantinedCount > 0 ||
       syncPausedReason !== null ||
       failedWrites.length > 0);
 
@@ -101,6 +103,11 @@ export function SyncSupportPanel({
       <Text style={{ color: colors.muted, fontSize: 12 }}>
         {pendingWritesDiagnostics.deadLetterCandidates} item(ns) com 10+ tentativas • {pendingWritesDiagnostics.deadLetterStored} item(ns) arquivado(s) em dead-letter. Máx retry: {pendingWritesDiagnostics.maxRetry}.
       </Text>
+      {quarantinedCount > 0 ? (
+        <Text style={{ color: colors.muted, fontSize: 12 }}>
+          {quarantinedCount} {quarantinedCount === 1 ? "alteração antiga preservada aguarda" : "alterações antigas preservadas aguardam"} identificação do autor.
+        </Text>
+      ) : null}
       {syncPausedReason ? (
         <View
           style={{

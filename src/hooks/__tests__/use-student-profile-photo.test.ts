@@ -5,7 +5,7 @@ import { getStudentPhotoAccessUrl } from "../../api/student-photo-storage";
 import type { Student } from "../../core/models";
 import { useStudentProfilePhoto } from "../use-student-profile-photo";
 
-jest.mock("expo-router", () => ({ useFocusEffect: (callback: () => void) => require("react").useEffect(callback, [callback]) }));
+jest.mock("expo-router", () => ({ useFocusEffect: (callback: () => void) => jest.requireActual("react").useEffect(callback, [callback]) }));
 jest.mock("../../api/student-self-photo", () => ({ getStudentProfilePhoto: jest.fn() }));
 jest.mock("../../api/student-photo-storage", () => ({ getStudentPhotoAccessUrl: jest.fn() }));
 

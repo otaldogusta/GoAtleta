@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { AccessibilityInfo, Animated, Easing, Platform, View } from "react-native";
 import { useAppTheme } from "./app-theme";
@@ -92,7 +92,7 @@ export function ShimmerBlock({ style }: ShimmerBlockProps) {
   const { mode } = useAppTheme();
   const isWeb = Platform.OS === "web";
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  const anim = useRef<Animated.Value | null>(isWeb ? null : getShimmerProgress()).current;
+  const [anim] = useState(() => isWeb ? null : getShimmerProgress());
   const glassBase = mode === "dark"
     ? "rgba(255, 255, 255, 0.10)"
     : "rgba(15, 23, 42, 0.06)";

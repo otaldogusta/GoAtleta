@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Platform } from "react-native";
 
 import { clearAiCache } from "../api/ai";
+import { clearLocalReadCaches } from "../db/client";
 import { redeemStaffInvite, completeStaffSignup, type StaffInviteResult, type StaffSignupFields } from "../api/staff-invite";
 import type { StaffInviteProof } from "./staff-invite-link";
 import { updatePasswordWithAccessToken } from "../api/auth-password";
@@ -30,6 +31,7 @@ import {
   loadSession,
   loadValidatedSession,
   saveSession,
+  subscribeSession,
 } from "./session";
 import { setDevProfilePreview } from "../dev/profile-preview";
 
@@ -319,6 +321,7 @@ export function AuthProvider({
   const [loading, setLoading] = useState(
     initialSession === undefined
   );
+  useEffect(() => subscribeSession(setSession), []);
 
   useEffect(() => {
     let alive = true;
@@ -703,6 +706,7 @@ export function AuthProvider({
     clearAiCache();
     setSession(null);
     await saveSession(null, false);
+    await clearLocalReadCaches();
   }, []);
 
   const value = useMemo(

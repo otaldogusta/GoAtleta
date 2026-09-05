@@ -9,11 +9,11 @@ const mockResend = jest.fn();
 jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, canGoBack: () => false }), useLocalSearchParams: () => ({}) }));
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ signUp: mockSignUp, resendSignupCode: mockResend, signInWithOAuth: jest.fn() }) }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
-jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: require("react-native").View }));
+jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View }));
 jest.mock("../../../components/ui/ScreenBackdrop", () => ({ ScreenBackdrop: () => null }));
-jest.mock("../../../ui/ScreenHeader", () => ({ ScreenHeader: ({ title }: any) => require("react").createElement(require("react-native").Text, {}, title) }));
+jest.mock("../../../ui/ScreenHeader", () => ({ ScreenHeader: ({ title }: any) => jest.requireActual("react").createElement(jest.requireActual("react-native").Text, {}, title) }));
 jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
-jest.mock("../../../ui/Button", () => ({ Button: ({ label, loading, loadingLabel, disabled, onPress }: any) => require("react").createElement(require("react-native").Pressable, { accessibilityRole: "button", accessibilityLabel: loading ? loadingLabel : label, accessibilityState: { disabled }, disabled, onPress }) }));
+jest.mock("../../../ui/Button", () => ({ Button: ({ label, loading, loadingLabel, disabled, onPress }: any) => jest.requireActual("react").createElement(jest.requireActual("react-native").Pressable, { accessibilityRole: "button", accessibilityLabel: loading ? loadingLabel : label, accessibilityState: { disabled }, disabled, onPress }) }));
 
 const completion = (overrides: Partial<SignupCompletion> = {}): SignupCompletion => ({
   email: "recipient@example.com", busy: false, error: "", onSubmit: jest.fn().mockResolvedValue(undefined),

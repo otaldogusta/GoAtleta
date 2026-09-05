@@ -5,7 +5,7 @@ import {
     Easing,
     KeyboardAvoidingView,
     Platform,
-    ScrollView,
+
     Text,
     TextInput,
     Vibration,
@@ -455,10 +455,10 @@ export default function ClassesScreen() {
     if (canExportAttendance) setShowAttendanceExportModal(true);
   }, [canExportAttendance]);
   const closeAttendanceExportModal = useCallback(() => setShowAttendanceExportModal(false), []);
-  const mainTabAnim = useRef<Record<"lista" | "criar", Animated.Value>>({
+  const [mainTabAnim] = useState<Record<"lista" | "criar", Animated.Value>>(() => ({
     lista: new Animated.Value(1),
     criar: new Animated.Value(0),
-  }).current;
+  }));
   const [editSaving, setEditSaving] = useState(false);
   const [editFormError, setEditFormError] = useState("");
   const [editShowCustomAgeBand, setEditShowCustomAgeBand] = useState(false);
@@ -737,14 +737,7 @@ export default function ClassesScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!classCardPhotoCandidates.length) {
-      setStudentPhotoAccessUrls({});
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void Promise.all(
+void Promise.all(
       classCardPhotoCandidates.map(async (student) => {
         const sourceUrl = student.photoUrl!.trim();
         try {
@@ -2030,7 +2023,7 @@ export default function ClassesScreen() {
         },
       });
     },
-    [confirmDialog, loadClasses, router, scopedRoutes.planning]
+    [confirmDialog, loadClasses, router]
   );
 
   const handleDeleteClassFromCard = useCallback(

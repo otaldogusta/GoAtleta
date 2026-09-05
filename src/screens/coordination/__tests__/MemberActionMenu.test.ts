@@ -23,14 +23,14 @@ jest.mock("../../../auth/auth", () => ({
 
 jest.mock("../../../ui/icon-registry", () => ({
   GoAtletaIcon: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("GoAtletaIcon", props);
   },
 }));
 
 jest.mock("../../../ui/AnchoredDropdown", () => ({
   AnchoredDropdown: ({ visible, children, ...props }: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement(
       "AnchoredDropdown",
       { ...props, visible },
@@ -41,14 +41,14 @@ jest.mock("../../../ui/AnchoredDropdown", () => ({
 
 jest.mock("../../../ui/AnchoredDropdownOption", () => ({
   AnchoredDropdownOption: ({ children, ...props }: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("AnchoredDropdownOption", props, children);
   },
 }));
 
 jest.mock("../../../ui/ModalSheet", () => ({
   ModalSheet: ({ visible, children, ...props }: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement(
       "ModalSheet",
       { ...props, visible },

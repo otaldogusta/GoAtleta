@@ -1,3 +1,5 @@
+import { getProfilePhotoStorageErrorMessage } from "../profile-photo-storage";
+
 jest.mock("../../auth/session", () => ({
   getValidAccessToken: jest.fn(),
 }));
@@ -10,8 +12,6 @@ jest.mock("../config", () => ({
 jest.mock("../../utils/profile-photo", () => ({
   normalizeProfilePhotoForUpload: jest.fn(),
 }));
-
-import { getProfilePhotoStorageErrorMessage } from "../profile-photo-storage";
 
 describe("profile photo storage errors", () => {
   it("does not expose the raw Storage response for denied uploads", () => {

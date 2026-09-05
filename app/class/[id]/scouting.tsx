@@ -1,3 +1,4 @@
+import { useCurrentTime } from "../../../src/hooks/use-current-time";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -139,12 +140,12 @@ export default function ClassScoutingRoute() {
     return map;
   }, [actions]);
 
+  const now = useCurrentTime();
   const nextContext = useMemo(() => {
-    const now = Date.now();
     return [...trainingSessions]
       .filter((session) => new Date(session.startAt).getTime() >= now)
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())[0] ?? null;
-  }, [trainingSessions]);
+  }, [now, trainingSessions]);
 
   const signals = useMemo(() => buildScoutingTeamSignals(actions), [actions]);
   const priorities = useMemo(() => buildScoutingWeeklyPriorities(actions), [actions]);

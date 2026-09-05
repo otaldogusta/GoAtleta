@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+
 export const brandPalette = {
   navy: "#0E1729",
   navyDeep: "#0A1322",
@@ -82,8 +84,6 @@ export const radius = {
   xl: 20,
   full: 999,
 } as const;
-
-import { Platform } from "react-native";
 
 export interface ShadowStyle {
   shadowColor?: string;

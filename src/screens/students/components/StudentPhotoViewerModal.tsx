@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ActivityIndicator, Modal, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -31,7 +31,11 @@ export function resolveStudentPhotoViewerState({
   return "empty";
 }
 
-export function StudentPhotoViewerModal({
+export function StudentPhotoViewerModal(props: StudentPhotoViewerModalProps) {
+  return <StudentPhotoViewerContent key={props.uri ?? ""} {...props} />;
+}
+
+function StudentPhotoViewerContent({
   visible,
   name,
   uri,
@@ -40,12 +44,9 @@ export function StudentPhotoViewerModal({
 }: StudentPhotoViewerModalProps) {
   const { colors } = useAppTheme();
   const [imageFailed, setImageFailed] = useState(false);
+  if (!visible && imageFailed) setImageFailed(false);
 
-  useEffect(() => {
-    setImageFailed(false);
-  }, [uri, visible]);
-
-  const viewerState = resolveStudentPhotoViewerState({ uri, loading, imageFailed });
+const viewerState = resolveStudentPhotoViewerState({ uri, loading, imageFailed });
 
   return (
     <Modal

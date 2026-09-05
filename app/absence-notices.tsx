@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SectionList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -177,7 +177,9 @@ export function NotificationsCenterScreen({
   const noticesContextKeyRef = useRef(noticesContextKey);
   const loadNoticesRequestIdRef = useRef(0);
   const loadMoreRequestIdRef = useRef(0);
-  noticesContextKeyRef.current = noticesContextKey;
+  useLayoutEffect(() => {
+    noticesContextKeyRef.current = noticesContextKey;
+  }, [noticesContextKey]);
   const [loadedNoticesContextKey, setLoadedNoticesContextKey] = useState<string | null>(null);
 
   const loadNotices = useCallback(async () => {
@@ -235,7 +237,6 @@ export function NotificationsCenterScreen({
       }
     }
   }, [
-    activeOrganization?.id,
     inboxScope,
     notificationOrganizationId,
     noticesContextKey,

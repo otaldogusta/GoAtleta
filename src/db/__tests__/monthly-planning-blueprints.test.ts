@@ -1,3 +1,8 @@
+import {
+  getMonthlyPlanningBlueprint,
+  upsertMonthlyPlanningBlueprint,
+} from "../monthly-planning-blueprints";
+
 const mockGetFirstAsync = jest.fn();
 const mockRunAsync = jest.fn();
 
@@ -7,11 +12,6 @@ jest.mock("../sqlite", () => ({
     runAsync: (...args: unknown[]) => mockRunAsync(...args),
   },
 }));
-
-import {
-  getMonthlyPlanningBlueprint,
-  upsertMonthlyPlanningBlueprint,
-} from "../monthly-planning-blueprints";
 
 describe("monthly planning blueprint persistence", () => {
   beforeEach(() => {

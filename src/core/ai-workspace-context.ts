@@ -35,11 +35,11 @@ export type WorkspaceInstitutionalProfile = {
   goals: string[];
   equipmentNotes: string;
   communicationPreferences: Record<string, unknown>;
-  appliedScopes: Array<{
+  appliedScopes: {
     scopeType: InstitutionalProfileScope;
     scopeId: string;
     label: string;
-  }>;
+  }[];
 };
 
 export type WorkspaceContext = {

@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 
 import { AnchoredDropdown } from "../../../ui/AnchoredDropdown";
@@ -54,7 +54,7 @@ export function TrainingFabMenu({
   onImportPress,
 }: TrainingFabMenuProps) {
   const { colors } = useAppTheme();
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
   const [mounted, setMounted] = useState(visible);
 
   useEffect(() => {

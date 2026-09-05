@@ -1,3 +1,12 @@
+import {
+  archivePlanningCycle,
+  ensureActiveCycleForYear,
+  getActivePlanningCycle,
+  getOrCreateInitialActivePlanningCycle,
+  getPlanningCycles,
+  upsertPlanningCycle,
+} from "../cycles";
+
 const mockGetAllAsync = jest.fn();
 const mockRunAsync = jest.fn();
 const mockSupabaseGet = jest.fn();
@@ -22,15 +31,6 @@ jest.mock("../client", () => ({
   supabasePatch: (...args: unknown[]) => mockSupabasePatch(...args),
   supabasePost: (...args: unknown[]) => mockSupabasePost(...args),
 }));
-
-import {
-  archivePlanningCycle,
-  ensureActiveCycleForYear,
-  getActivePlanningCycle,
-  getOrCreateInitialActivePlanningCycle,
-  getPlanningCycles,
-  upsertPlanningCycle,
-} from "../cycles";
 
 const remoteCycle = {
   id: "cycle_1",

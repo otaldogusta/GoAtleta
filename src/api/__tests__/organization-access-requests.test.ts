@@ -1,12 +1,12 @@
-jest.mock("../rest", () => ({
-  supabaseRestPost: jest.fn(),
-}));
-
 import {
   adminListOrgAccessRequests,
   adminReviewOrgAccessRequest,
 } from "../organization-access-requests";
 import { supabaseRestPost } from "../rest";
+
+jest.mock("../rest", () => ({
+  supabaseRestPost: jest.fn(),
+}));
 
 const mockSupabaseRestPost = supabaseRestPost as jest.MockedFunction<
   typeof supabaseRestPost

@@ -159,7 +159,7 @@ describe("buildInitialMonthPlans", () => {
     });
     const snapshot = JSON.parse(regenerated.generationContextSnapshotJson ?? "{}") as {
       weeklyOperationalStrategy?: {
-        decisions?: Array<{ sessionIndexInWeek: number; sessionRole: string }>;
+        decisions?: { sessionIndexInWeek: number; sessionRole: string }[];
       };
     };
 

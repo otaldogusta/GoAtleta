@@ -19,8 +19,8 @@ describe("SQLite bootstrap migrations", () => {
   });
 
   test("creates indexes only after additive columns can be migrated", () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { initDb } = require("../sqlite") as typeof import("../sqlite");
+
+    const { initDb } = jest.requireActual("../sqlite") as typeof import("../sqlite");
 
     initDb();
 

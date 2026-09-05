@@ -20,11 +20,11 @@ jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { em
 jest.mock("../../../auth/pending-invite", () => ({ savePendingTrainerInvite: jest.fn().mockResolvedValue(undefined), clearPendingTrainerInvite: (...args: unknown[]) => mockClearPending(...args) }));
 jest.mock("../../../providers/OrganizationProvider", () => ({ useOrganization: () => ({ setActiveOrganizationId: mockSetOrganization }) }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
-jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: require("react-native").View }));
+jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View }));
 jest.mock("../../../components/ui/ScreenBackdrop", () => ({ ScreenBackdrop: () => null }));
-jest.mock("../../../ui/ScreenHeader", () => ({ ScreenHeader: ({ title }: any) => require("react").createElement(require("react-native").Text, {}, title) }));
+jest.mock("../../../ui/ScreenHeader", () => ({ ScreenHeader: ({ title }: any) => jest.requireActual("react").createElement(jest.requireActual("react-native").Text, {}, title) }));
 jest.mock("../../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
-jest.mock("../../../ui/Button", () => ({ Button: ({ label, disabled, onPress }: any) => require("react").createElement(require("react-native").Pressable, { accessibilityRole: "button", accessibilityLabel: label, disabled, onPress }) }));
+jest.mock("../../../ui/Button", () => ({ Button: ({ label, disabled, onPress }: any) => jest.requireActual("react").createElement(jest.requireActual("react-native").Pressable, { accessibilityRole: "button", accessibilityLabel: label, disabled, onPress }) }));
 
 describe("employee invitation screen", () => {
   const originalOS = Platform.OS;

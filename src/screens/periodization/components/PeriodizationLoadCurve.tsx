@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Line, Path, Stop } from "react-native-svg";
 
@@ -78,13 +78,13 @@ export const PeriodizationLoadCurve = memo(function PeriodizationLoadCurve({
   draft?: PeriodizationLoadCurveDraft;
   compact?: boolean;
 }) {
-  const previewDraft = draft ?? {
+  const previewDraft = useMemo(() => draft ?? {
     cycleLengthWeeks: 52,
     loadModel: "ondulatorio" as const,
     recoveryWeeks: 4,
     intensityMin: 3,
     intensityMax: 6,
-  };
+  }, [draft]);
   const [width, setWidth] = useState(520);
   const height = compact ? 104 : 205;
   const plotLeft = compact ? 10 : 24;
@@ -107,8 +107,8 @@ export const PeriodizationLoadCurve = memo(function PeriodizationLoadCurve({
   const maxWeek = Math.max(1, previewDraft.cycleLengthWeeks || source.at(-1)?.week || 52);
   const maxLoad = Math.max(1, ...source.map((item) => item.plannedSessionLoad || 1));
   const policy = useMemo(() => normalizePeriodizationPolicy(previewDraft), [previewDraft]);
-  const xForWeek = (week: number) =>
-    plotLeft + ((week - 1) / Math.max(1, maxWeek - 1)) * (plotRight - plotLeft);
+  const xForWeek = useCallback((week: number) =>
+    plotLeft + ((week - 1) / Math.max(1, maxWeek - 1)) * (plotRight - plotLeft), [maxWeek, plotLeft, plotRight]);
 
   const { points, techniquePath, intensityPath, recoveryPath } = useMemo(() => {
     const pts = source.map((item, index) => {
@@ -146,7 +146,7 @@ export const PeriodizationLoadCurve = memo(function PeriodizationLoadCurve({
       intensityPath: smoothPath(pts.map((point) => ({ x: point.x, y: point.intensityY }))),
       recoveryPath: smoothPath(pts.map((point) => ({ x: point.x, y: point.recoveryY }))),
     };
-  }, [maxLoad, maxWeek, plotBottom, plotLeft, plotRight, plotTop, policy, source]);
+  }, [maxLoad, maxWeek, plotBottom, plotTop, policy, source, xForWeek]);
 
   const toAreaPath = (path: string) => points.length
     ? `${path} L ${points.at(-1)?.x ?? plotRight} ${plotBottom} L ${points[0].x} ${plotBottom} Z`

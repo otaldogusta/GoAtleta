@@ -293,7 +293,7 @@ const getRuleBasedPresentation = (tags: Set<string>) => {
   return null;
 };
 
-const TAG_RULES: ReadonlyArray<{ tag: string; keywords: string[] }> = [
+const TAG_RULES: readonly { tag: string; keywords: string[] }[] = [
   {
     tag: "aquecimento",
     keywords: ["aquecimento", "warmup", "warm up", "activation", "ativacao", "pre treino", "pre-treino", "prep"],

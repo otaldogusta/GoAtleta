@@ -23,8 +23,10 @@ não se criam interfaces vazias apenas para reproduzir um desenho teórico.
 
 ## Arquitetura observada
 
-O diagnóstico de 20 de julho de 2026 analisou 674 módulos de runtime e 2.697
-imports internos em `app`, `src` e `supabase/functions`. Testes, mocks e fixtures
+O diagnóstico de 5 de setembro de 2026, antes das correções da auditoria,
+analisou 896 módulos de runtime e 3.555 imports internos em `app`, `src` e
+`supabase/functions`. O guardrail encontrou zero violações, baseline vazio e
+nenhum ciclo. Testes, mocks e fixtures
 foram excluídos do grafo de produção e são analisados isoladamente pelas próprias
 fixtures do guardrail.
 
@@ -34,7 +36,7 @@ fixtures do guardrail.
 | `src/ui/**` e `src/components/**` | Design system, componentes e comportamento visual | Permanecer independentes de banco, migrations e Edge Functions |
 | `src/screens/**` | Componentes de feature, hooks e uma camada `application` emergente | Separar apresentação de casos de uso testáveis sem reescrita ampla |
 | `src/hooks/**` | Hooks genéricos de interface | Não concentrar autorização, persistência e regra pedagógica no mesmo hook |
-| `src/core/**` | Modelos, regras pedagógicas, planejamento, periodização e motores puros; contém quatro adapters/hooks legados | Tratar como núcleo independente, com dívida híbrida explicitada no baseline |
+| `src/core/**` | Modelos, regras pedagógicas, planejamento, periodização e motores puros | Preservar o núcleo independente; baseline atual sem exceções |
 | `src/api/**` | REST, Edge Functions, storage e integrações Supabase remotas | Expor operações coesas; não importar telas, rotas ou componentes |
 | `src/db/**` | Persistência local/remota, cache, filas e mapeamento de linhas | Preservar escopo organizacional e não depender do frontend |
 | `src/copilot/**` | Contexto, sinais, recomendações, memória de interface e orquestração | Passar por serviços e casos de uso; não criar autorização ou mutação paralela |
@@ -63,9 +65,9 @@ Responsável por rotas, composição de telas, navegação, adaptação da inter
 estado estritamente visual.
 
 Evitar regras reutilizáveis, consultas Supabase complexas, autorização duplicada,
-prompts acadêmicos centrais e mutações que deveriam passar por serviços. O
-baseline registra duas chamadas diretas legadas (`assistant` e recuperação de
-senha); uma terceira ocorrência nova falha no check.
+prompts acadêmicos centrais e mutações que deveriam passar por serviços.
+Chamadas de baixo nível que violem o contrato falham no check; as antigas
+exceções de Assistant e recuperação de senha já foram removidas do baseline.
 
 ### `src/ui/**` e `src/components/**`
 
@@ -87,10 +89,9 @@ validações, motores e transformações testáveis sem interface. Não deve dep
 de React, React Native, Expo, Expo Router, componentes, navegação, navegador ou
 cliente Supabase concreto.
 
-Quatro arquivos híbridos anteriores a este contrato permanecem no baseline:
-`effective-profile.ts`, `smart-sync.ts`, `use-locations.ts` e
-`use-smart-sync.ts`. Isso não redefine todo o core como híbrido nem permite novos
-casos equivalentes.
+O diagnóstico histórico de julho registrava quatro arquivos híbridos
+(`effective-profile.ts`, `smart-sync.ts`, `use-locations.ts` e `use-smart-sync.ts`).
+Essas exceções foram resolvidas; o baseline atual não aceita novos casos equivalentes.
 
 ### `src/api/**` e `src/db/**`
 
@@ -126,8 +127,8 @@ RLS, autorização do usuário nem validação do workspace ativo.
 
 ### Ciclos
 
-Não há ciclo síncrono de runtime. Há dois componentes estruturais, ambos
-visíveis no relatório e congelados no baseline:
+Não há ciclo detectado no grafo atual. O diagnóstico histórico de julho
+registrava dois componentes estruturais, posteriormente resolvidos:
 
 1. Planejamento pedagógico: o menor caminho demonstrável é
    `session-decision-trace.ts -> models.ts -> session-decision-trace.ts`; o
@@ -140,8 +141,9 @@ extração de `role-types.ts`, sem mudança funcional.
 
 ### Acoplamento e complexidade informativa
 
-Os limites são derivados da distribuição atual, não usados como bloqueios
-arbitrários:
+As métricas abaixo são o retrato histórico de julho, conservado para comparação.
+Para o estado atual, execute `npm run check:architecture:report`; não use estes
+números como limites arbitrários:
 
 | Métrica | Mediana | p90 | p95 | Máximo |
 | --- | ---: | ---: | ---: | ---: |

@@ -12,7 +12,7 @@ import { ClassCard } from "../ClassCard";
 jest.mock("../../../../observability/perf", () => ({ markRender: jest.fn() }));
 
 jest.mock("react-native", () => {
-  const ReactRuntime = require("react");
+  const ReactRuntime = jest.requireActual("react");
   const actual = jest.requireActual("react-native");
   const View = ReactRuntime.forwardRef(
     (props: Record<string, unknown>, ref: React.Ref<unknown>) =>
@@ -28,7 +28,7 @@ jest.mock("react-native", () => {
 
 jest.mock("../../../../ui/AnchoredDropdown", () => ({
   AnchoredDropdown: ({ visible, children, ...props }: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement(
       "AnchoredDropdown",
       { ...props, visible },
@@ -39,21 +39,21 @@ jest.mock("../../../../ui/AnchoredDropdown", () => ({
 
 jest.mock("../../../../ui/ClassGenderBadge", () => ({
   ClassGenderBadge: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("ClassGenderBadge", props);
   },
 }));
 
 jest.mock("../../../../ui/icon-registry", () => ({
   GoAtletaIcon: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("GoAtletaIcon", props);
   },
 }));
 
 jest.mock("../../../../ui/Shimmer", () => ({
   ShimmerBlock: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("ShimmerBlock", props);
   },
 }));

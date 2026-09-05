@@ -21,22 +21,20 @@ export default function StaffInviteScreen() {
   const resumeCode = typeof params.code === "string" && /^[A-Z0-9-]{4,128}$/i.test(params.code) ? params.code : "";
   const { session, loading, acceptStaffInvite, completeStaffInvite, signOut } = useAuth();
   const { setActiveOrganizationId } = useOrganization();
-  const proof = useRef<StaffInviteProof | null>(null);
+  const [proof, setProof] = useState<StaffInviteProof | null>(() =>
+    Platform.OS === "web" && typeof window !== "undefined"
+      ? parseStaffInviteFragment(window.location.hash) : null
+  );
   const inFlight = useRef(false);
-  const captured = useRef(false);
-  const [ready, setReady] = useState(false);
+  const ready = true;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [setup, setSetup] = useState<StaffInviteResult | null>(null);
   useEffect(() => {
-    if (captured.current) return;
-    captured.current = true;
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      proof.current = parseStaffInviteFragment(window.location.hash);
       // Keep credentials only in memory, never in navigation history or analytics.
       window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
     }
-    setReady(true);
   }, [router]);
   useEffect(() => {
     if (!ready || Platform.OS !== "web") return;
@@ -49,15 +47,15 @@ export default function StaffInviteScreen() {
     return () => clearTimeout(timer);
   }, [ready, router]);
   const accept = async () => {
-    if ((!proof.current && !resumeCode) || inFlight.current) return;
+    if ((!proof && !resumeCode) || inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     setError("");
     try {
-      await savePendingTrainerInvite(proof.current?.code ?? resumeCode);
+      await savePendingTrainerInvite(proof?.code ?? resumeCode);
       // Preserve the old session if validation fails. Replace only after the
       // recipient is authenticated AND the organization accepted the claim.
-      const result = proof.current ? await acceptStaffInvite(proof.current)
+      const result = proof ? await acceptStaffInvite(proof)
         : session ? await resumeStaffSignup(resumeCode, session) : null;
       if (!result) throw new Error("Entre com a conta convidada para continuar.");
       if (result.setup_required) {
@@ -66,7 +64,7 @@ export default function StaffInviteScreen() {
       }
       await setActiveOrganizationId(result.organization_id);
       await clearPendingTrainerInvite();
-      proof.current = null;
+      setProof(null);
       router.replace("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível aceitar o convite.");
@@ -76,7 +74,7 @@ export default function StaffInviteScreen() {
     }
   };
   const complete = async (fields: StaffSignupFields) => {
-    if ((!proof.current && !resumeCode) || !setup || inFlight.current) return;
+    if ((!proof && !resumeCode) || !setup || inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     setError("");
@@ -85,11 +83,11 @@ export default function StaffInviteScreen() {
       // Preserve a rotated refresh token in memory if applying the membership
       // fails, so retrying never falls back to the expired temporary session.
       setSetup(activeSetup);
-      const result = await completeStaffInvite(proof.current?.code ?? resumeCode, activeSetup, fields);
+      const result = await completeStaffInvite(proof?.code ?? resumeCode, activeSetup, fields);
       await setActiveOrganizationId(result.organization_id);
       await clearPendingTrainerInvite();
       setSetup(null);
-      proof.current = null;
+      setProof(null);
       router.replace("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível concluir o cadastro.");
@@ -99,13 +97,13 @@ export default function StaffInviteScreen() {
     }
   };
   const login = async () => {
-    if (!proof.current) return;
-    const code = proof.current.code;
+    if (!proof) return;
+    const code = proof.code;
     await signOut();
     await savePendingTrainerInvite(code);
     router.replace({ pathname: "/login", params: { inviteCode: code } });
   };
-  const invalid = ready && !proof.current && !resumeCode;
+  const invalid = ready && !proof && !resumeCode;
   if (setup) {
     return <SignupScreen completion={{
       email: setup.session.user.email ?? "",
@@ -115,7 +113,7 @@ export default function StaffInviteScreen() {
       onSubmit: complete,
       onCancel: () => {
         setSetup(null);
-        proof.current = null;
+        setProof(null);
         router.replace("/");
       },
     }} />;
@@ -133,7 +131,7 @@ export default function StaffInviteScreen() {
       {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{error}</Text> : null}
       {!invalid ? <Button label={busy ? "Validando convite..." : resumeCode ? "Continuar cadastro" : session ? "Trocar conta e aceitar" : "Aceitar e entrar"}
         disabled={!ready || loading || busy} onPress={() => void accept()} /> : null}
-      {error && proof.current ? <Button label="Entrar com a conta convidada" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
+      {error && proof ? <Button label="Entrar com a conta convidada" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
       <Button label={session ? "Manter minha conta" : "Voltar"} variant="secondary" disabled={busy} onPress={() => router.replace("/")} />
     </View>
   </ScrollView>;

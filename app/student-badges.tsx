@@ -1,3 +1,4 @@
+import { markRender, measureAsync } from "../src/observability/perf";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -58,6 +59,7 @@ const badgeDefs: BadgeDef[] = [
 ];
 
 export default function StudentBadges() {
+  markRender("screen.studentBadges.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const { student } = useRole();
@@ -67,7 +69,7 @@ export default function StudentBadges() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const cls = await getClasses();
+      const cls = await measureAsync("screen.studentBadges.load.classes", () => getClasses());
       if (!alive) return;
       setClasses(cls);
     })();
@@ -89,11 +91,11 @@ export default function StudentBadges() {
       if (!student || !currentClass) return;
       const start = new Date(month.getFullYear(), month.getMonth(), 1);
       const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
-      const logs = await getStudentScoutingByRange(
+      const logs = await measureAsync("screen.studentBadges.load.scouting", () => getStudentScoutingByRange(
         currentClass.id,
         formatIsoDate(start),
         formatIsoDate(end)
-      );
+      ));
       if (!alive) return;
       setLogs(logs.filter((l) => l.studentId === student.id));
     })();

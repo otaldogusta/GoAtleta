@@ -1,3 +1,6 @@
+import type { ClassGroup } from "./models";
+
+import { annualCycleOptions } from "./periodization-basics";
 export type PeriodizationLoadCurveModel = "ondulatorio" | "linear" | "blocos";
 
 export type PeriodizationPolicy = {
@@ -189,6 +192,3 @@ export const resolvePeriodizationWeekPolicy = (params: {
         : String(intensity),
   };
 };
-import type { ClassGroup } from "./models";
-
-import { annualCycleOptions } from "./periodization-basics";

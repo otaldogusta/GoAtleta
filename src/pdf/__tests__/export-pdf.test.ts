@@ -1,3 +1,7 @@
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import { exportPdf } from "../export-pdf";
+
 jest.mock("react-native", () => ({
   Platform: { OS: "android" },
   Linking: {
@@ -31,10 +35,6 @@ jest.mock("expo-intent-launcher", () => ({
   Action: { VIEW: "android.intent.action.VIEW" },
   startActivityAsync: jest.fn(async () => undefined),
 }));
-
-import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
-import { exportPdf } from "../export-pdf";
 
 describe("exportPdf on Android", () => {
   beforeEach(() => {

@@ -1,3 +1,4 @@
+import { scheduleEffectTask } from "../../hooks/schedule-effect-task";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getStudentPhotoAccessUrl } from "../../api/student-photo-storage";
@@ -110,8 +111,9 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
   }, [classId, date, enabled]);
 
   useEffect(() => {
-    void load();
+    const cancelStart = scheduleEffectTask(() => { void load(); });
     return () => {
+      cancelStart();
       loadRequestId.current += 1;
     };
   }, [load]);

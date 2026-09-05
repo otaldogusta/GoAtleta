@@ -162,10 +162,10 @@ export type StructuredActivity = {
 export type GenerateStructuredActivitiesInput = {
   objective: string;
   progression: string;
-  activities: Array<{
+  activities: {
     name: string;
     description?: string;
-  }>;
+  }[];
 };
 
 export type GenerateStructuredActivitiesResult = {

@@ -1,4 +1,4 @@
-const { execSync } = require("child_process");
+const { execFileSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
@@ -7,9 +7,9 @@ const SKIP_RENDER_TAG = "perf-check: ignore-render";
 const SKIP_MEASURE_TAG = "perf-check: ignore-measure";
 const SKIP_INLINE_ROW_STYLE_TAG = "perf-check: ignore-inline-row-style";
 
-function run(command) {
+function run(args) {
   try {
-    return execSync(command, {
+    return execFileSync("git", args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
@@ -56,12 +56,11 @@ function parseArgs(argv) {
 
 function resolveWorktreeBase(ref) {
   if (ref.startsWith("HEAD~") || ref === "HEAD") return ref;
-  return run(`git merge-base ${ref} HEAD`) || ref;
+  return run(["merge-base", ref, "HEAD"]) || ref;
 }
 
 function listChangedFiles(baseRef, worktree) {
-  const candidates = [
-    baseRef,
+  const candidates = baseRef ? [baseRef] : [
     process.env.PERF_BASE_REF || "",
     process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "",
     "origin/main",
@@ -70,17 +69,17 @@ function listChangedFiles(baseRef, worktree) {
   ].filter(Boolean);
 
   for (const ref of candidates) {
-    const hasRef = run(`git rev-parse --verify ${ref}`);
+    const hasRef = run(["rev-parse", "--verify", ref]);
     if (!hasRef) continue;
 
     const command = worktree
-      ? `git diff --name-only ${resolveWorktreeBase(ref)} --`
+      ? ["diff", "--name-only", resolveWorktreeBase(ref), "--"]
       : ref.startsWith("HEAD~") || ref === "HEAD"
-        ? `git diff --name-only ${ref} HEAD`
-        : `git diff --name-only ${ref}...HEAD`;
+        ? ["diff", "--name-only", ref, "HEAD"]
+        : ["diff", "--name-only", `${ref}...HEAD`];
     const tracked = run(command);
     const untracked = worktree
-      ? run("git ls-files --others --exclude-standard")
+      ? run(["ls-files", "--others", "--exclude-standard"])
       : "";
     const out = [tracked, untracked].filter(Boolean).join("\n");
     if (!out) continue;
@@ -102,8 +101,7 @@ function isCandidateScreenFile(filePath) {
 
 function getDiffForFile(filePath, baseRef, worktree) {
   const normalized = toPosix(filePath);
-  const candidates = [
-    baseRef,
+  const candidates = baseRef ? [baseRef] : [
     process.env.PERF_BASE_REF || "",
     process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "",
     "origin/main",
@@ -112,18 +110,23 @@ function getDiffForFile(filePath, baseRef, worktree) {
   ].filter(Boolean);
 
   for (const ref of candidates) {
-    const hasRef = run(`git rev-parse --verify ${ref}`);
+    const hasRef = run(["rev-parse", "--verify", ref]);
     if (!hasRef) continue;
 
     const command = worktree
-      ? `git diff -U14 ${resolveWorktreeBase(ref)} -- "${normalized}"`
+      ? ["diff", "-U14", resolveWorktreeBase(ref), "--", normalized]
       : ref.startsWith("HEAD~") || ref === "HEAD"
-        ? `git diff -U14 ${ref} HEAD -- "${normalized}"`
-        : `git diff -U14 ${ref}...HEAD -- "${normalized}"`;
+        ? ["diff", "-U14", ref, "HEAD", "--", normalized]
+        : ["diff", "-U14", `${ref}...HEAD`, "--", normalized];
     const out = run(command);
     if (out) return out;
   }
 
+  if (worktree && run(["ls-files", "--others", "--exclude-standard", "--", normalized])) {
+    const content = fs.readFileSync(path.resolve(filePath), "utf8");
+    const added = content.split(/\r?\n/);
+    return `@@ -0,0 +1,${added.length} @@\n${added.map((line) => `+${line}`).join("\n")}`;
+  }
   return "";
 }
 

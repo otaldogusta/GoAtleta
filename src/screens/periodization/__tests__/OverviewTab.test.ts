@@ -9,7 +9,7 @@ import type { ThemeColors } from "../../../ui/app-theme";
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: (props: Record<string, unknown>) => {
-    const React = require("react");
+    const React = jest.requireActual("react");
     return React.createElement("Ionicons", props);
   },
 }));

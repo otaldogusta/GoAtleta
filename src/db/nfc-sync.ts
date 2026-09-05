@@ -2,26 +2,37 @@
 // NFC checkin + pending writes queue
 // ---------------------------------------------------------------------------
 
-import * as Sentry from "@sentry/react-native";
 import type { AttendanceRecord, ScoutingLog, SessionLog, StudentScoutingLog } from "../core/models";
-import { safeJsonParse } from "../utils/safe-json";
 import {
   buildSyncPauseError,
+  getActiveOrganizationId,
   classifyPendingWriteError,
-  isNetworkError,
+  isDeferredWriteError,
   type PendingWriteErrorKind,
   supabasePost,
 } from "./client";
 import {
   enqueueWrite,
+  archivePendingWrite,
+  readArchivedPendingWrites,
+  completePendingWrite,
+  decodePendingWritePayload,
+  isPendingWriteEligible,
+  recordPendingWriteFailure,
+  serializePendingWritePayload,
+  getPendingWriteQuarantineSummary,
+  getPendingWriteDedupKey,
   ensurePendingWritesMigrated,
   readWriteQueue,
-  writeQueue,
   type NfcCheckinPendingPayload,
   type PendingWrite,
 } from "./pending-write-storage";
 import type { PendingWriteRow } from "./row-types";
 import { db } from "./sqlite";
+import { capturePendingWriteContext, getCurrentPendingWriteOrigin, samePendingWriteOrigin, type PendingWriteOrigin } from "./pending-write-identity";
+import { assertSessionIdentity, getSessionIdentity } from "../auth/session";
+import { saveSessionLog, saveScoutingLog, saveStudentScoutingLog } from "./session";
+import { saveAttendanceRecords } from "./students";
 
 export {
   buildNfcCheckinPendingWriteDedupKey,
@@ -34,7 +45,6 @@ export type { NfcCheckinPendingPayload } from "./pending-write-storage";
 // ---------------------------------------------------------------------------
 
 const WRITE_FLUSH_BATCH_SIZE = 20;
-const WRITE_ITEM_TIMEOUT_MS = 15000;
 const WRITE_STRICT_PER_STREAM =
   String(process.env.EXPO_PUBLIC_SYNC_STRICT_PER_STREAM ?? "").toLowerCase() === "true" ||
   String(process.env.EXPO_PUBLIC_SYNC_STRICT_PER_STREAM ?? "") === "1";
@@ -68,6 +78,7 @@ export type PendingWritesDiagnostics = {
   maxRetry: number;
   deadLetterCandidates: number;
   deadLetterStored: number;
+  quarantinedMissingOrigin?: number;
 };
 
 export type SyncHealthReport = {
@@ -183,18 +194,6 @@ export const buildStudentScoutingClientId = (log: StudentScoutingLog) => {
   return `student_scout_${log.studentId}_${log.classId}_${datePart}`;
 };
 
-const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-};
-
 const movePendingWriteToDead = async (row: PendingWriteRow, errorKind: PendingWriteErrorKind, finalError: string) => {
   await db.runAsync(
     "INSERT OR REPLACE INTO pending_writes_dead (id, kind, payload, createdAt, dedupKey, retryCount, finalError, errorKind, deadAt, resolvedAt, resolutionNote) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)",
@@ -212,18 +211,19 @@ const buildNfcCheckinIdempotencyKey = (payload: NfcCheckinPendingPayload) => {
   return `${payload.organizationId}:${payload.classId ?? "__none__"}:${payload.studentId}:${day}`;
 };
 
-const saveNfcCheckinFromQueue = async (payload: NfcCheckinPendingPayload, options?: { allowQueue?: boolean }) => {
+const saveNfcCheckinFromQueue = async (payload: NfcCheckinPendingPayload, options?: { allowQueue?: boolean; origin?: PendingWriteOrigin }) => {
   const allowQueue = options?.allowQueue !== false;
+  const context = await capturePendingWriteContext(payload.organizationId, options?.origin);
   try {
     const idempotencyKey = buildNfcCheckinIdempotencyKey(payload);
     await supabasePost(
       "/attendance_checkins?on_conflict=idempotency_key",
       [{ organization_id: payload.organizationId, class_id: payload.classId ?? null, student_id: payload.studentId, tag_uid: payload.tagUid, source: "nfc", checked_in_at: payload.checkedInAt, idempotency_key: idempotencyKey }],
-      { Prefer: "resolution=ignore-duplicates,return=minimal" }
+      { Prefer: "resolution=ignore-duplicates,return=minimal" }, context.identity,
     );
   } catch (error) {
-    if (allowQueue && isNetworkError(error)) {
-      await enqueueWrite({ id: payload.localRef || "queue_nfc_" + Date.now(), kind: "nfc_checkin", payload, createdAt: payload.checkedInAt || new Date().toISOString() });
+    if (allowQueue && isDeferredWriteError(error)) {
+      await enqueueWrite({ id: payload.localRef || "queue_nfc_" + Date.now(), kind: "nfc_checkin", origin: context.origin, payload, createdAt: payload.checkedInAt || new Date().toISOString() });
       return;
     }
     throw error;
@@ -231,110 +231,93 @@ const saveNfcCheckinFromQueue = async (payload: NfcCheckinPendingPayload, option
 };
 
 export async function queueNfcCheckinWrite(payload: NfcCheckinPendingPayload) {
-  await enqueueWrite({ id: payload.localRef || "queue_nfc_" + Date.now(), kind: "nfc_checkin", payload, createdAt: payload.checkedInAt || new Date().toISOString() });
+  const context = await capturePendingWriteContext(payload.organizationId);
+  await enqueueWrite({ id: payload.localRef || "queue_nfc_" + Date.now(), kind: "nfc_checkin", origin: context.origin, payload, createdAt: payload.checkedInAt || new Date().toISOString() });
 }
 
 // ---------------------------------------------------------------------------
 // Public diagnostics
 // ---------------------------------------------------------------------------
 
+const readOwnedWriteQueue = async () => {
+  const identity = getSessionIdentity();
+  const origin = await getCurrentPendingWriteOrigin();
+  const queue = await readWriteQueue();
+  assertSessionIdentity(identity);
+  return queue.filter((item) => isPendingWriteEligible(item, origin));
+};
+
 export async function getPendingWritesCount() {
-  try {
-    await ensurePendingWritesMigrated();
-    const row = await db.getFirstAsync<{ count: number }>("SELECT COUNT(*) as count FROM pending_writes");
-    return row?.count ?? 0;
-  } catch {
-    return (await readWriteQueue()).length;
-  }
+  return (await readOwnedWriteQueue()).length;
 }
 
 export async function getPendingWritesDiagnostics(highRetryThreshold = 10): Promise<PendingWritesDiagnostics> {
-  try {
-    await ensurePendingWritesMigrated();
-    const row = await db.getFirstAsync<{ total: number; highRetry: number; maxRetry: number | null }>(
-      "SELECT COUNT(*) as total, SUM(CASE WHEN retryCount >= ? THEN 1 ELSE 0 END) as highRetry, MAX(retryCount) as maxRetry FROM pending_writes",
-      [highRetryThreshold]
-    );
-    const deadRow = await db.getFirstAsync<{ count: number }>("SELECT COUNT(*) as count FROM pending_writes_dead");
-    return { total: row?.total ?? 0, highRetry: row?.highRetry ?? 0, maxRetry: row?.maxRetry ?? 0, deadLetterCandidates: row?.highRetry ?? 0, deadLetterStored: deadRow?.count ?? 0 };
-  } catch {
-    const queue = await readWriteQueue();
-    return { total: queue.length, highRetry: 0, maxRetry: 0, deadLetterCandidates: 0, deadLetterStored: 0 };
-  }
+  const queue = await readOwnedWriteQueue();
+  const highRetry = queue.filter((item) => (item.retryCount ?? 0) >= highRetryThreshold).length;
+  const quarantine = await getPendingWriteQuarantineSummary();
+  return { total: queue.length, highRetry, maxRetry: Math.max(0, ...queue.map((item) => item.retryCount ?? 0)),
+    deadLetterCandidates: highRetry, deadLetterStored: (await listPendingWritesDeadLetter(1000)).length,
+    quarantinedMissingOrigin: quarantine.missingOrigin };
 }
 
 export async function listPendingWriteFailures(limit = 20): Promise<PendingWriteFailureRow[]> {
-  try {
-    await ensurePendingWritesMigrated();
-    const safeLimit = Math.max(1, Math.min(limit, 200));
-    const rows = await db.getAllAsync<PendingWriteRow>(
-      "SELECT id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey FROM pending_writes WHERE lastError IS NOT NULL ORDER BY retryCount DESC, createdAt ASC LIMIT ?",
-      [safeLimit]
-    );
-    return rows.map((row) => ({
-      id: row.id, kind: row.kind, dedupKey: row.dedupKey, createdAt: row.createdAt,
-      requeuedAt: row.requeuedAt, retryCount: row.retryCount, lastError: row.lastError,
-      streamKey: getPendingWriteStreamKey({ id: row.id, kind: row.kind, payload: safeJsonParse<unknown | null>(row.payload, null), createdAt: row.createdAt, requeuedAt: row.requeuedAt }),
+  const queue = await readOwnedWriteQueue();
+  return queue.filter((item) => item.lastError).sort((a, b) => (b.retryCount ?? 0) - (a.retryCount ?? 0))
+    .slice(0, Math.max(1, Math.min(limit, 200))).map((item) => ({
+      id: item.id, kind: item.kind, dedupKey: getPendingWriteDedupKey(item) ?? "", createdAt: item.createdAt,
+      requeuedAt: item.requeuedAt ?? null, retryCount: item.retryCount ?? 0,
+      lastError: item.lastError ?? null, streamKey: getPendingWriteStreamKey(item),
     }));
-  } catch {
-    return [];
-  }
 }
 
 export async function getPendingWritePayloadById(id: string): Promise<string | null> {
-  try {
-    await ensurePendingWritesMigrated();
-    const row = await db.getFirstAsync<{ payload: string }>("SELECT payload FROM pending_writes WHERE id = ?", [id]);
-    return row?.payload ?? null;
-  } catch {
-    return null;
-  }
+  const item = (await readOwnedWriteQueue()).find((write) => write.id === id);
+  return item ? JSON.stringify(item.payload) : null;
 }
 
 export async function reprocessPendingWriteById(id: string) {
-  try {
-    await ensurePendingWritesMigrated();
-    await db.runAsync("UPDATE pending_writes SET retryCount = 0, lastError = NULL, requeuedAt = ? WHERE id = ?", [new Date().toISOString(), id]);
-  } catch {
+  if (!(await readOwnedWriteQueue()).some((item) => item.id === id)) {
     return { flushed: 0, remaining: await getPendingWritesCount() };
   }
   return flushPendingWrites();
 }
 
 export async function reprocessPendingWritesNetworkFailures(limit = WRITE_FLUSH_BATCH_SIZE) {
-  try {
-    await ensurePendingWritesMigrated();
-    const safeLimit = Math.max(1, Math.min(limit, 100));
-    const candidates = await db.getAllAsync<{ id: string }>(
-      "SELECT id FROM pending_writes WHERE lastError LIKE '[network]%' ORDER BY retryCount DESC, createdAt ASC LIMIT ?",
-      [safeLimit]
-    );
-    if (!candidates.length) return { flushed: 0, remaining: await getPendingWritesCount(), selected: 0 };
-    for (const row of candidates) {
-      await db.runAsync("UPDATE pending_writes SET retryCount = 0, lastError = NULL, requeuedAt = ? WHERE id = ?", [new Date().toISOString(), row.id]);
-    }
-    const result = await flushPendingWrites();
-    return { ...result, selected: candidates.length };
-  } catch {
-    return { ...(await flushPendingWrites()), selected: 0 };
-  }
+  const candidates = (await listPendingWriteFailures(limit)).filter((item) => item.lastError?.startsWith("[network]"));
+  if (!candidates.length) return { flushed: 0, remaining: await getPendingWritesCount(), selected: 0 };
+  return { ...await flushPendingWrites(), selected: candidates.length };
 }
 
 export async function listPendingWritesDeadLetter(limit = 100): Promise<PendingWriteDeadRow[]> {
+  const archiveIdentity = getSessionIdentity();
+  const currentOrigin = await getCurrentPendingWriteOrigin();
+  const archive = (await readArchivedPendingWrites()).filter((item) => samePendingWriteOrigin(item.write.origin, currentOrigin))
+    .map(({ write, errorKind, archivedAt }) => ({
+      id: write.id, kind: write.kind, payload: JSON.stringify(write.payload), createdAt: write.createdAt,
+      dedupKey: getPendingWriteDedupKey(write) ?? "", retryCount: write.retryCount ?? 0,
+      finalError: "Falha de validação; conteúdo preservado para revisão.", errorKind,
+      deadAt: archivedAt, resolvedAt: null, resolutionNote: null,
+    }));
+  assertSessionIdentity(archiveIdentity);
   try {
     await ensurePendingWritesMigrated();
     const safeLimit = Math.max(1, Math.min(limit, 1000));
-    return await db.getAllAsync<PendingWriteDeadRow>(
+    const origin = await getCurrentPendingWriteOrigin();
+    const identity = getSessionIdentity();
+    const rows = await db.getAllAsync<PendingWriteDeadRow>(
       "SELECT id, kind, payload, createdAt, dedupKey, retryCount, finalError, errorKind, deadAt, resolvedAt, resolutionNote FROM pending_writes_dead ORDER BY deadAt DESC LIMIT ?",
       [safeLimit]
     );
+    assertSessionIdentity(identity);
+    return [...archive, ...rows.filter((row) => samePendingWriteOrigin(decodePendingWritePayload(row.payload).origin, origin))
+      .map((row) => ({ ...row, payload: JSON.stringify(decodePendingWritePayload(row.payload).payload) }))].slice(0, safeLimit);
   } catch {
-    return [];
+    assertSessionIdentity(archiveIdentity);
+    return archive.slice(0, Math.max(1, Math.min(limit, 1000)));
   }
 }
 
 export async function buildSyncHealthReport(options?: { deadLetterLimit?: number; queueErrorLimit?: number; organizationId?: string | null }): Promise<SyncHealthReport> {
-  const { getActiveOrganizationId } = await import("./client");
   const deadLetterLimit = Math.max(1, Math.min(options?.deadLetterLimit ?? 25, 1000));
   const queueErrorLimit = Math.max(1, Math.min(options?.queueErrorLimit ?? 15, 500));
   const fallback: SyncHealthReport = {
@@ -347,10 +330,7 @@ export async function buildSyncHealthReport(options?: { deadLetterLimit?: number
   try {
     await ensurePendingWritesMigrated();
     const [pendingWrites, deadLetterRecent] = await Promise.all([getPendingWritesDiagnostics(10), listPendingWritesDeadLetter(deadLetterLimit)]);
-    const recentQueueErrors = await db.getAllAsync<{ id: string; kind: string; retryCount: number; lastError: string | null }>(
-      "SELECT id, kind, retryCount, lastError FROM pending_writes WHERE lastError IS NOT NULL ORDER BY retryCount DESC, createdAt DESC LIMIT ?",
-      [queueErrorLimit]
-    );
+    const recentQueueErrors = await listPendingWriteFailures(queueErrorLimit);
     return { generatedAt: new Date().toISOString(), organizationId: options?.organizationId ?? (await getActiveOrganizationId()), pendingWrites, recentQueueErrors, deadLetterRecent };
   } catch {
     return fallback;
@@ -362,135 +342,90 @@ export async function exportSyncHealthReportJson(options?: { deadLetterLimit?: n
 }
 
 export async function clearPendingWritesDeadLetterCandidates(highRetryThreshold = 10): Promise<{ removed: number; remaining: number }> {
-  try {
-    await ensurePendingWritesMigrated();
-    const candidates = await db.getAllAsync<PendingWriteRow>(
-      "SELECT id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey FROM pending_writes WHERE retryCount >= ?",
-      [highRetryThreshold]
-    );
-    if (candidates.length > 0) {
-      for (const row of candidates) await movePendingWriteToDead(row, "unknown", row.lastError ?? "Moved to dead letter by admin action");
-      await db.runAsync("DELETE FROM pending_writes WHERE retryCount >= ?", [highRetryThreshold]);
+  const candidates = (await readOwnedWriteQueue()).filter((item) => (item.retryCount ?? 0) >= highRetryThreshold);
+  let removed = 0;
+  for (const item of candidates) {
+    try {
+      await ensurePendingWritesMigrated();
+      await movePendingWriteToDead({ id: item.id, kind: item.kind, payload: serializePendingWritePayload(item),
+        createdAt: item.createdAt, requeuedAt: item.requeuedAt ?? null, retryCount: item.retryCount ?? 0,
+        lastError: item.lastError ?? null, dedupKey: getPendingWriteDedupKey(item) ?? "" },
+        "unknown", "Arquivado por ação explícita do titular.");
+      await completePendingWrite(item);
+      removed += 1;
+    } catch {
+      // Unsupported web dead-letter storage: retain the original pending data.
     }
-    const remainingRow = await db.getFirstAsync<{ count: number }>("SELECT COUNT(*) as count FROM pending_writes");
-    return { removed: candidates.length, remaining: remainingRow?.count ?? 0 };
-  } catch {
-    return { removed: 0, remaining: (await readWriteQueue()).length };
   }
+  return { removed, remaining: await getPendingWritesCount() };
 }
 
 // ---------------------------------------------------------------------------
 // flushPendingWrites — dispatches queued items to their respective save fns
-// Uses lazy imports to avoid circular dependencies
+// Queue storage is independent of domain save functions, so dispatch needs no
+// dynamic import cycle or global registration.
 // ---------------------------------------------------------------------------
 
+let flushInFlight: Promise<{ flushed: number; remaining: number }> | null = null;
+
 export async function flushPendingWrites() {
-  const { saveSessionLog } = await import("./session");
-  const { saveScoutingLog, saveStudentScoutingLog } = await import("./session");
-  const { saveAttendanceRecords } = await import("./students");
+  if (flushInFlight) return flushInFlight;
+  const operation = flushOwnedPendingWrites();
+  flushInFlight = operation;
+  try { return await operation; }
+  finally { if (flushInFlight === operation) flushInFlight = null; }
+}
 
-  const flushStartedAt = Date.now();
-  let batch: PendingWrite[] = [];
-  let deferredBatch: PendingWrite[] = [];
-  let usingSqlite = false;
-  const batchRowsById = new Map<string, PendingWriteRow>();
-
-  try {
-    await ensurePendingWritesMigrated();
-    const rows = await db.getAllAsync<PendingWriteRow>(
-      "SELECT id, kind, payload, createdAt, requeuedAt, retryCount, lastError, dedupKey FROM pending_writes ORDER BY createdAt ASC LIMIT ?",
-      [WRITE_FLUSH_BATCH_SIZE]
-    );
-    rows.forEach((row) => batchRowsById.set(row.id, row));
-    batch = rows
-      .map((row) => {
-        const payload = safeJsonParse<unknown | null>(row.payload, null);
-        if (payload === null) return null;
-        return { id: row.id, kind: row.kind, payload, createdAt: row.createdAt, requeuedAt: row.requeuedAt } as PendingWrite;
-      })
-      .filter((item): item is PendingWrite => Boolean(item));
-    batch.sort(sortPendingWritesForFlush);
-    const strictSelection = selectStrictPerStreamBatch(batch);
-    batch = strictSelection.selected;
-    deferredBatch = strictSelection.deferred;
-    usingSqlite = true;
-  } catch {
-    const queue = await readWriteQueue();
-    batch = queue.slice(0, WRITE_FLUSH_BATCH_SIZE);
-    batch.sort(sortPendingWritesForFlush);
-    const strictSelection = selectStrictPerStreamBatch(batch);
-    batch = strictSelection.selected;
-    deferredBatch = strictSelection.deferred;
-  }
-
-  if (!batch.length) {
-    Sentry.addBreadcrumb({ category: "sync", message: "flushPendingWrites: empty", level: "info", data: { ms: Date.now() - flushStartedAt } });
-    return { flushed: 0, remaining: 0 };
-  }
-
-  const remainingBatch: PendingWrite[] = [];
-  const failedErrors = new Map<string, string>();
-  const deadLetterErrors = new Map<string, { classification: PendingWriteErrorKind; message: string }>();
-  const failureByClass: Record<PendingWriteErrorKind, number> = { network: 0, retryable_server: 0, auth: 0, permission: 0, bad_request: 0, unknown: 0 };
+async function flushOwnedPendingWrites() {
+  const origin = await getCurrentPendingWriteOrigin();
+  if (!origin) throw buildSyncPauseError("auth");
+  const identity = getSessionIdentity();
+  const queue = await readWriteQueue();
+  const eligible = queue.filter((item) => isPendingWriteEligible(item, origin));
+  eligible.sort(sortPendingWritesForFlush);
+  const { selected: batch } = selectStrictPerStreamBatch(eligible.slice(0, WRITE_FLUSH_BATCH_SIZE));
+  let flushed = 0;
   let pauseKind: "auth" | "permission" | null = null;
 
   for (const item of batch) {
+    assertSessionIdentity(identity);
+    // Organization switches must stop the batch before the next write. Unknown
+    // legacy ownership is deliberately excluded instead of adopted by this user.
+    if (!samePendingWriteOrigin(origin, await getCurrentPendingWriteOrigin())) break;
+    const options = { allowQueue: false, organizationId: origin.organizationId, origin };
     try {
       if (item.kind === "session_log") {
-        await withTimeout(saveSessionLog(item.payload as SessionLog, { allowQueue: false }), WRITE_ITEM_TIMEOUT_MS);
+        await saveSessionLog(item.payload as SessionLog, options);
       } else if (item.kind === "attendance_records") {
         const payload = item.payload as { classId: string; date: string; records: AttendanceRecord[] };
-        await withTimeout(saveAttendanceRecords(payload.classId, payload.date, payload.records, { allowQueue: false }), WRITE_ITEM_TIMEOUT_MS);
+        await saveAttendanceRecords(payload.classId, payload.date, payload.records, options);
       } else if (item.kind === "scouting_log") {
-        await withTimeout(saveScoutingLog(item.payload as ScoutingLog, { allowQueue: false }), WRITE_ITEM_TIMEOUT_MS);
+        await saveScoutingLog(item.payload as ScoutingLog, options);
       } else if (item.kind === "student_scouting_log") {
-        await withTimeout(saveStudentScoutingLog(item.payload as StudentScoutingLog, { allowQueue: false }), WRITE_ITEM_TIMEOUT_MS);
+        await saveStudentScoutingLog(item.payload as StudentScoutingLog, options);
       } else if (item.kind === "nfc_checkin") {
-        await withTimeout(saveNfcCheckinFromQueue(item.payload as NfcCheckinPendingPayload, { allowQueue: false }), WRITE_ITEM_TIMEOUT_MS);
+        await saveNfcCheckinFromQueue(item.payload as NfcCheckinPendingPayload, options);
+      } else {
+        continue; // Preserve future/unknown operations, never acknowledge blindly.
       }
+      await completePendingWrite(item);
+      flushed += 1;
     } catch (error) {
       const classification = classifyPendingWriteError(error);
-      failureByClass[classification] += 1;
       if (classification === "bad_request") {
-        deadLetterErrors.set(item.id, { classification, message: error instanceof Error ? error.message : String(error) });
-      } else {
-        remainingBatch.push(item);
-        failedErrors.set(item.id, `[${classification}] ${error instanceof Error ? error.message : String(error)}`);
-        if (classification === "auth" || classification === "permission") pauseKind = classification;
+        await archivePendingWrite(item, classification);
+        continue;
       }
-      Sentry.captureException(error);
+      await recordPendingWriteFailure(item, `[${classification}] Falha ao sincronizar (${item.kind}).`);
+      if (classification === "auth" || classification === "permission") {
+        pauseKind = classification;
+        break;
+      }
+      // Retryable writes remain pending. Invalid writes were durably archived
+      // above and are never counted as a successful synchronization.
     }
   }
-
-  if (usingSqlite) {
-    for (const item of batch) {
-      const failed = failedErrors.get(item.id);
-      if (failed) {
-        await db.runAsync("UPDATE pending_writes SET retryCount = retryCount + 1, lastError = ?, requeuedAt = NULL WHERE id = ?", [failed, item.id]);
-      } else if (deadLetterErrors.has(item.id)) {
-        const originalRow = batchRowsById.get(item.id);
-        if (originalRow) {
-          const dead = deadLetterErrors.get(item.id)!;
-          await movePendingWriteToDead(originalRow, dead.classification, dead.message);
-        }
-        await db.runAsync("DELETE FROM pending_writes WHERE id = ?", [item.id]);
-      } else {
-        await db.runAsync("DELETE FROM pending_writes WHERE id = ?", [item.id]);
-      }
-    }
-    const countRow = await db.getFirstAsync<{ count: number }>("SELECT COUNT(*) as count FROM pending_writes");
-    const remaining = countRow?.count ?? 0;
-    const elapsedMs = Date.now() - flushStartedAt;
-    Sentry.addBreadcrumb({ category: "sync", message: "flushPendingWrites: sqlite", level: "info", data: { ms: elapsedMs, batchSize: batch.length, flushed: batch.length - remainingBatch.length, remaining, failures: failureByClass, deadLettered: deadLetterErrors.size } });
-    if (pauseKind) throw buildSyncPauseError(pauseKind);
-    return { flushed: batch.length - remainingBatch.length, remaining };
-  }
-
-  const queue = await readWriteQueue();
-  const untouched = queue.slice(WRITE_FLUSH_BATCH_SIZE);
-  const nextQueue = [...remainingBatch, ...deferredBatch, ...untouched];
-  await writeQueue(nextQueue);
-  Sentry.addBreadcrumb({ category: "sync", message: "flushPendingWrites: fallback", level: "info", data: { ms: Date.now() - flushStartedAt, batchSize: batch.length, flushed: batch.length - remainingBatch.length, remaining: nextQueue.length, failures: failureByClass, deadLettered: deadLetterErrors.size } });
+  const remaining = (await readWriteQueue()).filter((item) => isPendingWriteEligible(item, origin)).length;
   if (pauseKind) throw buildSyncPauseError(pauseKind);
-  return { flushed: batch.length - remainingBatch.length, remaining: nextQueue.length };
+  return { flushed, remaining };
 }

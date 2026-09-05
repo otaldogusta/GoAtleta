@@ -129,7 +129,8 @@ export default function NfcAttendanceScreen({ embedded = false, lockedClassId = 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const normalizedLockedClassId = lockedClassId.trim();
-  const [selectedClassId, setSelectedClassId] = useState(normalizedLockedClassId);
+  const [chosenClassId, setSelectedClassId] = useState(normalizedLockedClassId);
+  const selectedClassId = normalizedLockedClassId || chosenClassId;
   const [feedback, setFeedback] = useState("");
   const [liveCheckins, setLiveCheckins] = useState<LiveCheckin[]>([]);
   const [pendingUid, setPendingUid] = useState("");
@@ -143,21 +144,18 @@ export default function NfcAttendanceScreen({ embedded = false, lockedClassId = 
   const [removingBindingId, setRemovingBindingId] = useState("");
   const [webPreviewScanning, setWebPreviewScanning] = useState(false);
 
-  useEffect(() => {
-    if (normalizedLockedClassId) setSelectedClassId(normalizedLockedClassId);
-  }, [normalizedLockedClassId]);
-
-  const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
+const isAdmin = (activeOrganization?.role_level ?? 0) >= 50;
   const shouldResumeAfterBindRef = useRef(false);
   const scanStateRef = useRef<"idle" | "scanning" | "paused">("idle");
   const syncBusyRef = useRef(false);
   const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSignalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const scanPulseA = useRef(new Animated.Value(0)).current;
-  const scanPulseB = useRef(new Animated.Value(0)).current;
-  const scanVisualTransition = useRef(new Animated.Value(0)).current;
+  const [scanPulseA] = useState(() => new Animated.Value(0));
+  const [scanPulseB] = useState(() => new Animated.Value(0));
+  const [scanVisualTransition] = useState(() => new Animated.Value(0));
+  const [metricsStartedAt] = useState(Date.now);
   const perfSnapshotRef = useRef<{ at: number; totalScans: number; duplicateScans: number }>({
-    at: Date.now(),
+    at: metricsStartedAt,
     totalScans: 0,
     duplicateScans: 0,
   });
@@ -911,7 +909,7 @@ export default function NfcAttendanceScreen({ embedded = false, lockedClassId = 
         },
       });
     },
-    [router]
+    [router, scopedRoutes.assistant]
   );
   const assistantPromptChips = useMemo(
     () => [

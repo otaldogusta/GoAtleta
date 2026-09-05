@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   useEffect,
   useMemo,
-  useRef,
+
   useState
 } from "react";
 import {
@@ -75,8 +75,16 @@ export default function ResetPasswordScreen() {
   const params = useLocalSearchParams();
   const { session } = useAuth();
 
-  const [token, setToken] = useState("");
-  const [isExpired, setIsExpired] = useState(false);
+  const [receivedUrl, setReceivedUrl] = useState<string | null>(() =>
+    Platform.OS === "web" && typeof window !== "undefined" ? window.location.href : null
+  );
+  const [tokenOverride, setToken] = useState<string | null>(null);
+  const [tokenRejected, setIsExpired] = useState(false);
+  const isExpired = tokenRejected || checkIsExpiredLink(receivedUrl)
+    || params.error_code === "otp_expired";
+  const token = tokenOverride ?? (parseAccessToken(receivedUrl)
+    || (typeof params.access_token === "string" ? params.access_token : "")
+    || session?.access_token || "");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -149,67 +157,37 @@ export default function ResetPasswordScreen() {
   }, [strengthAnim, strengthScore]);
 
   useEffect(() => {
-    // 1. Check search/hash parameters on Web
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      const fullUrl = window.location.href;
-      if (checkIsExpiredLink(fullUrl)) {
-        setIsExpired(true);
-        return;
-      }
-      const parsedToken = parseAccessToken(fullUrl);
-      if (parsedToken) {
-        setToken(parsedToken);
-        setIsExpired(false);
-        return;
-      }
-    }
-
-    // 2. Check search params from router
-    if (typeof params.access_token === "string" && params.access_token) {
-      setToken(params.access_token);
-      setIsExpired(false);
-      return;
-    }
-
-    // 3. Fallback to active session access token if available
-    if (session?.access_token) {
-      setToken(session.access_token);
-      setIsExpired(false);
-      return;
-    }
-
-    // 4. Initial URL listener for Expo/Native
     let active = true;
-    void Linking.getInitialURL().then((initial) => {
+    let receivedEvent = false;
+    const receive = (url: string | null) => {
       if (!active) return;
-      if (checkIsExpiredLink(initial)) {
-        setIsExpired(true);
-        return;
-      }
-      const parsed = parseAccessToken(initial);
-      if (parsed) {
-        setToken(parsed);
-        setIsExpired(false);
-      }
-    });
-
+      setReceivedUrl(url);
+      setToken(null);
+      setIsExpired(false);
+    };
+    if (Platform.OS !== "web") {
+      void Linking.getInitialURL().then((url) => {
+        if (!receivedEvent) receive(url);
+      }).catch(() => undefined);
+    }
     const sub = Linking.addEventListener("url", (event) => {
-      if (checkIsExpiredLink(event.url)) {
-        setIsExpired(true);
-        return;
-      }
-      const parsed = parseAccessToken(event.url);
-      if (parsed) {
-        setToken(parsed);
-        setIsExpired(false);
-      }
+      receivedEvent = true;
+      receive(event.url);
     });
-
+    const onWebNavigation = () => receive(window.location.href);
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.addEventListener("popstate", onWebNavigation);
+      window.addEventListener("hashchange", onWebNavigation);
+    }
     return () => {
       active = false;
       sub.remove();
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.removeEventListener("popstate", onWebNavigation);
+        window.removeEventListener("hashchange", onWebNavigation);
+      }
     };
-  }, [params.access_token, session?.access_token]);
+  }, []);
 
   const submit = async () => {
     if (!token) {

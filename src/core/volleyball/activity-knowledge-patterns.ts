@@ -36,7 +36,7 @@ export type ActivityKnowledgePattern = {
   stage: ActivityPatternStage;
   ageStages: ActivityPatternAgeStage[];
   families: string[];
-  periodizationFit: Array<"exploration" | "technical" | "decision" | "pressure" | "game_transfer">;
+  periodizationFit: ("exploration" | "technical" | "decision" | "pressure" | "game_transfer")[];
   name: string;
   players: string;
   setup: string;

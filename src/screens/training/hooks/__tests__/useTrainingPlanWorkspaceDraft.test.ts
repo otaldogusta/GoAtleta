@@ -37,6 +37,29 @@ const flushPromises = async () => {
 };
 
 describe("useTrainingPlanWorkspaceDraft", () => {
+  it("does not report an old organization's completion in the new workspace", async () => {
+    let finishOldWrite!: () => void;
+    let latest!: DraftHook;
+    let renderer!: TestRenderer.ReactTestRenderer;
+    (AsyncStorage.getItem as jest.Mock).mockImplementation(async (key: string) => key === "org-new"
+      ? JSON.stringify({ version: 1, savedAt: "2026-09-05T12:00:00Z", lessonDate: "2026-08-10", plan })
+      : null);
+    (AsyncStorage.setItem as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => { finishOldWrite = resolve; }));
+    function Harness({ draftKey }: { draftKey: string }) {
+      latest = useTrainingPlanWorkspaceDraft(draftKey);
+      return null;
+    }
+    await act(async () => { renderer = TestRenderer.create(React.createElement(Harness, { draftKey: "org-old" })); });
+    let oldSave!: Promise<TrainingPlanWorkspaceDraftFlushResult>;
+    act(() => { latest.queueDraft(plan, "2026-08-10"); oldSave = latest.flushDraft(); });
+    await act(async () => { renderer.update(React.createElement(Harness, { draftKey: "org-new" })); });
+    expect(latest.status).toBe("restored");
+    await act(async () => { finishOldWrite(); await oldSave; });
+    expect(latest.status).toBe("restored");
+    expect(latest.restoredDraft?.plan).toEqual(plan);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalledWith("org-new", expect.anything());
+    act(() => renderer.unmount());
+  });
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();

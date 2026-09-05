@@ -38,6 +38,7 @@ import {
     isMissingColumnInSchemaCache,
     isMissingRelation,
     isNetworkError,
+    isDeferredWriteError,
     readCache,
     supabaseDelete,
     supabaseGet,
@@ -46,6 +47,7 @@ import {
     writeCache,
 } from "./client";
 import { enqueueWrite } from "./pending-write-queue";
+import { capturePendingWriteContext, type PendingWriteOrigin } from "./pending-write-identity";
 import { resolveTrainingPlanForDate, syncTrainingSessionFromAttendance } from "./training-sessions";
 import { getTrainingPlans } from "./training";
 import type {
@@ -976,7 +978,7 @@ export async function getStudents(
     });
     return mapped;
   } catch (error) {
-    if (isNetworkError(error) || isAuthError(error)) {
+    if (isNetworkError(error)) {
       const activeOrganizationId =
         options.organizationId ?? (await getActiveOrganizationId());
       const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
@@ -1076,7 +1078,7 @@ export async function getStudentsByClass(
       activeOrganizationId
     );
   } catch (error) {
-    if (isNetworkError(error) || isAuthError(error)) {
+    if (isNetworkError(error)) {
       const activeOrganizationId =
         options.organizationId ?? (await getActiveOrganizationId());
       const cacheKey = buildStudentsCacheKey(activeOrganizationId ?? null);
@@ -2117,22 +2119,12 @@ export async function saveAttendanceRecords(
   classId: string,
   date: string,
   records: AttendanceRecord[],
-  options?: { allowQueue?: boolean; organizationId?: string }
+  options?: { allowQueue?: boolean; organizationId?: string; origin?: PendingWriteOrigin }
 ): Promise<{ status: "synced" | "queued" }> {
   const allowQueue = options?.allowQueue !== false;
+  const context = await capturePendingWriteContext(options?.organizationId, options?.origin);
+  const organizationId = context.origin.organizationId;
   try {
-    const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
-
-    await supabaseDelete(
-      "/attendance_logs?classid=eq." +
-        encodeURIComponent(classId) +
-        "&date=eq." +
-        encodeURIComponent(date) +
-        (organizationId
-          ? "&organization_id=eq." + encodeURIComponent(organizationId)
-          : "")
-    );
-
     const rows: AttendanceRow[] = records.map((record) => ({
       id: record.id,
       classid: record.classId,
@@ -2148,8 +2140,13 @@ export async function saveAttendanceRecords(
       createdat: record.createdAt,
     }));
 
-    if (rows.length > 0) {
-      await supabasePost("/attendance_logs", rows);
+    const receipt = await supabasePost<{ saved_count: number }[]>(
+      "/rpc/replace_attendance_records",
+      { p_org_id: organizationId, p_class_id: classId, p_date: date, p_records: rows },
+      undefined, context.identity,
+    );
+    if (receipt?.length !== 1 || receipt[0].saved_count !== rows.length) {
+      throw new Error("O servidor não confirmou a chamada. Atualize a lista e tente novamente.");
     }
 
     await cacheAttendanceByDate(classId, date, records, organizationId);
@@ -2174,11 +2171,12 @@ export async function saveAttendanceRecords(
     }
     return { status: "synced" };
   } catch (error) {
-    if (allowQueue && isNetworkError(error)) {
-      await cacheAttendanceByDate(classId, date, records, options?.organizationId ?? null);
+    if (allowQueue && isDeferredWriteError(error)) {
+      await cacheAttendanceByDate(classId, date, records, organizationId);
       await enqueueWrite({
         id: "queue_att_" + Date.now(),
         kind: "attendance_records",
+        origin: context.origin,
         payload: { classId, date, records },
         createdAt: new Date().toISOString(),
       });
@@ -2237,7 +2235,7 @@ export async function getAttendanceByDate(
   } catch (error) {
     if (isMissingRelation(error, "attendance_logs")) return [];
     const cached = await getCachedAttendanceByDate(classId, date, organizationId);
-    if (cached.found && (isNetworkError(error) || isAuthError(error))) {
+    if (cached.found && isNetworkError(error)) {
       return cached.records;
     }
     if (cached.records.length > 0) return cached.records;

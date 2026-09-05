@@ -16,11 +16,12 @@ import {
 import {
   getOrganizationFinanceDashboard,
   listOrganizationInvoices,
-  listOrganizationProviderReceivables,
+  getOrganizationProviderReceivablesPage,
   listTuitionAgreements,
   type OrganizationFinanceSummary,
   type OrganizationInvoice,
   type OrganizationProviderReceivable,
+  type OrganizationProviderReceivablesPage,
   type TuitionAgreement,
 } from "../../api/finance";
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
@@ -41,12 +42,12 @@ import {
 import { resolveFinanceScrollBottomPadding } from "../../finance/application/finance-responsive-layout";
 import {
   getProviderReceivableBillingLabel,
-  getProviderReceivableDisplayDate,
   getProviderReceivableMatchLabel,
   getProviderReceivableStatusLabel,
-  isProviderReceivableReceived,
   summarizeProviderReceivables,
+  type ProviderReceivablesSummary,
 } from "../../finance/application/provider-receivables";
+import { financeMonthOptions } from "../../finance/application/finance-months";
 import { summarizeFinanceInvoices } from "../../finance/application/finance-summary";
 import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
@@ -56,6 +57,7 @@ import { radius, spacing } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
+import { Button } from "../../ui/Button";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
@@ -67,6 +69,7 @@ import { ManualPaymentModal } from "./CoordinationReceivables";
 import CoordinationTuitionSetup from "./CoordinationTuitionSetup";
 import { NewChargeModal } from "./components/NewChargeModal";
 import { PaymentStatusBadge } from "./components/PaymentStatusBadge";
+import { ProviderReceivablesList, ProviderReceivablesSummaryCard } from "./components/ProviderReceivables";
 
 type FilterValue =
   | "all"
@@ -460,72 +463,6 @@ const createFinanceDashboardStyles = (colors: FinanceDashboardColors) =>
       fontSize: 13,
       fontWeight: "900",
     },
-    providerCard: {
-      borderRadius: radius.container,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-      overflow: "hidden",
-    },
-    providerSummary: {
-      minHeight: 72,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    providerSummaryCompact: {
-      alignItems: "flex-start",
-      flexWrap: "wrap",
-    },
-    providerIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: colors.secondaryBg,
-    },
-    providerSummaryBody: { flex: 1, minWidth: 160, gap: 2 },
-    providerTitle: { color: colors.text, fontSize: 14, fontWeight: "900" },
-    providerMeta: { color: colors.muted, fontSize: 11, lineHeight: 16 },
-    providerAmountColumn: { alignItems: "flex-end", gap: 2 },
-    providerAmount: { color: colors.success, fontSize: 17, fontWeight: "900" },
-    providerNetAmount: { color: colors.muted, fontSize: 11 },
-    providerLink: { color: colors.success, fontSize: 12, fontWeight: "800" },
-    providerListRow: {
-      minHeight: 62,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-    },
-    providerListRowFirst: { borderTopWidth: 0 },
-    providerListRowCompact: { alignItems: "stretch", flexDirection: "column" },
-    providerCustomerColumn: { flex: 1, minWidth: 0, gap: 2 },
-    providerRowValue: { color: colors.text, fontSize: 12, fontWeight: "900" },
-    providerStatus: {
-      minHeight: 24,
-      borderRadius: radius.full,
-      paddingHorizontal: 9,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    providerStatusSuccess: { backgroundColor: colors.successBg },
-    providerStatusWarning: { backgroundColor: colors.warningBg },
-    providerStatusLabel: { fontSize: 10, fontWeight: "800" },
-    providerStatusLabelSuccess: { color: colors.successText },
-    providerStatusLabelWarning: { color: colors.warningText },
-    providerRowActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-    },
     flexSpacer: { flex: 1 },
     payerRow: {
       minHeight: 62,
@@ -899,150 +836,10 @@ function FinanceSectionTabs({
   );
 }
 
-function ProviderReceivablesSummaryCard({
-  receivables,
-  compact,
-  onOpen,
-}: {
-  receivables: OrganizationProviderReceivable[];
-  compact: boolean;
-  onOpen: () => void;
-}) {
-  const { colors } = useAppTheme();
-  const dashboardStyles = useFinanceDashboardStyles(colors);
-  const summary = useMemo(
-    () => summarizeProviderReceivables(receivables),
-    [receivables],
-  );
-
-  if (!summary.totalCount) return null;
-
-  const receivedLabel = `${summary.receivedCount} ${
-    summary.receivedCount === 1 ? "recebimento" : "recebimentos"
-  }`;
-  const reconciliationLabel = [
-    summary.identifiedCustomerCount
-      ? `${summary.identifiedCustomerCount} ${
-          summary.identifiedCustomerCount === 1
-            ? "cliente identificado"
-            : "clientes identificados"
-        }`
-      : "",
-    summary.reconciliationCount
-      ? `${summary.reconciliationCount} a conciliar`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
-  return (
-    <View style={dashboardStyles.providerCard}>
-      <View
-        style={[
-          dashboardStyles.providerSummary,
-          compact ? dashboardStyles.providerSummaryCompact : undefined,
-        ]}
-      >
-        <View style={dashboardStyles.providerIcon}>
-          <GoAtletaIcon name="receipt" size={19} color={colors.text} />
-        </View>
-        <View style={dashboardStyles.providerSummaryBody}>
-          <Text style={dashboardStyles.providerTitle}>Asaas</Text>
-          <Text style={dashboardStyles.providerMeta}>
-            {receivedLabel}
-            {reconciliationLabel ? ` · ${reconciliationLabel}` : ""}
-          </Text>
-        </View>
-        <View style={dashboardStyles.providerAmountColumn}>
-          <Text style={dashboardStyles.providerAmount}>
-            {formatMoneyFromCents(summary.receivedGrossCents)}
-          </Text>
-          <Text style={dashboardStyles.providerNetAmount}>
-            {formatMoneyFromCents(summary.receivedNetCents)} líquido
-          </Text>
-        </View>
-        <Pressable
-          accessibilityLabel="Ver recebimentos do Asaas"
-          onPress={onOpen}
-        >
-          <Text style={dashboardStyles.providerLink}>Ver importados</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function ProviderReceivablesList({
-  receivables,
-  compact,
-}: {
-  receivables: OrganizationProviderReceivable[];
-  compact: boolean;
-}) {
-  const { colors } = useAppTheme();
-  const dashboardStyles = useFinanceDashboardStyles(colors);
-
-  if (!receivables.length) return null;
-
-  return (
-    <View>
-      {receivables.map((receivable, index) => {
-        const settled = isProviderReceivableReceived(receivable);
-        const displayDate = getProviderReceivableDisplayDate(receivable);
-        return (
-          <View
-            key={receivable.id}
-            style={[
-              dashboardStyles.providerListRow,
-              index === 0 ? dashboardStyles.providerListRowFirst : undefined,
-              compact ? dashboardStyles.providerListRowCompact : undefined,
-            ]}
-          >
-            <View style={dashboardStyles.providerCustomerColumn}>
-              <Text numberOfLines={1} style={dashboardStyles.listPrimaryText}>
-                {receivable.customerName}
-              </Text>
-              <Text numberOfLines={1} style={dashboardStyles.listSecondaryText}>
-                {getProviderReceivableBillingLabel(receivable.billingType)}
-                {displayDate ? ` · ${formatFinanceDate(displayDate)}` : ""}
-                {` · ${getProviderReceivableMatchLabel(receivable.matchStatus)}`}
-              </Text>
-            </View>
-            <View style={dashboardStyles.providerRowActions}>
-              <Text style={dashboardStyles.providerRowValue}>
-                {formatMoneyFromCents(receivable.amountCents)}
-              </Text>
-              <View
-                style={[
-                  dashboardStyles.providerStatus,
-                  settled
-                    ? dashboardStyles.providerStatusSuccess
-                    : dashboardStyles.providerStatusWarning,
-                ]}
-              >
-                <Text
-                  style={[
-                    dashboardStyles.providerStatusLabel,
-                    settled
-                      ? dashboardStyles.providerStatusLabelSuccess
-                      : dashboardStyles.providerStatusLabelWarning,
-                  ]}
-                >
-                  {getProviderReceivableStatusLabel(receivable.providerStatus)}
-                </Text>
-              </View>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 function FinanceOverviewPanel({
   summary,
   invoices,
-  providerReceivables,
+  providerSummary,
   compact,
   onOpenCharges,
   onOpenProviderReceivables,
@@ -1050,7 +847,7 @@ function FinanceOverviewPanel({
 }: {
   summary: OrganizationFinanceSummary;
   invoices: FinanceInvoice[];
-  providerReceivables: OrganizationProviderReceivable[];
+  providerSummary: ProviderReceivablesSummary | null;
   compact: boolean;
   onOpenCharges: () => void;
   onOpenProviderReceivables: () => void;
@@ -1073,7 +870,7 @@ function FinanceOverviewPanel({
     <View style={{ gap: 16 }}>
       <FinanceSummaryStrip summary={summary} compact={compact} />
       <ProviderReceivablesSummaryCard
-        receivables={providerReceivables}
+        summary={providerSummary}
         compact={compact}
         onOpen={onOpenProviderReceivables}
       />
@@ -1964,9 +1761,11 @@ function CoordinationFinanceDashboardOrganizationScope() {
   const [serverSummary, setServerSummary] =
     useState<OrganizationFinanceSummary>(EMPTY_SUMMARY);
   const [invoices, setInvoices] = useState<FinanceInvoice[]>([]);
-  const [providerReceivables, setProviderReceivables] = useState<
-    OrganizationProviderReceivable[]
-  >([]);
+  const [providerSnapshot, setProviderSnapshot] = useState<{
+    month: string; data: OrganizationProviderReceivablesPage;
+  } | null>(null);
+  const [loadingProviderMore, setLoadingProviderMore] = useState(false);
+  const providerPageBusy = useRef(false);
   const [agreements, setAgreements] = useState<TuitionAgreement[]>([]);
   const [activeSection, setActiveSection] = useState<FinanceSection>(
     designPreview || requestedSection === "charges" || requestedStudentId
@@ -2014,9 +1813,10 @@ function CoordinationFinanceDashboardOrganizationScope() {
     [dataIsCurrent, invoices],
   );
   const scopedProviderReceivables = useMemo(
-    () => (dataIsCurrent ? providerReceivables : []),
-    [dataIsCurrent, providerReceivables],
+    () => (dataIsCurrent && providerSnapshot?.month === selectedMonth ? providerSnapshot.data.items : []),
+    [dataIsCurrent, providerSnapshot, selectedMonth],
   );
+  const providerData = dataIsCurrent && providerSnapshot?.month === selectedMonth ? providerSnapshot.data : null;
   const scopedAgreements = useMemo(
     () => (dataIsCurrent ? agreements : []),
     [agreements, dataIsCurrent],
@@ -2038,7 +1838,11 @@ function CoordinationFinanceDashboardOrganizationScope() {
         setDataIdentity(identity);
         setServerSummary(DESIGN_PREVIEW_SUMMARY);
         setInvoices(DESIGN_PREVIEW_INVOICES);
-        setProviderReceivables(DESIGN_PREVIEW_PROVIDER_RECEIVABLES);
+        setProviderSnapshot({ month: selectedMonth, data: {
+          items: DESIGN_PREVIEW_PROVIDER_RECEIVABLES,
+          summary: summarizeProviderReceivables(DESIGN_PREVIEW_PROVIDER_RECEIVABLES),
+          months: [selectedMonth], connectionId: null, quarantinedCount: 0,
+        } });
         setAgreements(DESIGN_PREVIEW_AGREEMENTS);
         setDetailInvoice(DESIGN_PREVIEW_INVOICES[3]);
         setFoundationPending(false);
@@ -2052,7 +1856,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
         setRefreshing(false);
         setServerSummary({ ...EMPTY_SUMMARY, organizationId });
         setInvoices([]);
-        setProviderReceivables([]);
+        setProviderSnapshot(null);
         setAgreements([]);
         return;
       }
@@ -2072,12 +1876,12 @@ function CoordinationFinanceDashboardOrganizationScope() {
               getOrganizationFinanceDashboard(organizationId),
               listOrganizationInvoices(organizationId),
               listTuitionAgreements(organizationId),
-              listOrganizationProviderReceivables(
+              getOrganizationProviderReceivablesPage(
                 organizationId,
                 selectedMonth,
               ).catch((projectionError) => {
                 if (isMissingProviderReceivablesProjection(projectionError)) {
-                  return [];
+                  return null;
                 }
                 throw projectionError;
               }),
@@ -2109,7 +1913,10 @@ function CoordinationFinanceDashboardOrganizationScope() {
             setSelectedMonth(invoiceMonthKey(linkedInvoice));
           }
         }
-        setProviderReceivables(nextProviderReceivables);
+        setProviderSnapshot(nextProviderReceivables ? { month: selectedMonth, data: nextProviderReceivables } : null);
+        if (nextProviderReceivables?.quarantinedCount) {
+          setNotice("Recebimentos antigos sem conta confirmada foram preservados fora dos totais.");
+        }
         setAgreements(nextAgreements);
         setFoundationPending(false);
       } catch (loadError) {
@@ -2124,7 +1931,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
         setDataIdentity(identity);
         setServerSummary({ ...EMPTY_SUMMARY, organizationId });
         setInvoices([]);
-        setProviderReceivables([]);
+        setProviderSnapshot(null);
         setAgreements([]);
         if (isMissingFinanceFoundation(loadError)) setFoundationPending(true);
         else setError("Não foi possível carregar o financeiro.");
@@ -2161,11 +1968,37 @@ function CoordinationFinanceDashboardOrganizationScope() {
     }, [load]),
   );
 
-  const monthOptions = useMemo(() => {
-    const months = new Set(scopedInvoices.map(invoiceMonthKey));
-    months.add(currentMonthKey());
-    return Array.from(months).sort((left, right) => right.localeCompare(left));
-  }, [scopedInvoices]);
+  const monthOptions = useMemo(() => financeMonthOptions(
+    scopedInvoices.map(invoiceMonthKey),
+    dataIsCurrent ? providerSnapshot?.data.months ?? [] : [],
+    selectedMonth, currentMonthKey(),
+  ), [dataIsCurrent, providerSnapshot, scopedInvoices, selectedMonth]);
+
+  const loadProviderMore = async () => {
+    if (!providerData || providerPageBusy.current) return;
+    const identity = captureOrganizationAsyncIdentity(organizationIdentityRef.current, organizationIdentity);
+    if (!identity) return;
+    const requestId = requestIdRef.current;
+    const snapshot = providerSnapshot;
+    providerPageBusy.current = true;
+    setLoadingProviderMore(true);
+    try {
+      const next = await getOrganizationProviderReceivablesPage(organizationId, selectedMonth, providerData.items.length);
+      if (requestId !== requestIdRef.current || !isOrganizationAsyncIdentityCurrent(organizationIdentityRef.current, identity)) return;
+      if (next.connectionId !== providerData.connectionId) { await load(true); return; }
+      setProviderSnapshot((current) => current !== snapshot ? current : ({
+        month: selectedMonth,
+        data: { ...next, items: [...providerData.items, ...next.items.filter((row) => !providerData.items.some((item) => item.id === row.id))] },
+      }));
+    } catch {
+      if (requestId === requestIdRef.current && isOrganizationAsyncIdentityCurrent(organizationIdentityRef.current, identity)) {
+        setNotice("Não foi possível carregar mais recebimentos. Tente novamente.");
+      }
+    } finally {
+      providerPageBusy.current = false;
+      setLoadingProviderMore(false);
+    }
+  };
   const monthlyInvoices = useMemo(
     () =>
       scopedInvoices.filter(
@@ -2245,7 +2078,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
     () =>
       [
         ["all", `Mensalidades ${monthlyInvoices.length}`],
-        ["asaas", `Asaas ${scopedProviderReceivables.length}`],
+        ["asaas", `Asaas ${providerData?.summary.totalCount ?? 0}`],
         [
           "attention",
           `Precisam de atenção ${monthlyInvoices.filter((invoice) => invoiceMatchesFilter(invoice, "attention")).length}`,
@@ -2256,7 +2089,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
       ] as const,
     [
       monthlyInvoices,
-      scopedProviderReceivables.length,
+      providerData?.summary.totalCount,
       summary.openCount,
       summary.overdueCount,
       summary.paidCount,
@@ -2658,7 +2491,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
             <FinanceOverviewPanel
               summary={summary}
               invoices={monthlyInvoices}
-              providerReceivables={scopedProviderReceivables}
+              providerSummary={providerData?.summary ?? null}
               compact={compactHeader}
               onOpenCharges={() => {
                 setFilter("attention");
@@ -2741,7 +2574,7 @@ function CoordinationFinanceDashboardOrganizationScope() {
                         </Text>
                         <Text style={{ color: colors.muted, fontSize: 12 }}>
                           {filter === "asaas"
-                            ? `${filteredProviderReceivables.length} no mês`
+                            ? `${filteredProviderReceivables.length} carregados de ${providerData?.summary.totalCount ?? 0} no mês`
                             : `${filteredInvoices.length} de ${monthlyInvoices.length} mensalidade(s)`}
                         </Text>
                       </View>
@@ -2752,6 +2585,9 @@ function CoordinationFinanceDashboardOrganizationScope() {
                           gap: 8,
                         }}
                       >
+                        {filter === "asaas" && providerData && providerData.items.length < providerData.summary.totalCount ? (
+                          <Button label="Carregar mais" loading={loadingProviderMore} disabled={loadingProviderMore} variant="outline" onPress={() => void loadProviderMore()} />
+                        ) : null}
                         <FinanceAction
                           label="Nova cobrança"
                           icon="add"

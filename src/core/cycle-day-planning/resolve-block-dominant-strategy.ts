@@ -198,7 +198,7 @@ const prioritizeFamilies = (
 
 const pickPreferredSkill = (
   preferredOrder: VolleyballSkill[],
-  actualCandidates: Array<VolleyballSkill | undefined>
+  actualCandidates: (VolleyballSkill | undefined)[]
 ) => {
   for (const preferred of preferredOrder) {
     if (actualCandidates.includes(preferred)) return preferred;

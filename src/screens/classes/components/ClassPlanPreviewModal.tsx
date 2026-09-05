@@ -1,3 +1,4 @@
+import { useUndoHistory } from "../../../hooks/use-undo-history";
 import { createElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
@@ -110,11 +111,11 @@ type PlanUndoEntry = {
   pdfStatusLabel: string;
 };
 
-const BLOCKS: Array<{
+const BLOCKS: {
   key: TrainingPlanBlockKey;
   label: string;
   icon: GoAtletaIconName;
-}> = CLASS_PLAN_BLOCK_KEYS.map((key) => ({ key, ...CLASS_PLAN_BLOCK_PRESENTATION[key] }));
+}[] = CLASS_PLAN_BLOCK_KEYS.map((key) => ({ key, ...CLASS_PLAN_BLOCK_PRESENTATION[key] }));
 
 const formatDuration = (value: string | undefined) => {
   const text = String(value ?? "").trim();
@@ -197,7 +198,6 @@ export function ClassPlanPreviewModal({
   const [isEditorExpanded, setIsEditorExpanded] = useState(initialMode === "edit");
   const [isPdfContentExpanded, setIsPdfContentExpanded] = useState(false);
   const [selectedBlockKey, setSelectedBlockKey] = useState<TrainingPlanBlockKey>("main");
-  const [focusedActivityDescriptionIndex, setFocusedActivityDescriptionIndex] = useState<number | null>(null);
   const [pdfPlan, setPdfPlan] = useState(plan);
   const [workingPlan, setWorkingPlan] = useState(plan);
   const [isDirty, setIsDirty] = useState(false);
@@ -214,9 +214,9 @@ export function ClassPlanPreviewModal({
     height: number;
   } | null>(null);
   const menuTriggerRef = useRef<View | null>(null);
-  const menuAnimation = useRef(new Animated.Value(1)).current;
+  const [menuAnimation] = useState(() => new Animated.Value(1));
   const workingPlanRef = useRef(plan);
-  const undoStackRef = useRef<PlanUndoEntry[]>([]);
+  const { canUndo, push: pushUndo, pop: popUndo, clear: clearUndo } = useUndoHistory<PlanUndoEntry>();
   const directEditSnapshotCapturedRef = useRef(false);
   const workspaceRootRef = useRef<View | null>(null);
 
@@ -254,7 +254,7 @@ export function ClassPlanPreviewModal({
       setWorkingPlan(plan);
     });
     workingPlanRef.current = plan;
-    undoStackRef.current = [];
+    clearUndo();
     directEditSnapshotCapturedRef.current = false;
     Promise.resolve().then(() => {
       setIsDirty(initialDirty);
@@ -272,7 +272,6 @@ export function ClassPlanPreviewModal({
       setSelectedBlockKey("main");
     });
     Promise.resolve().then(() => {
-      setFocusedActivityDescriptionIndex(null);
     });
     Promise.resolve().then(() => {
       setMobileView(initialMode === "edit" ? "outline" : "pdf");
@@ -288,7 +287,7 @@ export function ClassPlanPreviewModal({
       setShowMenu(false);
     });
     keepWorkspaceAtTop();
-  }, [initialDirty, initialMode, keepWorkspaceAtTop, plan, visible]);
+  }, [initialDirty, initialMode, keepWorkspaceAtTop, plan, visible, clearUndo]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -305,28 +304,24 @@ export function ClassPlanPreviewModal({
     return `plano-aula-${className}-${date}.pdf`;
   }, [classGroup.name, lessonDate, pdfPlan.applyDate]);
 
+  const [previewSource, setPreviewSource] = useState<{
+    data: typeof pdfData; retryKey: number; visible: boolean;
+  } | null>(null);
+  if (previewSource?.data !== pdfData || previewSource.retryKey !== retryKey || previewSource.visible !== visible) {
+    setPreviewSource({ data: pdfData, retryKey, visible });
+    setPreviewStatus(visible ? "loading" : "idle");
+    setPreviewHtml(visible && Platform.OS !== "web" ? sessionPlanHtml(pdfData, { editable: true }) : "");
+    setPdfBlob(null);
+    setPdfSize(null);
+    setPdfUrl("");
+  }
   useEffect(() => {
-    if (!visible) return undefined;
-    if (Platform.OS !== "web") {
-      setPreviewStatus("loading");
-      setPreviewHtml(sessionPlanHtml(pdfData, { editable: true }));
-      setPdfBlob(null);
-      setPdfSize(null);
-      setPdfUrl("");
-      return undefined;
-    }
-
+    if (!visible || Platform.OS !== "web") return undefined;
     let active = true;
     let generatedUrl = "";
     let firstFrame = 0;
     let secondFrame = 0;
     let idleHandle: number | undefined;
-
-    setPreviewStatus("loading");
-    setPreviewHtml("");
-    setPdfBlob(null);
-    setPdfSize(null);
-    setPdfUrl("");
 
     // Gera o blob binário em background para download otimizado
     const idleCallback = (typeof window !== "undefined" && "requestIdleCallback" in window)
@@ -522,10 +517,7 @@ export function ClassPlanPreviewModal({
         if (typeof field !== "string" || typeof text !== "string") return;
 
         if (!directEditSnapshotCapturedRef.current) {
-          undoStackRef.current = [
-            ...undoStackRef.current.slice(-19),
-            { plan: workingPlanRef.current, isDirty, pdfStatusLabel },
-          ];
+          pushUndo({ plan: workingPlanRef.current, isDirty, pdfStatusLabel });
           directEditSnapshotCapturedRef.current = true;
         }
 
@@ -597,7 +589,7 @@ export function ClassPlanPreviewModal({
           updateBlock(blockKey, (draft) => ({ ...draft, duration: text }));
         }
       }
-  }, [inlinePdfEditor, isDirty, keepWorkspaceAtTop, pdfStatusLabel, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle]);
+  }, [inlinePdfEditor, isDirty, keepWorkspaceAtTop, pdfStatusLabel, splitLayout, updateBlock, updatePdfContentField, updatePlanTitle, pushUndo]);
 
   const handlePreviewRetry = useCallback(() => {
     setPreviewStatus("loading");
@@ -648,7 +640,7 @@ export function ClassPlanPreviewModal({
       setWorkingPlan(savedPlan);
       workingPlanRef.current = savedPlan;
       setPdfPlan(savedPlan);
-      undoStackRef.current = [];
+      clearUndo();
       directEditSnapshotCapturedRef.current = false;
       setIsDirty(false);
       setPdfStatusLabel("PDF atualizado agora");
@@ -670,6 +662,7 @@ export function ClassPlanPreviewModal({
     onSavePlan,
     showSaveToast,
     splitLayout,
+    clearUndo,
   ]);
 
   const handleSave = useCallback(() => {
@@ -683,7 +676,7 @@ export function ClassPlanPreviewModal({
   }, [isDirty, isSaving, onApplyPlan, persistWorkingPlan]);
 
   const handleWorkspaceUndo = useCallback(() => {
-    const previous = undoStackRef.current.pop();
+    const previous = popUndo();
     if (!previous) return;
     workingPlanRef.current = previous.plan;
     setWorkingPlan(previous.plan);
@@ -692,16 +685,7 @@ export function ClassPlanPreviewModal({
     setIsDirty(previous.isDirty);
     setPdfStatusLabel(previous.pdfStatusLabel);
     directEditSnapshotCapturedRef.current = false;
-  }, []);
-
-  const handleWorkspaceAddActivity = useCallback(() => {
-    undoStackRef.current = [
-      ...undoStackRef.current.slice(-19),
-      { plan: workingPlanRef.current, isDirty, pdfStatusLabel },
-    ];
-    const nextPlan = updateBlock(selectedBlockKey, appendClassPlanActivity);
-    setPdfPlan(nextPlan);
-  }, [isDirty, pdfStatusLabel, selectedBlockKey, updateBlock]);
+  }, [popUndo]);
 
   useEffect(() => {
     if (!workspaceMode || !onWorkspaceControlsChange) return undefined;
@@ -740,7 +724,7 @@ export function ClassPlanPreviewModal({
   const handleCancelEditing = useCallback(() => {
     setWorkingPlan(pdfPlan);
     workingPlanRef.current = pdfPlan;
-    undoStackRef.current = [];
+    clearUndo();
     directEditSnapshotCapturedRef.current = false;
     setPreviewRevision((current) => current + 1);
     setIsDirty(false);
@@ -748,7 +732,7 @@ export function ClassPlanPreviewModal({
     setIsEditorExpanded(false);
     setIsPdfContentExpanded(false);
     setPdfStatusLabel("PDF sincronizado");
-  }, [pdfPlan]);
+  }, [pdfPlan, clearUndo]);
 
   const requestClose = useCallback(() => {
     if (!isDirty) {
@@ -783,16 +767,13 @@ export function ClassPlanPreviewModal({
         return;
       }
 
-      undoStackRef.current = [
-        ...undoStackRef.current.slice(-19),
-        { plan: workingPlanRef.current, isDirty, pdfStatusLabel },
-      ];
+      pushUndo({ plan: workingPlanRef.current, isDirty, pdfStatusLabel });
       updateSelectedBlock((draft) => removeClassPlanActivity(draft, index));
       showSaveToast({
         message: "Atividade removida.",
         actionLabel: "Desfazer",
         onAction: () => {
-          const previous = undoStackRef.current.pop();
+          const previous = popUndo();
           if (!previous) return;
 
           workingPlanRef.current = previous.plan;
@@ -814,6 +795,8 @@ export function ClassPlanPreviewModal({
       selectedBlockKey,
       showSaveToast,
       updateSelectedBlock,
+      popUndo,
+      pushUndo,
     ]
   );
 
@@ -829,7 +812,7 @@ export function ClassPlanPreviewModal({
       const tagName = target?.tagName?.toLowerCase();
       if (tagName === "input" || tagName === "textarea" || target?.isContentEditable) return;
 
-      const previous = undoStackRef.current.pop();
+      const previous = popUndo();
       if (!previous) return;
 
       event.preventDefault();
@@ -842,7 +825,7 @@ export function ClassPlanPreviewModal({
 
     window.addEventListener("keydown", handleUndoShortcut);
     return () => window.removeEventListener("keydown", handleUndoShortcut);
-  }, [showSaveToast, visible]);
+  }, [showSaveToast, visible, popUndo]);
 
   const handleRemove = useCallback(() => {
     if (!onRemovePlan) return;
@@ -903,7 +886,6 @@ export function ClassPlanPreviewModal({
       }
       setSelectedBlockKey(blockKey);
       setIsPdfContentExpanded(false);
-      setFocusedActivityDescriptionIndex(null);
       if (!isEditing) setIsEditing(true);
       setIsEditorExpanded(true);
       if (!splitLayout) setMobileView("outline");
@@ -918,7 +900,6 @@ export function ClassPlanPreviewModal({
       return;
     }
     setIsPdfContentExpanded(true);
-    setFocusedActivityDescriptionIndex(null);
     if (!isEditing) setIsEditing(true);
     setIsEditorExpanded(true);
     if (!splitLayout) setMobileView("outline");
@@ -1504,14 +1485,14 @@ export function ClassPlanPreviewModal({
             </View>
             <Pressable
               onPress={handleWorkspaceUndo}
-              disabled={!undoStackRef.current.length}
+              disabled={!canUndo}
               accessibilityRole="button"
               accessibilityLabel="Desfazer alteração"
               style={({ pressed }) => [
                 styles.workspaceIconButton,
                 {
                   borderColor: colors.border,
-                  opacity: !undoStackRef.current.length ? 0.4 : pressed ? 0.68 : 1,
+                  opacity: !canUndo ? 0.4 : pressed ? 0.68 : 1,
                 },
               ]}
             >
@@ -1552,14 +1533,14 @@ export function ClassPlanPreviewModal({
             ) : null}
             <Pressable
               onPress={handleWorkspaceUndo}
-              disabled={!undoStackRef.current.length}
+              disabled={!canUndo}
               accessibilityRole="button"
               accessibilityLabel="Desfazer alteração"
               style={({ pressed }) => [
                 styles.workspaceIconButton,
                 {
                   borderColor: colors.border,
-                  opacity: !undoStackRef.current.length ? 0.4 : pressed ? 0.68 : 1,
+                  opacity: !canUndo ? 0.4 : pressed ? 0.68 : 1,
                 },
               ]}
             >

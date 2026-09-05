@@ -1,3 +1,4 @@
+import { scheduleEffectTask } from "../../../hooks/schedule-effect-task";
 import * as Clipboard from "expo-clipboard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
@@ -43,10 +44,10 @@ const RELATIONSHIP_CHOICES: RelationshipChoice[] = [
     { label: "Acompanhante", kind: "viewer" },
 ];
 
-const PERMISSION_CHOICES: Array<{
+const PERMISSION_CHOICES: {
     key: keyof StudentRelationshipPermissions;
     label: string;
-}> = [
+}[] = [
     { key: "canViewSchedule", label: "Agenda" },
     { key: "canViewAttendance", label: "Frequência" },
     { key: "canViewProgress", label: "Evolução" },
@@ -109,7 +110,11 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
     const [inviteUrl, setInviteUrl] = useState("");
     const relationshipTriggerRef = useRef<View | null>(null);
 
-    useEffect(() => {
+    const [previousSeed, setPreviousSeed] = useState(seed);
+    const [previousCompact, setPreviousCompact] = useState(compact);
+    if (previousSeed !== seed || previousCompact !== compact) {
+        setPreviousSeed(seed);
+        setPreviousCompact(compact);
         setEmail(seed.email ?? "");
         setChoice({ kind: seed.kind, label: seed.label });
         setPermissions(seed.permissions);
@@ -118,7 +123,7 @@ function FamilyInviteComposer({ organizationId, student, compact, seed, onCancel
         setShowPermissions(!compact);
         setBusy(false);
         setInviteUrl("");
-    }, [compact, seed]);
+    }
 
     const selectChoice = (next: RelationshipChoice) => {
         setChoice(next);
@@ -489,7 +494,15 @@ function RelationshipEditor({ organizationId, student, relationship, onCancel, o
     );
 }
 
-export function StudentFamilyAccessPanels({
+export function StudentFamilyAccessPanels(props: Parameters<typeof FamilyAccessPanelContent>[0]) {
+    if (!props.mode) return null;
+    return <FamilyAccessPanelContent
+        key={[props.organizationId, props.student?.id, props.mode].join(":")}
+        {...props}
+    />;
+}
+
+function FamilyAccessPanelContent({
     mode,
     organizationId,
     student,
@@ -521,32 +534,30 @@ export function StudentFamilyAccessPanels({
     const [openActionsId, setOpenActionsId] = useState<string | null>(null);
     const studentId = student?.id ?? null;
 
+    const accessRequest = useRef(0);
+    useEffect(() => () => { accessRequest.current += 1; }, []);
     const loadAccess = useCallback(async () => {
+        const request = ++accessRequest.current;
         if (!studentId || !organizationId) return;
         setLoading(true);
         try {
             const [relationshipRows, inviteRows] = await Promise.all([listStudentRelationships(organizationId, studentId), listStudentRelationshipInvites(organizationId, studentId)]);
+            if (request !== accessRequest.current) return;
             setRelationships(relationshipRows.filter((item) => item.status === "active" && item.kind !== "athlete"));
             setInvites(inviteRows.filter((item) => item.status === "pending" && item.relationshipKind !== "athlete"));
         } catch (error) {
+            if (request !== accessRequest.current) return;
             setRelationships([]);
             setInvites([]);
             showSaveToast({ error, variant: "error" });
         } finally {
-            setLoading(false);
+            if (request === accessRequest.current) setLoading(false);
         }
     }, [organizationId, showSaveToast, studentId]);
 
     useEffect(() => {
-        setComposerSeed(null);
-        setEditingRelationship(null);
-        setOpenActionsId(null);
-        setRelationships([]);
-        setInvites([]);
-    }, [mode, studentId]);
-
-    useEffect(() => {
-        if (mode === "drawer") void loadAccess();
+        if (mode !== "drawer") return;
+        return scheduleEffectTask(() => { void loadAccess(); });
     }, [loadAccess, mode]);
 
     const revokeRelationship = async (relationship: StudentRelationship) => {

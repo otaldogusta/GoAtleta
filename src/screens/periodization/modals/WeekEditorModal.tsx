@@ -174,6 +174,7 @@ export function WeekEditorModal({
 
           <Pressable
             onPress={onClose}
+            disabled={isSavingWeek}
             style={{
               flex: 1,
               paddingVertical: 10,
@@ -190,6 +191,7 @@ export function WeekEditorModal({
       }
     >
       <KeyboardAvoidingView
+        pointerEvents={isSavingWeek ? "none" : "auto"}
         style={{ width: "100%" }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
@@ -347,6 +349,7 @@ export function WeekEditorModal({
                     {normalizeText("Fase")}
                   </Text>
                   <TextInput
+                    editable={!isSavingWeek}
                     placeholder={normalizeText("Fase (ex: Base, Recuperação)")}
                     value={editPhase}
                     onChangeText={setEditPhase}
@@ -360,6 +363,7 @@ export function WeekEditorModal({
                     {normalizeText("Tema")}
                   </Text>
                   <TextInput
+                    editable={!isSavingWeek}
                     placeholder={normalizeText("Tema (ex: Manchete, Saque)")}
                     value={editTheme}
                     onChangeText={setEditTheme}
@@ -375,6 +379,7 @@ export function WeekEditorModal({
                     {normalizeText("Meta de saltos")}
                   </Text>
                   <TextInput
+                    editable={!isSavingWeek}
                     placeholder={normalizeText("Saltos alvo (ex: 20-40)")}
                     value={editJumpTarget}
                     onChangeText={setEditJumpTarget}
@@ -388,6 +393,7 @@ export function WeekEditorModal({
                     {normalizeText("Meta de PSE")}
                   </Text>
                   <TextInput
+                    editable={!isSavingWeek}
                     placeholder={normalizeText("PSE alvo (0-10, ex: 3-4)")}
                     value={editPSETarget}
                     onChangeText={setEditPSETarget}
@@ -402,6 +408,7 @@ export function WeekEditorModal({
                   {normalizeText("Regra pedagógica")}
                 </Text>
                 <TextInput
+                  editable={!isSavingWeek}
                   placeholder={normalizeText("Ex: ponto só vale com 3 contatos")}
                   value={editPedagogicalRule}
                   onChangeText={setEditPedagogicalRule}
@@ -423,6 +430,7 @@ export function WeekEditorModal({
                     {normalizeText("Foco técnico")}
                   </Text>
                   <TextInput
+                    editable={!isSavingWeek}
                     placeholder={normalizeText("Foco técnico")}
                     value={editTechnicalFocus}
                     onChangeText={setEditTechnicalFocus}
@@ -436,6 +444,7 @@ export function WeekEditorModal({
                     {normalizeText("Foco físico")}
                   </Text>
                   <TextInput
+                    editable={!isSavingWeek}
                     placeholder={normalizeText("Foco físico")}
                     value={editPhysicalFocus}
                     onChangeText={setEditPhysicalFocus}
@@ -453,6 +462,7 @@ export function WeekEditorModal({
                 {normalizeText("Restrições")}
               </Text>
               <TextInput
+                editable={!isSavingWeek}
                 placeholder={normalizeText("Restrições / regras")}
                 value={editConstraints}
                 onChangeText={setEditConstraints}

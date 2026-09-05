@@ -23,6 +23,7 @@ export function AppShell({ role, children }: AppShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileSidebarProgress] = useState(() => new Animated.Value(0));
   const isNativeMobile = Platform.OS !== "web" && !layout.usesWorkspaceShell;
+  if (!isNativeMobile && mobileSidebarOpen) setMobileSidebarOpen(false);
   const openMobileSidebar = useCallback(() => setMobileSidebarOpen(true), []);
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
   const sidebarController = useMemo<NativeSidebarController>(
@@ -41,7 +42,6 @@ export function AppShell({ role, children }: AppShellProps) {
 
   useEffect(() => {
     if (!isNativeMobile) {
-      if (mobileSidebarOpen) setMobileSidebarOpen(false);
       mobileSidebarProgress.setValue(0);
       return undefined;
     }

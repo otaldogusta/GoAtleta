@@ -33,18 +33,18 @@ jest.mock("../../providers/OrganizationProvider", () => ({
 
 jest.mock("../GoAtletaBrand", () => ({
   GoAtletaBrandMark: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("GoAtletaBrandMark", props);
   },
   GoAtletaBrandWordmark: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("GoAtletaBrandWordmark", props);
   },
 }));
 
 jest.mock("../icon-registry", () => ({
   GoAtletaIcon: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("GoAtletaIcon", props);
   },
 }));

@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "auditedCommit": "8f8810db",
+  "auditedAt": "2026-09-05",
+  "policy": "Historical ESLint errors from the pre-fix audit only. No new diagnostics accepted. Remove resolved entries with --prune; do not expand.",
+  "entries": []
+}

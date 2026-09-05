@@ -1,3 +1,4 @@
+import { markRender, measureAsync } from "../src/observability/perf";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   useCallback,
@@ -166,6 +167,7 @@ type MonthCalendarDayModel = {
 };
 
 export default function CalendarScreen() {
+  markRender("screen.calendar.render.root");
   const router = useRouter();
   const { colors } = useAppTheme();
   const { showSaveToast } = useSaveToast();
@@ -265,12 +267,12 @@ export default function CalendarScreen() {
     let alive = true;
     (async () => {
       try {
-        const classList = await getClasses();
+        const classList = await measureAsync("screen.calendar.load.classes", () => getClasses());
         if (!alive) return;
         setClasses(classList);
         void (async () => {
           try {
-            const planList = await getTrainingPlans();
+            const planList = await measureAsync("screen.calendar.load.plans", () => getTrainingPlans());
             if (!alive) return;
             setPlans(planList);
           } catch {
@@ -303,12 +305,12 @@ export default function CalendarScreen() {
     const to = new Date(calendarEnd);
     to.setHours(23, 59, 59, 999);
 
-    void listEvents({
+    void measureAsync("screen.calendar.load.events", () => listEvents({
       organizationId: activeOrganization.id,
       fromIso: from.toISOString(),
       toIso: to.toISOString(),
       userId: session?.user?.id,
-    })
+    }))
       .then((rows) => {
         if (alive) setEvents(rows);
       })

@@ -33,6 +33,21 @@ const plan: TrainingPlan = {
 };
 
 describe("training plan workspace draft", () => {
+  it("deletes after an earlier in-flight write without restoring the deleted draft", async () => {
+    let finishWrite!: () => void;
+    const events: string[] = [];
+    (AsyncStorage.setItem as jest.Mock).mockImplementationOnce(async () => {
+      await new Promise<void>(resolve => { finishWrite = resolve; });
+      events.push("saved");
+    });
+    (AsyncStorage.removeItem as jest.Mock).mockImplementationOnce(async () => { events.push("deleted"); });
+    const saved = saveTrainingPlanWorkspaceDraft("clear-in-flight", plan, "2026-09-05");
+    const cleared = clearTrainingPlanWorkspaceDraft("clear-in-flight");
+    expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
+    finishWrite();
+    await Promise.all([saved, cleared]);
+    expect(events).toEqual(["saved", "deleted"]);
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);

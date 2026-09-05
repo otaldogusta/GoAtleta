@@ -32,6 +32,7 @@ import {
   getStudentsByClass,
   getTrainingPlans,
 } from "../../../db/seed";
+import { resolveTrainingPlanForDate } from "../../../core/resolve-training-plan-for-date";
 import { resolveClassPlanForSessionDate } from "../application/resolve-class-plan-for-session-date";
 
 type UseSessionDataParams = {
@@ -44,31 +45,24 @@ type UseSessionDataParams = {
 
 export type SessionDataStatus = "loading" | "ready" | "not_found" | "error";
 
-const getLatestFinalPlanForSession = async (
+export const getTrainingPlansForSession = async (
   organizationId: string | null,
   classId: string,
   sessionDateValue: string,
-  weekdayValue: number
+  weekdayValue: number,
 ) => {
-  const baseQuery = {
+  // Fetch candidates before selection: a limit of one can hide a recurring plan
+  // behind a newer plan intended for a different, specific date.
+  const plans = await getTrainingPlans({
     organizationId,
     classId,
-    status: "final" as const,
-    orderBy: "version_desc" as const,
-    limit: 1,
+    status: "final",
+    orderBy: "version_desc",
+  });
+  return {
+    currentPlan: resolveTrainingPlanForDate(plans, classId, sessionDateValue, weekdayValue),
+    savedPlans: [...plans].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 24),
   };
-  const byDate = await getTrainingPlans({
-    ...baseQuery,
-    applyDate: sessionDateValue,
-  });
-  if (byDate[0]) {
-    return byDate[0];
-  }
-  const byWeekday = await getTrainingPlans({
-    ...baseQuery,
-    applyWeekday: weekdayValue,
-  });
-  return byWeekday[0] ?? null;
 };
 
 const buildEventWindow = (sessionDateValue: string, days = 14) => {
@@ -140,25 +134,17 @@ export function useSessionData({
           const eventWindow = buildEventWindow(sessionDate);
           const [
             classStudents,
-            currentPlan,
-            classTrainingPlans,
+            trainingPlansForSession,
             upcomingEvents,
             loadedCalendarExceptions,
           ] = await Promise.all([
             getStudentsByClass(data.id),
-            getLatestFinalPlanForSession(
+            getTrainingPlansForSession(
               data.organizationId ?? null,
               data.id,
               sessionDate,
               weekdayId
-            ).catch(() => null),
-            getTrainingPlans({
-              organizationId: data.organizationId ?? null,
-              classId: data.id,
-              status: "final",
-              orderBy: "createdat_desc",
-              limit: 24,
-            }).catch(() => [] as TrainingPlan[]),
+            ).catch(() => ({ currentPlan: null, savedPlans: [] as TrainingPlan[] })),
             data.organizationId
               ? listEvents({
                   organizationId: data.organizationId,
@@ -185,8 +171,8 @@ export function useSessionData({
             }));
           if (alive) {
             setSessionStudents(classStudents);
-            setSavedClassPlans(compactTrainingPlans(classTrainingPlans));
-            setPlan(currentPlan);
+            setSavedClassPlans(compactTrainingPlans(trainingPlansForSession.savedPlans));
+            setPlan(trainingPlansForSession.currentPlan);
             setUpcomingSessionEvents(scopedEvents);
             setCalendarExceptions(loadedCalendarExceptions);
             setSessionDataStatus("ready");

@@ -29,7 +29,7 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
         try {
           // expose minimal bootstrap progress for web dev debugging
           // Avoid logging sensitive session contents.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           (globalThis as any).__BOOTSTRAP_LOGS = (globalThis as any).__BOOTSTRAP_LOGS || [];
           (globalThis as any).__BOOTSTRAP_LOGS.push(`loadSession:${sessionMs}ms`);
         } catch {}
@@ -46,7 +46,7 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
       if (__DEV__) {
         console.log(`[bootstrap] initDb: ${dbMs}ms`);
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           (globalThis as any).__BOOTSTRAP_LOGS = (globalThis as any).__BOOTSTRAP_LOGS || [];
           (globalThis as any).__BOOTSTRAP_LOGS.push(`initDb:${dbMs}ms`);
         } catch {}
@@ -65,7 +65,7 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
           `[bootstrap] loadPedagogicalConfig: ${configMs}ms${configError ? " (with fallback)" : ""}`
         );
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           (globalThis as any).__BOOTSTRAP_LOGS = (globalThis as any).__BOOTSTRAP_LOGS || [];
           (globalThis as any).__BOOTSTRAP_LOGS.push(`loadPedagogicalConfig:${configMs}ms${configError?':fallback':''}`);
         } catch {}
@@ -102,7 +102,7 @@ export async function bootstrapApp(): Promise<BootstrapResult> {
   if (__DEV__) {
     console.log(`[bootstrap] total: ${totalMs}ms`);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (globalThis as any).__BOOTSTRAP_LOGS = (globalThis as any).__BOOTSTRAP_LOGS || [];
       (globalThis as any).__BOOTSTRAP_LOGS.push(`total:${totalMs}ms`);
     } catch {}

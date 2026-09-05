@@ -297,7 +297,7 @@ export function HomeProfessorScreen({
     resolvedRequestKey: resolvedScheduleRequestKey,
   });
 
-  const inboxX = useRef(new Animated.Value(panelWidth)).current;
+  const [inboxX] = useState(() => new Animated.Value(panelWidth));
 
   const agendaScrollRef = useRef<FlatList<(typeof scheduleWindow)[number]> | null>(null);
 
@@ -436,7 +436,7 @@ export function HomeProfessorScreen({
     } catch {
       setInbox([]);
     }
-  }, [activeOrganization?.id, notificationInboxScope]);
+  }, [notificationInboxScope, activeOrganization]);
   useEffect(() => {
     profilePhotoCacheRef.current = { uri: null, updatedAt: 0 };
   }, [role, session?.user?.id]);

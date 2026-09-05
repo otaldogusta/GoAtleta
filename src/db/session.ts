@@ -11,6 +11,7 @@ import {
     isAuthError,
     isMissingRelation,
     isNetworkError,
+    isDeferredWriteError,
     supabaseGet,
     supabasePatch,
     supabasePost,
@@ -19,6 +20,7 @@ import type { ScoutingLogRow, SessionLogRow, StudentScoutingRow } from "./row-ty
 import { getTrainingPlans } from "./training";
 import { resolveTrainingPlanForDate, syncTrainingSessionFromReport } from "./training-sessions";
 import { enqueueWrite } from "./pending-write-queue";
+import { capturePendingWriteContext, type PendingWriteOrigin } from "./pending-write-identity";
 
 // ---------------------------------------------------------------------------
 // Row mappers
@@ -140,11 +142,12 @@ export async function getLatestScoutingLog(
 
 export async function saveScoutingLog(
   log: ScoutingLog,
-  options?: { allowQueue?: boolean; organizationId?: string }
+  options?: { allowQueue?: boolean; organizationId?: string; origin?: PendingWriteOrigin }
 ): Promise<ScoutingLog> {
   const allowQueue = options?.allowQueue !== false;
+  const context = await capturePendingWriteContext(options?.organizationId, options?.origin);
   try {
-    const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
+    const organizationId = context.origin.organizationId;
     const now = new Date().toISOString();
     const mode = log.mode === "jogo" ? "jogo" : "treino";
     const clientId = buildScoutingLogClientId(log);
@@ -176,7 +179,7 @@ export async function saveScoutingLog(
     await supabasePost(
       "/scouting_logs?on_conflict=id",
       [payload],
-      { Prefer: "resolution=merge-duplicates" }
+      { Prefer: "resolution=merge-duplicates" }, context.identity,
     );
     return {
       ...log,
@@ -187,10 +190,11 @@ export async function saveScoutingLog(
       updatedAt: now,
     };
   } catch (error) {
-    if (allowQueue && isNetworkError(error)) {
+    if (allowQueue && isDeferredWriteError(error)) {
       await enqueueWrite({
         id: "queue_scout_" + Date.now(),
         kind: "scouting_log",
+        origin: context.origin,
         payload: { ...log, id: log.id || "", clientId: log.clientId || "" },
         createdAt: new Date().toISOString(),
       });
@@ -252,9 +256,10 @@ export async function getStudentScoutingByDate(
 
 export async function saveStudentScoutingLog(
   log: StudentScoutingLog,
-  options?: { allowQueue?: boolean }
+  options?: { allowQueue?: boolean; organizationId?: string; origin?: PendingWriteOrigin }
 ) {
   const allowQueue = options?.allowQueue !== false;
+  const context = await capturePendingWriteContext(options?.organizationId, options?.origin);
   try {
     const now = new Date().toISOString();
     const clientId = buildStudentScoutingClientId(log);
@@ -283,14 +288,15 @@ export async function saveStudentScoutingLog(
     await supabasePost(
       "/student_scouting_logs?on_conflict=id",
       [payload],
-      { Prefer: "resolution=merge-duplicates" }
+      { Prefer: "resolution=merge-duplicates" }, context.identity,
     );
     return { ...log, id: logId, createdAt: payload.createdat, updatedAt: now };
   } catch (error) {
-    if (allowQueue && isNetworkError(error)) {
+    if (allowQueue && isDeferredWriteError(error)) {
       await enqueueWrite({
         id: "queue_student_scout_" + Date.now(),
         kind: "student_scouting_log",
+        origin: context.origin,
         payload: { ...log, id: log.id || "" },
         createdAt: new Date().toISOString(),
       });
@@ -306,9 +312,10 @@ export async function saveStudentScoutingLog(
 
 export async function saveSessionLog(
   log: SessionLog,
-  options?: { allowQueue?: boolean; organizationId?: string }
+  options?: { allowQueue?: boolean; organizationId?: string; origin?: PendingWriteOrigin }
 ) {
   const allowQueue = options?.allowQueue !== false;
+  const context = await capturePendingWriteContext(options?.organizationId, options?.origin);
   const clientId = buildSessionLogClientId(log);
   const logId = log.id?.trim() || clientId;
   const shouldPatchById = !!log.id?.trim() && !log.clientId?.trim();
@@ -327,7 +334,7 @@ export async function saveSessionLog(
       : null;
 
   try {
-    const organizationId = options?.organizationId ?? (await getActiveOrganizationId());
+    const organizationId = context.origin.organizationId;
 
     if (shouldPatchById) {
       await supabasePatch(
@@ -350,7 +357,7 @@ export async function saveSessionLog(
           photos,
           pain_score: log.painScore ?? null,
           createdat: log.createdAt,
-        }
+        }, undefined, context.identity,
       );
     } else {
       await supabasePost(
@@ -372,7 +379,7 @@ export async function saveSessionLog(
             createdat: log.createdAt,
           },
         ],
-        { Prefer: "resolution=merge-duplicates" }
+        { Prefer: "resolution=merge-duplicates" }, context.identity,
       );
     }
 
@@ -406,10 +413,11 @@ export async function saveSessionLog(
       // best-effort compatibility layer; legacy report save already succeeded
     }
   } catch (error) {
-    if (allowQueue && isNetworkError(error)) {
+    if (allowQueue && isDeferredWriteError(error)) {
       await enqueueWrite({
         id: "queue_log_" + Date.now(),
         kind: "session_log",
+        origin: context.origin,
         payload: { ...log, id: logId, clientId },
         createdAt: new Date().toISOString(),
       });

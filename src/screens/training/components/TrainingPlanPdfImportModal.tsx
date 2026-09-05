@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import { EncodingType, readAsStringAsync } from "expo-file-system/legacy";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -126,10 +126,10 @@ function PdfAnalysisProgress({
   };
 }) {
   const isWeb = Platform.OS === "web";
-  const spin = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
-  const sweep = useRef(new Animated.Value(0)).current;
-  const messageEnter = useRef(new Animated.Value(1)).current;
+  const [spin] = useState(() => new Animated.Value(0));
+  const [pulse] = useState(() => new Animated.Value(0));
+  const [sweep] = useState(() => new Animated.Value(0));
+  const [messageEnter] = useState(() => new Animated.Value(1));
   const activeStep = stage === "waiting"
     ? ANALYSIS_STEPS.length - 1
     : Math.max(0, ANALYSIS_STEPS.findIndex((step) => step.id === stage));
@@ -355,19 +355,22 @@ export function TrainingPlanPdfImportModal({
   const [previewUrl, setPreviewUrl] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (visible) return;
-    setAnalysis(null);
-    setPreviewUrl("");
-    setAnalysisFilename("");
-    setAnalysisMessage("");
-    setAnalysisStage("idle");
-    setError("");
-    setBusy(null);
-  }, [visible]);
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (wasVisible !== visible) {
+    setWasVisible(visible);
+    if (!visible) {
+      setAnalysis(null);
+      setPreviewUrl("");
+      setAnalysisFilename("");
+      setAnalysisMessage("");
+      setAnalysisStage("idle");
+      setError("");
+      setBusy(null);
+    }
+  }
 
   const pickAndAnalyze = async () => {
-    const progressTimers: Array<ReturnType<typeof setTimeout>> = [];
+    const progressTimers: ReturnType<typeof setTimeout>[] = [];
     const stopProgressTimers = () => progressTimers.forEach((timer) => clearTimeout(timer));
     setError("");
     try {

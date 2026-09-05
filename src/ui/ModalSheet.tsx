@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createWebPortal } from "./web-portal";
+import { useEffect, useLayoutEffect, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Animated, Easing, Modal, Platform, Pressable as RawPressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -114,8 +115,9 @@ export function ModalSheet({
   containerPadding = 16,
   respectBottomInset = true,
 }: ModalSheetProps) {
-  const anim = useRef(new Animated.Value(0)).current;
+  const [anim] = useState(() => new Animated.Value(0));
   const [isMounted, setIsMounted] = useState(visible);
+  if (visible && !isMounted) setIsMounted(true);
   const isCenter = position === "center";
   const isRight = position === "right";
   const insets = useSafeAreaInsets();
@@ -129,7 +131,6 @@ export function ModalSheet({
     if (!visible) return;
     anim.stopAnimation();
     anim.setValue(0);
-    setIsMounted(true);
   }, [anim, visible]);
 
   useEffect(() => {
@@ -267,8 +268,7 @@ export function ModalSheet({
   );
 
   if (Platform.OS === "web") {
-    const ReactDOM = require("react-dom");
-    return ReactDOM.createPortal(content, document.body);
+    return createWebPortal(content, document.body);
   }
 
   return (

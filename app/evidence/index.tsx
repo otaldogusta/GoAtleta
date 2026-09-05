@@ -1,3 +1,4 @@
+import { markRender, measureAsync } from "../../src/observability/perf";
 import { useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -22,6 +23,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 
 export default function EvidenceScreen() {
+  markRender("screen.evidence.render.root");
   const { colors } = useAppTheme();
   const { role } = useRole();
   const { activeOrganizationId, activeOrganization } = useOrganization();
@@ -60,11 +62,11 @@ export default function EvidenceScreen() {
     setFeedback("");
 
     try {
-      const result = await evidenceSearchPubMed({
+      const result = await measureAsync("screen.evidence.action.search", () => evidenceSearchPubMed({
         query: query.trim(),
         organizationId: activeOrganizationId,
         maxResults: 8,
-      });
+      }));
       setStudies(result);
       setSelectedPmids(result.slice(0, 3).map((study) => study.pmid));
       setSummary(null);
@@ -88,11 +90,11 @@ export default function EvidenceScreen() {
     setFeedback("");
 
     try {
-      const result = await evidenceSummarizeStudies({
+      const result = await measureAsync("screen.evidence.action.summarize", () => evidenceSummarizeStudies({
         organizationId: activeOrganizationId,
         studies: selectedStudies,
         question,
-      });
+      }));
       setSummary(result);
       setFeedback("Resumo científico gerado.");
     } catch (error) {
@@ -118,13 +120,13 @@ export default function EvidenceScreen() {
     setFeedback("");
 
     try {
-      const result = await evidenceApproveStudies({
+      const result = await measureAsync("screen.evidence.action.approve", () => evidenceApproveStudies({
         organizationId: activeOrganizationId,
         studies: selectedStudies,
         summary,
         sport: "volleyball",
         level: "youth",
-      });
+      }));
       setFeedback(`${result.approvedCount} documento(s) aprovados e enviados ao KB.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao aprovar evidência.";

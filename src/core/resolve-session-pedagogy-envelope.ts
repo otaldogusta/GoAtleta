@@ -107,7 +107,7 @@ const buildCooldownSummary = (
   return `Volta à calma com síntese do ${primarySkillLabel[skill]}, recuperação e organização final da sessão.`;
 };
 
-const fallbackMainActivitiesBySkill: Record<VolleyballSkill, Array<{ name: string; description: string }>> = {
+const fallbackMainActivitiesBySkill: Record<VolleyballSkill, { name: string; description: string }[]> = {
   saque: [
     {
       name: "Saque com alvo em zonas simples",

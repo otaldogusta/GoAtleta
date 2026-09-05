@@ -641,7 +641,7 @@ export default function ClassDetails() {
             const auto = rosterAutoFundamentalsByDay[day] ?? [];
             const overrides = rosterFundamentalOverrides[day] ?? {};
             const selected = new Set<RosterFundamental>(auto as RosterFundamental[]);
-            (Object.entries(overrides) as Array<[RosterFundamental, boolean]>).forEach(([fundamental, value]) => {
+            (Object.entries(overrides) as [RosterFundamental, boolean][]).forEach(([fundamental, value]) => {
                 if (value) {
                   selected.add(fundamental);
                 } else {
@@ -791,17 +791,18 @@ export default function ClassDetails() {
     },
     [embeddedAttendance.hasChanges, workspaceSection],
   );
+  const discardAttendanceChanges = embeddedAttendance.discardChanges;
   const discardAttendanceAndContinue = useCallback(() => {
     const action = pendingAttendanceAction.current;
     pendingAttendanceAction.current = null;
     setShowAttendanceCloseConfirm(false);
-    embeddedAttendance.discardChanges();
+    discardAttendanceChanges();
     allowAttendanceNavigation.current = true;
     action?.();
     setTimeout(() => {
       allowAttendanceNavigation.current = false;
     }, 0);
-  }, [embeddedAttendance.discardChanges]);
+  }, [discardAttendanceChanges]);
   const keepEditingAttendance = useCallback(() => {
     pendingAttendanceAction.current = null;
     setShowAttendanceCloseConfirm(false);
@@ -1139,7 +1140,7 @@ export default function ClassDetails() {
     setEditCustomGoal(customGoalSelected ? nextGoal : "");
     setShowEditCustomGoal(customGoalSelected);
     setFormError("");
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, classCoachName, cls, goalOptions, parseCycleLength, parseDurationFromTimeRange, resolveEndTime]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, classCoachName, cls, goalOptions, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, setName, setCoachNameOverride, setUnit, setTrainingSpace, setModality, setAgeBand, setGender, setStartTime, setEndTime, setDuration, setDaysOfWeek, setMvLevel, setCycleStartDate, setCycleLengthWeeks, setEditCustomAgeBand, setShowEditCustomAgeBand, setGoal, setEditCustomGoal, setShowEditCustomGoal, setFormError]);
 
   const closeEditPickers = useCallback(() => {
     setShowEditCycleLengthPicker(false);
@@ -1148,7 +1149,7 @@ export default function ClassDetails() {
     setShowEditGenderPicker(false);
     setShowEditModalityPicker(false);
     setShowEditGoalPicker(false);
-  }, []);
+  }, [setShowEditCycleLengthPicker, setShowEditMvLevelPicker, setShowEditAgeBandPicker, setShowEditGenderPicker, setShowEditModalityPicker, setShowEditGoalPicker]);
 
   const openEditPicker = useCallback(
     (target: "cycle" | "level" | "age" | "gender" | "modality" | "goal") => {
@@ -1214,7 +1215,7 @@ export default function ClassDetails() {
     if (nextCycleLength) setCycleLengthWeeks(nextCycleLength);
     closeEditPickers();
     },
-    [closeEditPickers, parseCycleLength],
+    [closeEditPickers, parseCycleLength, setCycleLengthWeeks],
   );
 
   const handleEditSelectMvLevel = useCallback(
@@ -1222,7 +1223,7 @@ export default function ClassDetails() {
     setMvLevel(String(value));
     closeEditPickers();
     },
-    [closeEditPickers],
+    [closeEditPickers, setMvLevel],
   );
 
   const handleEditSelectModality = useCallback(
@@ -1230,7 +1231,7 @@ export default function ClassDetails() {
     setModality(String(value) as ClassGroup["modality"]);
     closeEditPickers();
     },
-    [closeEditPickers],
+    [closeEditPickers, setModality],
   );
 
   const editBaselineSnapshot = useMemo(() => {
@@ -1457,7 +1458,7 @@ export default function ClassDetails() {
     setShowEditCustomGoal(false);
     setEditCustomGoal("");
     resetEditFields();
-  }, [closeEditPickers, resetEditFields]);
+  }, [closeEditPickers, resetEditFields, setShowEditModal, setShowEditCloseConfirm, setShowEditCycleCalendar, setShowEditCustomAgeBand, setEditCustomAgeBand, setShowEditCustomGoal, setEditCustomGoal]);
 
   const requestCloseEditModal = useCallback(() => {
     if (isEditDirty) {
@@ -1465,14 +1466,14 @@ export default function ClassDetails() {
       return;
     }
     closeEditModal();
-  }, [closeEditModal, isEditDirty]);
+  }, [closeEditModal, isEditDirty, setShowEditCloseConfirm]);
 
   const handleSaveEdit = useCallback(async () => {
     const saved = await saveUnit();
     if (saved) {
       setShowEditModal(false);
     }
-  }, [saveUnit]);
+  }, [saveUnit, setShowEditModal]);
 
   const toggleRosterBooleanOption = useCallback((key: "includeAttendance" | "includeBirthDate" | "includeCourse" | "includeContact") => {
       setRosterExportOptions((prev) => ({
@@ -1771,7 +1772,7 @@ export default function ClassDetails() {
     } finally {
       setIsGeneratingPlan(false);
     }
-  }, [cls, isGeneratingPlan, selectedLessonDateKey, showSaveToast]);
+  }, [cls, isGeneratingPlan, selectedLessonDateKey, showSaveToast, setIsGeneratingPlan]);
 
   if (loading) {
     return <ScreenLoadingState />;
@@ -1914,7 +1915,7 @@ export default function ClassDetails() {
         const auto = autoFundamentalsByDay[entry.day] ?? [];
         const overrides = rosterFundamentalOverrides[entry.day] ?? {};
         const selected = new Set<RosterFundamental>(auto as RosterFundamental[]);
-        (Object.entries(overrides) as Array<[RosterFundamental, boolean]>).forEach(([fundamental, value]) => {
+        (Object.entries(overrides) as [RosterFundamental, boolean][]).forEach(([fundamental, value]) => {
           if (value) {
             selected.add(fundamental);
           } else {

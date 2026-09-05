@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 // perf-check: ignore-inline-row-style - lista curta de exercicios do piloto; componente dedicado fica para consolidacao apos teste real.
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect,  useState } from "react";
 import { Alert, Linking, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -12,7 +12,6 @@ import {
   findNextStudentWorkout,
   getWorkoutAttentionSignal,
 } from "../src/core/consultation";
-import type { PrescribedWorkout } from "../src/core/consultation";
 import {
   getLastConsultationPersistenceStatus,
   getConsultationLocalState,
@@ -119,7 +118,7 @@ export default function StudentConsultationScreen() {
   const activeStudent = __DEV__ && devStudent ? devStudent : student;
   const shouldLoadDevStudent = __DEV__ && Boolean(devStudentId || devStudentEmail);
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     setLoading(true);
     const [consultationState, studentItems] = await measureAsync(
       "screen.studentConsultation.load.localState",
@@ -144,7 +143,7 @@ export default function StudentConsultationScreen() {
     setState(consultationState);
     setPersistenceStatus(getLastConsultationPersistenceStatus());
     setLoading(false);
-  };
+  }, [devStudentEmail, devStudentId, shouldLoadDevStudent]);
 
   useEffect(() => {
     Promise.resolve().then(() => {

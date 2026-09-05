@@ -41,7 +41,7 @@ const formatDateTime = (value: string | undefined) => {
   });
 };
 
-const sortBuckets = (entries: Array<[string, ActivityCatalogCoverageBucket]>) =>
+const sortBuckets = (entries: [string, ActivityCatalogCoverageBucket][]) =>
   [...entries].sort((left, right) => right[1].total - left[1].total || left[0].localeCompare(right[0]));
 
 const sortRank = (items: ActivityCatalogUsageRankItem[]) =>

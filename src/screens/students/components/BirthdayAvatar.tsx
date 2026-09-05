@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { View } from "react-native";
 
 import type { ThemeColors } from "../../../ui/app-theme";
@@ -12,7 +12,11 @@ type BirthdayAvatarProps = {
   size?: number;
 };
 
-export function BirthdayAvatar({
+export function BirthdayAvatar(props: BirthdayAvatarProps) {
+  return <BirthdayAvatarContent key={props.photoUrl ?? ""} {...props} />;
+}
+
+function BirthdayAvatarContent({
   colors,
   photoUrl,
   isBirthdayToday = false,
@@ -23,11 +27,7 @@ export function BirthdayAvatar({
   const [photoFailed, setPhotoFailed] = useState(false);
   const showPhoto = Boolean(photoUrl) && !photoFailed;
 
-  useEffect(() => {
-    setPhotoFailed(false);
-  }, [photoUrl]);
-
-  return (
+return (
     <View
       accessible={isBirthdayToday}
       accessibilityLabel={

@@ -1,3 +1,8 @@
+import * as FileSystem from "expo-file-system/legacy";
+import * as IntentLauncher from "expo-intent-launcher";
+import * as Sharing from "expo-sharing";
+import { exportWorkbookXlsx, XLSX_MIME } from "../export-xlsx";
+
 jest.mock("react-native", () => ({
   Platform: { OS: "android" },
   Linking: {
@@ -36,11 +41,6 @@ jest.mock("../load-xlsx", () => ({
     write: jest.fn(() => "UEsDBA=="),
   })),
 }));
-
-import * as FileSystem from "expo-file-system/legacy";
-import * as IntentLauncher from "expo-intent-launcher";
-import * as Sharing from "expo-sharing";
-import { exportWorkbookXlsx, XLSX_MIME } from "../export-xlsx";
 
 describe("exportWorkbookXlsx on Android", () => {
   it("opens the named workbook in a compatible app before offering sharing", async () => {

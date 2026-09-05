@@ -373,7 +373,7 @@ function OperationalIndicatorTile({
     return <View style={tileStyle}>{content}</View>;
 }
 
-const VOLLEYBALL_POSITION_OPTIONS: Array<{ value: Student["positionPrimary"]; label: string }> = [
+const VOLLEYBALL_POSITION_OPTIONS: { value: Student["positionPrimary"]; label: string }[] = [
     { value: "levantador", label: "Levantador" },
     { value: "oposto", label: "Oposto" },
     { value: "ponteiro", label: "Ponteiro" },
@@ -724,20 +724,17 @@ export function StudentEditModal({
         translateY: -3,
     });
 
-    useEffect(() => {
+    const operationalContext = [operationalStudent?.id, operationalStudent?.membershipStatus, showEditModal].join(":");
+    const [previousOperationalContext, setPreviousOperationalContext] = useState(operationalContext);
+    if (previousOperationalContext !== operationalContext) {
+        setPreviousOperationalContext(operationalContext);
         setActiveOperationalOverlay(null);
-    }, [operationalStudent?.id, showEditModal]);
-
-    useEffect(() => {
         if (!showEditModal || operationalStudent?.membershipStatus === "inactive") {
             setShowInactivationForm(false);
             setInactivationReason("");
         }
-        if (!showEditModal) {
-            setShowOperationalHistory(false);
-            setShowMembershipStatusMenu(false);
-        }
-    }, [operationalStudent?.id, operationalStudent?.membershipStatus, showEditModal]);
+        if (!showEditModal) setShowOperationalHistory(false);
+    }
 
     const toggleMembershipStatusMenu = () => {
         if (operationalStatusSaving) return;

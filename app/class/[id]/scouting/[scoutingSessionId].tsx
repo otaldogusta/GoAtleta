@@ -1,3 +1,4 @@
+import { markRender, measureAsync } from "../../../../src/observability/perf";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -61,6 +62,7 @@ const phaseLabel = (id: ScoutingActionPhase) =>
   scoutingActionPhases.find((item) => item.id === id)?.label ?? id;
 
 export default function ClassScoutingSessionRoute() {
+  markRender("screen.classScoutingSession.render.root");
   const { id, scoutingSessionId } = useLocalSearchParams<{
     id: string;
     scoutingSessionId?: string;
@@ -86,10 +88,10 @@ export default function ClassScoutingSessionRoute() {
     setLoading(true);
     setError("");
     try {
-      const [detail, classStudents] = await Promise.all([
+      const [detail, classStudents] = await measureAsync("screen.classScoutingSession.load.session", () => Promise.all([
         getScoutingSessionById(sessionId),
         getStudentsByClass(classId),
-      ]);
+      ]));
       setSession(detail?.session ?? null);
       setActions(detail?.actions ?? []);
       setStudents(classStudents);

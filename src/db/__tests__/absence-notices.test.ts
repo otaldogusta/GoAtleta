@@ -1,3 +1,5 @@
+import { createAbsenceNotice, updateAbsenceNoticeStatus } from "../students";
+
 const mockSupabasePost = jest.fn();
 const mockSupabasePatch = jest.fn();
 const mockSupabaseGet = jest.fn();
@@ -52,8 +54,6 @@ jest.mock("../../auth/session", () => ({
 jest.mock("../nfc-sync", () => ({
   enqueueWrite: jest.fn(),
 }));
-
-import { createAbsenceNotice, updateAbsenceNoticeStatus } from "../students";
 
 const absenceRow = {
   id: "notice-1",

@@ -1,3 +1,5 @@
+import { markRender } from "../src/observability/perf";
+// perf-check: ignore-measure -- static onboarding content; persistence is an explicit user action.
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -19,6 +21,7 @@ type RoleValue = OnboardingProfile["role"];
 const totalSteps = 4;
 
 export default function OnboardingScreen() {
+  markRender("screen.onboarding.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const [step, setStep] = useState(0);

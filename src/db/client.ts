@@ -6,7 +6,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Sentry from "@sentry/react-native";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "../api/config";
-import { forceRefreshAccessToken, getValidAccessToken } from "../auth/session";
+import {
+  assertSessionIdentity, forceRefreshAccessToken, getSessionIdentity,
+  getValidAccessToken, isSessionIdentityCurrent, SessionIdentityChangedError,
+  subscribeSession, type SessionIdentity,
+} from "../auth/session";
 import { safeJsonParse } from "../utils/safe-json";
 
 // ---------------------------------------------------------------------------
@@ -26,17 +30,25 @@ const makeAuthHeaders = (token: string, extraHeaders?: Record<string, string>) =
   ...(extraHeaders ?? {}),
 });
 
-const summarizeResponse = (text: string) => {
-  if (!text) return "";
-  const trimmed = text.trim();
-  if (/^<!doctype|^<html/i.test(trimmed)) return "HTML response";
-  return trimmed.replace(/\s+/g, " ").slice(0, 280);
+const summarizeErrorResponse = (text: string) => {
+  const payload = safeJsonParse<{ code?: unknown; message?: unknown } | null>(text, null);
+  const code = typeof payload?.code === "string" && /^(?:[A-Z0-9]{5}|PGRST\d{3})$/.test(payload.code)
+    ? payload.code : "REQUEST_FAILED";
+  // Schema compatibility checks need column/table names, never record values,
+  // constraint details, emails, or arbitrary server error messages.
+  const message = typeof payload?.message === "string" ? payload.message : "";
+  const safeSchemaMessage = [
+    /^Could not find the '[a-zA-Z0-9_]+' column of '[a-zA-Z0-9_]+' in the schema cache$/,
+    /^Could not find the table '[a-zA-Z0-9_.]+' in the schema cache$/,
+    /^(?:column|relation) ["a-zA-Z0-9_.]+ does not exist$/,
+  ].some((pattern) => pattern.test(message)) ? message : "";
+  return `${code}${safeSchemaMessage ? ` ${safeSchemaMessage}` : ""}`;
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const SUPABASE_FETCH_TIMEOUT_MS = 20_000;
 
-class SupabaseRequestTimeoutError extends Error {
+export class SupabaseRequestTimeoutError extends Error {
   constructor() {
     super("A conexão demorou demais. Verifique sua internet e tente novamente.");
     this.name = "SupabaseRequestTimeoutError";
@@ -98,12 +110,14 @@ const doFetch = (
   path: string,
   token: string,
   body?: unknown,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
+  signal?: AbortSignal,
 ) =>
   fetchWithTimeout(REST_BASE + path, {
     method,
     headers: makeAuthHeaders(token, extraHeaders),
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
 
 // ---------------------------------------------------------------------------
@@ -114,13 +128,25 @@ export const supabaseRequest = async (
   method: "GET" | "POST" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
+  expectedIdentity?: SessionIdentity,
 ) => {
+  // Capture identity before any token refresh or asynchronous retry. A request
+  // started by A may never be retried using B's session.
+  const initialIdentity = expectedIdentity ?? getSessionIdentity();
+  const requestCacheGeneration = cacheGeneration;
+  const assertRequestContext = (identity: SessionIdentity) => {
+    assertSessionIdentity(identity);
+    if (requestCacheGeneration !== cacheGeneration) throw new SessionIdentityChangedError();
+  };
   let token = await getValidAccessToken();
+  const identity = initialIdentity.userId ? initialIdentity : getSessionIdentity();
+  assertRequestContext(identity);
   if (!token) {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 200));
       token = await getValidAccessToken();
+      assertRequestContext(identity);
       if (token) break;
     }
   }
@@ -132,65 +158,77 @@ export const supabaseRequest = async (
   const maxAttempts = method === "GET" ? 3 : 1;
   let res: Response | null = null;
   let lastError: unknown = null;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
-      res = await doFetch(method, path, token, body, extraHeaders);
-
-      if (res.status === 401) {
-        const refreshed = await forceRefreshAccessToken();
-        if (refreshed) {
-          token = refreshed;
-          res = await doFetch(method, path, token, body, extraHeaders);
-        }
-      }
-
-      if (method === "GET" && res.status >= 500 && attempt < maxAttempts - 1) {
-        await sleep(150 * (attempt + 1));
-        continue;
-      }
-      break;
-    } catch (error) {
-      lastError = error;
-      if (
-        error instanceof SupabaseRequestTimeoutError ||
-        method !== "GET" ||
-        !isTransientFetchError(error) ||
-        attempt >= maxAttempts - 1
-      ) {
-        throw error;
-      }
-      await sleep(150 * (attempt + 1));
-    }
-  }
-
-  if (!res) {
-    throw lastError instanceof Error ? lastError : new Error("Falha ao conectar com o Supabase.");
-  }
-
-  const ms = Date.now() - startedAt;
-  const text = await res.text();
-  const summary = summarizeResponse(text);
-  const errorCategory =
-    res.status === 401 || res.status === 403
-      ? "auth"
-      : res.status === 404
-        ? "not_found"
-        : "http_error";
-
-  if (!res.ok) {
-    Sentry.setContext("supabase_error", { category: errorCategory, status: res.status, method, path, ms });
-  } else {
-    Sentry.setContext("supabase_error", null);
-  }
-  Sentry.addBreadcrumb({
-    category: "supabase",
-    message: `${method} ${path}`,
-    level: res.ok ? "info" : "error",
-    data: { status: res.status, ms, response: summary || undefined, errorCategory: res.ok ? undefined : errorCategory },
+  const identityAbort = new AbortController();
+  const unsubscribe = subscribeSession(() => {
+    if (!isSessionIdentityCurrent(identity)) identityAbort.abort(new SessionIdentityChangedError());
   });
-  if (!res.ok) throw new Error(`Supabase ${method} error: ${res.status} ${summary}`);
-  return text;
+
+  try {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        assertRequestContext(identity);
+        res = await doFetch(method, path, token, body, extraHeaders, identityAbort.signal);
+
+        if (res.status === 401) {
+          const refreshed = await forceRefreshAccessToken();
+          assertRequestContext(identity);
+          if (refreshed) {
+            token = refreshed;
+            res = await doFetch(method, path, token, body, extraHeaders, identityAbort.signal);
+          }
+        }
+
+        if (method === "GET" && res.status >= 500 && attempt < maxAttempts - 1) {
+          await sleep(150 * (attempt + 1));
+          continue;
+        }
+        break;
+      } catch (error) {
+        lastError = error;
+        if (
+          error instanceof SupabaseRequestTimeoutError ||
+          method !== "GET" ||
+          !isTransientFetchError(error) ||
+          attempt >= maxAttempts - 1
+        ) {
+          throw error;
+        }
+        await sleep(150 * (attempt + 1));
+      }
+    }
+
+    if (!res) {
+      throw lastError instanceof Error ? lastError : new Error("Falha ao conectar com o Supabase.");
+    }
+
+    const ms = Date.now() - startedAt;
+    const text = await res.text();
+    assertRequestContext(identity);
+    const summary = res.ok ? "" : summarizeErrorResponse(text);
+    const endpoint = path.split("?")[0].replace(/[^a-zA-Z0-9_/-]/g, "").slice(0, 100);
+    const errorCategory =
+      res.status === 401 || res.status === 403
+        ? "auth"
+        : res.status === 404
+          ? "not_found"
+          : "http_error";
+
+    if (!res.ok) {
+      Sentry.setContext("supabase_error", { category: errorCategory, status: res.status, method, endpoint, ms });
+    } else {
+      Sentry.setContext("supabase_error", null);
+    }
+    Sentry.addBreadcrumb({
+      category: "supabase",
+      message: `${method} ${endpoint}`,
+      level: res.ok ? "info" : "error",
+      data: { status: res.status, ms, errorCategory: res.ok ? undefined : errorCategory },
+    });
+    if (!res.ok) throw new Error(`Supabase ${method} error: ${res.status} ${summary}`);
+    return text;
+  } finally {
+    unsubscribe();
+  }
 };
 
 export const supabaseGet = async <T>(path: string) => {
@@ -201,9 +239,10 @@ export const supabaseGet = async <T>(path: string) => {
 export const supabasePost = async <T>(
   path: string,
   body: unknown,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
+  identity?: SessionIdentity,
 ) => {
-  const text = await supabaseRequest("POST", path, body, extraHeaders);
+  const text = await supabaseRequest("POST", path, body, extraHeaders, identity);
   if (!text) return [] as T;
   return safeJsonParse<T>(text, [] as T);
 };
@@ -211,9 +250,10 @@ export const supabasePost = async <T>(
 export const supabasePatch = async <T>(
   path: string,
   body: unknown,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
+  identity?: SessionIdentity,
 ) => {
-  const text = await supabaseRequest("PATCH", path, body, extraHeaders);
+  const text = await supabaseRequest("PATCH", path, body, extraHeaders, identity);
   if (!text) return [] as T;
   return safeJsonParse<T>(text, [] as T);
 };
@@ -237,9 +277,26 @@ export const CACHE_KEYS = {
   students: "cache_students_v1",
 };
 
+const READ_CACHE_PREFIX = "read-cache:v2:";
+let cacheGeneration = 0;
+const isReadCache = (key: string) => Object.values(CACHE_KEYS).some(
+  (base) => key === base || key.startsWith(`${base}_`),
+);
+const resolveCacheKey = async (key: string, identity: SessionIdentity) => {
+  if (!isReadCache(key)) return key; // Pending writes are durable, never read caches.
+  const organizationId = await getActiveOrganizationId();
+  if (!identity.userId || !organizationId || !isSessionIdentityCurrent(identity)) return null;
+  return `${READ_CACHE_PREFIX}${encodeURIComponent(identity.userId)}:${encodeURIComponent(organizationId)}:${key}`;
+};
+
 export const readCache = async <T>(key: string): Promise<T | null> => {
   try {
-    const stored = await AsyncStorage.getItem(key);
+    const identity = getSessionIdentity();
+    const generation = cacheGeneration;
+    const scopedKey = await resolveCacheKey(key, identity);
+    if (!scopedKey) return null;
+    const stored = await AsyncStorage.getItem(scopedKey);
+    if (isReadCache(key) && (!isSessionIdentityCurrent(identity) || generation !== cacheGeneration)) return null;
     if (!stored) return null;
     return safeJsonParse<T | null>(stored, null);
   } catch {
@@ -249,15 +306,24 @@ export const readCache = async <T>(key: string): Promise<T | null> => {
 
 export const writeCache = async (key: string, value: unknown) => {
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(value));
+    const identity = getSessionIdentity();
+    const generation = cacheGeneration;
+    const scopedKey = await resolveCacheKey(key, identity);
+    if (!scopedKey || (isReadCache(key) && generation !== cacheGeneration)) return;
+    await AsyncStorage.setItem(scopedKey, JSON.stringify(value));
+    if (isReadCache(key) && (!isSessionIdentityCurrent(identity) || generation !== cacheGeneration)) {
+      await AsyncStorage.removeItem(scopedKey);
+    }
   } catch {
     // ignore cache write failures
   }
 };
 
 export async function clearLocalReadCaches() {
+  cacheGeneration += 1;
   try {
-    await AsyncStorage.multiRemove(Object.values(CACHE_KEYS));
+    const keys = await AsyncStorage.getAllKeys();
+    await AsyncStorage.multiRemove(keys.filter((key) => isReadCache(key) || key.startsWith(READ_CACHE_PREFIX)));
   } catch {
     // ignore cache clear failures
   }
@@ -298,6 +364,7 @@ export const getScopedOrganizationId = async (
 // ---------------------------------------------------------------------------
 
 export const isNetworkError = (error: unknown) => {
+  if (error instanceof SupabaseRequestTimeoutError) return true;
   const message = error instanceof Error ? error.message : String(error);
   return (
     message.includes("Network request failed") ||
@@ -308,7 +375,13 @@ export const isNetworkError = (error: unknown) => {
   );
 };
 
+// A request interrupted by account/workspace switching may already have been
+// submitted. Preserve its idempotent draft under the captured original owner.
+export const isDeferredWriteError = (error: unknown) =>
+  isNetworkError(error) || error instanceof SessionIdentityChangedError;
+
 export const isAuthError = (error: unknown) => {
+  if (error instanceof SessionIdentityChangedError) return true;
   const message = error instanceof Error ? error.message : String(error);
   const lower = message.toLowerCase();
   if (message.includes("Missing auth token")) return true;

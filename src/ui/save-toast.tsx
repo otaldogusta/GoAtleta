@@ -1,3 +1,4 @@
+import { createWebPortal } from "./web-portal";
 import {
   createContext,
   useCallback,
@@ -35,8 +36,8 @@ export function SaveToastProvider({
 }) {
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<SaveToastOptions | null>(null);
-  const anim = useRef(new Animated.Value(0)).current;
-  const progressAnim = useRef(new Animated.Value(1)).current;
+  const [anim] = useState(() => new Animated.Value(0));
+  const [progressAnim] = useState(() => new Animated.Value(1));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
   const progressAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -319,7 +320,7 @@ export function SaveToastProvider({
       <SaveToastContext.Provider value={value}>{children}</SaveToastContext.Provider>
       {toastOverlay
         ? Platform.OS === "web" && typeof document !== "undefined"
-          ? require("react-dom").createPortal(toastOverlay, document.body)
+          ? createWebPortal(toastOverlay, document.body)
           : toastOverlay
         : null}
     </>

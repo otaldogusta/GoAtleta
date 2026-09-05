@@ -1,3 +1,8 @@
+import {
+  listClassHeadsByClassIds,
+  listClassStaffIdentitiesByClassIds,
+} from "../class-responsibles";
+
 const mockRestPost = jest.fn();
 const mockRestGet = jest.fn();
 
@@ -5,11 +10,6 @@ jest.mock("../rest", () => ({
   supabaseRestPost: (...args: unknown[]) => mockRestPost(...args),
   supabaseRestGet: (...args: unknown[]) => mockRestGet(...args),
 }));
-
-import {
-  listClassHeadsByClassIds,
-  listClassStaffIdentitiesByClassIds,
-} from "../class-responsibles";
 
 describe("class responsibles api", () => {
   beforeEach(() => {

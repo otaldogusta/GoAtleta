@@ -71,7 +71,7 @@ type RoleSnapshot = {
 };
 
 const { ROLE_REQUEST_TIMEOUT_MS, RoleProvider, useRole } =
-  require("../role") as {
+  jest.requireActual("../role") as {
     ROLE_REQUEST_TIMEOUT_MS: number;
     RoleProvider: React.ComponentType<{ children: React.ReactNode }>;
     useRole: () => RoleSnapshot;

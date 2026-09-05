@@ -198,7 +198,7 @@ abstract class LocalMockProviderBase {
   private readonly webhookToken: string;
   private sequence = 0;
 
-  protected constructor(config: LocalMockPaymentsConfig) {
+  constructor(config: LocalMockPaymentsConfig) {
     this.origin = normalizeLocalOrigin(config);
     this.webhookToken = config.webhookToken;
   }
@@ -246,11 +246,7 @@ export class MockPaymentsProvider
     { organizationId: string; status: "incomplete" | "canceled" }
   >();
 
-  constructor(config: LocalMockPaymentsConfig) {
-    super(config);
-  }
-
-  async createSubscriptionCheckout(
+async createSubscriptionCheckout(
     input: CreateSubscriptionCheckoutInput,
   ): Promise<SubscriptionCheckoutResult> {
     this.requireLocalUrl(input.successUrl, "Subscription successUrl");
@@ -344,11 +340,7 @@ export class MockReceivablesProvider
     { organizationId: string; result: ChargeResult }
   >();
 
-  constructor(config: LocalMockPaymentsConfig) {
-    super(config);
-  }
-
-  async createMerchantAccount(
+async createMerchantAccount(
     input: CreateMerchantAccountInput,
   ): Promise<MerchantAccountResult> {
     this.requireLocalUrl(input.returnUrl, "Merchant onboarding returnUrl");

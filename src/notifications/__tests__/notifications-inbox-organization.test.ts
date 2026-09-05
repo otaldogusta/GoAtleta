@@ -1,3 +1,16 @@
+import {
+  addNotification,
+  archiveRead,
+  clearNotifications,
+  getNotifications,
+  getNotificationsPage,
+  getUnreadCount,
+  markAllRead,
+  markNotificationRead,
+  restoreNotification,
+  subscribeNotifications,
+} from "../../notificationsInbox";
+
 const mockArchiveReadNotifications = jest.fn();
 const mockClearMyNotifications = jest.fn();
 const mockCreateNotification = jest.fn();
@@ -20,19 +33,6 @@ jest.mock("../../api/notifications", () => ({
   markNotificationRead: (...args: unknown[]) => mockMarkNotificationRead(...args),
   restoreNotification: (...args: unknown[]) => mockRestoreNotification(...args),
 }));
-
-import {
-  addNotification,
-  archiveRead,
-  clearNotifications,
-  getNotifications,
-  getNotificationsPage,
-  getUnreadCount,
-  markAllRead,
-  markNotificationRead,
-  restoreNotification,
-  subscribeNotifications,
-} from "../../notificationsInbox";
 
 describe("notifications inbox organization propagation", () => {
   beforeEach(() => {

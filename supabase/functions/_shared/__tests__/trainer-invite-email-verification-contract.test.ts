@@ -21,7 +21,7 @@ const claimMigrationSource = readFileSync(
   "utf8",
 );
 const signupSource = readFileSync(
-  resolve(__dirname, "../../../../app/signup.tsx"),
+  resolve(__dirname, "../../../../src/screens/auth/SignupScreen.tsx"),
   "utf8",
 );
 const verifyScreenSource = readFileSync(

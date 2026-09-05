@@ -1,4 +1,4 @@
-﻿import type {
+import type {
     AssistantMemoryEntry,
     ClassProfile,
     KnowledgeDocument,
@@ -45,7 +45,7 @@ export async function listKnowledgeDocumentsBySport(
   sport: string,
   limit = 40
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const rawRows = await (db.getAllAsync as (sql: string, params: unknown[]) => Promise<any[]>)(
     `SELECT * FROM kb_documents
      WHERE organizationId = ? AND sport = ?

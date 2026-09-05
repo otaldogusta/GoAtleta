@@ -1,3 +1,4 @@
+import { useCurrentTime } from "../../../hooks/use-current-time";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -459,8 +460,8 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
     };
   }, [attendanceRouteTarget, organizationId]);
 
+  const now = useCurrentTime();
   const managerMetrics = useMemo<MetricItem[]>(() => {
-    const now = Date.now();
     const recent24h = recentActivity.filter((item) => {
       const parsed = new Date(item.occurredAt).getTime();
       return Number.isFinite(parsed) && now - parsed <= 24 * 60 * 60 * 1000;
@@ -494,7 +495,7 @@ export function AdminHomeHeader({ compact = false }: { compact?: boolean } = {})
         hint: "Com atividade recente",
       },
     ];
-  }, [pendingAttendance.length, pendingSessionLogs, recentActivity]);
+  }, [now, pendingAttendance.length, pendingSessionLogs, recentActivity]);
 
   const topRecent = useMemo(() => recentActivity.slice(0, 3), [recentActivity]);
 

@@ -1,3 +1,4 @@
+import { markRender, measureAsync } from "../src/observability/perf";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -31,6 +32,7 @@ const parseTime = (value: string) => {
 };
 
 export default function StudentScouting() {
+  markRender("screen.studentScouting.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const { student } = useRole();
@@ -42,7 +44,7 @@ export default function StudentScouting() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const cls = await getClasses();
+      const cls = await measureAsync("screen.studentScouting.load.classes", () => getClasses());
       if (!alive) return;
       setClasses(cls);
     })();
@@ -84,7 +86,7 @@ export default function StudentScouting() {
         setLoading(false);
         return;
       }
-      const existing = await getStudentScoutingByDate(student.id, currentClass.id, todayKey);
+      const existing = await measureAsync("screen.studentScouting.load.scouting", () => getStudentScoutingByDate(student.id, currentClass.id, todayKey));
       if (!alive) return;
       if (existing) {
         setCounts({

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import {  useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { ClassGroup, TrainingPlan } from "../../../core/models";
@@ -137,27 +137,31 @@ export function TrainingPlanningWorkspaceLibrary({
     () => classes.filter((item) => assignedPlans.some((plan) => plan.classId === item.id)),
     [assignedPlans, classes]
   );
-  const [mode, setMode] = useState<LibraryMode>(selectedPlan?.classId ? "classes" : "drafts");
+  const [mode, setMode] = useState<LibraryMode>(classById.has(selectedPlan?.classId ?? "") ? "classes" : "drafts");
   const [search, setSearch] = useState("");
   const [activeClassId, setActiveClassId] = useState(selectedPlan?.classId || assignedClasses[0]?.id || "");
   const [activeMonth, setActiveMonth] = useState(
     monthKeyForPlan(selectedPlan ?? assignedPlans[0] ?? draftPlans[0] ?? null)
   );
-  const [expandedWeek, setExpandedWeek] = useState("");
+  const [expandedWeek, setExpandedWeek] = useState(() => selectedPlan ? weekForPlan(selectedPlan).key : "");
   const [showTemplates, setShowTemplates] = useState(false);
 
-  useEffect(() => {
-    if (!selectedPlan) return;
-    if (selectedPlan.classId && classById.has(selectedPlan.classId)) {
-      setMode("classes");
-      setActiveClassId(selectedPlan.classId);
-    } else {
-      setMode("drafts");
+  const selectionKey = `${selectedPlan?.id ?? ""}:${selectedPlan?.classId ?? ""}:${selectedPlan ? monthKeyForPlan(selectedPlan) : ""}:${selectedPlan ? dateKeyForPlan(selectedPlan) : ""}:${classById.has(selectedPlan?.classId ?? "")}`;
+  const [syncedSelection, setSyncedSelection] = useState(selectionKey);
+  if (syncedSelection !== selectionKey) {
+    setSyncedSelection(selectionKey);
+    if (selectedPlan) {
+      if (selectedPlan.classId && classById.has(selectedPlan.classId)) {
+        setMode("classes");
+        setActiveClassId(selectedPlan.classId);
+      } else {
+        setMode("drafts");
+      }
+      const nextMonth = monthKeyForPlan(selectedPlan);
+      if (nextMonth) setActiveMonth(nextMonth);
+      setExpandedWeek(weekForPlan(selectedPlan).key);
     }
-    const nextMonth = monthKeyForPlan(selectedPlan);
-    if (nextMonth) setActiveMonth(nextMonth);
-    setExpandedWeek(weekForPlan(selectedPlan).key);
-  }, [classById, selectedPlan]);
+  }
 
   const activeClass = classById.get(activeClassId);
   const activeClassPlans = useMemo(
@@ -185,13 +189,8 @@ export function TrainingPlanningWorkspaceLibrary({
       }));
   }, [monthPlans]);
 
-  useEffect(() => {
-    if (!weekGroups.length) {
-      setExpandedWeek("");
-      return;
-    }
-    if (!weekGroups.some((group) => group.key === expandedWeek)) setExpandedWeek(weekGroups[0].key);
-  }, [expandedWeek, weekGroups]);
+  const visibleExpandedWeek = weekGroups.some((group) => group.key === expandedWeek)
+    ? expandedWeek : weekGroups[0]?.key ?? "";
 
   const searchToken = normalize(search);
   const searchPlans = useMemo(
@@ -359,7 +358,7 @@ export function TrainingPlanningWorkspaceLibrary({
                 </View>
                 <View style={[styles.weekList, { borderColor: colors.border }]}>
                   {weekGroups.map((group, index) => {
-                    const expanded = group.key === expandedWeek;
+                    const expanded = group.key === visibleExpandedWeek;
                     return (
                       <View key={group.key} style={index ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : null}>
                         <Pressable

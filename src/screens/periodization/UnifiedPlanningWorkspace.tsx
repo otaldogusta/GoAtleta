@@ -1,3 +1,4 @@
+import { useActionSignal } from "../../hooks/use-action-signal";
 import { Suspense, lazy, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -384,15 +385,7 @@ const MonthRail = memo(function MonthRail({ colors, summaries, selectedMonthKey,
   );
 });
 
-function resolveMonthContext(events: ProfessorAgendaEvent[], presentation?: MonthCyclePresentation) {
-  const representative = events.find((event) => !event.isMonthlyGameSession) ?? events[0];
-  const weekdays = [...new Set(events.map((event) => event.weekdayLabel))].join(" e ");
-  return [
-    { icon: "planning" as GoAtletaIconName, label: "Foco do mês", value: representative?.focusLabel || "Progressão definida pelo ciclo" },
-    { icon: "trend" as GoAtletaIconName, label: "Carga prevista", value: presentation?.loadRangeLabel || representative?.loadLabel || "Carga não gerada" },
-    { icon: "calendar" as GoAtletaIconName, label: "Aulas no mês", value: `${events.length} aulas${weekdays ? ` · ${weekdays}` : ""}` },
-  ];
-}
+
 
 const MonthContextSummary = memo(function MonthContextSummary({ colors, events, presentation, compact = false, horizontal = false }: {
   colors: ThemeColors;
@@ -406,7 +399,7 @@ const MonthContextSummary = memo(function MonthContextSummary({ colors, events, 
   const loadTarget = presentation?.loadRangeLabel || "PSE moderada";
   const gameDays = events.filter((event) => event.isMonthlyGameSession).length;
   const gameLabel = gameDays > 0 ? `${gameDays} jogo${gameDays > 1 ? "s" : ""}` : "Sem jogo formal";
-  const blocks: Array<{ key: string; label: string; value: string; icon: GoAtletaIconName }> = [
+  const blocks: { key: string; label: string; value: string; icon: GoAtletaIconName }[] = [
     { key: "focus", label: "Foco do mês", value: mainFocus, icon: "planning" },
     { key: "load", label: "Carga prevista", value: loadTarget, icon: "trend" },
     { key: "sessions", label: "Aulas no mês", value: `${events.length} aulas · ${gameLabel}`, icon: "calendar" },
@@ -918,7 +911,7 @@ function PlanningWorkspaceLoadingState({
 export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, regenerateMonthSignal, refreshSignal = 0, onMonthChange, onOpenManager, onRegenerateCycle }: Props) {
   const { height } = useWindowDimensions();
   const { containerRef, layout, onLayout, width } = useContainerResponsiveLayout("dashboard");
-  const mobile = layout.isMobile;
+
   const split = layout.supportsSplitView;
   const dense = layout.supportsDenseGrid;
   const contextLayout = useMemo(() => resolveUnifiedPlanningContextLayout(width), [width]);
@@ -929,6 +922,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const monthly = useMonthlyPlans(classId, selectedMonthKey);
+  const reloadMonthly = monthly.reload;
   const lastRefreshSignalRef = useRef(refreshSignal);
   const sessionPlan = useSessionTrainingPlan({
     classGroup: monthly.selectedClass,
@@ -944,13 +938,7 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
     monthly.activeCycle?.startDate?.slice(0, 4) ||
     new Date().getFullYear()
   );
-  const [selectedYear, setSelectedYear] = useState<string>(() => selectedMonthKey.slice(0, 4) || selectedCycleYear);
-
-  useEffect(() => {
-    if (selectedMonthKey && selectedMonthKey.slice(0, 4) !== selectedYear) {
-      setSelectedYear(selectedMonthKey.slice(0, 4));
-    }
-  }, [selectedMonthKey, selectedYear]);
+  const selectedYear = selectedMonthKey.slice(0, 4) || selectedCycleYear;
 
   const visibleSummaries = useMemo(() => {
     const yearNum = Number.parseInt(selectedYear, 10);
@@ -983,7 +971,6 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   }, [selectedYear, summaries]);
 
   const handleChangeYear = useCallback((newYear: string) => {
-    setSelectedYear(newYear);
     const monthPart = selectedMonthKey.slice(5, 7) || "01";
     const nextMonthKey = `${newYear}-${monthPart}`;
     setSelectedMonthKey(nextMonthKey);
@@ -1004,22 +991,19 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
   useEffect(() => {
     if (lastRefreshSignalRef.current === refreshSignal) return;
     lastRefreshSignalRef.current = refreshSignal;
-    void monthly.reload();
-  }, [monthly.reload, refreshSignal]);
+    void reloadMonthly();
+  }, [reloadMonthly, refreshSignal]);
 
-  useEffect(() => {
-    if (!visibleSummaries.length) return;
-    if (visibleSummaries.some((summary) => summary.monthKey === selectedMonthKey)) return;
-    const fallback = visibleSummaries.find((summary) => summary.hasPlans) ?? visibleSummaries[0];
-    if (fallback) setSelectedMonthKey(fallback.monthKey);
-  }, [selectedMonthKey, visibleSummaries]);
-  useEffect(() => {
-    if (!monthly.agendaEvents.length) { setSelectedEvent(null); return; }
-    if (!split) { setSelectedEvent(null); return; }
-    setSelectedEvent((current) =>
-      resolveDefaultSelectedAgendaEvent(monthly.agendaEvents, current?.id, contextualTodayIso)
-    );
-  }, [contextualTodayIso, monthly.agendaEvents, selectedMonthKey, split]);
+  const eventContext = [classId, selectedMonthKey, split, contextualTodayIso].join(":");
+  const [previousEventContext, setPreviousEventContext] = useState(eventContext);
+  const [previousAgendaEvents, setPreviousAgendaEvents] = useState(monthly.agendaEvents);
+  if (previousEventContext !== eventContext || previousAgendaEvents !== monthly.agendaEvents) {
+    setPreviousEventContext(eventContext);
+    setPreviousAgendaEvents(monthly.agendaEvents);
+    setSelectedEvent(split
+      ? resolveDefaultSelectedAgendaEvent(monthly.agendaEvents, selectedEvent?.id, contextualTodayIso)
+      : null);
+  }
 
   const applyMonth = useCallback(async () => {
     if (!monthly.selectedClass || monthly.isHistoricalCycle || isApplying) return;
@@ -1046,10 +1030,11 @@ export function UnifiedPlanningWorkspace({ colors, classId, initialMonthKey, reg
     } catch (error) { showSaveToast({ variant: "error", error }); } finally { setIsApplying(false); }
   }, [confirmDialog, isApplying, monthly, selectedMonthKey, showSaveToast]);
 
-  useEffect(() => {
-    if (!regenerateMonthSignal) return;
-    void applyMonth();
-  }, [applyMonth, regenerateMonthSignal]);
+  useActionSignal(
+    regenerateMonthSignal,
+    Boolean(monthly.selectedClass) && !monthly.isHistoricalCycle && !isApplying,
+    () => { void applyMonth(); },
+  );
 
   const selectMonth = useCallback((monthKey: string) => {
     setSelectedMonthKey(monthKey);

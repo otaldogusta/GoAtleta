@@ -214,7 +214,7 @@ const parsePlanningPresentation = (params: {
     try {
       const weeklySnapshot = JSON.parse(params.plan.generationContextSnapshotJson ?? "{}") as {
         weeklyOperationalStrategy?: {
-          decisions?: Array<{ sessionIndexInWeek?: number; sessionRole?: unknown }>;
+          decisions?: { sessionIndexInWeek?: number; sessionRole?: unknown }[];
         };
       };
       const decision = weeklySnapshot.weeklyOperationalStrategy?.decisions?.find(

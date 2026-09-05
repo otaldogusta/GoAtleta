@@ -17,6 +17,19 @@ type TrainingPlanWorkspaceDraftScope = {
 const WORKSPACE_DRAFT_PREFIX = "@goatleta/training-plan-workspace-draft/v1";
 const WORKSPACE_LIBRARY_SUFFIX = "library";
 
+// Storage writes and deletion must keep the order in which the user requested them.
+const draftOperations = new Map<string, Promise<unknown>>();
+const runDraftOperation = <T>(key: string, operation: () => Promise<T>): Promise<T> => {
+  const previous = draftOperations.get(key);
+  const current = previous ? previous.catch(() => undefined).then(operation) : operation();
+  draftOperations.set(key, current);
+  const release = () => {
+    if (draftOperations.get(key) === current) draftOperations.delete(key);
+  };
+  void current.then(release, release);
+  return current;
+};
+
 const sanitizeSegment = (value: string) => encodeURIComponent(value.trim());
 
 export const buildTrainingPlanWorkspaceDraftKey = ({
@@ -71,7 +84,8 @@ export const loadTrainingPlanWorkspaceDraft = async (
   key: string | null
 ): Promise<TrainingPlanWorkspaceDraft | null> => {
   if (!key) return null;
-  return parseTrainingPlanWorkspaceDraft(await AsyncStorage.getItem(key));
+  return runDraftOperation(key, async () =>
+    parseTrainingPlanWorkspaceDraft(await AsyncStorage.getItem(key)));
 };
 
 export const saveTrainingPlanWorkspaceDraft = async (
@@ -86,7 +100,7 @@ export const saveTrainingPlanWorkspaceDraft = async (
     lessonDate,
     plan,
   };
-  await AsyncStorage.setItem(key, JSON.stringify(draft));
+  await runDraftOperation(key, () => AsyncStorage.setItem(key, JSON.stringify(draft)));
   return draft;
 };
 
@@ -94,7 +108,7 @@ export const clearTrainingPlanWorkspaceDraft = async (
   key: string | null
 ): Promise<void> => {
   if (!key) return;
-  await AsyncStorage.removeItem(key);
+  await runDraftOperation(key, () => AsyncStorage.removeItem(key));
 };
 
 const isValidWorkspacePlan = (plan: Partial<TrainingPlan> | null | undefined): plan is TrainingPlan =>

@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Dimensions,
+
   Image,
   NativeSyntheticEvent,
   NativeScrollEvent,
@@ -54,8 +54,8 @@ export default function WelcomeScreen() {
   markRender("screen.welcome.render.root");
   const { colors, mode } = useAppTheme();
   const router = useRouter();
-  const enterAnim = useRef(new Animated.Value(0)).current;
-  const fadeTextAnim = useRef(new Animated.Value(1)).current;
+  const [enterAnim] = useState(() => new Animated.Value(0));
+  const [fadeTextAnim] = useState(() => new Animated.Value(1));
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const [containerWidth, setContainerWidth] = useState(392);

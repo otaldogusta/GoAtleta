@@ -5,10 +5,10 @@ export type MonthlyLessonPlanBlockRow = {
   activities: string;
   time: string;
   description: string;
-  items?: Array<{
+  items?: {
     activity: string;
     description: string;
-  }>;
+  }[];
 };
 
 export type MonthlyLessonPlanItem = {

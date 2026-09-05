@@ -1,6 +1,7 @@
 import {
   createTuitionPlan,
   getOrganizationFinanceDashboard,
+  getOrganizationProviderReceivablesPage,
   issueTuitionInvoice,
   listOrganizationInvoices,
   listOrganizationProviderReceivables,
@@ -23,6 +24,29 @@ const postMock = supabaseRestPost as jest.MockedFunction<
 
 describe("finance API", () => {
   beforeEach(() => postMock.mockReset());
+
+  it("preserves complete monthly aggregates while requesting a bounded page", async () => {
+    postMock.mockResolvedValue({
+      connection_id: "production-account-1", items: [], months: ["2026-09", "2026-08"],
+      quarantined_count: 4,
+      summary: { total_count: "301", received_count: "301", received_gross_cents: "3020000", received_net_cents: "2990100", identified_customer_count: "1", reconciliation_count: "0" },
+    });
+    const page = await getOrganizationProviderReceivablesPage("org-1", "2026-09", 250, 999);
+    expect(postMock).toHaveBeenCalledWith("/rpc/get_organization_provider_receivables_v2", {
+      p_org_id: "org-1", p_month: "2026-09-01", p_limit: 500, p_offset: 250,
+    });
+    expect(page.summary).toMatchObject({ totalCount: 301, receivedGrossCents: 3020000 });
+    expect(page.items).toHaveLength(0);
+    expect(page.months).toEqual(["2026-09", "2026-08"]);
+    expect(page.quarantinedCount).toBe(4);
+  });
+
+  it("rejects malformed scopes and incomplete projections instead of inventing zero totals", async () => {
+    await expect(getOrganizationProviderReceivablesPage("org-1", "2026-13")).rejects.toThrow();
+    expect(postMock).not.toHaveBeenCalled();
+    postMock.mockResolvedValue({ items: [] });
+    await expect(getOrganizationProviderReceivablesPage("org-1", "2026-09")).rejects.toThrow("Resposta financeira inválida");
+  });
 
   it("maps bigint strings without leaking provider fields", () => {
     expect(

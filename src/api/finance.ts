@@ -1,9 +1,18 @@
 import { supabaseRestPost } from "./rest";
 import { createClientId } from "../core/client-id";
+import type {
+  OrganizationProviderReceivable,
+  OrganizationProviderReceivablesPage,
+} from "../finance/domain/provider-receivables";
 import {
   normalizeInvoiceStatus,
   type InvoiceStatus,
 } from "../finance/application/finance-format";
+
+export type {
+  OrganizationProviderReceivable,
+  OrganizationProviderReceivablesPage,
+} from "../finance/domain/provider-receivables";
 
 export type OrganizationFinanceSummary = {
   organizationId: string;
@@ -60,20 +69,6 @@ export type ManualPaymentResult = {
   paymentId: string;
   invoiceStatus: InvoiceStatus;
   paidCents: number;
-};
-
-export type OrganizationProviderReceivable = {
-  id: string;
-  customerName: string;
-  providerStatus: string;
-  billingType: string;
-  amountCents: number;
-  netAmountCents: number;
-  dueDate: string | null;
-  paidAt: string | null;
-  matchStatus: "matched" | "ambiguous" | "unmatched";
-  invoiceId: string | null;
-  importedAt: string;
 };
 
 type FinanceSummaryRow = {
@@ -275,6 +270,47 @@ export async function listOrganizationProviderReceivables(
     },
   );
   return (rows ?? []).map(mapOrganizationProviderReceivable);
+}
+
+export async function getOrganizationProviderReceivablesPage(
+  organizationId: string,
+  month: string,
+  offset = 0,
+  limit = 250,
+): Promise<OrganizationProviderReceivablesPage> {
+  if (!organizationId.trim() || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw new Error("Instituição e mês válidos são obrigatórios.");
+  }
+  const payload = await supabaseRestPost<{
+    connection_id?: string | null;
+    items?: OrganizationProviderReceivableRow[];
+    summary?: Record<string, number | string | null>;
+    months?: string[];
+    quarantined_count?: number;
+  }>("/rpc/get_organization_provider_receivables_v2", {
+    p_org_id: organizationId,
+    p_month: `${month}-01`,
+    p_limit: Math.min(Math.max(toSafeInteger(limit), 1), 500),
+    p_offset: Math.max(toSafeInteger(offset), 0),
+  });
+  if (!payload?.summary || !Array.isArray(payload.items)) {
+    throw new Error("Resposta financeira inválida.");
+  }
+  const summary = payload.summary;
+  return {
+    connectionId: payload.connection_id ?? null,
+    items: payload.items.map(mapOrganizationProviderReceivable),
+    summary: {
+      totalCount: toSafeInteger(summary.total_count),
+      receivedCount: toSafeInteger(summary.received_count),
+      receivedGrossCents: toSafeInteger(summary.received_gross_cents),
+      receivedNetCents: toSafeInteger(summary.received_net_cents),
+      identifiedCustomerCount: toSafeInteger(summary.identified_customer_count),
+      reconciliationCount: toSafeInteger(summary.reconciliation_count),
+    },
+    months: (payload.months ?? []).filter((value) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value)),
+    quarantinedCount: toSafeInteger(payload.quarantined_count),
+  };
 }
 
 export async function listTuitionPlans(

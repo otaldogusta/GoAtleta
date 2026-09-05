@@ -36,6 +36,7 @@ describe("Asaas read-only reconciliation helpers", () => {
   test("maps imported records without raw document or contact details", () => {
     const customer = mapAsaasCustomerRecord({
       organizationId: "org-1",
+      connectionId: "connection-1",
       matchStatus: "matched",
       customer: {
         id: "cus-1",
@@ -46,6 +47,7 @@ describe("Asaas read-only reconciliation helpers", () => {
     });
     const payment = mapAsaasPaymentRecord({
       organizationId: "org-1",
+      connectionId: "connection-1",
       matchStatus: "matched",
       payment: {
         id: "pay-1",

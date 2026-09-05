@@ -99,7 +99,7 @@ function volumeRatio(volume: VolumeLevel) {
   return 0.56;
 }
 
-function buildSmoothGraphPath(points: Array<{ x: number; y: number }>) {
+function buildSmoothGraphPath(points: { x: number; y: number }[]) {
   if (!points.length) return "";
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 

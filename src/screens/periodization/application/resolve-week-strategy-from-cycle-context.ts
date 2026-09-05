@@ -96,7 +96,7 @@ const createSessionRuleMap = (size: number) =>
   Array.from({ length: size }, () => new Set<string>(["weekly_role_template"]));
 
 const addRuleToSessions = (
-  sessionRuleMap: Array<Set<string>>,
+  sessionRuleMap: Set<string>[],
   sessionIndexes: number[],
   rule: string
 ) => {

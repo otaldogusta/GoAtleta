@@ -1,6 +1,7 @@
+import { scheduleEffectTask } from "../../hooks/schedule-effect-task";
 // perf-check: ignore-measure -- one organization-scoped connector status load.
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -432,11 +433,24 @@ type CoordinationFinanceSettingsProps = {
   allowLocalDemo?: boolean;
 };
 
-export default function CoordinationFinanceSettings({
+export default function CoordinationFinanceSettings(props: CoordinationFinanceSettingsProps = {}) {
+  const { activeOrganization } = useOrganization();
+  const organizationId = activeOrganization?.id ?? "";
+  const canManageConnection = (activeOrganization?.role_level ?? 0) >= 50
+    || (__DEV__ && Boolean(props.allowLocalDemo));
+  return <FinanceSettingsContent key={organizationId + ":" + canManageConnection}
+    {...props} organizationId={organizationId} organizationName={activeOrganization?.name ?? "Instituição"}
+    canManageConnection={canManageConnection} />;
+}
+
+function FinanceSettingsContent({
   embedded = false,
   onClose,
   allowLocalDemo = false,
-}: CoordinationFinanceSettingsProps = {}) {
+  organizationId,
+  organizationName,
+  canManageConnection,
+}: CoordinationFinanceSettingsProps & { organizationId: string; organizationName: string; canManageConnection: boolean }) {
   markRender("screen.coordFinanceSettings.render.root");
   const router = useRouter();
   const { colors } = useAppTheme();
@@ -444,10 +458,6 @@ export default function CoordinationFinanceSettings({
   const responsiveLayout = useResponsiveLayout();
   const { showSaveToast } = useSaveToast();
   const { confirm: confirmDialog } = useConfirmDialog();
-  const { activeOrganization } = useOrganization();
-  const organizationId = activeOrganization?.id ?? "";
-  const defaultCanManage = (activeOrganization?.role_level ?? 0) >= 50;
-  const canManageConnection = defaultCanManage || (__DEV__ && allowLocalDemo);
   const styles = useMemo(() => createFinanceSettingsStyles(colors), [colors]);
   const [providerStatus, setProviderStatus] = useState(() =>
     emptyStatus(canManageConnection),
@@ -461,7 +471,9 @@ export default function CoordinationFinanceSettings({
   const [message, setMessage] = useState<{ text: string } | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
+  const refreshRequest = useRef(0);
   const refresh = useCallback(async () => {
+    const request = ++refreshRequest.current;
     if (!organizationId) {
       setProviderStatus(emptyStatus(false));
       setLoading(false);
@@ -480,23 +492,22 @@ export default function CoordinationFinanceSettings({
     setDemoActive(false);
     try {
       const status = await getFinanceProviderConnection(organizationId);
+      if (request !== refreshRequest.current) return;
       setProviderStatus(status);
     } catch {
+      if (request !== refreshRequest.current) return;
       setProviderStatus(emptyStatus(canManageConnection));
       setMessage({
         text: "Conexão indisponível neste ambiente.",
       });
     } finally {
-      setLoading(false);
+      if (request === refreshRequest.current) setLoading(false);
     }
   }, [canManageConnection, organizationId]);
 
   useEffect(() => {
-    setApiKey("");
-    setKeyEditorOpen(false);
-    setShowApiKey(false);
-    setMessage(null);
-    void refresh();
+    const cancelStart = scheduleEffectTask(() => { void refresh(); });
+    return () => { cancelStart(); refreshRequest.current += 1; };
   }, [refresh]);
 
   const connection = providerStatus.connection;
@@ -741,7 +752,7 @@ export default function CoordinationFinanceSettings({
           <View style={styles.modalHeaderText}>
             <Text style={styles.modalTitle}>Configurações financeiras</Text>
             <Text numberOfLines={1} style={styles.modalSubtitle}>
-              {activeOrganization?.name ?? "Instituição"}
+              {organizationName}
             </Text>
           </View>
           <Pressable
@@ -770,7 +781,7 @@ export default function CoordinationFinanceSettings({
           {!embedded ? (
             <ScreenPageHeader
               title="Configurações financeiras"
-              subtitle={activeOrganization?.name ?? "Instituição"}
+              subtitle={organizationName}
               onBack={() => router.back()}
               horizontalBleed={0}
             />

@@ -15,7 +15,7 @@ const normalizeText = (value: string | null | undefined) =>
 
 const cleanText = (value: unknown) => String(value ?? "").trim();
 
-const uniqueStrings = (values: Array<string | null | undefined>) =>
+const uniqueStrings = (values: (string | null | undefined)[]) =>
   [...new Set(values.map((value) => cleanText(value)).filter(Boolean))];
 
 const parseAgeBandStart = (value: string | null | undefined) => {

@@ -1,3 +1,5 @@
+import { getLatestScoutingSessionDetailForPlanning } from "../scouting-sessions";
+
 const mockSupabaseGet = jest.fn();
 
 jest.mock("../client", () => ({
@@ -14,8 +16,6 @@ jest.mock("../client", () => ({
 jest.mock("../session", () => ({
   saveScoutingLog: jest.fn(),
 }));
-
-import { getLatestScoutingSessionDetailForPlanning } from "../scouting-sessions";
 
 describe("scouting session persistence helpers", () => {
   beforeEach(() => {

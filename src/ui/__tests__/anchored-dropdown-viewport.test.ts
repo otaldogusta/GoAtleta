@@ -9,7 +9,7 @@ describe("anchored dropdown viewport contract", () => {
     expect(source).toContain('layoutViewport?.clientWidth || Dimensions.get("window").width');
     expect(source).toContain('layoutViewport?.clientHeight || Dimensions.get("window").height');
     expect(source).toContain("windowWidth - 16 - resolvedWidth");
-    expect(source).toContain("ReactDOM.createPortal(dropdown, document.body)");
+    expect(source).toContain("createWebPortal(dropdown, document.body)");
   });
 
   test("dismisses stale anchors on resizing and removes its listeners", () => {

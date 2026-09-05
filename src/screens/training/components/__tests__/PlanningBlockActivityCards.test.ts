@@ -5,8 +5,8 @@ import type { TrainingPlanActivity } from "../../../../core/models";
 import { PlanningBlockActivityCards } from "../PlanningBlockActivityCards";
 
 jest.mock("@expo/vector-icons", () => {
-  const React = require("react");
-  const { Text } = require("react-native");
+  const React = jest.requireActual("react");
+  const { Text } = jest.requireActual("react-native");
   return {
     Ionicons: ({ name }: { name: string }) => React.createElement(Text, null, name),
   };

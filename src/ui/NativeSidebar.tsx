@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import {  useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
@@ -104,9 +104,7 @@ export function NativeSidebar({
   const profileInitials = getInitials(profileName);
   const profilePath = getScopedProfilePath(pathname || "/");
 
-  useEffect(() => {
-    if (drawerOpen === false) setProfileMenuOpen(false);
-  }, [drawerOpen]);
+  if (drawerOpen === false && profileMenuOpen) setProfileMenuOpen(false);
 
   const items = useMemo<NativeNavItem[]>(() => {
     const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;

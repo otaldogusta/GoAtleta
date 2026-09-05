@@ -255,7 +255,8 @@ function RootLayoutContent() {
   const hadSessionRef = useRef(false);
   const initialRouteGuardAppliedRef = useRef(false);
   const stuckEventsGuardRef = useRef(false);
-  const appStartedAtRef = useRef(Date.now());
+  const [appStartedAt] = useState(Date.now);
+  const appStartedAtRef = useRef(appStartedAt);
   const lastBootPhaseRef = useRef<string | null>(null);
   const pushRegistrationInFlightRef = useRef(false);
   const queuedPushRegistrationRef = useRef<{

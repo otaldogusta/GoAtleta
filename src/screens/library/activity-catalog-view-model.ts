@@ -56,7 +56,7 @@ export type CatalogActivityDetailSection = {
 };
 
 export type CatalogFilterOptions = {
-  families: Array<{ id: string; label: string }>;
+  families: { id: string; label: string }[];
   skills: VolleyballSkill[];
   ageStages: ActivityPatternAgeStage[];
   complexities: ActivityCatalogComplexity[];

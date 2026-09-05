@@ -11,14 +11,14 @@ import {
 
 jest.mock("@expo/vector-icons", () => ({
   Ionicons: (props: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement("Ionicons", props);
   },
 }));
 
 jest.mock("../../../../ui/AnchoredDropdown", () => ({
   AnchoredDropdown: ({ visible, children, ...props }: Record<string, unknown>) => {
-    const ReactRuntime = require("react");
+    const ReactRuntime = jest.requireActual("react");
     return ReactRuntime.createElement(
       "AnchoredDropdown",
       { ...props, visible },

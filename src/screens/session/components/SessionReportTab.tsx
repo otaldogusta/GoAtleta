@@ -1,4 +1,4 @@
-import type { ComponentProps, RefObject } from "react";
+import type {  RefObject } from "react";
 import {
   FlatList,
   Image,

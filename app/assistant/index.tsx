@@ -1,25 +1,6 @@
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
-import {
-    memo,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState
-} from "react";
-import {
-    Alert,
-    Animated,
-    Keyboard,
-    Linking,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-    useWindowDimensions
-} from "react-native";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, Keyboard, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
@@ -29,39 +10,12 @@ import { getValidAccessToken } from "../../src/auth/session";
 import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
-import {
-    buildAutoFixSuggestions,
-    buildCommunicationDraft,
-    buildExecutiveSummary,
-    buildSupportModeAnalysis,
-    inferSkillsFromText,
-    volleyballLessonPlanToDraft,
-    type AutoFixSuggestion,
-} from "../../src/core/ai-operations";
-import { buildNextClassSuggestion, type NextClassSuggestion } from "../../src/core/intelligence/suggestion-engine";
-import type {
-  ClassGroup,
-  EvolutionSimulationResult,
-  SessionLog,
-  TrainingPlan,
-} from "../../src/core/models";
-import { buildNextVolleyballLessonPlan } from "../../src/core/progression-engine";
-import { simulateClassEvolution } from "../../src/core/simulator/evolution-simulator";
-import {
-    getLatestSessionSkillSnapshot,
-    listAssistantMemories,
-    pruneExpiredAssistantMemories,
-    saveAssistantMemoryEntry,
-} from "../../src/db/ai-foundation";
-import {
-    buildSyncHealthReport,
-    clearPendingWritesDeadLetterCandidates,
-    getClasses,
-    getSessionLogsByRange,
-    getTrainingPlans,
-    reprocessPendingWritesNetworkFailures,
-    saveTrainingPlan,
-} from "../../src/db/seed";
+import { type AutoFixSuggestion } from "../../src/core/ai-operations";
+import { type NextClassSuggestion } from "../../src/core/intelligence/suggestion-engine";
+import type { ClassGroup, EvolutionSimulationResult, TrainingPlan } from "../../src/core/models";
+
+import { listAssistantMemories, pruneExpiredAssistantMemories, saveAssistantMemoryEntry } from "../../src/db/ai-foundation";
+import { clearPendingWritesDeadLetterCandidates, getClasses, reprocessPendingWritesNetworkFailures, saveTrainingPlan } from "../../src/db/seed";
 import { getScopedPlanningPath } from "../../src/navigation/profile-routes";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
@@ -513,13 +467,10 @@ export default function AssistantScreen() {
   const [composerFocused, setComposerFocused] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const scopedPlanningPath = useMemo(() => getScopedPlanningPath(pathname), [pathname]);
-  const conversationText = useMemo(
-    () => messages.map((item) => item.content).join(" "),
-    [messages]
-  );
+
   const appliedPromptRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
-  const thinkingPulse = useRef(new Animated.Value(0)).current;
+  const [thinkingPulse] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const incomingPrompt = String(params.prompt ?? "").trim();
@@ -1172,7 +1123,7 @@ export default function AssistantScreen() {
     } finally {
       setLoading(false);
     }
-  }, [activeOrganization, assistantTyping, classId, input, loading, messages, optionalCopilot, selectedClass, session, typeAssistantReply]);
+  }, [activeOrganization, assistantTyping, classId, input, loading, messages, notificationInboxScope, optionalCopilot, selectedClass, session, typeAssistantReply]);
 
   const saveDraft = async () => {
     if (!draft || !classId) return;
@@ -1217,162 +1168,6 @@ export default function AssistantScreen() {
     });
   }, [classId, draft, router, scopedPlanningPath]);
 
-  const getRecentLogs = useCallback(async () => {
-    const now = new Date();
-    const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const logs = await getSessionLogsByRange(start.toISOString(), now.toISOString(), {
-      organizationId: activeOrganization?.id,
-    });
-    return logs.filter(
-      (log): log is SessionLog =>
-        Boolean(log) &&
-        typeof (log as SessionLog).classId === "string" &&
-        (log as SessionLog).classId === classId
-    );
-  }, [activeOrganization?.id, classId]);
-
-  useCallback(async () => {
-    if (!classId || !selectedClass) {
-      Alert.alert("Atenção", "Selecione uma turma para gerar progressão.");
-      return;
-    }
-    setLoading(true);
-    try {
-      const snapshot = await getLatestSessionSkillSnapshot(classId);
-      const logs = await getRecentLogs();
-      const fallbackConsistency = logs.length
-        ? Math.min(0.95, Math.max(0.3, logs.filter((log) => log.technique !== "ruim").length / logs.length))
-        : 0.55;
-      const fallbackSuccess = logs.length
-        ? Math.min(0.95, Math.max(0.3, logs.filter((log) => log.attendance >= 1).length / logs.length))
-        : 0.55;
-
-      const latestLog = [...logs].sort((a, b) =>
-        String(a.createdAt).localeCompare(String(b.createdAt))
-      )[logs.length - 1];
-
-      const plan = buildNextVolleyballLessonPlan({
-        classId,
-        unitId: selectedClass.unitId || "",
-        mesoWeek: 1,
-        microDay: "D1",
-        lastRpeGroup: Number(latestLog?.PSE ?? 6),
-        lastAttendanceCount: Number(latestLog?.participantsCount ?? 0),
-        className: selectedClass.name,
-        ageBand: selectedClass.ageBand,
-        objective: `Progressão para ${selectedClass.name}`,
-        focusSkills: inferSkillsFromText(`${input} ${conversationText}`.trim()),
-        previousSnapshot: {
-          consistencyScore: snapshot?.consistencyScore ?? fallbackConsistency,
-          successRate: snapshot?.successRate ?? fallbackSuccess,
-          decisionQuality: snapshot?.decisionQuality ?? 0.62,
-          notes: snapshot?.notes ?? [],
-        },
-      });
-
-      const nextDraft = volleyballLessonPlanToDraft(plan, selectedClass.name);
-      setDraft(nextDraft);
-      setSources([]);
-      setConfidence(0.74);
-      setCitations(
-        plan.citations.map((citation) => ({
-          sourceTitle: `${citation.docId} (${citation.pages})`,
-          evidence: citation.why,
-        }))
-      );
-      setMissingData([]);
-      setAssumptions([
-        "Progressão baseada no snapshot mais recente ou fallback de sessões dos últimos 7 dias.",
-      ]);
-      setAutoFixSuggestions([]);
-      pushAssistantMessage(
-        `Gerei a próxima aula com foco em ${plan.primaryFocus.skill}/${plan.secondaryFocus.skill}, regras explícitas (${plan.rulesTriggered.length}) e critérios mensuráveis.`
-      );
-    } catch {
-      pushAssistantMessage("Não consegui gerar a progressão automática agora.");
-    } finally {
-      setLoading(false);
-    }
-  }, [classId, conversationText, getRecentLogs, input, pushAssistantMessage, selectedClass]);
-
-  useCallback(async () => {
-    if (!classId || !selectedClass) return;
-    setLoading(true);
-    try {
-      const [trainingPlans, sessionLogs, syncHealth] = await Promise.all([
-        getTrainingPlans({ organizationId: activeOrganization?.id }),
-        getRecentLogs(),
-        buildSyncHealthReport({ organizationId: activeOrganization?.id }),
-      ]);
-
-      const classPlans = trainingPlans.filter(
-        (plan: { classId?: unknown }) =>
-          Boolean(plan) &&
-          typeof plan.classId === "string" &&
-          plan.classId === classId
-      );
-      const summary = buildExecutiveSummary({
-        className: selectedClass.name,
-        trainingPlans: classPlans,
-        sessionLogs: sessionLogs as SessionLog[],
-        syncHealth,
-      });
-      setAutoFixSuggestions([]);
-      pushAssistantMessage(summary);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeOrganization?.id, classId, getRecentLogs, pushAssistantMessage, selectedClass]);
-
-  useCallback(() => {
-    if (!selectedClass) return;
-    const text = buildCommunicationDraft({
-      className: selectedClass.name,
-      nextObjective: "evoluir consistência de passe e transição ofensiva",
-      criticalPoint: "reduzir erro não forçado no primeiro contato",
-    });
-    setInput(text);
-    pushAssistantMessage("Copiloto de comunicação pronto. Ajuste o texto e envie no canal desejado.");
-  }, [pushAssistantMessage, selectedClass]);
-
-  useCallback(async () => {
-    setLoading(true);
-    try {
-      const health = await buildSyncHealthReport({ organizationId: activeOrganization?.id });
-      const analysis = buildSupportModeAnalysis(health);
-      const suggestions = buildAutoFixSuggestions(health);
-      setAutoFixSuggestions(suggestions);
-      pushAssistantMessage(analysis);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeOrganization?.id, pushAssistantMessage]);
-
-  useCallback(async () => {
-    if (!classId || !selectedClass) return;
-    setLoading(true);
-    try {
-      const logs = await getRecentLogs();
-      const suggestion = buildNextClassSuggestion({
-        className: selectedClass.name,
-        logs: logs as SessionLog[],
-      });
-      setNextClassSuggestion(suggestion);
-      setAutoFixSuggestions([]);
-      setConfidence(suggestion.radarScore);
-      setCitations([]);
-      setMissingData(logs.length ? [] : ["Sem sessões recentes registradas nos últimos 7 dias."]);
-      setAssumptions([
-        "Leitura determinística baseada em sessões recentes da turma e regras explícitas de tendência.",
-      ]);
-      pushAssistantMessage(
-        `${suggestion.headline}\n${suggestion.coachSummary}\nAprovação humana necessária antes de aplicar no treino.`
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [classId, getRecentLogs, pushAssistantMessage, selectedClass]);
-
   const applyNextClassSuggestion = useCallback(() => {
     if (!nextClassSuggestion) return;
     setInput(nextClassSuggestion.nextTrainingPrompt);
@@ -1381,26 +1176,6 @@ export default function AssistantScreen() {
       composerInputRef.current?.focus();
     });
   }, [nextClassSuggestion, pushAssistantMessage]);
-
-  useCallback(async () => {
-    if (!selectedClass) return;
-    setLoading(true);
-    try {
-      const logs = await getRecentLogs();
-      const result = simulateClassEvolution({
-        classId: selectedClass.id,
-        logs: logs as SessionLog[],
-        horizonWeeks: 6,
-        interventionIntensity: "balanced",
-      });
-      setSimulationResult(result);
-      pushAssistantMessage(
-        `Simulação de evolução gerada para ${selectedClass.name}. Projeção de ${result.horizonWeeks} semanas com aprovação humana obrigatória.`
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [getRecentLogs, pushAssistantMessage, selectedClass]);
 
   const applyAutoFixSuggestion = useCallback(
     (suggestion: AutoFixSuggestion) => {

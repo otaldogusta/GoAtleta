@@ -1,61 +1,19 @@
 import * as Calendar from "expo-calendar";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-    Suspense,
-    lazy,
-    memo,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState
-} from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    FlatList,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
-} from "react-native";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
-import { AnimatedSegmentedTabs } from "../../src/ui/AnimatedSegmentedTabs";
+
 import { Pressable } from "../../src/ui/Pressable";
 import { SectionLoadingState } from "../../src/components/ui/SectionLoadingState";
-import { normalizeAgeBand, sortAgeBandList } from "../../src/core/age-band";
+import { normalizeAgeBand } from "../../src/core/age-band";
 import { translateMethodology } from "../../src/core/methodology/methodology-translator";
-import type {
-    ClassGroup,
-    Exercise,
-    HiddenTemplate,
-    TrainingPlan,
-    TrainingPlanActivity,
-    TrainingTemplate,
-} from "../../src/core/models";
+import type { ClassGroup, Exercise, HiddenTemplate, TrainingPlan, TrainingPlanActivity, TrainingTemplate } from "../../src/core/models";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import type { TrainingPlanBlockKey } from "../../src/core/training-plan-blocks";
 import { trainingTemplates } from "../../src/core/trainingTemplates";
-import {
-    deleteTrainingPlan,
-    deleteTrainingTemplate,
-    getClasses,
-    getHiddenTemplates,
-    getLatestTrainingPlanByClass,
-    getTrainingPlans,
-    getTrainingTemplates,
-    hideTrainingTemplate,
-    saveTrainingPlan,
-    saveTrainingTemplate,
-    updateTrainingTemplate,
-    upsertTrainingSession,
-} from "../../src/db/seed";
+import { deleteTrainingPlan, deleteTrainingTemplate, getClasses, getHiddenTemplates, getLatestTrainingPlanByClass, getTrainingPlans, getTrainingTemplates, hideTrainingTemplate, saveTrainingPlan, saveTrainingTemplate, updateTrainingTemplate, upsertTrainingSession } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { useAuth } from "../../src/auth/auth";
@@ -64,73 +22,39 @@ import { notifyTrainingSaved } from "../../src/notifications";
 import { notificationScopeForEffectiveProfile } from "../../src/notifications/inbox-scope";
 import { logAction } from "../../src/observability/breadcrumbs";
 import { markRender, measure, measureAsync } from "../../src/observability/perf";
-import { TrainingAnchoredDropdownOption } from "../../src/screens/training/components/TrainingAnchoredDropdownOption";
-import {
-  resolveTrainingFabMenuLayout,
-  TrainingFabMenu,
-  type TrainingFabMenuLayout,
-} from "../../src/screens/training/components/TrainingFabMenu";
-import { PlanningBlockActivityCards } from "../../src/screens/training/components/PlanningBlockActivityCards";
+
 import { PlanningLibraryBridgeSheet } from "../../src/screens/training/components/PlanningLibraryBridgeSheet";
-import {
-  TrainingPlanningWorkspaceLibrary,
-  type TrainingPlanningWorkspaceTemplate,
-} from "../../src/screens/training/components/TrainingPlanningWorkspaceLibrary";
+import { TrainingPlanningWorkspaceLibrary, type TrainingPlanningWorkspaceTemplate } from "../../src/screens/training/components/TrainingPlanningWorkspaceLibrary";
 import type { ClassPlanWorkspaceHeaderControls } from "../../src/screens/classes/components/ClassPlanPreviewModal";
 import { normalizeClassTrainingPlan } from "../../src/screens/classes/application/edit-class-training-plan";
-import {
-    addPlanningActivityToBlock,
-    buildPedagogyBlocksFromPlanningForm,
-    buildPlanningActivitiesFromLegacyLines,
-    buildTrainingPlanActivityFromCatalogItem,
-    buildTrainingPlanActivityFromExerciseLink,
-    createPlanningWorkspaceDraft,
-    createEmptyPlanningBlockActivities,
-    hydratePlanningActivitiesFromPlan,
-    planningBlockKeys,
-    removePlanningActivityFromBlock,
-    syncLegacyLinesFromBlocks,
-    type PlanningBlockActivities,
-} from "../../src/screens/training/application/planning-library-bridge";
-import { formatTrainingPlanDisplayText } from "../../src/screens/training/application/training-plan-display-text";
+import { addPlanningActivityToBlock, buildPlanningActivitiesFromLegacyLines, buildTrainingPlanActivityFromCatalogItem, buildTrainingPlanActivityFromExerciseLink, createPlanningWorkspaceDraft, createEmptyPlanningBlockActivities, hydratePlanningActivitiesFromPlan, type PlanningBlockActivities } from "../../src/screens/training/application/planning-library-bridge";
+
 import { buildTrainingPlanWorkspaceExitConfirmation } from "../../src/screens/training/application/training-plan-workspace-exit";
-import {
-  buildTrainingPlanWorkspaceDraftKey,
-  loadTrainingPlanWorkspaceLibrary,
-  removeTrainingPlanWorkspaceLibraryItem,
-  upsertTrainingPlanWorkspaceLibrary,
-} from "../../src/screens/training/application/training-plan-workspace-draft";
+import { buildTrainingPlanWorkspaceDraftKey, loadTrainingPlanWorkspaceLibrary, removeTrainingPlanWorkspaceLibraryItem, upsertTrainingPlanWorkspaceLibrary } from "../../src/screens/training/application/training-plan-workspace-draft";
+import { createTrainingPlanApplication } from "../../src/screens/training/application/apply-training-plan";
+import { createAssistantWorkspacePlan, resolveWorkspaceEntryRequest, resolveWorkspaceDraftRestoration } from "../../src/screens/training/application/workspace-entry";
 import { useTemplateEditorForm } from "../../src/screens/training/hooks/useTemplateEditorForm";
 import { useTrainingPlanForm } from "../../src/screens/training/hooks/useTrainingPlanForm";
 import { useTrainingPlanWorkspaceDraft } from "../../src/screens/training/hooks/useTrainingPlanWorkspaceDraft";
 import type { ActivityCatalogListItem } from "../../src/screens/library/activity-catalog-view-model";
-import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
-import { animateLayout } from "../../src/ui/animate-layout";
+
 import { useAppTheme } from "../../src/ui/app-theme";
-import { Button } from "../../src/ui/Button";
-import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
+
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
-import { FadeHorizontalScroll } from "../../src/ui/FadeHorizontalScroll";
+
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { useSaveToast } from "../../src/ui/save-toast";
-import { getSectionCardStyle } from "../../src/ui/section-styles";
+
 import { sortClassesByAgeBand } from "../../src/ui/sort-classes";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
 import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
-import {  shadow } from "../../src/theme/tokens";
 
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
-
-const PLANNING_TABS = [
-  { id: "formulario" as const, label: "Planejar" },
-  { id: "salvos" as const, label: "Planos salvos" },
-  { id: "modelos" as const, label: "Modelos prontos" },
-] as const;
 
 const TemplateEditorModalContent = lazy(() =>
   import("../../src/screens/training/components/TemplateEditorModalContent").then((module) => ({
@@ -142,14 +66,6 @@ const TrainingApplyModalContent = lazy(() =>
   import("../../src/screens/training/components/TrainingApplyModalContent").then((module) => ({
     default: module.TrainingApplyModalContent,
   }))
-);
-
-const TrainingPlanDetailsModalContent = lazy(() =>
-  import("../../src/screens/training/components/TrainingPlanDetailsModalContent").then(
-    (module) => ({
-      default: module.TrainingPlanDetailsModalContent,
-    })
-  )
 );
 
 function createTrainingTemplateId() {
@@ -196,8 +112,6 @@ const toLines = (value: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
-const toManualRows = (value: string) => (value.length ? value.split("\n") : [""]);
-
 const isManualTextActivity = (activity: TrainingPlanActivity) =>
   !activity.catalog &&
   !activity.execution &&
@@ -208,80 +122,13 @@ const isManualTextActivity = (activity: TrainingPlanActivity) =>
   !activity.coachFocus &&
   !(activity.materials?.length);
 
-const savedPlanFilterChipStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    gap: 8,
-    paddingVertical: 2,
-  },
-  chip: {
-    minHeight: 36,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  label: {
-    fontWeight: "800",
-    fontSize: 12,
-  },
-  count: {
-    fontWeight: "700",
-    fontSize: 11,
-  },
-  clearSearchButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
-
 type PlanningDetailSelection = {
   blockKey: TrainingPlanBlockKey;
   index: number;
 };
 
-const formatDate = (value: string) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("pt-BR");
-};
-
-const formatShortDate = (value: string) => {
-  if (!value) return "";
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (match) {
-    const [, year, month, day] = match;
-    return `${day}/${month}/${year}`;
-  }
-  return formatDate(value);
-};
-
 const formatShortDateValue = (value: Date) =>
   value.toLocaleDateString("pt-BR");
-
-const getWeekStart = (value: Date) => {
-  const date = new Date(value);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
-};
-
-const getWeekEnd = (start: Date) => {
-  const date = new Date(start);
-  date.setDate(date.getDate() + 6);
-  date.setHours(23, 59, 59, 999);
-  return date;
-};
-
 
 const weekdays = [
   { id: 1, label: "Seg" },
@@ -292,14 +139,6 @@ const weekdays = [
   { id: 6, label: "Sab" },
   { id: 7, label: "Dom" },
 ];
-
-const formatWeekdays = (days: number[]) => {
-  if (!days || !days.length) return "";
-  const labels = days
-    .map((day) => weekdays.find((item) => item.id === day)?.label)
-    .filter(Boolean);
-  return labels.join(", ");
-};
 
 const extractKeywords = (value: string) => {
   const stopwords = new Set([
@@ -336,82 +175,14 @@ const extractKeywords = (value: string) => {
     .filter((token) => token.length >= 3 && !stopwords.has(token));
 };
 
-const normalizeTagToken = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-const compactTagList = (values: string[], limit = 8) => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  values.forEach((value) => {
-    const normalized = normalizeTagToken(value);
-    if (!normalized || seen.has(normalized)) return;
-    seen.add(normalized);
-    result.push(normalized);
-  });
-  return result.slice(0, limit);
-};
-
-const normalizeSearchValue = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-
-const getTrainingPlanBlockCounts = (plan: TrainingPlan) => {
-  const blocks = plan.pedagogy?.blocks;
-  if (blocks) {
-    return {
-      warmup: blocks.warmup?.activities?.length ?? 0,
-      main: blocks.main?.activities?.length ?? 0,
-      cooldown: blocks.cooldown?.activities?.length ?? 0,
-    };
-  }
-
-  return {
-    warmup: plan.warmup?.length ?? 0,
-    main: plan.main?.length ?? 0,
-    cooldown: plan.cooldown?.length ?? 0,
-  };
-};
-
-const getTrainingPlanTotalActivityCount = (plan: TrainingPlan) => {
-  const counts = getTrainingPlanBlockCounts(plan);
-  return counts.warmup + counts.main + counts.cooldown;
-};
-
-const getTrainingPlanAppliedInfo = (plan: TrainingPlan) => {
-  const hasApplyDate = Boolean(plan.applyDate);
-  const hasApplyDays = Boolean(plan.applyDays?.length);
-  const isApplied = hasApplyDate || hasApplyDays;
-  const dateText = plan.applyDate
-    ? formatShortDate(plan.applyDate)
-    : plan.applyDays?.length
-      ? formatWeekdays(plan.applyDays)
-      : "";
-
-  return {
-    isApplied,
-    dateText,
-    statusLabel: isApplied ? "Aplicado" : "Rascunho",
-    applyButtonLabel: isApplied ? "Aplicar novamente" : "Aplicar",
-  };
-};
-
-const getSavedPlanDisplayTitle = (plan: TrainingPlan) => {
-  const parts = plan.title
-    .split("|")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return formatTrainingPlanDisplayText(parts.length >= 2 ? parts[parts.length - 1] : plan.title);
-};
-
 export default function TrainingList() {
+  const { session } = useAuth();
+  const organizationId = useOptionalOrganization()?.activeOrganization?.id;
+  const workspaceKey = buildTrainingPlanWorkspaceDraftKey({ userId: session?.user?.id, organizationId });
+  return <TrainingWorkspace key={workspaceKey ?? "signed-out"} />;
+}
+
+function TrainingWorkspace() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const responsiveLayout = useResponsiveLayout("dashboard");
@@ -425,11 +196,7 @@ export default function TrainingList() {
   const { confirm: confirmDialog } = useConfirmDialog();
   const { showSaveToast } = useSaveToast();
   const templateEditorCardStyle = useModalCardStyle({ maxHeight: "100%" });
-  const selectedPlanCardStyle = useModalCardStyle({
-    maxHeight: "94%",
-    maxWidth: 820,
-    padding: 18,
-  });
+
   const applyModalCardStyle = useModalCardStyle({ maxHeight: "100%" });
   const planActionsCardStyle = useModalCardStyle({ maxHeight: "100%" });
   const params = useLocalSearchParams();
@@ -481,22 +248,12 @@ export default function TrainingList() {
     setEditingCreatedAt,
     setFormUnit,
   } = useTrainingPlanForm();
-  const {
-    title,
-    tagsText,
-    warmup,
-    main,
-    cooldown,
-    warmupTime,
-    mainTime,
-    cooldownTime,
-    editingId,
-    formUnit,
-  } = planForm;
+  const { title, tagsText, warmup, main, cooldown, editingId, formUnit } = planForm;
   const [items, setItems] = useState<TrainingPlan[]>([]);
   const [templateItems, setTemplateItems] = useState<TrainingTemplate[]>([]);
   const [hiddenTemplates, setHiddenTemplates] = useState<HiddenTemplate[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [classCatalogKey, setClassCatalogKey] = useState<string | null>(null);
   const [classId, setClassId] = useState("");
   const [planningActivities, setPlanningActivities] =
     useState<PlanningBlockActivities>(() => createEmptyPlanningBlockActivities());
@@ -504,14 +261,7 @@ export default function TrainingList() {
     useState<TrainingPlanBlockKey | null>(null);
   const [planningDetailSelection, setPlanningDetailSelection] =
     useState<PlanningDetailSelection | null>(null);
-  const [showTemplates, setShowTemplates] = usePersistedState<boolean>(
-    "training_show_templates_v1",
-    false
-  );
-  const {
-    animatedStyle: templatesAnimStyle,
-    isVisible: showTemplatesContent,
-  } = useCollapsibleAnimation(showTemplates);
+
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
   const [showPlanningPdfImport, setShowPlanningPdfImport] = useState(false);
   const [showSpreadsheetImport, setShowSpreadsheetImport] = useState(false);
@@ -575,21 +325,26 @@ export default function TrainingList() {
     return () => window.cancelAnimationFrame(frame);
   }, [items.length, selectedPlan?.id]);
   useEffect(() => {
-    if (!restoredWorkspaceDraft) return;
-    const draftClassId = restoredWorkspaceDraft.plan.classId;
-    const draftClass = draftClassId ? classes.find((item) => item.id === draftClassId) : null;
-    if (draftClassId && !draftClass) {
+    const restoration = resolveWorkspaceDraftRestoration(restoredWorkspaceDraft, classes, Boolean(workspaceDraftKey && classCatalogKey === workspaceDraftKey));
+    if (!restoredWorkspaceDraft || restoration === "waiting") return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      if (restoration === "unavailable") {
+        // Keep the stored draft: loss of class access is not authorization to delete it.
+        consumeRestoredDraft();
+        showSaveToast({ message: "O rascunho foi preservado. Sua turma não está disponível neste workspace.", variant: "warning" });
+        return;
+      }
+      setSelectedPlan(restoredWorkspaceDraft.plan);
+      setClassId(restoredWorkspaceDraft.plan.classId);
+      setWorkspaceDraftLessonDate(restoredWorkspaceDraft.lessonDate);
+      setWorkspaceDraftRestored(true);
+      setWorkspaceHasUnsavedChanges(true);
       consumeRestoredDraft();
-      void clearWorkspaceDraft();
-      return;
-    }
-    setSelectedPlan(restoredWorkspaceDraft.plan);
-    setClassId(restoredWorkspaceDraft.plan.classId);
-    setWorkspaceDraftLessonDate(restoredWorkspaceDraft.lessonDate);
-    setWorkspaceDraftRestored(true);
-    setWorkspaceHasUnsavedChanges(true);
-    consumeRestoredDraft();
-  }, [classes, clearWorkspaceDraft, consumeRestoredDraft, restoredWorkspaceDraft]);
+    });
+    return () => { cancelled = true; };
+  }, [classCatalogKey, classes, consumeRestoredDraft, restoredWorkspaceDraft, showSaveToast, workspaceDraftKey]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined" || !workspaceHasUnsavedChanges) {
@@ -603,75 +358,27 @@ export default function TrainingList() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [flushWorkspaceDraft, workspaceHasUnsavedChanges]);
-  const [showSavedPlans, setShowSavedPlans] = usePersistedState<boolean>(
+  const [, setShowSavedPlans] = usePersistedState<boolean>(
     "training_show_saved_plans_v1",
     true
   );
-  const [savedPlanSearch, setSavedPlanSearch] = useState("");
-  const [savedPlanClassFilter, setSavedPlanClassFilter] = useState("__all__");
-  const {
-    animatedStyle: savedPlansAnimStyle,
-    isVisible: showSavedPlansContent,
-  } = useCollapsibleAnimation(showSavedPlans);
-  const [formY, setFormY] = useState(0);
+
+  const [formY, ] = useState(0);
   const formContainerRef = useRef<View>(null);
   const formUnitTriggerRef = useRef<View>(null);
   const formClassTriggerRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const [scrollRequested, setScrollRequested] = useState(false);
-  const [templateAgeBand, setTemplateAgeBand] = useState("");
-  const [formMode, setFormMode] = useState<"plan" | "template">("plan");
-  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
-  const [editingTemplateCreatedAt, setEditingTemplateCreatedAt] = useState<string | null>(null);
+  const [templateAgeBand, ] = useState("");
+  const [, setFormMode] = useState<"plan" | "template">("plan");
   const [planningTab, setPlanningTab] = useState<
     "formulario" | "salvos" | "modelos"
   >("formulario");
-  const {
-    templateForm,
-    setTemplateTitle,
-    setTemplateAge,
-    setTemplateTags,
-    setTemplateWarmup,
-    setTemplateMain,
-    setTemplateCooldown,
-    setTemplateWarmupTime,
-    setTemplateMainTime,
-    setTemplateCooldownTime,
-    setTemplateEditorId,
-    setTemplateEditorCreatedAt,
-    setTemplateEditorSource,
-    setTemplateEditorTemplateId,
-    setTemplateEditorComposerHeight,
-    setTemplateEditorKeyboardHeight,
-    setRenameTemplateId,
-    setRenameTemplateText,
-    setShowTemplateEditor,
-    setShowTemplateCloseConfirm,
-  } = useTemplateEditorForm();
-  const {
-    templateTitle,
-    templateAge,
-    templateTags,
-    templateWarmup,
-    templateMain,
-    templateCooldown,
-    templateWarmupTime,
-    templateMainTime,
-    templateCooldownTime,
-    templateEditorId,
-    templateEditorCreatedAt,
-    templateEditorSource,
-    templateEditorTemplateId,
-    templateEditorComposerHeight,
-    templateEditorKeyboardHeight,
-    renameTemplateId,
-    renameTemplateText,
-    showTemplateEditor,
-    showTemplateCloseConfirm,
-  } = templateForm;
+  const { templateForm, setTemplateTitle, setTemplateAge, setTemplateTags, setTemplateWarmup, setTemplateMain, setTemplateCooldown, setTemplateWarmupTime, setTemplateMainTime, setTemplateCooldownTime, setTemplateEditorId, setTemplateEditorCreatedAt, setTemplateEditorSource, setTemplateEditorTemplateId, setTemplateEditorComposerHeight, setTemplateEditorKeyboardHeight, setShowTemplateEditor, setShowTemplateCloseConfirm } = useTemplateEditorForm();
+  const { templateTitle, templateAge, templateTags, templateWarmup, templateMain, templateCooldown, templateWarmupTime, templateMainTime, templateCooldownTime, templateEditorId, templateEditorCreatedAt, templateEditorSource, templateEditorTemplateId, templateEditorComposerHeight, templateEditorKeyboardHeight, showTemplateEditor, showTemplateCloseConfirm } = templateForm;
   markRender("screen.training.render.root");
-  const [lastCreatedPlanId, setLastCreatedPlanId] = useState<string | null>(null);
-  const [lastCreatedClassId, setLastCreatedClassId] = useState("");
+  const [lastCreatedPlanId, ] = useState<string | null>(null);
+  const [lastCreatedClassId, ] = useState("");
   const [templateEditorSnapshot, setTemplateEditorSnapshot] = useState<{
     title: string;
     age: string;
@@ -687,23 +394,25 @@ export default function TrainingList() {
     classId: string;
     date: string;
   } | null>("training_pending_plan_create_v1", null);
-  const [handledAiDraftRaw, setHandledAiDraftRaw] = useState<string | null>(null);
+  const [handledWorkspaceEntryKey, setHandledWorkspaceEntryKey] = useState<string | null>(null);
   const [applyUnit, setApplyUnit] = useState("");
   const [applyClassId, setApplyClassId] = useState("");
   const [showApplyModal, setShowApplyModal] = useState(false);
+  const [isApplyingPlan, setIsApplyingPlan] = useState(false);
+  const [planApplication] = useState(createTrainingPlanApplication);
   const [showApplyCloseConfirm, setShowApplyCloseConfirm] = useState(false);
   const [applyPlan, setApplyPlan] = useState<TrainingPlan | null>(null);
   const [applyDays, setApplyDays] = useState<number[]>([]);
   const [applyDate, setApplyDate] = useState("");
   const [showApplyUnitPicker, setShowApplyUnitPicker] = useState(false);
   const [showApplyClassPicker, setShowApplyClassPicker] = useState(false);
-  const [showFormUnitPicker, setShowFormUnitPicker] = useState(false);
-  const [showFormClassPicker, setShowFormClassPicker] = useState(false);
+  const [showFormUnitPicker, ] = useState(false);
+  const [showFormClassPicker, ] = useState(false);
   const [applyContainerWindow, setApplyContainerWindow] = useState<{
     x: number;
     y: number;
   } | null>(null);
-  const [formContainerWindow, setFormContainerWindow] = useState<{
+  const [, setFormContainerWindow] = useState<{
     x: number;
     y: number;
   } | null>(null);
@@ -719,52 +428,26 @@ export default function TrainingList() {
     width: number;
     height: number;
   } | null>(null);
-  const [formUnitTriggerLayout, setFormUnitTriggerLayout] = useState<{
+  const [, setFormUnitTriggerLayout] = useState<{
     x: number;
     y: number;
     width: number;
     height: number;
   } | null>(null);
-  const [formClassTriggerLayout, setFormClassTriggerLayout] = useState<{
+  const [, setFormClassTriggerLayout] = useState<{
     x: number;
     y: number;
     width: number;
     height: number;
   } | null>(null);
 
-  const parsedAiDraft = useMemo(() => {
-    if (!aiDraftRaw.trim()) return null;
-    try {
-      const decoded = decodeURIComponent(aiDraftRaw);
-      const payload = JSON.parse(decoded) as Record<string, unknown>;
-      const toList = (value: unknown) =>
-        Array.isArray(value) ? value.map(String).filter(Boolean) : [];
-      const toText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-      return {
-        title: toText(payload.title),
-        tags: toList(payload.tags),
-        warmup: toList(payload.warmup),
-        main: toList(payload.main),
-        cooldown: toList(payload.cooldown),
-        warmupTime: toText(payload.warmupTime),
-        mainTime: toText(payload.mainTime),
-        cooldownTime: toText(payload.cooldownTime),
-      };
-    } catch {
-      return null;
-    }
-  }, [aiDraftRaw]);
+  const incomingWorkspaceEntry = useMemo(() => resolveWorkspaceEntryRequest({
+    openForm, assistantRaw: aiDraftRaw, targetClassId, targetDate, pendingCreate: pendingPlanCreate,
+  }), [aiDraftRaw, openForm, pendingPlanCreate, targetClassId, targetDate]);
   const applyContainerRef = useRef<View>(null);
   const applyUnitTriggerRef = useRef<View>(null);
   const applyClassTriggerRef = useRef<View>(null);
-  const {
-    animatedStyle: formUnitPickerAnimStyle,
-    isVisible: showFormUnitPickerContent,
-  } = useCollapsibleAnimation(showFormUnitPicker, { translateY: -6 });
-  const {
-    animatedStyle: formClassPickerAnimStyle,
-    isVisible: showFormClassPickerContent,
-  } = useCollapsibleAnimation(showFormClassPicker, { translateY: -6 });
+
   const {
     animatedStyle: applyUnitPickerAnimStyle,
     isVisible: showApplyUnitPickerContent,
@@ -789,9 +472,7 @@ export default function TrainingList() {
   const [showPlanActions, setShowPlanActions] = useState(false);
   const [actionPlan, setActionPlan] = useState<TrainingPlan | null>(null);
   const [showTrainingFabMenu, setShowTrainingFabMenu] = useState(false);
-  const [trainingFabMenuLayout, setTrainingFabMenuLayout] =
-    useState<TrainingFabMenuLayout | null>(null);
-  const trainingFabTriggerRef = useRef<View>(null);
+
   const [showTrainingSessionCreate, setShowTrainingSessionCreate] = useState(false);
   const [handledCreateSessionRequestRaw, setHandledCreateSessionRequestRaw] = useState<string | null>(null);
   const [trainingFabAnim] = useState(() => new Animated.Value(0));
@@ -823,38 +504,6 @@ export default function TrainingList() {
       /^\d{2}:\d{2}$/.test(createSessionStartTimeRaw) ? createSessionStartTimeRaw : "",
     [createSessionStartTimeRaw]
   );
-  const trainingFabBottom = Math.max(insets.bottom + 166, 182);
-  const trainingFabRight = 16;
-  const trainingFabRotate = useMemo(
-    () =>
-      trainingFabAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["0deg", "45deg"],
-      }),
-    [trainingFabAnim]
-  );
-  const trainingFabScale = useMemo(
-    () =>
-      trainingFabAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 1.06],
-      }),
-    [trainingFabAnim]
-  );
-
-  const handleTrainingFabPress = useCallback(() => {
-    if (showTrainingFabMenu) {
-      setShowTrainingFabMenu(false);
-      return;
-    }
-
-    trainingFabTriggerRef.current?.measureInWindow((x, y, width, height) => {
-      const nextLayout = resolveTrainingFabMenuLayout(x, y, width, height);
-      if (!nextLayout) return;
-      setTrainingFabMenuLayout(nextLayout);
-      setShowTrainingFabMenu(true);
-    });
-  }, [showTrainingFabMenu]);
 
   useEffect(() => {
     Animated.timing(trainingFabAnim, {
@@ -896,14 +545,6 @@ export default function TrainingList() {
     return map;
   }, [classes]);
 
-  const classStartTimeById = useMemo(() => {
-    const map: Record<string, string> = {};
-    classes.forEach((item) => {
-      if (item.startTime) map[item.id] = item.startTime;
-    });
-    return map;
-  }, [classes]);
-
   const unitLabel = (value: string) =>
     value && value.trim() ? value.trim() : "Sem unidade";
 
@@ -922,18 +563,10 @@ export default function TrainingList() {
     if (!applyUnit) return [];
     return sortedClasses.filter((item) => unitLabel(item.unit) === applyUnit);
   }, [applyUnit, sortedClasses]);
-  const classOptionsForForm = useMemo(() => {
-    if (formUnit === ALL_UNITS_VALUE) return sortedClasses;
-    if (!formUnit) return [];
-    return sortedClasses.filter((item) => unitLabel(item.unit) === formUnit);
-  }, [formUnit, sortedClasses]);
+
   const selectedApplyClass = useMemo(
     () => classOptionsForUnit.find((item) => item.id === applyClassId) ?? null,
     [applyClassId, classOptionsForUnit]
-  );
-  const selectedFormClass = useMemo(
-    () => classOptionsForForm.find((item) => item.id === classId) ?? null,
-    [classId, classOptionsForForm]
   );
 
   useEffect(() => {
@@ -1044,7 +677,6 @@ export default function TrainingList() {
     });
   }, [handledViewPlanId, items, setShowSavedPlans, viewPlanId]);
 
-
   const parseTimeParts = (value: string) => {
     const match = value.match(/^(\d{2}):(\d{2})$/);
     if (!match) return null;
@@ -1102,21 +734,6 @@ export default function TrainingList() {
       });
     }
   }, [classOptionsForUnit, applyClassId]);
-
-  const ageBands = useMemo(() => {
-    const values = new Set<string>();
-    classes.forEach((item) => {
-      const band = normalizeAgeBand(item.ageBand);
-      if (band) values.add(band);
-    });
-    trainingTemplates.forEach((template) => {
-      template.ageBands.forEach((band) => {
-        const normalized = normalizeAgeBand(band);
-        if (normalized) values.add(normalized);
-      });
-    });
-    return sortAgeBandList(Array.from(values));
-  }, [classes]);
 
   const isTemplateEditorDirty = useMemo(() => {
     if (!templateEditorSnapshot) return false;
@@ -1241,10 +858,11 @@ export default function TrainingList() {
               getTrainingPlans(),
               loadTrainingPlanWorkspaceLibrary(workspaceDraftKey),
             ]),
-          { hasSelectedClass: classId ? 1 : 0 }
+          { screen: "training" }
         );
         if (!alive) return;
         setClasses(classList);
+        setClassCatalogKey(workspaceDraftKey);
         setItems([...localPlans, ...plans.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
         void measureAsync(
           "screen.training.load.templates",
@@ -1257,7 +875,7 @@ export default function TrainingList() {
             setTemplateItems(templatesDb);
             setHiddenTemplates(hidden);
           },
-          { hasSelectedClass: classId ? 1 : 0 }
+          { screen: "training" }
         );
       } catch (error) {
         if (!alive) return;
@@ -1275,11 +893,12 @@ export default function TrainingList() {
     return () => {
       alive = false;
     };
-  }, [classId, workspaceDraftKey]);
+  }, [workspaceDraftKey]);
 
   useEffect(() => {
     if (
       Platform.OS !== "web" ||
+      Boolean(incomingWorkspaceEntry) ||
       !workspaceDraftHydrated ||
       restoredWorkspaceDraft ||
       selectedPlan ||
@@ -1305,6 +924,7 @@ export default function TrainingList() {
     targetClassId,
     targetDate,
     workspaceDraftHydrated,
+    incomingWorkspaceEntry,
   ]);
 
   useEffect(() => {
@@ -1323,7 +943,6 @@ export default function TrainingList() {
     };
   }, [setTemplateEditorKeyboardHeight]);
 
-
   const tagCounts = useMemo(() => {
     const source = items;
     const map: Record<string, number> = {};
@@ -1336,536 +955,9 @@ export default function TrainingList() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [items]);
 
-  const savedPlanClassOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    items.forEach((plan) => {
-      counts.set(plan.classId, (counts.get(plan.classId) ?? 0) + 1);
-    });
-
-    const labelCounts = new Map<string, number>();
-    Array.from(counts.keys()).forEach((id) => {
-      const label = classById.get(id)?.name ?? "Turma";
-      labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
-    });
-
-    return Array.from(counts.entries())
-      .map(([id, count]) => {
-        const classItem = classById.get(id);
-        const baseLabel = classItem?.name ?? "Turma";
-        const hasDuplicateLabel = (labelCounts.get(baseLabel) ?? 0) > 1;
-        return {
-          id,
-          count,
-          label:
-            hasDuplicateLabel && classItem?.startTime
-              ? `${baseLabel} · ${classItem.startTime}`
-              : baseLabel,
-          detail: [classItem?.unit, classItem?.ageBand, classItem?.startTime]
-            .filter(Boolean)
-            .join(" · "),
-        };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [classById, items]);
-
-  const filteredItems = useMemo(() => {
-    const query = normalizeSearchValue(savedPlanSearch);
-
-    return items.filter((plan) => {
-      if (savedPlanClassFilter !== "__all__" && plan.classId !== savedPlanClassFilter) {
-        return false;
-      }
-
-      if (!query) return true;
-
-      const classItem = classById.get(plan.classId);
-      const counts = getTrainingPlanBlockCounts(plan);
-      const searchText = normalizeSearchValue(
-        [
-          plan.title,
-          plan.tags?.join(" "),
-          classItem?.name,
-          classItem?.unit,
-          classItem?.ageBand,
-          classItem?.startTime,
-          classItem?.endTime,
-          formatDate(plan.createdAt),
-          plan.applyDate ? formatShortDate(plan.applyDate) : "",
-          plan.applyDays?.length ? formatWeekdays(plan.applyDays) : "",
-          `aquecimento ${counts.warmup}`,
-          `principal ${counts.main}`,
-          `volta ${counts.cooldown}`,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      );
-
-      return searchText.includes(query);
-    });
-  }, [classById, items, savedPlanClassFilter, savedPlanSearch]);
-
-  const groupedSavedPlans = useMemo(() => {
-    const getPlanDateTime = (plan: TrainingPlan) => {
-      if (plan.applyDate) {
-        const startTime = classStartTimeById[plan.classId];
-        if (
-          startTime &&
-          /^\d{4}-\d{2}-\d{2}$/.test(plan.applyDate)
-        ) {
-          const dated = new Date(`${plan.applyDate}T${startTime}:00`);
-          if (!Number.isNaN(dated.getTime())) return dated;
-        }
-        const applied = new Date(plan.applyDate);
-        if (!Number.isNaN(applied.getTime())) return applied;
-      }
-      const created = new Date(plan.createdAt);
-      return Number.isNaN(created.getTime()) ? new Date(0) : created;
-    };
-
-    const entries = filteredItems
-      .map((plan) => ({ plan, date: getPlanDateTime(plan) }))
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-    const groups: {
-      key: string;
-      label: string;
-      items: TrainingPlan[];
-      start: Date;
-    }[] = [];
-    const map = new Map<string, (typeof groups)[number]>();
-
-    entries.forEach(({ plan, date }) => {
-      const start = getWeekStart(date);
-      const key = start.toISOString().slice(0, 10);
-      let group = map.get(key);
-      if (!group) {
-        const end = getWeekEnd(start);
-        group = {
-          key,
-          label: `${formatShortDateValue(start)} - ${formatShortDateValue(end)}`,
-          items: [],
-          start,
-        };
-        map.set(key, group);
-        groups.push(group);
-      }
-      group.items.push(plan);
-    });
-
-    return groups;
-  }, [classStartTimeById, filteredItems]);
-
   const getClassName = useCallback(
     (id: string) => classById.get(id)?.name ?? "Turma",
     [classById]
-  );
-
-  const TemplateRow = useMemo(
-    () =>
-      memo(function TemplateRowItem({
-        template,
-        onRename,
-        onUse,
-        onOpenEditor,
-      }: {
-        template: (typeof templates)[number];
-        onRename: (id: string, title: string) => void;
-        onUse: (template: (typeof templates)[number]) => void;
-        onOpenEditor: (template: (typeof templates)[number]) => void;
-      }) {
-        return (
-          <View style={{ gap: 6 }}>
-            <View
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Pressable
-                onLongPress={() => onOpenEditor(template)}
-                delayLongPress={250}
-              >
-                <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
-                  {template.title}
-                </Text>
-                <Text style={{ color: colors.muted, marginTop: 2, fontSize: 12 }}>
-                  {"Tags: " + template.tags.join(", ")}
-                </Text>
-                <Text style={{ color: colors.muted, marginTop: 2, fontSize: 10 }}>
-                  {template.source === "built"
-                     ? "Fonte: Instituto Compartilhar e CMV (Volei Veilig)"
-                    : "Fonte: Modelo criado"}
-                </Text>
-              </Pressable>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                <Pressable
-                  onPress={() => onUse(template)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 8,
-                    borderRadius: 12,
-                    backgroundColor: colors.primaryBg,
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                    Usar modelo
-                  </Text>
-                </Pressable>
-                { template.source === "custom" ? (
-                  <Pressable
-                    onPress={() => onRename(template.id, template.title)}
-                    style={{
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                      borderRadius: 12,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                      Renomear
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              { renameTemplateId === template.id ? (
-                <View style={{ gap: 8, marginTop: 10 }}>
-                  <TextInput
-                    placeholder="Novo nome"
-                    value={renameTemplateText}
-                    onChangeText={setRenameTemplateText}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      padding: 8,
-                      borderRadius: 10,
-                      backgroundColor: colors.inputBg,
-                    }}
-                  />
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      gap: 6,
-                      padding: 6,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <Pressable
-                      onPress={async () => {
-                        if (!renameTemplateText.trim()) return;
-                        await updateTrainingTemplate({
-                          id: template.id,
-                          title: renameTemplateText.trim(),
-                          ageBand: template.ageBands[0] ?? templateAgeBand ?? "08-09",
-                          tags: template.tags ?? [],
-                          warmup: template.warmup ?? [],
-                          main: template.main ?? [],
-                          cooldown: template.cooldown ?? [],
-                          warmupTime: template.warmupTime ?? "",
-                          mainTime: template.mainTime ?? "",
-                          cooldownTime: template.cooldownTime ?? "",
-                          createdAt: template.createdAt,
-                        });
-                        setTemplateItems((current) =>
-                          current.map((item) =>
-                            item.id === template.id
-                              ? { ...item, title: renameTemplateText.trim() }
-                              : item
-                          )
-                        );
-                        setRenameTemplateId(null);
-                        setRenameTemplateText("");
-                      }}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 6,
-                        borderRadius: 8,
-                        backgroundColor: colors.primaryBg,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text style={{ color: colors.primaryText, fontWeight: "700", fontSize: 12 }}>
-                        Salvar nome
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => {
-                        setRenameTemplateId(null);
-                        setRenameTemplateText("");
-                      }}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 6,
-                        borderRadius: 8,
-                        backgroundColor: colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700", fontSize: 12 }}>
-                        Cancelar
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
-            </View>
-          </View>
-        );
-      }),
-    [colors.border, colors.card, colors.inputBg, colors.muted, colors.primaryBg, colors.primaryText, colors.secondaryBg, colors.text, renameTemplateId, renameTemplateText, setRenameTemplateId, setRenameTemplateText, templateAgeBand]
-  );
-
-  const savedPlanCardWidth = responsiveLayout.supportsDenseGrid
-    ? "32%"
-    : responsiveLayout.supportsSplitView
-      ? "49%"
-      : "100%";
-
-  const PlanRow = useMemo(
-    () =>
-      memo(function PlanRowItem({
-        plan,
-        onOpenActions,
-        onApply,
-        onView,
-      }: {
-        plan: TrainingPlan;
-        onOpenActions: (plan: TrainingPlan) => void;
-        onApply: (plan: TrainingPlan) => void;
-        onView: (plan: TrainingPlan) => void;
-      }) {
-        const classItem = classById.get(plan.classId);
-        const displayTitle = getSavedPlanDisplayTitle(plan);
-        const activityCount = getTrainingPlanTotalActivityCount(plan);
-        const appliedInfo = getTrainingPlanAppliedInfo(plan);
-        const classLabel = formatTrainingPlanDisplayText(getClassName(plan.classId));
-        const unitLabel = formatTrainingPlanDisplayText(classItem?.unit ?? "");
-        const ageBandText = classItem?.ageBand ?? "";
-        const showAgeBand =
-          Boolean(ageBandText) &&
-          !normalizeSearchValue(classLabel).includes(normalizeSearchValue(ageBandText));
-        const scheduleText = [
-          classItem?.startTime && classItem?.endTime
-            ? `${classItem.startTime}-${classItem.endTime}`
-            : "",
-          showAgeBand ? ageBandText : "",
-        ]
-          .filter(Boolean)
-          .join(" · ");
-        const cardWidth = savedPlanCardWidth;
-        const contextLine = [classLabel, scheduleText].filter(Boolean).join(" · ");
-        const dateLine = appliedInfo.dateText;
-
-        return (
-          <View
-            style={{
-              width: cardWidth as any,
-              gap: 12,
-              padding: 14,
-              borderRadius: 16,
-              backgroundColor: colors.inputBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-              minHeight: 164,
-              justifyContent: "space-between",
-            }}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Abrir ${displayTitle}`}
-              onPress={() => onView(plan)}
-              onLongPress={() => onOpenActions(plan)}
-              delayLongPress={250}
-              style={{
-                gap: 9,
-                borderRadius: 14,
-                cursor: Platform.OS === "web" ? "pointer" : undefined,
-              } as any}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text
-                  style={{
-                    flex: 1,
-                    color: colors.muted,
-                    fontSize: 11,
-                    fontWeight: "800",
-                  }}
-                  numberOfLines={1}
-                >
-                  {unitLabel || "Plano salvo"}
-                </Text>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: 5,
-                    paddingHorizontal: 10,
-                    borderRadius: 999,
-                    backgroundColor: appliedInfo.isApplied ? colors.successBg : colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: appliedInfo.isApplied ? colors.successBorder : colors.border,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: appliedInfo.isApplied ? colors.successText : colors.muted,
-                      fontSize: 11,
-                      fontWeight: "800",
-                    }}
-                  >
-                    {appliedInfo.statusLabel}
-                  </Text>
-                </View>
-              </View>
-              <Text
-                style={{ fontSize: 18, fontWeight: "900", color: colors.text, lineHeight: 23 }}
-                numberOfLines={2}
-              >
-                {displayTitle}
-              </Text>
-              <Text style={{ color: colors.secondaryText, fontSize: 12 }} numberOfLines={1}>
-                {contextLine || "Sem turma vinculada"}
-              </Text>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 7,
-                  flexWrap: "wrap",
-                }}
-              >
-                {dateLine ? (
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 5,
-                      paddingHorizontal: 8,
-                      paddingVertical: 5,
-                      borderRadius: 999,
-                      backgroundColor: colors.secondaryBg,
-                    }}
-                  >
-                    <GoAtletaIcon name="calendar" size={13} color={colors.muted} />
-                    <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                      {appliedInfo.isApplied ? `Aplicado ${dateLine}` : dateLine}
-                    </Text>
-                  </View>
-                ) : null}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 5,
-                    paddingHorizontal: 8,
-                    paddingVertical: 5,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <GoAtletaIcon name="time" size={13} color={colors.muted} />
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                    Criado {formatDate(plan.createdAt)}
-                  </Text>
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 5,
-                    paddingHorizontal: 8,
-                    paddingVertical: 5,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                  }}
-                >
-                  <GoAtletaIcon name="list" size={13} color={colors.muted} />
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: "700" }}>
-                    {activityCount} {activityCount === 1 ? "atividade" : "atividades"}
-                  </Text>
-                </View>
-              </View>
-            </Pressable>
-
-            <View
-              style={{
-                flexDirection: "row",
-                gap: 8,
-              }}
-            >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${appliedInfo.applyButtonLabel} ${displayTitle}`}
-                onPress={(event: any) => {
-                  event?.stopPropagation?.();
-                  onApply(plan);
-                }}
-                style={{
-                  flex: 1,
-                  minHeight: 44,
-                  paddingVertical: 8,
-                  borderRadius: 14,
-                  backgroundColor: colors.primaryBg,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexDirection: "row",
-                  gap: 6,
-                }}
-              >
-                <GoAtletaIcon name="success" size={16} color={colors.primaryText} />
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: colors.primaryText,
-                    fontWeight: "800",
-                    fontSize: appliedInfo.isApplied ? 12 : 13,
-                  }}
-                >
-                  {appliedInfo.applyButtonLabel}
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Ver ${displayTitle}`}
-                onPress={(event: any) => {
-                  event?.stopPropagation?.();
-                  onView(plan);
-                }}
-                style={{
-                  flex: 1,
-                  minHeight: 44,
-                  paddingVertical: 8,
-                  borderRadius: 14,
-                  backgroundColor: colors.secondaryBg,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexDirection: "row",
-                  gap: 6,
-                }}
-              >
-                <GoAtletaIcon name="view" size={16} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 13 }}>
-                  Ver
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        );
-      }),
-    [classById, colors, getClassName, savedPlanCardWidth]
   );
 
   const currentTags = useMemo(() => {
@@ -1955,56 +1047,6 @@ export default function TrainingList() {
     return result.slice(0, 8);
   }, [cooldown, currentTags, main, methodologyTranslation, tagCounts, title, warmup]);
 
-  const autoPlanningTags = (() => {
-    const structuredActivities = planningBlockKeys.flatMap(
-      (blockKey) => planningActivities[blockKey] ?? []
-    );
-    const structuredText = structuredActivities
-      .flatMap((activity) => [
-        activity.name,
-        activity.description,
-        activity.objective,
-        activity.coachFocus,
-        activity.primarySkill,
-        activity.catalog?.source === "goAtletaCatalog" ? "catalogo-goatleta" : "",
-        activity.execution ? "video-link" : "",
-      ])
-      .filter(Boolean)
-      .join(" ");
-    const planText = [title, warmup, main, cooldown, structuredText].join(" ");
-    const keywordCounts = extractKeywords(planText).reduce<Record<string, number>>(
-      (acc, token) => {
-        acc[token] = (acc[token] ?? 0) + 1;
-        return acc;
-      },
-      {}
-    );
-    const topKeywords = Object.entries(keywordCounts)
-      .sort((a, b) => b[1] - a[1])
-      .map(([token]) => token);
-    const activityTags = structuredActivities.flatMap((activity) => [
-      activity.primarySkill ?? "",
-      activity.stage ?? "",
-      activity.catalog?.source === "goAtletaCatalog" ? "catalogo-goatleta" : "",
-      activity.execution ? "video-link" : "",
-    ]);
-    const classTags = [
-      selectedClassForMethodology?.ageBand
-        ? `idade-${selectedClassForMethodology.ageBand}`
-        : "",
-    ];
-    return compactTagList(
-      [
-        ...activityTags,
-        ...(methodologyTranslation?.tags ?? []),
-        ...classTags,
-        ...topKeywords,
-        ...tagsText.split(","),
-      ],
-      8
-    );
-  })();
-
   const templateSuggestions = useMemo(() => {
     const templateText = [
       templateTitle,
@@ -2072,31 +1114,13 @@ export default function TrainingList() {
     templateWarmup,
   ]);
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     const [data, localPlans] = await Promise.all([
       getTrainingPlans(),
       loadTrainingPlanWorkspaceLibrary(workspaceDraftKey),
     ]);
     setItems([...localPlans, ...data.filter((plan) => !localPlans.some((draft) => draft.id === plan.id))]);
-  };
-
-  const planningBlockText = useMemo(
-    () => ({ warmup, main, cooldown }),
-    [cooldown, main, warmup]
-  );
-
-  const setPlanningBlockText = useCallback(
-    (blockKey: TrainingPlanBlockKey, value: string) => {
-      if (blockKey === "warmup") {
-        setWarmup(value);
-      } else if (blockKey === "main") {
-        setMain(value);
-      } else {
-        setCooldown(value);
-      }
-    },
-    [setCooldown, setMain, setWarmup]
-  );
+  }, [workspaceDraftKey]);
 
   const hydrateFormFromPlanningActivities = useCallback(
     (activities: PlanningBlockActivities) => {
@@ -2122,21 +1146,13 @@ export default function TrainingList() {
     [setCooldown, setMain, setWarmup]
   );
 
-  const resetPlanningActivities = useCallback(() => {
-    setPlanningActivities(createEmptyPlanningBlockActivities());
-  }, []);
 
   const applyLegacyActivitiesToPlanningForm = useCallback(
     (lines: Record<TrainingPlanBlockKey, string[]>) => {
-      const nextActivities = buildPlanningActivitiesFromLegacyLines(lines);
-      setPlanningActivities(nextActivities);
+      setPlanningActivities(buildPlanningActivitiesFromLegacyLines(lines));
     },
-    []
+    [],
   );
-
-  const handleOpenPlanningLibrary = useCallback((blockKey: TrainingPlanBlockKey) => {
-    setPlanningLibraryBlockKey(blockKey);
-  }, []);
 
   const handleAddPlannedActivity = useCallback(
     async (blockKey: TrainingPlanBlockKey, activity: TrainingPlanActivity) => {
@@ -2201,53 +1217,6 @@ export default function TrainingList() {
     [handleAddPlannedActivity, planningLibraryBlockKey]
   );
 
-  const handleRemovePlanningActivity = useCallback(
-    async (blockKey: TrainingPlanBlockKey, index: number) => {
-      const activity = planningActivities[blockKey]?.[index];
-      if (!activity) return;
-      const shouldRemove = await confirmDialog({
-        title: "Remover atividade?",
-        message: `Deseja remover "${activity.name || "esta atividade"}" deste bloco?`,
-        confirmLabel: "Remover",
-        cancelLabel: "Cancelar",
-        tone: "danger",
-        onConfirm: () => {},
-      });
-      if (!shouldRemove) return;
-      setPlanningActivities((current) => removePlanningActivityFromBlock(current, blockKey, index));
-      showSaveToast({
-        message: "Atividade removida do bloco.",
-        variant: "info",
-      });
-    },
-    [confirmDialog, planningActivities, showSaveToast]
-  );
-
-  const handleRemoveManualPlanningLine = useCallback(
-    async (blockKey: TrainingPlanBlockKey, index: number) => {
-      const rows = toManualRows(planningBlockText[blockKey] ?? "");
-      const label = rows[index]?.trim();
-      if (label) {
-        const shouldRemove = await confirmDialog({
-          title: "Remover atividade manual?",
-          message: `Deseja remover "${label}" deste bloco?`,
-          confirmLabel: "Remover",
-          cancelLabel: "Cancelar",
-          tone: "danger",
-          onConfirm: () => {},
-        });
-        if (!shouldRemove) return;
-      }
-      const nextRows = rows.filter((_, rowIndex) => rowIndex !== index);
-      setPlanningBlockText(blockKey, nextRows.length ? nextRows.join("\n") : "");
-      showSaveToast({
-        message: "Atividade removida.",
-        variant: "info",
-      });
-    },
-    [confirmDialog, planningBlockText, setPlanningBlockText, showSaveToast]
-  );
-
   const planningDetailActivity = useMemo(() => {
     if (!planningDetailSelection) return null;
     return (
@@ -2256,13 +1225,6 @@ export default function TrainingList() {
       ] ?? null
     );
   }, [planningActivities, planningDetailSelection]);
-
-  const handleViewPlanningActivity = useCallback(
-    (blockKey: TrainingPlanBlockKey, index: number) => {
-      setPlanningDetailSelection({ blockKey, index });
-    },
-    []
-  );
 
   const handleClosePlanningDetail = useCallback(() => {
     setPlanningDetailSelection(null);
@@ -2329,7 +1291,7 @@ export default function TrainingList() {
     () => ({ color: colors.muted, fontSize: 13, lineHeight: 20 }),
     [colors.muted]
   );
-  const planningBlockListStyle = useMemo(() => ({ gap: 10 }), []);
+
   const planningDetailCardStyle = useMemo(
     () => ({
       width: "92%" as const,
@@ -2385,168 +1347,10 @@ export default function TrainingList() {
     () => ({ fontSize: 12, fontWeight: "700" as const, color: colors.text }),
     [colors.text]
   );
-  const planningShellStyle = useMemo(
-    () => ({
-      width: "100%" as const,
-      maxWidth: responsiveLayout.supportsDenseGrid ? 1280 : 1180,
-      alignSelf: "center" as const,
-    }),
-    [responsiveLayout.supportsDenseGrid]
-  );
-  const isPlanningCompact = responsiveLayout.isMobile;
+
   // Web e native compartilham a mesma experiência de planejamento. A composição
   // interna muda conforme a capacidade da plataforma, mas a rota não pode voltar
   // a escolher o formulário legado por Platform.OS.
-  const usesUnifiedPlanningWorkspace = true;
-
-  const savePlan = async () => {
-    if (!classId) {
-      showSaveToast({
-        message: "Selecione a turma",
-        variant: "warning",
-      });
-      return;
-    }
-    const nowIso = new Date().toISOString();
-    const latestVersionPlan = await getLatestTrainingPlanByClass(classId);
-    const latestVersion = latestVersionPlan?.version ?? 0;
-    const basePlan = editingId
-      ? items.find((item) => item.id === editingId) ?? null
-      : null;
-    const pedagogy = buildPedagogyBlocksFromPlanningForm({
-      currentPedagogy: basePlan?.pedagogy,
-      blockActivities: planningActivities,
-      blockText: planningBlockText,
-    });
-    const syncedLegacyLines = syncLegacyLinesFromBlocks({
-      warmup: pedagogy.blocks?.warmup?.activities ?? [],
-      main: pedagogy.blocks?.main?.activities ?? [],
-      cooldown: pedagogy.blocks?.cooldown?.activities ?? [],
-    });
-    const plan: TrainingPlan = createTrainingPlanVersion({
-      classId,
-      version: Math.max(basePlan?.version ?? 0, latestVersion) + 1,
-      origin: editingId ? "edited_auto" : "manual",
-      draft: {
-        title: title.trim() || "Planejamento sem título",
-        tags: autoPlanningTags,
-        warmup: syncedLegacyLines.warmup,
-        main: syncedLegacyLines.main,
-        cooldown: syncedLegacyLines.cooldown,
-        warmupTime: warmupTime.trim(),
-        mainTime: mainTime.trim(),
-        cooldownTime: cooldownTime.trim(),
-      },
-      applyDays: basePlan?.applyDays ?? [],
-      applyDate: basePlan?.applyDate ?? "",
-      inputHash: basePlan?.inputHash,
-      nowIso,
-      idPrefix: "t",
-      status: "final",
-      finalizedAt: nowIso,
-      pedagogy,
-    });
-
-    if (editingId) {
-      await measure("saveTrainingPlanVersion", () => saveTrainingPlan(plan));
-    } else {
-      await measure("saveTrainingPlan", () => saveTrainingPlan(plan));
-      setLastCreatedPlanId(plan.id);
-      setLastCreatedClassId(classId);
-    }
-    logAction(editingId ? "Editar plano de aula" : "Salvar plano de aula", {
-      planId: plan.id,
-      classId,
-    });
-    void notifyTrainingSaved({ inboxScope: notificationInboxScope });
-    showSaveToast({
-      message: "Plano salvo com sucesso.",
-      actionLabel: "Ver plano",
-      variant: "success",
-      onAction: () => {
-        setSelectedPlan(plan);
-        setShowSavedPlans(true);
-      },
-    });
-    setTitle("");
-    setTagsText("");
-    setWarmup("");
-    setMain("");
-    setCooldown("");
-    setWarmupTime("");
-    setMainTime("");
-    setCooldownTime("");
-    setFormUnit("");
-    resetPlanningActivities();
-    setEditingId(null);
-    setEditingCreatedAt(null);
-    setFormMode("plan");
-    closeFormPickers();
-    await reload();
-  };
-
-  const saveTemplate = async () => {
-    const band =
-      selectedClass?.ageBand ||
-      templateAgeBand ||
-      (classes[0] ? classes[0].ageBand : "");
-    if (!band) {
-      Alert.alert("Selecione uma turma", "Defina a faixa etária primeiro.");
-      return;
-    }
-    const nowIso = new Date().toISOString();
-    const template: TrainingTemplate = {
-      id: editingTemplateId ?? createTrainingTemplateId(),
-      title: title.trim() || "Modelo sem título",
-      ageBand: band,
-      tags: autoPlanningTags,
-      warmup: toLines(warmup),
-      main: toLines(main),
-      cooldown: toLines(cooldown),
-      warmupTime: warmupTime.trim(),
-      mainTime: mainTime.trim(),
-      cooldownTime: cooldownTime.trim(),
-      createdAt: editingTemplateCreatedAt ?? nowIso,
-    };
-    if (editingTemplateId) {
-      await measure("updateTrainingTemplate", () =>
-        updateTrainingTemplate(template)
-      );
-    } else {
-      await measure("saveTrainingTemplate", () => saveTrainingTemplate(template));
-    }
-    logAction(editingTemplateId ? "Editar modelo" : "Salvar modelo", {
-      templateId: template.id,
-      ageBand: template.ageBand,
-    });
-    if (editingTemplateId) {
-      setTemplateItems((current) =>
-        current.map((item) =>
-          item.id === template.id
-            ? {
-                ...item,
-                title: template.title,
-                ageBand: template.ageBand,
-                tags: template.tags,
-                warmup: template.warmup,
-                main: template.main,
-                cooldown: template.cooldown,
-                warmupTime: template.warmupTime,
-                mainTime: template.mainTime,
-                cooldownTime: template.cooldownTime,
-              }
-            : item
-        )
-      );
-    } else {
-      setTemplateItems((current) => [template, ...current.filter((item) => item.id !== template.id)]);
-    }
-    setEditingTemplateId(null);
-    setEditingTemplateCreatedAt(null);
-    setFormMode("plan");
-    closeFormPickers();
-    showSaveToast({ message: "Modelo salvo com sucesso.", variant: "success" });
-  };
 
   const onEdit = (plan: TrainingPlan) => {
     const hydratedActivities = hydratePlanningActivitiesFromPlan(plan);
@@ -2760,40 +1564,45 @@ export default function TrainingList() {
       });
       return;
     }
-    const nowIso = new Date().toISOString();
-    const latestVersionPlan = await getLatestTrainingPlanByClass(applyClassId);
-    const latestVersion = latestVersionPlan?.version ?? 0;
-    const updated: TrainingPlan = createTrainingPlanVersion({
-      classId: applyClassId,
-      version: Math.max(applyPlan.version ?? 0, latestVersion) + 1,
-      origin: "manual",
-      draft: {
-        title: applyPlan.title,
-        tags: applyPlan.tags,
-        warmup: applyPlan.warmup,
-        main: applyPlan.main,
-        cooldown: applyPlan.cooldown,
-        warmupTime: applyPlan.warmupTime,
-        mainTime: applyPlan.mainTime,
-        cooldownTime: applyPlan.cooldownTime,
-      },
-      applyDays,
-      applyDate,
-      nowIso,
-      idPrefix: "t",
-      status: "final",
-      finalizedAt: nowIso,
-      inputHash: applyPlan.inputHash,
-      pedagogy: applyPlan.pedagogy,
-    });
-    await measure("applyTrainingPlan", () => saveTrainingPlan(updated));
-    await createCalendarEvent(updated);
-    if (wasUnassignedDraft) {
-      await Promise.all([
-        clearWorkspaceDraft(),
-        removeTrainingPlanWorkspaceLibraryItem(workspaceDraftKey, applyPlan.id),
-      ]);
-    }
+    try {
+      const result = await planApplication.run({
+        onPendingChange: setIsApplyingPlan,
+        buildPlan: async () => {
+          const nowIso = new Date().toISOString();
+          const latestVersionPlan = await getLatestTrainingPlanByClass(applyClassId);
+          return createTrainingPlanVersion({
+            classId: applyClassId,
+            version: Math.max(applyPlan.version ?? 0, latestVersionPlan?.version ?? 0) + 1,
+            origin: "manual",
+            draft: applyPlan,
+            applyDays,
+            applyDate,
+            nowIso,
+            idPrefix: "t",
+            status: "final",
+            finalizedAt: nowIso,
+            inputHash: applyPlan.inputHash,
+            pedagogy: applyPlan.pedagogy,
+          });
+        },
+        savePlan: (plan) => measure("applyTrainingPlan", () => saveTrainingPlan(plan)),
+        createCalendarEvent,
+      });
+      if (!result) return;
+      const updated = result.plan;
+      closeApplyModal();
+      setApplyPlan(updated);
+      let followUpFailed = result.calendarFailed;
+      if (wasUnassignedDraft) {
+        try {
+          await Promise.all([
+            clearWorkspaceDraft(),
+            removeTrainingPlanWorkspaceLibraryItem(workspaceDraftKey, applyPlan.id),
+          ]);
+        } catch {
+          followUpFailed = true;
+        }
+      }
     setSelectedPlan(updated);
     setClassId(updated.classId);
     setWorkspaceHasUnsavedChanges(false);
@@ -2803,7 +1612,7 @@ export default function TrainingList() {
       updated,
       ...current.filter((item) => item.id !== applyPlan.id && item.id !== updated.id),
     ]);
-    await reload();
+    await reload().catch(() => { followUpFailed = true; });
     closeApplyModal();
     logAction("Aplicar planejamento", {
       planId: updated.id,
@@ -2812,9 +1621,11 @@ export default function TrainingList() {
       daysCount: applyDays.length,
     });
     showSaveToast({
-      message: "Planejamento aplicado com sucesso.",
+      message: followUpFailed
+        ? "Plano aplicado. Não foi possível concluir a atualização do calendário ou dos dados locais."
+        : "Planejamento aplicado com sucesso.",
       actionLabel: "Ver aula do dia",
-      variant: "success",
+      variant: followUpFailed ? "warning" : "success",
       onAction: () => {
         router.push({
           pathname: "/class/[id]/session",
@@ -2822,34 +1633,10 @@ export default function TrainingList() {
         });
       },
     });
-  };
-
-  useCallback((template: {
-    id: string;
-    title: string;
-    tags: string[];
-    warmup: string[];
-    main: string[];
-    cooldown: string[];
-    warmupTime: string;
-    mainTime: string;
-    cooldownTime: string;
-    ageBands: string[];
-    source: "built" | "custom";
-    createdAt: string;
-  }) => {
-    setEditingTemplateId(template.source === "custom" ? template.id : null);
-    setEditingTemplateCreatedAt(
-      template.source === "custom" ? template.createdAt : null
-    );
-    setFormMode("template");
-    if (template.ageBands.length) {
-      setTemplateAgeBand(template.ageBands[0]);
+    } catch (error) {
+      showSaveToast({ error, message: "Não foi possível aplicar o planejamento.", variant: "error" });
     }
-    const band = template.ageBands[0] || templateAgeBand;
-    setClassId(band ? pickClassIdForAgeBand(band) : "");
-    applyTemplate(template);
-  }, [applyTemplate, pickClassIdForAgeBand, templateAgeBand]);
+  };
 
   const deleteTemplateItem = (id: string, source: "built" | "custom") => {
     confirm({
@@ -2915,49 +1702,6 @@ export default function TrainingList() {
     showSaveToast({ message: "Modelo duplicado com sucesso.", variant: "success" });
   };
 
-  const openTemplateEditor = useCallback((template: {
-    id: string;
-    title: string;
-    tags: string[];
-    warmup: string[];
-    main: string[];
-    cooldown: string[];
-    warmupTime: string;
-    mainTime: string;
-    cooldownTime: string;
-    ageBands: string[];
-    source: "built" | "custom";
-    createdAt: string;
-  }) => {
-    const isCustom = template.source === "custom";
-    const nextAge = template.ageBands[0] || templateAgeBand;
-    setTemplateEditorId(isCustom ? template.id : null);
-    setTemplateEditorCreatedAt(isCustom ? template.createdAt : null);
-    setTemplateEditorSource(isCustom ? "custom" : "built");
-    setTemplateEditorTemplateId(template.id);
-    setTemplateTitle(template.title);
-    setTemplateAge(nextAge);
-    setTemplateTags(template.tags.join(", "));
-    setTemplateWarmup(template.warmup.join("\n"));
-    setTemplateMain(template.main.join("\n"));
-    setTemplateCooldown(template.cooldown.join("\n"));
-    setTemplateWarmupTime(template.warmupTime);
-    setTemplateMainTime(template.mainTime);
-    setTemplateCooldownTime(template.cooldownTime);
-    setTemplateEditorSnapshot({
-      title: template.title,
-      age: nextAge,
-      tags: template.tags.join(", "),
-      warmup: template.warmup.join("\n"),
-      main: template.main.join("\n"),
-      cooldown: template.cooldown.join("\n"),
-      warmupTime: template.warmupTime,
-      mainTime: template.mainTime,
-      cooldownTime: template.cooldownTime,
-    });
-    setShowTemplateEditor(true);
-  }, [setShowTemplateEditor, setTemplateAge, setTemplateCooldown, setTemplateCooldownTime, setTemplateEditorCreatedAt, setTemplateEditorId, setTemplateEditorSource, setTemplateEditorTemplateId, setTemplateMain, setTemplateMainTime, setTemplateTags, setTemplateTitle, setTemplateWarmup, setTemplateWarmupTime, templateAgeBand]);
-
   const closeTemplateEditor = () => {
     setShowTemplateEditor(false);
     setShowTemplateCloseConfirm(false);
@@ -2977,19 +1721,9 @@ export default function TrainingList() {
     setShowApplyClassPicker((prev) => (target === "class" ? !prev : false));
   };
 
-  const toggleFormPicker = (target: "unit" | "class") => {
-    setShowFormUnitPicker((prev) => (target === "unit" ? !prev : false));
-    setShowFormClassPicker((prev) => (target === "class" ? !prev : false));
-  };
-
   const closeApplyPickers = () => {
     setShowApplyUnitPicker(false);
     setShowApplyClassPicker(false);
-  };
-
-  const closeFormPickers = () => {
-    setShowFormUnitPicker(false);
-    setShowFormClassPicker(false);
   };
 
   const syncApplyPickerLayouts = useCallback(() => {
@@ -3031,6 +1765,7 @@ export default function TrainingList() {
   }, [showFormClassPicker, showFormUnitPicker]);
 
   const closeApplyModal = () => {
+    if (planApplication.isPending()) return;
     setShowApplyModal(false);
     setShowApplyCloseConfirm(false);
     setApplyPlan(null);
@@ -3040,6 +1775,7 @@ export default function TrainingList() {
   };
 
   const requestCloseApplyModal = () => {
+    if (planApplication.isPending()) return;
     if (isApplyDirty) {
       setShowApplyCloseConfirm(true);
       return;
@@ -3118,12 +1854,6 @@ export default function TrainingList() {
     setTemplateEditorSource("custom");
   };
 
-
-
-
-
-
-
   const savePlanAsTemplate = async (plan: TrainingPlan) => {
     const band =
       classes.find((item) => item.id === plan.classId)?.ageBand ||
@@ -3151,18 +1881,6 @@ export default function TrainingList() {
     Alert.alert("Modelo salvo", "Agora ele aparece em Modelos prontos.");
   };
 
-
-
-  const hasFormContent = Boolean(
-    title.trim() ||
-      warmup.trim() ||
-      main.trim() ||
-      cooldown.trim() ||
-      warmupTime.trim() ||
-      mainTime.trim() ||
-      cooldownTime.trim()
-  );
-
   const hasTemplateContent = Boolean(
     templateTitle.trim() ||
       templateTags.trim() ||
@@ -3173,21 +1891,6 @@ export default function TrainingList() {
       templateMainTime.trim() ||
       templateCooldownTime.trim()
   );
-  const canSaveCurrentForm = formMode === "template" ? hasTemplateContent : hasFormContent;
-  const saveButtonLabel =
-    formMode === "template"
-      ? "Salvar modelo"
-      : editingId
-        ? "Salvar alterações"
-        : "Salvar planejamento";
-  const handleSavePress = () => {
-    if (formMode === "template") {
-      void saveTemplate();
-      return;
-    }
-
-    void savePlan();
-  };
 
   const scrollToForm = useCallback(() => {
     setTimeout(() => {
@@ -3222,148 +1925,6 @@ export default function TrainingList() {
       setClassId(targetClassId);
     });
   }, [targetClassId]);
-
-  useEffect(() => {
-    if (!openForm) return;
-    const shouldApplyAiDraft = parsedAiDraft && aiDraftRaw !== handledAiDraftRaw;
-    setEditingId(null);
-    setEditingCreatedAt(null);
-    Promise.resolve().then(() => {
-      setEditingTemplateId(null);
-    });
-    Promise.resolve().then(() => {
-      setEditingTemplateCreatedAt(null);
-    });
-    Promise.resolve().then(() => {
-      setFormMode("plan");
-    });
-    if (shouldApplyAiDraft && parsedAiDraft) {
-      Promise.resolve().then(() => {
-        setPlanningTab("formulario");
-      });
-      setTitle(parsedAiDraft.title || "Planejamento assistido");
-      setTagsText(parsedAiDraft.tags.join(", "));
-      setWarmup(parsedAiDraft.warmup.join("\n"));
-      setMain(parsedAiDraft.main.join("\n"));
-      setCooldown(parsedAiDraft.cooldown.join("\n"));
-      Promise.resolve().then(() => {
-        applyLegacyActivitiesToPlanningForm({
-                warmup: parsedAiDraft.warmup,
-                main: parsedAiDraft.main,
-                cooldown: parsedAiDraft.cooldown,
-              });
-      });
-      setWarmupTime(parsedAiDraft.warmupTime);
-      setMainTime(parsedAiDraft.mainTime);
-      setCooldownTime(parsedAiDraft.cooldownTime);
-      Promise.resolve().then(() => {
-        setHandledAiDraftRaw(aiDraftRaw);
-      });
-      showSaveToast("Planejamento assistido aplicado ao formulário.");
-    } else {
-      setTitle("");
-      setTagsText("");
-      setWarmup("");
-      setMain("");
-      setCooldown("");
-      Promise.resolve().then(() => {
-        resetPlanningActivities();
-      });
-      setWarmupTime("");
-      setMainTime("");
-      setCooldownTime("");
-    }
-    Promise.resolve().then(() => {
-      setScrollRequested(true);
-    });
-    if (targetClassId) {
-      Promise.resolve().then(() => {
-        setClassId(targetClassId);
-      });
-      const targetClass = classes.find((item) => item.id === targetClassId);
-      setFormUnit(unitLabel(targetClass?.unit ?? ""));
-    }
-  }, [openForm, parsedAiDraft, aiDraftRaw, handledAiDraftRaw, targetClassId, classes, showSaveToast, applyLegacyActivitiesToPlanningForm, resetPlanningActivities, setEditingId, setEditingCreatedAt, setTitle, setTagsText, setWarmup, setMain, setCooldown, setWarmupTime, setMainTime, setCooldownTime, setFormUnit]);
-
-  useEffect(() => {
-    if (!pendingPlanCreate) return;
-    setEditingId(null);
-    setEditingCreatedAt(null);
-    Promise.resolve().then(() => {
-      setEditingTemplateId(null);
-    });
-    Promise.resolve().then(() => {
-      setEditingTemplateCreatedAt(null);
-    });
-    Promise.resolve().then(() => {
-      setFormMode("plan");
-    });
-    setTitle("");
-    setTagsText("");
-    setWarmup("");
-    setMain("");
-    setCooldown("");
-    Promise.resolve().then(() => {
-      resetPlanningActivities();
-    });
-    setWarmupTime("");
-    setMainTime("");
-    setCooldownTime("");
-    Promise.resolve().then(() => {
-      setScrollRequested(true);
-    });
-    if (pendingPlanCreate.classId) {
-      Promise.resolve().then(() => {
-        setClassId(pendingPlanCreate.classId);
-      });
-      const pendingClass = classes.find(
-        (item) => item.id === pendingPlanCreate.classId
-      );
-      setFormUnit(unitLabel(pendingClass?.unit ?? ""));
-    }
-    setPendingPlanCreate(null);
-  }, [pendingPlanCreate, setPendingPlanCreate, classes, resetPlanningActivities, setEditingId, setEditingCreatedAt, setTitle, setTagsText, setWarmup, setMain, setCooldown, setWarmupTime, setMainTime, setCooldownTime, setFormUnit]);
-
-  const handleRenameTemplate = useCallback((id: string, title: string) => {
-    setRenameTemplateId(id);
-    setRenameTemplateText(title);
-  }, [setRenameTemplateId, setRenameTemplateText]);
-
-  const handleUseTemplate = useCallback(
-    (template: (typeof templates)[number]) => {
-      applyTemplateAsPlan(template);
-    },
-    [applyTemplateAsPlan]
-  );
-
-  const handleOpenTemplateEditor = useCallback(
-    (template: (typeof templates)[number]) => {
-      openTemplateEditor(template);
-    },
-    [openTemplateEditor]
-  );
-
-  const renderTemplateItem = useCallback(
-    ({ item }: { item: (typeof templates)[number] }) => (
-      <TemplateRow
-        template={item}
-        onRename={handleRenameTemplate}
-        onUse={handleUseTemplate}
-        onOpenEditor={handleOpenTemplateEditor}
-      />
-    ),
-    [TemplateRow, handleOpenTemplateEditor, handleRenameTemplate, handleUseTemplate]
-  );
-
-  const templateKeyExtractor = useCallback(
-    (item: (typeof templates)[number]) => String(item.id),
-    []
-  );
-
-  const handleOpenPlanActions = useCallback((plan: TrainingPlan) => {
-    setActionPlan(plan);
-    setShowPlanActions(true);
-  }, []);
 
   const handleApplyPlan = useCallback((plan: TrainingPlan) => {
     setApplyPlan(plan);
@@ -3514,8 +2075,34 @@ export default function TrainingList() {
       await reload();
       return nextPlan;
     },
-    [clearWorkspaceDraft, flushWorkspaceDraft, notificationInboxScope, queueWorkspaceDraft, showSaveToast, targetDate, workspaceDraftKey, workspaceDraftLessonDate]
+    [clearWorkspaceDraft, flushWorkspaceDraft, notificationInboxScope, queueWorkspaceDraft, reload, showSaveToast, targetDate, workspaceDraftKey, workspaceDraftLessonDate]
   );
+
+  useEffect(() => {
+    if (!incomingWorkspaceEntry || handledWorkspaceEntryKey === incomingWorkspaceEntry.key ||
+        !workspaceDraftHydrated || restoredWorkspaceDraft || !workspaceDraftKey || classCatalogKey !== workspaceDraftKey) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled) return;
+      setHandledWorkspaceEntryKey(incomingWorkspaceEntry.key);
+      void confirmWorkspaceReplacement(() => {
+        const targetClass = classes.find((item) => item.id === incomingWorkspaceEntry.classId) ?? null;
+        const lessonDate = incomingWorkspaceEntry.date || formatShortDateValue(new Date());
+        const nextPlan = incomingWorkspaceEntry.template
+          ? createAssistantWorkspacePlan(incomingWorkspaceEntry.template, targetClass, lessonDate)
+          : { ...createPlanningWorkspaceDraft(targetClass), applyDate: lessonDate };
+        setSelectedPlan(nextPlan);
+        setClassId(nextPlan.classId);
+        setWorkspaceDraftLessonDate(lessonDate);
+        setWorkspaceDraftRestored(Boolean(incomingWorkspaceEntry.template));
+        setWorkspaceHasUnsavedChanges(Boolean(incomingWorkspaceEntry.template));
+        queueWorkspaceDraft(nextPlan, lessonDate);
+        if (pendingPlanCreate) setPendingPlanCreate(null);
+        if (incomingWorkspaceEntry.template) showSaveToast({ message: "Plano aberto para revisão.", variant: "success" });
+      });
+    });
+    return () => { cancelled = true; };
+  }, [classCatalogKey, classes, confirmWorkspaceReplacement, handledWorkspaceEntryKey, incomingWorkspaceEntry, pendingPlanCreate, queueWorkspaceDraft, restoredWorkspaceDraft, setPendingPlanCreate, showSaveToast, workspaceDraftHydrated, workspaceDraftKey]);
 
   const handleImportWorkspacePlans = useCallback(
     async (drafts: TrainingPlan[]) => {
@@ -3598,23 +2185,6 @@ export default function TrainingList() {
     [queueWorkspaceDraft, workspaceLessonDate]
   );
 
-  const selectedPlanClassItem = selectedPlan
-    ? classById.get(selectedPlan.classId)
-    : undefined;
-  const selectedPlanScheduleText = selectedPlanClassItem
-    ? [
-        selectedPlanClassItem.startTime && selectedPlanClassItem.endTime
-          ? `${selectedPlanClassItem.startTime}-${selectedPlanClassItem.endTime}`
-          : "",
-        selectedPlanClassItem.ageBand,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : "";
-  const selectedPlanAppliedInfo = selectedPlan ? getTrainingPlanAppliedInfo(selectedPlan) : null;
-  const selectedPlanContextText = selectedPlan
-    ? [getClassName(selectedPlan.classId), selectedPlanScheduleText].filter(Boolean).join(" · ")
-    : "";
   const renderWorkspaceLibrary = (
     presentation: "rail" | "sheet",
     collapsed: boolean,
@@ -3649,7 +2219,7 @@ export default function TrainingList() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {usesUnifiedPlanningWorkspace ? (
+        {(
           <>
             <ScreenPageHeader
               title="Planejamento"
@@ -3938,685 +2508,6 @@ export default function TrainingList() {
               </View>
             </View>
           </>
-        ) : (
-          <>
-        <ScreenPageHeader
-          title="Planejamento"
-          onBack={() => navigateBackOrReplace({ router, fallback: scopedRoutes.home })}
-          contentStyle={[
-            planningShellStyle,
-            {
-              gap: isPlanningCompact ? 12 : 16,
-              paddingTop: isPlanningCompact ? 10 : 16,
-              paddingBottom: isPlanningCompact ? 0 : 2,
-            },
-          ]}
-        >
-          <AnimatedSegmentedTabs
-            tabs={PLANNING_TABS}
-            activeTab={planningTab}
-            onChange={setPlanningTab}
-            style={planningShellStyle}
-            itemMinHeight={40}
-            itemPaddingVertical={isPlanningCompact ? 7 : 10}
-            itemFontSize={isPlanningCompact ? 11 : 12}
-            itemGap={isPlanningCompact ? 4 : 6}
-          />
-        </ScreenPageHeader>
-
-        <ScrollView
-          ref={scrollRef}
-          style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{
-            paddingBottom: Math.max(
-              insets.bottom + (responsiveLayout.usesWorkspaceShell ? 32 : 112),
-              40
-            ),
-            gap: 12,
-            paddingHorizontal: isPlanningCompact ? 12 : 16,
-            paddingTop: 10,
-          }}
-          keyboardShouldPersistTaps="handled"
-          onScrollBeginDrag={() => {
-            closeFormPickers();
-            setShowTrainingFabMenu(false);
-          }}
-        >
-        {planningTab === "formulario" && (
-        <>
-          <View
-            ref={formContainerRef}
-            onLayout={(event) => {
-              setFormY(event.nativeEvent.layout.y);
-              syncFormPickerLayouts();
-            }}
-            style={[planningShellStyle, { gap: 10 }]}
-          >
-          <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: isPlanningCompact ? "column" : "row", gap: 10 }}>
-            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Unidade</Text>
-              <View ref={formUnitTriggerRef}>
-                <Pressable
-                  onPress={() => toggleFormPicker("unit")}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    paddingVertical: 10,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                    {formUnit === ALL_UNITS_VALUE
-                       ? "Todas as unidades"
-                      : formUnit || "Selecione uma unidade"}
-                  </Text>
-                  <GoAtletaIcon
-                    name="chevronDown"
-                    size={18}
-                    color={colors.muted}
-                    style={{
-                      transform: [
-                        { rotate: showFormUnitPicker ? "180deg" : "0deg" },
-                      ],
-                    }}
-                  />
-                </Pressable>
-              </View>
-            </View>
-            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Turma</Text>
-              <View ref={formClassTriggerRef}>
-                <Pressable
-                  onPress={() => toggleFormPicker("class")}
-                  style={{
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    paddingVertical: 10,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    backgroundColor: colors.background,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <View style={{ flex: 1, flexDirection: "row", gap: 8, alignItems: "center" }}>
-                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>
-                      {selectedFormClass?.name ?? "Selecione uma turma"}
-                    </Text>
-                    { selectedFormClass ? (
-                      <ClassGenderBadge gender={selectedFormClass.gender} />
-                    ) : null}
-                  </View>
-                    <GoAtletaIcon
-                      name="chevronDown"
-                      size={18}
-                      color={colors.muted}
-                      style={{
-                        transform: [
-                          { rotate: showFormClassPicker ? "180deg" : "0deg" },
-                        ],
-                      }}
-                    />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-          <AnchoredDropdown
-            visible={showFormUnitPickerContent}
-            layout={formUnitTriggerLayout}
-            container={formContainerWindow}
-            animationStyle={formUnitPickerAnimStyle}
-            zIndex={410}
-            maxHeight={220}
-            nestedScrollEnabled
-            scrollContentStyle={{ padding: 8, gap: 6 }}
-            onRequestClose={closeFormPickers}
-            interactiveRefs={[formUnitTriggerRef, formClassTriggerRef]}
-          >
-            {[
-              { label: "Selecione uma unidade", value: "" },
-              { label: "Todas as unidades", value: ALL_UNITS_VALUE },
-              ...unitOptions.map((unit) => ({ label: unit, value: unit })),
-            ].map((option) => {
-              const active = formUnit === option.value;
-              return (
-                <TrainingAnchoredDropdownOption
-                  key={option.value || "unit-empty"}
-                  active={active}
-                  onPress={() => {
-                    setClassId("");
-                    setFormUnit(option.value);
-                    closeFormPickers();
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: active ? colors.primaryText : colors.text,
-                      fontSize: 14,
-                      fontWeight: active ? "700" : "500",
-                    }}
-                  >
-                    {option.label}
-                  </Text>
-                </TrainingAnchoredDropdownOption>
-              );
-            })}
-          </AnchoredDropdown>
-          <AnchoredDropdown
-            visible={showFormClassPickerContent}
-            layout={formClassTriggerLayout}
-            container={formContainerWindow}
-            animationStyle={formClassPickerAnimStyle}
-            zIndex={410}
-            maxHeight={240}
-            nestedScrollEnabled
-            scrollContentStyle={{ padding: 8, gap: 6 }}
-            onRequestClose={closeFormPickers}
-            interactiveRefs={[formUnitTriggerRef, formClassTriggerRef]}
-          >
-            { classOptionsForForm.length ? (
-              classOptionsForForm.map((item) => {
-                const active = classId === item.id;
-                return (
-                  <TrainingAnchoredDropdownOption
-                    key={item.id}
-                    active={active}
-                    onPress={() => {
-                      setClassId(item.id);
-                      closeFormPickers();
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
-                      <Text
-                        style={{
-                          color: active ? colors.primaryText : colors.text,
-                          fontSize: 14,
-                          fontWeight: active ? "700" : "500",
-                        }}
-                      >
-                        {item.name}
-                      </Text>
-                      <ClassGenderBadge gender={item.gender} />
-                    </View>
-                  </TrainingAnchoredDropdownOption>
-                );
-              })
-            ) : (
-              <View style={{ padding: 10 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
-                  {formUnit ? "Nenhuma turma cadastrada." : "Selecione uma unidade."}
-                </Text>
-              </View>
-            )}
-          </AnchoredDropdown>
-
-          <TextInput
-            placeholder="Título do planejamento"
-            value={title}
-            onChangeText={setTitle}
-            placeholderTextColor={colors.placeholder}
-            style={{
-              borderWidth: 1,
-              borderColor: colors.border,
-              padding: 10,
-              borderRadius: 10,
-              backgroundColor: colors.inputBg,
-              color: colors.inputText,
-            }}
-          />
-          <View style={planningBlockListStyle}>
-            {planningBlockKeys.map((blockKey) => (
-              <PlanningBlockActivityCards
-                key={blockKey}
-                blockKey={blockKey}
-                activities={planningActivities[blockKey] ?? []}
-                manualText={planningBlockText[blockKey] ?? ""}
-                duration={
-                  blockKey === "warmup"
-                    ? warmupTime
-                    : blockKey === "main"
-                      ? mainTime
-                      : cooldownTime
-                }
-                durationPlaceholder={
-                  blockKey === "warmup" ? "10:00" : blockKey === "main" ? "01:30" : "05:00"
-                }
-                durationFormat={blockKey === "main" ? "clock" : "duration"}
-                onAdd={handleOpenPlanningLibrary}
-                onView={handleViewPlanningActivity}
-                onRemove={handleRemovePlanningActivity}
-                onManualTextChange={
-                  blockKey === "warmup"
-                    ? setWarmup
-                    : blockKey === "main"
-                      ? setMain
-                      : setCooldown
-                }
-                onManualLineRemove={handleRemoveManualPlanningLine}
-                onDurationChange={
-                  blockKey === "warmup"
-                    ? setWarmupTime
-                    : blockKey === "main"
-                      ? setMainTime
-                      : setCooldownTime
-                }
-              />
-            ))}
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={saveButtonLabel}
-            accessibilityState={{ disabled: !canSaveCurrentForm }}
-            onPress={handleSavePress}
-            disabled={!canSaveCurrentForm}
-            style={{
-              paddingVertical: 10,
-              borderRadius: 12,
-              backgroundColor: canSaveCurrentForm
-                ? colors.primaryBg
-                : colors.primaryDisabledBg,
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: canSaveCurrentForm ? colors.primaryText : colors.secondaryText,
-                fontWeight: "700",
-              }}
-            >
-              {saveButtonLabel}
-            </Text>
-          </Pressable>
-          {editingId ? (
-            <Button
-              label="Cancelar edicao"
-              variant="secondary"
-              onPress={() => {
-                setEditingId(null);
-                setEditingCreatedAt(null);
-                setEditingTemplateId(null);
-                setEditingTemplateCreatedAt(null);
-                setFormMode("plan");
-                setTitle("");
-                setTagsText("");
-                setWarmup("");
-                setMain("");
-                setCooldown("");
-                resetPlanningActivities();
-                setWarmupTime("");
-                setMainTime("");
-                setCooldownTime("");
-                setFormUnit("");
-                closeFormPickers();
-              }}
-            />
-              ) : null}
-            </View>
-        </View>
-        </>
-        )}
-
-        {planningTab === "modelos" && (
-        <View style={getSectionCardStyle(colors, "info")}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-            Modelos prontos
-          </Text>
-          <Text style={{ color: colors.muted }}>Escolha a faixa etária</Text>
-          <FadeHorizontalScroll
-            fadeColor={colors.card}
-            contentContainerStyle={{ flexDirection: "row", gap: 8 }}
-          >
-            <Pressable
-              onPress={() => setTemplateAgeBand("")}
-              style={{
-                paddingVertical: 4,
-                paddingHorizontal: 8,
-                borderRadius: 8,
-                backgroundColor: templateAgeBand
-                  ? colors.secondaryBg
-                  : colors.primaryBg,
-              }}
-            >
-              <Text
-                style={{
-                  color: templateAgeBand ? colors.text : colors.primaryText,
-                  fontSize: 12,
-                }}
-              >
-                Todas
-              </Text>
-            </Pressable>
-            {ageBands.map((band) => {
-              const active = band === templateAgeBand;
-              return (
-                <Pressable
-                  key={band}
-                  onPress={() => setTemplateAgeBand(band)}
-                  style={{
-                    paddingVertical: 4,
-                    paddingHorizontal: 8,
-                    borderRadius: 8,
-                    backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                  }}
-                >
-                  <Text style={{ color: active ? colors.primaryText : colors.text, fontSize: 12 }}>
-                    {band}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </FadeHorizontalScroll>
-          <Pressable
-            onPress={() => {
-              if (!templates.length) return;
-              animateLayout();
-              setShowTemplates((prev) => !prev);
-            }}
-            style={{
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 14,
-              backgroundColor: templates.length ? colors.primaryBg : colors.secondaryBg,
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: templates.length ? colors.primaryText : colors.text,
-                fontWeight: "700",
-                fontSize: 14,
-              }}
-            >
-              {showTemplates ? "Esconder modelos" : "Abrir modelos"} (
-              {templates.length})
-            </Text>
-          </Pressable>
-            { showTemplatesContent ? (
-              <Animated.View
-                style={templatesAnimStyle}
-              >
-                { templates.length ? (
-                  <>
-                    <Text style={{ color: colors.muted }}>Para a faixa selecionada</Text>
-                    <FlatList
-                      data={templates}
-                      keyExtractor={templateKeyExtractor}
-                      renderItem={renderTemplateItem}
-                      style={{ maxHeight: 280 }}
-                      contentContainerStyle={{ gap: 8 }}
-                      nestedScrollEnabled
-                      showsVerticalScrollIndicator
-                      initialNumToRender={12}
-                      windowSize={7}
-                      maxToRenderPerBatch={12}
-                      removeClippedSubviews={true}
-                    />
-                  </>
-                ) : (
-                  <Text style={{ color: colors.muted }}>
-                    Nenhum modelo para essa faixa etária.
-                  </Text>
-                )}
-              </Animated.View>
-          ) : null}
-        </View>
-        )}
-
-        {planningTab === "salvos" && (
-        <View
-          style={[
-            getSectionCardStyle(colors, "warning"),
-            { borderLeftWidth: 1, borderLeftColor: colors.border },
-          ]}
-        >
-          <Pressable
-            onPress={() => {
-              animateLayout();
-              setShowSavedPlans((prev) => !prev);
-            }}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              paddingVertical: 6,
-              paddingHorizontal: 8,
-              borderRadius: 12,
-              backgroundColor: colors.inputBg,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-                Planos salvos
-              </Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                {filteredItems.length}
-              </Text>
-            </View>
-            <GoAtletaIcon
-              name={showSavedPlans ? "chevronDown" : "chevronForward"}
-              size={18}
-              color={colors.muted}
-            />
-          </Pressable>
-
-          { showSavedPlansContent ? (
-            <Animated.View style={savedPlansAnimStyle}>
-              <View style={{ gap: 10, marginTop: 10, marginBottom: 14 }}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                    paddingHorizontal: 12,
-                    minHeight: 46,
-                    borderRadius: 14,
-                    backgroundColor: colors.inputBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <GoAtletaIcon name="search" size={18} color={colors.muted} />
-                  <TextInput
-                    value={savedPlanSearch}
-                    onChangeText={setSavedPlanSearch}
-                    placeholder="Buscar por turma, foco, unidade ou data..."
-                    placeholderTextColor={colors.muted}
-                    style={{
-                      flex: 1,
-                      color: colors.text,
-                      fontSize: 14,
-                      outlineStyle: "none" as any,
-                    }}
-                  />
-                  {savedPlanSearch.trim() ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Limpar busca"
-                      onPress={() => setSavedPlanSearch("")}
-                      style={[
-                        savedPlanFilterChipStyles.clearSearchButton,
-                        { backgroundColor: colors.secondaryBg },
-                      ]}
-                    >
-                      <GoAtletaIcon name="close" size={16} color={colors.text} />
-                    </Pressable>
-                  ) : null}
-                </View>
-
-                <FadeHorizontalScroll>
-                  <View style={savedPlanFilterChipStyles.row}>
-                    {[
-                      {
-                        id: "__all__",
-                        label: "Todas as turmas",
-                        count: items.length,
-                        detail: "",
-                      },
-                      ...savedPlanClassOptions,
-                    ].map((option) => {
-                      const active = savedPlanClassFilter === option.id;
-                      return (
-                        <Pressable
-                          key={option.id}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Filtrar ${option.label}`}
-                          onPress={() => setSavedPlanClassFilter(option.id)}
-                          style={[
-                            savedPlanFilterChipStyles.chip,
-                            {
-                              backgroundColor: active ? colors.primaryBg : colors.secondaryBg,
-                              borderColor: active ? "transparent" : colors.border,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              savedPlanFilterChipStyles.label,
-                              { color: active ? colors.primaryText : colors.text },
-                            ]}
-                          >
-                            {option.label}
-                          </Text>
-                          <Text
-                            style={[
-                              savedPlanFilterChipStyles.count,
-                              { color: active ? colors.primaryText : colors.muted },
-                            ]}
-                          >
-                            {option.count}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </FadeHorizontalScroll>
-              </View>
-              { groupedSavedPlans.length ? (
-                <View style={{ gap: 16 }}>
-                  {groupedSavedPlans.map((group) => (
-                    <View key={group.key} style={{ gap: 10 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                        <View
-                          style={{
-                            paddingVertical: 3,
-                            paddingHorizontal: 10,
-                            borderRadius: 999,
-                            backgroundColor: colors.inputBg,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: colors.text,
-                              fontWeight: "700",
-                              fontSize: 11,
-                            }}
-                          >
-                            Semana {group.label}
-                          </Text>
-                        </View>
-                        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>
-                          {group.items.length} {group.items.length === 1 ? "plano" : "planos"}
-                        </Text>
-                      </View>
-                      <View
-                        style={{
-                          flexDirection: responsiveLayout.usesWorkspaceShell ? "row" : "column",
-                          flexWrap: "wrap",
-                          gap: 12,
-                        }}
-                      >
-                        {group.items.map((plan) => (
-                          <PlanRow
-                            key={plan.id}
-                            plan={plan}
-                            onOpenActions={handleOpenPlanActions}
-                            onApply={handleApplyPlan}
-                            onView={handleViewPlan}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={{ color: colors.muted }}>
-                  Nenhum planejamento encontrado para os filtros selecionados.
-                </Text>
-              )}
-            </Animated.View>
-          ) : null}
-        </View>
-        )}
-      </ScrollView>
-
-      {planningTab !== "formulario" ? (
-        <>
-          <View
-            ref={trainingFabTriggerRef}
-            collapsable={false}
-            style={{
-              position: "absolute" as const,
-              right: trainingFabRight,
-              bottom: trainingFabBottom,
-              width: 56,
-              height: 56,
-              zIndex: 3200,
-            }}
-          >
-            <Pressable
-              onPress={handleTrainingFabPress}
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.primaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-                ...shadow.elevated,
-              }}
-            >
-              <Animated.View
-                style={{
-                  transform: [{ rotate: trainingFabRotate }, { scale: trainingFabScale }],
-                }}
-              >
-                <GoAtletaIcon name="add" size={24} color={colors.primaryText} />
-              </Animated.View>
-            </Pressable>
-          </View>
-
-          <TrainingFabMenu
-            visible={showTrainingFabMenu}
-            importBusy={false}
-            anchorRef={trainingFabTriggerRef}
-            layout={trainingFabMenuLayout}
-            onClose={() => setShowTrainingFabMenu(false)}
-            onCreatePress={() => {
-              setShowTrainingFabMenu(false);
-              setShowTrainingSessionCreate(true);
-            }}
-            onImportPress={() => {
-              setShowTrainingFabMenu(false);
-              setShowSpreadsheetImport(true);
-            }}
-          />
-        </>
-      ) : null}
-          </>
         )}
       </KeyboardAvoidingView>
       {showPlanningPdfImport && activeOrganization?.id ? (
@@ -4741,99 +2632,6 @@ export default function TrainingList() {
           />
         </Suspense>
       </ModalSheet>
-      {!usesUnifiedPlanningWorkspace && Platform.OS !== "web" && selectedPlan ? (
-        <ModalSheet
-          visible
-          onClose={() => setSelectedPlan(null)}
-          cardStyle={[selectedPlanCardStyle, { paddingBottom: 12 }]}
-          position="center"
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              gap: 14,
-              paddingBottom: 4,
-              borderBottomWidth: 1,
-              borderBottomColor: colors.border,
-            }}
-          >
-            <View style={{ flex: 1, gap: 6, paddingRight: 8 }}>
-              <Text
-                numberOfLines={2}
-                style={{ fontSize: 20, fontWeight: "900", color: colors.text, lineHeight: 26 }}
-              >
-                {getSavedPlanDisplayTitle(selectedPlan)}
-              </Text>
-              {selectedPlanContextText ? (
-                <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
-                  {selectedPlanContextText}
-                </Text>
-              ) : null}
-              {selectedPlanAppliedInfo ? (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  <View
-                    style={{
-                      paddingVertical: 5,
-                      paddingHorizontal: 9,
-                      borderRadius: 999,
-                      backgroundColor: selectedPlanAppliedInfo.isApplied
-                        ? colors.successBg
-                        : colors.secondaryBg,
-                      borderWidth: 1,
-                      borderColor: selectedPlanAppliedInfo.isApplied
-                        ? colors.successBorder
-                        : colors.border,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: selectedPlanAppliedInfo.isApplied
-                          ? colors.successText
-                          : colors.muted,
-                        fontSize: 11,
-                        fontWeight: "900",
-                      }}
-                    >
-                      {selectedPlanAppliedInfo.isApplied
-                        ? selectedPlanAppliedInfo.dateText
-                          ? `Aplicado ${selectedPlanAppliedInfo.dateText}`
-                          : "Aplicado"
-                        : "Rascunho"}
-                    </Text>
-                  </View>
-                </View>
-              ) : null}
-            </View>
-            <Pressable
-              onPress={() => {
-                setSelectedPlan(null);
-              }}
-              style={{
-                height: 32,
-                paddingHorizontal: 12,
-                borderRadius: 16,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
-              }}
-            >
-              <Text
-                style={{ fontSize: 12, fontWeight: "700", color: colors.text }}
-              >
-                Fechar
-              </Text>
-            </Pressable>
-          </View>
-        <Suspense
-          fallback={<SectionLoadingState />}
-        >
-            <TrainingPlanDetailsModalContent
-              plan={selectedPlan}
-            />
-          </Suspense>
-        </ModalSheet>
-      ) : null}
       <ModalSheet
         visible={showApplyModal}
         onClose={requestCloseApplyModal}
@@ -4854,6 +2652,7 @@ export default function TrainingList() {
           </Text>
           <Pressable
             onPress={requestCloseApplyModal}
+            disabled={isApplyingPlan}
             style={{
               height: 32,
               paddingHorizontal: 12,
@@ -4914,7 +2713,8 @@ export default function TrainingList() {
               setShowApplyCalendar,
               onApply: handleConfirmApply,
             }}
-            canApply={canApply}
+            canApply={canApply && !isApplyingPlan}
+            isApplying={isApplyingPlan}
           />
         </Suspense>
       </ModalSheet>

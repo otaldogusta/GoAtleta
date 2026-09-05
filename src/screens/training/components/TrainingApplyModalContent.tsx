@@ -58,6 +58,7 @@ type TrainingApplyModalContentProps = {
   };
   canApply: boolean;
   isAssigning?: boolean;
+  isApplying?: boolean;
 };
 
 function TrainingApplyModalContentBase({
@@ -71,12 +72,14 @@ function TrainingApplyModalContentBase({
   actions,
   canApply,
   isAssigning,
+  isApplying = false,
 }: TrainingApplyModalContentProps) {
   const { colors } = useAppTheme();
 
   return (
     <>
       <ScrollView
+        pointerEvents={isApplying ? "none" : "auto"}
         contentContainerStyle={{ gap: 10 }}
         style={{ maxHeight: "94%" }}
         keyboardShouldPersistTaps="handled"
@@ -314,7 +317,7 @@ function TrainingApplyModalContentBase({
             fontWeight: "700",
           }}
         >
-          {isAssigning ? "Adicionar a esta turma" : "Aplicar nesta turma"}
+          {isApplying ? "Aplicando..." : isAssigning ? "Adicionar a esta turma" : "Aplicar nesta turma"}
         </Text>
       </Pressable>
 

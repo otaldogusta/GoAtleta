@@ -690,14 +690,7 @@ export default function ClassStudentsScreen() {
   useEffect(() => {
     let cancelled = false;
     const studentsWithPhoto = students.filter((student) => Boolean(student.photoUrl));
-    if (!studentsWithPhoto.length) {
-      setStudentPhotoAccessUrls({});
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void Promise.all(
+void Promise.all(
       studentsWithPhoto.map(async (student) => {
         try {
           const url = await getStudentPhotoAccessUrl(student.photoUrl);

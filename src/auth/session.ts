@@ -53,6 +53,31 @@ let secureStoreModule: SecureStoreModule | null | undefined;
 
 let accessToken = "";
 let currentSession: AuthSession | null = null;
+let identityGeneration = 0;
+let persistenceTail: Promise<void> = Promise.resolve();
+const sessionListeners = new Set<(session: AuthSession | null) => void>();
+
+export type SessionIdentity = { userId: string; generation: number };
+export const getSessionIdentity = (): SessionIdentity => ({
+  userId: currentSession?.user.id ?? "",
+  generation: identityGeneration,
+});
+export const isSessionIdentityCurrent = (identity: SessionIdentity) =>
+  identity.userId === (currentSession?.user.id ?? "") &&
+  identity.generation === identityGeneration;
+export class SessionIdentityChangedError extends Error {
+  constructor() {
+    super("A sessão mudou. Abra novamente esta operação.");
+    this.name = "SessionIdentityChangedError";
+  }
+}
+export const assertSessionIdentity = (identity: SessionIdentity) => {
+  if (!isSessionIdentityCurrent(identity)) throw new SessionIdentityChangedError();
+};
+export const subscribeSession = (listener: (session: AuthSession | null) => void) => {
+  sessionListeners.add(listener);
+  return () => { sessionListeners.delete(listener); };
+};
 
 const fetchAuthWithTimeout = async (
   input: Parameters<typeof fetch>[0],
@@ -115,6 +140,7 @@ const deleteSecureSessionSafely = async (secureStore: SecureStoreModule | null) 
 };
 
 export const loadSession = async (): Promise<AuthSession | null> => {
+  const generationAtStart = identityGeneration;
   const secureStore = getSecureStore();
   // `auth_remember_me` used to decide whether native sessions survived a JS
   // reload. A mobile session must persist securely regardless of the separate
@@ -132,6 +158,7 @@ export const loadSession = async (): Promise<AuthSession | null> => {
       console.warn("[session] native session is unreadable; starting signed out", error);
       await AsyncStorage.removeItem(STORAGE_KEY);
       await deleteSecureSessionSafely(secureStore);
+      if (generationAtStart !== identityGeneration) return currentSession;
       accessToken = "";
       currentSession = null;
       return null;
@@ -154,7 +181,8 @@ export const loadSession = async (): Promise<AuthSession | null> => {
   } else {
     raw = (await AsyncStorage.getItem(STORAGE_KEY)) ?? "";
   }
-  if (!raw) return null;
+  if (generationAtStart !== identityGeneration) return currentSession;
+  if (!raw) return currentSession;
   try {
     const parsed = safeJsonParse<AuthSession | null>(raw, null);
     if (!parsed) {
@@ -191,7 +219,7 @@ export const loadValidatedSession = async (): Promise<AuthSession | null> => {
   let activeSession = currentSession ?? stored;
   if (mustRefresh) {
     const refreshResult = await refreshSession();
-    if (refreshResult.status === "revoked") return null;
+    if (refreshResult.status === "revoked") return currentSession;
     if (refreshResult.status === "transient") {
       // The cached JWT may be expired, but losing connectivity must not destroy
       // the local session. Online requests can retry refresh when connectivity
@@ -202,6 +230,7 @@ export const loadValidatedSession = async (): Promise<AuthSession | null> => {
   }
   const token = activeSession.access_token;
   if (!token) return activeSession;
+  const validationIdentity = getSessionIdentity();
 
   try {
     const response = await fetchAuthWithTimeout(
@@ -216,6 +245,7 @@ export const loadValidatedSession = async (): Promise<AuthSession | null> => {
       }
     );
 
+    if (!isSessionIdentityCurrent(validationIdentity)) return currentSession;
     if (response.status === 401 || response.status === 403) {
       await saveSession(null, false);
       return null;
@@ -223,6 +253,7 @@ export const loadValidatedSession = async (): Promise<AuthSession | null> => {
     if (!response.ok) return currentSession ?? activeSession;
 
     const text = await response.text();
+    if (!isSessionIdentityCurrent(validationIdentity)) return currentSession;
     const user = safeJsonParse<AuthSession["user"] | null>(text, null);
     if (!user?.id) return currentSession ?? activeSession;
 
@@ -253,32 +284,39 @@ export const saveSession = async (
   session: AuthSession | null,
   _legacyRememberPreference?: boolean,
 ) => {
-  const secureStore = getSecureStore();
-  if (!session) {
-    accessToken = "";
-    currentSession = null;
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    if (secureStore) {
-      await secureStore.deleteItemAsync(STORAGE_KEY);
+  if (!session || currentSession?.user.id !== session.user.id) identityGeneration += 1;
+  accessToken = session?.access_token ?? "";
+  currentSession = session;
+  sessionListeners.forEach((listener) => listener(session));
+  // Persistence is ordered even when a native keychain write is still running
+  // as logout/login arrives. The last requested session must win on disk too.
+  const persist = async () => {
+    const secureStore = getSecureStore();
+    if (!session) {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      if (secureStore) {
+        await secureStore.deleteItemAsync(STORAGE_KEY);
+      }
+      await AsyncStorage.removeItem(LEGACY_REMEMBER_KEY);
+      removeWebKey(STORAGE_KEY);
+      removeWebKey(LEGACY_REMEMBER_KEY);
+      return;
+    }
+    if (isNative && secureStore) {
+      await secureStore.setItemAsync(STORAGE_KEY, JSON.stringify(session), {
+        keychainAccessible: secureStore.WHEN_UNLOCKED,
+      });
+      await AsyncStorage.removeItem(STORAGE_KEY);
+    } else {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
     }
     await AsyncStorage.removeItem(LEGACY_REMEMBER_KEY);
-    removeWebKey(STORAGE_KEY);
+    setWebKey(STORAGE_KEY, JSON.stringify(session));
     removeWebKey(LEGACY_REMEMBER_KEY);
-    return;
-  }
-  accessToken = session.access_token ?? "";
-  currentSession = session;
-  if (isNative && secureStore) {
-    await secureStore.setItemAsync(STORAGE_KEY, JSON.stringify(session), {
-      keychainAccessible: secureStore.WHEN_UNLOCKED,
-    });
-    await AsyncStorage.removeItem(STORAGE_KEY);
-  } else {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-  }
-  await AsyncStorage.removeItem(LEGACY_REMEMBER_KEY);
-  setWebKey(STORAGE_KEY, JSON.stringify(session));
-  removeWebKey(LEGACY_REMEMBER_KEY);
+  };
+  const operation = persistenceTail.then(persist, persist);
+  persistenceTail = operation.catch(() => {});
+  await operation;
 };
 
 export const getSessionUserId = async (): Promise<string> => {
@@ -294,6 +332,8 @@ type RefreshSessionResult =
   | { status: "revoked"; session: null }
   | { status: "transient"; session: AuthSession };
 
+let refreshInFlight: { identity: SessionIdentity; promise: Promise<RefreshSessionResult> } | null = null;
+
 const refreshSession = async (): Promise<RefreshSessionResult> => {
   if (!currentSession) {
     const stored = await loadSession();
@@ -304,42 +344,56 @@ const refreshSession = async (): Promise<RefreshSessionResult> => {
     return { status: "revoked", session: null };
   }
   const cachedSession = currentSession!;
-  try {
-    const res = await fetchAuthWithTimeout(
-      SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/token?grant_type=refresh_token",
-      {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ refresh_token: currentSession!.refresh_token }),
-      }
-    );
-    const text = await res.text();
-    if (!res.ok) {
-      if (res.status === 400 || res.status === 401 || res.status === 403) {
-        await saveSession(null, false);
-        return { status: "revoked", session: null };
-      }
-      return { status: "transient", session: cachedSession };
-    }
-    const payload = safeJsonParse<AuthSession | null>(text, null);
-    if (!payload?.access_token) {
-      return { status: "transient", session: cachedSession };
-    }
-    const next: AuthSession = {
-      access_token: payload.access_token,
-      refresh_token: payload.refresh_token ?? currentSession!.refresh_token,
-      expires_at: payload.expires_at,
-      user: payload.user ?? currentSession!.user,
-    };
-    await saveSession(next);
-    return { status: "refreshed", session: next };
-  } catch {
-    return { status: "transient", session: cachedSession };
+  const identity = getSessionIdentity();
+  if (refreshInFlight && isSessionIdentityCurrent(refreshInFlight.identity)) {
+    return refreshInFlight.promise;
   }
+  const perform = async (): Promise<RefreshSessionResult> => {
+    try {
+      const res = await fetchAuthWithTimeout(
+        SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/token?grant_type=refresh_token",
+        {
+          method: "POST",
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ refresh_token: cachedSession.refresh_token }),
+        }
+      );
+      const text = await res.text();
+      if (!isSessionIdentityCurrent(identity)) return { status: "revoked", session: null };
+      if (!res.ok) {
+        if (res.status === 400 || res.status === 401 || res.status === 403) {
+          await saveSession(null, false);
+          return { status: "revoked", session: null };
+        }
+        return { status: "transient", session: cachedSession };
+      }
+      const payload = safeJsonParse<AuthSession | null>(text, null);
+      if (!payload?.access_token) {
+        return { status: "transient", session: cachedSession };
+      }
+      const next: AuthSession = {
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token ?? cachedSession.refresh_token,
+        expires_at: payload.expires_at,
+        user: payload.user ?? cachedSession.user,
+      };
+      if (next.user.id !== identity.userId) return { status: "revoked", session: null };
+      await saveSession(next);
+      if (!isSessionIdentityCurrent(identity)) return { status: "revoked", session: null };
+      return { status: "refreshed", session: next };
+    } catch {
+      if (!isSessionIdentityCurrent(identity)) return { status: "revoked", session: null };
+      return { status: "transient", session: cachedSession };
+    }
+  };
+  const promise = perform();
+  refreshInFlight = { identity, promise };
+  try { return await promise; }
+  finally { if (refreshInFlight?.promise === promise) refreshInFlight = null; }
 };
 
 export const forceRefreshAccessToken = async (): Promise<string> => {

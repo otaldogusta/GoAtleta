@@ -1,4 +1,5 @@
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createWebPortal } from "../../../ui/web-portal";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -389,9 +390,10 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   showCompactNavigationFab = true,
 }: ClassOperationsWorkspaceProps) {
   const insets = useSafeAreaInsets();
-  const lessonContentAnim = useRef(new Animated.Value(1)).current;
+  const [lessonContentAnim] = useState(() => new Animated.Value(1));
   const [internalCompactNavigationOpen, setInternalCompactNavigationOpen] = useState(false);
-  const isCompactNavigationOpen = compactNavigationOpen ?? internalCompactNavigationOpen;
+  const isCompactNavigationOpen = compact && (compactNavigationOpen ?? internalCompactNavigationOpen);
+  if (!compact && internalCompactNavigationOpen) setInternalCompactNavigationOpen(false);
   const setIsCompactNavigationOpen = useCallback((open: boolean) => {
     if (compactNavigationOpen === undefined) {
       setInternalCompactNavigationOpen(open);
@@ -418,10 +420,8 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   }, [isLoadingLessonPlan, lessonContentAnim, lessonDateLabel]);
 
   useEffect(() => {
-    if (!compact) {
-      setIsCompactNavigationOpen(false);
-    }
-  }, [compact, setIsCompactNavigationOpen]);
+    if (!compact && compactNavigationOpen) onCompactNavigationOpenChange?.(false);
+  }, [compact, compactNavigationOpen, onCompactNavigationOpenChange]);
 
   const actions = useMemo<Record<string, WorkspaceAction>>(() => ({
     overview: {
@@ -722,7 +722,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
 
   const compactNavigationFabPortal =
     Platform.OS === "web" && compactNavigationFab && typeof document !== "undefined"
-      ? require("react-dom").createPortal(compactNavigationFab, document.body)
+      ? createWebPortal(compactNavigationFab, document.body)
       : null;
 
   return (

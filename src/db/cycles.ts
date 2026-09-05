@@ -243,7 +243,7 @@ export async function archivePlanningCycle(
     throw new Error("Organização ativa não encontrada para encerrar o ciclo.");
   }
   const now = new Date().toISOString();
-  const updated = await supabasePatch<Array<{ id: string }>>(
+  const updated = await supabasePatch<{ id: string }[]>(
     `/planning_cycles?id=eq.${encodeURIComponent(
       cycleId,
     )}&organization_id=eq.${encodeURIComponent(scopedOrganizationId)}&select=id`,

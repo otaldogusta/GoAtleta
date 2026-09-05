@@ -423,7 +423,7 @@ export function useMonthlyPlans(classId: string, monthKey: string) {
       setIsLoading(false);
       setHasCompletedInitialLoad(true);
     }
-  }, [classId]);
+  }, [classId, monthKey]);
 
   useEffect(() => {
     Promise.resolve().then(() => {

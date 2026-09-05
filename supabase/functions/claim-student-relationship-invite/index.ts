@@ -32,6 +32,9 @@ const errorResponse = (
 });
 
 const mapClaimError = (message: string) => {
+  if (message.includes("ATHLETE_RELATIONSHIP_IMMUTABLE")) {
+    return { status: 409, code: "ATHLETE_RELATIONSHIP_IMMUTABLE", error: "Este convite não pode alterar a identidade de atleta desta conta." };
+  }
   if (message.includes("INVITE_EMAIL_MISMATCH")) {
     return { status: 403, code: "INVITE_EMAIL_MISMATCH", error: "Invite belongs to another email" };
   }

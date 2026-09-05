@@ -1,8 +1,9 @@
+import { scheduleEffectTask } from "../src/hooks/schedule-effect-task";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { Redirect, useFocusEffect, usePathname, useRouter } from "expo-router";
 import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, ScrollView, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Platform,  Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { type Signal } from "../src/ai/signal-engine";
@@ -825,8 +826,13 @@ function CoordinationScreenContent() {
 
   useEffect(() => {
     catalogRequestedOrgIdRef.current = null;
-    setCatalogAuditReport(null);
   }, [organizationId]);
+
+  const [catalogOrganizationId, setCatalogOrganizationId] = useState(organizationId);
+  if (catalogOrganizationId !== organizationId) {
+    setCatalogOrganizationId(organizationId);
+    setCatalogAuditReport(null);
+  }
 
   const loadCatalogAudit = useCallback(
     async () => {
@@ -863,7 +869,7 @@ function CoordinationScreenContent() {
 
   useEffect(() => {
     if (loading || loadedOrganizationId !== organizationId) return;
-    void loadCatalogAudit();
+    return scheduleEffectTask(() => { void loadCatalogAudit(); });
   }, [loadCatalogAudit, loadedOrganizationId, loading, organizationId]);
 
   const handleReprocessQueueNow = useCallback(async () => {

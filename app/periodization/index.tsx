@@ -76,7 +76,8 @@ import { useGeneratePlansMode } from "../../src/screens/periodization/hooks/useG
 import { useImportPlansFile } from "../../src/screens/periodization/hooks/useImportPlansFile";
 import { usePeriodizationCopilotActions } from "../../src/screens/periodization/hooks/usePeriodizationCopilotActions";
 import { usePickerLayout } from "../../src/screens/periodization/hooks/usePickerLayout";
-import { useSaveWeek } from "../../src/screens/periodization/hooks/useSaveWeek";
+import { buildEditedWeekPlan, type WeekPlanEdits } from "../../src/screens/periodization/application/edit-week-plan";
+import { saveWeekPlan } from "../../src/screens/periodization/application/save-week-plan";
 import { useWeekEditor } from "../../src/screens/periodization/hooks/useWeekEditor";
 import {
   getPlansWithinCycle,
@@ -89,9 +90,6 @@ import {
 import { buildRecentSessionSummary } from "../../src/screens/session/application/build-recent-session-summary";
 import { isRedeEsperancaEightToElevenClass } from "../../src/core/pedagogy/rede-esperanca-july-2026-alignment";
 import { shadow } from "../../src/theme/tokens";
-
-const DEFAULT_ANNUAL_CYCLE_LENGTH =
-  annualCycleOptions[annualCycleOptions.length - 1];
 
 import type {
   ClassCalendarException,
@@ -218,6 +216,9 @@ import { hasRenderableWeekPlans } from "../../src/screens/periodization/has-rend
 import { resolvePeriodizationScreenContext } from "../../src/screens/periodization/resolve-periodization-screen-context";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+
+const DEFAULT_ANNUAL_CYCLE_LENGTH =
+  annualCycleOptions[annualCycleOptions.length - 1];
 
 type WeekPlan = {
   week: number;
@@ -808,7 +809,6 @@ export default function PeriodizationScreen() {
     editWarmupProfile,
     editJumpTarget,
     editPSETarget,
-    editSource,
     isSavingWeek,
   } = editor;
 
@@ -860,7 +860,7 @@ export default function PeriodizationScreen() {
   } = pickers;
   const [isImportingPlansFile, setIsImportingPlansFile] = useState(false);
   const [showPlanFabMenu, setShowPlanFabMenu] = useState(false);
-  const planFabAnim = useRef(new Animated.Value(0)).current;
+  const [planFabAnim] = useState(() => new Animated.Value(0));
 
   const containerRef = useRef<View>(null);
 
@@ -2242,8 +2242,8 @@ export default function PeriodizationScreen() {
   const cyclePanelRowGap = 5;
 
   const cyclePanelScrollRef = useRef<ScrollView>(null);
-  const weekSwitchOpacity = useRef(new Animated.Value(1)).current;
-  const weekSwitchTranslateX = useRef(new Animated.Value(0)).current;
+  const [weekSwitchOpacity] = useState(() => new Animated.Value(1));
+  const [weekSwitchTranslateX] = useState(() => new Animated.Value(0));
   const weekSwitchDirectionRef = useRef<-1 | 0 | 1>(1);
   const shouldRealignCurrentWeekRef = useRef(false);
 
@@ -2258,7 +2258,7 @@ export default function PeriodizationScreen() {
 
   const macroSegments = useMemo(() => {
     if (!weekPlans.length)
-      return [] as Array<{ label: string; length: number }>;
+      return [] as { label: string; length: number }[];
     const lengths = splitSegmentLengths(weekPlans.length, 3);
     if (periodizationModel === "iniciacao") {
       return [
@@ -2307,14 +2307,14 @@ export default function PeriodizationScreen() {
 
   const mesoSegments = useMemo(() => {
     if (!weekPlans.length)
-      return [] as Array<{ label: string; length: number }>;
+      return [] as { label: string; length: number }[];
     const desiredBlocks = Math.min(
       4,
       Math.max(2, Math.ceil(weekPlans.length / 4)),
     );
     const baseSize = Math.floor(weekPlans.length / desiredBlocks);
     let remainder = weekPlans.length % desiredBlocks;
-    const segments: Array<{ label: string; length: number }> = [];
+    const segments: { label: string; length: number }[] = [];
 
     for (let i = 0; i < desiredBlocks; i += 1) {
       const extra = remainder > 0 ? 1 : 0;
@@ -2337,7 +2337,7 @@ export default function PeriodizationScreen() {
 
   const dominantBlockSegments = useMemo(() => {
     if (!weekPlans.length)
-      return [] as Array<{ label: string; length: number }>;
+      return [] as { label: string; length: number }[];
 
     if (periodizationModel === "iniciacao") {
       const lengths = splitSegmentLengths(weekPlans.length, 4);
@@ -2553,7 +2553,7 @@ export default function PeriodizationScreen() {
 
   const resolveSegmentLabelForWeek = useCallback(
     (
-      segments: Array<{ label: string; length: number }>,
+      segments: { label: string; length: number }[],
       weekNumber: number,
     ) => {
       let cursor = 0;
@@ -2764,141 +2764,71 @@ export default function PeriodizationScreen() {
     ],
   );
 
-  const buildManualPlanForWeek = useCallback(
-    (weekNumber: number, existing: ClassPlan | null): ClassPlan | null => {
-      if (!selectedClass) return null;
-
-      const autoPlan = isCompetitiveMode
-        ? buildCompetitiveClassPlan({
-            classId: selectedClass.id,
-            weekNumber,
-            cycleLength: effectiveCycleLength,
-            cycleStartDate: activeCycleStartDate,
-            daysOfWeek: selectedClass.daysOfWeek ?? [],
-            exceptions: calendarExceptions,
-            profile: competitiveProfile,
-            source: existing?.source === "MANUAL" ? "MANUAL" : "AUTO",
-            existingId: existing?.id,
-            existingCreatedAt: existing?.createdAt,
-          })
-        : buildClassPlan({
-            classId: selectedClass.id,
-            ageBand,
-            startDate: activeCycleStartDate,
-            weekNumber,
-            source: existing?.source === "MANUAL" ? "MANUAL" : "AUTO",
-            mvLevel: selectedClass.mvLevel,
-            cycleLength: effectiveCycleLength,
-            model: periodizationModel,
-            sessionsPerWeek: weeklySessions,
-            sport: sportProfile,
-          });
-
-      const nowIso = new Date().toISOString();
-
-      return {
-        id:
-          existing?.id ?? `cp_${selectedClass.id}_${Date.now()}_${weekNumber}`,
-
-        classId: selectedClass.id,
-
-        startDate: autoPlan.startDate,
-
+  const buildAutoPlanForWeek = useCallback(
+    (weekNumber: number, existing: ClassPlan | null = null) => {
+      return buildAutoWeekPlan({
+        selectedClass,
         weekNumber,
-
-        phase: editPhase.trim() || autoPlan.phase,
-
-        theme: editTheme.trim() || autoPlan.theme,
-
-        pedagogicalRule: editPedagogicalRule.trim(),
-
-        technicalFocus:
-          editTechnicalFocus.trim() ||
-          editTheme.trim() ||
-          autoPlan.technicalFocus,
-
-        physicalFocus: editPhysicalFocus.trim() || autoPlan.physicalFocus,
-
-        constraints: editConstraints.trim(),
-
-        mvFormat: editMvFormat.trim() || autoPlan.mvFormat,
-
-        warmupProfile: editWarmupProfile.trim() || autoPlan.warmupProfile,
-
-        jumpTarget: editJumpTarget.trim() || autoPlan.jumpTarget,
-
-        rpeTarget: editPSETarget.trim() || autoPlan.rpeTarget,
-
-        source: "MANUAL",
-
-        createdAt: existing?.createdAt ?? nowIso,
-
-        updatedAt: nowIso,
-      };
+        existing,
+        cycleLength: effectiveCycleLength,
+        activeCycleStartDate,
+        isCompetitiveMode,
+        calendarExceptions,
+        competitiveProfile,
+        ageBand,
+        periodizationModel,
+        weeklySessions,
+        sportProfile,
+        recentDailyLessonPlans,
+        recentSessionSummaries,
+        periodizationPolicy: activePeriodizationPolicy,
+        activeCycleId: activeCycle?.id,
+        policyVersion: activeCycle?.policyVersion,
+      });
     },
 
     [
       activeCycleStartDate,
-
+      activeCycle?.id,
+      activeCycle?.policyVersion,
       ageBand,
-
       calendarExceptions,
-
-      effectiveCycleLength,
-
       competitiveProfile,
-
-      editConstraints,
-
-      editJumpTarget,
-
-      editMvFormat,
-
-      editPSETarget,
-
-      editPedagogicalRule,
-
-      editPhase,
-
-      editPhysicalFocus,
-
-      editTechnicalFocus,
-
-      editTheme,
-
-      editWarmupProfile,
-
+      effectiveCycleLength,
       isCompetitiveMode,
-
       periodizationModel,
-
+      recentDailyLessonPlans,
+      recentSessionSummaries,
       sportProfile,
-
       selectedClass,
-
       weeklySessions,
+      activePeriodizationPolicy,
     ],
   );
 
-  const hasPlanChanges = useCallback(
-    (existing: ClassPlan | null, draft: ClassPlan) => {
-      if (!existing) return true;
+  const weekPlanEdits = useMemo<WeekPlanEdits>(() => ({
+    phase: editPhase,
+    theme: editTheme,
+    pedagogicalRule: editPedagogicalRule,
+    technicalFocus: editTechnicalFocus,
+    physicalFocus: editPhysicalFocus,
+    constraints: editConstraints,
+    mvFormat: editMvFormat,
+    warmupProfile: editWarmupProfile,
+    jumpTarget: editJumpTarget,
+    rpeTarget: editPSETarget,
+  }), [editPhase, editTheme, editPedagogicalRule, editTechnicalFocus,
+    editPhysicalFocus, editConstraints, editMvFormat, editWarmupProfile,
+    editJumpTarget, editPSETarget]);
 
-      return (
-        existing.phase !== draft.phase ||
-        existing.theme !== draft.theme ||
-        (existing.pedagogicalRule ?? "") !== (draft.pedagogicalRule ?? "") ||
-        existing.technicalFocus !== draft.technicalFocus ||
-        existing.physicalFocus !== draft.physicalFocus ||
-        existing.constraints !== draft.constraints ||
-        existing.mvFormat !== draft.mvFormat ||
-        existing.warmupProfile !== draft.warmupProfile ||
-        existing.jumpTarget !== draft.jumpTarget ||
-        existing.rpeTarget !== draft.rpeTarget
-      );
-    },
-
-    [],
+  const buildManualPlanForWeek = useCallback(
+    (weekNumber: number, existing: ClassPlan | null): ClassPlan | null => {
+      const basePlan = buildAutoPlanForWeek(weekNumber, existing);
+      if (!basePlan) return null;
+      return buildEditedWeekPlan({
+        basePlan, existing, cycleId: activeCycle?.id ?? "", edits: weekPlanEdits,
+      });
+    }, [activeCycle?.id, buildAutoPlanForWeek, weekPlanEdits],
   );
 
   const refreshPlans = useCallback(async () => {
@@ -2960,48 +2890,6 @@ export default function PeriodizationScreen() {
       .then(setPlanObservabilityHistory)
       .catch(() => {});
   }, [selectedClass?.id]);
-
-  const buildAutoPlanForWeek = useCallback(
-    (weekNumber: number, existing: ClassPlan | null = null) => {
-      return buildAutoWeekPlan({
-        selectedClass,
-        weekNumber,
-        existing,
-        cycleLength: effectiveCycleLength,
-        activeCycleStartDate,
-        isCompetitiveMode,
-        calendarExceptions,
-        competitiveProfile,
-        ageBand,
-        periodizationModel,
-        weeklySessions,
-        sportProfile,
-        recentDailyLessonPlans,
-        recentSessionSummaries,
-        periodizationPolicy: activePeriodizationPolicy,
-        activeCycleId: activeCycle?.id,
-        policyVersion: activeCycle?.policyVersion,
-      });
-    },
-
-    [
-      activeCycleStartDate,
-      activeCycle?.id,
-      activeCycle?.policyVersion,
-      ageBand,
-      calendarExceptions,
-      competitiveProfile,
-      effectiveCycleLength,
-      isCompetitiveMode,
-      periodizationModel,
-      recentDailyLessonPlans,
-      recentSessionSummaries,
-      sportProfile,
-      selectedClass,
-      weeklySessions,
-      activePeriodizationPolicy,
-    ],
-  );
 
   const weekEditorPlanReview = useMemo<WeeklyAutopilotPlanReview | null>(() => {
     if (!selectedClass || !periodizationKnowledgeSnapshot) return null;
@@ -3118,39 +3006,57 @@ export default function PeriodizationScreen() {
     visibleClassPlans,
   ]);
 
-  const { handleSaveWeek } = useSaveWeek({
-    selectedClass,
-    classPlans,
-    activeCycleId: activeCycle?.id ?? "",
-    editingPlanId,
-    editingWeek,
-    cycleLength: effectiveCycleLength,
-    activeCycleStartDate,
-    calendarExceptions,
-    competitiveProfile,
-    isCompetitiveMode,
-    editSource,
-    ageBand,
-    periodizationModel,
-    weeklySessions,
-    sportProfile,
-    editPhase,
-    editTheme,
-    editPedagogicalRule,
-    editTechnicalFocus,
-    editPhysicalFocus,
-    editConstraints,
-    editMvFormat,
-    editWarmupProfile,
-    editJumpTarget,
-    editPSETarget,
-    hasPlanChanges,
-    setEditSource,
-    setIsSavingWeek,
-    setShowWeekEditor,
-    setEditingPlanId,
-    setClassPlans,
-  });
+  const weekSaveInFlight = useRef(false);
+  const weekSaveScopeVersion = useRef(0);
+  useEffect(() => () => {
+    weekSaveScopeVersion.current += 1;
+  }, [selectedClass?.id, activeCycle?.id]);
+
+  const handleSaveWeek = useCallback(async () => {
+    if (!selectedClass || weekSaveInFlight.current) return;
+    const existing = editingPlanId
+      ? classPlans.find((plan) => plan.id === editingPlanId) ?? null
+      : null;
+    if (editingPlanId && !existing) {
+      Alert.alert("Periodização", "A semana mudou. Reabra o editor antes de salvar.");
+      return;
+    }
+    const plan = buildManualPlanForWeek(editingWeek, existing);
+    if (!plan) return;
+    const scopeVersion = weekSaveScopeVersion.current;
+    weekSaveInFlight.current = true;
+    setIsSavingWeek(true);
+    try {
+      const result = await saveWeekPlan({
+        scope: { classId: selectedClass.id, cycleId: activeCycle?.id ?? "" },
+        existing,
+        plan,
+      });
+      if (scopeVersion !== weekSaveScopeVersion.current) return;
+      if (result.status === "saved") {
+        setClassPlans((previous) => [...previous.filter((item) => item.id !== result.plan.id), result.plan]
+          .sort((left, right) => left.weekNumber - right.weekNumber));
+      }
+      setEditSource(result.plan.source);
+      setShowWeekEditor(false);
+      setEditingPlanId(null);
+      if (result.dailySyncFailed) {
+        Alert.alert("Semana salva", "Não foi possível atualizar o aviso de revisão dos planos diários.");
+      }
+    } catch (error) {
+      if (scopeVersion !== weekSaveScopeVersion.current) return;
+      Alert.alert("Não foi possível salvar", error instanceof Error ? error.message : "Tente novamente.");
+    } finally {
+      weekSaveInFlight.current = false;
+      setIsSavingWeek(false);
+    }
+  }, [selectedClass, activeCycle, classPlans, editingPlanId, editingWeek,
+    buildManualPlanForWeek, setIsSavingWeek, setClassPlans, setEditSource,
+    setShowWeekEditor, setEditingPlanId]);
+
+  const closeWeekEditor = useCallback(() => {
+    if (!weekSaveInFlight.current) setShowWeekEditor(false);
+  }, [setShowWeekEditor]);
 
   const handleSelectDay = useCallback((index: number) => {
     setSelectedDayIndex(index);
@@ -5363,7 +5269,7 @@ export default function PeriodizationScreen() {
 
       <WeekEditorModal
         visible={showWeekEditor}
-        onClose={() => setShowWeekEditor(false)}
+        onClose={closeWeekEditor}
         modalCardStyle={modalCardStyle}
         colors={colors}
         editingWeek={editingWeek}

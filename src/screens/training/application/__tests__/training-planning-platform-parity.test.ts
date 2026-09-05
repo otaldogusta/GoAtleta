@@ -28,8 +28,9 @@ const nativePdfPreview = readFileSync(
 
 describe("training planning platform parity", () => {
   it("keeps the unified planning workspace enabled independently of Platform.OS", () => {
-    expect(trainingRoute).toContain("const usesUnifiedPlanningWorkspace = true;");
-    expect(trainingRoute).toContain("{usesUnifiedPlanningWorkspace ? (");
+    expect(trainingRoute.match(/<ClassPlanPreviewModal/g)).toHaveLength(1);
+    expect(trainingRoute).toContain('presentation="workspace"');
+    expect(trainingRoute).not.toContain("usesUnifiedPlanningWorkspace");
     expect(trainingRoute).not.toContain('{Platform.OS === "web" ? (\n          <>\n            <ScreenPageHeader');
     expect(trainingRoute).toContain('message: "Não foi possível salvar o rascunho."');
   });

@@ -283,7 +283,7 @@ export async function getClasses(options: { organizationId?: string | null } = {
     Sentry.addBreadcrumb({ category: "sqlite-query", message: "getClasses", level: "info", data: { ms: Date.now() - startedAt, rows: mapped.length } });
     return mapped;
   } catch (error) {
-    if (isNetworkError(error) || isAuthError(error)) {
+    if (isNetworkError(error)) {
       const activeOrganizationId = options.organizationId ?? (await getActiveOrganizationId());
       const cached = await readCache<ClassGroup[]>(buildClassesCacheKey(activeOrganizationId ?? null));
       return cached ?? [];
@@ -323,7 +323,7 @@ export async function getClassById(id: string, options: { organizationId?: strin
       acwrLow: row.acwr_low ?? 0.8, acwrHigh: row.acwr_high ?? 1.3, createdAt: row.createdat ?? row.created_at ?? new Date().toISOString(),
     };
   } catch (error) {
-    if (isNetworkError(error) || isAuthError(error)) {
+    if (isNetworkError(error)) {
       const classes = await getClasses({ organizationId: activeOrganizationId });
       return classes.find((item) => item.id === id) ?? null;
     }

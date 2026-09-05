@@ -1,3 +1,5 @@
+import { markRender } from "../src/observability/perf";
+// perf-check: ignore-measure -- form initialized from the role provider; submission is an explicit user action.
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, View } from "react-native";
@@ -21,6 +23,7 @@ const formatIsoDate = (value: Date) => {
 };
 
 export default function AbsenceReportScreen() {
+  markRender("screen.absenceReport.render.root");
   const { colors } = useAppTheme();
   const { student } = useRole();
   const router = useRouter();

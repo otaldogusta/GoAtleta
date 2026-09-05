@@ -24,7 +24,7 @@ async function loadSessionModuleFor(os: "ios" | "android" | "web"): Promise<Sess
   jest.doMock("react-native", () => ({
     Platform: { OS: os },
   }));
-  return require("../session") as SessionModule;
+  return jest.requireActual<SessionModule>("../session");
 }
 
 describe("session storage", () => {
@@ -318,5 +318,41 @@ describe("session storage", () => {
 
     await expect(mod.loadValidatedSession()).resolves.toEqual(storedSession);
     expect(secureStoreMock.deleteItemAsync).not.toHaveBeenCalledWith("auth_session_v1");
+  });
+});
+
+describe("session refresh identity", () => {
+  const account = (id: string) => ({ access_token: `access-${id}`, refresh_token: `refresh-${id}`,
+    expires_at: 1, user: { id, email: `${id}@example.test` } });
+  afterEach(() => { jest.restoreAllMocks(); });
+
+  test.each([200, 401])("a late refresh response %i cannot overwrite or revoke a later login", async (status) => {
+    const mod = await loadSessionModuleFor("web");
+    let resolveResponse!: (value: Response) => void;
+    const response = new Promise<Response>((resolve) => { resolveResponse = resolve; });
+    jest.spyOn(global, "fetch").mockReturnValue(response);
+    await mod.saveSession(account("A"));
+    const refreshing = mod.forceRefreshAccessToken();
+    await mod.saveSession(null);
+    await mod.saveSession({ ...account("B"), expires_at: 9999999999 });
+    resolveResponse({ ok: status === 200, status, text: async () => JSON.stringify(account("A")) } as Response);
+    await expect(refreshing).resolves.toBe("");
+    await expect(mod.getSessionUserId()).resolves.toBe("B");
+    expect(mod.getAccessToken()).toBe("access-B");
+    expect(asyncStorageMock.setItem).toHaveBeenLastCalledWith("auth_session_v1", expect.stringContaining('"id":"B"'));
+  });
+
+  test("parallel token consumers share one refresh and logout invalidates it", async () => {
+    const mod = await loadSessionModuleFor("web");
+    let resolveResponse!: (value: Response) => void;
+    const response = new Promise<Response>((resolve) => { resolveResponse = resolve; });
+    const fetchMock = jest.spyOn(global, "fetch").mockReturnValue(response);
+    await mod.saveSession(account("A"));
+    const requests = [mod.getValidAccessToken(), mod.forceRefreshAccessToken(), mod.getValidAccessToken()];
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await mod.saveSession(null);
+    resolveResponse({ ok: true, status: 200, text: async () => JSON.stringify(account("A")) } as Response);
+    expect(await Promise.all(requests)).toEqual(["", "", ""]);
+    expect(mod.getAccessToken()).toBe("");
   });
 });

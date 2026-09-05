@@ -1,3 +1,4 @@
+import { scheduleEffectTask } from "../../hooks/schedule-effect-task";
 import {
   memo,
   useCallback,
@@ -376,30 +377,29 @@ export const StudentsListTab = memo(function StudentsListTab({
   );
   const hasSearch = studentsSearch.trim().length > 0;
 
+  const familySummaryRequest = useRef(0);
   const loadFamilyAccessSummaries = useCallback(async () => {
+    const request = ++familySummaryRequest.current;
     if (!canManageFamilyAccess || !organizationId) {
       setFamilyAccessByStudent(new Map());
       return;
     }
     try {
       const summaries = await listStudentFamilyAccessSummaries(organizationId);
+      if (request !== familySummaryRequest.current) return;
       setFamilyAccessByStudent(
         new Map(summaries.map((summary) => [summary.studentId, summary])),
       );
     } catch {
+      if (request !== familySummaryRequest.current) return;
       // The directory remains usable while a pending database migration is applied.
       setFamilyAccessByStudent(new Map());
     }
   }, [canManageFamilyAccess, organizationId]);
 
   useEffect(() => {
-    if (canManageFamilyAccess && studentsUnitFilter !== "Todas") {
-      setStudentsUnitFilter("Todas");
-    }
-  }, [canManageFamilyAccess, setStudentsUnitFilter, studentsUnitFilter]);
-
-  useEffect(() => {
-    void loadFamilyAccessSummaries();
+    const cancelStart = scheduleEffectTask(() => { void loadFamilyAccessSummaries(); });
+    return () => { cancelStart(); familySummaryRequest.current += 1; };
   }, [loadFamilyAccessSummaries]);
 
   const selectedFamilyStudent = useMemo(

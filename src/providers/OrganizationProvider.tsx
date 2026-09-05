@@ -19,9 +19,9 @@ import {
     type MemberPermissionKey,
 } from "../api/members";
 import { useAuth } from "../auth/auth";
-import { forceRefreshAccessToken } from "../auth/session";
+import { assertSessionIdentity, forceRefreshAccessToken, getSessionIdentity, isSessionIdentityCurrent } from "../auth/session";
 import { smartSync } from "../core/smart-sync";
-import { clearLocalReadCaches } from "../db/seed";
+import { clearLocalReadCaches } from "../db/client";
 import {
     getDevProfilePreview,
     setDevProfilePreview as persistDevProfilePreview,
@@ -187,6 +187,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const permissionsRequestKeyRef = useRef("");
   const lastFetchTokenRef = useRef("");
   const lastFetchErrorAtRef = useRef(0);
+  const organizationsUserIdRef = useRef<string | null>(null);
   const currentPermissionsRequestKey = session?.user?.id && activeOrganizationId
     ? `${session.user.id}:${activeOrganizationId}`
     : "";
@@ -303,12 +304,30 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const fetchOrganizations = useCallback(async () => {
     const accessToken = session?.access_token ?? "";
+    const identity = getSessionIdentity();
+    if (identity.userId !== (session?.user.id ?? "")) return;
+    const userChanged = organizationsUserIdRef.current !== identity.userId;
+    if (userChanged) {
+      const hadPreviousUser = organizationsUserIdRef.current !== null;
+      organizationsUserIdRef.current = identity.userId;
+      fetchControllerRef.current?.abort();
+      fetchControllerRef.current = null;
+      hasLoadedOrganizationsRef.current = false;
+      smartSync.handleOrganizationSwitch();
+      clearAiCache();
+      if (hadPreviousUser) await clearLocalReadCaches();
+      if (!isSessionIdentityCurrent(identity)) return;
+      setOrganizations([]);
+      setActiveOrgId(null);
+    }
     if (!accessToken) {
+      fetchControllerRef.current?.abort();
       fetchControllerRef.current = null;
       lastFetchTokenRef.current = "";
       lastFetchErrorAtRef.current = 0;
       setOrganizations([]);
       setActiveOrgId(null);
+      await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
       clearAiCache();
       hasLoadedOrganizationsRef.current = false;
       setIsLoading(false);
@@ -347,8 +366,10 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         });
 
       let res = await fetchOrganizationsWithToken(accessToken);
+      assertSessionIdentity(identity);
       if (res.status === 401) {
         const refreshed = await forceRefreshAccessToken();
+        assertSessionIdentity(identity);
         if (refreshed) {
           res = await fetchOrganizationsWithToken(refreshed);
         }
@@ -369,6 +390,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       }
 
       const data = (await res.json()) as Organization[];
+      assertSessionIdentity(identity);
       setOrganizations(data);
 
       if (data.length === 0) {
@@ -377,17 +399,22 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       } else if (data.length === 1) {
         const orgId = data[0].id;
         await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
+        assertSessionIdentity(identity);
         setActiveOrgId(orgId);
       } else {
         const saved = await AsyncStorage.getItem(ACTIVE_ORG_KEY);
+        assertSessionIdentity(identity);
         const validSaved = saved && data.some((o) => o.id === saved);
         const selected = validSaved ? saved : data[0].id;
         await AsyncStorage.setItem(ACTIVE_ORG_KEY, selected);
+        assertSessionIdentity(identity);
         setActiveOrgId(selected);
       }
       hasLoadedOrganizationsRef.current = true;
       lastFetchErrorAtRef.current = 0;
+      if (data.length > 0 && isSessionIdentityCurrent(identity)) smartSync.resumeSync();
     } catch (err) {
+      if (!isSessionIdentityCurrent(identity)) return;
       if (isRequestCancellationError(err)) {
         return;
       }
@@ -396,7 +423,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       } else {
         console.error("OrganizationProvider fetch error:", err);
       }
-      if (isFirstLoad) {
+      if (isFirstLoad && isSessionIdentityCurrent(identity)) {
         setOrganizations([]);
         setActiveOrgId(null);
       }
@@ -406,22 +433,25 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
       if (fetchControllerRef.current === controller) {
         fetchControllerRef.current = null;
       }
-      if (isFirstLoad) {
+      if (isFirstLoad && isSessionIdentityCurrent(identity)) {
         setIsLoading(false);
       }
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, session?.user]);
 
   const setActiveOrganizationId = useCallback(async (orgId: string | null) => {
     if (orgId === activeOrganizationId) return;
+    const identity = getSessionIdentity();
     smartSync.handleOrganizationSwitch();
     clearAiCache();
     await clearLocalReadCaches();
+    assertSessionIdentity(identity);
     if (orgId) {
       await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
     } else {
       await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
     }
+    assertSessionIdentity(identity);
     setActiveOrgId(orgId);
     smartSync.resumeSync();
   }, [activeOrganizationId]);

@@ -10,8 +10,8 @@ jest.mock("@sentry/react-native/metro", () => ({
 }));
 
 // The Metro config is CommonJS because it is loaded directly by Expo.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const metroConfig = require("../../../metro.config");
+
+const metroConfig = jest.requireActual("../../../metro.config");
 
 const isBlocked = (candidate: string) =>
   metroConfig.resolver.blockList.some((pattern: RegExp) => pattern.test(candidate));

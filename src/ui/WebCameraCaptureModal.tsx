@@ -78,10 +78,11 @@ function WebCameraCaptureContent({
   const cameraRef = useRef<CameraView | null>(null);
   const permissionRequestedRef = useRef(false);
   const [cameraReady, setCameraReady] = useState(false);
-  const [cameraConfigured, setCameraConfigured] = useState(false);
+  const [rearCameraConfigured, setCameraConfigured] = useState(false);
   const [captureBusy, setCaptureBusy] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [facing, setFacing] = useState<CameraType>(initialFacing);
+  const cameraConfigured = cameraReady && (Platform.OS !== "web" || facing !== "back" || rearCameraConfigured);
   const [normalizedZoom, setNormalizedZoom] = useState(0);
   const [selectedZoom, setSelectedZoom] = useState(1);
   const [zoomOptions, setZoomOptions] = useState<WebCameraZoomOption[]>([]);
@@ -110,7 +111,6 @@ function WebCameraCaptureContent({
     if (!cameraReady) return;
 
     if (Platform.OS !== "web" || facing !== "back") {
-      setCameraConfigured(true);
       return;
     }
 

@@ -340,6 +340,7 @@ export default function AttendanceScreen() {
   const [hasSaved, setHasSaved] = useState(false);
   const [isLoadingDate, setIsLoadingDate] = useState(false);
   const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+  const attendanceSaveInFlight = useRef(false);
   const [savePhase, setSavePhase] = useState<AttendanceSavePhase>("idle");
   const [baseline, setBaseline] = useState<{
     status: Record<string, "presente" | "faltou" | undefined>;
@@ -432,6 +433,7 @@ export default function AttendanceScreen() {
     })();
     return () => {
       alive = false;
+      loadRequestId.current += 1;
     };
   }, [id, refreshActiveContexts]);
 
@@ -509,6 +511,7 @@ export default function AttendanceScreen() {
       if (!cls) return;
       const requestId = loadRequestId.current + 1;
       loadRequestId.current = requestId;
+      setSavePhase("idle");
       setDate(value);
       setIsLoadingDate(true);
       setLoadMessage("");
@@ -659,7 +662,9 @@ export default function AttendanceScreen() {
     if (!cls) return;
     if (loadFailed) return;
     if (isLoadingDate) return;
-    if (isSavingAttendance) return;
+    if (attendanceSaveInFlight.current) return;
+    attendanceSaveInFlight.current = true;
+    const savedLoadRequestId = loadRequestId.current;
     setIsSavingAttendance(true);
     setSavePhase("saving");
     try {
@@ -736,6 +741,7 @@ export default function AttendanceScreen() {
           contextSaveWarning = true;
         }
       }
+      if (loadRequestId.current !== savedLoadRequestId) return;
       setStatusById(nextStatus);
       setNoteById(nextNotes);
       setPainById(nextPain);
@@ -775,6 +781,7 @@ export default function AttendanceScreen() {
       }
       setHasSaved(records.length > 0);
     } catch (error) {
+      if (loadRequestId.current !== savedLoadRequestId) return;
       setSavePhase("error");
       if (isAuthError(error)) {
         showSaveToast({
@@ -801,11 +808,13 @@ export default function AttendanceScreen() {
         variant: "error",
       });
     } finally {
+      attendanceSaveInFlight.current = false;
       setIsSavingAttendance(false);
     }
   };
 
-  const applyDateChange = (value: string) => {
+  const applyDateChange = useCallback((value: string) => {
+    if (attendanceSaveInFlight.current) return;
     setSavePhase("idle");
     if (cls) {
       manuallySelectedDateClassId.current = cls.id;
@@ -815,7 +824,7 @@ export default function AttendanceScreen() {
       setDate(value);
       setLoadMessage("");
     }
-  };
+  }, [cls, loadDate]);
 
   const hasChanges = useMemo(() => {
     if (Object.values(contextDecisionById).includes("confirmed")) {
@@ -873,6 +882,7 @@ export default function AttendanceScreen() {
 
   const requestProtectedAction = useCallback(
     (action: () => void) => {
+      if (attendanceSaveInFlight.current) return;
       if (!hasChanges || allowNavigation.current) {
         action();
         return;
@@ -893,11 +903,15 @@ export default function AttendanceScreen() {
       if (value === date) return;
       requestProtectedAction(() => applyDateChange(value));
     },
-    [date, requestProtectedAction]
+    [applyDateChange, date, requestProtectedAction]
   );
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (event) => {
+      if (attendanceSaveInFlight.current) {
+        event.preventDefault();
+        return;
+      }
       if (!hasChanges || allowNavigation.current) return;
       event.preventDefault();
       pendingProtectedAction.current = () => navigation.dispatch(event.data.action);
@@ -1118,6 +1132,7 @@ export default function AttendanceScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Dia anterior"
+                  disabled={isSavingAttendance}
                   onPress={() => changeDay(-1)}
                   style={({ pressed }) => ({
                     width: isMobile ? 50 : 48,
@@ -1132,7 +1147,7 @@ export default function AttendanceScreen() {
                 >
                   <GoAtletaIcon name="chevronBack" size={20} color={colors.textPrimary} />
                 </Pressable>
-                <View style={isMobile ? { flex: 1, minWidth: 0 } : { width: 188, flexShrink: 0 }}>
+                <View pointerEvents={isSavingAttendance ? "none" : "auto"} style={isMobile ? { flex: 1, minWidth: 0 } : { width: 188, flexShrink: 0 }}>
                   <DateInput
                     value={date}
                     onChange={handleDateChange}
@@ -1144,6 +1159,7 @@ export default function AttendanceScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Próximo dia"
+                  disabled={isSavingAttendance}
                   onPress={() => changeDay(1)}
                   style={({ pressed }) => ({
                     width: isMobile ? 50 : 48,

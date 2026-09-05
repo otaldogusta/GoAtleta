@@ -1,5 +1,7 @@
 import { buildPreviewHtml } from "../PdfPreviewFrame.web";
-import { buildNativePreviewHtml } from "../PdfPreviewFrame";
+
+// The Expo resolver treats both platform files as one import for import/no-duplicates.
+const { buildNativePreviewHtml } = jest.requireActual("../PdfPreviewFrame.tsx");
 
 jest.mock("react-native-webview", () => ({ WebView: () => null }));
 

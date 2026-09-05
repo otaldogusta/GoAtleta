@@ -90,6 +90,9 @@ const parsePermissions = (
 };
 
 const mapCreateError = (message: string) => {
+  if (message.includes("ATHLETE_RELATIONSHIP_IMMUTABLE")) {
+    return { status: 409, code: "ATHLETE_RELATIONSHIP_IMMUTABLE", error: "A conta do atleta não pode ser usada como responsável pelo mesmo cadastro." };
+  }
   if (message.includes("NOT_AUTHORIZED")) {
     return { status: 403, code: "FORBIDDEN", error: "Forbidden" };
   }

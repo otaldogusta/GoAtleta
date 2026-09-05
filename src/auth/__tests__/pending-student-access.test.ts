@@ -17,7 +17,7 @@ jest.mock("../../observability/perf", () => ({ markRender: jest.fn(), measureAsy
 jest.mock("../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: { background: "#101827", text: "#ffffff", muted: "#8899bb", border: "#334155", primaryBg: "#2dd482", primaryText: "#101827", card: "#1e293b" } }) }));
 jest.mock("../../ui/icon-registry", () => ({ GoAtletaIcon: () => null }));
 
-const PendingScreen = require("../../../app/pending").default;
+const PendingScreen = jest.requireActual("../../../app/pending").default;
 const mountPending = async () => {
   render(React.createElement(PendingScreen));
   await act(async () => { await Promise.resolve(); });

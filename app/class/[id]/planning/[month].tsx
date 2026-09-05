@@ -679,7 +679,7 @@ function MobileMonthAgenda({
   onSelectEvent: (event: ProfessorAgendaEvent) => void;
 }) {
   const grouped = events.reduce<
-    Array<{ weekNumber: number; events: ProfessorAgendaEvent[] }>
+    { weekNumber: number; events: ProfessorAgendaEvent[] }[]
   >((weeks, event) => {
     const existing = weeks.find((week) => week.weekNumber === event.weekNumber);
     if (existing) existing.events.push(event);

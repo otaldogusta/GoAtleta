@@ -17,6 +17,7 @@ export type TrainingPlanWorkspaceDraftStatus =
   | "error";
 
 type PendingWorkspaceDraft = {
+  key: string | null;
   plan: TrainingPlan;
   lessonDate: string;
   signature: string;
@@ -35,14 +36,21 @@ const draftSignature = (plan: TrainingPlan, lessonDate: string) =>
 export function useTrainingPlanWorkspaceDraft(key: string | null) {
   const [restoredDraft, setRestoredDraft] = useState<TrainingPlanWorkspaceDraft | null>(null);
   const [status, setStatus] = useState<TrainingPlanWorkspaceDraftStatus>("idle");
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(!key);
+  const [previousKey, setPreviousKey] = useState(key);
+  if (previousKey !== key) {
+    setPreviousKey(key);
+    setIsHydrated(!key);
+    setRestoredDraft(null);
+    setStatus("idle");
+  }
   const pendingRef = useRef<PendingWorkspaceDraft | null>(null);
   const persistedSignatureRef = useRef("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const persistCurrentDraft = useCallback(async (): Promise<TrainingPlanWorkspaceDraftFlushResult> => {
     const current = pendingRef.current;
-    if (!current) return { persisted: false, reason: "missing_draft" };
+    if (!current || current.key !== key) return { persisted: false, reason: "missing_draft" };
     if (!key) {
       setStatus("error");
       return { persisted: false, reason: "unavailable" };
@@ -58,17 +66,17 @@ export function useTrainingPlanWorkspaceDraft(key: string | null) {
     try {
       const saved = await saveTrainingPlanWorkspaceDraft(key, current.plan, current.lessonDate);
       if (!saved) {
-        if (pendingRef.current?.signature === current.signature) setStatus("error");
+        if (pendingRef.current === current) setStatus("error");
         return { persisted: false, reason: "write_failed" };
       }
-      persistedSignatureRef.current = current.signature;
-      if (pendingRef.current?.signature !== current.signature) {
+      if (pendingRef.current !== current) {
         return { persisted: false, reason: "newer_draft_pending" };
       }
+      persistedSignatureRef.current = current.signature;
       setStatus("saved");
       return { persisted: true, reason: "saved" };
     } catch {
-      if (pendingRef.current?.signature === current.signature) setStatus("error");
+      if (pendingRef.current === current) setStatus("error");
       return { persisted: false, reason: "write_failed" };
     }
   }, [key]);
@@ -76,7 +84,7 @@ export function useTrainingPlanWorkspaceDraft(key: string | null) {
   const queueDraft = useCallback(
     (plan: TrainingPlan, lessonDate: string) => {
       const signature = draftSignature(plan, lessonDate);
-      pendingRef.current = { plan, lessonDate, signature };
+      pendingRef.current = { key, plan, lessonDate, signature };
       if (!key || signature === persistedSignatureRef.current) return;
       if (timerRef.current) clearTimeout(timerRef.current);
       setStatus("saving");
@@ -106,13 +114,9 @@ export function useTrainingPlanWorkspaceDraft(key: string | null) {
 
   useEffect(() => {
     let active = true;
-    setIsHydrated(false);
     pendingRef.current = null;
     persistedSignatureRef.current = "";
-    setRestoredDraft(null);
-    setStatus("idle");
     if (!key) {
-      setIsHydrated(true);
       return () => {
         active = false;
       };
@@ -120,9 +124,9 @@ export function useTrainingPlanWorkspaceDraft(key: string | null) {
 
     void loadTrainingPlanWorkspaceDraft(key)
       .then((draft) => {
-        if (!active || !draft) return;
+        if (!active || !draft || pendingRef.current) return;
         const signature = draftSignature(draft.plan, draft.lessonDate);
-        pendingRef.current = { plan: draft.plan, lessonDate: draft.lessonDate, signature };
+        pendingRef.current = { key, plan: draft.plan, lessonDate: draft.lessonDate, signature };
         persistedSignatureRef.current = signature;
         setRestoredDraft(draft);
         setStatus("restored");

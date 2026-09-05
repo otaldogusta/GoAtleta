@@ -92,10 +92,10 @@ export type CycleTabProps = {
   currentWeek: number;
   selectedWeekNumber: number;
   monthWeekNumbers: number[];
-  monthSegments: Array<{ label: string; length: number }>;
-  macroSegments: Array<{ label: string; length: number }>;
-  mesoSegments: Array<{ label: string; length: number }>;
-  dominantBlockSegments: Array<{ label: string; length: number }>;
+  monthSegments: { label: string; length: number }[];
+  macroSegments: { label: string; length: number }[];
+  mesoSegments: { label: string; length: number }[];
+  dominantBlockSegments: { label: string; length: number }[];
   weeklySessions: number;
   periodizationModel: CyclePlanTableProps["periodizationModel"];
   sportProfile: CyclePlanTableProps["sportProfile"];

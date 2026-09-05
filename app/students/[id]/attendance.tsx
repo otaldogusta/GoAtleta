@@ -1,3 +1,4 @@
+import { markRender, measureAsync } from "../../../src/observability/perf";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -21,6 +22,7 @@ import { useAppTheme } from "../../../src/ui/app-theme";
 import { formatIsoDateToPtBr } from "../../../src/utils/date-time";
 
 export default function StudentAttendanceScreen() {
+  markRender("screen.studentAttendance.render.root");
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useAppTheme();
   const [student, setStudent] = useState<Student | null>(null);
@@ -31,12 +33,12 @@ export default function StudentAttendanceScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const data = await getStudentById(id);
+      const data = await measureAsync("screen.studentAttendance.load.student", () => getStudentById(id));
       if (alive) setStudent(data);
       if (data) {
-        const cls = await getClassById(data.classId);
+        const cls = await measureAsync("screen.studentAttendance.load.class", () => getClassById(data.classId));
         if (alive) setClassGroup(cls);
-        const list = await getAttendanceByStudent(data.id);
+        const list = await measureAsync("screen.studentAttendance.load.attendance", () => getAttendanceByStudent(data.id));
         if (alive) setRecords(list);
       }
     })();

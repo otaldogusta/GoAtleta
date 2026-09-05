@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -34,8 +34,8 @@ import { Button } from "../src/ui/Button";
 
 function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: boolean }) {
   const { colors } = useAppTheme();
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const successAnim = useRef(new Animated.Value(0)).current;
+  const [pulseAnim] = useState(() => new Animated.Value(0));
+  const [successAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (approved) {
@@ -198,43 +198,6 @@ function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: 
   );
 }
 
-export default function PendingScreen() {
-  markRender("screen.pending.render.root");
-  const { colors } = useAppTheme();
-  const router = useRouter();
-  const { session, signOut, resendSignupCode, loading: authLoading } = useAuth();
-  const { refresh, role, loading: roleLoading, studentAccessResolution } = useRole();
-  const { createOrganization } = useOrganization();
-  const [inviteBusy, setInviteBusy] = useState(false);
-  const [verificationBusy, setVerificationBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [inviteIssue, setInviteIssue] = useState<PendingInviteIssue>(null);
-  const [storedToken, setStoredToken] = useState("");
-  const [storedTrainerCode, setStoredTrainerCode] = useState("");
-  const [accessApproved, setAccessApproved] = useState(false);
-  const [organizationName, setOrganizationName] = useState("");
-  const [organizationBusy, setOrganizationBusy] = useState(false);
-  const [organizationMessage, setOrganizationMessage] = useState("");
-  const autoClaimedRef = useRef(false);
-  const textAnim = useRef(new Animated.Value(0)).current;
-  const resolvedRoleHome = resolvePendingRoleHome(role);
-
-  useEffect(() => {
-    if (accessApproved) {
-      Animated.timing(textAnim, {
-        toValue: 1,
-        duration: 450,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: Platform.OS !== "web",
-      }).start();
-
-      const timer = setTimeout(() => {
-        router.replace(resolvedRoleHome ?? "/prof/home");
-      }, 1800);
-      return () => clearTimeout(timer);
-    }
-  }, [accessApproved, resolvedRoleHome, router, textAnim]);
-
   const parseInviteError = (error: unknown) => {
     const code = getInviteErrorCode(error);
     if (code === "INVITE_EXPIRED") {
@@ -267,7 +230,44 @@ export default function PendingScreen() {
     return { message: "Tente novamente ou solicite outro convite.", issue: "failed" as const };
   };
 
-  const handleStoredTrainerInvite = async (codeOverride?: string) => {
+export default function PendingScreen() {
+  markRender("screen.pending.render.root");
+  const { colors } = useAppTheme();
+  const router = useRouter();
+  const { session, signOut, resendSignupCode, loading: authLoading } = useAuth();
+  const { refresh, role, loading: roleLoading, studentAccessResolution } = useRole();
+  const { createOrganization } = useOrganization();
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [inviteIssue, setInviteIssue] = useState<PendingInviteIssue>(null);
+  const [storedToken, setStoredToken] = useState("");
+  const [storedTrainerCode, setStoredTrainerCode] = useState("");
+  const [accessApproved, setAccessApproved] = useState(false);
+  const [organizationName, setOrganizationName] = useState("");
+  const [organizationBusy, setOrganizationBusy] = useState(false);
+  const [organizationMessage, setOrganizationMessage] = useState("");
+  const autoClaimedRef = useRef(false);
+  const [textAnim] = useState(() => new Animated.Value(0));
+  const resolvedRoleHome = resolvePendingRoleHome(role);
+
+  useEffect(() => {
+    if (accessApproved) {
+      Animated.timing(textAnim, {
+        toValue: 1,
+        duration: 450,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: Platform.OS !== "web",
+      }).start();
+
+      const timer = setTimeout(() => {
+        router.replace(resolvedRoleHome ?? "/prof/home");
+      }, 1800);
+      return () => clearTimeout(timer);
+    }
+  }, [accessApproved, resolvedRoleHome, router, textAnim]);
+
+  const handleStoredTrainerInvite = useCallback(async (codeOverride?: string) => {
     const code = (codeOverride ?? storedTrainerCode).trim();
     if (!code || inviteBusy) return;
     setInviteBusy(true);
@@ -294,9 +294,9 @@ export default function PendingScreen() {
     } finally {
       setInviteBusy(false);
     }
-  };
+  }, [storedTrainerCode, inviteBusy, session, router, refresh]);
 
-  const handleStoredInvite = async (tokenOverride?: string) => {
+  const handleStoredInvite = useCallback(async (tokenOverride?: string) => {
     const tokenValue = (tokenOverride ?? storedToken).trim();
     if (!tokenValue || inviteBusy) return;
     setInviteBusy(true);
@@ -315,7 +315,7 @@ export default function PendingScreen() {
     } finally {
       setInviteBusy(false);
     }
-  };
+  }, [storedToken, inviteBusy, refresh, router]);
 
   const clearStoredInvite = async () => {
     await Promise.all([clearPendingInvite(), clearPendingTrainerInvite()]);
@@ -401,7 +401,7 @@ export default function PendingScreen() {
     return () => {
       alive = false;
     };
-  }, [authLoading, refresh, resolvedRoleHome, router, session]);
+  }, [authLoading, handleStoredInvite, handleStoredTrainerInvite, resolvedRoleHome, router, session]);
 
   if (resolvedRoleHome && !storedToken && !storedTrainerCode) {
     return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} />;

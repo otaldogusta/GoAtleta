@@ -1,3 +1,4 @@
+import { measureAsync } from "../observability/perf";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { safeJsonParse } from "../utils/safe-json";
@@ -32,10 +33,15 @@ export function WhatsAppSettingsProvider({ children }: { children: React.ReactNo
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const savedDefaultMessage = await AsyncStorage.getItem(STORAGE_KEY_DEFAULT_MESSAGE);
-        const savedCoachName = await AsyncStorage.getItem(STORAGE_KEY_COACH_NAME);
-        const savedCoachByClass = await AsyncStorage.getItem(STORAGE_KEY_COACH_BY_CLASS);
-        const savedGroupLinks = await AsyncStorage.getItem(STORAGE_KEY_GROUP_LINKS);
+        const [savedDefaultMessage, savedCoachName, savedCoachByClass, savedGroupLinks] = await measureAsync(
+          "screen.whatsappSettings.load.preferences",
+          () => Promise.all([
+            AsyncStorage.getItem(STORAGE_KEY_DEFAULT_MESSAGE),
+            AsyncStorage.getItem(STORAGE_KEY_COACH_NAME),
+            AsyncStorage.getItem(STORAGE_KEY_COACH_BY_CLASS),
+            AsyncStorage.getItem(STORAGE_KEY_GROUP_LINKS),
+          ]),
+        );
 
         if (savedDefaultMessage !== null) {
           setDefaultMessageEnabledState(savedDefaultMessage === "true");
@@ -104,16 +110,16 @@ export function WhatsAppSettingsProvider({ children }: { children: React.ReactNo
 
   return (
     <WhatsAppSettingsContext.Provider
-      value={{ 
-        defaultMessageEnabled, 
-        setDefaultMessageEnabled, 
-        coachName, 
-        setCoachName, 
+      value={{
+        defaultMessageEnabled,
+        setDefaultMessageEnabled,
+        coachName,
+        setCoachName,
         coachNameByClass,
         setCoachNameForClass,
-        groupInviteLinks, 
-        setGroupInviteLink, 
-        loading 
+        groupInviteLinks,
+        setGroupInviteLink,
+        loading
       }}
     >
       {children}

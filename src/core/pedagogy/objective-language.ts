@@ -137,7 +137,7 @@ const hasPasseMancheteFocus = (input: ResolveLearningObjectivesInput) =>
 
 const extractFundamentals = (value: string) => {
   const text = sentence(value);
-  const found: Array<{ term: string; index: number }> = [];
+  const found: { term: string; index: number }[] = [];
   const seen = new Set<string>();
 
   for (const term of KNOWN_FUNDAMENTALS) {

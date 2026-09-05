@@ -72,7 +72,7 @@ describe("pedagogical quarterly snapshots", () => {
   });
 
   it("prevents quarter-to-quarter drift to adult formal game", () => {
-    const bands: Array<"08-10" | "11-12" | "13-14"> = ["08-10", "11-12", "13-14"];
+    const bands: ("08-10" | "11-12" | "13-14")[] = ["08-10", "11-12", "13-14"];
 
     for (const ageBand of bands) {
       for (const monthIndex of [PEDAGOGICAL_QUARTER_MONTH_INDEX.Q1, PEDAGOGICAL_QUARTER_MONTH_INDEX.Q2, PEDAGOGICAL_QUARTER_MONTH_INDEX.Q3, PEDAGOGICAL_QUARTER_MONTH_INDEX.Q4]) {

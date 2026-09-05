@@ -1,3 +1,5 @@
+import { resolveTrainingPlanForDate } from "../src/core/resolve-training-plan-for-date";
+import { markRender, measureAsync } from "../src/observability/perf";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
@@ -23,14 +25,8 @@ const formatFullDate = (isoDate: string) => {
   });
 };
 
-const getWeekdayId = (isoDate: string) => {
-  const parsed = new Date(`${isoDate}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  const day = parsed.getDay();
-  return day === 0 ? 7 : day;
-};
-
 export default function StudentPlanScreen() {
+  markRender("screen.studentPlan.render.root");
   const { colors } = useAppTheme();
   const { student } = useRole();
   const router = useRouter();
@@ -63,20 +59,13 @@ export default function StudentPlanScreen() {
 
       try {
         if (targetDate) {
-          const weekdayId = getWeekdayId(targetDate);
-          const plans = await getTrainingPlans({ classId: targetClassId });
-          const byClass = plans.filter((item) => item.classId === targetClassId);
-          const byDate = byClass.find((item) => item.applyDate === targetDate);
-          const byWeekday =
-            weekdayId == null
-              ? null
-              : byClass.find((item) => (item.applyDays ?? []).includes(weekdayId));
-          const selected = byDate ?? byWeekday ?? null;
+          const plans = await measureAsync("screen.studentPlan.load.plans", () => getTrainingPlans({ classId: targetClassId }));
+          const selected = resolveTrainingPlanForDate(plans, targetClassId, targetDate);
           if (alive) setPlan(selected);
           return;
         }
 
-        const latest = await getLatestTrainingPlanByClass(targetClassId);
+        const latest = await measureAsync("screen.studentPlan.load.latestPlan", () => getLatestTrainingPlanByClass(targetClassId));
         if (alive) setPlan(latest);
       } finally {
         if (alive) setLoading(false);

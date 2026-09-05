@@ -1,7 +1,7 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
-import { useSessionData, type SessionDataStatus } from "../useSessionData";
+import { getTrainingPlansForSession, useSessionData, type SessionDataStatus } from "../useSessionData";
 import {
   getAttendanceByDate,
   getClassById,
@@ -86,6 +86,19 @@ describe("useSessionData", () => {
     (getStudentsByClass as jest.Mock).mockResolvedValue([]);
     (getTrainingPlans as jest.Mock).mockResolvedValue([]);
     (getAttendanceByDate as jest.Mock).mockResolvedValue([]);
+  });
+
+  it("loads the candidate catalog once and keeps date-specific plans out of the recurring fallback", async () => {
+    const plans = [
+      { id: "dated", classId: "class-1", applyDate: "2026-08-31", applyDays: [1], version: 8, createdAt: "2026-09-01T12:00:00Z", status: "final" },
+      { id: "weekly", classId: "class-1", applyDate: "", applyDays: [1], version: 1, createdAt: "2026-08-01T12:00:00Z", status: "final" },
+    ] as TrainingPlan[];
+    (getTrainingPlans as jest.Mock).mockResolvedValue(plans);
+    const result = await getTrainingPlansForSession("org-1", "class-1", "2026-09-07", 1);
+    expect(result.currentPlan?.id).toBe("weekly");
+    expect(result.savedPlans.map((plan) => plan.id)).toEqual(["dated", "weekly"]);
+    expect(getTrainingPlans).toHaveBeenCalledTimes(1);
+    expect(getTrainingPlans).toHaveBeenCalledWith({ organizationId: "org-1", classId: "class-1", status: "final", orderBy: "version_desc" });
   });
 
   it("returns not_found when the class does not exist instead of loading forever", async () => {

@@ -116,12 +116,12 @@ const getFlagDetail = (flag: string) =>
 
 type ConflictResolutionMode = "KEEP_EXISTING" | "OVERWRITE" | "SKIP";
 
-const RESOLUTION_OPTIONS: Array<{
+const RESOLUTION_OPTIONS: {
   id: ConflictResolutionMode;
   label: string;
   description: string;
   tone: "neutral" | "warning" | "danger";
-}> = [
+}[] = [
   {
     id: "KEEP_EXISTING",
     label: "Manter atual",
@@ -986,7 +986,7 @@ export function StudentsImportModal({
                   }}
                 >
                   <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
-                    Clique em "Selecionar arquivo" para carregar a lista.
+                    Clique em &quot;Selecionar arquivo&quot; para carregar a lista.
                   </Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
                     Arquivos aceitos: .csv, .xlsx, .xls

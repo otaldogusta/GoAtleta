@@ -102,7 +102,7 @@ export function useUndoableListDelete<T, Id extends ItemId = string>({
   );
 
   const resolveTargets = useCallback(
-    (targets: Array<T | Id>) => {
+    (targets: (T | Id)[]) => {
       const targetIds = new Set<Id>();
 
       for (const target of targets) {
@@ -130,7 +130,7 @@ export function useUndoableListDelete<T, Id extends ItemId = string>({
   );
 
   const deleteMany = useCallback(
-    (targets: Array<T | Id>) => {
+    (targets: (T | Id)[]) => {
       const removedItems = resolveTargets(targets);
       if (!removedItems.length) return;
 

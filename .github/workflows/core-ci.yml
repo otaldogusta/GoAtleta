@@ -2,67 +2,37 @@ name: Core CI
 
 on:
   pull_request:
-    paths:
-      - "app/assistant/**"
-      - "src/copilot/**"
-      - "src/api/regulation-*.ts"
-      - "src/api/regulation/**"
-      - "supabase/functions/assistant/**"
-      - "supabase/functions/_shared/**"
-      - "package.json"
-      - "package-lock.json"
-      - "jest.config.js"
-      - "tsconfig.check.json"
-      - "scripts/check-encoding.js"
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - "app/assistant/**"
-      - "src/copilot/**"
-      - "src/api/regulation-*.ts"
-      - "src/api/regulation/**"
-      - "supabase/functions/assistant/**"
-      - "supabase/functions/_shared/**"
-      - "package.json"
-      - "package-lock.json"
-      - "jest.config.js"
-      - "tsconfig.check.json"
-      - "scripts/check-encoding.js"
   workflow_dispatch:
+  workflow_call:
 
-concurrency:
-  group: core-ci-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
   core:
+    # Preserve the existing check name used by branch protection; coverage is full app.
     name: Core checks
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 45
+    env:
+      SENTRY_DISABLE_AUTO_UPLOAD: 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
-      - name: Install dependencies
+      - name: Install locked dependencies and verify patches
         run: npm ci
 
-      - name: Check encoding
-        run: npm run check:encoding
+      - name: Validate the complete app and isolated SQL transactions
+        run: npm run validate:app
 
-      - name: Check Edge JWT config
-        run: npm run check:edge-jwt
-
-      - name: Run core tests
-        run: npm run test:core
-
-      - name: Run core typecheck
-        run: npm run typecheck:core
+      - name: Build web
+        run: npm run build

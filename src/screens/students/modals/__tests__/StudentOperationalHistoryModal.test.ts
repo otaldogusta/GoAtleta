@@ -7,7 +7,7 @@ import { ModalSheet } from "../../../../ui/ModalSheet";
 import { StudentOperationalHistoryModal } from "../StudentOperationalHistoryModal";
 
 jest.mock("../../../../ui/ModalSheet", () => {
-  const ReactModule = require("react");
+  const ReactModule = jest.requireActual("react");
 
   return {
     ModalSheet: ({ visible, children }: { visible: boolean; children: React.ReactNode }) =>

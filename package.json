@@ -2,6 +2,9 @@
   "name": "goatleta",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -10,11 +13,14 @@
     "web": "expo start --web",
     "web:clean": "powershell -NoProfile -ExecutionPolicy Bypass -File ./script/start_clean_local.ps1 web",
     "build": "expo export -p web",
+    "build:verified": "npm run validate:app && npm run build",
     "test": "jest --passWithNoTests",
     "test:e2e": "node scripts/test-e2e.js",
     "test:attendance-artifacts": "node scripts/validate-attendance-artifacts.mjs",
     "test:core": "jest src/core/consultation/__tests__ src/copilot/__tests__ src/api/__tests__ src/push/__tests__ supabase/functions/assistant/__tests__ --passWithNoTests",
+    "test:sql": "node scripts/validation/run-sql-tests.mjs",
     "lint": "expo lint",
+    "check:lint-hygiene": "node scripts/check-lint-hygiene.js",
     "typecheck:core": "tsc -p tsconfig.check.json --noEmit",
     "typecheck:app": "tsc -p tsconfig.app-check.json --noEmit",
     "check:activity-catalog-media": "node scripts/check-activity-catalog-media.js",
@@ -24,11 +30,13 @@
     "check:architecture:report": "node scripts/check-architecture-hygiene.js --report",
     "check:perf-hygiene": "node scripts/check-perf-hygiene.js",
     "check:perf-hygiene:strict": "node scripts/check-perf-hygiene.js --strict",
+    "check:release-perf": "node scripts/check-release-perf.js",
     "check:org-scope": "node scripts/check-org-scope.js",
     "test:architecture": "jest scripts/architecture-hygiene/__tests__/analyzer.test.ts --runInBand",
     "tools:check": "npm run check:encoding && npm run check:edge-jwt && npm run check:org-scope",
-    "release:check": "npm run lint && npm run check:asset-signatures && npm run check:org-scope",
-    "release:check:core": "npm run check:encoding && npm run check:asset-signatures && npm run typecheck:core && npm run test:core && npm run check:org-scope",
+    "validate:app": "npm run check:encoding && npm run check:edge-jwt && npm run check:org-scope && npm run check:asset-signatures && npm run check:architecture:strict && npm run check:release-perf && npm run check:lint-hygiene && npm run typecheck:app && npm test -- --runInBand && npm run test:sql",
+    "release:check": "npm run validate:app",
+    "release:check:core": "npm run release:check",
     "eas-build-pre-install": "npm run check:asset-signatures",
     "update:preview": "npm run release:check:core && eas update --channel preview --environment preview --auto",
     "update:production": "npm run release:check:core && eas update --channel production --environment production --auto",
@@ -40,7 +48,7 @@
     "intake:auto": "node scripts/run-intake-import.js",
     "intake:auto:upsert": "node scripts/run-intake-import.js --upsert",
     "figma:colors": "node scripts/sync-figma-colors.js",
-    "postinstall": "patch-package && node scripts/check-yoga-patch.js && node scripts/check-image-size-patch.js"
+    "postinstall": "patch-package && node scripts/check-yoga-patch.js && node scripts/check-image-size-patch.js && node scripts/check-uri-decoder-patch.js"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
@@ -102,10 +110,12 @@
     "yoga-layout": "^3.2.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@react-native/jest-preset": "0.86.3",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.10",
+    "@types/react-dom": "19.2.7",
     "babel-jest": "^29.7.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~57.0.2",
@@ -120,7 +130,9 @@
     "xcode": {
       "uuid": "^11.1.1"
     },
-    "image-size": "1.2.1"
+    "image-size": "1.2.1",
+    "@xmldom/xmldom": "0.8.15",
+    "decode-uri-component": "0.5.0"
   },
   "expo": {
     "doctor": {

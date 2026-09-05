@@ -26,7 +26,9 @@ describe("student relationship invite route contract", () => {
     expect(helperSource).toContain(
       "`/family-invite/${encodeURIComponent(token)}`",
     );
-    expect(layoutSource).toContain('["/invite", "/family-invite"]');
+    const publicPrefixes = layoutSource.match(/const publicPrefixes = \[([^\]]+)\]/)?.[1]
+      .match(/"([^"]+)"/g)?.map((value) => JSON.parse(value));
+    expect(publicPrefixes).toEqual(expect.arrayContaining(["/invite", "/family-invite"]));
     expect(routeSource).toContain("validateStudentRelationshipInvite(tokenValue)");
     expect(routeSource).not.toContain('from "../../src/api/student-invite"');
   });

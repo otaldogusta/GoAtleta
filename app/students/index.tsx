@@ -1,3 +1,4 @@
+import { scheduleEffectTask } from "../../src/hooks/schedule-effect-task";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -5,7 +6,7 @@ import {
   Suspense,
   lazy,
   useCallback,
-  useEffect,
+  useEffect, useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,7 +17,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleSheet,
+
   Text,
   View,
   useWindowDimensions,
@@ -25,10 +26,6 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import {
-  StudentInvitePendingItem,
-  listStudentPendingInvites,
-} from "../../src/api/student-invite";
 import { listOrganizationInvoices } from "../../src/api/finance";
 import {
   getStudentPhotoAccessUrl,
@@ -36,7 +33,6 @@ import {
   removeStudentPhotoObject,
   uploadStudentPhoto,
 } from "../../src/api/student-photo-storage";
-import { useAuth } from "../../src/auth/auth";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { sortClassesBySchedule } from "../../src/core/class-schedule-sort";
 import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
@@ -85,7 +81,6 @@ import { StudentsExportSyncMenu } from "../../src/screens/students/components/St
 import {
   filterStudentsForList,
   hasActiveStudentSearch,
-  normalizeStudentSearchText,
 } from "../../src/screens/students/application/student-search";
 import {
   buildStudentListGroups,
@@ -149,12 +144,7 @@ import {
 
 const createStudentId = () => `s_${Date.now()}`;
 
-const formatIsoDate = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+
 
 const parseIsoDate = (value: string) => {
   if (!value) return null;
@@ -247,7 +237,6 @@ export default function StudentsScreen() {
   const router = useRouter();
   const scopedRoutes = useTrainerRouteScope();
   const insets = useSafeAreaInsets();
-  const { session } = useAuth();
   const effectiveProfile = useEffectiveProfile();
   const isOnline = useIsOnline();
   const canRevealCpf =
@@ -334,7 +323,8 @@ export default function StudentsScreen() {
   const [showStudentsTabConfirm, setShowStudentsTabConfirm] = useState(false);
   const [pendingStudentsTab, setPendingStudentsTab] =
     useState<StudentsTab | null>(null);
-  const [studentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
+  const [requestedStudentsUnitFilter, setStudentsUnitFilter] = useState("Todas");
+  const studentsUnitFilter = scopedRoutes.scope === "coord" ? "Todas" : requestedStudentsUnitFilter;
   const [studentsSearch, setStudentsSearch] = useState("");
   const [dismissedExistingStudentProbe, setDismissedExistingStudentProbe] =
     useState("");
@@ -515,9 +505,6 @@ export default function StudentsScreen() {
   markRender("screen.students.render.root");
   const [saveNotice, setSaveNotice] = useState("");
   const [studentInviteBusy, setStudentInviteBusy] = useState(false);
-  const [pendingStudentInvites, setPendingStudentInvites] = useState<
-    StudentInvitePendingItem[]
-  >([]);
   const [pendingStudentInviteBusyId, setPendingStudentInviteBusyId] = useState<
     string | null
   >(null);
@@ -525,7 +512,7 @@ export default function StudentsScreen() {
   const whatsappNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const saveNoticeAnim = useRef(new Animated.Value(0)).current;
+  const [saveNoticeAnim] = useState(() => new Animated.Value(0));
   const [expandedUnits, setExpandedUnits] = usePersistedState<
     Record<string, boolean>
   >("students_units_expanded_v1", {});
@@ -705,21 +692,6 @@ export default function StudentsScreen() {
     },
     [],
   );
-  const loadSupplementaryStudentsData = useCallback(
-    async (aliveRef: { current: boolean }) => {
-      const invitesPromise = session?.access_token
-        ? listStudentPendingInvites(activeOrganization?.id).catch((error) => {
-            console.warn("StudentsScreen invite load failed", error);
-            return { invites: [] };
-          })
-        : Promise.resolve({ invites: [] });
-
-      const pendingInvitesResult = await invitesPromise;
-      if (!aliveRef.current) return;
-      setPendingStudentInvites(pendingInvitesResult.invites ?? []);
-    },
-    [activeOrganization?.id, session?.access_token],
-  );
 
   useEffect(() => {
     const alive = { current: true };
@@ -737,16 +709,10 @@ export default function StudentsScreen() {
         if (!alive.current) return;
         setClasses(classList);
         setStudents(studentList);
-        void measureAsync(
-          "screen.students.load.supplementary",
-          () => loadSupplementaryStudentsData(alive),
-          { hasOrganization: activeOrganization?.id ? 1 : 0 },
-        );
       } catch (error) {
         if (!alive.current) return;
         setClasses([]);
         setStudents([]);
-        setPendingStudentInvites([]);
         console.warn("StudentsScreen initial load failed", error);
       } finally {
         if (alive.current) setLoading(false);
@@ -755,7 +721,7 @@ export default function StudentsScreen() {
     return () => {
       alive.current = false;
     };
-  }, [activeOrganization, loadSupplementaryStudentsData]);
+  }, [activeOrganization]);
 
   const reload = useCallback(async () => {
     try {
@@ -763,11 +729,10 @@ export default function StudentsScreen() {
         getStudents({ organizationId: activeOrganization?.id }),
       ]);
       setStudents(studentList);
-      await loadSupplementaryStudentsData(isMountedRef);
     } catch (error) {
       console.warn("StudentsScreen reload failed", error);
     }
-  }, [activeOrganization, loadSupplementaryStudentsData]);
+  }, [activeOrganization]);
 
   const operationalStudent = useMemo(
     () => students.find((student) => student.id === editingId) ?? null,
@@ -780,7 +745,9 @@ export default function StudentsScreen() {
     studentId: operationalStudentId,
     includeFinancial: canManageFinancialStatus,
   });
-  operationalHistoryScopeKeyRef.current = operationalHistoryScopeKey;
+  useLayoutEffect(() => {
+    operationalHistoryScopeKeyRef.current = operationalHistoryScopeKey;
+  }, [operationalHistoryScopeKey]);
 
   const refreshOperationalHistory = useCallback(async () => {
     const requestScopeKey = operationalHistoryScopeKey;
@@ -850,24 +817,28 @@ export default function StudentsScreen() {
   ]);
 
   useEffect(() => {
-    void refreshOperationalHistory();
+    const cancelStart = scheduleEffectTask(() => { void refreshOperationalHistory(); });
     return () => {
+      cancelStart();
       operationalHistoryRequestIdRef.current += 1;
     };
   }, [refreshOperationalHistory]);
 
+  const indicatorsContext = [showEditModal, operationalStudentId, operationalOrganizationId, canManageFinancialStatus].join(":");
+  const [previousIndicatorsContext, setPreviousIndicatorsContext] = useState<string | null>(null);
+  if (previousIndicatorsContext !== indicatorsContext) {
+    setPreviousIndicatorsContext(indicatorsContext);
+    setStudentFinanceSummary(null);
+    setFinanceIndicator(LOADING_FINANCE_INDICATOR);
+    setAttendanceIndicator(LOADING_ATTENDANCE_INDICATOR);
+  }
   useEffect(() => {
     const requestId = operationalIndicatorsRequestIdRef.current + 1;
     operationalIndicatorsRequestIdRef.current = requestId;
-    setStudentFinanceSummary(null);
     if (!showEditModal || !operationalStudentId || !operationalOrganizationId) {
-      setFinanceIndicator(LOADING_FINANCE_INDICATOR);
-      setAttendanceIndicator(LOADING_ATTENDANCE_INDICATOR);
       return undefined;
     }
 
-    setFinanceIndicator(LOADING_FINANCE_INDICATOR);
-    setAttendanceIndicator(LOADING_ATTENDANCE_INDICATOR);
     void Promise.allSettled([
       canManageFinancialStatus
         ? listOrganizationInvoices(operationalOrganizationId)
@@ -977,11 +948,7 @@ export default function StudentsScreen() {
     ],
   );
 
-  useEffect(() => {
-    if ((studentsTab as string) === "importar") {
-      setStudentsTab("alunos");
-    }
-  }, [studentsTab, setStudentsTab]);
+  if ((studentsTab as string) === "importar") setStudentsTab("alunos");
 
   useEffect(() => {
     return () => {
@@ -1395,14 +1362,7 @@ export default function StudentsScreen() {
       student.photoUrl?.trim(),
     );
 
-    if (studentsWithPhoto.length === 0) {
-      setStudentPhotoAccessUrls({});
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void Promise.all(
+void Promise.all(
       studentsWithPhoto.map(async (student) => {
         const sourceUrl = student.photoUrl!.trim();
         try {
@@ -2014,7 +1974,7 @@ export default function StudentsScreen() {
     setOpenEditSection,
   });
 
-  const normalizeSearch = normalizeStudentSearchText;
+
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -2272,11 +2232,7 @@ export default function StudentsScreen() {
     () => new Set(birthdayTodayAll.map((student) => student.id)),
     [birthdayTodayAll],
   );
-  useEffect(() => {
-    if ((studentsTab as string) === "experimentais") {
-      setStudentsTab("cadastro");
-    }
-  }, [setStudentsTab, studentsTab]);
+  if ((studentsTab as string) === "experimentais") setStudentsTab("cadastro");
 
   useEffect(() => {
     return () => {

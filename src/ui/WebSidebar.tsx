@@ -78,12 +78,12 @@ const previewRoutes: Record<ProfileSwitchId, string> = {
   family: "/family/home",
 };
 
-const profileSwitchOptions: ReadonlyArray<{
+const profileSwitchOptions: readonly {
   id: ProfileSwitchId;
   label: string;
   subtitle: string;
   icon: GoAtletaIconName;
-}> = [
+}[] = [
   {
     id: "professor",
     label: "Professor",

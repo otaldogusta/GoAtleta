@@ -947,7 +947,7 @@ export default function ProfileScreen() {
           : "Conta em modo híbrido: confirme o e-mail por código para liberar ações sensíveis."
         : "Sua conta usa autenticação por e-mail e senha.",
     };
-  }, [session?.user?.app_metadata?.email_verified_hybrid_at, session?.user?.app_metadata?.provider, session?.user?.app_metadata?.providers, session?.user?.confirmed_at, session?.user?.email, session?.user?.email_confirmed_at, session?.user?.identities, session?.user?.user_metadata]);
+  }, [session]);
 
   const openAccountDeletion = useCallback(() => {
     confirm({

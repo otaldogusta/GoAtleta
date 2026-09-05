@@ -1,3 +1,4 @@
+import { trainingPlanWeekday } from "../../../src/core/resolve-training-plan-for-date";
 import * as FileSystem from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -1709,10 +1710,10 @@ export function SessionScreen({
   const [sessionTab, setSessionTab] = useState<SessionTabId>(
     embeddedReport ? "relatório" : "treino"
   );
-  const sessionTabAnim = useRef<Record<SessionTabId, Animated.Value>>({
+  const [sessionTabAnim] = useState<Record<SessionTabId, Animated.Value>>(() => ({
     treino: new Animated.Value(1),
     relatório: new Animated.Value(0),
-  }).current;
+  }));
   const [showAppliedPreview, setShowAppliedPreview] = useState(false);
   const [autoActivity, setAutoActivity] = useState("");
   const [isRewritingActivity, setIsRewritingActivity] = useState(false);
@@ -1728,8 +1729,8 @@ export function SessionScreen({
   const [showSavedClassPlans, setShowSavedClassPlans] = useState(false);
   const [isApplyingSavedPlanId, setIsApplyingSavedPlanId] = useState<string | null>(null);
   const [isRemovingAppliedPlan, setIsRemovingAppliedPlan] = useState(false);
-  const planFabAnim = useRef(new Animated.Value(0)).current;
-  const planGenerationAnim = useRef(new Animated.Value(0)).current;
+  const [planFabAnim] = useState(() => new Animated.Value(0));
+  const [planGenerationAnim] = useState(() => new Animated.Value(0));
   const planGenerationLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const [selectedBlockKey, setSelectedBlockKey] = useState<"warmup" | "main" | "cooldown" | null>(null);
   const [isSavingBlockEdit, setIsSavingBlockEdit] = useState(false);
@@ -1779,9 +1780,7 @@ export function SessionScreen({
   const shouldAutoGenerateFromPeriodization =
     autogenerate === "1" && source === "periodization";
   const weekdayId = useMemo(() => {
-    const dateObj = new Date(sessionDate);
-    const day = dateObj.getDay();
-    return day === 0 ? 7 : day;
+    return trainingPlanWeekday(sessionDate) ?? 1;
   }, [sessionDate]);
   const {
     cls,
@@ -2458,7 +2457,7 @@ export function SessionScreen({
         }))
       : getBlockActivities(blockKey).map((name) => ({ name, description: "" }));
 
-    return sourceItems.reduce<Array<TrainingPlanActivity & { description: string }>>(
+    return sourceItems.reduce<(TrainingPlanActivity & { description: string })[]>(
       (items, item) => {
         const activityName = sanitizePlanDisplayItem(item.name);
         if (!activityName) return items;
