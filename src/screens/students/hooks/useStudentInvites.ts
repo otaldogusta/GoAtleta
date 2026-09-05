@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { Alert } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import { getInviteErrorCode } from "../../../api/invite-errors";
 import {
   createStudentInvite,
   revokeStudentAccess,
@@ -11,6 +10,10 @@ import type { ClassGroup, Student } from "../../../core/models";
 import type { WhatsAppTemplateId } from "../../../utils/whatsapp-templates";
 import { WHATSAPP_TEMPLATES } from "../../../utils/whatsapp-templates";
 import { useSaveToast } from "../../../ui/save-toast";
+import {
+  buildStudentInviteLink,
+  getStudentInviteActionErrorMessage,
+} from "../application/student-invite-sharing";
 
 export type UseStudentInvitesParams = {
   classes: ClassGroup[];
@@ -33,10 +36,6 @@ export type UseStudentInvitesParams = {
   setPendingStudentInviteBusyId: (value: string | null) => void;
 };
 
-const buildInviteLink = (token: string) => {
-  return `https://goatleta.com/invite/${encodeURIComponent(token)}`;
-};
-
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export function useStudentInvites({
@@ -54,23 +53,6 @@ export function useStudentInvites({
   setPendingStudentInviteBusyId,
 }: UseStudentInvitesParams) {
   const { showSaveToast } = useSaveToast();
-  const toInviteErrorMessage = useCallback((error: unknown) => {
-    const code = getInviteErrorCode(error);
-    if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
-      return "Sessão expirada. Entre novamente para gerar o convite.";
-    }
-    if (code === "FORBIDDEN" || code === "ORG_FORBIDDEN") {
-      return "Sem permissão para gerar o convite.";
-    }
-    if (code === "STUDENT_ALREADY_LINKED") {
-      return "Esse aluno já está vinculado. Use revogar e gerar novo link.";
-    }
-    if (code === "STUDENT_NOT_FOUND") {
-      return "Aluno não encontrado.";
-    }
-    return "Não foi possível gerar o convite.";
-  }, []);
-
   const applyStudentInviteTemplate = useCallback(
     async (
       student: Student,
@@ -92,7 +74,7 @@ export function useStudentInvites({
         if (!response.token) {
           throw new Error("Convite inválido.");
         }
-        const link = buildInviteLink(response.token);
+        const link = buildStudentInviteLink(response.token);
         const fields: Record<string, string> = { inviteLink: link };
         setCustomFields(fields);
         const message = buildStudentMessage(student, cls, "student_invite", fields);
@@ -123,7 +105,7 @@ export function useStudentInvites({
         }
         return null;
       } catch (error) {
-        const message = toInviteErrorMessage(error);
+        const message = getStudentInviteActionErrorMessage(error);
         Alert.alert("Convite", message);
         setCustomStudentMessage(message);
         return null;
@@ -131,7 +113,7 @@ export function useStudentInvites({
         setStudentInviteBusy(false);
       }
     },
-    [buildStudentMessage, reload, showWhatsAppNotice, studentInviteBusy, toInviteErrorMessage,
+    [buildStudentMessage, reload, showWhatsAppNotice, studentInviteBusy,
       setStudentInviteBusy, setSelectedTemplateId, setSelectedTemplateLabel,
       setCustomFields, setCustomStudentMessage]
   );
@@ -160,12 +142,12 @@ export function useStudentInvites({
         await revokeStudentInvite(inviteId);
         await reload();
       } catch (error) {
-        Alert.alert("Convite", toInviteErrorMessage(error));
+        Alert.alert("Convite", getStudentInviteActionErrorMessage(error));
       } finally {
         setPendingStudentInviteBusyId(null);
       }
     },
-    [pendingStudentInviteBusyId, reload, toInviteErrorMessage, setPendingStudentInviteBusyId]
+    [pendingStudentInviteBusyId, reload, setPendingStudentInviteBusyId]
   );
 
   return { applyStudentInviteTemplate, onGenerateInviteFromList, onCancelPendingStudentInvite };

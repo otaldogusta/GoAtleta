@@ -1,8 +1,10 @@
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Animated,
     BackHandler,
@@ -21,6 +23,7 @@ import {
   getStudentPhotoAccessUrl,
   uploadStudentPhoto,
 } from "../../../src/api/student-photo-storage";
+import { createStudentInvite } from "../../../src/api/student-invite";
 import { ScreenPageHeader } from "../../../src/components/ui/ScreenPageHeader";
 import { StudentPhotoViewerModal } from "../../../src/screens/students/components/StudentPhotoViewerModal";
 import {
@@ -103,6 +106,10 @@ import {
   formatImportantStudentFields,
   getMissingImportantStudentFields,
 } from "../../../src/screens/students/application/student-profile-completeness";
+import {
+  buildStudentInviteLink,
+  getStudentInviteActionErrorMessage,
+} from "../../../src/screens/students/application/student-invite-sharing";
 
 const guardianRelationOptions = ["Mãe", "Pai", "Avó", "Avô", "Irmão", "Irmã", "Tio", "Tia", "Outro"] as const;
 const positionOptions = ["indefinido", "levantador", "oposto", "ponteiro", "central", "libero"] as const;
@@ -284,6 +291,7 @@ export default function ClassStudentsScreen() {
   const [createExitTarget, setCreateExitTarget] = useState<"back" | "alunos" | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [saving, setSaving] = useState(false);
+  const [studentInviteBusyId, setStudentInviteBusyId] = useState<string | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectionModeEnabled, setSelectionModeEnabled] = useState(false);
   const [reviewedDuplicateSignatures, setReviewedDuplicateSignatures] = useState<Set<string>>(
@@ -963,6 +971,41 @@ export default function ClassStudentsScreen() {
       photoUrl: s.photoUrl ?? "",
     });
   };
+
+  const generateStudentAppInvite = useCallback(
+    async (student: Student) => {
+      if (studentInviteBusyId) return;
+      setStudentInviteBusyId(student.id);
+      try {
+        const response = await createStudentInvite(student.id, {
+          invitedVia: "link",
+          invitedTo: "",
+        });
+        if (!response.token) {
+          throw new Error("Convite inválido.");
+        }
+
+        const inviteLink = buildStudentInviteLink(response.token);
+        try {
+          await Clipboard.setStringAsync(inviteLink);
+          showSaveToast({
+            message: "Convite do aluno copiado.",
+            variant: "success",
+          });
+        } catch {
+          Alert.alert(
+            "Convite criado",
+            `Não foi possível copiar automaticamente. Compartilhe este link:\n${inviteLink}`
+          );
+        }
+      } catch (error) {
+        Alert.alert("Convite", getStudentInviteActionErrorMessage(error));
+      } finally {
+        setStudentInviteBusyId(null);
+      }
+    },
+    [showSaveToast, studentInviteBusyId]
+  );
 
   const reviewDuplicateStudent = () => {
     const target = duplicateReviewTarget;
@@ -2431,14 +2474,42 @@ export default function ClassStudentsScreen() {
                           </View>
                         ) : null}
                       </View>
-                      <View style={{ gap: 8 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        {!s.studentUserId ? (
+                          <Pressable
+                            onPress={(event) => {
+                              event.stopPropagation?.();
+                              void generateStudentAppInvite(s);
+                            }}
+                            disabled={Boolean(studentInviteBusyId)}
+                            accessibilityLabel={`Gerar convite para o app de ${s.name}`}
+                            style={{
+                              width: 42,
+                              height: 42,
+                              borderRadius: 21,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: colors.primaryBg,
+                              opacity:
+                                studentInviteBusyId && studentInviteBusyId !== s.id ? 0.45 : 1,
+                            }}
+                          >
+                            {studentInviteBusyId === s.id ? (
+                              <ActivityIndicator size="small" color={colors.primaryText} />
+                            ) : (
+                              <GoAtletaIcon name="link" size={20} color={colors.primaryText} />
+                            )}
+                          </Pressable>
+                        ) : null}
                         <Pressable
-                          onPress={() =>
+                          onPress={(event) => {
+                            event.stopPropagation?.();
                             void (hasPhone
                               ? openWhatsApp(buildWaMeLink(c.phoneDigits, `Olá! Sou da turma ${cls?.name ?? ""}.`))
-                              : Promise.resolve())
-                          }
+                              : Promise.resolve());
+                          }}
                           disabled={!hasPhone}
+                          accessibilityLabel={`Abrir WhatsApp de ${s.name}`}
                           style={{
                             width: 42,
                             height: 42,
