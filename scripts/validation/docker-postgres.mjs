@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 
 const image = "postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94";
+// The image's initialization server accepts Unix sockets, then shuts down.
+// Loopback TCP becomes available only when the final server starts. Use the
+// same endpoint for readiness and sessions so initdb cannot look ready early.
+const connectionArgs = ["-h", "127.0.0.1", "-U", "postgres"];
 
 function docker(args, timeout = 30000) {
   return new Promise((resolve, reject) => {
@@ -20,7 +24,7 @@ function docker(args, timeout = 30000) {
 
 function openSession(container) {
   const child = spawn("docker", ["exec", "-i", container,
-    "psql", "-XAtq", "-v", "ON_ERROR_STOP=1", "-U", "postgres"], {
+    "psql", "-XAtq", "-v", "ON_ERROR_STOP=1", ...connectionArgs], {
     windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
   });
   let output = "";
@@ -81,7 +85,7 @@ export async function withDockerPostgres(run) {
     const deadline = Date.now() + 45000;
     for (;;) {
       try {
-        await docker(["exec", container, "pg_isready", "-U", "postgres"], 5000);
+        await docker(["exec", container, "pg_isready", ...connectionArgs], 5000);
         break;
       } catch (error) {
         if (Date.now() >= deadline) throw error;

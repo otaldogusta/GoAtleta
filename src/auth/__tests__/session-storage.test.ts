@@ -136,19 +136,25 @@ describe("session storage", () => {
   });
 
   test("native starts signed out when a restored SecureStore payload is unreadable", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const readError = new Error("Could not decrypt the item in SecureStore");
+    const deleteError = new Error("Keystore key is unavailable");
     const mod = await loadSessionModuleFor("android");
-    secureStoreMock.getItemAsync.mockRejectedValue(
-      new Error("Could not decrypt the item in SecureStore")
-    );
-    secureStoreMock.deleteItemAsync.mockRejectedValue(
-      new Error("Keystore key is unavailable")
-    );
+    secureStoreMock.getItemAsync.mockRejectedValue(readError);
+    secureStoreMock.deleteItemAsync.mockRejectedValue(deleteError);
 
     await expect(mod.loadSession()).resolves.toBeNull();
     expect(asyncStorageMock.removeItem).toHaveBeenCalledWith("auth_session_v1");
+    expect(warn).toHaveBeenNthCalledWith(1,
+      "[session] native session is unreadable; starting signed out", readError);
+    expect(warn).toHaveBeenNthCalledWith(2,
+      "[session] could not clear native session", deleteError);
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
   test("native keeps a valid legacy session when SecureStore migration fails", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const migrationError = new Error("SecureStore unavailable");
     const mod = await loadSessionModuleFor("android");
     const legacySession = {
       access_token: "legacy-a",
@@ -159,10 +165,13 @@ describe("session storage", () => {
     asyncStorageMock.getItem
       .mockResolvedValueOnce(JSON.stringify(legacySession));
     secureStoreMock.getItemAsync.mockResolvedValue(null);
-    secureStoreMock.setItemAsync.mockRejectedValue(new Error("SecureStore unavailable"));
+    secureStoreMock.setItemAsync.mockRejectedValue(migrationError);
 
     await expect(mod.loadSession()).resolves.toEqual(legacySession);
     expect(asyncStorageMock.removeItem).not.toHaveBeenCalledWith("auth_session_v1");
+    expect(warn).toHaveBeenCalledWith(
+      "[session] could not migrate session to native storage", migrationError);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   test("clears a deleted user's stored web session before route guards run", async () => {

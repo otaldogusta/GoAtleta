@@ -8,6 +8,9 @@ Run `npm run test:sql:concurrency` with Docker available. The runner creates its
 own PostgreSQL 17.6 container, pinned by image digest, with no network, published
 ports, host mounts or persistent database. It removes that container on exit.
 Only synthetic identities and the repository's actual finance migrations are used.
+Readiness and test sessions both use TCP loopback inside the container. The Unix
+socket can belong to the image's temporary initialization server, which shuts down
+before the final server starts, and must not be used as a readiness signal.
 
 Separate `psql` connections verify an overlapping replay after commit and rollback,
 conflicting payload rejection, progress of unrelated events and a 12-connection

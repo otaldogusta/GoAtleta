@@ -154,15 +154,23 @@ describe("resolveAIPeriodizationContext", () => {
 
   // 4. RLS bloqueia → tratado como ausência de dados (não explode)
   test("returns null when planning_cycles query returns RLS error", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     const supabase = makeSupabaseMock({
       planning_cycles: { data: null, error: { message: "Row level security" } },
       class_plans: { data: null, error: null },
       events: { data: [], error: null },
     }) as any;
 
-    const result = await resolveAIPeriodizationContext(supabase, "class_other_org", "2026-07-09");
-    // Should return null gracefully (no cycle + no week + no events)
-    expect(result).toBeNull();
+    try {
+      const result = await resolveAIPeriodizationContext(supabase, "class_other_org", "2026-07-09");
+      // Should return null gracefully (no cycle + no week + no events)
+      expect(result).toBeNull();
+      expect(warn).toHaveBeenCalledWith(
+        "[AIPeriodization] planning_cycles query error:", "Row level security");
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   // 5. Evento próximo em até 14 dias → aparece em upcomingEvents

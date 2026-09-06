@@ -30,6 +30,14 @@ O teste foi incluído no Core CI, do qual o job de publicação EAS depende. O c
 
 As três suítes PGlite passaram novamente após a extração do preparo compartilhado, incluindo 18 cenários financeiros. O smoke autenticado em `localhost:8081` confirmou o painel financeiro carregado, os recebimentos importados, o seletor mensal com fechamento por Esc e a aba de pagadores.
 
+## Conferência remota e estabilização do CI
+
+O commit `8e3755f8d2118f43bf1ec0a9d042676e370a0d15` chegou a `READY` no Vercel, com o domínio `goatleta.com` associado. No GitHub, as 413 suítes / 2.342 testes, SQL isolado e build web passaram. O EAS foi bloqueado em seguida pela inicialização do container do teste de concorrência: o socket Unix aceitou o health check no servidor temporário de initdb e desapareceu antes de abrir a sessão.
+
+Readiness e sessões agora usam o mesmo endpoint TCP de loopback interno, disponível no servidor definitivo. Uma inicialização sintética com espera de oito segundos reproduziu a diferença: socket Unix pronto enquanto TCP ainda estava indisponível, seguido de consulta bem-sucedida pelo endpoint definitivo. Os quatro grupos de concorrência passaram após a correção.
+
+Os avisos de SecureStore e `Row level security` vistos nos logs eram erros intencionais dos testes. Os três cenários negativos agora verificam o texto, erro e quantidade esperada de avisos sem imprimi-los como falhas aparentes de publicação. As duas suítes afetadas passaram, com 30 testes. Os avisos de produção permanecem ativos.
+
 ## Pendências independentes
 
 O teste financeiro com várias conexões deixou de ser pendência. Isso não equivale a um teste de carga prolongado de todo o app nem a uma validação multiconexão de todos os workers.
