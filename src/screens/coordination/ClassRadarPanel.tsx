@@ -1,19 +1,9 @@
 import { Text, useWindowDimensions, View } from "react-native";
 
 import { useAppTheme } from "../../ui/app-theme";
+import type { ClassRadarItem } from "./application/coordination-radar";
 
 type AppColors = ReturnType<typeof useAppTheme>["colors"];
-
-export type ClassRadarItem = {
-  classId: string;
-  className: string;
-  unit: string;
-  radarScore: number;
-  trendLabel: "subindo" | "estavel" | "queda";
-  alerts: string[];
-  nextTrainingPrompt: string;
-  logsCount: number;
-};
 
 type ClassRadarPanelProps = {
   colors: AppColors;

@@ -6,6 +6,9 @@ import { lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "r
 import { Alert, Platform,  Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAuth } from "../src/auth/auth";
+import { useCoordinationDashboard } from "../src/screens/coordination/hooks/useCoordinationDashboard";
+
 import { type Signal } from "../src/ai/signal-engine";
 import { buildCoordinationOperationalFacts } from "../src/ai/coordination-operational-facts";
 import {
@@ -18,33 +21,10 @@ import {
     type SyncErrorClassificationResult,
 } from "../src/api/ai";
 import { listClassHeadsByClassIds, type ClassResponsible } from "../src/api/class-responsibles";
-import {
-    adminListOrgMemberClassAssignments,
-    adminListOrgMemberClassHeads,
-    adminListOrgMembers,
-    adminListOrgClasses,
-    type MemberClassHead,
-    type OrgMember,
-    type OrgClass,
-} from "../src/api/members";
+import type { OrgMember } from "../src/api/members";
 import { sendPushToUser } from "../src/api/push";
-import {
-    AdminPendingAttendance,
-    AdminPendingSessionLogs,
-    type AdminRecentActivity,
-    listAdminPendingAttendance,
-    listAdminPendingSessionLogs,
-    listAdminRecentActivity,
-} from "../src/api/reports";
+import type { AdminPendingAttendance } from "../src/api/reports";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
-import {
-    listTrainerInvites,
-    type TrainerInviteItem,
-} from "../src/api/trainer-invite";
-import {
-    adminListOrgAccessRequests,
-    type OrganizationAccessRequest,
-} from "../src/api/organization-access-requests";
 import {
     useCopilotActions,
     useCopilotContext,
@@ -58,23 +38,16 @@ import {
     clearPendingWritesDeadLetterCandidates,
     exportSyncHealthReportJson,
     flushPendingWrites,
-    getClasses,
     getPendingWritePayloadById,
-    getPendingWritesDiagnostics,
-    getSessionLogsByRange,
-    listPendingWriteFailures,
     reprocessPendingWriteById,
     reprocessPendingWritesNetworkFailures,
     type PendingWriteFailureRow,
-    type PendingWritesDiagnostics,
 } from "../src/db/seed";
 import { getScopedProfilePath } from "../src/navigation/profile-routes";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useOrganization } from "../src/providers/OrganizationProvider";
-import { type ClassRadarItem } from "../src/screens/coordination/ClassRadarPanel";
 import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
 import { hasCoordinationAccess, resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
-import { getFriendlyErrorMessage } from "../src/ui/error-messages";
 import { useAppTheme } from "../src/ui/app-theme";
 import { GoAtletaIcon } from "../src/ui/icon-registry";
 import { Pressable } from "../src/ui/Pressable";
@@ -341,6 +314,7 @@ function CoordinationScreenContent() {
   markRender("screen.coordination.render.root");
 
   const router = useRouter();
+  const { session } = useAuth();
   const profilePath = getScopedProfilePath("/coordination");
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
@@ -352,41 +326,29 @@ function CoordinationScreenContent() {
   const organizationName = activeOrganization?.name ?? "Organização";
 
   const activeTab: CoordinationTab = "dashboard";
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [pendingAttendance, setPendingAttendance] = useState<AdminPendingAttendance[]>([]);
-  const [pendingReports, setPendingReports] = useState<AdminPendingSessionLogs[]>([]);
-  const [recentActivity, setRecentActivity] = useState<AdminRecentActivity[]>([]);
-  const [catalogAuditReport, setCatalogAuditReport] = useState<ActivityCatalogAuditReport | null>(null);
-  const [pendingWritesDiagnostics, setPendingWritesDiagnostics] = useState<PendingWritesDiagnostics>({
-    total: 0,
-    highRetry: 0,
-    maxRetry: 0,
-    deadLetterCandidates: 0,
-    deadLetterStored: 0,
+  const {
+    loading, refreshing, error, pendingAttendance, pendingReports, recentActivity,
+    pendingWritesDiagnostics, failedWrites, classRadarItems, signals,
+    organizationMembers, memberClassHeads, organizationClasses,
+    pendingTrainerInvites, pendingAccessRequests, loadedOrganizationId,
+    loadDashboard, refreshDashboard,
+  } = useCoordinationDashboard({
+    userId: session?.user?.id ?? null,
+    organizationId,
+    enabled: isAdmin && !organizationLoading,
   });
+  const [catalogAuditReport, setCatalogAuditReport] = useState<ActivityCatalogAuditReport | null>(null);
   const [syncActionLoading, setSyncActionLoading] = useState(false);
   const [syncActionMessage, setSyncActionMessage] = useState<string | null>(null);
-  const [failedWrites, setFailedWrites] = useState<PendingWriteFailureRow[]>([]);
   const [executiveSummary, setExecutiveSummary] = useState<ExecutiveSummaryResult | null>(null);
   const [syncClassifications, setSyncClassifications] = useState<Record<string, SyncErrorClassificationResult>>({});
   const [dataFixSuggestions, setDataFixSuggestions] = useState<DataFixSuggestionsResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [, setAiMessage] = useState<string | null>(null);
   const [, setAiExportLoading] = useState(false);
-  const [classRadarItems, setClassRadarItems] = useState<ClassRadarItem[]>([]);
-  const [signals, setSignals] = useState<Signal[]>([]);
   const [notifyHead, setNotifyHead] = useState<ClassResponsible | null>(null);
   const [notifyHeadLoading, setNotifyHeadLoading] = useState(false);
   const [notifySending, setNotifySending] = useState(false);
-  const [organizationMembers, setOrganizationMembers] = useState<OrgMember[]>([]);
-  const [memberClassHeads, setMemberClassHeads] = useState<MemberClassHead[]>([]);
-  const [organizationClasses, setOrganizationClasses] = useState<OrgClass[]>([]);
-  const [pendingTrainerInvites, setPendingTrainerInvites] = useState<TrainerInviteItem[]>([]);
-  const [pendingAccessRequests, setPendingAccessRequests] = useState<OrganizationAccessRequest[]>([]);
-  const [loadedOrganizationId, setLoadedOrganizationId] = useState<string | null>(null);
-  const dashboardRequestRef = useRef(0);
   const catalogRequestedOrgIdRef = useRef<string | null>(null);
 
   const supportsSplitLayout = responsiveLayout.supportsSplitView;
@@ -643,186 +605,6 @@ function CoordinationScreenContent() {
     },
     [notifySending, organizationId]
   );
-
-  const loadDashboard = useCallback(async () => {
-    const requestId = ++dashboardRequestRef.current;
-    if (organizationLoading) return;
-
-    if (!organizationId || !isAdmin) {
-      setPendingAttendance([]);
-      setPendingReports([]);
-      setRecentActivity([]);
-      setNotifyHead(null);
-      setNotifyHeadLoading(false);
-      setNotifySending(false);
-      setOrganizationMembers([]);
-      setMemberClassHeads([]);
-      setOrganizationClasses([]);
-      setPendingTrainerInvites([]);
-      setPendingAccessRequests([]);
-      setPendingWritesDiagnostics({
-        total: 0,
-        highRetry: 0,
-        maxRetry: 0,
-        deadLetterCandidates: 0,
-        deadLetterStored: 0,
-      });
-      setFailedWrites([]);
-      setExecutiveSummary(null);
-      setSyncClassifications({});
-      setDataFixSuggestions(null);
-      setClassRadarItems([]);
-      setSignals([]);
-      setAiMessage(null);
-      setLoadedOrganizationId(null);
-      setLoading(false);
-      setRefreshing(false);
-      setError(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const [
-        attendanceRows,
-        reportRows,
-        classes,
-        queueDiagnostics,
-        failed,
-        memberRows,
-        classHeadRows,
-        classRows,
-        inviteRows,
-        accessRequestRows,
-      ] =
-        await measureAsync(
-          "screen.coordination.load.dashboard",
-          () =>
-            Promise.all([
-              listAdminPendingAttendance({ organizationId }),
-              listAdminPendingSessionLogs({ organizationId }),
-              getClasses({ organizationId }),
-              getPendingWritesDiagnostics(10),
-              listPendingWriteFailures(12),
-              adminListOrgMembers(organizationId),
-              adminListOrgMemberClassAssignments(organizationId)
-                .catch(() => adminListOrgMemberClassHeads(organizationId)),
-              adminListOrgClasses(organizationId),
-              listTrainerInvites(organizationId)
-                .then((result) => result.invites),
-              adminListOrgAccessRequests(organizationId),
-            ]),
-          { screen: "coordination", organizationId }
-        );
-      if (requestId !== dashboardRequestRef.current) return;
-
-      setPendingAttendance(attendanceRows);
-      setPendingReports(reportRows);
-      setRecentActivity([]);
-      setPendingWritesDiagnostics(queueDiagnostics);
-      setFailedWrites(failed);
-
-      setOrganizationMembers(memberRows);
-      setMemberClassHeads(classHeadRows);
-      const scheduleByClassId = new Map(classes.map((classGroup) => [classGroup.id, classGroup]));
-      setOrganizationClasses(
-        classRows.map((classGroup) => {
-          const schedule = scheduleByClassId.get(classGroup.id);
-          return {
-            ...classGroup,
-            daysOfWeek: schedule?.daysOfWeek ?? [],
-            startTime: schedule?.startTime ?? "",
-            endTime: schedule?.endTime ?? "",
-          };
-        })
-      );
-      setPendingTrainerInvites(inviteRows);
-      setPendingAccessRequests(accessRequestRows);
-
-      const now = new Date();
-      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      void Promise.all([
-        listAdminRecentActivity({ organizationId, limit: 12 }),
-        getSessionLogsByRange(start.toISOString(), now.toISOString(), { organizationId }),
-        import("../src/ai/signal-engine").then((module) => module.getSignals({ organizationId })),
-      ])
-        .then(async ([activityRows, sessionLogs, signalRows]) => {
-          const { buildNextClassSuggestion } = await import(
-            "../src/core/intelligence/suggestion-engine"
-          );
-          if (requestId !== dashboardRequestRef.current) return;
-
-          const logsByClass = sessionLogs.reduce<Record<string, typeof sessionLogs>>(
-            (acc, item) => {
-              if (!acc[item.classId]) acc[item.classId] = [];
-              acc[item.classId].push(item);
-              return acc;
-            },
-            {}
-          );
-          const radarRows: ClassRadarItem[] = classes
-            .map((item) => {
-              const logs = logsByClass[item.id] ?? [];
-              const suggestion = buildNextClassSuggestion({
-                className: item.name,
-                logs,
-              });
-              return {
-                classId: item.id,
-                className: item.name,
-                unit: item.unit,
-                radarScore: suggestion.radarScore,
-                trendLabel: suggestion.trendLabel,
-                alerts: suggestion.alerts,
-                nextTrainingPrompt: suggestion.nextTrainingPrompt,
-                logsCount: logs.length,
-              };
-            })
-            .sort((a, b) => a.radarScore - b.radarScore)
-            .slice(0, 6);
-
-          setRecentActivity(activityRows);
-          setClassRadarItems(radarRows);
-          setSignals(signalRows);
-        })
-        .catch(() => {
-          if (requestId !== dashboardRequestRef.current) return;
-          setRecentActivity([]);
-          setClassRadarItems([]);
-          setSignals([]);
-        });
-    } catch (err) {
-      if (requestId !== dashboardRequestRef.current) return;
-      setPendingAttendance([]);
-      setPendingReports([]);
-      setRecentActivity([]);
-      setNotifyHead(null);
-      setNotifyHeadLoading(false);
-      setOrganizationMembers([]);
-      setMemberClassHeads([]);
-      setOrganizationClasses([]);
-      setPendingTrainerInvites([]);
-      setPendingAccessRequests([]);
-      setPendingWritesDiagnostics({
-        total: 0,
-        highRetry: 0,
-        maxRetry: 0,
-        deadLetterCandidates: 0,
-        deadLetterStored: 0,
-      });
-      setFailedWrites([]);
-      setClassRadarItems([]);
-      setSignals([]);
-      setAiMessage(null);
-      setError(getFriendlyErrorMessage(err, "Falha ao carregar dados da coordenação."));
-    } finally {
-      if (requestId !== dashboardRequestRef.current) return;
-      setLoadedOrganizationId(organizationId);
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [isAdmin, organizationId, organizationLoading]);
 
   useEffect(() => {
     catalogRequestedOrgIdRef.current = null;
@@ -1625,10 +1407,7 @@ function CoordinationScreenContent() {
             pendingReports={pendingReports}
             recentActivity={recentActivity}
             notifySending={notifySending}
-            onRefresh={() => {
-              setRefreshing(true);
-              return loadDashboard();
-            }}
+            onRefresh={refreshDashboard}
             onOpenAttendance={(item) =>
               router.push({
                 pathname: "/class/[id]/attendance",
@@ -1918,10 +1697,18 @@ function CoordinationScreenContent() {
 // sem duplicar a implementação da Gestão.
 export default function CoordinationScreen() {
   const pathname = usePathname();
+  const { session } = useAuth();
+  const { organizations, activeOrganization, isLoading } = useOrganization();
+  const scopeKey = JSON.stringify([
+    session?.user?.id ?? null,
+    activeOrganization?.id ?? null,
+    hasCoordinationAccess(organizations, activeOrganization),
+    isLoading,
+  ]);
 
   if (pathname === "/coordination") {
     return <Redirect href="/coord/management" />;
   }
 
-  return <CoordinationScreenContent />;
+  return <CoordinationScreenContent key={scopeKey} />;
 }

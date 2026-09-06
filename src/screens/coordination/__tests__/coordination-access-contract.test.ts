@@ -7,11 +7,9 @@ const workspace = readFileSync(resolve(__dirname, "../CoordinationPeopleWorkspac
 describe("coordination permission and failure boundaries", () => {
   it("uses unmodified server memberships instead of preview privileges", () => {
     expect(screen).toContain("hasCoordinationAccess(organizations, activeOrganization)");
-    expect(screen).toContain("if (!organizationId || !isAdmin)");
+    expect(screen).toContain("enabled: isAdmin && !organizationLoading");
   });
-  it("does not turn failed critical queries into empty dashboards", () => {
-    expect(screen).not.toContain("adminListOrgMembers(organizationId).catch");
-    expect(screen).not.toContain(".catch(() => [] as TrainerInviteItem[])");
+  it("keeps the people workspace behind an explicit error and retry boundary", () => {
     expect(screen).toContain("{!error ? <CoordinationPeopleWorkspace");
     expect(screen).toContain("Tentar carregar coordenação novamente");
   });
