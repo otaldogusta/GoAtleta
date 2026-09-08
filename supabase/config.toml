@@ -3,6 +3,9 @@ project_id = "hgmdpetpwclucvquoklv"
 [functions.assistant]
 verify_jwt = true
 
+[functions.assistant-transcribe]
+verify_jwt = true
+
 [functions.link-metadata]
 verify_jwt = false
 

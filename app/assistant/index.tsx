@@ -1,9 +1,17 @@
+import { getConversationSuggestions } from "../../src/assistant/conversation-suggestions";
+import { AssistantConversationScroll } from "../../src/assistant/components/AssistantConversationScroll";
+import { AssistantPending } from "../../src/assistant/components/AssistantPending";
+import { AssistantWelcome } from "../../src/assistant/components/AssistantWelcome";
+import { AssistantComposer } from "../../src/assistant/components/AssistantComposer";
+import { AssistantMessages } from "../../src/assistant/components/AssistantMessages";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Keyboard, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Alert, Keyboard, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
+import { AssistantModelSelector } from "../../src/assistant/components/AssistantModelSelector";
+import type { AssistantModelChoice } from "../../src/assistant/model-choice";
 import { requestAssistantConversation } from "../../src/api/ai";
 import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
@@ -277,9 +285,6 @@ const DEFAULT_WARMUP_TIME = "10 minutos";
 const DEFAULT_COOLDOWN_TIME = "5 minutos";
 const MAX_STRATEGIC_BULLETS = 3;
 const MAX_BULLET_LINE_LENGTH = 88;
-const COMPOSER_MIN_HEIGHT = 40;
-const COMPOSER_MAX_HEIGHT = 136;
-const COMPOSER_MAX_HEIGHT_WEB = 84;
 
 const clampBulletLine = (value: string) => {
   const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -448,8 +453,11 @@ export default function AssistantScreen() {
   const [classId, setClassId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [modelPreference, setModelPreference] = useState<AssistantModelChoice>("auto");
+  const activeReplyRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => { activeReplyRequest.current?.abort(); }, [activeOrganization?.id, classId]);
+  const [partialReply, setPartialReply] = useState("");
   const [loading, setLoading] = useState(false);
-  const [assistantTyping, setAssistantTyping] = useState(false);
   const [draft, setDraft] = useState<DraftTraining | null>(null);
   const [sources, setSources] = useState<AssistantSource[]>([]);
   const [showSavedLink, setShowSavedLink] = useState(false);
@@ -462,7 +470,6 @@ export default function AssistantScreen() {
   const [simulationResult, setSimulationResult] = useState<EvolutionSimulationResult | null>(null);
   const [memoryContextHints, setMemoryContextHints] = useState<string[]>([]);
   const [composerHeight, setComposerHeight] = useState(0);
-  const [composerInputHeight, setComposerInputHeight] = useState(COMPOSER_MIN_HEIGHT);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -470,7 +477,6 @@ export default function AssistantScreen() {
 
   const appliedPromptRef = useRef("");
   const composerInputRef = useRef<TextInput | null>(null);
-  const [thinkingPulse] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const incomingPrompt = String(params.prompt ?? "").trim();
@@ -530,35 +536,6 @@ export default function AssistantScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      thinkingPulse.stopAnimation();
-      thinkingPulse.setValue(0);
-      return;
-    }
-
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(thinkingPulse, {
-          toValue: 1,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-        Animated.timing(thinkingPulse, {
-          toValue: 0,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    loop.start();
-    return () => {
-      loop.stop();
-      thinkingPulse.stopAnimation();
-      thinkingPulse.setValue(0);
-    };
-  }, [loading, thinkingPulse]);
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId) ?? null,
@@ -571,7 +548,7 @@ export default function AssistantScreen() {
     });
     return entries;
   }, [classes]);
-  const hasInputText = input.trim().length > 0;
+
 
   const className = selectedClass?.name ?? "Turma";
   const scientificReferences = useMemo<ScientificReference[]>(() => {
@@ -921,43 +898,8 @@ export default function AssistantScreen() {
     setMessages((prev) => [...prev, { role: "assistant", content }]);
   }, []);
 
-  const typeAssistantReply = useCallback(async (reply: string) => {
-    const content = reply ?? "";
-    setAssistantTyping(true);
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
-    const targetTicks = Platform.OS === "web" ? 72 : 56;
-    const chunkSize = Math.max(2, Math.ceil(content.length / targetTicks));
-    const tickMs = Platform.OS === "web" ? 18 : 22;
-
-    await new Promise<void>((resolve) => {
-      let index = 0;
-      const timer = setInterval(() => {
-        index = Math.min(content.length, index + chunkSize);
-        const nextContent = content.slice(0, index);
-
-        setMessages((prev) => {
-          if (prev.length === 0) {
-            return [{ role: "assistant", content: nextContent }];
-          }
-          const next = [...prev];
-          const lastIndex = next.length - 1;
-          if (next[lastIndex].role === "assistant") {
-            next[lastIndex] = { ...next[lastIndex], content: nextContent };
-          } else {
-            next.push({ role: "assistant", content: nextContent });
-          }
-          return next;
-        });
-
-        if (index >= content.length) {
-          clearInterval(timer);
-          resolve();
-        }
-      }, tickMs);
-    });
-
-    setAssistantTyping(false);
+  const showAssistantReply = useCallback((reply: string) => {
+    setMessages(prev => [...prev, { role: "assistant", content: reply ?? "" }]);
   }, []);
 
   const handleSelectQuickPrompt = useCallback((prompt: string) => {
@@ -972,12 +914,15 @@ export default function AssistantScreen() {
   }, []);
 
   const sendMessage = useCallback(async () => {
-    if (!input.trim() || loading || assistantTyping) return;
+    if (!input.trim() || loading) return;
+    const controller = new AbortController();
+    activeReplyRequest.current = controller;
     const nextMessages = [...messages, { role: "user" as const, content: input.trim() }];
     const requestMessages = nextMessages.slice(-ASSISTANT_CONTEXT_MESSAGES);
     setMessages(nextMessages);
     setInput("");
     setLoading(true);
+    setPartialReply("");
     setDraft(null);
     setSources([]);
     setConfidence(null);
@@ -1021,6 +966,9 @@ export default function AssistantScreen() {
       const appSnapshot = optionalCopilot?.appSnapshot ?? null;
 
       const data = await requestAssistantConversation({
+        signal: controller.signal,
+        onReply: text => { if (!controller.signal.aborted) setPartialReply(text); },
+        modelPreference,
         accessToken,
         messages: requestMessages.map((message) => ({
           role: message.role,
@@ -1032,6 +980,8 @@ export default function AssistantScreen() {
         memoryContext,
         appSnapshot,
       }) as AssistantResponse | AssistantErrorPayload;
+      if (controller.signal.aborted) return;
+      setPartialReply("");
       const payloadError = extractAssistantPayloadError(data);
       const rawReply =
         typeof (data as AssistantResponse).reply === "string" && (data as AssistantResponse).reply.trim()
@@ -1054,7 +1004,8 @@ export default function AssistantScreen() {
         : rawReply;
 
       setLoading(false);
-      await typeAssistantReply(reply);
+      setPartialReply("");
+      showAssistantReply(reply);
       setSources(responseError ? [] : Array.isArray((data as AssistantResponse).sources) ? (data as AssistantResponse).sources : []);
       setConfidence(
         responseError
@@ -1122,8 +1073,9 @@ export default function AssistantScreen() {
       ]);
     } finally {
       setLoading(false);
+      setPartialReply("");
     }
-  }, [activeOrganization, assistantTyping, classId, input, loading, messages, notificationInboxScope, optionalCopilot, selectedClass, session, typeAssistantReply]);
+  }, [activeOrganization, classId, input, loading, messages, modelPreference, notificationInboxScope, optionalCopilot, selectedClass, session, showAssistantReply]);
 
   const saveDraft = async () => {
     if (!draft || !classId) return;
@@ -1237,28 +1189,7 @@ export default function AssistantScreen() {
     };
   }, [composerFocused, sendMessage]);
 
-  const messageBubbles = useMemo(
-    () =>
-      messages.map((message, index) => (
-        <View
-          key={String(index)}
-          style={{
-            alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-            maxWidth: "85%",
-            padding: 12,
-            borderRadius: 16,
-            backgroundColor: message.role === "user" ? colors.primaryBg : colors.background,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Text style={{ color: message.role === "user" ? colors.primaryText : colors.text }}>
-            {message.content}
-          </Text>
-        </View>
-      )),
-    [colors.background, colors.border, colors.primaryBg, colors.primaryText, colors.text, messages]
-  );
+  const messageBubbles = <AssistantMessages messages={partialReply ? [...messages, { role: "assistant", content: partialReply }] : messages} />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1309,29 +1240,13 @@ export default function AssistantScreen() {
               <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
             </Pressable>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text
-                numberOfLines={1}
-                style={{
-                  color: colors.text,
-                  fontSize: isCompactMobile ? 22 : 28,
-                  fontWeight: "800",
-                }}
-              >
-                Assistente IA
-              </Text>
+              <AssistantModelSelector value={modelPreference} onChange={setModelPreference} disabled={loading} />
               <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
                 {assistantScopeLabel}
               </Text>
             </View>
           </View>
-          <ScrollView
-            contentContainerStyle={{
-              gap: 10,
-              paddingBottom: composerHeight + keyboardHeight + insets.bottom + 12,
-            }}
-            style={{ flex: 1 }}
-            keyboardShouldPersistTaps="handled"
-          >
+          <AssistantConversationScroll contentContainerStyle={{ gap: 10, paddingBottom: 12 }}>
             {messages.length === 0 ? (
               <View
                 style={{
@@ -1349,36 +1264,7 @@ export default function AssistantScreen() {
                 }}
               >
                 <View style={{ alignItems: "center", gap: 10 }}>
-                  <View
-                    style={{
-                      width: 70,
-                      height: 70,
-                      borderRadius: 35,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      backgroundColor: colors.inputBg,
-                    }}
-                  >
-                    <View
-                      style={{
-                        position: "absolute",
-                        width: 54,
-                        height: 54,
-                        borderRadius: 27,
-                        backgroundColor: colors.primaryBg,
-                        opacity: 0.16,
-                      }}
-                    />
-                    <GoAtletaIcon name="assistant" size={26} color={colors.primaryBg} />
-                  </View>
-                  <Text style={{ color: colors.text, fontSize: isCompactMobile ? 28 : 42, fontWeight: "800" }}>
-                    {greetingLine}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: 16, textAlign: "center", maxWidth: 580 }}>
-                    Hoje, o que você quer resolver?
-                  </Text>
+                  <AssistantWelcome heading={greetingLine} compact={isCompactMobile} suggestions={getConversationSuggestions("", Boolean(classId))} onSuggestion={prompt => { setInput(prompt); composerInputRef.current?.focus(); }} />
                   {classes.length > 1 ? (
                     <ScrollView
                       horizontal
@@ -1455,49 +1341,7 @@ export default function AssistantScreen() {
 
             {messageBubbles}
 
-            {loading ? (
-              <View
-                style={{
-                  alignSelf: "flex-start",
-                  maxWidth: "58%",
-                  padding: 12,
-                  borderRadius: 16,
-                  backgroundColor: colors.background,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  {[0, 1, 2].map((index) => {
-                    const phase = index * 0.2;
-                    const opacity = thinkingPulse.interpolate({
-                      inputRange: [0, phase, phase + 0.2, 1],
-                      outputRange: [0.3, 0.45, 1, 0.35],
-                      extrapolate: "clamp",
-                    });
-                    const translateY = thinkingPulse.interpolate({
-                      inputRange: [0, phase, phase + 0.2, 1],
-                      outputRange: [0, 0, -3, 0],
-                      extrapolate: "clamp",
-                    });
-
-                    return (
-                      <Animated.View
-                        key={`thinking-dot-${index}`}
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: colors.muted,
-                          opacity,
-                          transform: [{ translateY }],
-                        }}
-                      />
-                    );
-                  })}
-                </View>
-              </View>
-            ) : null}
+            {loading && !partialReply ? <AssistantPending label="Preparando resposta" compact /> : null}
 
             { draft ? (
               <View
@@ -1833,7 +1677,7 @@ export default function AssistantScreen() {
                 </View>
               </View>
             ) : null}
-          </ScrollView>
+          </AssistantConversationScroll>
 
           <View
             onLayout={(event) => {
@@ -1853,100 +1697,11 @@ export default function AssistantScreen() {
               paddingBottom: 10 + insets.bottom,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
-              <Pressable
-                onPress={() => {
-                  composerInputRef.current?.focus();
-                }}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 999,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondaryBg,
-                }}
-              >
-                <GoAtletaIcon name="add" size={20} color={colors.text} />
-              </Pressable>
-              <TextInput
-                ref={composerInputRef}
-                placeholder="Perguntar algo..."
-                value={input}
-                onChangeText={(value) => {
-                  setInput(value);
-                  if (!value.trim() && composerInputHeight !== COMPOSER_MIN_HEIGHT) {
-                    setComposerInputHeight(COMPOSER_MIN_HEIGHT);
-                  }
-                }}
-                onFocus={() => setComposerFocused(true)}
-                onBlur={() => setComposerFocused(false)}
-                onKeyPress={handleComposerKeyPress}
-                onContentSizeChange={(event) => {
-                  if (!input.trim()) {
-                    if (composerInputHeight !== COMPOSER_MIN_HEIGHT) {
-                      setComposerInputHeight(COMPOSER_MIN_HEIGHT);
-                    }
-                    return;
-                  }
-                  const maxHeight =
-                    Platform.OS === "web" ? COMPOSER_MAX_HEIGHT_WEB : COMPOSER_MAX_HEIGHT;
-                  const next = Math.max(
-                    COMPOSER_MIN_HEIGHT,
-                    Math.min(maxHeight, Math.ceil(event.nativeEvent.contentSize.height))
-                  );
-                  if (next !== composerInputHeight) {
-                    setComposerInputHeight(next);
-                  }
-                }}
-                placeholderTextColor={colors.muted}
-                returnKeyType="send"
-                multiline
-                scrollEnabled={
-                  composerInputHeight >=
-                  (Platform.OS === "web" ? COMPOSER_MAX_HEIGHT_WEB : COMPOSER_MAX_HEIGHT)
-                }
-                style={{
-                  flex: 1,
-                  minHeight: COMPOSER_MIN_HEIGHT,
-                  height: composerInputHeight,
-                  color: colors.inputText,
-                  paddingHorizontal: 2,
-                  paddingTop: 8,
-                  paddingBottom: 8,
-                  fontSize: 16,
-                  textAlignVertical: "top",
-                  ...(Platform.OS === "web"
-                    ? ({
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        overflowWrap: "anywhere",
-                      } as const)
-                    : null),
-                }}
-              />
-              <Pressable
-                onPress={sendMessage}
-                disabled={!hasInputText}
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 999,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: colors.primaryBg,
-                  opacity: hasInputText ? 1 : 0.55,
-                }}
-              >
-                <GoAtletaIcon
-                  name={loading || assistantTyping ? "hourglass" : "arrowUp"}
-                  size={20}
-                  color={colors.primaryText}
-                />
-              </Pressable>
-            </View>
+            <AssistantComposer value={input} onChangeText={setInput} onSend={() => { void sendMessage(); }}
+              busy={loading} inputRef={composerInputRef}
+              onFocus={() => setComposerFocused(true)} onBlur={() => setComposerFocused(false)}
+              onKeyPress={handleComposerKeyPress}
+              voiceScope={activeOrganization && activeOrganization.role_level >= 10 ? { organizationId: activeOrganization.id, classId: classId || undefined } : undefined} />
           </View>
         </View>
       </View>

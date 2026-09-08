@@ -1,4 +1,6 @@
 import * as Calendar from "expo-calendar";
+import { useCopilotContext } from "../../src/copilot/CopilotProvider";
+import { buildPlanningCopilotContext } from "../../src/screens/training/application/planning-copilot-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
@@ -2178,6 +2180,9 @@ function TrainingWorkspace() {
     : selectedClass ?? classes[0];
   const workspaceLessonDate =
     workspaceDraftLessonDate || selectedPlan?.applyDate || targetDate || formatShortDateValue(new Date());
+  useCopilotContext(useMemo(() => buildPlanningCopilotContext(
+    selectedPlan, workspaceClass?.name, workspaceLessonDate
+  ), [selectedPlan, workspaceClass?.name, workspaceLessonDate]));
   const handleWorkspaceDraftChange = useCallback(
     (draft: TrainingPlan) => {
       queueWorkspaceDraft(draft, workspaceLessonDate);

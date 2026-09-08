@@ -1,3 +1,8 @@
+import { Button } from "../../ui/Button";
+import { ActivityReviewSuggestion } from "./ActivityReviewSuggestion";
+import { useHolidayRecommendation } from "./useHolidayRecommendation";
+import { HolidayRecommendation } from "./HolidayRecommendation";
+import { isPaused } from "../../core/holidays";
 import * as Clipboard from "expo-clipboard";
 
 import { Link, useFocusEffect, useRouter } from "expo-router";
@@ -232,6 +237,9 @@ export function HomeProfessorScreen({
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [activityReviewVisible, setActivityReviewVisible] = useState(false);
+  const [activityReviewCount, setActivityReviewCount] = useState(0);
+  const [activityReviewRequest, setActivityReviewRequest] = useState(0);
   const [horizontalGestureActive, setHorizontalGestureActive] = useState(false);
   const handleHorizontalGestureChange = useCallback((active: boolean) => {
     setHorizontalGestureActive(active);
@@ -771,6 +779,7 @@ export function HomeProfessorScreen({
 
 
 
+  const holidayCalendar = useHolidayRecommendation(activeOrganization?.id, isAdminDashboardContext && isOrgAdmin, now);
   const todayDateKey = useMemo(() => formatIsoDate(now), [now]);
   const [selectedDateKey, setSelectedDateKey] = useState(todayDateKey);
 
@@ -855,6 +864,7 @@ export function HomeProfessorScreen({
       const dayClasses = classesByWeekday[dayIndex] ?? [];
 
       dayClasses.forEach((cls) => {
+        if (isPaused(holidayCalendar.pauses, cls.id, formatIsoDate(dayDate))) return;
 
         const time = parseTime(cls.startTime);
 
@@ -896,7 +906,7 @@ export function HomeProfessorScreen({
 
     return items.sort((a, b) => a.startTime - b.startTime);
 
-  }, [classes.length, classesByWeekday, scheduleBaseDate]);
+  }, [classes.length, classesByWeekday, scheduleBaseDate, holidayCalendar.pauses]);
 
 
 
@@ -2773,7 +2783,8 @@ export function HomeProfessorScreen({
 
               <View style={{ height: 1, backgroundColor: colors.border }} />
 
-            { inbox.length === 0 ? (
+            {isAdminDashboardContext && isOrgAdmin && activityReviewCount > 0 ? <Button label={`Revisar período sem chamada · ${activityReviewCount} turma(s)`} variant="secondary" onPress={() => { closeInbox(); setActivityReviewRequest(value => value + 1); }} /> : null}
+            { inbox.length === 0 && activityReviewCount === 0 ? (
 
               <Text style={{ color: colors.muted }}>Sem notificações.</Text>
 
@@ -2857,6 +2868,17 @@ export function HomeProfessorScreen({
 
       ) : null}
 
+      {!activityReviewVisible && holidayCalendar.visible && (classesByWeekday[new Date(holidayCalendar.date + "T12:00:00").getDay()] ?? []).length > 0 ? (
+        <HolidayRecommendation key={`${activeOrganization?.id}:${holidayCalendar.date}`} holiday={holidayCalendar.holiday!} date={holidayCalendar.date}
+          pausedIds={holidayCalendar.pauses.filter(pause => pause.date === holidayCalendar.date).map(pause => pause.class_id)}
+          classes={classesByWeekday[new Date(holidayCalendar.date + "T12:00:00").getDay()] ?? []}
+          saving={holidayCalendar.saving} error={holidayCalendar.error} onSave={holidayCalendar.save} />
+      ) : null}
+
+      {isAdminDashboardContext && isOrgAdmin && activeOrganization?.id ? <ActivityReviewSuggestion
+        key={`${activeOrganization.id}:${session?.user?.id}`} organizationId={activeOrganization.id} userId={session?.user?.id ?? ""} classes={classes}
+        onAvailable={setActivityReviewCount} openRequest={activityReviewRequest}
+        today={holidayCalendar.date} onPresence={setActivityReviewVisible} onSaved={holidayCalendar.refresh} /> : null}
     </SafeAreaView>
 
   );

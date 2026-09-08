@@ -185,7 +185,7 @@ describe("ai api - rewriteReportText", () => {
       classId: "class_1",
       sport: "volleyball",
       memoryContext: ["contexto"],
-      appSnapshot: { screen: "assistant" },
+      appSnapshot: { screen: "planning" },
     });
 
     expect(result).toEqual({ reply: "Resposta", sources: [], draftTraining: null });
@@ -198,10 +198,31 @@ describe("ai api - rewriteReportText", () => {
     );
     const request = (global.fetch as jest.Mock).mock.calls[0][1] as RequestInit;
     expect(JSON.parse(String(request.body))).toEqual(expect.objectContaining({
+      screen: "planning",
       organizationId: "org_1",
       classId: "class_1",
       sport: "volleyball",
       memoryContext: ["contexto"],
     }));
+  });
+});
+
+describe("manual model selection acknowledgment", () => {
+  const originalFetch = global.fetch;
+  afterEach(() => { global.fetch = originalFetch; });
+  test("sends the choice and rejects an older server that ignores it", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ reply: "Resposta" }) });
+    await expect(requestAssistantConversation({ accessToken: "test", messages: [], modelPreference: "gpt-5.6-terra" })).rejects.toThrow("troca de modelo");
+    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body).modelPreference).toBe("gpt-5.6-terra");
+  });
+  test("rejects a server that acknowledges the request but substitutes the model", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ reply: "Resposta", modelSelection: { requested: "gpt-5.6-terra", selected: "gpt-4o-mini" } }) });
+    await expect(requestAssistantConversation({ accessToken: "test", messages: [], modelPreference: "gpt-5.6-terra" })).rejects.toThrow("troca de modelo");
+  });
+  test("accepts acknowledged choice while auto remains backward compatible", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ reply: "Resposta", modelSelection: { requested: "gpt-5.6-terra", selected: "gpt-5.6-terra" } }) });
+    await expect(requestAssistantConversation({ accessToken: "test", messages: [], modelPreference: "gpt-5.6-terra" })).resolves.toMatchObject({ reply: "Resposta" });
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ reply: "Resposta" }) });
+    await expect(requestAssistantConversation({ accessToken: "test", messages: [], modelPreference: "auto" })).resolves.toMatchObject({ reply: "Resposta" });
   });
 });

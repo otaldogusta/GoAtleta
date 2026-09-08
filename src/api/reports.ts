@@ -1,3 +1,5 @@
+import { listCalendarPauses } from "./holiday-decisions";
+import { isPaused } from "../core/holidays";
 import * as Sentry from "@sentry/react-native";
 import { supabaseRestGet } from "./rest";
 import { filterActionablePendingAttendance } from "../core/pending-attendance";
@@ -213,16 +215,17 @@ export async function listAdminPendingAttendance(params: {
   organizationId: string;
 }) {
   assertOrganizationId(params.organizationId, "listAdminPendingAttendance");
-  const { rows, classSchedules } = await withTiming("listAdminPendingAttendance", async () => {
-    const [pendingRows, scheduleRows] = await Promise.all([
+  const { rows, classSchedules, pauses } = await withTiming("listAdminPendingAttendance", async () => {
+    const [pendingRows, scheduleRows, pauses] = await Promise.all([
       supabaseRestGet<AdminPendingAttendanceRow[]>(
         "/v_admin_pending_attendance?organization_id=eq." +
           encodeURIComponent(params.organizationId) +
           "&select=*"
       ),
       loadAdminClassSchedules(params.organizationId),
+      listCalendarPauses(params.organizationId),
     ]);
-    return { rows: pendingRows, classSchedules: scheduleRows };
+    return { rows: pendingRows, classSchedules: scheduleRows, pauses };
   });
   const candidates = rows.map<AdminPendingAttendance>((row) => ({
     organizationId: row.organization_id,
@@ -235,6 +238,7 @@ export async function listAdminPendingAttendance(params: {
   }));
   return filterActionablePendingAttendance({
     candidates,
+    pauses,
     schedules: classSchedules.map((schedule) => ({
       id: schedule.id,
       daysOfWeek: schedule.days,
@@ -250,24 +254,25 @@ export async function listAdminPendingSessionLogs(params: {
   organizationId: string;
 }) {
   assertOrganizationId(params.organizationId, "listAdminPendingSessionLogs");
-  const { rows, classSchedules } = await withTiming("listAdminPendingSessionLogs", async () => {
+  const { rows, classSchedules, pauses } = await withTiming("listAdminPendingSessionLogs", async () => {
     const encodedOrgId = encodeURIComponent(params.organizationId);
-    const [pendingRows, scheduleRows] = await Promise.all([
+    const [pendingRows, scheduleRows, pauses] = await Promise.all([
       supabaseRestGet<AdminPendingSessionLogsRow[]>(
         "/v_admin_pending_session_logs?organization_id=eq." + encodedOrgId + "&select=*"
       ),
       loadAdminClassSchedules(params.organizationId),
+      listCalendarPauses(params.organizationId),
     ]);
-    return { rows: pendingRows, classSchedules: scheduleRows };
+    return { rows: pendingRows, classSchedules: scheduleRows, pauses };
   });
 
-  const isoWeekdaysInWindow = new Set<number>();
+  const datesInWindow: { date: string; weekday: number }[] = [];
   for (let offset = 0; offset < 7; offset += 1) {
     const day = new Date();
     day.setDate(day.getDate() - offset);
     const jsWeekday = day.getDay();
     const isoWeekday = jsWeekday === 0 ? 7 : jsWeekday;
-    isoWeekdaysInWindow.add(isoWeekday);
+    datesInWindow.push({ date: formatDateKey(day), weekday: isoWeekday });
   }
 
   const scheduleByClassId = new Map(classSchedules.map((item) => [item.id, item]));
@@ -281,7 +286,7 @@ export async function listAdminPendingSessionLogs(params: {
           .filter((value) => Number.isFinite(value) && value >= 1 && value <= 7)
       : [];
     if (scheduledDays.length > 0) {
-      return scheduledDays.some((weekday) => isoWeekdaysInWindow.has(weekday));
+      return datesInWindow.some(day => scheduledDays.includes(day.weekday) && !isPaused(pauses, row.class_id, day.date));
     }
 
     // Legacy fallback: if days are missing but class has weekly frequency, keep the pending item.
@@ -300,7 +305,7 @@ export async function listAdminPendingSessionLogs(params: {
       schedule?.gender === "masculino" || schedule?.gender === "feminino" || schedule?.gender === "misto"
         ? schedule.gender
         : null;
-    const suggestedDate = resolveSuggestedSessionDate(scheduledDays);
+    const suggestedDate = datesInWindow.find(day => scheduledDays.includes(day.weekday) && !isPaused(pauses, row.class_id, day.date))?.date ?? resolveSuggestedSessionDate(scheduledDays);
     const daysWithoutReport = calcDaysSinceDateKey(suggestedDate);
 
     return {

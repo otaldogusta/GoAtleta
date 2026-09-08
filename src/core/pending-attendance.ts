@@ -1,3 +1,4 @@
+import { isPaused, type CalendarPause } from "./holidays";
 export type PendingAttendanceCandidate = {
   classId: string;
   targetDate: string;
@@ -43,6 +44,7 @@ export function filterActionablePendingAttendance<T extends PendingAttendanceCan
   candidates: T[];
   schedules: PendingAttendanceClassSchedule[];
   now: Date;
+  pauses?: CalendarPause[];
 }): T[] {
   const todayKey = formatLocalDateKey(params.now);
   const nowMinutes = params.now.getHours() * 60 + params.now.getMinutes();
@@ -52,6 +54,7 @@ export function filterActionablePendingAttendance<T extends PendingAttendanceCan
   return params.candidates.filter((candidate) => {
     const targetDate = toDateKey(candidate.targetDate);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) return false;
+    if (isPaused(params.pauses ?? [], candidate.classId, targetDate)) return false;
     if (targetDate < todayKey) return true;
     if (targetDate > todayKey) return false;
 

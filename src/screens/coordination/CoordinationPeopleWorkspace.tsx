@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFriendlyErrorMessage } from "../../ui/error-messages";
 import * as Clipboard from "expo-clipboard";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -614,6 +614,12 @@ export function CoordinationPeopleWorkspace({
   const { colors } = useAppTheme();
   const { session } = useAuth();
   const router = useRouter();
+  const { assistantSection, assistantVisit } = useLocalSearchParams<{ assistantSection?: string; assistantVisit?: string }>();
+  const pageScrollRef = useRef<ScrollView | null>(null);
+  const sectionNodes = useRef<Partial<Record<SecondaryModuleKey, ViewType | null>>>({});
+  const modulesOffset = useRef(0);
+  const sectionOffsets = useRef<Partial<Record<SecondaryModuleKey, number>>>({});
+  const requestedSection = assistantSection === "reports" || assistantSection === "attendance" ? assistantSection : null;
   const { confirm: confirmUndo } = useConfirmUndo();
   const { showSaveToast } = useSaveToast();
   const { height, width } = useWindowDimensions();
@@ -638,6 +644,25 @@ export function CoordinationPeopleWorkspace({
   const [expandedModules, setExpandedModules] = useState<
     Partial<Record<SecondaryModuleKey, boolean>>
   >({ attendance: true });
+  const revealRequestedSection = useCallback(() => {
+    if (!requestedSection) return;
+    // On web the document can own scrolling; scrolling only the nested RN
+    // ScrollView leaves the target below the viewport on taller layouts.
+    const node = sectionNodes.current[requestedSection] as unknown as { scrollIntoView?: (options: { block: string; behavior: string }) => void } | null;
+    if (Platform.OS === "web" && node?.scrollIntoView) {
+      node.scrollIntoView({ block: "start", behavior: "instant" });
+      return;
+    }
+    const y = sectionOffsets.current[requestedSection];
+    if (y !== undefined) pageScrollRef.current?.scrollTo({ y: y + modulesOffset.current, animated: false });
+  }, [requestedSection]);
+  useEffect(() => {
+    revealRequestedSection();
+    // Reapply after the departing modal restores the document scroll lock.
+    const timer = setTimeout(revealRequestedSection, 400);
+    return () => clearTimeout(timer);
+  }, [revealRequestedSection, assistantVisit]);
+
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [modalMember, setModalMember] = useState<OrgMember | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -1577,6 +1602,7 @@ export function CoordinationPeopleWorkspace({
       />
 
       <ScrollView
+        ref={pageScrollRef}
         style={{ flex: 1, minHeight: 0, backgroundColor: colors.background }}
         contentContainerStyle={{ gap: 12, paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
@@ -1654,7 +1680,7 @@ export function CoordinationPeopleWorkspace({
         ))}
       </View>
 
-      <View style={{ flexDirection: supportsSplitLayout ? "row" : "column", alignItems: "flex-start", gap: 12 }}>
+      <View onLayout={event => { modulesOffset.current = event.nativeEvent.layout.y; }} style={{ flexDirection: supportsSplitLayout ? "row" : "column", alignItems: "flex-start", gap: 12 }}>
         <View style={{ width: supportsSplitLayout ? "61%" : "100%", minWidth: 0, gap: 7 }}>
           <View
             style={{
@@ -2037,11 +2063,16 @@ export function CoordinationPeopleWorkspace({
           </View>
 
           {moduleOrder.map((key, index) => {
-            const expanded = Boolean(expandedModules[key]);
+            const expanded = requestedSection === key || Boolean(expandedModules[key]);
             const metadata = moduleMeta[key];
             return (
               <View
                 key={key}
+                ref={node => { sectionNodes.current[key] = node; }}
+                onLayout={event => {
+                  sectionOffsets.current[key] = event.nativeEvent.layout.y;
+                  if (requestedSection === key) revealRequestedSection();
+                }}
                 style={{
                   borderRadius: radius.internal,
                   borderWidth: 1,
@@ -2051,9 +2082,10 @@ export function CoordinationPeopleWorkspace({
                 }}
               >
                 <Pressable
-                  onPress={() =>
-                    setExpandedModules((current) => ({ ...current, [key]: !current[key] }))
-                  }
+                  onPress={() => {
+                    if (requestedSection === key) router.setParams({ assistantSection: undefined });
+                    setExpandedModules((current) => ({ ...current, [key]: !expanded }));
+                  }}
                   style={{
                     paddingHorizontal: 14,
                     paddingVertical: 12,

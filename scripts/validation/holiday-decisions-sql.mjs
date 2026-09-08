@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+const db = new PGlite();
+const org = '20000000-0000-0000-0000-000000000001';
+const other = '20000000-0000-0000-0000-000000000002';
+const admin = '10000000-0000-0000-0000-000000000001';
+try {
+  await db.exec(`create role anon; create role authenticated; create schema auth;
+    create table auth.users(id uuid primary key); insert into auth.users values ('${admin}');
+    create function auth.uid() returns uuid language sql as 'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
+    create table organizations(id uuid primary key); insert into organizations values ('${org}'),('${other}');
+    create function public.is_org_admin(id uuid) returns boolean language sql as 'select auth.uid() = ''${admin}''::uuid and id = ''${org}''::uuid';
+    create table classes(id text primary key, organization_id uuid, days jsonb);
+    insert into classes values ('a','${org}','[1]'),('b','${org}','[1]'),('foreign','${other}','[1]'),('tuesday','${org}','[2]');
+    create table class_calendar_exceptions(id text primary key,class_id text,organization_id uuid,date date,reason text,kind text, unique(class_id,date,kind));
+    insert into class_calendar_exceptions values ('manual','a','${org}','2026-09-07','Viagem','no_training');
+    grant usage on schema public,auth to authenticated,anon;
+  `);
+  const sql = await readFile(new URL('../../supabase/migrations/20260907214642_organization_holiday_decisions.sql', import.meta.url), 'utf8');
+  // Freeze only the wall clock so this regression remains deterministic all year.
+  await db.exec(sql.replace("(now() at time zone 'America/Sao_Paulo')::date", "date '2026-09-07'"));
+  const call = (ids, organization = org, date = '2026-09-07') => db.query('select * from decide_organization_holiday($1,$2,$3::text[])', [organization,date,ids]);
+  await db.exec('set role authenticated');
+  await assert.rejects(() => call(['a']), /Not authorized/);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[admin]);
+  await assert.rejects(() => call(['foreign']), /Invalid class/);
+  await assert.rejects(() => call(['tuesday']), /Invalid class/);
+  await assert.rejects(() => call([],other), /Not authorized/);
+  await assert.rejects(() => call([],org,'2026-09-08'), /Invalid holiday/);
+  await call(['b','a']); await call(['a','b']);
+  await assert.rejects(() => call([]), /already decided/);
+  assert.equal((await db.query('select * from organization_holiday_decisions')).rows.length,1);
+  await assert.rejects(() => db.exec('delete from organization_holiday_decisions'), /permission denied/);
+  await db.exec('reset role');
+  const rows = (await db.query('select * from class_calendar_exceptions order by class_id')).rows;
+  assert.equal(rows.length,2); assert.equal(rows[0].reason,'Viagem');
+  await db.exec('delete from organization_holiday_decisions');
+  await db.exec('set role authenticated');
+  await call([]); await call([]);
+  assert.deepEqual((await db.query('select suspended_class_ids from organization_holiday_decisions')).rows[0].suspended_class_ids, []);
+  await db.query("select set_config('request.jwt.claim.sub','',false)");
+  assert.equal((await db.query('select * from organization_holiday_decisions')).rows.length,0);
+  await db.exec('reset role');
+  assert.equal((await db.query('select * from class_calendar_exceptions')).rows.length,2);
+  console.log('Holiday SQL: authorization, isolation, date, schedule, idempotency and manual pause preservation passed.');
+} finally { await db.close(); }

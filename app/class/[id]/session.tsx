@@ -41,6 +41,7 @@ import {
 import { SessionAppliedPlanSection } from "../../../src/screens/session/components/SessionAppliedPlanSection";
 import { SessionDateNavigator } from "../../../src/screens/session/components/SessionDateNavigator";
 import { SessionEmptyPlanCard } from "../../../src/screens/session/components/SessionEmptyPlanCard";
+import { useCopilotLesson } from "../../../src/copilot/lesson-context";
 import { SessionObjectiveCard } from "../../../src/screens/session/components/SessionObjectiveCard";
 import { SessionPlanFabActions } from "../../../src/screens/session/components/SessionPlanFabActions";
 import { SessionPlanGenerationState } from "../../../src/screens/session/components/SessionPlanGenerationState";
@@ -3061,6 +3062,12 @@ export function SessionScreen({
     },
   });
 
+  useCopilotLesson(useMemo(() => cls?.organizationId ? ({
+    classId: cls.id, organizationId: cls.organizationId, date: sessionDate,
+    sport: cls.modality ?? "volleyball", className: cls.name,
+    currentPlanId: plan?.id ?? null, onApplied: setPlan,
+    disabled: isPlanGenerationBusy || isLoadingSession,
+  }) : null, [cls, sessionDate, plan?.id, isPlanGenerationBusy, isLoadingSession, setPlan]));
   const planGenerationLabel = planGenerationPhase === "generating"
     ? "Gerando plano"
     : "Salvando plano";

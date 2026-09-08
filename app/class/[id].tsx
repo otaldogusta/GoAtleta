@@ -30,6 +30,7 @@ import { classRosterHtml } from "../../src/pdf/templates/class-roster";
 import { ClassEditModalBody, ClassEditModalPickers } from "../../src/screens/classes/components/ClassEditModalBody";
 import { getClassScheduleOverlapDays } from "../../src/screens/classes/application/class-schedule-conflicts";
 import { ClassContextStrip, ClassOperationsWorkspace, type ClassOperationalStatus, type ClassRecentTrainingSummary, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
+import { useCopilotLesson } from "../../src/copilot/lesson-context";
 import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
 import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
 import { useStudentNfcBinding } from "../../src/screens/attendance/use-student-nfc-binding";
@@ -676,6 +677,12 @@ export default function ClassDetails() {
   const nextClassLabel = nextClassDate ? formatNextClassDate(nextClassDate) : "Não definida";
   const selectedLessonDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, nextClassDate);
   const selectedLessonDateKey = selectedLessonDate ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}` : "";
+  useCopilotLesson(useMemo(() => cls?.organizationId && selectedLessonDateKey ? ({
+    classId: cls.id, organizationId: cls.organizationId, date: selectedLessonDateKey,
+    sport: cls.modality ?? "volleyball", className: cls.name,
+    currentPlanId: appliedPlan?.id ?? null, onApplied: setAppliedPlan,
+    disabled: isGeneratingPlan || isLoadingLessonPlan,
+  }) : null, [cls, selectedLessonDateKey, appliedPlan?.id, isGeneratingPlan, isLoadingLessonPlan]));
   const operationalClassId = cls?.id ?? String(id ?? "");
   const operationalOrganizationId = activeOrganization?.id ?? null;
   const loadLessonOperationalSnapshot = useCallback(async () => {

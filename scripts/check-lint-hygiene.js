@@ -17,6 +17,11 @@ async function main() {
   console.log(`[lint-hygiene] ${errors.length} known errors; ${added.length} new; ${resolved} resolved; ${warnings} warnings.`);
   for (const error of added) console.error(`- ${error.file}:${error.line} [${error.rule}] ${error.anchor.slice(0, 180)}`);
   if (warnings) {
+    for (const result of results) {
+      for (const message of result.messages.filter(item => item.severity === 1)) {
+        console.error(`- ${path.relative(rootDir, result.filePath)}:${message.line} [${message.ruleId}] ${message.message}`);
+      }
+    }
     console.error('Fix lint warnings before release; the application warning budget is zero.');
     process.exitCode = 1;
   }

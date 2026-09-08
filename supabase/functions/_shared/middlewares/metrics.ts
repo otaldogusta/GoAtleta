@@ -43,7 +43,7 @@ export function createMetricsTracker(supabase: SupabaseClient, requestId: string
       if (events.length === 0) return;
       
       // Batch insert into system_events via RPC
-      for (const ev of events) {
+      for (const ev of events.splice(0)) {
         await supabase.rpc('log_system_event', {
           p_request_id: requestId,
           p_event_type: ev.event_type,

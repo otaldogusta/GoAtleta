@@ -1,3 +1,4 @@
+import { CopilotLoadingModal } from "./components/CopilotLoadingModal";
 import { usePathname, useRouter } from "expo-router";
 import {
   createContext,
@@ -30,6 +31,7 @@ import { markRender, measureAsync } from "../observability/perf";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { useAppTheme } from "../ui/app-theme";
 import { CopilotFab, resolveCopilotFabBottom } from "./components/CopilotFab";
+import { CopilotLessonContext, type RegisteredCopilotLesson } from "./lesson-context";
 import {
   buildDefaultContextReply,
   buildNfcQuickActionReply,
@@ -67,11 +69,17 @@ import {
   type CentralSnapshot,
 } from "./updates-utils";
 
-const LazyCopilotModal = lazy(() =>
-  import("./components/CopilotModal").then((module) => ({
-    default: module.CopilotModal,
-  }))
-);
+let modalModule: Promise<{ default: typeof import("./components/CopilotModal").CopilotModal }> | null = null;
+const loadCopilotModal = () => {
+  if (!modalModule) {
+    modalModule = import("./components/CopilotModal").then(module => ({ default: module.CopilotModal })).catch(error => {
+      modalModule = null;
+      throw error;
+    });
+  }
+  return modalModule;
+};
+const LazyCopilotModal = lazy(loadCopilotModal);
 
 type CopilotDataContextValue = {
   state: CopilotState;
@@ -257,6 +265,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     unreadCount: 0,
   });
   const [insightsView, setInsightsView] = useState<InsightsView>({ mode: "root" });
+  const [lesson, setLesson] = useState<RegisteredCopilotLesson | null>(null);
   const [composerValue, setComposerValue] = useState("");
   const [composerInputHeight, setComposerInputHeight] = useState(CONTEXT_COMPOSER_MIN_HEIGHT);
   const [showAllRootActions, setShowAllRootActions] = useState(false);
@@ -265,7 +274,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   const [assistantTyping, setAssistantTyping] = useState(false);
   const [contextPreview, setContextPreview] = useState<{ actionTitle: string; message: string } | null>(null);
   const stateRef = useRef(state);
-  const [thinkingPulse] = useState(() => new Animated.Value(0));
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const pendingReplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -299,6 +307,13 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   } = useRegistryManager(setState);
 
   useRegulationUpdates(setState, activeOrganizationId, session, state.open);
+  useEffect(() => {
+    if (!session || !activeOrganizationId) return;
+    // Warm the code after boot, without fetching chat data or making AI calls.
+    const timer = setTimeout(() => { void loadCopilotModal().catch(() => undefined); }, 700);
+    return () => clearTimeout(timer);
+  }, [session, activeOrganizationId]);
+
 
   useEffect(() => {
     if (!state.open) return;
@@ -354,36 +369,6 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
     };
   }, [activeOrganizationId, state.context, state.open]);
 
-  useEffect(() => {
-    const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
-    if (!assistantTyping) {
-      thinkingPulse.stopAnimation();
-      thinkingPulse.setValue(0);
-      return;
-    }
-
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(thinkingPulse, {
-          toValue: 1,
-          duration: 700,
-          useNativeDriver: isNativeAnimation,
-        }),
-        Animated.timing(thinkingPulse, {
-          toValue: 0,
-          duration: 700,
-          useNativeDriver: isNativeAnimation,
-        }),
-      ])
-    );
-    loop.start();
-
-    return () => {
-      loop.stop();
-      thinkingPulse.stopAnimation();
-      thinkingPulse.setValue(0);
-    };
-  }, [assistantTyping, thinkingPulse]);
 
   const clearPendingReplyTimer = useCallback(() => {
     if (!pendingReplyTimerRef.current) return;
@@ -980,6 +965,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
   return (
     <CopilotActionsContext.Provider value={actionsValue}>
       <CopilotDataContext.Provider value={dataValue}>
+      <CopilotLessonContext.Provider value={setLesson}>
       {children}
       {showFab && !state.open ? (
         <CopilotFab
@@ -994,7 +980,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
       ) : null}
 
       {state.open ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={<CopilotLoadingModal onClose={close} />}>
           <LazyCopilotModal
             visible
             isWebModal={isWebModal}
@@ -1025,9 +1011,9 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
             showAllRootActions={showAllRootActions}
             setShowAllRootActions={setShowAllRootActions}
             assistantTyping={assistantTyping}
-            thinkingPulse={thinkingPulse}
             contextPreview={contextPreview}
             composerValue={composerValue}
+            lesson={lesson?.scope ?? null}
             setComposerValue={setComposerValue}
             composerInputHeight={composerInputHeight}
             setComposerInputHeight={setComposerInputHeight}
@@ -1044,6 +1030,7 @@ export function CopilotProvider({ children }: { children: React.ReactNode }) {
           />
         </Suspense>
       ) : null}
+      </CopilotLessonContext.Provider>
       </CopilotDataContext.Provider>
     </CopilotActionsContext.Provider>
   );

@@ -49,6 +49,8 @@ const generatedOutputPattern = new RegExp(
 config.resolver.blockList = [
   ...(config.resolver.blockList || []),
   generatedOutputPattern,
+  // Expo writes development logs continuously; they are not application inputs.
+  new RegExp(`^${projectRootPattern}[\\\\/]\\.expo[\\\\/]dev[\\\\/]logs(?:[\\\\/]|$)`),
 ];
 
 module.exports = config;

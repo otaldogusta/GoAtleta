@@ -62,7 +62,8 @@ export async function resolveAIContext(
   
   const { data: memberOrgs, error: orgsError } = await supabase
     .from("organization_members")
-    .select("organization_id, role_level");
+    .select("organization_id, role_level")
+    .eq("user_id", userId);
 
   if (orgsError || !memberOrgs || memberOrgs.length === 0) {
     throw new Error("User belongs to no organization or access is denied.");
@@ -74,7 +75,7 @@ export async function resolveAIContext(
   // Resolve user role
   const activeMembership = memberOrgs.find(m => String(m.organization_id) === organizationId);
   const roleLevel = activeMembership?.role_level ?? 0;
-  const role = roleLevel >= 50 ? "admin" : roleLevel >= 30 ? "coach" : "member";
+  const role = roleLevel >= 50 ? "admin" : roleLevel >= 10 ? "coach" : "member";
 
   const navRaw = body.navigation || {};
   const navigation: AINavigationContext = {
@@ -181,7 +182,7 @@ export async function resolveAIContext(
     organizationName: String(organization?.name ?? "Workspace ativo"),
     rows: institutionalError
       ? []
-      : institutionalRows as Array<Record<string, unknown>> | null,
+      : institutionalRows as Record<string, unknown>[] | null,
     classContext: classRow
       ? {
         id: String(classRow.id),

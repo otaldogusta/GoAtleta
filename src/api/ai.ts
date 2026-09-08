@@ -1,3 +1,5 @@
+import { readAssistantStream } from "./assistant-stream";
+import type { AssistantModelChoice } from "../assistant/model-choice";
 import { z } from "zod";
 import { getValidAccessToken } from "../auth/session";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
@@ -10,6 +12,8 @@ type AssistantMessage = {
 };
 
 export type AssistantConversationRequest = {
+  onReply?: (text: string) => void;
+  modelPreference?: AssistantModelChoice;
   accessToken?: string;
   messages: AssistantMessage[];
   classId?: string;
@@ -17,6 +21,9 @@ export type AssistantConversationRequest = {
   sport?: string;
   memoryContext?: string[];
   appSnapshot?: unknown;
+  lessonAction?: "discuss" | "draft" | "auto";
+  sessionDate?: string;
+  signal?: AbortSignal;
 };
 
 type AssistantSource = {
@@ -509,21 +516,35 @@ export async function requestAssistantConversation(
     },
     body: JSON.stringify({
       messages: payload.messages,
+      modelPreference: payload.modelPreference ?? "auto",
+      stream: Boolean(payload.onReply),
       classId: payload.classId ?? "",
       organizationId: payload.organizationId ?? "",
       sport: payload.sport,
       memoryContext: payload.memoryContext ?? [],
       appSnapshot: payload.appSnapshot ?? null,
+      screen: payload.appSnapshot && typeof payload.appSnapshot === "object" &&
+        "screen" in payload.appSnapshot && typeof payload.appSnapshot.screen === "string"
+        ? payload.appSnapshot.screen || "assistant" : "assistant",
+      ...(payload.lessonAction ? { lessonAction: payload.lessonAction, sessionDate: payload.sessionDate } : {}),
     }),
+    signal: payload.signal,
   });
 
-  const responseText = await response.text();
   if (!response.ok) {
+    const responseText = await response.text();
     const parsedError = extractAssistantApiError(responseText);
     throw new Error(parsedError || responseText || "Falha no assistente");
   }
 
-  return JSON.parse(responseText) as unknown;
+  const data = response.headers?.get("content-type")?.includes("application/x-ndjson")
+    ? await readAssistantStream(response, payload.onReply) as Record<string, any>
+    : JSON.parse(await response.text());
+  if (payload.modelPreference && payload.modelPreference !== "auto" &&
+      (data.modelSelection?.requested !== payload.modelPreference || data.modelSelection?.selected !== payload.modelPreference)) {
+    throw new Error("A troca de modelo ainda não está disponível no servidor. Use Automático por enquanto.");
+  }
+  return data as unknown;
 }
 
 const buildStructuredPrompt = (task: string, context: unknown, schemaHint: string) => {

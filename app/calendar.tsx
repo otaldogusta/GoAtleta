@@ -1,3 +1,5 @@
+import { listCalendarPauses } from "../src/api/holiday-decisions";
+import { isPaused, type CalendarPause } from "../src/core/holidays";
 import { markRender, measureAsync } from "../src/observability/perf";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -175,6 +177,17 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const { activeOrganization } = useOrganization();
+  const [calendarPauses, setCalendarPauses] = useState<{ organizationId: string; rows: CalendarPause[] }>({ organizationId: "", rows: [] });
+  useEffect(() => {
+    let alive = true;
+    const organizationId = activeOrganization?.id;
+    if (!organizationId) return;
+    void listCalendarPauses(organizationId).then(rows => {
+      if (alive) setCalendarPauses({ organizationId, rows });
+    }).catch(() => { /* Keep the last verified calendar; retry on organization change. */ });
+    return () => { alive = false; };
+  }, [activeOrganization?.id]);
+
   const params = useLocalSearchParams();
   const targetClassId =
     typeof params.targetClassId === "string" ? params.targetClassId : "";
@@ -459,7 +472,7 @@ export default function CalendarScreen() {
       const isCurrentMonth =
         date.getMonth() === visibleMonth.getMonth() &&
         date.getFullYear() === visibleMonth.getFullYear();
-      const classesForDay = filteredClassesByDay[day] ?? [];
+      const classesForDay = (filteredClassesByDay[day] ?? []).filter(cls => !isPaused(calendarPauses.organizationId === activeOrganization?.id ? calendarPauses.rows : [], cls.id, dayKey));
       const eventsForDay = eventsByDate[dateIso] ?? [];
 
       const classItems: AgendaClassItemModel[] = classesForDay.map((cls, index) => {
@@ -567,6 +580,8 @@ export default function CalendarScreen() {
     colors,
     eventsByDate,
     filteredClassesByDay,
+    calendarPauses,
+    activeOrganization?.id,
     planLookupByClass,
     todayStart,
     unitLabel,

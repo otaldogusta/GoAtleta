@@ -13,6 +13,7 @@ const enableManualLinking =
 	process.env.EXPO_PUBLIC_ENABLE_MANUAL_LINKING || process.env.ENABLE_MANUAL_LINKING || "false";
 
 const plugins = [
+	["expo-audio", { microphonePermission: "Permitir gravar sua ideia para organizar a aula.", enableBackgroundRecording: false }],
 	"expo-router",
 	"expo-status-bar",
 	[
@@ -73,7 +74,7 @@ module.exports = {
 	expo: {
 		name: "Go Atleta",
 		slug: "goatleta",
-		version: "1.0.2",
+		version: "1.0.3",
 		orientation: "portrait",
 		icon: "./assets/images/icon.png",
 		scheme: "goatleta",

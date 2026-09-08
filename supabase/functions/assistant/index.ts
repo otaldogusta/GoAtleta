@@ -1,3 +1,6 @@
+import { loadActivityContext } from "./activity-context.ts";
+import { streamAssistantResponse } from "./response-stream.ts";
+import { initialGreeting, routeAssistant } from "./model-router.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
     normalizePublicUrl,
@@ -13,6 +16,9 @@ import { AIWorkspaceScopeError } from "../_shared/ai-workspace-scope.ts";
 import { resolveAIMemory, buildSystemAIMemoryPrompt } from "../_shared/ai-memory.ts";
 import { resolveAIGovernance, buildSystemAIGovernancePrompt } from "../_shared/ai-governance.ts";
 import { resolveAIPeriodizationContext } from "../_shared/ai-periodization-context.ts";
+import { estimateAssistantCost, requestAssistantCompletion } from "./model-policy.ts";
+import { lessonConversationPrompt } from "./lesson-conversation.ts";
+import { loadPreviousLessonPlans } from "./lesson-history.ts";
 import {
   buildSystemAIDocumentContextPrompt,
   resolveAIDocumentContext,
@@ -601,6 +607,9 @@ const systemPrompt = [
   "In citations, identify documents by docId in sourceTitle.",
   "If confidence is below 0.55, be explicit that recommendation is limited.",
   "Use simple Portuguese in the reply, focusing on concrete instructions (e.g., 'Evite saltos', 'Reduza o volume', 'Prefira instrução visual').",
+  "Format only the reply string with lightweight Markdown: short paragraphs separated by blank lines, **bold** for key facts, and hyphen lists when useful. Do not wrap the JSON or reply in code fences or use HTML.",
+  "For operational summaries, start with one short sentence stating the main finding, then at most three priority bullets grounded in available evidence, and a concrete next step if justified. Use brief headings only when they improve scanning. Never invent metrics, urgency, links, buttons, or completed actions.",
+  "Simple greetings and simple questions need a short natural answer, not a report template. For detailed plans preserve necessary detail but separate sections. Do not dump all context or list unrelated missing data; mention a missing fact only when it prevents answering the current question.",
   "All training alterations or pedagogical suggestions MUST be detailed in the pedagogicalDecisions field of the response.",
   "Avalie o histórico de aceitação e feedbacks do treinador em FACTS_MEMORY. Se o histórico indicar rejeições ou alterações frequentes de certas dinâmicas, adapte as próximas decisões pedagógicas para respeitar as preferências do treinador.",
 ].join(" ");
@@ -809,6 +818,20 @@ Deno.serve(createEdgeFunction({
 
     const organizationId = aiContext.user.organizationId;
     const classId = aiContext.action.classId ?? "";
+    const activityContext = await loadActivityContext(supabase, organizationId, aiContext.action.date, classId || undefined);
+    const lessonAction = body.lessonAction === "auto" ? "auto" : body.lessonAction === "draft" ? "draft" : body.lessonAction === "discuss" ? "discuss" : null;
+    if (lessonAction && (!classId || !["admin", "coach"].includes(aiContext.user.role))) {
+      return createError(403, "FORBIDDEN", "Selecione uma turma com acesso de professor.");
+    }
+    const messages = normalizeClientMessages(body.messages);
+    let route;
+    try {
+      route = routeAssistant({ messages, proactive: body.mode === "proactive", lessonAction, modelPreference: body.modelPreference }, Deno.env.get("OPENAI_ASSISTANT_MODEL"));
+    } catch {
+      return createError(400, "MODEL_UNAVAILABLE", "Modelo indisponível. Selecione Automático ou outro modelo.");
+    }
+    const modelSelection = { requested: body.modelPreference ?? "auto", selected: route.model };
+    const model = route.model;
 
     if (classId) {
       const { data: scopedClass, error: scopedClassError } = await supabase
@@ -832,6 +855,16 @@ Deno.serve(createEdgeFunction({
       }
     }
 
+    // A greeting contains no app facts; still requires the validated workspace/class above.
+    const greeting = body.mode !== "proactive" && lessonAction !== "draft" ? initialGreeting(messages) : null;
+    if (greeting) {
+      metrics.trackPerf("assistant_model_route", 0, { model: "none", reason: "initial_greeting", estimated_cost: 0, policy_version: 1 });
+      return createSuccess({ modelSelection: { ...modelSelection, actual: null }, reply: greeting, sources: [], draftTraining: null, confidence: 1, citations: [], assumptions: [], missingData: [], pedagogicalDecisions: [], ...(lessonAction ? {
+        lessonContext: { version: 1, classId, organizationId, date: aiContext.action.date },
+      } : {}) });
+    }
+    metrics.trackPerf("assistant_model_route", 0, { model, reason: route.reason, max_output_tokens: route.maxOutputTokens, policy_version: 1 });
+
     // 0. Detect proactive mode — short-circuit to a lightweight insight-only path
     const isProactiveMode = body.mode === "proactive";
     if (isProactiveMode) {
@@ -839,7 +872,7 @@ Deno.serve(createEdgeFunction({
 
       const aiFacts = await resolveAIMemory(supabase, aiContext);
       const aiFactsPrompt = buildSystemAIMemoryPrompt(aiFacts);
-      const aiContextPrompt = buildSystemAIContextPrompt(aiContext);
+      const aiContextPrompt = buildSystemAIContextPrompt(aiContext) + "\n" + activityContext;
       const aiWarnings = await resolveAIGovernance(supabase, aiContext, body);
       const aiConstraintsPrompt = buildSystemAIGovernancePrompt(aiWarnings);
       const aiPeriodization = await resolveAIPeriodizationContext(
@@ -907,7 +940,7 @@ Deno.serve(createEdgeFunction({
       ].filter(Boolean).join("\n");
 
       const proactivePayload = {
-        model: "gpt-4o-mini",
+        model,
         messages: [
           { role: "system", content: proactiveSystemPrompt },
           { role: "system", content: aiContextPrompt },
@@ -928,14 +961,7 @@ Deno.serve(createEdgeFunction({
         max_tokens: 300,
       };
 
-      const proactiveResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify(proactivePayload),
-      });
+      const proactiveResponse = await requestAssistantCompletion(apiKey, proactivePayload);
 
       if (!proactiveResponse.ok) {
         return createSuccess({
@@ -950,8 +976,8 @@ Deno.serve(createEdgeFunction({
       const tokensIn = proactiveData.usage?.prompt_tokens ?? 0;
       const tokensOut = proactiveData.usage?.completion_tokens ?? 0;
       const latency = Date.now() - requestStartedAt;
-      const costEstimate = (tokensIn * 0.15 + tokensOut * 0.6) / 1_000_000;
-      metrics.trackAiUsage("openai", "gpt-4o-mini", tokensIn, tokensOut, latency, costEstimate);
+      const costEstimate = estimateAssistantCost(model, tokensIn, tokensOut);
+      metrics.trackAiUsage("openai", proactiveData.model ?? model, tokensIn, tokensOut, latency, costEstimate);
 
       const proactiveContent = proactiveData.choices?.[0]?.message?.content ?? "";
       let proactiveParsed: ProactiveInsightResponse;
@@ -1001,7 +1027,6 @@ Deno.serve(createEdgeFunction({
       return createSuccess(proactiveParsed);
     }
 
-    const messages = normalizeClientMessages(body.messages);
     const sportHint = typeof body.sport === "string" && body.sport.trim().length > 0 ? body.sport.trim() : "volleyball";
     const debugRequested = Boolean(body.debug);
     const requestMemoryContext = normalizeMemoryContext(body.memoryContext);
@@ -1021,19 +1046,22 @@ Deno.serve(createEdgeFunction({
       appSnapshot,
     });
     if (regulationDeterministic) {
-      return createSuccess(regulationDeterministic);
+      return createSuccess({ ...regulationDeterministic, modelSelection: { ...modelSelection, actual: null } });
     }
 
     // 3. Resolve the same structured memory used by the unified document layer.
     const queryType = inferQueryType(messages);
     const retrievalQuery = buildRetrievalQuery(messages);
-    const aiFacts = await resolveAIMemory(supabase, aiContext);
+    // Authorization above must finish first. These reads do not depend on each other.
+    const contextStartedAt = Date.now();
+    const [aiFacts, aiPeriodization, memoryEntries, previousLessonPlansPrompt, aiWarnings] = await Promise.all([
+      resolveAIMemory(supabase, aiContext),
+      resolveAIPeriodizationContext(supabase, classId, aiContext.action.date),
+      getMemoryContext({ token: currentToken, organizationId, classId, userId: currentUser.id }),
+      lessonAction ? loadPreviousLessonPlans(supabase, classId, organizationId, aiContext.action.date) : Promise.resolve(""),
+      resolveAIGovernance(supabase, aiContext, body),
+    ]);
     const aiFactsPrompt = buildSystemAIMemoryPrompt(aiFacts);
-    const aiPeriodization = await resolveAIPeriodizationContext(
-      supabase,
-      classId,
-      aiContext.action.date
-    );
     const aiDocumentContext = await resolveAIDocumentContext(
       supabase,
       aiContext,
@@ -1046,13 +1074,6 @@ Deno.serve(createEdgeFunction({
     );
     const aiDocuments = aiDocumentContext.documents;
 
-    const memoryEntries = await getMemoryContext({
-      token: currentToken,
-      organizationId,
-      classId,
-      userId: currentUser.id,
-    });
-
     const memoryContext = [
       ...requestMemoryContext,
       ...memoryEntries.map((item) => `${item.role}/${item.scope}: ${item.content}`),
@@ -1063,10 +1084,10 @@ Deno.serve(createEdgeFunction({
     const appSnapshotContext = buildAppSnapshotContext(appSnapshot);
 
     // Build Backend-driven System AI Context Prompt
-    const aiContextPrompt = buildSystemAIContextPrompt(aiContext);
+    const aiContextPrompt = buildSystemAIContextPrompt(aiContext) + "\n" + activityContext;
 
     // 4. Resolve AI Governance Constraints.
-    const aiWarnings = await resolveAIGovernance(supabase, aiContext, body);
+
     const aiConstraintsPrompt = buildSystemAIGovernancePrompt(aiWarnings);
 
     console.log(
@@ -1087,7 +1108,7 @@ Deno.serve(createEdgeFunction({
 
     // 6. OpenAI Payload Construction
     const payload = {
-      model: "gpt-4o-mini",
+      model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "system", content: aiContextPrompt },        // Identity + navigation
@@ -1095,6 +1116,8 @@ Deno.serve(createEdgeFunction({
         { role: "system", content: aiConstraintsPrompt },    // Safety constraints
         { role: "system", content: appSnapshotContext },
         { role: "system", content: aiDocumentContextPrompt }, // Unified operational/documental evidence
+        ...(lessonAction ? [{ role: "system", content: lessonConversationPrompt(lessonAction, aiContext.action.date) }] : []),
+        ...(previousLessonPlansPrompt ? [{ role: "system", content: previousLessonPlansPrompt }] : []),
         {
           role: "system",
           content: memoryContext.length
@@ -1112,33 +1135,33 @@ Deno.serve(createEdgeFunction({
         },
       },
       temperature: 0.2,
-      max_tokens: 900,
+      max_tokens: route.maxOutputTokens,
     };
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    const generate = async (onReply?: (text: string) => void, signal?: AbortSignal): Promise<Response> => {
+    let firstTextMs: number | null = null;
+    const contextDurationMs = Date.now() - contextStartedAt;
+    const providerStartedAt = Date.now();
+    const response = await requestAssistantCompletion(apiKey, payload, onReply ? text => {
+      if (firstTextMs === null && text) firstTextMs = Date.now() - requestStartedAt;
+      onReply(text);
+    } : undefined, signal);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("assistant: openai error", response.status, errorText);
+      console.error("assistant: openai error", response.status);
       return createError(500, "SERVER_ERROR", "Failed to communicate with OpenAI");
     }
 
     const data = await response.json();
+    const providerDurationMs = Date.now() - providerStartedAt;
+    const postprocessStartedAt = Date.now();
     
     // Track AI Usage via Observability Middleware
     const tokensIn = data.usage?.prompt_tokens ?? 0;
     const tokensOut = data.usage?.completion_tokens ?? 0;
     const latency = Date.now() - requestStartedAt;
-    // Standard gpt-4o-mini pricing: $0.150 / 1M input, $0.600 / 1M output
-    const costEstimate = (tokensIn * 0.15 + tokensOut * 0.6) / 1_000_000;
-    metrics.trackAiUsage("openai", "gpt-4o-mini", tokensIn, tokensOut, latency, costEstimate);
+    const costEstimate = estimateAssistantCost(model, tokensIn, tokensOut);
+    metrics.trackAiUsage("openai", data.model ?? model, tokensIn, tokensOut, latency, costEstimate);
 
     const content = data.choices?.[0]?.message?.content ?? "";
     let parsed: AssistantResponse;
@@ -1162,7 +1185,8 @@ Deno.serve(createEdgeFunction({
     }
 
     parsed.sources = Array.isArray(parsed.sources) ? parsed.sources : [];
-    parsed.draftTraining = parsed.draftTraining ?? null;
+    parsed.draftTraining = lessonAction === "discuss" ? null : parsed.draftTraining ?? null;
+    if (lessonAction && parsed.draftTraining) parsed.draftTraining.classId = classId;
     parsed.citations = validateAIDocumentCitations(
       Array.isArray(parsed.citations) ? parsed.citations : [],
       aiDocuments
@@ -1261,26 +1285,20 @@ Deno.serve(createEdgeFunction({
       .reverse()
       .find((message) => message.role === "user" && typeof message.content === "string")?.content;
 
+    // Keep memory writes ordered so their timestamps preserve the conversation order.
     if (lastUserMessage) {
-      await saveMemoryEntry({
-        token: currentToken,
-        organizationId,
-        classId,
-        userId: currentUser.id,
-        role: "user",
-        content: lastUserMessage,
-      });
+      await saveMemoryEntry({ token: currentToken, organizationId, classId, userId: currentUser.id, role: "user", content: lastUserMessage });
     }
-
-    await saveMemoryEntry({
-      token: currentToken,
-      organizationId,
-      classId,
-      userId: currentUser.id,
-      role: "assistant",
-      content: parsed.reply,
+    await saveMemoryEntry({ token: currentToken, organizationId, classId, userId: currentUser.id, role: "assistant", content: parsed.reply });
+    metrics.trackPerf("assistant_response_stages", Date.now() - requestStartedAt, {
+      context_ms: contextDurationMs, provider_ms: providerDurationMs, first_text_ms: firstTextMs,
+      postprocess_ms: Date.now() - postprocessStartedAt, model,
     });
 
-    return createSuccess(parsed);
+    return createSuccess({ ...parsed, modelSelection: { ...modelSelection, actual: data.model ?? model }, ...(lessonAction ? {
+      lessonContext: { version: 1, classId, organizationId, date: aiContext.action.date },
+    } : {}) });
+    };
+    return body.stream === true ? streamAssistantResponse(generate, () => metrics.flush()) : generate();
   }
 }));
