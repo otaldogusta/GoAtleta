@@ -783,11 +783,9 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
 
           {isAttendanceSection ? (
             resolvedAttendanceContent
-          ) : compact ? (
-            planSection
           ) : (
-            <View style={styles.desktopWorkspace}>
-              <View style={styles.desktopContentColumn}>
+            <View style={!compact ? styles.desktopWorkspace : undefined}>
+              <View style={!compact ? styles.desktopContentColumn : undefined}>
                 {planSection}
               </View>
             </View>

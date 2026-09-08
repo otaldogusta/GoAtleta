@@ -1,5 +1,12 @@
 # GoAtleta agent rules & design system
 
+## Continuity between workstations
+
+- Before resuming work on another machine, read `docs/operations/workstations.md` and `docs/operations/handoff.md`, then inspect the current branch and working tree.
+- Use `npm run dev:doctor` to check local prerequisites without printing credential values.
+- Synchronizing work means committing and pushing the explicitly authorized files on a `codex/` branch. It does not authorize pushing `main`, merging, or production deployment.
+- Keep pending work and decisions in repository documentation; do not assume the previous machine's chat history, personal memories, credentials, or installed plugins are available.
+
 ## Delivery flow
 
 - Use `http://localhost:8081` as the first UI/UX validation loop. Do not use a Vercel preview as the first place to decide whether an interface is correct.

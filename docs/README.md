@@ -7,6 +7,7 @@ Este é o índice canônico dos documentos do projeto. Use esta página como pon
 | Objetivo | Documento |
 | --- | --- |
 | Entender o projeto e rodar localmente | [README.md](../README.md) |
+| Configurar outra máquina e continuar o trabalho | [workstations.md](operations/workstations.md) |
 | Ver prioridades de produto | [ROADMAP.md](../ROADMAP.md) |
 | Acompanhar mudanças entregues | [CHANGELOG.md](../CHANGELOG.md) |
 | Rodar checklist antes de deploy | [production.md](operations/production.md) |

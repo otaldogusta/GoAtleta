@@ -6,6 +6,9 @@
     "node": "24.x"
   },
   "scripts": {
+    "dev:setup": "node scripts/dev-setup.mjs",
+    "dev:doctor": "node scripts/dev-setup.mjs --check",
+    "dev:web": "expo start --web --port 8081 --max-workers 2",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",

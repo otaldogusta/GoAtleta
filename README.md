@@ -4,6 +4,9 @@ Uso o GoAtleta para planejar, registrar e acompanhar treinos com meus alunos.
 
 ## Documentação
 
+Para trabalhar em outro computador, siga [Trabalho em duas máquinas](docs/operations/workstations.md).
+Preparação: `npm run dev:setup`. Diagnóstico: `npm run dev:doctor`. Web local: `npm run dev:web`.
+
 O índice canônico dos documentos fica em [`docs/README.md`](docs/README.md).
 Antes de criar um novo `.md`, confira esse índice e atualize um documento
 existente quando o assunto já estiver coberto.
