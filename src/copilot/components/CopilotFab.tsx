@@ -4,6 +4,7 @@ import { Animated, Platform, StyleSheet,  View } from "react-native";
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
+import { useDraggableCopilotFab } from "./useDraggableCopilotFab";
 
 export const COPILOT_FAB_SIZE = 58;
 export const COPILOT_FAB_RIGHT = 16;
@@ -38,13 +39,17 @@ export const CopilotFab = memo(function CopilotFab({
 }: CopilotFabProps) {
   useRenderDiagnostic("CopilotFab", { showPulse, hasBadge, fabBottomOffset, primaryBgColor, hasHintMessage: Boolean(hintMessage) });
   const showIndicator = hasBadge || showPulse;
+  const drag = useDraggableCopilotFab(fabBottomOffset);
   return (
-    <View
+    <Animated.View
+      ref={drag.wrapperRef}
+      {...drag.panHandlers}
       style={[
         styles.fabWrapper,
         Platform.OS === "web" ? ({ position: "fixed" } as any) : null,
         {
-          bottom: fabBottomOffset,
+          left: drag.position.x,
+          top: drag.position.y,
           pointerEvents: "box-none",
         },
       ]}
@@ -73,10 +78,10 @@ export const CopilotFab = memo(function CopilotFab({
         />
       ) : null}
       <Pressable
-        onPress={onPress}
+        onPress={() => { if (drag.canOpen()) onPress(); }}
         accessibilityRole="button"
         accessibilityLabel="Abrir chat"
-        accessibilityHint={hintMessage ?? "Abre o copiloto com o contexto da tela atual."}
+        accessibilityHint={`${hintMessage ?? "Abre o copiloto com o contexto da tela atual."} Arraste para reposicionar. No teclado, use Alt e as setas.`}
         style={{
           borderRadius: 999,
           width: COPILOT_FAB_SIZE,
@@ -114,15 +119,16 @@ export const CopilotFab = memo(function CopilotFab({
           />
         ) : null}
       </Pressable>
-    </View>
+    </Animated.View>
   );
 });
 
 const styles = StyleSheet.create({
   fabWrapper: {
     position: "absolute",
-    right: COPILOT_FAB_RIGHT,
-    bottom: 24,
+    width: COPILOT_FAB_SIZE,
+    height: COPILOT_FAB_SIZE,
+    ...(Platform.OS === "web" ? { touchAction: "none" as const } : {}),
     zIndex: 5200,
     alignItems: "center",
     justifyContent: "center",

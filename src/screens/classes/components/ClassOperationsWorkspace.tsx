@@ -392,6 +392,8 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   const insets = useSafeAreaInsets();
   const [lessonContentAnim] = useState(() => new Animated.Value(1));
   const [internalCompactNavigationOpen, setInternalCompactNavigationOpen] = useState(false);
+  const [planActionHovered, setPlanActionHovered] = useState(false);
+  const [planActionFocused, setPlanActionFocused] = useState(false);
   const isCompactNavigationOpen = compact && (compactNavigationOpen ?? internalCompactNavigationOpen);
   if (!compact && internalCompactNavigationOpen) setInternalCompactNavigationOpen(false);
   const setIsCompactNavigationOpen = useCallback((open: boolean) => {
@@ -553,6 +555,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           <Animated.View
             style={[
               styles.lessonPlanContent,
+              !appliedPlan && styles.emptyLessonPlanContent,
               {
                 opacity: lessonContentAnim,
                 transform: [{ translateX: lessonContentAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
@@ -630,21 +633,37 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           </View>
         ) : (
           <View style={styles.emptyPlanContent}>
-            <GoAtletaIcon name="document" size={30} color={colors.muted} />
-            <Text style={[styles.emptyPlanTitle, { color: colors.text }]}>Sem plano aplicado</Text>
-            <Text style={[styles.emptyPlanDescription, { color: colors.muted }]}>Monte e revise o plano desta aula no próprio PDF.</Text>
-            <View style={styles.emptyPlanActions}>
               <Pressable
                 onPress={onGeneratePlan}
                 disabled={isGeneratingPlan}
                 accessibilityRole="button"
                 accessibilityLabel="Montar plano"
-                style={({ pressed }) => [styles.planPrimaryButton, styles.emptyPlanAction, { backgroundColor: colors.primaryBg, opacity: isGeneratingPlan ? 0.55 : pressed ? 0.8 : 1 }]}
+                suppressWebHoverFeedback
+                disableWebPressScale
+                onHoverIn={() => setPlanActionHovered(true)}
+                onHoverOut={() => setPlanActionHovered(false)}
+                onFocus={() => setPlanActionFocused(true)}
+                onBlur={() => setPlanActionFocused(false)}
+                style={styles.emptyPlanAction}
               >
-                <GoAtletaIcon name="document" size={16} color={colors.primaryText} />
-                <Text style={[styles.planPrimaryButtonLabel, { color: colors.primaryText }]}>Montar plano</Text>
+                {({ pressed }) => (
+                  <>
+                  <GoAtletaIcon
+                    name="document"
+                    size={30}
+                    color={planActionHovered || planActionFocused || pressed ? colors.primaryBg : colors.muted}
+                  />
+                  <Text style={[
+                    styles.emptyPlanTitle,
+                    styles.emptyPlanActionLabel,
+                    { color: planActionHovered || planActionFocused || pressed ? colors.primaryBg : colors.muted },
+                    (planActionHovered || planActionFocused || pressed) && styles.emptyPlanActionActive,
+                  ]}>
+                    Sem plano aplicado
+                  </Text>
+                  </>
+                )}
               </Pressable>
-            </View>
           </View>
         )}
           </Animated.View>
@@ -1012,6 +1031,9 @@ const styles = StyleSheet.create({
   lessonPlanContent: {
     minHeight: 250,
   },
+  emptyLessonPlanContent: {
+    justifyContent: "center",
+  },
   lessonLoadingContent: {
     minHeight: 250,
     alignItems: "center",
@@ -1096,15 +1118,19 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  emptyPlanActions: {
-    width: "100%",
-    flexDirection: "row",
-    gap: 9,
-  },
   emptyPlanAction: {
-    flex: 1,
-    minWidth: 0,
+    alignSelf: "center",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 44,
+    justifyContent: "center",
     paddingHorizontal: 10,
+  },
+  emptyPlanActionLabel: {
+    paddingVertical: 12,
+  },
+  emptyPlanActionActive: {
+    textDecorationLine: "underline",
   },
   planPrimaryButton: {
     minHeight: 46,
