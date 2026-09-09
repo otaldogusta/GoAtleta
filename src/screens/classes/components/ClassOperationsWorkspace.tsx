@@ -1,10 +1,9 @@
-import { createWebPortal } from "../../../ui/web-portal";
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { TrainingPlan } from "../../../core/models";
-import { COPILOT_FAB_RIGHT, COPILOT_FAB_SIZE, resolveCopilotCompanionFabBottom } from "../../../copilot/components/CopilotFab";
+import { resolveCopilotCompanionFabBottom } from "../../../copilot/components/CopilotFab";
 import { radius, spacing } from "../../../theme/tokens";
 import type { ThemeColors } from "../../../ui/app-theme";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../../ui/icon-registry";
@@ -12,6 +11,7 @@ import { ModalSheet } from "../../../ui/ModalSheet";
 import { Pressable } from "../../../ui/Pressable";
 import { useContainerResponsiveLayout } from "../../../ui/use-container-responsive-layout";
 import { CLASS_PLAN_BLOCK_PRESENTATION } from "./class-plan-block-presentation";
+import { ClassNavigationFab } from "./ClassNavigationFab";
 import { ClassLessonDateNavigator } from "./ClassLessonDateNavigator";
 
 const COMFORTABLE_CLASS_WORKSPACE_WIDTH = 1160;
@@ -719,34 +719,16 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   );
 
   const compactNavigationFab = compact && showCompactNavigationFab && !isCompactNavigationOpen ? (
-    <Pressable
+    <ClassNavigationFab
+      colors={colors}
+      bottom={compactNavigationBottom}
       onPress={() => setIsCompactNavigationOpen(true)}
-      accessibilityRole="button"
-      accessibilityLabel="Abrir menu da turma"
-      style={({ pressed }) => [
-        styles.compactNavigationFab,
-        Platform.OS === "web"
-          ? ({ position: "fixed", right: COPILOT_FAB_RIGHT, bottom: compactNavigationBottom } as any)
-          : { position: "absolute", right: COPILOT_FAB_RIGHT, bottom: compactNavigationBottom },
-        {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          opacity: pressed ? 0.76 : 1,
-        },
-      ]}
-    >
-      <GoAtletaIcon name="list" size={24} color={colors.primaryBg} />
-    </Pressable>
+    />
   ) : null;
-
-  const compactNavigationFabPortal =
-    Platform.OS === "web" && compactNavigationFab && typeof document !== "undefined"
-      ? createWebPortal(compactNavigationFab, document.body)
-      : null;
 
   return (
     <>
-      {compactNavigationFabPortal}
+      {Platform.OS === "web" ? compactNavigationFab : null}
       <View
         ref={containerRef}
         onLayout={onLayout}
@@ -869,15 +851,6 @@ const styles = StyleSheet.create({
   },
   workspaceDense: {
     gap: 12,
-  },
-  compactNavigationFab: {
-    width: COPILOT_FAB_SIZE,
-    height: COPILOT_FAB_SIZE,
-    borderWidth: 1,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 5100,
   },
   compactNavigationSheet: {
     maxHeight: "78%",

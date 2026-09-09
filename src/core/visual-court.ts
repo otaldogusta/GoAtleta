@@ -134,6 +134,7 @@ export type CourtVisualStep = {
 };
 
 export type CourtVisualPayload = {
+  editor?: import("./visual-court-editor").CourtEditorMetadata;
   version: 1;
   sport: CourtVisualSport;
   court: {
@@ -206,8 +207,8 @@ export const normalizeCourtPayload = (
   },
   actors: payload.actors.map((actor) => ({
     ...actor,
-    label: normalizeCourtVisualActorLabel(actor),
-    initialPosition: normalizeCourtPoint(actor.initialPosition),
+    label: payload.editor ? actor.label : normalizeCourtVisualActorLabel(actor),
+    initialPosition: payload.editor ? normalizeExtendedCourtPoint(actor.initialPosition) : normalizeCourtPoint(actor.initialPosition),
   })),
   markers: payload.markers.map((marker) => ({
     ...marker,
@@ -299,6 +300,7 @@ export const parseCourtVisualPayload = (value: unknown): CourtVisualPayload => {
       renderStyle: payload.court?.renderStyle ?? "standard",
     },
     actors: payload.actors,
+    editor: payload.editor,
     markers: payload.markers ?? [],
     layers: payload.layers ?? defaultCourtVisualLayers,
     timeline: {

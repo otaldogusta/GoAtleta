@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Animated, PanResponder } from "react-native";
 import { useDraggableCopilotFab } from "../components/useDraggableCopilotFab";
+import { useDraggableFab } from "../../ui/useDraggableFab";
 
 jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: 0 }),
@@ -13,6 +14,21 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 
 describe("draggable assistant button", () => {
   beforeEach(() => jest.clearAllMocks());
+
+  it("keeps the class menu position separate from the assistant", async () => {
+    const create = jest.spyOn(PanResponder, "create");
+    renderHook(() => useDraggableFab(178, "class-navigation-fab-position:v1"));
+    await waitFor(() => expect(AsyncStorage.getItem).toHaveBeenCalledWith("class-navigation-fab-position:v1"));
+    const handlers = create.mock.calls[0][0];
+    act(() => {
+      handlers.onPanResponderGrant?.({} as never, {} as never);
+      handlers.onPanResponderMove?.({} as never, { dx: -10000, dy: -10000 } as never);
+      handlers.onPanResponderRelease?.({} as never, {} as never);
+    });
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith("class-navigation-fab-position:v1", JSON.stringify({ side: "left", ratio: 0 }));
+    expect(AsyncStorage.setItem).not.toHaveBeenCalledWith("copilot-fab-position:v1", expect.anything());
+    create.mockRestore();
+  });
 
   it("distinguishes a click from dragging, docks and persists the new position", async () => {
     const create = jest.spyOn(PanResponder, "create");

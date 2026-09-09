@@ -5,7 +5,7 @@
 Instale Git, Node.js 24.x (referência: 24.13.0 em `.nvmrc`) e o Codex. Entre nas suas contas no novo computador. No terminal, em uma pasta de projetos:
 
 ```sh
-git clone --branch codex/workstation-setup https://github.com/otaldogusta/GoAtleta.git
+git clone --branch main https://github.com/otaldogusta/GoAtleta.git
 cd GoAtleta
 npm run dev:setup
 ```

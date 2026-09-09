@@ -1,3 +1,4 @@
+import { isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, Vibration, View, useWindowDimensions } from "react-native";
@@ -6,8 +7,9 @@ import { Pressable } from "../../src/ui/Pressable";
 
 import { useAuth } from "../../src/auth/auth";
 import { useContextualInsight } from "../../src/copilot/hooks/useContextualInsight";
-import { COPILOT_FAB_RIGHT, COPILOT_FAB_SIZE, resolveCopilotCompanionFabBottom } from "../../src/copilot/components/CopilotFab";
+import { resolveCopilotCompanionFabBottom } from "../../src/copilot/components/CopilotFab";
 
+import { ClassNavigationFab } from "../../src/screens/classes/components/ClassNavigationFab";
 import { ScreenLoadingState } from "../../src/components/ui/ScreenLoadingState";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { resolveResponsiveLayout } from "../../src/ui/responsive-layout";
@@ -983,6 +985,7 @@ export default function ClassDetails() {
   useEffect(() => {
     let alive = true;
     (async () => {
+      if (!session?.user?.id) { if (alive) { setCls(null); setLoading(false); } return; }
       setLoading(true);
       try {
         const dataResult = await measureAsync("screen.classDetails.load.initial", () => getClassById(id), { screen: "classDetails", classId: id });
@@ -1019,6 +1022,12 @@ export default function ClassDetails() {
           setStudentCount(students.length);
           setMissingContactCount(students.filter((student) => getContactPhone(student).status !== "ok").length);
         });
+      } catch (error) {
+        if (!alive) return;
+        setCls(null);
+        if (!isAuthSessionError(error) && !isRequestCancellationError(error) && !(error instanceof Error && error.name === "SessionIdentityChangedError")) {
+          Alert.alert("Não foi possível carregar a turma", "Tente abrir a turma novamente.");
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -1026,7 +1035,7 @@ export default function ClassDetails() {
     return () => {
       alive = false;
     };
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, coachNameByClass, id, parseCycleLength, parseDurationFromTimeRange, resolveEndTime]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, coachNameByClass, id, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, session?.user?.id]);
 
   useEffect(() => {
     if (!id || !selectedLessonDateKey) {
@@ -2212,7 +2221,7 @@ export default function ClassDetails() {
     if (!cls) return;
     router.push({
       pathname: "/class/[id]/visual-tech",
-      params: { id: cls.id },
+      params: { id: cls.id, date: selectedLessonDateKey, plan: appliedPlan?.id ?? "" },
     });
   };
 
@@ -2306,29 +2315,11 @@ export default function ClassDetails() {
       </ScrollView>
 
         {compactClassWorkspace && !classNavigationOpen ? (
-          <Pressable
+          <ClassNavigationFab
+            colors={colors}
+            bottom={resolveCopilotCompanionFabBottom(insets.bottom)}
             onPress={() => setClassNavigationOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Abrir menu da turma"
-            style={({ pressed }) => ({
-              position: "absolute",
-              right: COPILOT_FAB_RIGHT,
-              bottom: resolveCopilotCompanionFabBottom(insets.bottom),
-              width: COPILOT_FAB_SIZE,
-              height: COPILOT_FAB_SIZE,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 999,
-              backgroundColor: colors.card,
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 5100,
-              elevation: 12,
-              opacity: pressed ? 0.76 : 1,
-            })}
-          >
-            <GoAtletaIcon name="list" size={24} color={colors.primaryBg} />
-          </Pressable>
+          />
         ) : null}
 
         <ConfirmCloseOverlay visible={showAttendanceCloseConfirm} title="Chamada não salva" message="Descarte as alterações ou continue editando." cancelLabel="Continuar editando" discardLabel="Descartar" showConfirmAction={false} onConfirm={discardAttendanceAndContinue} onDiscard={discardAttendanceAndContinue} onCancel={keepEditingAttendance} />

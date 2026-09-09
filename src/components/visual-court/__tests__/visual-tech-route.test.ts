@@ -1,794 +1,123 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useCourtEditor } from "../useCourtEditor";
+import { moveSelection, newCourtBoard, actorPoint } from "../../../core/visual-court-editor";
 
-import ClassVisualTechRoute from "../../../../app/class/[id]/visual-tech";
-import {
-  buildRotation5x1Preset,
-  updateCourtVisualStepActorPosition,
-} from "../../../core/visual-court";
-
-const mockGetClassById = jest.fn();
-const mockEnsureDefaultVisualPresets = jest.fn();
-const mockSaveTechnicalVisual = jest.fn();
-const keyboardListeners: ((event: KeyboardEvent) => void)[] = [];
-const mountedRoutes: TestRenderer.ReactTestRenderer[] = [];
-
-const mountRoute = () => {
-  const tree = TestRenderer.create(React.createElement(ClassVisualTechRoute));
-  mountedRoutes.push(tree);
-  return tree;
-};
-
-const dispatchKeyboardShortcut = (event: Partial<KeyboardEvent>) => {
-  const preventDefault = jest.fn();
-  keyboardListeners.forEach((listener) =>
-    listener({
-      ctrlKey: false,
-      key: "",
-      metaKey: false,
-      preventDefault,
-      shiftKey: false,
-      ...event,
-    } as KeyboardEvent)
-  );
-  return preventDefault;
-};
-
-// This suite exercises route interactions and persistence, not native rendering.
-// Host primitives avoid loading native view internals inside the first timed act.
-jest.mock("react-native", () => {
-  const native = jest.requireActual("react-native");
-  return {
-    ActivityIndicator: "ActivityIndicator",
-    Pressable: "Pressable",
-    ScrollView: "ScrollView",
-    Text: "Text",
-    View: "View",
-    Platform: native.Platform,
-    StyleSheet: native.StyleSheet,
-    useWindowDimensions: () => ({ width: 1024, height: 768, scale: 1, fontScale: 1 }),
-  };
-});
-
-jest.mock("expo-router", () => ({
-  useLocalSearchParams: () => ({ id: "class_1" }),
-  usePathname: () => "/class/class_1/visual-tech",
-  useRouter: () => ({
-    back: jest.fn(),
-    canGoBack: jest.fn(() => false),
-    replace: jest.fn(),
-  }),
-}));
-
-jest.mock("../../../navigation/use-trainer-route-scope", () => ({
-  useTrainerRouteScope: () => ({ classes: "/class" }),
-}));
-
-jest.mock("@sentry/react-native", () => ({ addBreadcrumb: jest.fn() }));
-
-jest.mock("react-native-safe-area-context", () => ({
-  SafeAreaView: ({ children }: { children: React.ReactNode }) => {
-    const ReactMock = jest.requireActual("react");
-    return ReactMock.createElement(ReactMock.Fragment, null, children);
-  },
-  useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
-}));
-
-jest.mock("@expo/vector-icons", () => ({
-  Ionicons: "Ionicons",
-}));
-
-jest.mock("../../ui/ScreenPageHeader", () => ({
-  ScreenPageHeader: ({ title, children, right }: {
-    title: string; children?: React.ReactNode; right?: React.ReactNode;
-  }) => {
-    const ReactMock = jest.requireActual("react");
-    const { Text } = jest.requireMock("react-native");
-    return ReactMock.createElement(ReactMock.Fragment, null,
-      ReactMock.createElement(Text, null, title), right, children);
-  },
-}));
-
-jest.mock("../VisualCourtCanvas", () => ({
-  VisualCourtCanvas: ({
-    animationProgress,
-    animationStepIndex,
-    editable,
-    onCanvasPress,
-    onActorSelect,
-    onActorMoveEnd,
-    selectedActorId,
-    showMovementLines,
-    stepIndex,
-  }: {
-    animationProgress?: number;
-    animationStepIndex?: number;
-    editable?: boolean;
-    onCanvasPress?: () => void;
-    onActorSelect?: (actorId: string) => void;
-    onActorMoveEnd?: (actorId: string, point: { x: number; y: number }) => void;
-    selectedActorId?: string | null;
-    showMovementLines?: boolean;
-    stepIndex: number;
-  }) => {
-    const ReactMock = jest.requireActual("react");
-    const { Pressable, Text } = jest.requireMock("react-native");
-    return ReactMock.createElement(
-      ReactMock.Fragment,
-      null,
-      ReactMock.createElement(
-        Pressable,
-        {
-          accessibilityLabel: "Mover p1",
-          onPress: () => {
-            onActorSelect?.("p1");
-            return editable
-              ? onActorMoveEnd?.(
-                  "p1",
-                  showMovementLines ? { x: 0.44, y: 0.66 } : { x: 0.33, y: 0.77 }
-                )
-              : undefined;
-          },
-        },
-        ReactMock.createElement(
-          Text,
-          null,
-          `Canvas step ${stepIndex} ${editable ? "editavel" : "bloqueado"} progress ${
-            typeof animationProgress === "number" ? animationProgress.toFixed(2) : "sem-previa"
-          } animação ${animationStepIndex ?? "sem-animação"} setas ${
-            showMovementLines ? "visiveis" : "escondidas"
-          } selecionado ${selectedActorId ?? "nenhum"}`
-        )
-      ),
-      ReactMock.createElement(
-        Pressable,
-        {
-          accessibilityLabel: "Clicar na quadra",
-          onPress: () => onCanvasPress?.(),
-        },
-        ReactMock.createElement(Text, null, "Clicar na quadra")
-      )
-    );
-  },
-}));
-
-jest.mock("../../../ui/Button", () => ({
-  Button: ({
-    disabled,
-    label,
-    onPress,
-  }: {
-    disabled?: boolean;
-    label: string;
-    onPress: () => void;
-  }) => {
-    const ReactMock = jest.requireActual("react");
-    const { Pressable, Text } = jest.requireMock("react-native");
-    return ReactMock.createElement(
-      Pressable,
-      {
-        accessibilityLabel: label,
-        accessibilityState: { disabled: Boolean(disabled) },
-        disabled,
-        onPress,
-      },
-      ReactMock.createElement(Text, null, label)
-    );
-  },
-}));
-
-jest.mock("../../../ui/app-theme", () => ({
-  useAppTheme: () => ({
-    mode: "light",
-    colors: {
-      background: "#FFFFFF",
-      border: "#D1D5DB",
-      card: "#FFFFFF",
-      dangerBorder: "#DC2626",
-      dangerSolidBg: "#DC2626",
-      dangerSolidText: "#FFFFFF",
-      infoBg: "#DBEAFE",
-      infoText: "#1D4ED8",
-      inputBg: "#F8FAFC",
-      muted: "#64748B",
-      primaryBg: "#16A34A",
-      primaryText: "#FFFFFF",
-      secondaryBg: "#F1F5F9",
-      secondaryText: "#334155",
-      successBg: "#DCFCE7",
-      successText: "#166534",
-      text: "#0F172A",
-      warningBg: "#FEF3C7",
-      warningText: "#92400E",
-    },
-  }),
-}));
-
+const mockClass = jest.fn();
+const mockStudents = jest.fn();
+const mockList = jest.fn();
+const mockSave = jest.fn();
+let mockUser = "user_1";
+jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: mockUser ? { user: { id: mockUser } } : null }) }));
+jest.mock("../../../observability/perf", () => ({ measureAsync: (_name: string, run: () => unknown) => run() }));
 jest.mock("../../../db/seed", () => ({
-  getClassById: (...args: unknown[]) => mockGetClassById(...args),
-  ensureDefaultVisualPresets: (...args: unknown[]) =>
-    mockEnsureDefaultVisualPresets(...args),
-  saveTechnicalVisual: (...args: unknown[]) => mockSaveTechnicalVisual(...args),
+  getClassById: (...args: unknown[]) => mockClass(...args),
+  getStudentsByClass: (...args: unknown[]) => mockStudents(...args),
+  listTechnicalVisualsByClass: (...args: unknown[]) => mockList(...args),
+  saveTechnicalVisual: (...args: unknown[]) => mockSave(...args),
 }));
+jest.mock("@react-native-async-storage/async-storage", () => jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"));
 
-const collectChildrenText = (value: unknown): string[] => {
-  if (typeof value === "string" || typeof value === "number") return [String(value)];
-  if (Array.isArray(value)) return value.flatMap(collectChildrenText);
-  return [];
-};
-
-const collectText = (root: TestRenderer.ReactTestInstance) =>
-  root
-    .findAll(() => true)
-    .flatMap((node) => collectChildrenText(node.props.children))
-    .join(" ")
-    .replace(/\s+/g, " ");
-
-const findPressableByText = (
-  root: TestRenderer.ReactTestInstance,
-  text: string
-) => {
-  const match = root.findAll(
-    (node) => typeof node.props.onPress === "function" && collectText(node).includes(text)
-  )[0];
-  if (!match) throw new Error(`Pressable with text "${text}" not found.`);
-  return match;
-};
-
-describe("ClassVisualTechRoute", () => {
-  afterEach(() => {
-    act(() => {
-      for (const tree of mountedRoutes.splice(0)) tree.unmount();
-    });
+// The route now delegates document operations to this controller. These tests
+// exercise the actual state/history/storage boundary instead of native SVG internals.
+describe("visual court workspace persistence and history", () => {
+  let tree: TestRenderer.ReactTestRenderer;
+  let editor: ReturnType<typeof useCourtEditor>;
+  const draftKey = "goatleta:court-draft:v2:user_1:org_1:class_1";
+  function Harness() { editor = useCourtEditor("class_1"); return null; }
+  const mount = async () => { await act(async () => { tree = TestRenderer.create(React.createElement(Harness)); }); };
+  beforeEach(async () => {
+    jest.clearAllMocks(); mockUser = "user_1";
+    await AsyncStorage.clear();
+    mockClass.mockResolvedValue({ id: "class_1", organizationId: "org_1", name: "Turma" });
+    mockStudents.mockResolvedValue([]); mockList.mockResolvedValue([]);
+    mockSave.mockImplementation(async (input) => ({ ...input, id: "saved_1", createdAt: "", updatedAt: "" }));
   });
+  afterEach(() => { if (tree) act(() => tree.unmount()); });
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    keyboardListeners.length = 0;
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: {
-        addEventListener: jest.fn((type: string, listener: (event: KeyboardEvent) => void) => {
-          if (type === "keydown") keyboardListeners.push(listener);
-        }),
-        removeEventListener: jest.fn((type: string, listener: (event: KeyboardEvent) => void) => {
-          if (type !== "keydown") return;
-          const index = keyboardListeners.indexOf(listener);
-          if (index >= 0) keyboardListeners.splice(index, 1);
-        }),
-      },
-    });
-    mockGetClassById.mockResolvedValue({
-      id: "class_1",
-      name: "Turma Sub-15",
-      organizationId: "org_1",
-    });
-    mockEnsureDefaultVisualPresets.mockResolvedValue([]);
-    mockSaveTechnicalVisual.mockResolvedValue(null);
+  it("loads only the authorized class scope and never seeds remote documents", async () => {
+    await mount();
+    expect(editor!.loading).toBe(false);
+    expect(mockList).toHaveBeenCalledWith("class_1", { organizationId: "org_1", limit: 200 });
+    expect(mockStudents).toHaveBeenCalledWith("class_1", { organizationId: "org_1" });
+    expect(mockSave).not.toHaveBeenCalled();
+    expect(editor!.documents.length).toBe(4);
+    expect(editor!.dirty).toBe(false);
   });
-
-  it("loads the local preset, advances steps and handles save fallback", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    expect(collectText(tree!.root)).toContain("Quadra visual local carregada");
-    expect(collectText(tree!.root)).toContain("5x1 - Recepção");
-    expect(collectText(tree!.root)).toContain("5x1 base - equipe sacando");
-    expect(collectText(tree!.root)).toContain("Defesa base — 6 fundo");
-    expect(collectText(tree!.root)).toContain("Grade didática");
-    expect(collectText(tree!.root)).toContain("6 passos");
-    expect(collectText(tree!.root)).toContain("P1 - Antes do saque");
-    expect(collectText(tree!.root)).toContain("Canvas step 0 editavel");
-    expect(collectText(tree!.root)).toContain("Editar posições");
-    expect(collectText(tree!.root)).toContain("Animar movimento");
-    expect(collectText(tree!.root)).toContain("Alinhar passe");
-    expect(collectText(tree!.root)).toContain(
-      "P¹/P² = ponteiros. P1/P6/P5/P4/P3/P2 = posição do levantador."
-    );
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props
-        .accessibilityState
-    ).toEqual({ disabled: true });
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Sem animação disponível" })
-    ).toBeTruthy();
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: true });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Animar movimento" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).toContain("Animando movimento");
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).toContain("Alterações locais ainda não salvas");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Reproduzir animação" })
-    ).toBeTruthy();
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: false });
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props
-        .accessibilityState
-    ).toEqual({ disabled: false });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Próximo passo" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).toContain("P6 - Antes do saque");
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Passo anterior" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).toContain("P1 - Antes do saque");
-    expect(collectText(tree!.root)).toContain(
-      "Canvas step 0 editavel progress 0.00 animação 0"
-    );
-    expect(collectText(tree!.root)).not.toContain("Animando movimento");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: false });
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props
-        .accessibilityState
-    ).toEqual({ disabled: true });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-    expect(mockSaveTechnicalVisual).toHaveBeenCalled();
+  it("does not read documents or roster when class authorization fails", async () => {
+    mockClass.mockResolvedValue(null); await mount();
+    expect(mockList).not.toHaveBeenCalled(); expect(mockStudents).not.toHaveBeenCalled();
+    expect(editor!.cls).toBeNull(); expect(editor!.error).toContain("indisponível");
   });
-
-  it("edits actor position with the pencil mode without creating a manual trajectory", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Editar posições" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).toContain("Editando posições");
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).toContain("Posição editada sem seta");
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-    const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toEqual({
-      x: 0.33,
-      y: 0.77,
-    });
-    expect(
-      saveInput.payload.timeline.steps[0].trajectories?.some(
-        (trajectory: { id: string }) => trajectory.id === "manual-move-p1"
-      )
-    ).not.toBe(true);
+  it("persists reversible library trash in user/org/class scope without changing the open board", async () => {
+    await mount();
+    const before = editor!.payload;
+    const id = editor!.documents[0].id;
+    await act(async () => { await editor!.setDocumentTrashed(id, true); });
+    expect(editor!.trashedIds).toContain(id);
+    expect(editor!.payload).toBe(before);
+    expect(JSON.parse((await AsyncStorage.getItem("goatleta:court-trash:v1:user_1:org_1:class_1"))!)).toContain(id);
+    act(() => tree.unmount()); await mount();
+    expect(editor!.trashedIds).toContain(id);
+    await act(async () => { await editor!.setDocumentTrashed(id, false); });
+    expect(editor!.trashedIds).not.toContain(id);
+    expect(mockSave).not.toHaveBeenCalled();
   });
-
-  it("adds an extra actor from the legend and saves it in the current frame", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Adicionar P" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("P adicionado na quadra");
-    expect(collectText(tree!.root)).toContain("Editando posições");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: false });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-
-    const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
-    expect(saveInput.payload.actors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "p_extra_1",
-          label: "P",
-          role: "outside",
-        }),
-      ])
-    );
-    expect(saveInput.payload.timeline.steps[0].visibleActorIds).toContain("p_extra_1");
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p_extra_1).toEqual({
-      x: 0.5,
-      y: 0.5,
-    });
+  it("does not read any class data without a session", async () => {
+    mockUser = ""; await mount(); expect(mockClass).not.toHaveBeenCalled(); expect(editor!.error).toContain("conta");
   });
-
-  it("keeps the current visual state when adding an actor from the legend", async () => {
-    const animatedPayload = updateCourtVisualStepActorPosition(
-      buildRotation5x1Preset(),
-      0,
-      "p1",
-      { x: 0.44, y: 0.66 }
-    );
-    mockEnsureDefaultVisualPresets.mockResolvedValue([
-      {
-        id: "technical_visual_1",
-        organizationId: "org_1",
-        classId: "class_1",
-        sourceKind: "rotation",
-        sourceId: "5x1_receive_3",
-        title: "5x1 - Recepção",
-        payload: animatedPayload,
-        createdAt: "2026-06-06T00:00:00.000Z",
-        updatedAt: "2026-06-06T00:00:00.000Z",
-      },
-    ]);
-
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    expect(collectText(tree!.root)).toContain(
-      "Canvas step 0 editavel progress 0.00 animação 0 setas escondidas"
-    );
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Animar movimento" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain(
-      "Canvas step 0 editavel progress sem-previa animação sem-animação setas visiveis"
-    );
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Adicionar Op" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("Op adicionado na quadra");
-    expect(collectText(tree!.root)).toContain(
-      "Canvas step 0 editavel progress sem-previa animação sem-animação setas escondidas selecionado op_extra_1"
-    );
+  it("recovers only this user/org/class draft", async () => {
+    const payload = newCourtBoard("Meu rascunho");
+    await AsyncStorage.setItem(draftKey, JSON.stringify({ payload, stepIndex: 0 }));
+    await AsyncStorage.setItem(draftKey.replace("user_1", "user_2"), JSON.stringify({ payload: newCourtBoard("Outro usuário"), stepIndex: 0 }));
+    await mount(); expect(editor!.payload.editor?.title).toBe("Meu rascunho"); expect(editor!.dirty).toBe(true);
   });
-
-  it("selects an actor on the court and duplicates it in the current frame", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("Selecionado P");
-    expect(collectText(tree!.root)).toContain("Duplicar");
-    expect(collectText(tree!.root)).toContain("Excluir");
-
-    act(() => {
-      tree!.root
-        .findByProps({ accessibilityLabel: "Duplicar posição selecionada" })
-        .props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("Posição duplicada");
-    expect(collectText(tree!.root)).toContain("selecionado p1_extra_1");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: false });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-
-    const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
-    expect(saveInput.payload.actors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "p1_extra_1",
-          label: "P¹",
-        }),
-      ])
-    );
-    expect(saveInput.payload.timeline.steps[0].visibleActorIds).toContain("p1_extra_1");
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p1_extra_1).toEqual({
-      x: 0.39,
-      y: 0.81,
-    });
+  it("ignores corrupt local state without losing remote library access", async () => {
+    await AsyncStorage.setItem(draftKey, "bad json"); await mount();
+    expect(editor!.loading).toBe(false); expect(editor!.documents).toHaveLength(4); expect(editor!.error).toBe("");
   });
-
-  it("deselects the current actor when pressing the court background", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("Selecionado P");
-    expect(collectText(tree!.root)).toContain("selecionado p1");
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Clicar na quadra" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).not.toContain("Selecionado P");
-    expect(collectText(tree!.root)).not.toContain("Duplicar");
-    expect(collectText(tree!.root)).not.toContain("Excluir");
-    expect(collectText(tree!.root)).toContain("selecionado nenhum");
+  it("records a gesture once, undoes and redoes the actual positions", async () => {
+    await mount(); const id = editor!.payload.actors[0].id;
+    const before = actorPoint(editor!.payload, 0, id);
+    act(() => editor!.commit(p => moveSelection(p, 0, [id], { x: 0.05, y: 0.04 })));
+    const moved = actorPoint(editor!.payload, 0, id);
+    expect(moved).not.toEqual(before); expect(editor!.canUndo).toBe(true);
+    act(() => editor!.undo()); expect(actorPoint(editor!.payload, 0, id)).toEqual(before); expect(editor!.canUndo).toBe(false);
+    act(() => editor!.redo()); expect(actorPoint(editor!.payload, 0, id)).toEqual(moved);
   });
-
-  it("selects an actor on the court and removes it from the current frame", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
+  it("saves the latest same-tick edit as a new immutable revision", async () => {
+    await mount(); const id = editor!.payload.actors[0].id;
+    const original = editor!.payload;
     await act(async () => {
-      tree = mountRoute();
+      editor!.commit(p => moveSelection(p, 0, [id], { x: 0.05, y: 0.04 }));
+      await editor!.save();
     });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-    act(() => {
-      tree!.root
-        .findByProps({ accessibilityLabel: "Excluir posição selecionada" })
-        .props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("Posição excluída do frame atual");
-    expect(collectText(tree!.root)).not.toContain("Selecionado P");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: false });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-
-    const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
-    expect(saveInput.payload.actors).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: "p1" })])
-    );
-    expect(saveInput.payload.timeline.steps[0].visibleActorIds).not.toContain("p1");
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toBeUndefined();
-    expect(saveInput.payload.timeline.steps[1].visibleActorIds).toContain("p1");
+    expect(mockSave).toHaveBeenCalledTimes(1);
+    const input = mockSave.mock.calls[0][0];
+    expect(input.id).toBeUndefined(); expect(input.organizationId).toBe("org_1");
+    expect(input.sourceId).toBeTruthy(); expect(input.payload).toEqual(editor!.payload);
+    expect(input.payload).not.toEqual(original); expect(editor!.dirty).toBe(false);
   });
-
-  it("keeps align pass disabled when no animation exists", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props
-        .accessibilityState
-    ).toEqual({ disabled: true });
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar passe" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).not.toContain("Passe voltou para o início da animação");
-    expect(collectText(tree!.root)).not.toContain("Alterações locais ainda não salvas");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: true });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-    expect(mockSaveTechnicalVisual).not.toHaveBeenCalled();
+  it("prevents concurrent duplicate saves", async () => {
+    await mount(); act(() => editor!.commit(p => ({ ...p, editor: { ...p.editor!, title: "Teste" } })));
+    await act(async () => { await Promise.all([editor!.save(), editor!.save()]); });
+    expect(mockSave).toHaveBeenCalledTimes(1);
   });
-
-  it("shows align positions outside the reception card without marking the court dirty", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    act(() => {
-      findPressableByText(tree!.root, "5x1 base - equipe sacando").props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("P1 - saque");
-    expect(collectText(tree!.root)).toContain("P1 - Antes do saque");
-    expect(collectText(tree!.root)).not.toContain("Momento");
-    expect(collectText(tree!.root)).not.toContain("Após o saque");
-    expect(collectText(tree!.root)).toContain("Alinhar posições");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar posições" })
-    ).toBeTruthy();
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar posições" }).props
-        .accessibilityState
-    ).toEqual({ disabled: true });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Alinhar posições" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).not.toContain("Posições voltaram para o início da animação");
-    expect(collectText(tree!.root)).toContain("progress 0.00");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: true });
+  it("keeps dirty work after a failed save and can flush it before exiting", async () => {
+    await mount(); mockSave.mockRejectedValue(new Error("Sem conexão"));
+    act(() => editor!.commit(p => ({ ...p, editor: { ...p.editor!, title: "Recuperável" } })));
+    await act(async () => { expect(await editor!.save()).toBeFalsy(); expect(await editor!.preserveDraft()).toBe(true); });
+    expect(editor!.dirty).toBe(true); expect(editor!.error).toBe("Sem conexão");
+    expect(JSON.parse((await AsyncStorage.getItem(draftKey))!).payload.editor.title).toBe("Recuperável");
   });
-
-  it("creates and saves a play animation only when animation mode is enabled", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).not.toContain("Animação com setas ajustada");
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Animar movimento" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).toContain("Animando movimento");
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-    expect(collectText(tree!.root)).toContain("Animação com setas ajustada");
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-    const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toEqual({
-      x: 0.44,
-      y: 0.66,
-    });
-    expect(saveInput.payload.timeline.steps[0].trajectories).toContainEqual({
-      id: "manual-move-p1",
-      actorId: "p1",
-      points: [{ x: 0.33, y: 0.77 }, { x: 0.44, y: 0.66 }],
-      color: "#60A5FA",
-    });
-  });
-
-  it("resets saved animations for the current frame without moving actors", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Animar movimento" }).props.onPress();
-    });
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("Redefinir animações");
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Redefinir animações" }).props.onPress();
-    });
-
-    expect(collectText(tree!.root)).toContain("Animações do frame redefinidas");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Sem animação disponível" })
-    ).toBeTruthy();
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-    const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toEqual({
-      x: 0.44,
-      y: 0.66,
-    });
-    expect(saveInput.payload.timeline.steps[0].trajectories).toBeUndefined();
-    expect(saveInput.payload.timeline.steps[0].transitions).toBeUndefined();
-  });
-
-  it("saves the latest dragged position even when save is pressed immediately", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-
-    const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toEqual({
-      x: 0.33,
-      y: 0.77,
-    });
-  });
-
-  it("keeps the final animation preview after playback finishes", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    jest.useFakeTimers();
-    try {
-      act(() => {
-        tree!.root.findByProps({ accessibilityLabel: "Animar movimento" }).props.onPress();
-      });
-      await act(async () => {
-        tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-      });
-      act(() => {
-        tree!.root.findByProps({ accessibilityLabel: "Reproduzir animação" }).props.onPress();
-      });
-      expect(collectText(tree!.root)).toContain("Canvas step 0 bloqueado progress 0.00 animação 0");
-
-      act(() => {
-        jest.runOnlyPendingTimers();
-      });
-
-      expect(collectText(tree!.root)).toContain("Canvas step 0 editavel progress 1.00 animação 0");
-      expect(
-        tree!.root.findByProps({ accessibilityLabel: "Reproduzir animação" })
-      ).toBeTruthy();
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
-  it("undoes and redoes local court edits with keyboard shortcuts", async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = mountRoute();
-    });
-
-    act(() => {
-      tree!.root.findByProps({ accessibilityLabel: "Animar movimento" }).props.onPress();
-    });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Mover p1" }).props.onPress();
-    });
-
-    act(() => {
-      dispatchKeyboardShortcut({ ctrlKey: true, key: "z" });
-    });
-    expect(collectText(tree!.root)).toContain("Ação desfeita");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: true });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-    expect(mockSaveTechnicalVisual).not.toHaveBeenCalled();
-
-    mockSaveTechnicalVisual.mockClear();
-    act(() => {
-      dispatchKeyboardShortcut({ ctrlKey: true, key: "z", shiftKey: true });
-    });
-    expect(collectText(tree!.root)).toContain("Ação refeita");
-    expect(
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.accessibilityState
-    ).toEqual({ disabled: false });
-
-    await act(async () => {
-      tree!.root.findByProps({ accessibilityLabel: "Salvar" }).props.onPress();
-    });
-    const [saveInput] = mockSaveTechnicalVisual.mock.calls[0];
-    expect(saveInput.payload.timeline.steps[0].actorPositions.p1).toEqual({
-      x: 0.44,
-      y: 0.66,
-    });
+  it("backs up unsaved work before switching documents", async () => {
+    await mount(); act(() => editor!.commit(p => ({ ...p, editor: { ...p.editor!, title: "Anterior" } })));
+    await act(async () => { await editor!.open(newCourtBoard("Novo")); });
+    const keys = await AsyncStorage.getAllKeys();
+    const backup = keys.find(k => k.startsWith(`${draftKey}:backup:`));
+    expect(backup).toBeTruthy();
+    expect(JSON.parse((await AsyncStorage.getItem(backup!))!).payload.editor.title).toBe("Anterior");
+    expect(editor!.payload.editor?.title).toBe("Novo");
   });
 });

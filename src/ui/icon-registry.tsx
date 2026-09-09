@@ -6,6 +6,8 @@ import { decorativeIconProps } from "./decorative-icon-props";
 export type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
 export const GOATLETA_ICON_NAMES = {
+  navigate: "navigate-outline",
+  move: "move-outline",
   home: "home-outline",
   dashboard: "grid-outline",
   classes: "school-outline",

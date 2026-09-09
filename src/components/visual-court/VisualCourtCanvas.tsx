@@ -35,6 +35,7 @@ import {
   type CourtZone,
 } from "../../core/visual-court";
 import { useAppTheme } from "../../ui/app-theme";
+import { CourtEditorCanvas, type CourtEditorCanvasProps } from "./CourtEditorCanvas";
 
 type Props = {
   payload: CourtVisualPayload;
@@ -437,7 +438,11 @@ const resolveAnimatedActorPosition = (
   );
 };
 
-export function VisualCourtCanvas({
+export function VisualCourtCanvas(props: Props | CourtEditorCanvasProps) {
+  return "tool" in props ? <CourtEditorCanvas {...props} /> : <LegacyVisualCourtCanvas {...props} />;
+}
+
+function LegacyVisualCourtCanvas({
   payload,
   stepIndex,
   height = 620,
