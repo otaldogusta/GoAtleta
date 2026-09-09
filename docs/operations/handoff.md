@@ -73,3 +73,7 @@ Código no GitHub não transporta rascunhos, lixeira local ou versões ainda pen
 ### Limites e revisão
 
 Validação nativa e tema claro ainda exigem revisão específica. GIF/vídeo/IA e sincronização offline automática não fazem parte deste pacote. Nenhuma migração foi aplicada. A aprovação do build não substitui a confirmação da publicação Vercel/EAS; consulte o status do commit no GitHub.
+
+### Validação de publicação
+
+Código funcional: 58fb55b5933d256ec589f95b68303877ca2584c2. validate:app completo aprovado: 443 suítes Jest / 2.505 testes, 5 suítes PostgreSQL isoladas, zero erros/avisos de lint, tipos, escopo, encoding, assets, arquitetura e performance. Build web concluído; dev:doctor aprovado com Node 24. Smoke autenticado após novo login confirmou abertura da quadra, seleção, movimento por teclado, desfazer e configurações. Nenhuma escrita remota de teste. Integração em main via fast-forward; acompanhar Vercel e EAS no commit da publicação.

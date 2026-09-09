@@ -29,7 +29,8 @@ Antes de começar, com a árvore limpa:
 
 ```sh
 git status
-git pull --ff-only
+git switch main
+git pull --ff-only origin main
 ```
 
 Se `git status` mostrar alterações, preserve-as em commit antes de atualizar. Se `pull --ff-only` falhar, há divergência: peça ao Codex para revisar e reconciliar os commits. Não use reset ou force-push para contornar isso.
