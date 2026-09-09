@@ -87,18 +87,19 @@ type ClassContextStripProps = {
   nextClassLabel: string;
 };
 
-function ContextItem({ icon, label, colors, compact = false }: {
+function ContextItem({ icon, label, colors, compact = false, mobile = false }: {
   icon: GoAtletaIconName;
   label: string;
   colors: ThemeColors;
   compact?: boolean;
+  mobile?: boolean;
 }) {
   return (
-    <View style={[styles.contextItem, compact ? styles.contextItemCompact : null]}>
+    <View style={[styles.contextItem, compact ? styles.contextItemCompact : null, mobile ? styles.contextItemMobile : null]}>
       <GoAtletaIcon name={icon} size={compact ? 16 : 18} color={colors.muted} />
       <Text
-        numberOfLines={compact ? 2 : 1}
-        style={[styles.contextLabel, compact ? styles.contextLabelCompact : null, { color: colors.text }]}
+        numberOfLines={compact || mobile ? 2 : 1}
+        style={[styles.contextLabel, compact ? styles.contextLabelCompact : null, mobile ? styles.contextLabelMobile : null, { color: colors.text }]}
       >
         {label}
       </Text>
@@ -113,7 +114,6 @@ export const ClassContextStrip = memo(function ClassContextStrip({
   unitLabel,
   scheduleLabel,
   studentCount,
-  nextClassLabel,
 }: ClassContextStripProps) {
   return (
     <View
@@ -124,19 +124,14 @@ export const ClassContextStrip = memo(function ClassContextStrip({
         { backgroundColor: colors.card, borderColor: colors.border },
       ]}
     >
-      <ContextItem icon="organization" label={unitLabel} colors={colors} compact={compact} />
-      <ContextItem icon="time" label={scheduleLabel} colors={colors} compact={compact} />
+      <ContextItem icon="organization" label={unitLabel} colors={colors} compact={compact} mobile={mobile} />
+      <ContextItem icon="time" label={scheduleLabel} colors={colors} compact={compact} mobile={mobile} />
       <ContextItem
         icon="students"
         label={studentCount === null ? "Ativos: —" : `${studentCount} ${studentCount === 1 ? "ativo" : "ativos"}`}
         colors={colors}
         compact={compact}
-      />
-      <ContextItem
-        icon="calendar"
-        label={compact ? nextClassLabel : `Próxima aula: ${nextClassLabel}`}
-        colors={colors}
-        compact={compact}
+        mobile={mobile}
       />
     </View>
   );
@@ -801,18 +796,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   contextStripCompact: {
-    minHeight: 76,
+    minHeight: 36,
     flexWrap: "wrap",
     alignItems: "center",
+    alignContent: "center",
     rowGap: 6,
     columnGap: 16,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   contextStripMobile: {
-    minHeight: 44,
+    minHeight: 36,
+    flexWrap: "nowrap",
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 10,
     rowGap: 0,
     columnGap: 8,
     borderRadius: 12,
@@ -827,9 +824,9 @@ const styles = StyleSheet.create({
   },
   contextItemCompact: {
     flexGrow: 1,
-    flexBasis: "44%",
-    minWidth: 0,
-    justifyContent: "flex-start",
+    flexBasis: 150,
+    minWidth: 120,
+    justifyContent: "center",
     gap: 6,
   },
   contextLabel: {
@@ -837,6 +834,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  contextItemMobile: {
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    flexDirection: "column",
+    alignSelf: "stretch",
+    justifyContent: "flex-start",
+    gap: 4,
+  },
+  contextLabelMobile: { textAlign: "center", fontSize: 11, lineHeight: 15, width: "100%" },
   contextLabelCompact: {
     fontSize: 12,
   },
@@ -1161,8 +1168,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
-    paddingVertical: 7,
-    paddingHorizontal: 2,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
   operationalStatusCopy: {
     flex: 1,
@@ -1210,8 +1217,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
-    paddingHorizontal: 2,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   recentTrainingCopy: {
     flex: 1,

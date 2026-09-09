@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, ScrollView, StyleSheet, Switch, Text, TextInput, View, type ViewStyle } from "react-native";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { useAppTheme } from "../../ui/app-theme";
@@ -7,8 +7,12 @@ import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { createWebPortal } from "../../ui/web-portal";
 import { radius, spacing } from "../../theme/tokens";
 
-export type CourtActionIcon = GoAtletaIconName | "courtArrow" | "courtBall" | "courtCone" | "courtTarget" | "courtLadder" | "courtCurve" | "courtArea" | "courtText";
+export type CourtActionIcon = GoAtletaIconName | "repeatOne" | "courtArrow" | "courtBall" | "courtCone" | "courtTarget" | "courtLadder" | "courtCurve" | "courtArea" | "courtText";
 export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIcon; color: string; size?: number }) {
+  if (name === "repeatOne") return <View style={{ width: size, height: size }}>
+    <GoAtletaIcon name="repeat" size={size} color={color} />
+    <Text style={{ position: "absolute", right: -4, top: -6, color, fontSize: 10, fontWeight: "800" }}>1</Text>
+  </View>;
   let drawing: ReactNode;
   switch (name) {
     case "courtArrow": drawing = <Path d="M4 20 20 4M11 4h9v9" />; break;
@@ -25,8 +29,8 @@ export function CourtToolIcon({ name, color, size = 22 }: { name: CourtActionIco
 }
 
 const SHORTCUTS: Record<string, string> = { "Selecionar e mover": "V · Arraste no vazio para selecionar", Desfazer: "Ctrl/Cmd + Z", Refazer: "Ctrl/Cmd + Shift + Z", "Apagar seleção": "Delete" };
-export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, danger = false }: {
-  label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; danger?: boolean;
+export function CourtActionButton({ label, icon, onPress, active = false, disabled = false, text = false, tile = false, danger = false, dragKind, onAdd }: {
+  label: string; icon: CourtActionIcon; onPress: () => void; active?: boolean; disabled?: boolean; text?: boolean; tile?: boolean; danger?: boolean; dragKind?: string; onAdd?: () => void;
 }) {
   const { colors } = useAppTheme();
   const [tip, setTip] = useState<{ left: number; top: number } | null>(null);
@@ -45,15 +49,38 @@ export function CourtActionButton({ label, icon, onPress, active = false, disabl
     if (!rect) return;
     setTip({ left: Math.max(8, Math.min(window.innerWidth - 228, rect.left < 80 ? rect.right + 10 : rect.left - 80)), top: Math.max(8, Math.min(window.innerHeight - 52, rect.left < 80 ? rect.top : rect.top < 64 ? rect.bottom + 8 : rect.top - 48)) });
   };
+  const dragRef = useRef<View>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web" || !dragKind || disabled) return;
+    const node = (dragRef.current as unknown as HTMLElement)?.firstElementChild as HTMLElement | null;
+    if (!node) return;
+    const transparentDragImage = document.createElement("canvas");
+    transparentDragImage.width = 1;
+    transparentDragImage.height = 1;
+    node.draggable = true;
+    const start = (event: DragEvent) => {
+      if (!event.dataTransfer) return;
+      event.dataTransfer.setData("application/x-goatleta-material", dragKind);
+      event.dataTransfer.setData(`application/x-goatleta-material-${dragKind}`, "1");
+      event.dataTransfer.effectAllowed = "copy";
+      event.dataTransfer.setDragImage(transparentDragImage, 0, 0);
+      setTip(null);
+    };
+    node.addEventListener("dragstart", start);
+    return () => { node.draggable = false; node.removeEventListener("dragstart", start); };
+  }, [dragKind, disabled]);
   const ink = danger ? colors.dangerText : active ? colors.primaryText : colors.text;
   return <>
+    <View ref={dragRef} style={onAdd ? { position: "relative", width: "47%" } : Platform.OS === "web" ? { display: "contents" } as unknown as ViewStyle : undefined}>
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: active, disabled }} disabled={disabled}
       onHoverIn={show} onHoverOut={() => setTip(null)} onFocus={show} onBlur={() => setTip(null)}
       onPress={() => { setTip(null); onPress(); }}
-      style={({ hovered, pressed }) => [styles.action, text && styles.textAction, tile && styles.tile, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
+      style={({ hovered, pressed }) => [styles.action, text && styles.textAction, tile && styles.tile, onAdd && { width: "100%" }, { opacity: disabled ? 0.4 : 1, backgroundColor: active ? colors.primaryBg : hovered || pressed ? colors.secondaryBg : "transparent", borderColor: tile ? active ? colors.primaryBg : colors.border : "transparent" }]}>
       <CourtToolIcon name={icon} size={tile ? 25 : 21} color={ink} />
       {text || tile ? <Text style={{ color: ink, fontSize: 12, fontWeight: "600", textAlign: tile ? "center" : "left" }}>{label}</Text> : null}
     </Pressable>
+    {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel={`Adicionar ${label.toLowerCase()}`} disabled={disabled} onPress={onAdd} style={{ position: "absolute", top: 2, right: 2, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="add" size={16} color={ink} /></Pressable> : null}
+    </View>
     {tip && Platform.OS === "web" ? createWebPortal(<View pointerEvents="none" style={{ position: "fixed", ...tip, zIndex: 10000, maxWidth: 220, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.md, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 } as unknown as ViewStyle}>
       <Text style={{ color: colors.text, fontSize: 12, fontWeight: "600" }}>{label}</Text>
       {SHORTCUTS[label] ? <Text style={{ color: colors.muted, fontSize: 11, marginTop: 3 }}>{SHORTCUTS[label]}</Text> : null}

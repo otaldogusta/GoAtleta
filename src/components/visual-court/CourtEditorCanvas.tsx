@@ -116,8 +116,8 @@ export function CourtEditorCanvas(props: Props) {
     }
     setDraft(undefined); setPreview(undefined); setMarquee(undefined);
   };
-  const handlers = useRef({ begin, move, end });
-  useEffect(() => { handlers.current = { begin, move, end }; });
+  const handlers = useRef({ begin, move, end, getPoint });
+  useEffect(() => { handlers.current = { begin, move, end, getPoint }; });
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const node = host.current as unknown as HTMLElement;
@@ -125,7 +125,32 @@ export function CourtEditorCanvas(props: Props) {
     let active: number | null = null;
     let space = false;
     let hand: { pixel: CourtPoint; pan: CourtPoint; scale: number } | null = null;
-    const pixel = (e: PointerEvent) => { const r = node.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    const pixel = (e: { clientX: number; clientY: number }) => { const r = node.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+    const dragover = (e: DragEvent) => {
+      if (live.current.disabled || !e.dataTransfer?.types.includes("application/x-goatleta-material")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      const kind = ["ball", "cone", "target", "ladder"].find(value => e.dataTransfer?.types.includes(`application/x-goatleta-material-${value}`));
+      if (!kind) return;
+      const p = live.current;
+      const { point } = handlers.current.getPoint(pixel(e));
+      setDraft({ id: "material-drop-preview", kind: kind as DrawingKind, points: [p.grid ? snapCourtPoint(point) : point], color: p.color, dashed: p.dashed, size: 32, rotation: 0 });
+    };
+    const drop = (e: DragEvent) => {
+      const kind = e.dataTransfer?.getData("application/x-goatleta-material");
+      if (live.current.disabled || !kind || !["ball", "cone", "target", "ladder"].includes(kind)) return;
+      e.preventDefault();
+      const p = live.current;
+      setDraft(undefined);
+      const { point } = handlers.current.getPoint(pixel(e));
+      p.onDraw({ id: editorId(), kind: kind as DrawingKind, points: [p.grid ? snapCourtPoint(point) : point], color: p.color, dashed: p.dashed, size: 32, rotation: 0 });
+    };
+    node.addEventListener("dragover", dragover);
+    node.addEventListener("drop", drop);
+    const clearDropPreview = () => setDraft(undefined);
+    const leave = (e: DragEvent) => { if (!node.contains(e.relatedTarget as Node | null)) clearDropPreview(); };
+    node.addEventListener("dragleave", leave);
+    window.addEventListener("dragend", clearDropPreview);
     const editable = (target: EventTarget | null) => (target as HTMLElement)?.closest?.("input,textarea,[contenteditable=true]");
     const keydown = (e: KeyboardEvent) => {
       if (e.code !== "Space" || editable(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -165,6 +190,8 @@ export function CourtEditorCanvas(props: Props) {
     node.addEventListener("wheel", wheel, { passive: false });
     window.addEventListener("keydown", keydown); window.addEventListener("keyup", keyup); window.addEventListener("blur", blur);
     return () => {
+      node.removeEventListener("dragover", dragover); node.removeEventListener("drop", drop);
+      node.removeEventListener("dragleave", leave); window.removeEventListener("dragend", clearDropPreview);
       node.removeEventListener("pointerdown", down); node.removeEventListener("pointermove", move); node.removeEventListener("pointerup", up); node.removeEventListener("pointercancel", up);
       node.removeEventListener("wheel", wheel); window.removeEventListener("keydown", keydown); window.removeEventListener("keyup", keyup); window.removeEventListener("blur", blur);
     };

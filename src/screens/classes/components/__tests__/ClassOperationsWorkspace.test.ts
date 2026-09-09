@@ -541,7 +541,7 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(screen.getByLabelText("Abrir menu da turma")).toBeTruthy();
   });
 
-  it("keeps the active roster and next lesson visible in compact class context", () => {
+  it("shows location, schedule and roster without repeating the lesson date", () => {
     const screen = render(
       React.createElement(ClassContextStrip, {
         colors,
@@ -555,7 +555,9 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     );
 
     expect(screen.getByText("24 ativos")).toBeTruthy();
-    expect(screen.getByText("Hoje · 18:00")).toBeTruthy();
+    expect(screen.getByText("Unidade Centro")).toBeTruthy();
+    expect(screen.getByText("Qua e Sex · 18:00")).toBeTruthy();
+    expect(screen.queryByText("Hoje · 18:00")).toBeNull();
   });
 
   it("keeps the permanent rail on the desktop layout", () => {

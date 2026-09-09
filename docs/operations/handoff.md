@@ -77,3 +77,11 @@ Validação nativa e tema claro ainda exigem revisão específica. GIF/vídeo/IA
 ### Validação de publicação
 
 Código funcional: 58fb55b5933d256ec589f95b68303877ca2584c2. validate:app completo aprovado: 443 suítes Jest / 2.505 testes, 5 suítes PostgreSQL isoladas, zero erros/avisos de lint, tipos, escopo, encoding, assets, arquitetura e performance. Build web concluído; dev:doctor aprovado com Node 24. Smoke autenticado após novo login confirmou abertura da quadra, seleção, movimento por teclado, desfazer e configurações. Nenhuma escrita remota de teste. Integração em main via fast-forward; acompanhar Vercel e EAS no commit da publicação.
+
+## Refinamentos de interface — publicação de 09/09/2026
+
+- Quadra: materiais arrastáveis com prévia, botão + funcional, lista por equipe/quadra/banco, função com rótulo/cor, régua de animação, remoção de etapas com desfazer, miniaturas completas e repetição de etapa com indicador 1.
+- Responsivo: controles reorganizados, propriedades recolhidas abaixo de 768px, atalhos suavizados durante interação e percentual de zoom temporário. Avisos usam o toast compartilhado.
+- Turma: contexto com três informações, títulos locais por temas no histórico, hover da chamada separado dos botões e menu de PDF compacto. Prévia HTML do PDF com pan e zoom no web.
+- Limites: modo Tela limpa apenas proposto; análise tática por IA e inversão de lados ainda pendentes. Arraste de materiais do painel usa API web; revisão nativa continua pendente. Rascunhos locais não são transportados pelo Git.
+- Validação: typecheck:app, check:org-scope, 62 testes focados, build web e conferência da quadra autenticada no localhost aprovados. Sem migrações ou mudanças de credenciais.

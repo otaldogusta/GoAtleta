@@ -103,6 +103,68 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
       editable
         ? `
     <script>
+      var viewportZoom = 1;
+      var spaceHeld = false;
+      var pan = null;
+      var suppressPanClick = false;
+      function isTyping(target) {
+        return target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+      }
+      function finishPan() {
+        pan = null;
+        document.documentElement.style.userSelect = '';
+        document.documentElement.style.cursor = spaceHeld ? 'grab' : '';
+      }
+      document.addEventListener('keydown', function(e) {
+        if (e.code !== 'Space' || isTyping(e.target)) return;
+        e.preventDefault();
+        spaceHeld = true;
+        document.documentElement.style.cursor = 'grab';
+      });
+      document.addEventListener('keyup', function(e) {
+        if (e.code !== 'Space') return;
+        spaceHeld = false;
+        finishPan();
+      });
+      window.addEventListener('blur', function() { spaceHeld = false; finishPan(); });
+      document.addEventListener('pointerdown', function(e) {
+        if (!(spaceHeld && e.button === 0) && e.button !== 1) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        pan = { x: e.clientX, y: e.clientY, left: window.scrollX, top: window.scrollY };
+        suppressPanClick = true;
+        document.documentElement.setPointerCapture(e.pointerId);
+        document.documentElement.style.userSelect = 'none';
+        document.documentElement.style.cursor = 'grabbing';
+      }, true);
+      document.addEventListener('pointermove', function(e) {
+        if (!pan) return;
+        e.preventDefault();
+        window.scrollTo(pan.left + pan.x - e.clientX, pan.top + pan.y - e.clientY);
+      }, true);
+      document.addEventListener('pointerup', function() {
+        finishPan();
+        setTimeout(function() { suppressPanClick = false; }, 0);
+      }, true);
+      document.addEventListener('pointercancel', finishPan, true);
+      document.addEventListener('click', function(e) {
+        if (!suppressPanClick) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }, true);
+      document.addEventListener('wheel', function(e) {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        var before = Number(document.documentElement.style.getPropertyValue('--goatleta-page-scale')) || 1;
+        var oldInset = parseFloat(document.body.style.paddingLeft) || 0;
+        var pageX = (window.scrollX + e.clientX - oldInset) / before;
+        var pageY = (window.scrollY + e.clientY) / before;
+        viewportZoom = Math.max(0.3, Math.min(4, viewportZoom * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 16 : 1) * 0.002)));
+        updatePageScale();
+        var after = Number(document.documentElement.style.getPropertyValue('--goatleta-page-scale')) || 1;
+        var inset = parseFloat(document.body.style.paddingLeft) || 0;
+        window.scrollTo(pageX * after + inset - e.clientX, pageY * after - e.clientY);
+      }, { passive: false });
       function getEl(target) {
         if (!target) return null;
         return target.nodeType === 1 ? target : target.parentElement;
@@ -290,7 +352,7 @@ export const buildPreviewHtml = (html: string, editable?: boolean, zoom = 100, m
         var fitScale = Math.min(1, Math.max(0.2, (window.innerWidth - horizontalPadding) / a4WidthPx));
         var requestedZoom = ${normalizedZoom / 100};
         var minimumScale = ${normalizedMinimumPageWidth} > 0 ? ${normalizedMinimumPageWidth} / a4WidthPx : 0;
-        var effectiveScale = Math.min(1.4, Math.max(minimumScale, fitScale * requestedZoom));
+        var effectiveScale = Math.min(4, Math.max(minimumScale, fitScale * requestedZoom) * viewportZoom);
         document.documentElement.style.setProperty('--goatleta-page-scale', String(effectiveScale));
         var scaledWidth = a4WidthPx * effectiveScale;
         var availableWidth = window.innerWidth - horizontalPadding;
@@ -337,6 +399,28 @@ export const PdfPreviewFrame = memo(function PdfPreviewFrame({
     [editable, html, minimumPageWidth, zoom]
   );
   const lastHtmlRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!html || !editable) return;
+    const forwardSpace = (event: KeyboardEvent) => {
+      const frame = iframeRef.current;
+      const target = event.target;
+      if (event.code !== "Space" || !frame) return;
+      if (target instanceof HTMLElement &&
+          (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      if (event.type === "keydown" && !frame.matches(":hover")) return;
+      const forwarded = new KeyboardEvent(event.type, {
+        key: event.key, code: event.code, bubbles: true, cancelable: true,
+      });
+      if (frame.contentDocument?.dispatchEvent(forwarded) === false) event.preventDefault();
+    };
+    document.addEventListener("keydown", forwardSpace);
+    document.addEventListener("keyup", forwardSpace);
+    return () => {
+      document.removeEventListener("keydown", forwardSpace);
+      document.removeEventListener("keyup", forwardSpace);
+    };
+  }, [editable, html]);
 
   useEffect(() => {
     const iframe = iframeRef.current;

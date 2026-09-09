@@ -134,6 +134,8 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
   const { containerRef, onLayout, width } = useContainerResponsiveLayout("content");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [photoPreviewStudent, setPhotoPreviewStudent] = useState<Student | null>(null);
+  const [hoveredStudentId, setHoveredStudentId] = useState<string | null>(null);
+  const [hoveredActionsId, setHoveredActionsId] = useState<string | null>(null);
   const [draftNote, setDraftNote] = useState("");
   const [draftPainScore, setDraftPainScore] = useState(0);
   const stacked = resolveStackedAttendancePanel(width, mobile);
@@ -166,16 +168,16 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
   const renderStudentRow = (student: Student) => {
     const status = statusById[student.id];
     return (
-      <View key={student.id} style={[styles.studentRow, mobile ? styles.studentRowMobile : null, stacked ? styles.studentRowStacked : null, densePanel && !mobile ? styles.studentRowDense : null, { borderBottomColor: colors.border }]}>
+      <View key={student.id} onPointerEnter={() => setHoveredStudentId(student.id)} onPointerLeave={() => setHoveredStudentId(null)} style={[hoveredStudentId === student.id && hoveredActionsId !== student.id ? { backgroundColor: "rgba(148, 163, 184, 0.1)" } : null, styles.studentRow, mobile ? styles.studentRowMobile : null, stacked ? styles.studentRowStacked : null, densePanel && !mobile ? styles.studentRowDense : null, { borderBottomColor: colors.border }]}>
         <View style={[styles.studentIdentity, mobile ? styles.studentIdentityMobile : null, stacked ? styles.studentIdentityStacked : null]}>
           <StudentAvatar student={student} colors={colors} dense={densePanel || mobile} onOpenPhoto={() => setPhotoPreviewStudent(student)} />
-          <Pressable onPress={() => openStudentDetails(student)} disabled={attendanceLocked} accessibilityRole="button" accessibilityLabel={`Abrir dor e observações de ${student.name}`} style={({ pressed }) => [styles.studentNameButton, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
+          <Pressable suppressWebHoverFeedback onPress={() => openStudentDetails(student)} disabled={attendanceLocked} accessibilityRole="button" accessibilityLabel={`Abrir dor e observações de ${student.name}`} style={({ pressed }) => [styles.studentNameButton, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
             <Text numberOfLines={mobile ? 2 : 1} style={[styles.studentName, styles.studentNameButtonLabel, mobile ? styles.studentNameMobile : null, densePanel && !mobile ? styles.studentNameDense : null, { color: colors.text }]}>
               {student.name}
             </Text>
           </Pressable>
         </View>
-        <View style={[styles.rowActions, mobile ? styles.rowActionsMobile : null, stacked ? styles.rowActionsStacked : null, densePanel && !mobile ? styles.rowActionsDense : null]}>
+        <View onPointerEnter={() => setHoveredActionsId(student.id)} onPointerLeave={() => setHoveredActionsId(null)} style={[styles.rowActions, mobile ? styles.rowActionsMobile : null, stacked ? styles.rowActionsStacked : null, densePanel && !mobile ? styles.rowActionsDense : null]}>
           <View style={[styles.segmentedControl, mobile ? styles.segmentedControlMobile : null, stacked ? styles.segmentedControlStacked : null, densePanel && !mobile ? styles.segmentedControlDense : null, { borderColor: colors.border }]}>
             <Pressable onPress={() => onSetStatus(student.id, "presente")} hitSlop={mobile ? 3 : undefined} disabled={attendanceLocked} accessibilityRole="button" accessibilityState={{ selected: status === "presente", disabled: attendanceLocked }} style={({ pressed }) => [styles.segmentButton, mobile ? styles.segmentButtonMobile : densePanel ? styles.segmentButtonDense : null, status === "presente" ? { backgroundColor: colors.successBg } : null, { opacity: attendanceLocked ? 0.55 : pressed ? 0.72 : 1 }]}>
               <Text style={[styles.segmentLabel, mobile || densePanel ? styles.segmentLabelDense : null, { color: status === "presente" ? colors.successText : colors.text }]}>Presente</Text>
@@ -666,6 +668,7 @@ const styles = StyleSheet.create({
   segmentedControlStacked: { width: undefined, flex: 1 },
   segmentedControlDense: { minWidth: 220, height: 40, borderRadius: 10 },
   segmentButton: {
+    borderRadius: 0,
     flex: 1,
     minHeight: 42,
     alignItems: "center",

@@ -1745,6 +1745,9 @@ export function ClassPlanPreviewModal({
         animationStyle={{ opacity: menuAnimation }}
         zIndex={32000}
         maxHeight={176}
+        density="menu"
+        fitContent
+        scrollContentStyle={{ padding: 6, gap: 0 }}
         nestedScrollEnabled={false}
         onRequestClose={() => setShowMenu(false)}
         interactiveRefs={[menuTriggerRef]}
@@ -1752,6 +1755,7 @@ export function ClassPlanPreviewModal({
       >
         <AnchoredDropdownOption
           active={false}
+          style={styles.menuAction}
           disabled={isDownloading || previewStatus === "loading"}
           onPress={() => {
             setShowMenu(false);
@@ -1766,16 +1770,15 @@ export function ClassPlanPreviewModal({
             )}
             <View style={styles.menuOptionCopy}>
               <Text style={[styles.menuOptionLabel, { color: colors.text }]}>Baixar PDF</Text>
-              <Text style={[styles.menuOptionHint, { color: colors.muted }]}>Salvar ou compartilhar</Text>
             </View>
           </View>
         </AnchoredDropdownOption>
-        <AnchoredDropdownOption active={false} onPress={handleRemove}>
+        <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 8, marginVertical: 5 }} />
+        <AnchoredDropdownOption active={false} onPress={handleRemove} style={styles.menuAction}>
           <View style={styles.menuOption}>
             <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
             <View style={styles.menuOptionCopy}>
               <Text style={[styles.menuOptionLabel, { color: colors.dangerText }]}>Remover plano</Text>
-              <Text style={[styles.menuOptionHint, { color: colors.muted }]}>Voltar para sem plano aplicado</Text>
             </View>
           </View>
         </AnchoredDropdownOption>
@@ -2072,6 +2075,6 @@ const styles = StyleSheet.create({
   footerDownloadLabel: { fontSize: 13, fontWeight: "800" },
   menuOption: { flexDirection: "row", alignItems: "center", gap: 10 },
   menuOptionCopy: { flex: 1, minWidth: 0, gap: 2 },
-  menuOptionLabel: { fontSize: 13, fontWeight: "800" },
-  menuOptionHint: { fontSize: 10 },
+  menuOptionLabel: { fontSize: 13, fontWeight: "500" },
+  menuAction: { borderWidth: 0, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 10, minHeight: 40, marginBottom: 0, backgroundColor: "transparent" },
 });

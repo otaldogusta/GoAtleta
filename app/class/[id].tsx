@@ -1,4 +1,5 @@
 import { isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
+import { trainingHistoryTitle } from "../../src/core/training-history-title";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, Vibration, View, useWindowDimensions } from "react-native";
@@ -911,7 +912,7 @@ export default function ClassDetails() {
         id: log.id ?? log.clientId ?? `${dateKey}-${index}`,
         dateKey,
         dateLabel: formatShortDate(dateKey),
-        title: log.activity.trim() || log.conclusion.trim() || "Treino registrado",
+        title: trainingHistoryTitle(log.activity, log.conclusion),
       });
     });
     return summaries.slice(0, 3);

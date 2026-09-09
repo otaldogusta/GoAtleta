@@ -87,7 +87,6 @@ describe("training planning platform parity", () => {
       "inlinePdfEditor && !splitLayout ? renderEditFooter(true)"
     );
     expect(classPlanWorkspace).toContain(">Baixar PDF</Text>");
-    expect(classPlanWorkspace).toContain(">Salvar ou compartilhar</Text>");
   });
 
   it("keeps the library trigger in the PDF toolbar and opens the library as an overlay", () => {

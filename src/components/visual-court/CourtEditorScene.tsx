@@ -95,7 +95,12 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
         {d.motion && (previewIds ? previewMotion && previewIds.includes(d.id) : progress !== 0) && !hide.includes("movements") ? <DrawObject landscape={landscape} drawing={{ ...d, kind: "arrow", points: motionTrail(d.motion, previewIds?.includes(d.id) ? 1 : progress ?? 1, (d.size || 28) * 0.85 + 3), dashed: true }} /> : null}
         <DrawObject drawing={typeof progress === "number" && !previewIds?.includes(d.id) && d.motion ? { ...d, points: [pointAlong(d.motion, progress)] } : d} landscape={landscape} />
       </G>)}
-      {draft ? <DrawObject drawing={draft} landscape={landscape} /> : null}
+      {draft ? <G pointerEvents="none" opacity={draft.id === "material-drop-preview" ? 0.72 : 1}>
+        {draft.id === "material-drop-preview" ? <G transform="translate(8 12)" opacity={0.22}>
+          <DrawObject drawing={{ ...draft, color: "#0f172a" }} landscape={landscape} />
+        </G> : null}
+        <DrawObject drawing={draft} landscape={landscape} />
+      </G> : null}
     </> : null}
     {(previewIds ? previewMotion : progress !== 0) && !hide.includes("movements") ? (step.trajectories ?? step.transitions)?.filter(t => !previewIds || previewIds.includes(t.actorId)).map(t => <DrawObject key={t.id} landscape={landscape} drawing={{ id: t.id, kind: "arrow", points: motionTrail(t.points, previewIds?.includes(t.actorId) ? 1 : progress ?? 1, 55), color: t.color ?? "#fff", dashed: true, size: 28, rotation: 0 }} />) : null}
     {!hide.includes("actors") ? displayActors(p, stepIndex, progress).map(a => {

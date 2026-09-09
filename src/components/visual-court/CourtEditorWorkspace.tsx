@@ -1,8 +1,11 @@
+import { CourtTimelineScrubber } from "./CourtTimelineScrubber";
+import { courtRoster } from "../../core/court-roster";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import * as Clipboard from "expo-clipboard";
+import { useSaveToast } from "../../ui/save-toast";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
@@ -31,6 +34,14 @@ const ROLES: [CourtVisualActorRole, string][] = [["setter", "Levantador"], ["out
 
 export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, onBack }: { classId: string; documentId?: string; lessonDate?: string; planId?: string; onBack: () => void }) {
   const editor = useCourtEditor(classId);
+  const { showSaveToast } = useSaveToast();
+  const { notice, error, setNotice, setError } = editor;
+  useEffect(() => {
+    if (!error && !notice) return;
+    showSaveToast({ message: error || notice, variant: error ? "error" : "info" });
+    setNotice("");
+    setError("");
+  }, [error, notice, setError, setNotice, showSaveToast]);
   const { payload, stepIndex, commit } = editor;
   const { selectStep: selectPlaybackStep } = editor;
   const { colors, mode } = useAppTheme();
@@ -51,6 +62,15 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const [plain, setPlain] = useState(false);
   const [orientation, setOrientation] = useState<"auto" | "landscape" | "portrait">("auto");
   const [zoom, setZoom] = useState(1);
+  const [zoomHintVisible, setZoomHintVisible] = useState(false);
+  const previousZoom = useRef(zoom);
+  useEffect(() => {
+    if (previousZoom.current === zoom) return;
+    previousZoom.current = zoom;
+    setZoomHintVisible(true);
+    const timer = setTimeout(() => setZoomHintVisible(false), 2000);
+    return () => clearTimeout(timer);
+  }, [zoom]);
   const [pan, setPan] = useState<CourtPoint>({ x: 0, y: 0 });
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState<number>(0);
@@ -71,6 +91,11 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const compact = width < 700;
   const short = height < 580;
   const timelineVisible = bottomOpen && panel === null;
+  const [timelineHeight, setTimelineHeight] = useState(240);
+  const historyBottom = insets.bottom + (timelineVisible && width < 1600 ? timelineHeight + 8 : width < 700 ? 0 : 12);
+  const toolsTop = insets.top + 70;
+  const toolsSpace = Math.max(44, height - toolsTop - (timelineVisible && width < 1600 ? historyBottom + 56 : insets.bottom + 70));
+  const toolsHeight = Math.min(520, toolsSpace);
   const surface = mode === "dark" ? "rgba(10,25,43,0.94)" : "rgba(247,251,255,0.96)";
   const ink = colors.text;
   const step = payload.timeline.steps[stepIndex];
@@ -97,7 +122,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const metadata = (changes: Partial<NonNullable<CourtVisualPayload["editor"]>>) => edit(p => ({ ...p, editor: { ...p.editor!, ...changes } }));
   const selectStep = (i: number) => { stop(); setSelected([]); editor.selectStep(i); };
   const mutateStep = (result: EditorSnapshot) => { stop(); setSelected([]); commit(() => result.payload, result.stepIndex); };
-  const select = (ids: string[]) => { if (ids.length) setPanel("properties"); else if (panel === "properties") setPanel(null); setSelected(ids); };
+  const select = (ids: string[]) => { if (ids.length && width >= 768) setPanel("properties"); else if (panel === "properties") setPanel(null); setSelected(ids); };
   const remove = () => { edit(p => deleteSelection(p, stepIndex, selected)); setSelected([]); };
   const duplicate = () => { const result = duplicateSelection(payload, stepIndex, selected); edit(() => result.payload); setSelected(result.selected); };
   const move = (ids: string[], delta: CourtPoint, path?: CourtPoint[]) => { edit(p => moveSelection(p, stepIndex, ids, delta, tool === "animate", path)); if (tool === "animate") setProgress(1); };
@@ -145,9 +170,17 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     };
     window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
   }, []);
-  const action = (label: string, icon: CourtActionIcon, fn: () => void, active = false, disabled = false, text = false) => <CourtActionButton key={label} label={label} icon={icon} onPress={fn} active={active} disabled={disabled} text={text} danger={label === "Excluir etapa"} />;
+  const action = (label: string, icon: CourtActionIcon, fn: () => void, active = false, disabled = false, text = false, dragKind?: string) => <CourtActionButton key={label} label={label} icon={icon} onPress={fn} active={active} disabled={disabled} text={text} dragKind={dragKind} danger={label === "Excluir etapa"} />;
   const toggle = (label: string, value: boolean, onChange: (value: boolean) => void) => <CourtSwitchRow key={label} label={label} value={value} onChange={onChange} />;
-  const toolGrid = (items: [CourtTool, string, CourtActionIcon][]) => <View style={styles.wrap}>{items.map(([id, label, icon]) => <CourtActionButton key={id} label={label} icon={icon} tile active={tool === id} onPress={() => { stop(); setTool(id); }} />)}</View>;
+  const toolGrid = (items: [CourtTool, string, CourtActionIcon][]) => <View style={styles.wrap}>{items.map(([id, label, icon]) => <CourtActionButton key={id} label={label} icon={icon} tile onAdd={() => {
+      stop();
+      const kind = id as CourtDrawing["kind"];
+      const point = { x: 0.5, y: 0.7 };
+      const points = kind === "curve" ? [point, { x: 0.35, y: 0.6 }, { x: 0.55, y: 0.52 }] : ["arrow", "pen", "area"].includes(kind) ? [point, { x: 0.65, y: 0.55 }] : [point];
+      draw({ id: editorId(), kind, points, color, dashed, size: 32, rotation: 0, ...(kind === "text" ? { text: "Anotação" } : {}) });
+      setTool("select");
+      setPanel(null);
+    }} dragKind={["ball", "cone", "target", "ladder"].includes(id) ? id : undefined} active={tool === id} onPress={() => { stop(); setTool(id); }} />)}</View>;
   const field = (label: string, value: string, onChange: (value: string) => void, multiline = false) => <View style={{ gap: 6 }}><Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text><View style={{ backgroundColor: colors.inputBg, borderRadius: 12, minHeight: 50, paddingHorizontal: 14 }}><TextInput accessibilityLabel={label} value={value} onChangeText={onChange} multiline={multiline} style={{ color: ink, minHeight: multiline ? 70 : 50, borderRadius: 0, fontSize: 14 }} /></View></View>;
   const heading = (label: string) => <Text style={{ color: ink, fontWeight: "700", fontSize: 15, marginTop: 10 }}>{label}</Text>;
   const openPayload = async (p: CourtVisualPayload) => { try { stop(); await editor.open(p); setSelected([]); setPanel(null); } catch { editor.setError("Não foi possível guardar a cópia local. Exporte antes de trocar."); } };
@@ -159,13 +192,29 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     const raw = await (await fetch(r.assets[0].uri)).text();
     await openPayload(parseEditorImport(raw));
   } catch (e) { editor.setError(e instanceof Error ? e.message : "Arquivo inválido."); } };
+  const roster = courtRoster(payload, stepIndex);
+  const teamRoster = roster.filter(item => item.team === team);
   const panelTitle = panel === "library" ? "Biblioteca" : panel === "export" ? "Exportar" : panel === "tools" ? "Ferramentas" : panel === "settings" ? "Configurações da quadra" : panel === "step" ? `Etapa ${stepIndex + 1}` : panel === "players" ? "Jogadores e banco" : selected.length > 1 ? `${selected.length} itens selecionados` : actor ? "Jogador" : object ? "Objeto" : "Propriedades";
-  const notices = editor.error || editor.notice;
+  const [courtFocused, setCourtFocused] = useState(false);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoreControls = useCallback(() => {
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    setCourtFocused(false);
+  }, []);
+  const focusCourt = useCallback(() => {
+    setCourtFocused(true);
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    focusTimer.current = setTimeout(() => setCourtFocused(false), 1400);
+  }, []);
+  useEffect(() => () => { if (focusTimer.current) clearTimeout(focusTimer.current); }, []);
+  const controlFade = { opacity: courtFocused ? 0.28 : 1, ...(Platform.OS === "web" ? { transition: "opacity 180ms ease" } : {}) };
   const root = <View style={[styles.root, Platform.OS === "web" ? { position: "fixed" } as never : null]}>
     {editor.loading ? <View style={styles.center}><ActivityIndicator size="large" color="#fff" /><Text style={{ color: "#fff" }}>Abrindo quadra…</Text></View> : !editor.cls ? <View style={styles.center}><Text style={{ color: "#fff" }}>{editor.error}</Text>{action("Voltar", "chevronBack", onBack, false, false, true)}</View> : <>
+      <View style={{ flex: 1 }} onPointerMove={focusCourt} onPointerDown={focusCourt} onPointerLeave={restoreControls} onTouchMove={focusCourt}>
       <VisualCourtCanvas payload={payload} stepIndex={stepIndex} landscape={landscape} selected={selected} multiple={multi} onSelect={select} onMove={move} onDraw={draw} onAddPlayer={addPlayer} tool={tool} motionMode={motionMode} color={color} dashed={dashed} grid={grid} half={half} plain={plain} progress={progress} zoom={zoom} pan={pan} onPan={setPan} onZoom={setZoom} disabled={playing || busy || editor.saving} />
+      </View>
 
-      <View onPointerDown={() => setTopPinned(true)} onPointerLeave={e => { if (e.nativeEvent.pointerType === "mouse" && !topPinned) setTopOpen(false); }} style={[styles.top, { top: insets.top, backgroundColor: surface, maxHeight: height * 0.45, width: topOpen ? Math.min(width, 900) : undefined }]}>
+      <View onPointerEnter={restoreControls} onPointerDown={() => setTopPinned(true)} onPointerLeave={e => { if (e.nativeEvent.pointerType === "mouse" && !topPinned) setTopOpen(false); }} style={[controlFade, styles.top, { top: insets.top, backgroundColor: surface, maxHeight: height * 0.45, width: topOpen ? Math.min(width, 900) : undefined }]}>
         {topOpen ? <View style={styles.topContent}>
           {action("Voltar à turma", "chevronBack", () => editor.dirty ? setExitOpen(true) : onBack())}
           <View style={{ flex: 1, minWidth: 120 }}><Text numberOfLines={1} style={{ color: ink, fontSize: 16, fontWeight: "700" }}>{effectiveTitle}</Text><Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>{editor.cls.name} · {editor.saving ? "Salvando…" : editor.dirty ? editor.draftStatus || "Alterações locais" : "Versão salva"}</Text></View>
@@ -173,44 +222,57 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
           {action("Exportar", "share", () => setPanel("export"))}
           {action("Salvar versão", "save", () => void editor.save(), true, editor.saving || !editor.dirty, !compact)}
           {action("Recolher cabeçalho", "chevronUp", () => { setTopPinned(false); setTopOpen(false); })}
-        </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar cabeçalho" onPress={() => { setTopPinned(true); setTopOpen(true); }} onHoverIn={() => setTopOpen(true)} style={styles.handle}><GoAtletaIcon name="chevronDown" size={18} color={ink} /><Text style={{ color: ink, fontWeight: "600", fontSize: 12 }}>Quadra visual</Text></Pressable>}
+        </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar cabeçalho" onPress={() => { setTopPinned(true); setTopOpen(true); }} onHoverIn={() => setTopOpen(true)} style={styles.handle}><GoAtletaIcon name="chevronDown" size={18} color={ink} /></Pressable>}
       </View>
 
-      <View style={[styles.tools, { top: Math.max(insets.top + 64, (height - Math.min(height - 160, 400)) / 2), left: insets.left + 10, maxHeight: height - 140, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
+      <View onPointerEnter={restoreControls} style={[controlFade, styles.tools, { top: toolsTop + (toolsSpace - toolsHeight) / 2, left: insets.left + 10, maxHeight: toolsHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 2, padding: 3 }}>
-          {TOOLS.map(t => action(t.label, t.icon, () => { stop(); setTool(t.id); if (t.id === "cone" || t.id === "animate") setPanel("tools"); else if (t.id === "player") setPanel("players"); }, tool === t.id))}
+          {TOOLS.map(t => action(t.label, t.icon, () => { stop(); setTool(t.id); if (t.id === "ball" || t.id === "cone" || t.id === "animate") setPanel("tools"); else if (t.id === "player") setPanel("players"); }, tool === t.id, false, false, t.id === "ball" ? "ball" : undefined))}
           {action("Mais ferramentas", "dashboard", () => setPanel("tools"))}
           {action("Apagar seleção", "trash", remove, false, !selected.length)}
         </ScrollView>
       </View>
-      <View style={[styles.propertyTrigger, { right: insets.right + 12, top: insets.top + (topOpen ? 72 : 14), backgroundColor: surface }]}>{action("Configurações da quadra", "management", () => setPanel(panel === "settings" ? null : "settings"), panel === "settings")}</View>
+      <View onPointerEnter={restoreControls} style={[controlFade, styles.history, { left: insets.left + 12, top: insets.top + (topOpen ? 72 : 14), backgroundColor: surface }]}>
+        {action("Desfazer", "restore", () => { stop(); editor.undo(); }, false, !editor.canUndo)}{action("Refazer", "arrowForward", () => { stop(); editor.redo(); }, false, !editor.canRedo)}
+      </View>
+      <View onPointerEnter={restoreControls} style={[controlFade, styles.propertyTrigger, { right: insets.right + 12, top: insets.top + (topOpen ? 72 : 14), backgroundColor: surface }]}>{action("Configurações da quadra", "management", () => setPanel(panel === "settings" ? null : "settings"), panel === "settings")}</View>
 
-      <View onPointerDown={() => setBottomPinned(true)} onPointerLeave={e => { if (e.nativeEvent.pointerType === "mouse" && !bottomPinned) setBottomOpen(false); }} style={[styles.bottom, { bottom: insets.bottom, backgroundColor: surface, width: timelineVisible ? Math.min(width, 1100) : undefined }]}>
-        {timelineVisible ? <View style={{ gap: 8, padding: 8 }}>
+      <View onPointerEnter={restoreControls} onPointerDown={() => setBottomPinned(true)} onPointerLeave={e => { if (e.nativeEvent.pointerType === "mouse" && !bottomPinned) setBottomOpen(false); }} style={[controlFade, styles.bottom, { bottom: insets.bottom, backgroundColor: surface, width: timelineVisible ? Math.min(width, 1100) : undefined }]}>
+        {timelineVisible ? <View onLayout={event => setTimelineHeight(event.nativeEvent.layout.height)} style={{ gap: 8, padding: 8 }}>
           <View style={[styles.row, { flexWrap: "wrap" }]}>
             {action(playing ? "Pausar sequência" : "Reproduzir sequência", playing ? "pause" : "play", () => { setPlaying(!playing); }, playing)}
             {[0.75, 1, 1.5, 2].map(v => <Pressable key={v} accessibilityRole="button" accessibilityLabel={`Velocidade ${v}x`} onPress={() => setSpeed(v)} style={[styles.speed, { backgroundColor: speed === v ? colors.secondaryBg : "transparent" }]}><Text style={{ color: ink }}>{v}×</Text></Pressable>)}
-            {action("Repetir etapa", "repeat", () => setLoop(!loop), loop)}{action("Editar etapa", "pencil", () => setPanel("step"), panel === "step")}
+            {action(loop ? "Desativar repetição da etapa" : "Repetir etapa", loop ? "repeatOne" : "repeat", () => setLoop(!loop), loop)}{action("Editar etapa", "pencil", () => setPanel("step"), panel === "step")}
+            <View style={{ width: 1, height: 24, marginHorizontal: 4, backgroundColor: colors.border }} />
+            {action("Animar movimento", "compare", () => { stop(); setTool("animate"); setPanel("tools"); }, tool === "animate")}
+            {action("Biblioteca", "exercises", () => { stop(); setPanel("library"); })}
             <View style={{ flex: 1 }} />{action("Recolher etapas", "chevronDown", () => { setBottomPinned(false); setBottomOpen(false); })}
           </View>
+          <CourtTimelineScrubber progress={progress} durationMs={step.durationMs} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {payload.timeline.steps.map((s, i) => <Pressable key={s.id} accessibilityRole="button" accessibilityLabel={`Etapa ${i + 1}: ${s.label}`} accessibilityState={{ selected: i === stepIndex }} onPress={() => selectStep(i)} style={{ width: short ? 105 : 135, padding: 4, borderWidth: 2, borderRadius: 10, borderColor: i === stepIndex ? "#28d78b" : colors.border }}>
-              <View style={{ height: short ? 40 : 60 }}>{Math.abs(i - stepIndex) <= 4 ? <CourtEditorScene payload={payload} stepIndex={i} landscape progress={0} /> : <Text style={{ color: colors.muted }}>{i + 1}</Text>}</View><Text numberOfLines={1} style={{ color: ink, fontSize: 11, marginTop: 4 }}>{i + 1}. {s.label}</Text>
-            </Pressable>)}
+            {payload.timeline.steps.map((s, i) => <View key={s.id} style={{ position: "relative" }}><Pressable accessibilityRole="button" accessibilityLabel={`Etapa ${i + 1}: ${s.label}`} accessibilityState={{ selected: i === stepIndex }} onPress={() => selectStep(i)} style={{ width: short ? 105 : 135, padding: 4, borderWidth: 2, borderRadius: 10, borderColor: i === stepIndex ? "#28d78b" : colors.border }}>
+              <View style={{ height: short ? 40 : 60 }}><CourtEditorScene payload={payload} stepIndex={i} landscape progress={0} /></View><Text numberOfLines={1} style={{ color: ink, fontSize: 11, marginTop: 4 }}>{i + 1}. {s.label}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Excluir etapa ${i + 1}: ${s.label}`} disabled={payload.timeline.steps.length <= 1}
+              onPress={() => { const result = removeStep(payload, i); result.stepIndex = i === stepIndex ? Math.min(i, result.payload.timeline.steps.length - 1) : stepIndex - (i < stepIndex ? 1 : 0); mutateStep(result); }}
+              style={{ position: "absolute", right: 3, top: 3, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: surface, opacity: payload.timeline.steps.length <= 1 ? 0.35 : 1 }}>
+              <GoAtletaIcon name="close" size={16} color={ink} />
+            </Pressable></View>)}
             {action("Adicionar etapa", "add", () => { const result = duplicateStep(payload, stepIndex); result.payload = changeDrawings(result.payload, result.stepIndex, frameDrawings(result.payload, result.stepIndex).map(d => ({ ...d, motion: undefined }))); result.payload = changeStep(result.payload, result.stepIndex, s => ({ ...s, label: `Etapa ${payload.timeline.steps.length + 1}`, trajectories: [], transitions: undefined, baselineActorPositions: { ...s.actorPositions } })); mutateStep(result); }, false, false, true)}
           </ScrollView>
         </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar etapas" onPress={() => { setPanel(null); setBottomPinned(true); setBottomOpen(true); }} onHoverIn={() => { if (!panel) setBottomOpen(true); }} style={styles.handle}><GoAtletaIcon name="play" size={18} color="#28d78b" /><Text style={{ color: ink, fontWeight: "600", fontSize: 12 }}>Etapas</Text><GoAtletaIcon name="chevronUp" size={18} color={ink} /></Pressable>}
       </View>
-      <View style={[styles.history, { right: insets.right + 10, bottom: insets.bottom + (timelineVisible && width < 1600 ? (short ? 160 : 210) : width < 700 ? 62 : 12), backgroundColor: surface, maxWidth: width - 20 }]}>
-        {action("Desfazer", "restore", () => { stop(); editor.undo(); }, false, !editor.canUndo)}{action("Refazer", "arrowForward", () => { stop(); editor.redo(); }, false, !editor.canRedo)}
-        <View style={{ width: 1, height: 22, alignSelf: "center", backgroundColor: colors.border, marginHorizontal: 3 }} />
+      <View onPointerEnter={restoreControls} style={[controlFade, styles.history, { right: insets.right + 10, bottom: historyBottom, backgroundColor: surface, maxWidth: !timelineVisible && width < 700 ? Math.max(44, width / 2 - 84 - insets.right) : width - 20, flexWrap: "wrap" }]}>
+
+
+        {zoomHintVisible ? <View pointerEvents="none" style={{ position: "absolute", bottom: "100%", right: 8, marginBottom: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: surface }}><Text accessibilityLiveRegion="polite" accessibilityLabel={`Zoom ${Math.round(zoom * 100)} por cento`} style={{ color: ink, fontSize: 12, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{Math.round(zoom * 100)}%</Text></View> : null}
         {action("Reduzir", "remove", () => setZoom(z => Math.max(0.75, z - 0.25)), false, zoom <= 0.75)}
         {action("Ampliar", "add", () => setZoom(z => Math.min(3, z + 0.25)), false, zoom >= 3)}
         {action("Mover a vista", "move", () => { stop(); setTool(tool === "pan" ? "select" : "pan"); }, tool === "pan")}
         {action("Ajustar à tela", "expand", () => { setZoom(1); setPan({ x: 0, y: 0 }); })}
       </View>
 
-      {notices ? <Pressable accessibilityRole="button" accessibilityLabel="Fechar aviso" onPress={() => { editor.setError(""); editor.setNotice(""); }} style={[styles.notice, { backgroundColor: editor.error ? colors.dangerSolidBg : surface, top: insets.top + (topOpen ? 82 : 62), maxWidth: width - 150 }]}><Text accessibilityLiveRegion="polite" style={{ color: editor.error ? "#fff" : ink, fontSize: 12 }}>{notices}</Text></Pressable> : null}
+      {width < 768 && selected.length > 0 && !panel ? <Pressable accessibilityRole="button" accessibilityLabel="Abrir propriedades da seleção" onPress={() => setPanel("properties")} onHoverIn={() => { restoreControls(); setPanel("properties"); }} style={{ position: "absolute", right: insets.right, top: height / 2 - 24, width: 36, height: 48, borderTopLeftRadius: 14, borderBottomLeftRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: surface, zIndex: 24 }}><GoAtletaIcon name="chevronBack" size={20} color={ink} /></Pressable> : null}
       {panel ? <View style={[styles.panel, { backgroundColor: surface, borderColor: colors.border, top: insets.top + 70, bottom: insets.bottom + (width < 700 ? 124 : 72), right: insets.right + 10, width: Math.min(310, width - 84) }]}>
         <View style={styles.row}><Text style={{ flex: 1, fontSize: 17, fontWeight: "700", color: ink }}>{panelTitle}</Text>{action("Fechar painel", "close", () => setPanel(null))}</View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 12, paddingBottom: 16 }}>
@@ -225,7 +287,18 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
             {actor ? <>
               {field("Rótulo do jogador", actor.label, label => changeActor({ label }))}
               {field("Número", String(actor.number ?? ""), value => changeActor({ number: Math.min(99, Math.max(0, Number(value) || 0)) }))}
-              <View style={styles.wrap}>{ROLES.map(([role, label]) => action(label, "profile", () => changeActor({ role, ...(role === "libero" ? { label: "Lb", color: "#c5fff0" } : {}) }), actor.role === role, false, true))}</View>
+              <View style={styles.wrap}>{ROLES.map(([role, label]) => action(label, "profile", () => {
+                const appearance = {
+                  setter: { label: "Lv", color: "#28d78b" },
+                  outside: { label: "P", color: "#60a5fa" },
+                  middle: { label: "C", color: "#8b5cf6" },
+                  opposite: { label: "Op", color: "#19c87b" },
+                  libero: { label: "Lb", color: "#c5fff0" },
+                  athlete: { label: String(actor.number ?? "At"), color: payload.editor!.actorMeta[actor.id]?.team === "B" ? "#4389ff" : "#19c87b" },
+                  coach: { label: "T", color: "#64748b" },
+                };
+                changeActor({ role, ...appearance[role] });
+              }, actor.role === role, false, true))}</View>
               <View style={styles.row}>{["A", "B"].map(t => action(`Equipe ${t}`, "students", () => setActorMeta({ team: t as "A" | "B" }), payload.editor!.actorMeta[actor.id]?.team === t, false, true))}</View>
               <View style={styles.wrap}>{COLORS.map(c => <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Cor ${c}`} onPress={() => changeActor({ color: c })} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: 2, borderColor: actor.color === c ? ink : "transparent" }} />)}</View>
               {action("Bloquear jogador", "lock", () => setActorMeta({ locked: !payload.editor!.actorMeta[actor.id]?.locked }), !!payload.editor!.actorMeta[actor.id]?.locked, false, true)}
@@ -283,15 +356,27 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
 
           </> : null}
           {panel === "players" ? <>
-            {heading("Adicionar jogador")}
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Escolha a equipe e toque na quadra.</Text>
-            <View style={styles.wrap}>{["A", "B"].map(t => <CourtActionButton key={t} label={`Equipe ${t}`} icon="students" tile active={team === t} onPress={() => { setTeam(t as "A" | "B"); setTool("player"); }} />)}</View>
+            {heading("Equipes")}
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Selecione uma equipe para ver seus jogadores.</Text>
+            <View style={styles.wrap}>{["A", "B"].map(t => <CourtActionButton key={t} label={`Equipe ${t}`} icon="students" tile active={team === t} onPress={() => { setTeam(t as "A" | "B"); }} />)}</View>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{landscape ? "Lado A: esquerda · Lado B: direita" : "Lado A: abaixo da rede · Lado B: acima da rede"}</Text>
+            {action(`Adicionar à equipe ${team}`, "addStudent", () => { stop(); setTool("player"); editor.setNotice(`Clique ou toque na quadra para posicionar um jogador da equipe ${team}.`); }, tool === "player", false, true)}
+            {tool === "player" ? <>
+              <Text accessibilityLiveRegion="polite" style={{ color: ink, fontSize: 12 }}>Clique ou toque na quadra para posicionar o jogador da equipe {team}.</Text>
+              {action("Cancelar adição", "close", () => setTool("select"), false, false, true)}
+            </> : null}
+            {heading(`Em quadra · ${teamRoster.filter(item => item.inCourt).length}`)}
+            {teamRoster.filter(item => item.inCourt).map(item => <Pressable key={item.actor.id} accessibilityRole="button" accessibilityLabel={`Selecionar ${item.actor.label}`} onPress={() => { stop(); setTool("select"); select([item.actor.id]); }} style={{ padding: 12, borderRadius: 10, backgroundColor: selected.includes(item.actor.id) ? colors.secondaryBg : "transparent", gap: 4 }}>
+              <Text style={{ color: ink, fontSize: 13, fontWeight: "600" }}>{item.actor.label}{item.studentId ? ` · ${editor.roster.find(student => student.id === item.studentId)?.name ?? "Atleta vinculado"}` : ""}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>{ROLES.find(([role]) => role === item.actor.role)?.[1] ?? "Jogador"} · {item.side === "Rede" ? "Na rede" : `Lado ${item.side}`}{item.outside ? " · Zona externa" : ""}</Text>
+            </Pressable>)}
+            {!teamRoster.some(item => item.inCourt) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Nenhum jogador desta equipe em quadra.</Text> : null}
             {heading("Banco nesta etapa")}
-            {payload.actors.filter(a => !(step.visibleActorIds ?? payload.actors.map(a => a.id)).includes(a.id)).map(a => action(`${substitute && actor ? "Trocar por" : "Colocar"} ${a.label}`, "addStudent", () => {
+            {teamRoster.filter(item => !item.inCourt).map(({ actor: a }) => action(`${substitute && actor ? "Trocar por" : "Colocar"} ${a.label}`, "addStudent", () => {
               edit(p => changeStep(p, stepIndex, s => ({ ...s, visibleActorIds: [...(s.visibleActorIds ?? p.actors.map(a => a.id)).filter(id => !(substitute && actor && id === actor.id)), a.id], actorPositions: { ...s.actorPositions, [a.id]: substitute && actor ? actorPoint(p, stepIndex, actor.id) : a.initialPosition } }))); setSubstitute(false); setSelected([a.id]);
             }, false, false, true))}
 
-            {!payload.actors.some(a => !(step.visibleActorIds ?? payload.actors.map(a => a.id)).includes(a.id)) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Todos os jogadores estão na quadra.</Text> : null}
+            {!teamRoster.some(item => !item.inCourt) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Nenhum jogador desta equipe no banco.</Text> : null}
           </> : null}
           {panel === "library" ? <>
             <View style={styles.wrap}>
@@ -361,13 +446,12 @@ const styles = StyleSheet.create({
   handle: { flexDirection: "row", gap: 10, alignItems: "center", justifyContent: "center", minHeight: 44, paddingHorizontal: 18 },
   action: { minWidth: 44, minHeight: 44, paddingHorizontal: 9, gap: 6, flexDirection: "row", justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1 },
   tools: { position: "absolute", borderRadius: 16, width: 52, zIndex: 10 },
-  propertyTrigger: { position: "absolute", borderRadius: 24, padding: 2, zIndex: 21 },
+  propertyTrigger: { position: "absolute", width: 44, height: 44, borderRadius: 22, overflow: "hidden", zIndex: 21 },
   bottom: { position: "absolute", alignSelf: "center", maxWidth: "100%", borderTopLeftRadius: 18, borderTopRightRadius: 18, zIndex: 22 },
   history: { position: "absolute", flexDirection: "row", gap: 2, borderRadius: 25, zIndex: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 4 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
   panel: { position: "absolute", zIndex: 30, padding: 12, gap: 10, borderRadius: 16, borderWidth: 1 },
   speed: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 8 },
-  notice: { position: "absolute", alignSelf: "center", borderRadius: 12, padding: 10, zIndex: 40 },
   exitOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", zIndex: 80 },
 });
