@@ -265,7 +265,21 @@ describe("pending invite storage", () => {
     }
   );
 
-  test("redirects pending accounts away from protected application routes", () => {
+  test.each(["/student/home", "/student-plan", "/student/profile"])(
+    "allows a pending athlete to use the free %s experience",
+    (pathname) => {
+      expect(
+        shouldRedirectPendingRole({
+          hasSession: true,
+          role: "pending",
+          pathname,
+          isInviteRoute: false,
+        })
+      ).toBe(false);
+    }
+  );
+
+  test("returns pending accounts from protected application routes to their free home", () => {
     expect(
       shouldRedirectPendingRole({
         hasSession: true,

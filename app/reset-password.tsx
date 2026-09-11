@@ -40,9 +40,15 @@ const checkIsExpiredLink = (url: string | null) => {
   const lower = url.toLowerCase();
   return (
     lower.includes("otp_expired") ||
-    lower.includes("expired") ||
-    (lower.includes("error=") && lower.includes("access_denied"))
+    (lower.includes("type=recovery") && lower.includes("expired")) ||
+    (lower.includes("type=recovery") && lower.includes("error=") && lower.includes("access_denied"))
   );
+};
+
+const checkIsOAuthStateError = (url: string | null) => {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return lower.includes("bad_oauth_state") || lower.includes("oauth%20state") || lower.includes("oauth+state");
 };
 
 const formatResetError = (raw: string) => {
@@ -73,15 +79,18 @@ export default function ResetPasswordScreen() {
   const { colors, mode } = useAppTheme();
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { session } = useAuth();
+  const { session, signOut } = useAuth();
 
   const [receivedUrl, setReceivedUrl] = useState<string | null>(() =>
     Platform.OS === "web" && typeof window !== "undefined" ? window.location.href : null
   );
   const [tokenOverride, setToken] = useState<string | null>(null);
   const [tokenRejected, setIsExpired] = useState(false);
+  const isOAuthStateError = checkIsOAuthStateError(receivedUrl)
+    || params.error_code === "bad_oauth_state";
   const isExpired = tokenRejected || checkIsExpiredLink(receivedUrl)
     || params.error_code === "otp_expired";
+  const isStandaloneError = isOAuthStateError || isExpired;
   const token = tokenOverride ?? (parseAccessToken(receivedUrl)
     || (typeof params.access_token === "string" ? params.access_token : "")
     || session?.access_token || "");
@@ -276,7 +285,19 @@ export default function ResetPasswordScreen() {
               )}
             </Pressable>
 
-            { isExpired ? (
+            { isOAuthStateError ? (
+              <View style={{ gap: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <GoAtletaIcon name="warningCircle" size={26} color={colors.dangerSolidBg} />
+                  <Text style={{ fontSize: 24, fontWeight: "800", color: colors.text }}>
+                    Login com Google expirou
+                  </Text>
+                </View>
+                <Text style={{ color: colors.muted, fontSize: 14 }}>
+                  Volte ao login e tente entrar com Google novamente.
+                </Text>
+              </View>
+            ) : isExpired ? (
               <View style={{ gap: 6 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <GoAtletaIcon name="warningCircle" size={26} color={colors.dangerSolidBg} />
@@ -301,9 +322,9 @@ export default function ResetPasswordScreen() {
 
             <Animated.View
               style={{
-                padding: 18,
-                borderRadius: 22,
-                backgroundColor: colors.card,
+                padding: isStandaloneError ? 0 : 18,
+                borderRadius: isStandaloneError ? 0 : 22,
+                backgroundColor: isStandaloneError ? "transparent" : colors.card,
                 borderWidth: 0,
                 overflow: "visible",
                 gap: 14,
@@ -317,21 +338,33 @@ export default function ResetPasswordScreen() {
                   },
                   { translateX: shakeAnim },
                 ],
-                ...(Platform.OS === "web"
+                ...(!isStandaloneError && Platform.OS === "web"
                   ? ({ boxShadow: "0px 8px 24px rgba(0, 0, 0, 0.16)" } as any)
-                  : {
+                  : !isStandaloneError ? {
                       shadowColor: "#000",
                       shadowOpacity: 0.16,
                       shadowRadius: 16,
                       shadowOffset: { width: 0, height: 8 },
                       elevation: 5,
-                    }),
+                    } : {}),
               }}
             >
-              { isExpired ? (
+              { isOAuthStateError ? (
+                <Button
+                  label="Voltar ao login"
+                  onPress={async () => {
+                    await signOut();
+                    if (Platform.OS === "web" && typeof window !== "undefined") {
+                      window.history.replaceState({}, "", "/login");
+                    }
+                    router.replace("/login");
+                  }}
+                />
+              ) : isExpired ? (
                 <Button
                   label="Solicitar novo link"
-                  onPress={() => {
+                  onPress={async () => {
+                    await signOut();
                     if (Platform.OS === "web" && typeof window !== "undefined") {
                       window.history.replaceState({}, "", "/login?reset=1");
                     }

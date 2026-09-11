@@ -154,7 +154,7 @@ function BrandMark({
   );
 }
 
-function BrandWordmark({ role, fill = true }: { role: AppRole; fill?: boolean }) {
+function BrandWordmark({ role, fill = true, subtitle }: { role: AppRole; fill?: boolean; subtitle?: string }) {
   return (
     <View style={{ flex: fill ? 1 : undefined, minWidth: 0, gap: 2 }}>
       <GoAtletaBrandWordmark height={18} tone="light" />
@@ -167,7 +167,7 @@ function BrandWordmark({ role, fill = true }: { role: AppRole; fill?: boolean })
         }}
         numberOfLines={1}
       >
-        {roleSubtitle[role]}
+        {subtitle ?? roleSubtitle[role]}
       </Text>
     </View>
   );
@@ -261,6 +261,7 @@ export function WebSidebar({
 }: WebSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const isPlatformWorkspace = role === "coord" && pathname.startsWith("/platform");
   const { mode, colors } = useAppTheme();
   const { session, signOut } = useAuth();
   const {
@@ -690,7 +691,7 @@ export function WebSidebar({
                 Alternar perfil
               </Text>
               <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
-                Atual: {roleProfileLabel[role]}
+                Atual: {isPlatformWorkspace ? "Administrador SaaS" : roleProfileLabel[role]}
               </Text>
             </View>
             <GoAtletaIcon name="chevronForward" size={17} color="rgba(255,255,255,0.62)" />
@@ -770,6 +771,7 @@ export function WebSidebar({
   }));
 
   const canShowItem = (item: SidebarItem) => {
+    if (isPlatformWorkspace) return true;
     if (role === "student" || role === "family" || isOrgAdmin) return true;
     // Permission-bound destinations stay hidden until the organization RPC
     // explicitly grants them. This prevents a restricted menu from flashing
@@ -778,7 +780,7 @@ export function WebSidebar({
     return isTrainerPathAllowed(item.href, memberPermissions, false);
   };
 
-  const mainItems: SidebarItem[] = tabItems.filter(canShowItem);
+  const mainItems: SidebarItem[] = isPlatformWorkspace ? [] : tabItems.filter(canShowItem);
 
   const operationalItemsByRole: Record<AppRole, SidebarItem[]> = {
     prof: [
@@ -918,16 +920,41 @@ export function WebSidebar({
     ],
     family: [],
   };
-  const operationalItems = operationalItemsByRole[role].filter(canShowItem);
-  const navigationItems = orderWebSidebarItems(role, [...mainItems, ...operationalItems]);
+  const platformItems: SidebarItem[] =
+    isPlatformWorkspace
+      ? [
+          {
+            key: "platform-dashboard",
+            label: "Painel",
+            href: "/platform",
+            icon: "home",
+          },
+          {
+            key: "platform-accesses",
+            label: "Acessos",
+            href: "/platform/accesses",
+            icon: "lock",
+          },
+        ]
+      : [];
+  const operationalItems = (
+    isPlatformWorkspace ? platformItems : operationalItemsByRole[role]
+  ).filter(canShowItem);
+  const navigationItems = isPlatformWorkspace
+    ? [...mainItems, ...operationalItems]
+    : orderWebSidebarItems(role, [...mainItems, ...operationalItems]);
 
   const isClassRoute =
     pathname === "/classes" || pathname === "/class" || pathname.startsWith("/class/");
-  const isActiveItem = (item: SidebarItem) =>
-    (isClassRoute && item.key === "classes") ||
-    pathname === item.href ||
-    pathname.startsWith(`${item.href}/`) ||
-    (item.href === "/prof/home" && pathname === "/prof");
+  const isActiveItem = (item: SidebarItem) => {
+    if (isPlatformWorkspace) return pathname === item.href;
+    return (
+      (isClassRoute && item.key === "classes") ||
+      pathname === item.href ||
+      pathname.startsWith(`${item.href}/`) ||
+      (item.href === "/prof/home" && pathname === "/prof")
+    );
+  };
 
   const renderCompactNavItem = (item: SidebarItem) => {
     const active = isActiveItem(item);
@@ -1278,7 +1305,10 @@ export function WebSidebar({
                 <BrandMark size={44} decorative />
               </View>
               <View style={[{ flex: 1, minWidth: 0 }, sidebarLabelRevealStyle]}>
-                <BrandWordmark role={role} />
+                <BrandWordmark
+                  role={role}
+                  subtitle={isPlatformWorkspace ? "Administração SaaS" : undefined}
+                />
               </View>
             </View>
 
@@ -1340,7 +1370,7 @@ export function WebSidebar({
                     {professorName}
                   </Text>
                   <Text style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }} numberOfLines={1}>
-                    {roleProfileLabel[role]}
+                    {isPlatformWorkspace ? "Administrador SaaS" : roleProfileLabel[role]}
                   </Text>
                 </View>
                 <GoAtletaIcon

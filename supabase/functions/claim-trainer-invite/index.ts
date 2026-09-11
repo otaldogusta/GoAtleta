@@ -63,10 +63,6 @@ Deno.serve(async (req) => {
   if (!hasTrustedInviteIdentity(user)) {
     return createError(req, 403, "EMAIL_NOT_VERIFIED", "Email verification required");
   }
-  if (user.app_metadata?.staff_invite_setup_required === true) {
-    return createError(req, 409, "STAFF_SETUP_REQUIRED", "Complete staff signup before accepting");
-  }
-
   let payload: { code: string } = { code: "" };
   try {
     const parsed = validateObjectPayload(await req.json());
@@ -142,6 +138,12 @@ Deno.serve(async (req) => {
     if (invite.invited_via === "email" && invitedEmail && invitedEmail !== authenticatedEmail) {
       return createError(req, 403, "INVITE_EMAIL_MISMATCH", "Invite belongs to another email");
     }
+  }
+
+  // Only request staff setup after the supplied invitation itself has been
+  // verified. A stale account flag must never make an arbitrary code look valid.
+  if (user.app_metadata?.staff_invite_setup_required === true) {
+    return createError(req, 409, "STAFF_SETUP_REQUIRED", "Complete staff signup before accepting");
   }
 
   const { error: claimError } = await supabase.rpc("claim_trainer_invite_access", {

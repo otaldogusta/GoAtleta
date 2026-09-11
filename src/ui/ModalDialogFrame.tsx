@@ -19,6 +19,7 @@ type Props = {
   contentContainerStyle?: object;
   bodyStyle?: object;
   footerStyle?: object;
+  closeAccessibilityLabel?: string;
 };
 
 export function ModalDialogFrame({
@@ -34,6 +35,7 @@ export function ModalDialogFrame({
   contentContainerStyle,
   bodyStyle,
   footerStyle,
+  closeAccessibilityLabel = "Fechar modal",
 }: Props) {
   return (
     <ModalSheet visible={visible} onClose={onClose} cardStyle={cardStyle} position={position}>
@@ -52,6 +54,8 @@ export function ModalDialogFrame({
             {subtitle ? <Text style={{ color: colors.muted, fontSize: 12 }}>{subtitle}</Text> : null}
           </View>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={closeAccessibilityLabel}
             onPress={onClose}
             style={{
               height: 32,

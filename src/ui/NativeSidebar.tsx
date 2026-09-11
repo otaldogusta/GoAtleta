@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import {  useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import { useAuth } from "../auth/auth";
@@ -12,7 +12,10 @@ import {
   getTrainerPermissionKey,
   isTrainerPathAllowed,
 } from "../auth/route-permissions";
-import { PROFILE_NAME_FALLBACK, resolveProfileDisplayName } from "../core/profile-name";
+import {
+  PROFILE_NAME_FALLBACK,
+  resolveProfileDisplayName,
+} from "../core/profile-name";
 import { getScopedProfilePath } from "../navigation/profile-routes";
 import { useOptionalOrganization } from "../providers/OrganizationProvider";
 import { brandPalette, radius } from "../theme/tokens";
@@ -57,9 +60,9 @@ const roleProfileLabel: Record<AppRole, string> = {
 
 const getDisplayName = (session: ReturnType<typeof useAuth>["session"]) => {
   const user = session?.user as
-    | { email?: string; user_metadata?: Record<string, unknown> }
-    | undefined;
-  const metadataName = user?.user_metadata?.full_name ?? user?.user_metadata?.name;
+    { email?: string; user_metadata?: Record<string, unknown> } | undefined;
+  const metadataName =
+    user?.user_metadata?.full_name ?? user?.user_metadata?.name;
   return resolveProfileDisplayName({
     displayName: metadataName,
     email: user?.email,
@@ -94,7 +97,7 @@ export function NativeSidebar({
   const activeOrganization = organization?.activeOrganization ?? null;
   const memberPermissions = useMemo(
     () => organization?.memberPermissions ?? {},
-    [organization?.memberPermissions]
+    [organization?.memberPermissions],
   );
   const permissionsLoading = organization?.permissionsLoading ?? true;
   const [expandedRequested, setExpandedRequested] = useState(false);
@@ -103,16 +106,40 @@ export function NativeSidebar({
   const profileName = getDisplayName(session);
   const profileInitials = getInitials(profileName);
   const profilePath = getScopedProfilePath(pathname || "/");
+  const isPlatformWorkspace =
+    role === "coord" && pathname.startsWith("/platform");
 
   if (drawerOpen === false && profileMenuOpen) setProfileMenuOpen(false);
 
   const items = useMemo<NativeNavItem[]>(() => {
+    if (isPlatformWorkspace) {
+      return [
+        {
+          key: "platform-dashboard",
+          label: "Painel",
+          icon: "home",
+          href: "/platform",
+        },
+        {
+          key: "platform-accesses",
+          label: "Acessos",
+          icon: "lock",
+          href: "/platform/accesses",
+        },
+      ];
+    }
     const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-    const permissionByRoute: Partial<Record<string, keyof typeof memberPermissions>> =
+    const permissionByRoute: Partial<
+      Record<string, keyof typeof memberPermissions>
+    > =
       role === "prof"
         ? { classes: "classes", planning: "training" }
         : role === "coord"
-          ? { classes: "classes", planning: "training", management: "org_members" }
+          ? {
+              classes: "classes",
+              planning: "training",
+              management: "org_members",
+            }
           : {};
     const primary = ROLE_TABS[role]
       .filter((item) => {
@@ -129,7 +156,8 @@ export function NativeSidebar({
       }));
     const coordinationStudents: NativeNavItem[] =
       role === "coord" &&
-      (isOrgAdmin || (!permissionsLoading && memberPermissions.students === true))
+      (isOrgAdmin ||
+        (!permissionsLoading && memberPermissions.students === true))
         ? [
             {
               key: "students",
@@ -140,13 +168,18 @@ export function NativeSidebar({
           ]
         : [];
     const primaryWithCoordinationStudents = primary.flatMap((item) =>
-      item.key === "classes" ? [item, ...coordinationStudents] : [item]
+      item.key === "classes" ? [item, ...coordinationStudents] : [item],
     );
     const actions = ROLE_RADIAL_ACTIONS[role]
       .filter((item) => {
         if (role === "student" || role === "family" || isOrgAdmin) return true;
-        if (permissionsLoading && getTrainerPermissionKey(String(item.href))) return false;
-        return isTrainerPathAllowed(String(item.href), memberPermissions, false);
+        if (permissionsLoading && getTrainerPermissionKey(String(item.href)))
+          return false;
+        return isTrainerPathAllowed(
+          String(item.href),
+          memberPermissions,
+          false,
+        );
       })
       .map((item) => ({
         key: `action-${item.id}`,
@@ -159,11 +192,17 @@ export function NativeSidebar({
       ...actions.filter(
         (item) =>
           !primaryWithCoordinationStudents.some(
-            (primaryItem) => primaryItem.href === item.href
-          )
+            (primaryItem) => primaryItem.href === item.href,
+          ),
       ),
     ];
-  }, [activeOrganization?.role_level, memberPermissions, permissionsLoading, role]);
+  }, [
+    activeOrganization?.role_level,
+    isPlatformWorkspace,
+    memberPermissions,
+    permissionsLoading,
+    role,
+  ]);
 
   if (!visible) return null;
 
@@ -202,7 +241,9 @@ export function NativeSidebar({
           overflow: "hidden",
         }}
       >
-        <View style={{ width: 48, alignItems: "center", justifyContent: "center" }}>
+        <View
+          style={{ width: 48, alignItems: "center", justifyContent: "center" }}
+        >
           <GoAtletaBrandMark size={44} tone="light" decorative />
         </View>
         {expanded ? (
@@ -210,9 +251,13 @@ export function NativeSidebar({
             <GoAtletaBrandWordmark height={18} tone="light" decorative />
             <Text
               numberOfLines={1}
-              style={{ color: "rgba(255,255,255,0.56)", fontSize: 11, fontWeight: "600" }}
+              style={{
+                color: "rgba(255,255,255,0.56)",
+                fontSize: 11,
+                fontWeight: "600",
+              }}
             >
-              {roleSubtitle[role]}
+              {isPlatformWorkspace ? "Administração SaaS" : roleSubtitle[role]}
             </Text>
           </View>
         ) : null}
@@ -220,20 +265,36 @@ export function NativeSidebar({
           <Pressable
             accessibilityLabel="Fechar menu principal"
             onPress={onRequestClose}
-            style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" }}
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
-            <GoAtletaIcon name="close" size={21} color="rgba(255,255,255,0.78)" />
+            <GoAtletaIcon
+              name="close"
+              size={21}
+              color="rgba(255,255,255,0.78)"
+            />
           </Pressable>
         ) : null}
       </View>
 
       <ScrollView
         style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 12, gap: 6 }}
+        contentContainerStyle={{
+          paddingHorizontal: 10,
+          paddingVertical: 12,
+          gap: 6,
+        }}
         showsVerticalScrollIndicator={false}
       >
         {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const active = isPlatformWorkspace
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Pressable
               key={item.key}
@@ -248,11 +309,31 @@ export function NativeSidebar({
                 justifyContent: expanded ? "flex-start" : "center",
                 paddingHorizontal: expanded ? 14 : 0,
                 gap: 12,
-                backgroundColor: active ? webShellTokens.sidebarActive : "transparent",
+                backgroundColor: active
+                  ? webShellTokens.sidebarActive
+                  : "transparent",
               }}
             >
-              <GoAtletaIcon name={item.icon} size={20} color={active ? brandPalette.quadra : "rgba(255,255,255,0.72)"} />
-              {expanded ? <Text numberOfLines={1} style={{ flex: 1, color: active ? brandPalette.white : "rgba(255,255,255,0.78)", fontSize: 13, fontWeight: active ? "800" : "600" }}>{item.label}</Text> : null}
+              <GoAtletaIcon
+                name={item.icon}
+                size={20}
+                color={active ? brandPalette.quadra : "rgba(255,255,255,0.72)"}
+              />
+              {expanded ? (
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    color: active
+                      ? brandPalette.white
+                      : "rgba(255,255,255,0.78)",
+                    fontSize: 13,
+                    fontWeight: active ? "800" : "600",
+                  }}
+                >
+                  {item.label}
+                </Text>
+              ) : null}
             </Pressable>
           );
         })}
@@ -290,8 +371,19 @@ export function NativeSidebar({
                   gap: 11,
                 }}
               >
-                <GoAtletaIcon name="management" size={19} color="rgba(255,255,255,0.78)" />
-                <Text style={{ flex: 1, color: brandPalette.white, fontSize: 13, fontWeight: "700" }}>
+                <GoAtletaIcon
+                  name="management"
+                  size={19}
+                  color="rgba(255,255,255,0.78)"
+                />
+                <Text
+                  style={{
+                    flex: 1,
+                    color: brandPalette.white,
+                    fontSize: 13,
+                    fontWeight: "700",
+                  }}
+                >
                   Perfil e configurações
                 </Text>
               </Pressable>
@@ -318,7 +410,14 @@ export function NativeSidebar({
                 }}
               >
                 <GoAtletaIcon name="logout" size={19} color="#FCA5A5" />
-                <Text style={{ flex: 1, color: "#FCA5A5", fontSize: 13, fontWeight: "700" }}>
+                <Text
+                  style={{
+                    flex: 1,
+                    color: "#FCA5A5",
+                    fontSize: 13,
+                    fontWeight: "700",
+                  }}
+                >
                   Sair
                 </Text>
               </Pressable>
@@ -326,7 +425,9 @@ export function NativeSidebar({
           ) : null}
 
           <Pressable
-            accessibilityLabel={profileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"}
+            accessibilityLabel={
+              profileMenuOpen ? "Fechar menu de perfil" : "Abrir menu de perfil"
+            }
             accessibilityState={{ expanded: profileMenuOpen }}
             onPress={() => setProfileMenuOpen((current) => !current)}
             style={{
@@ -362,7 +463,13 @@ export function NativeSidebar({
                 justifyContent: "center",
               }}
             >
-              <Text style={{ color: webShellTokens.primary, fontSize: 12, fontWeight: "900" }}>
+              <Text
+                style={{
+                  color: webShellTokens.primary,
+                  fontSize: 12,
+                  fontWeight: "900",
+                }}
+              >
                 {profileInitials}
               </Text>
             </View>
@@ -371,7 +478,11 @@ export function NativeSidebar({
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text
                     numberOfLines={1}
-                    style={{ color: brandPalette.white, fontSize: 13, fontWeight: "800" }}
+                    style={{
+                      color: brandPalette.white,
+                      fontSize: 13,
+                      fontWeight: "800",
+                    }}
                   >
                     {profileName}
                   </Text>
@@ -379,7 +490,9 @@ export function NativeSidebar({
                     numberOfLines={1}
                     style={{ color: "rgba(255,255,255,0.56)", fontSize: 11 }}
                   >
-                    {roleProfileLabel[role]}
+                    {isPlatformWorkspace
+                      ? "Administrador SaaS"
+                      : roleProfileLabel[role]}
                   </Text>
                 </View>
                 <GoAtletaIcon
@@ -400,10 +513,31 @@ export function NativeSidebar({
               setProfileMenuOpen(false);
               setExpandedRequested((current) => !current);
             }}
-            style={{ minHeight: 48, borderRadius: radius.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10 }}
+            style={{
+              minHeight: 48,
+              borderRadius: radius.card,
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 10,
+            }}
           >
-            <GoAtletaIcon name={expanded ? "chevronBack" : "chevronForward"} size={18} color="rgba(255,255,255,0.68)" />
-            {expanded ? <Text style={{ color: "rgba(255,255,255,0.68)", fontSize: 12, fontWeight: "700" }}>Recolher</Text> : null}
+            <GoAtletaIcon
+              name={expanded ? "chevronBack" : "chevronForward"}
+              size={18}
+              color="rgba(255,255,255,0.68)"
+            />
+            {expanded ? (
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.68)",
+                  fontSize: 12,
+                  fontWeight: "700",
+                }}
+              >
+                Recolher
+              </Text>
+            ) : null}
           </Pressable>
         ) : null}
       </View>

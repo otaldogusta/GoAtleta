@@ -63,8 +63,9 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
 
   const tabs = useMemo(() => {
     const baseTabs = ROLE_TABS[role];
+    const displayTabs = baseTabs;
     const isOrgAdmin = (activeOrganization?.role_level ?? 0) >= 50;
-    if (isOrgAdmin) return baseTabs;
+    if (isOrgAdmin) return displayTabs;
 
     const permissionByRoute: Partial<Record<string, keyof typeof memberPermissions>> =
       role === "prof"
@@ -80,7 +81,7 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
             }
           : {};
 
-    return baseTabs.filter((tab) => {
+    return displayTabs.filter((tab) => {
       if (tab.isCenter) return true;
       const permissionKey = permissionByRoute[tab.routeName];
       if (!permissionKey) return true;

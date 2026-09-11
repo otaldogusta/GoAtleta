@@ -72,8 +72,8 @@ export const getPendingInviteCopy = (state: PendingInviteViewState) => {
       };
     default:
       return {
-        title: "Escolha como começar",
-        subtitle: "Entre por convite ou crie uma instituição para coordenar.",
+        title: "Acesso aguardando liberação",
+        subtitle: "Peça um convite ao responsável da sua instituição ou informe o código recebido.",
       };
   }
 };

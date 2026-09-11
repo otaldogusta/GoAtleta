@@ -61,6 +61,15 @@ describe("trainer invite email verification contract", () => {
     expect(claimSource).toContain("!parsed.ok || !parsed.data");
   });
 
+  test("verifies the invitation before trusting a stale staff setup flag", () => {
+    expect(claimSource.indexOf('.maybeSingle()')).toBeLessThan(
+      claimSource.indexOf('user.app_metadata?.staff_invite_setup_required === true'),
+    );
+    expect(claimSource.indexOf('if (!invite)')).toBeLessThan(
+      claimSource.indexOf('user.app_metadata?.staff_invite_setup_required === true'),
+    );
+  });
+
   test("keeps the invite pending until the verified pending route claims it", () => {
     expect(signupSource).toContain("savePendingTrainerInvite");
     expect(signupSource).not.toContain("claimTrainerInvite");

@@ -13,6 +13,7 @@ describe("buildOAuthAuthorizeUrl", () => {
     expect(url.searchParams.get("provider")).toBe("google");
     expect(url.searchParams.get("prompt")).toBe("select_account");
     expect(url.searchParams.get("redirect_to")).toBe("http://localhost:8081/login");
+    expect(url.searchParams.has("response_type")).toBe(false);
   });
 
   it("does not send the Google-specific prompt to other providers", () => {
@@ -27,17 +28,17 @@ describe("buildOAuthAuthorizeUrl", () => {
     expect(url.searchParams.has("prompt")).toBe(false);
   });
 
-  it("keeps the mobile redirect control", () => {
+  it("does not add server-only redirect controls to mobile OAuth", () => {
     const url = new URL(
       buildOAuthAuthorizeUrl({
         supabaseUrl: "https://project.supabase.co",
         provider: "google",
         redirectTo: "goatleta://login",
-        skipHttpRedirect: true,
       })
     );
 
     expect(url.searchParams.get("prompt")).toBe("select_account");
-    expect(url.searchParams.get("skip_http_redirect")).toBe("true");
+    expect(url.searchParams.has("skip_http_redirect")).toBe(false);
+    expect(url.searchParams.has("response_type")).toBe(false);
   });
 });

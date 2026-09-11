@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import StaffInviteScreen from "../../../../app/staff-invite";
 import SignupScreen from "../SignupScreen";
@@ -39,12 +39,22 @@ describe("employee invitation screen", () => {
   });
   afterAll(() => Object.defineProperty(Platform, "OS", { configurable: true, value: originalOS }));
   it("does not consume the email proof or log out until the user confirms", async () => {
+    jest.useFakeTimers();
     const screen = render(React.createElement(StaffInviteScreen));
+    expect(screen.getByText("Convite da instituição")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Trocar conta e aceitar" })).toBeTruthy();
     expect(mockAccept).not.toHaveBeenCalled();
     expect(mockSignOut).not.toHaveBeenCalled();
     expect(window.history.replaceState).toHaveBeenCalledWith({}, "", "/staff-invite");
-    await waitFor(() => expect(mockSetParams).toHaveBeenCalledWith({ "#": "" }));
+    await act(async () => { jest.runOnlyPendingTimers(); });
+    expect(mockSetParams).toHaveBeenCalledWith({ "#": "" });
+    jest.useRealTimers();
+  });
+  it("discards a stored invite when keeping the current account", async () => {
+    const screen = render(React.createElement(StaffInviteScreen));
+    await act(async () => fireEvent.press(screen.getByRole("button", { name: "Manter minha conta" })));
+    expect(mockClearPending).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith("/");
   });
   it("holds new employees at the signup form until completion succeeds", async () => {
     const screen = render(React.createElement(StaffInviteScreen));

@@ -270,7 +270,7 @@ function RootLayoutContent() {
   const isAdminProfile =
     role === "trainer" && (activeOrganization?.role_level ?? 0) >= 50;
   const appHomeHref =
-    role === "student"
+    role === "student" || role === "pending"
       ? "/student/home"
       : role === "family"
         ? "/family/home"
@@ -319,6 +319,18 @@ function RootLayoutContent() {
         searchParams.has("devStudentId") || searchParams.has("devStudentEmail")
       );
     })();
+  const isDevPlatformAccessPreview =
+    __DEV__ &&
+    Platform.OS === "web" &&
+    normalizedPathname === "/platform/accesses" &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("designPreview") === "accesses";
+  const isDevPlatformDashboardPreview =
+    __DEV__ &&
+    Platform.OS === "web" &&
+    normalizedPathname === "/platform" &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("designPreview") === "dashboard";
   const isInviteRoute =
     normalizedPathname === "/staff-invite" ||
     normalizedPathname === "/invite" ||
@@ -348,6 +360,8 @@ function RootLayoutContent() {
   const needsHybridEmailVerification =
     Boolean(session) && !usesGoogleAuth && !isHybridEmailVerified;
   const isPublicRoute =
+    isDevPlatformAccessPreview ||
+    isDevPlatformDashboardPreview ||
     publicRoutes.includes(normalizedPathname) ||
     publicPrefixes.some(
       (prefix) =>
@@ -653,7 +667,7 @@ function RootLayoutContent() {
 
     if (roleLoading) return;
 
-    const authDestinationHref = role === "pending" ? "/pending" : appHomeHref;
+    const authDestinationHref = appHomeHref;
 
     if (normalizedPathname === "/onboarding") {
       redirectTo = session ? authDestinationHref : "/welcome";
@@ -716,7 +730,7 @@ function RootLayoutContent() {
         isInviteRoute,
       })
     ) {
-      router.replace("/pending");
+      router.replace(role === "pending" ? "/student/home" : "/pending");
       return;
     }
     if (

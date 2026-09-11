@@ -145,6 +145,8 @@ export type StudentRow = {
   guardian_name?: string | null;
   guardian_phone?: string | null;
   guardian_relation?: string | null;
+  address?: string | null;
+  gender_identity?: string | null;
   health_issue?: boolean | null;
   health_issue_notes?: string | null;
   medication_use?: boolean | null;

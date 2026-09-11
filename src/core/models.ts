@@ -1159,6 +1159,8 @@ export type Student = {
   guardianName: string;
   guardianPhone: string;
   guardianRelation: string;
+  address?: string;
+  genderIdentity?: string;
   birthDate: string;
   healthIssue: boolean;
   healthIssueNotes: string;

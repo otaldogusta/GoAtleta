@@ -143,4 +143,7 @@ export const shouldRedirectPendingRole = ({
   role === "pending" &&
   pathname !== "/pending" &&
   pathname !== "/verify-email" &&
+  pathname !== "/student/home" &&
+  pathname !== "/student-plan" &&
+  pathname !== "/student/profile" &&
   !isInviteRoute;

@@ -56,6 +56,9 @@ type AuthContextValue = {
   refreshUser: () => Promise<void>;
   updateProfileName: (fullName: string) => Promise<void>;
   updateSecurityContactEmail: (email: string) => Promise<void>;
+  requestPhoneChange: (phone: string) => Promise<void>;
+  verifyPhoneChange: (phone: string, code: string) => Promise<void>;
+  removeVerifiedPhone: () => Promise<void>;
   updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   resetPassword: (email: string, redirectTo: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -176,6 +179,8 @@ const fetchUser = async (accessToken: string) => {
   const payload = safeJsonParse<{
     id: string;
     email: string;
+    phone?: string | null;
+    phone_confirmed_at?: string | null;
     email_confirmed_at?: string | null;
     confirmed_at?: string | null;
     app_metadata?: {
@@ -236,6 +241,47 @@ const updateUserMetadata = async (
   return payload;
 };
 
+const updateAuthenticatedUser = async (
+  accessToken: string,
+  attributes: Record<string, unknown>,
+): Promise<AuthSession["user"]> => {
+  const res = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(attributes),
+  });
+  const text = await res.text();
+  const payload = safeJsonParse<(AuthSession["user"] & { error?: string; error_code?: string; msg?: string; message?: string }) | null>(text, null);
+  if (!res.ok) {
+    const detail = payload?.msg ?? payload?.message ?? payload?.error ?? payload?.error_code ?? text;
+    throw new Error(detail || "Não foi possível atualizar o telefone.");
+  }
+  if (!payload?.id) throw new Error("O Supabase não confirmou a solicitação do telefone.");
+  return payload;
+};
+
+const verifyPhoneChangeCode = async (accessToken: string, phone: string, token: string) => {
+  const res = await fetch(`${SUPABASE_URL.replace(/\/$/, "")}/auth/v1/verify`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ phone, token, type: "phone_change" }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    const payload = safeJsonParse<{ error?: string; error_code?: string; msg?: string; message?: string } | null>(text, null);
+    const detail = payload?.msg ?? payload?.message ?? payload?.error ?? payload?.error_code ?? text;
+    throw new Error(detail || "Código inválido ou expirado.");
+  }
+};
+
 const deleteUserIdentity = async (accessToken: string, identityId: string) => {
   if (!accessToken || !identityId) {
     throw new Error("Dados insuficientes para desvincular conta.");
@@ -260,11 +306,11 @@ const deleteUserIdentity = async (accessToken: string, identityId: string) => {
     const errorCode = String(parsed?.error_code ?? parsed?.code ?? "").toLowerCase();
     if (errorCode === "manual_linking_disabled") {
       throw new Error(
-        "Desvinculação desativada no Supabase. Ative o account linking/manual linking nas configurações de Auth para permitir desvincular Google."
+        "Desvinculação desativada no Supabase. Ative o account linking/manual linking nas configurações de Auth."
       );
     }
     if (res.status === 404) {
-      throw new Error("Identidade Google não encontrada para esta conta.");
+      throw new Error("Identidade não encontrada para esta conta.");
     }
     const detail = parsed?.msg ?? parsed?.message ?? text;
     throw new Error(detail || "Falha ao desvincular provedor.");
@@ -434,27 +480,22 @@ export function AuthProvider({
         supabaseUrl: SUPABASE_URL,
         provider,
         redirectTo,
-        skipHttpRedirect: true,
       });
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectTo);
       if (result.type !== "success") {
         throw new Error("OAuth cancelado.");
       }
 
-      // Extract code from the URL
-      const url = new URL(result.url);
-      const code = url.searchParams.get("code");
-
-      if (!code) {
+      const sessionData = parseAuthSession(result.url);
+      if (!sessionData?.access_token) {
         throw new Error("Falha ao autenticar.");
       }
 
-      // Exchange code for session
-      const payload = await authFetch("/auth/v1/token?grant_type=authorization_code", {
-        code,
-      });
-
-      const next = normalizeAuthSession(payload);
+      const user = await fetchUser(sessionData.access_token);
+      const next: AuthSession = {
+        ...sessionData,
+        user: user ?? sessionData.user,
+      };
       setSession(next);
       await saveSession(next, true);
     },
@@ -574,6 +615,64 @@ export function AuthProvider({
       ...activeSession,
       user,
     };
+    setSession(next);
+    await saveSession(next, true);
+  }, [session]);
+
+  const requestPhoneChange = useCallback(async (phone: string) => {
+    if (!session) throw new Error("Sessão inválida. Faça login novamente.");
+    const normalizedPhone = `+${phone.replace(/\D/g, "")}`;
+    if (normalizedPhone.length < 11 || normalizedPhone.length > 16) {
+      throw new Error("Informe um número de celular válido com código do país.");
+    }
+    await runWithFreshAuthToken({
+      getValidToken: getValidAccessToken,
+      refreshToken: forceRefreshAccessToken,
+      sessionExpiredMessage: "Sua sessão expirou. Entre novamente para verificar o telefone.",
+      request: (accessToken) => updateAuthenticatedUser(accessToken, { phone: normalizedPhone }),
+    });
+  }, [session]);
+
+  const verifyPhoneChange = useCallback(async (phone: string, code: string) => {
+    if (!session) throw new Error("Sessão inválida. Faça login novamente.");
+    const normalizedPhone = `+${phone.replace(/\D/g, "")}`;
+    const normalizedCode = code.replace(/\D/g, "");
+    if (normalizedCode.length !== 6) throw new Error("Informe o código de 6 dígitos.");
+    await runWithFreshAuthToken({
+      getValidToken: getValidAccessToken,
+      refreshToken: forceRefreshAccessToken,
+      sessionExpiredMessage: "Sua sessão expirou. Solicite um novo código.",
+      request: (accessToken) => verifyPhoneChangeCode(accessToken, normalizedPhone, normalizedCode),
+    });
+    const accessToken = await getValidAccessToken();
+    if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
+    const user = await fetchUser(accessToken);
+    if (!user || user.phone !== normalizedPhone || !user.phone_confirmed_at) {
+      throw new Error("O Supabase não confirmou este telefone.");
+    }
+    const activeSession = (await loadSession()) ?? session;
+    const next: AuthSession = { ...activeSession, user };
+    setSession(next);
+    await saveSession(next, true);
+  }, [session]);
+
+  const removeVerifiedPhone = useCallback(async () => {
+    if (!session) throw new Error("Sessão inválida. Faça login novamente.");
+    const accessToken = await getValidAccessToken();
+    if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
+    const identities = await fetchUserIdentities(accessToken);
+    const phoneIdentity = identities.find((identity) => String(identity.provider ?? "").toLowerCase() === "phone");
+    if (!phoneIdentity) return;
+    if (!canSafelyUnlinkProvider(identities, "phone")) {
+      throw new Error("Adicione outro método de acesso antes de remover este telefone.");
+    }
+    const identityId = resolveIdentityId(phoneIdentity);
+    if (!identityId) throw new Error("Identidade telefônica não encontrada.");
+    await deleteUserIdentity(accessToken, identityId);
+    const user = await fetchUser(accessToken);
+    if (!user) throw new Error("Não foi possível atualizar a conta.");
+    const activeSession = (await loadSession()) ?? session;
+    const next: AuthSession = { ...activeSession, user };
     setSession(next);
     await saveSession(next, true);
   }, [session]);
@@ -726,6 +825,9 @@ export function AuthProvider({
       refreshUser,
       updateProfileName,
       updateSecurityContactEmail,
+      requestPhoneChange,
+      verifyPhoneChange,
+      removeVerifiedPhone,
       updatePassword,
       resetPassword,
       signOut,
@@ -748,6 +850,9 @@ export function AuthProvider({
       updatePassword,
       updateProfileName,
       updateSecurityContactEmail,
+      requestPhoneChange,
+      verifyPhoneChange,
+      removeVerifiedPhone,
       verifySignupCode,
     ]
   );
@@ -771,6 +876,9 @@ export const useAuth = () => {
       refreshUser: async () => {},
       updateProfileName: async () => {},
       updateSecurityContactEmail: async () => {},
+      requestPhoneChange: async () => {},
+      verifyPhoneChange: async () => {},
+      removeVerifiedPhone: async () => {},
       updatePassword: async () => {},
       resetPassword: async () => {},
       consumeAuthUrl: async () => null,

@@ -61,23 +61,65 @@ Deno.serve(async (request) => {
 
   const body = await request.json().catch(() => null) as {
     coordinatorEmail?: string;
+    organizationId?: string;
+    requestedProduct?: "goatleta" | "goatleta_pro";
   } | null;
-  const emailValidation = validateStringField(body?.coordinatorEmail, {
-    minLength: 3,
-    maxLength: 254,
-    pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-  });
-  if (!emailValidation.ok) {
-    return response(request, 400, { error: "Informe o e-mail da coordenação." });
-  }
+  const organizationId = String(body?.organizationId ?? "").trim();
+  const requestedProduct = body?.requestedProduct === "goatleta_pro"
+    ? "goatleta_pro"
+    : "goatleta";
+  let coordinatorMemberships: Array<{
+    organization_id: string;
+    coordinator_user_id: string;
+  }> = [];
 
-  const coordinatorEmail = emailValidation.data.trim().toLowerCase();
-  const { data: coordinatorMemberships, error: coordinatorError } =
-    await service.rpc("resolve_access_request_coordinator", {
-      p_email: coordinatorEmail,
+  if (organizationId) {
+    const { data: organization, error: organizationError } = await service
+      .from("organizations")
+      .select("id,name")
+      .eq("id", organizationId)
+      .maybeSingle();
+    if (organizationError || !organization) {
+      return response(request, 404, { error: "Instituição não encontrada." });
+    }
+    const { data: coordinators, error: coordinatorsError } = await service
+      .from("organization_members")
+      .select("organization_id,user_id")
+      .eq("organization_id", organizationId)
+      .gte("role_level", 50);
+    if (coordinatorsError) {
+      return response(request, 500, { error: "Falha ao localizar a coordenação." });
+    }
+    coordinatorMemberships = (coordinators ?? []).map((membership) => ({
+      organization_id: String(membership.organization_id),
+      coordinator_user_id: String(membership.user_id),
+    }));
+    if (!coordinatorMemberships.length) {
+      // The platform queue must still receive the request while an institution
+      // is waiting for its first coordinator to be provisioned.
+      coordinatorMemberships = [{
+        organization_id: organizationId,
+        coordinator_user_id: "",
+      }];
+    }
+  } else {
+    const emailValidation = validateStringField(body?.coordinatorEmail, {
+      minLength: 3,
+      maxLength: 254,
+      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     });
-  if (coordinatorError) {
-    return response(request, 500, { error: "Falha ao localizar a coordenação." });
+    if (!emailValidation.ok) {
+      return response(request, 400, { error: "Escolha uma instituição." });
+    }
+    const coordinatorEmail = emailValidation.data.trim().toLowerCase();
+    const { data, error: coordinatorError } =
+      await service.rpc("resolve_access_request_coordinator", {
+        p_email: coordinatorEmail,
+      });
+    if (coordinatorError) {
+      return response(request, 500, { error: "Falha ao localizar a coordenação." });
+    }
+    coordinatorMemberships = data ?? [];
   }
 
   // Avoid exposing whether an email has an account or administrative access.
@@ -118,6 +160,7 @@ Deno.serve(async (request) => {
           requester_user_id: authData.user.id,
           requester_email: requesterEmail,
           requester_name: requesterName,
+          requested_product: requestedProduct,
         })
         .select("id")
         .single();
@@ -142,6 +185,7 @@ Deno.serve(async (request) => {
       }
     }
 
+    if (!coordinatorUserId) continue;
     const { data: existing } = await service
       .from("notifications")
       .select("id")
@@ -210,5 +254,9 @@ Deno.serve(async (request) => {
 
   // Keep the public response identical whether or not the supplied address
   // belongs to a coordinator. Delivery details remain server-side only.
-  return response(request, 200, { accepted: true });
+  return response(request, 200, {
+    accepted: true,
+    status: "pending",
+    organizationId: organizationId || null,
+  });
 });

@@ -31,7 +31,7 @@ describe("pending invite presentation", () => {
     expect(isTerminalPendingInviteIssue(state)).toBe(true);
   });
 
-  it("shows a concrete starting choice when no invite is available", () => {
+  it("keeps an unmatched account pending when no invite is available", () => {
     const state = resolvePendingInviteViewState({
       accessApproved: false,
       inviteBusy: false,
@@ -40,7 +40,10 @@ describe("pending invite presentation", () => {
     });
 
     expect(state).toBe("waiting");
-    expect(getPendingInviteCopy(state).title).toBe("Escolha como começar");
+    expect(getPendingInviteCopy(state).title).toBe("Acesso aguardando liberação");
+    expect(getPendingInviteCopy(state).subtitle).toBe(
+      "Peça um convite ao responsável da sua instituição ou informe o código recebido.",
+    );
   });
 
   it("returns every resolved role to its own portal", () => {

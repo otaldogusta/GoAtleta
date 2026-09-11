@@ -44,7 +44,7 @@ export default function Home() {
   if (isWeb && browserPathname !== "/" && browserPathname !== "/index") return null;
 
   if (!session) return <Redirect href="/welcome" />;
-  if (role === "pending") return <Redirect href="/pending" />;
+  if (role === "pending") return <Redirect href="/student/home" />;
 
   if (profile === "family") return <Redirect href="/family/home" />;
   if (profile === "student") return <Redirect href="/student/home" />;

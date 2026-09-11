@@ -8,6 +8,12 @@ import {
 } from "../error-messages";
 
 describe("error-messages", () => {
+  it("traduz indisponibilidade do provedor de SMS", () => {
+    expect(getFriendlyErrorMessage(new Error("Unable to get SMS provider"))).toBe(
+      "Envio de SMS ainda não configurado.",
+    );
+  });
+
   it.each(["Forbidden", "ORG_FORBIDDEN", "NOT_AUTHORIZED"])("translates permission failure %s", (message) => {
     expect(getFriendlyErrorMessage(new Error(message))).toBe("Você não tem permissão para essa ação.");
   });

@@ -5,6 +5,9 @@ import ResetPasswordScreen from "../../../../app/reset-password";
 const mockInitialUrl = jest.fn();
 const mockUpdatePassword = jest.fn();
 const mockRemoveListener = jest.fn();
+const mockRouterReplace = jest.fn();
+const mockSignOut = jest.fn();
+let mockSearchParams: Record<string, string> = {};
 let mockReceiveUrl: (event: { url: string }) => void;
 let mockSessionToken = "synthetic-session-token";
 jest.mock("expo-linking", () => ({
@@ -14,8 +17,8 @@ jest.mock("expo-linking", () => ({
     return { remove: mockRemoveListener };
   },
 }));
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: jest.fn() }), useLocalSearchParams: () => ({}) }));
-jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { access_token: mockSessionToken } }) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockRouterReplace }), useLocalSearchParams: () => mockSearchParams }));
+jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { access_token: mockSessionToken }, signOut: mockSignOut }) }));
 jest.mock("../../../api/auth-password", () => ({ updatePasswordWithAccessToken: (...args: unknown[]) => mockUpdatePassword(...args) }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View }));
@@ -31,6 +34,8 @@ describe("password recovery route", () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    mockSearchParams = {};
+    mockSignOut.mockResolvedValue(undefined);
     mockSessionToken = "synthetic-session-token";
     mockUpdatePassword.mockResolvedValue(undefined);
   });
@@ -43,6 +48,21 @@ describe("password recovery route", () => {
     expect(screen.getAllByRole("button", { name: "Solicitar novo link" })).toHaveLength(1);
     expect(screen.queryByPlaceholderText("Nova senha")).toBeNull();
     expect(mockUpdatePassword).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.press(screen.getByRole("button", { name: "Solicitar novo link" })); });
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockRouterReplace).toHaveBeenCalledWith({ pathname: "/login", params: { reset: "1" } });
+  });
+
+  it("explains an expired Google login without offering a password-reset link", async () => {
+    mockSearchParams = { error_code: "bad_oauth_state" };
+    mockInitialUrl.mockResolvedValue("https://goatleta.com/reset-password?error_code=bad_oauth_state&error_description=OAuth%20state%20not%20found%20or%20expired");
+    const screen = render(React.createElement(ResetPasswordScreen));
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByText("Login com Google expirou")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Solicitar novo link" })).toBeNull();
+    await act(async () => { fireEvent.press(screen.getByRole("button", { name: "Voltar ao login" })); });
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockRouterReplace).toHaveBeenCalledWith("/login");
   });
 
   it("uses a newly received recovery link and ignores an older initial-URL response", async () => {

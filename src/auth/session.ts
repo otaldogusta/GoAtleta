@@ -10,6 +10,8 @@ export type AuthSession = {
   user: {
     id: string;
     email: string;
+    phone?: string | null;
+    phone_confirmed_at?: string | null;
     email_confirmed_at?: string | null;
     confirmed_at?: string | null;
     app_metadata?: {

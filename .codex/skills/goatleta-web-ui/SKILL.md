@@ -20,6 +20,11 @@ description: Criar, revisar ou refatorar interfaces web responsivas do GoAtleta.
 - Preferir agrupamento, separadores e tipografia a cards aninhados.
 - Usar tokens de cor, spacing, radius e sombra; não criar equivalentes locais.
 - Manter uma ação primária por região e ocultar ações sem utilidade para o papel atual.
+- Em listas interativas, o estado de hover/foco deve ter respiro próprio: aplicar padding interno, raio coerente com `radius.internal` e pequeno afastamento dos divisores ou itens vizinhos. O fundo de interação não pode ficar colado ao texto, ícone, borda do container ou separador. Preservar alvos de toque de 40–44 px sem transformar cada linha em um card pesado.
+- Em listas sanfonadas, animar a revelação e o recolhimento com transições curtas de opacidade e deslocamento (aproximadamente 140–200 ms). Reutilizar `Animated`/`LayoutAnimation`, respeitar preferência por movimento reduzido quando disponível e evitar bibliotecas, medições contínuas ou animações de layout pesadas.
+- Formulários editáveis devem manter um baseline explícito e considerar a tela suja somente quando o valor normalizado divergir desse baseline. Habilitar a ação de salvar apenas nesse estado e restaurar o baseline depois de uma gravação bem-sucedida.
+- Ao surgir a primeira alteração não salva, usar o `SaveToast` global no topo com variante de aviso e duração visível pela barra de progresso; não criar banners locais concorrentes nem repetir o aviso a cada tecla.
+- Antes de voltar, trocar de seção, recolher uma sanfona ou sair da página com alterações não salvas, usar o `ConfirmDialog` global para continuar editando ou descartar. No web, também proteger recarregamento/fechamento com `beforeunload`. A confirmação deve limpar o rascunho descartado antes da navegação.
 - Não repetir atribuição à IA quando um marcador visual já estabelece o contexto.
 - Manter componentes de domínio sem consultas diretas; receber dados e callbacks por props.
 

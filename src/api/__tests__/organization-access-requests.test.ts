@@ -1,6 +1,9 @@
 import {
   adminListOrgAccessRequests,
   adminReviewOrgAccessRequest,
+  platformListAccessRequests,
+  platformReviewAccessRequest,
+  searchAccessRequestOrganizations,
 } from "../organization-access-requests";
 import { supabaseRestPost } from "../rest";
 
@@ -85,5 +88,38 @@ describe("organization access requests api", () => {
       },
       "return=representation"
     );
+  });
+
+  it("searches the public institution catalog through a scoped RPC", async () => {
+    mockSupabaseRestPost.mockResolvedValueOnce([{ id: "org-1", name: "Rede Esportes Pinhais" }]);
+    await expect(searchAccessRequestOrganizations("Rede Esportes")).resolves.toEqual([
+      { id: "org-1", name: "Rede Esportes Pinhais" },
+    ]);
+    expect(mockSupabaseRestPost).toHaveBeenCalledWith(
+      "/rpc/search_access_request_organizations",
+      { p_query: "Rede Esportes" },
+      "return=representation"
+    );
+  });
+
+  it("loads and reviews the platform queue through platform-only RPCs", async () => {
+    mockSupabaseRestPost
+      .mockResolvedValueOnce([{
+        id: "request-1", organization_id: "org-1", organization_name: "Rede Esportes Pinhais",
+        requester_user_id: "user-1", requester_email: "alessandro@example.com",
+        requester_name: "Alessandro", status: "pending", requested_product: "goatleta",
+        payment_status: "not_started", requested_at: "2026-09-09T15:35:00.000Z",
+        reviewed_at: null, reviewed_by: null, review_role_level: null,
+      }])
+      .mockResolvedValueOnce([{
+        request_id: "request-1", status: "approved", changed: true,
+        member_user_id: "user-1", role_level: 10, reviewed_at: "2026-09-09T15:40:00.000Z",
+      }]);
+    await expect(platformListAccessRequests()).resolves.toEqual([
+      expect.objectContaining({ organizationName: "Rede Esportes Pinhais", requestedProduct: "goatleta" }),
+    ]);
+    await expect(platformReviewAccessRequest({
+      requestId: "request-1", decision: "approved", idempotencyKey: "review-key",
+    })).resolves.toEqual(expect.objectContaining({ requestId: "request-1", status: "approved" }));
   });
 });

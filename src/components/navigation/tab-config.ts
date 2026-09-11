@@ -45,7 +45,7 @@ export const ROLE_TABS: Record<AppRole, TabItemConfig[]> = {
     { key: "profile", routeName: "profile", label: "Perfil", icon: "profile", href: "/prof/profile" },
   ],
   student: [
-    { key: "home", routeName: "home", label: "Hoje", icon: "home", href: "/student/home" },
+    { key: "home", routeName: "home", label: "Início", icon: "home", href: "/student/home" },
     { key: "agenda", routeName: "agenda", label: "Agenda", icon: "agenda", href: "/student/agenda" },
     COMMON_CENTER_TAB,
     { key: "achievements", routeName: "achievements", label: "Conquistas", icon: "achievements", href: "/student/achievements" },

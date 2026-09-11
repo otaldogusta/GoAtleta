@@ -120,10 +120,10 @@ export default function StaffInviteScreen() {
   }
   return <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
     <View style={styles.block}>
-      <Text style={[styles.title, { color: colors.text }]}>{invalid ? "Convite indisponível" : "Convite de funcionário"}</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{invalid ? "Convite indisponível" : "Convite da instituição"}</Text>
       <Text style={[styles.copy, { color: colors.muted }]}>
         {invalid ? "Abra novamente o link recebido por e-mail." : resumeCode
-          ? "Continue o cadastro da conta convidada."
+          ? "Confirme o convite para continuar seu cadastro."
           : session
           ? `Você está conectado como ${session.user.email}. Continuar troca para a conta convidada.`
           : "Aceite para entrar com a conta que recebeu este convite."}
@@ -132,7 +132,15 @@ export default function StaffInviteScreen() {
       {!invalid ? <Button label={busy ? "Validando convite..." : resumeCode ? "Continuar cadastro" : session ? "Trocar conta e aceitar" : "Aceitar e entrar"}
         disabled={!ready || loading || busy} onPress={() => void accept()} /> : null}
       {error && proof ? <Button label="Entrar com a conta convidada" variant="secondary" disabled={busy} onPress={() => void login()} /> : null}
-      <Button label={session ? "Manter minha conta" : "Voltar"} variant="secondary" disabled={busy} onPress={() => router.replace("/")} />
+      <Button
+        label={session ? "Manter minha conta" : "Voltar"}
+        variant="secondary"
+        disabled={busy}
+        onPress={() => void (async () => {
+          await clearPendingTrainerInvite();
+          router.replace("/");
+        })()}
+      />
     </View>
   </ScrollView>;
 }

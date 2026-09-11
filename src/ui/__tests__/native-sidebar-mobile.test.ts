@@ -5,14 +5,16 @@ import TestRenderer, { act } from "react-test-renderer";
 
 import { NativeSidebar } from "../NativeSidebar";
 
-(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
-  .IS_REACT_ACT_ENVIRONMENT = true;
+(
+  globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mockPush = jest.fn();
 const mockSignOut = jest.fn();
+let mockPathname = "/prof";
 
 jest.mock("expo-router", () => ({
-  usePathname: () => "/prof",
+  usePathname: () => mockPathname,
   useRouter: () => ({ push: mockPush }),
 }));
 
@@ -50,28 +52,45 @@ jest.mock("../icon-registry", () => ({
 }));
 
 const appShell = readFileSync(resolve(__dirname, "../AppShell.tsx"), "utf8");
-const nativeSidebar = readFileSync(resolve(__dirname, "../NativeSidebar.tsx"), "utf8");
+const nativeSidebar = readFileSync(
+  resolve(__dirname, "../NativeSidebar.tsx"),
+  "utf8",
+);
 const homeProfessor = readFileSync(
   resolve(__dirname, "../../screens/home/HomeProfessor.tsx"),
-  "utf8"
+  "utf8",
 );
 
 describe("native mobile sidebar", () => {
+  beforeEach(() => {
+    mockPathname = "/prof";
+    mockPush.mockClear();
+  });
   it("exposes the same Home menu trigger on native mobile", () => {
     expect(homeProfessor).toContain("{responsiveLayout.isMobile ? (");
     expect(homeProfessor).toContain("openMobileSidebar();");
-    expect(homeProfessor).toContain('accessibilityLabel="Abrir menu principal"');
+    expect(homeProfessor).toContain(
+      'accessibilityLabel="Abrir menu principal"',
+    );
   });
 
   it("keeps an expanded, dismissible native drawer mounted for a stable animation", () => {
-    expect(appShell).toContain('Platform.OS !== "web" && !layout.usesWorkspaceShell');
+    expect(appShell).toContain(
+      'Platform.OS !== "web" && !layout.usesWorkspaceShell',
+    );
     expect(appShell).toContain("accessibilityViewIsModal");
     expect(appShell).toContain("forceExpanded");
-    expect(appShell).toContain('BackHandler.addEventListener("hardwareBackPress"');
+    expect(appShell).toContain(
+      'BackHandler.addEventListener("hardwareBackPress"',
+    );
     expect(appShell).toContain("mobileSidebarProgress");
     expect(appShell).toContain("renderToHardwareTextureAndroid");
-    expect(appShell).toContain('pointerEvents={mobileSidebarOpen ? "auto" : "none"}');
-    expect(nativeSidebar).toContain('accessibilityLabel="Fechar menu principal"');
+    expect(appShell).toContain(
+      'pointerEvents={mobileSidebarOpen ? "auto" : "none"}',
+    );
+    expect(nativeSidebar).toContain(
+      'accessibilityLabel="Fechar menu principal"',
+    );
     expect(nativeSidebar).toContain("onNavigate?.();");
   });
 
@@ -99,10 +118,13 @@ describe("native mobile sidebar", () => {
     });
 
     act(() => {
-      renderer!.root.findByProps({ accessibilityLabel: "Abrir menu de perfil" }).props.onPress();
+      renderer!.root
+        .findByProps({ accessibilityLabel: "Abrir menu de perfil" })
+        .props.onPress();
     });
     expect(
-      renderer!.root.findAllByProps({ accessibilityLabel: "Menu de perfil" }).length,
+      renderer!.root.findAllByProps({ accessibilityLabel: "Menu de perfil" })
+        .length,
     ).toBeGreaterThan(0);
 
     act(() => {
@@ -116,7 +138,9 @@ describe("native mobile sidebar", () => {
         }),
       );
     });
-    expect(renderer!.root.findAllByProps({ accessibilityLabel: "Menu de perfil" })).toHaveLength(0);
+    expect(
+      renderer!.root.findAllByProps({ accessibilityLabel: "Menu de perfil" }),
+    ).toHaveLength(0);
   });
 
   it("keeps athletes as a primary coordination drawer destination", () => {
@@ -132,9 +156,52 @@ describe("native mobile sidebar", () => {
       );
     });
 
-    const athletes = renderer!.root.findByProps({ accessibilityLabel: "Atletas" });
+    const athletes = renderer!.root.findByProps({
+      accessibilityLabel: "Atletas",
+    });
     act(() => athletes.props.onPress());
 
     expect(mockPush).toHaveBeenCalledWith("/coord/students");
+  });
+
+  it("keeps the SaaS workspace isolated to Panel and Accesses on native", () => {
+    mockPathname = "/platform/accesses";
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(NativeSidebar, {
+          role: "coord",
+          visible: true,
+          canExpand: false,
+          forceExpanded: true,
+        }),
+      );
+    });
+
+    const navigationButtons = renderer!.root.findAll(
+      (node) =>
+        typeof node.props.onPress === "function" &&
+        typeof node.props.accessibilityLabel === "string",
+    );
+    expect(
+      navigationButtons.some(
+        (node) => node.props.accessibilityLabel === "Painel",
+      ),
+    ).toBe(true);
+    expect(
+      navigationButtons.some(
+        (node) => node.props.accessibilityLabel === "Acessos",
+      ),
+    ).toBe(true);
+    expect(
+      navigationButtons.filter(
+        (node) => node.props.accessibilityLabel === "Turmas",
+      ),
+    ).toHaveLength(0);
+    expect(
+      navigationButtons.find(
+        (node) => node.props.accessibilityLabel === "Acessos",
+      )?.props.accessibilityState,
+    ).toEqual({ selected: true });
   });
 });

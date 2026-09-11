@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 
 import { decorativeIconProps } from "./decorative-icon-props";
@@ -168,6 +168,18 @@ export function GoAtletaIcon({ name, ...props }: GoAtletaIconProps) {
       {...decorativeIconProps}
       {...props}
       name={getGoAtletaIconName(name)}
+    />
+  );
+}
+
+type PixLogoIconProps = Omit<ComponentProps<typeof MaterialIcons>, "name">;
+
+export function PixLogoIcon(props: PixLogoIconProps) {
+  return (
+    <MaterialIcons
+      {...decorativeIconProps}
+      {...props}
+      name="pix"
     />
   );
 }

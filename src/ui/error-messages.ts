@@ -124,6 +124,14 @@ export const getFriendlyErrorMessage = (
     return "Falha de conexão. Verifique sua internet.";
   }
 
+  if (
+    comparable.includes("unable to get sms provider")
+    || comparable.includes("sms provider")
+    || comparable.includes("phone_provider_disabled")
+  ) {
+    return "Envio de SMS ainda não configurado.";
+  }
+
   if (comparable.includes("same_password") || lower.includes("same password")) {
     return "A nova senha precisa ser diferente da anterior.";
   }
