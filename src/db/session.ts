@@ -477,7 +477,7 @@ export async function getSessionLogsByRange(
   );
   if (!organizationId) return [];
   const rows = await supabaseGet<SessionLogRow[]>(
-    `/session_logs?select=*&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
+    `/session_logs?select=id,client_id,classid,organization_id,rpe,technique,attendance,activity,conclusion,participants_count,pain_score,createdat&organization_id=eq.${encodeURIComponent(organizationId)}&createdat=gte.${encodeURIComponent(startIso)}&createdat=lt.${encodeURIComponent(endIso)}`
   );
   const mapped = rows.map((row) => ({
     id: row.id,
@@ -514,7 +514,9 @@ export async function getSessionLogsByClass(
   try {
     const organizationId = options.organizationId ?? (await getActiveOrganizationId());
     const query = [
-      "select=*",
+      // Photos can contain large inline payloads. List/summary views do not use
+      // them, so only the single-session detail query should download them.
+      "select=id,client_id,classid,organization_id,rpe,technique,attendance,activity,conclusion,participants_count,pain_score,createdat",
       `classid=eq.${encodeURIComponent(classId)}`,
       organizationId ? `organization_id=eq.${encodeURIComponent(organizationId)}` : "",
       options.startIso ? `createdat=gte.${encodeURIComponent(options.startIso)}` : "",
