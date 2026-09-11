@@ -78,7 +78,7 @@ export async function platformUpdateInstitutionAccount(input: {
   idempotencyKey: string;
 }): Promise<{ organizationId: string; changed: boolean; updatedAt: string }> {
   const rows = await supabaseRestPost<
-    Array<{ organization_id: string; changed: boolean; updated_at: string }>
+    { organization_id: string; changed: boolean; updated_at: string }[]
   >("/rpc/platform_update_institution_account", {
     p_organization_id: input.organizationId,
     p_product: input.product,

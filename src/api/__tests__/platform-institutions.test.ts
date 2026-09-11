@@ -1,10 +1,10 @@
-jest.mock("../rest", () => ({ supabaseRestPost: jest.fn() }));
-
 import { supabaseRestPost } from "../rest";
 import {
   platformListInstitutions,
   platformUpdateInstitutionAccount,
 } from "../platform-institutions";
+
+jest.mock("../rest", () => ({ supabaseRestPost: jest.fn() }));
 
 const post = supabaseRestPost as jest.MockedFunction<typeof supabaseRestPost>;
 

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Animated, Easing, ScrollView, Text, View } from "react-native";
 
 import type { InstitutionAccessPlan } from "../institution-access-plans";
@@ -238,9 +238,9 @@ function PlanEnrollmentWizard({
   const [billingDay, setBillingDay] = useState(plan.billingDay);
   const [paymentPreference, setPaymentPreference] = useState<PlanPaymentPreference>("Pix");
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const entryProgress = useRef(new Animated.Value(0)).current;
-  const stepOpacity = useRef(new Animated.Value(1)).current;
-  const stepTranslateX = useRef(new Animated.Value(0)).current;
+  const [entryProgress] = useState(() => new Animated.Value(0));
+  const [stepOpacity] = useState(() => new Animated.Value(1));
+  const [stepTranslateX] = useState(() => new Animated.Value(0));
   const billingPreview = getPlanBillingPreview(new Date(), billingDay);
   const stepTitle = step === 1 ? "Vencimento" : step === 2 ? "Matrícula" : "Revisão";
 

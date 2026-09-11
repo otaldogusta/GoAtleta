@@ -45,6 +45,8 @@ export function NativeDateInput({ accessibilityLabel, value, onChangeText }: Nat
   const [displayValue, setDisplayValue] = useState(() => formatIsoDate(value));
 
   useEffect(() => {
+    // Keep the human-readable draft synchronized with the controlled ISO value.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDisplayValue(formatIsoDate(value));
   }, [value]);
 

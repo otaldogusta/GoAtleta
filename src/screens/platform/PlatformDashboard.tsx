@@ -205,6 +205,8 @@ export function PlatformDashboard() {
   }, [showSaveToast]);
 
   useEffect(() => {
+    // Reconcile the dashboard with the remote institution lifecycle records.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
   const filtered = useMemo(
@@ -281,7 +283,7 @@ export function PlatformDashboard() {
       setBusy(false);
     }
   };
-  const metrics: Array<[GoAtletaIconName, string, string, string]> = [
+  const metrics: [GoAtletaIconName, string, string, string][] = [
     [
       "organization",
       String(items.filter((item) => item.status === "active").length),

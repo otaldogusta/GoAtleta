@@ -7,6 +7,7 @@ const ROOT_DIR = path.resolve(__dirname, "..");
 const VALID_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".json", ".md"]);
 const IGNORE_DIRS = new Set([
   ".git",
+  ".codex-tmp",
   ".expo",
   ".expo-web-build-check",
   ".expo-web-build-check2",

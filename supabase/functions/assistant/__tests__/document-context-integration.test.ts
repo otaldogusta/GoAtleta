@@ -4,7 +4,7 @@ import path from "node:path";
 const assistantSource = readFileSync(
   path.resolve(__dirname, "..", "index.ts"),
   "utf8"
-);
+).replace(/\r\n/g, "\n");
 
 describe("assistant unified document context", () => {
   test("usa o resolvedor compartilhado em vez de uma recuperação paralela", () => {

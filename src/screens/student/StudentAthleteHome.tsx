@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -46,33 +46,37 @@ export function StudentAthleteHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const studentClassId = student?.classId;
+  const studentOrganizationId = student?.organizationId;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [notifications, studentClass] = await Promise.all([
-      getNotifications("student", student?.organizationId),
-      student?.classId
-        ? getClassById(student.classId, { organizationId: student.organizationId })
+      getNotifications("student", studentOrganizationId),
+      studentClassId
+        ? getClassById(studentClassId, { organizationId: studentOrganizationId })
         : Promise.resolve(null),
     ]);
     setInbox(notifications);
     setClasses(studentClass ? [studentClass] : []);
-  };
+  }, [studentClassId, studentOrganizationId]);
 
   useEffect(() => {
     let alive = true;
+    // Load the external inbox/class sources when the athlete scope changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load().finally(() => {
       if (alive) setLoading(false);
     });
     const unsubscribe = subscribeNotifications(
       (items) => alive && setInbox(items),
       "student",
-      student?.organizationId,
+      studentOrganizationId,
     );
     return () => {
       alive = false;
       unsubscribe();
     };
-  }, [student?.classId, student?.organizationId]);
+  }, [load, studentOrganizationId]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60_000);

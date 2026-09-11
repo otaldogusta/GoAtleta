@@ -288,7 +288,11 @@ export default function PendingScreen() {
     }
   }, [session]);
 
-  useEffect(() => { void loadAccessRequest(); }, [loadAccessRequest]);
+  useEffect(() => {
+    // The async request reconciles React state with the remote access record.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadAccessRequest();
+  }, [loadAccessRequest]);
 
   useEffect(() => {
     if (!session || accessRequest?.status === "pending") return;

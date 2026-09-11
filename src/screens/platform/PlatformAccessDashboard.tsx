@@ -330,6 +330,8 @@ export function PlatformAccessDashboard({
   }, [designPreview]);
 
   useEffect(() => {
+    // Reconcile this dashboard with platform access records on mount/preview changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 

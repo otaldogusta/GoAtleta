@@ -81,15 +81,6 @@ import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntim
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
-
-const ATHLETE_POSITION_OPTIONS: { value: AthletePosition; label: string }[] = [
-  { value: "indefinido", label: "Não definida" },
-  { value: "levantador", label: "Levantador" },
-  { value: "oposto", label: "Oposto" },
-  { value: "ponteiro", label: "Ponteiro" },
-  { value: "central", label: "Central" },
-  { value: "libero", label: "Líbero" },
-];
 import { AppRefreshControl } from "../src/ui/AppRefreshControl";
 import { AnchoredDropdown } from "../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../src/ui/AnchoredDropdownOption";
@@ -112,6 +103,15 @@ import {
   type ProfileSwitchId,
 } from "../src/ui/profile-switch-options";
 import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
+
+const ATHLETE_POSITION_OPTIONS: { value: AthletePosition; label: string }[] = [
+  { value: "indefinido", label: "Não definida" },
+  { value: "levantador", label: "Levantador" },
+  { value: "oposto", label: "Oposto" },
+  { value: "ponteiro", label: "Ponteiro" },
+  { value: "central", label: "Central" },
+  { value: "libero", label: "Líbero" },
+];
 
 type ProfilePreviewId = ProfileSwitchId;
 
@@ -257,12 +257,14 @@ function MobileProfileSection({
   grouped?: boolean;
 }) {
   const { colors } = useAppTheme();
-  const expansionAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+  const [expansionAnim] = useState(() => new Animated.Value(expanded ? 1 : 0));
   const [renderChildren, setRenderChildren] = useState(expanded);
 
   useEffect(() => {
     const useNativeDriver = Platform.OS !== "web";
     if (expanded) {
+      // Children must mount before the opening animation can reveal them.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRenderChildren(true);
       expansionAnim.stopAnimation();
       Animated.timing(expansionAnim, {
@@ -1148,6 +1150,8 @@ export default function ProfileScreen() {
       guardianRelation: student?.guardianRelation ?? "",
       countryCode: "+55",
     };
+    // Reconcile the editable draft when the authenticated profile changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileNameDraft(nextValues.name);
     setMobileBirthDraft(nextValues.birth);
     setMobilePhoneDraft(nextValues.phone);
@@ -1171,6 +1175,8 @@ export default function ProfileScreen() {
       medicationNotes: student?.medicationNotes ?? "",
       healthObservations: student?.healthObservations ?? "",
     };
+    // Reconcile the sports draft when a different athlete profile is loaded.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobilePositionDraft(nextValues.position);
     setMobileHealthIssueDraft(nextValues.healthIssue);
     setMobileHealthIssueNotesDraft(nextValues.healthIssueNotes);
