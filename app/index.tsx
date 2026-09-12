@@ -3,7 +3,7 @@ import { ActivityIndicator, Platform, View } from "react-native";
 import { useAuth } from "../src/auth/auth";
 import { useRole } from "../src/auth/role";
 import { useEffectiveProfile } from "../src/hooks/use-effective-profile";
-import { useOptionalOrganization } from "../src/providers/OrganizationProvider";
+import { useOptionalOrganization } from "../src/providers/organization-context";
 import { useAppTheme } from "../src/ui/app-theme";
 
 // perf-check: ignore-render

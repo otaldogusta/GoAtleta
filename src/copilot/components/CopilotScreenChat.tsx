@@ -9,7 +9,7 @@ import { getConversationSuggestions } from "../../assistant/conversation-suggest
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useAuth } from "../../auth/auth";
-import { useOrganization } from "../../providers/OrganizationProvider";
+import { useOrganization } from "../../providers/organization-context";
 import { useAppTheme } from "../../ui/app-theme";
 import { spacing } from "../../theme/tokens";
 import { AssistantComposer } from "../../assistant/components/AssistantComposer";

@@ -83,7 +83,7 @@ import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
-import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { useOrganization } from "../../src/providers/organization-context";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";

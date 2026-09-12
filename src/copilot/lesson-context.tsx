@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useId, type Dispatch, type SetStateAction } from "react";
 import type { TrainingPlan } from "../core/models";
 import { useAuth } from "../auth/auth";
-import { useOrganization } from "../providers/OrganizationProvider";
+import { useOrganization } from "../providers/organization-context";
 import type { LessonConversationScope } from "../screens/session/hooks/useLessonConversation";
 
 export type CopilotLessonScope = LessonConversationScope & {

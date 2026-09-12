@@ -79,7 +79,7 @@ import {
 } from "../../notificationsInbox";
 import { notificationScopeForEffectiveProfile } from "../../notifications/inbox-scope";
 
-import { useOrganization } from "../../providers/OrganizationProvider";
+import { useOrganization } from "../../providers/organization-context";
 
 
 import { SyncStatusBadge } from "../../ui/SyncStatusBadge";

@@ -18,7 +18,7 @@ jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, setP
 jest.mock("../../../api/staff-invite", () => ({ resumeStaffSignup: jest.fn(), refreshStaffSignupSession: (...args: unknown[]) => mockRefresh(...args) }));
 jest.mock("../../../auth/auth", () => ({ useAuth: () => ({ session: { user: { email: "owner@example.com" } }, loading: false, acceptStaffInvite: mockAccept, completeStaffInvite: mockComplete, signOut: mockSignOut }) }));
 jest.mock("../../../auth/pending-invite", () => ({ savePendingTrainerInvite: jest.fn().mockResolvedValue(undefined), clearPendingTrainerInvite: (...args: unknown[]) => mockClearPending(...args) }));
-jest.mock("../../../providers/OrganizationProvider", () => ({ useOrganization: () => ({ setActiveOrganizationId: mockSetOrganization }) }));
+jest.mock("../../../providers/organization-context", () => ({ useOrganization: () => ({ setActiveOrganizationId: mockSetOrganization }) }));
 jest.mock("../../../ui/app-theme", () => ({ useAppTheme: () => ({ mode: "dark", colors: {} }) }));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: jest.requireActual("react-native").View }));
 jest.mock("../../../components/ui/ScreenBackdrop", () => ({ ScreenBackdrop: () => null }));

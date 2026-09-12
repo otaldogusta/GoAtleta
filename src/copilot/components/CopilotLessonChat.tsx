@@ -9,7 +9,7 @@ import { StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-na
 import { Button } from "../../ui/Button";
 import { useAppTheme } from "../../ui/app-theme";
 import { useAuth } from "../../auth/auth";
-import { useOrganization } from "../../providers/OrganizationProvider";
+import { useOrganization } from "../../providers/organization-context";
 import { spacing } from "../../theme/tokens";
 import { useLessonConversation } from "../../screens/session/hooks/useLessonConversation";
 import { AssistantComposer } from "../../assistant/components/AssistantComposer";

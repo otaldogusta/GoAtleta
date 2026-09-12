@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, type ReactNode } from "react";
 
 import type { MemberPermissionKey } from "../api/members";
-import { useOrganization } from "../providers/OrganizationProvider";
+import { useOrganization } from "../providers/organization-context";
 
 type MemberPermissionBoundaryProps = {
   children: ReactNode;

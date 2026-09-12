@@ -68,7 +68,7 @@ import {
   measure,
   measureAsync,
 } from "../../src/observability/perf";
-import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { useOrganization } from "../../src/providers/organization-context";
 import { shadow } from "../../src/theme/tokens";
 import {
   StudentClassDropdownPanel,

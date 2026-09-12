@@ -28,7 +28,7 @@ import {
 import { markRender, measureAsync } from "../src/observability/perf";
 import { resolveNotificationInboxScope } from "../src/notifications/inbox-scope";
 import { resolveNotificationOrganizationId } from "../src/notifications/notification-organization";
-import { useOrganization } from "../src/providers/OrganizationProvider";
+import { useOrganization } from "../src/providers/organization-context";
 import { canActOnAbsenceNotice } from "../src/screens/absence-notices/absence-notice-state";
 import {
   buildNoticeFeedSections,

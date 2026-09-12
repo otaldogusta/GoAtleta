@@ -49,7 +49,7 @@ import { NFC_ERRORS } from "../src/nfc/nfc-errors";
 import { useNfcContinuousScan } from "../src/nfc/nfc-hooks";
 import { logNfcError, logNfcEvent } from "../src/nfc/telemetry";
 import { markRender, measureAsync } from "../src/observability/perf";
-import { useOrganization } from "../src/providers/OrganizationProvider";
+import { useOrganization } from "../src/providers/organization-context";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useConfirmDialog } from "../src/ui/confirm-dialog";

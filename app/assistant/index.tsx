@@ -29,7 +29,7 @@ import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notificati
 import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
 import { resolveNotificationInboxScope } from "../../src/notifications/inbox-scope";
 import { markRender, measureAsync } from "../../src/observability/perf";
-import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { useOrganization } from "../../src/providers/organization-context";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { Button } from "../../src/ui/Button";
 import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";

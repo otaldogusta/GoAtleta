@@ -8,7 +8,7 @@ import { markRender } from "../src/observability/perf";
 import { useAuth } from "../src/auth/auth";
 import { parseStaffInviteFragment, type StaffInviteProof } from "../src/auth/staff-invite-link";
 import { clearPendingTrainerInvite, savePendingTrainerInvite } from "../src/auth/pending-invite";
-import { useOrganization } from "../src/providers/OrganizationProvider";
+import { useOrganization } from "../src/providers/organization-context";
 import { Button } from "../src/ui/Button";
 import { useAppTheme } from "../src/ui/app-theme";
 

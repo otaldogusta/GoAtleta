@@ -18,7 +18,7 @@ import {
     listAdminRecentActivity,
 } from "../../../api/reports";
 import { markRender, measureAsync } from "../../../observability/perf";
-import { useOrganization } from "../../../providers/OrganizationProvider";
+import { useOrganization } from "../../../providers/organization-context";
 import { Pressable } from "../../../ui/Pressable";
 import { useAppTheme } from "../../../ui/app-theme";
 import { getGlassCardStyle } from "../../../ui/glass-styles";

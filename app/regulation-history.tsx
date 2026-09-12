@@ -29,7 +29,7 @@ import { ResponsiveGrid } from "../src/components/ui/ResponsiveGrid";
 import { ResponsivePage } from "../src/components/ui/ResponsivePage";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { markRender, measureAsync } from "../src/observability/perf";
-import { useOrganization } from "../src/providers/OrganizationProvider";
+import { useOrganization } from "../src/providers/organization-context";
 import { RegulationPanel, RegulationSectionHeader } from "../src/screens/regulations/RegulationDashboardPanels";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";

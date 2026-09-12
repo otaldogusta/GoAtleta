@@ -76,7 +76,7 @@ import {
 } from "../src/db/academic-knowledge";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../src/navigation/use-trainer-route-scope";
-import { useOrganization } from "../src/providers/OrganizationProvider";
+import { useOrganization } from "../src/providers/organization-context";
 import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
 import {
   disableWebPush,

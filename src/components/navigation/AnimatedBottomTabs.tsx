@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRenderDiagnostic } from "../../dev/useRenderDiagnostic";
 import { navigateToPrimaryRoute } from "../../navigation/primary-route-navigation";
-import { useOptionalOrganization } from "../../providers/OrganizationProvider";
+import { useOptionalOrganization } from "../../providers/organization-context";
 import {
   getTrainerPermissionKey,
   isTrainerPathAllowed,

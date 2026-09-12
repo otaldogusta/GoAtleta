@@ -16,7 +16,7 @@ import { formatUnreadNotificationBadge } from "../notifications/unread-notificat
 import { resolveNotificationOrganizationId } from "../notifications/notification-organization";
 import { PROFILE_NAME_FALLBACK, resolveProfileDisplayName } from "../core/profile-name";
 import { useUnreadNotificationCount } from "../notifications/useUnreadNotificationCount";
-import { useOptionalOrganization } from "../providers/OrganizationProvider";
+import { useOptionalOrganization } from "../providers/organization-context";
 import { brandPalette, radius } from "../theme/tokens";
 import { Pressable } from "./Pressable";
 import { GoAtletaBrandMark, GoAtletaBrandWordmark } from "./GoAtletaBrand";

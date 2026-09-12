@@ -16,6 +16,7 @@ import { Pressable } from "../src/ui/Pressable";
 import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "../src/auth/auth";
 import { FirstAccessProfileGate } from "../src/auth/FirstAccessProfileGate";
+import { resolveOAuthEntryTarget } from "../src/auth/oauth-post-login";
 import {
   getPendingInvite,
   getPendingRelationshipInvite,
@@ -55,10 +56,8 @@ import { logNavigation } from "../src/observability/breadcrumbs";
 import { setSentryBaseTags } from "../src/observability/sentry";
 import { VercelWebAnalytics } from "../src/observability/VercelWebAnalytics";
 import { resolveNotificationOrganizationId } from "../src/notifications/notification-organization";
-import {
-  OrganizationProvider,
-  useOptionalOrganization,
-} from "../src/providers/OrganizationProvider";
+import { OrganizationProvider } from "../src/providers/OrganizationProvider";
+import { useOptionalOrganization } from "../src/providers/organization-context";
 import {
   ensureAndroidNotificationChannel,
   ensureNotificationHandlerConfigured,
@@ -266,6 +265,13 @@ function RootLayoutContent() {
   const lastPushRegistrationKeyRef = useRef("");
   const oauthHandledHrefRef = useRef("");
   const oauthInFlightRef = useRef(false);
+  const [oauthResolving, setOauthResolving] = useState(
+    () =>
+      Platform.OS === "web" &&
+      typeof window !== "undefined" &&
+      (new URLSearchParams(window.location.search).has("code") ||
+        new URLSearchParams(window.location.hash.replace(/^#/, "")).has("access_token")),
+  );
   const navReady = Boolean(rootState?.key);
   const isAdminProfile =
     role === "trainer" && (activeOrganization?.role_level ?? 0) >= 50;
@@ -287,7 +293,7 @@ function RootLayoutContent() {
     hasSession: Boolean(session),
     role,
   });
-  const isBooting = bootStatus.blocking;
+  const isBooting = bootStatus.blocking || oauthResolving;
   const shouldMaskBoot = shouldMaskBootContent(bootStatus);
   useBirthdayNotifications({
     enabled: Boolean(session) && !isBooting,
@@ -370,7 +376,7 @@ function RootLayoutContent() {
     );
   const shouldShowFirstAccessProfile =
     Boolean(session) &&
-    (role === "trainer" || role === "student" || role === "family") &&
+    (role === "trainer" || role === "family") &&
     !isPublicRoute &&
     !isInviteRoute &&
     normalizedPathname !== "/pending" &&
@@ -557,7 +563,7 @@ function RootLayoutContent() {
 
   useEffect(() => {
     if (initialRouteGuardAppliedRef.current) return;
-    if (bootstrapLoading || !navReady || loading) return;
+    if (bootstrapLoading || !navReady || loading || oauthResolving) return;
     // This entry owns explicit account-switch confirmation; do not let an old
     // session or a pending role redirect before the email proof is redeemed.
     if (normalizedPathname === "/staff-invite") return;
@@ -573,13 +579,14 @@ function RootLayoutContent() {
     loading,
     navReady,
     normalizedPathname,
+    oauthResolving,
     router,
     session,
   ]);
 
   useEffect(() => {
     if (stuckEventsGuardRef.current) return;
-    if (bootstrapLoading || !navReady || loading) return;
+    if (bootstrapLoading || !navReady || loading || oauthResolving) return;
     if (normalizedPathname !== "/events") return;
 
     const routeCount = Array.isArray(rootState?.routes)
@@ -597,6 +604,7 @@ function RootLayoutContent() {
     loading,
     navReady,
     normalizedPathname,
+    oauthResolving,
     rootState.routes,
     router,
   ]);
@@ -645,7 +653,7 @@ function RootLayoutContent() {
       }
     }
 
-    if (bootstrapLoading || !navReady || loading) return;
+    if (bootstrapLoading || !navReady || loading || oauthResolving) return;
 
     // Do not redirect users away from reset-password screen during password recovery
     if (normalizedPathname === "/reset-password") return;
@@ -805,6 +813,7 @@ function RootLayoutContent() {
     appHomeHref,
     organizationLoading,
     appStartedAtRef,
+    oauthResolving,
   ]);
 
   useEffect(() => {
@@ -822,32 +831,40 @@ function RootLayoutContent() {
       const nextAfterAuth = sanitizePostLoginRedirect(urlParams.get("next"));
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
-      const redirectAfterAuth = async () => {
+      const redirectAfterAuth = async (authenticatedSession: typeof session) => {
         const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([
           getPendingInvite(),
           getPendingRelationshipInvite(),
           getPendingTrainerInvite(),
         ]);
-        const destination = resolvePendingInviteRedirect({
+        const pendingDestination = resolvePendingInviteRedirect({
           pendingStudentToken,
           pendingTrainerCode,
           pendingRelationshipToken,
           defaultTarget: nextAfterAuth ?? "/",
         });
+        const destination = resolveOAuthEntryTarget({
+          session: authenticatedSession,
+          pendingDestination,
+          hasPendingInvite: Boolean(
+            pendingStudentToken || pendingRelationshipToken || pendingTrainerCode,
+          ),
+        });
         router.replace(destination as Parameters<typeof router.replace>[0]);
       };
       exchangeCodeForSession(code)
-        .then(async () => {
+        .then(async (authenticatedSession) => {
           // Clean up URL
           const newUrl = window.location.origin + window.location.pathname;
           safeReplaceHistoryUrl(newUrl);
-          await redirectAfterAuth();
+          await redirectAfterAuth(authenticatedSession);
         })
         .catch(() => {
           router.replace("/welcome");
         })
         .finally(() => {
           oauthInFlightRef.current = false;
+          setOauthResolving(false);
         });
       return;
     }
@@ -869,25 +886,32 @@ function RootLayoutContent() {
       const nextAfterAuth = sanitizePostLoginRedirect(searchParams.get("next"));
       oauthHandledHrefRef.current = authHref;
       oauthInFlightRef.current = true;
-      const redirectAfterAuth = async () => {
+      const redirectAfterAuth = async (authenticatedSession: typeof session) => {
         const [pendingStudentToken, pendingRelationshipToken, pendingTrainerCode] = await Promise.all([
           getPendingInvite(),
           getPendingRelationshipInvite(),
           getPendingTrainerInvite(),
         ]);
-        const destination = resolvePendingInviteRedirect({
+        const pendingDestination = resolvePendingInviteRedirect({
           pendingStudentToken,
           pendingTrainerCode,
           pendingRelationshipToken,
           defaultTarget: nextAfterAuth ?? "/",
         });
+        const destination = resolveOAuthEntryTarget({
+          session: authenticatedSession,
+          pendingDestination,
+          hasPendingInvite: Boolean(
+            pendingStudentToken || pendingRelationshipToken || pendingTrainerCode,
+          ),
+        });
         router.replace(destination as Parameters<typeof router.replace>[0]);
       };
       consumeAuthUrl(window.location.href)
-        .then(async () => {
+        .then(async (authenticatedSession) => {
           const cleanUrl = window.location.origin + window.location.pathname;
           safeReplaceHistoryUrl(cleanUrl);
-          await redirectAfterAuth();
+          await redirectAfterAuth(authenticatedSession);
         })
         .catch(() => {
           const cleanUrl = window.location.origin + window.location.pathname;
@@ -896,6 +920,7 @@ function RootLayoutContent() {
         })
         .finally(() => {
           oauthInFlightRef.current = false;
+          setOauthResolving(false);
         });
       return;
     }

@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useRole } from "../auth/role";
 import { useAuth } from "../auth/auth";
 import { canUseProfilePreview } from "../dev/profile-preview-access";
-import { useOptionalOrganization } from "../providers/OrganizationProvider";
+import { useOptionalOrganization } from "../providers/organization-context";
 import { resolveEffectiveProfile, type EffectiveProfile } from "../core/effective-profile";
 
 export function useEffectiveProfile(): EffectiveProfile {

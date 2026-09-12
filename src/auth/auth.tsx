@@ -24,6 +24,7 @@ import {
 import { canSafelyUnlinkProvider, type LinkedIdentity } from "./identity-linking";
 import { runWithFreshAuthToken } from "./auth-token-retry";
 import { buildOAuthAuthorizeUrl } from "./oauth-url";
+import { revokeAuthSession } from "./auth-signout";
 import type { AuthSession } from "./session";
 import {
   forceRefreshAccessToken,
@@ -46,7 +47,7 @@ type AuthContextValue = {
     fullName?: string
   ) => Promise<AuthSession | null>;
   signInWithOAuth: (provider: "google" | "facebook" | "apple", redirectPath: string) => Promise<void>;
-  exchangeCodeForSession: (code: string) => Promise<void>;
+  exchangeCodeForSession: (code: string) => Promise<AuthSession>;
   consumeAuthUrl: (url: string) => Promise<AuthSession | null>;
   acceptStaffInvite: (proof: StaffInviteProof) => Promise<StaffInviteResult>;
   completeStaffInvite: (code: string, setup: StaffInviteResult, fields: StaffSignupFields) => Promise<StaffInviteResult>;
@@ -509,6 +510,7 @@ export function AuthProvider({
     const next = normalizeAuthSession(payload);
     setSession(next);
     await saveSession(next, true);
+    return next;
   }, []);
 
   const consumeAuthUrl = useCallback(async (url: string) => {
@@ -802,11 +804,20 @@ export function AuthProvider({
   );
 
   const signOut = useCallback(async () => {
+    const accessToken = session?.access_token ?? "";
     clearAiCache();
     setSession(null);
     await saveSession(null, false);
     await clearLocalReadCaches();
-  }, []);
+
+    try {
+      await revokeAuthSession(accessToken);
+    } catch (error) {
+      if (__DEV__) {
+        console.warn("Could not revoke the remote auth session.", error);
+      }
+    }
+  }, [session?.access_token]);
 
   const value = useMemo(
     () => ({
@@ -869,7 +880,9 @@ export const useAuth = () => {
       signIn: async () => {},
       signUp: async () => null,
       signInWithOAuth: async () => {},
-      exchangeCodeForSession: async () => {},
+      exchangeCodeForSession: async () => {
+        throw new Error("AuthProvider indisponível.");
+      },
       resendSignupCode: async () => {},
       verifySignupCode: async () => null,
       unlinkIdentityProvider: async () => {},

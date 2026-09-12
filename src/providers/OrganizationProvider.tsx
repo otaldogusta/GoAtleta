@@ -1,13 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { useRenderDiagnostic } from "../dev/useRenderDiagnostic";
 import { canUseProfilePreview } from "../dev/profile-preview-access";
@@ -33,6 +25,10 @@ import {
   isRequestCancellationError,
 } from "../ui/error-messages";
 import { resolvePermissionsLoading } from "./organization-loading";
+import {
+  OrganizationContext,
+  type Organization,
+} from "./organization-context";
 
 const ACTIVE_ORG_KEY = "active-org-id";
 
@@ -143,31 +139,6 @@ const postSupabaseRpc = async ({
     });
   }
 };
-
-type Organization = {
-  id: string;
-  name: string;
-  role_level: number;
-  created_at: string;
-  timezone?: string | null;
-};
-
-type OrganizationContextValue = {
-  organizations: Organization[];
-  activeOrganizationId: string | null;
-  activeOrganization: Organization | null;
-  isLoading: boolean;
-  setActiveOrganizationId: (orgId: string | null) => Promise<void>;
-  fetchOrganizations: () => Promise<void>;
-  createOrganization: (name: string) => Promise<string>;
-  devProfilePreview: DevProfilePreview;
-  setDevProfilePreview: (preview: DevProfilePreview) => Promise<void>;
-  memberPermissions: Partial<Record<MemberPermissionKey, boolean>>;
-  permissionsLoading: boolean;
-  refreshMemberPermissions: () => Promise<void>;
-};
-
-const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
@@ -537,14 +508,4 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
-}
-
-export function useOrganization() {
-  const ctx = useContext(OrganizationContext);
-  if (!ctx) throw new Error("useOrganization must be used within OrganizationProvider");
-  return ctx;
-}
-
-export function useOptionalOrganization() {
-  return useContext(OrganizationContext);
 }

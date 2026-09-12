@@ -45,7 +45,7 @@ import {
 } from "../src/db/seed";
 import { getScopedProfilePath } from "../src/navigation/profile-routes";
 import { markRender, measureAsync } from "../src/observability/perf";
-import { useOrganization } from "../src/providers/OrganizationProvider";
+import { useOrganization } from "../src/providers/organization-context";
 import { CoordinationPeopleWorkspace } from "../src/screens/coordination/CoordinationPeopleWorkspace";
 import { hasCoordinationAccess, resolveCoordinationScreenPhase } from "../src/screens/coordination/coordination-screen-state";
 import { useAppTheme } from "../src/ui/app-theme";

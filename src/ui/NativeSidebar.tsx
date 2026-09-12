@@ -17,7 +17,7 @@ import {
   resolveProfileDisplayName,
 } from "../core/profile-name";
 import { getScopedProfilePath } from "../navigation/profile-routes";
-import { useOptionalOrganization } from "../providers/OrganizationProvider";
+import { useOptionalOrganization } from "../providers/organization-context";
 import { brandPalette, radius } from "../theme/tokens";
 import { GoAtletaBrandMark, GoAtletaBrandWordmark } from "./GoAtletaBrand";
 import { Pressable } from "./Pressable";

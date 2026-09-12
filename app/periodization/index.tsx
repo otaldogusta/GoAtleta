@@ -127,7 +127,7 @@ import {
 } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
-import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
+import { useOptionalOrganization } from "../../src/providers/organization-context";
 
 import {
   archivePlanningCycle,

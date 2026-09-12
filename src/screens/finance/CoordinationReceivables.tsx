@@ -36,7 +36,7 @@ import {
 } from "../../finance/application/finance-format";
 import { useOrganizationAsyncIdentity } from "../../hooks/use-organization-async-identity";
 import { markRender, measureAsync } from "../../observability/perf";
-import { useOrganization } from "../../providers/OrganizationProvider";
+import { useOrganization } from "../../providers/organization-context";
 import { radius, spacing } from "../../theme/tokens";
 import { Button } from "../../ui/Button";
 import { ConfirmCloseOverlay } from "../../ui/ConfirmCloseOverlay";

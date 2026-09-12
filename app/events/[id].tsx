@@ -25,7 +25,7 @@ import { getClasses } from "../../src/db/seed";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { markRender, measureAsync } from "../../src/observability/perf";
-import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
+import { useOptionalOrganization } from "../../src/providers/organization-context";
 import { validateTournamentRules } from "../../src/regulation/tournament-rule-check";
 import { AnchoredDropdown } from "../../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../src/ui/AnchoredDropdownOption";

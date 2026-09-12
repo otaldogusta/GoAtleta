@@ -20,7 +20,7 @@ import { notificationScopeForEffectiveProfile } from "../../src/notifications/in
 import { resolveNotificationOrganizationId } from "../../src/notifications/notification-organization";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { getNotificationsModule, isExpoGo } from "../../src/push/notificationRuntime";
-import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { useOrganization } from "../../src/providers/organization-context";
 import { Pressable } from "../../src/ui/Pressable";
 import { SettingsRow } from "../../src/ui/SettingsRow";
 import { Typography } from "../../src/ui/Typography";

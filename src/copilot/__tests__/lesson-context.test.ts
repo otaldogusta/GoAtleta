@@ -3,7 +3,7 @@ import { renderHook } from "@testing-library/react-native";
 import { CopilotLessonContext, useCopilotLesson, type RegisteredCopilotLesson } from "../lesson-context";
 let mockOrganization = { id: "org", role_level: 10 };
 jest.mock("../../auth/auth", () => ({ useAuth: () => ({ session: { user: { id: "teacher" } } }) }));
-jest.mock("../../providers/OrganizationProvider", () => ({ useOrganization: () => ({ activeOrganization: mockOrganization, isLoading: false }) }));
+jest.mock("../../providers/organization-context", () => ({ useOrganization: () => ({ activeOrganization: mockOrganization, isLoading: false }) }));
 const scope = { classId: "class", organizationId: "org", date: "2026-09-08", sport: "volleyball", className: "Fixture", currentPlanId: null, onApplied: jest.fn() };
 let registered: RegisteredCopilotLesson | null = null;
 function Wrapper({ children }: PropsWithChildren) {

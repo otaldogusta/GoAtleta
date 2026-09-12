@@ -25,7 +25,7 @@ jest.mock("../../auth/auth", () => ({
   }),
 }));
 
-jest.mock("../../providers/OrganizationProvider", () => ({
+jest.mock("../../providers/organization-context", () => ({
   useOptionalOrganization: () => ({
     activeOrganization: { role_level: 50 },
     memberPermissions: {},

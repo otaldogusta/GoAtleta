@@ -54,7 +54,7 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { usePersistedState } from "../../src/ui/use-persisted-state";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
-import { useOptionalOrganization } from "../../src/providers/OrganizationProvider";
+import { useOptionalOrganization } from "../../src/providers/organization-context";
 
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 

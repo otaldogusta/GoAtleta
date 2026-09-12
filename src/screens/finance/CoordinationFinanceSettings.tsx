@@ -37,7 +37,7 @@ import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
 import { REAL_MONEY_PAYMENTS_ENABLED } from "../../core/payments";
 import { resolveFinanceSettingsDisplay } from "../../finance/application/finance-settings-state";
 import { markRender } from "../../observability/perf";
-import { useOrganization } from "../../providers/OrganizationProvider";
+import { useOrganization } from "../../providers/organization-context";
 import { radius, spacing } from "../../theme/tokens";
 import { Button } from "../../ui/Button";
 import { Pressable } from "../../ui/Pressable";

@@ -34,7 +34,7 @@ import {
   saveTrainingPlan,
 } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
-import { useOrganization } from "../src/providers/OrganizationProvider";
+import { useOrganization } from "../src/providers/organization-context";
 import { useAppTheme } from "../src/ui/app-theme";
 import { getClassPalette } from "../src/ui/class-colors";
 import { FadeHorizontalScroll } from "../src/ui/FadeHorizontalScroll";

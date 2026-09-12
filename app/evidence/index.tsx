@@ -17,7 +17,7 @@ import {
     type EvidenceSummary,
 } from "../../src/api/evidence";
 import { useRole } from "../../src/auth/role";
-import { useOrganization } from "../../src/providers/OrganizationProvider";
+import { useOrganization } from "../../src/providers/organization-context";
 import { Button } from "../../src/ui/Button";
 import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";

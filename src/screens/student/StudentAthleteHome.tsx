@@ -5,6 +5,8 @@ import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../../auth/role";
+import { useAuth } from "../../auth/auth";
+import { isRecentlyCreatedAuthUser } from "../../auth/oauth-post-login";
 import { ScreenLoadingState } from "../../components/ui/ScreenLoadingState";
 import { ResponsivePage } from "../../components/ui/ResponsivePage";
 import type { ClassGroup } from "../../core/models";
@@ -18,6 +20,10 @@ import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
+import {
+  formatImportantStudentFields,
+  getMissingImportantStudentFields,
+} from "../students/application/student-profile-completeness";
 
 type ScheduleItem = {
   classId: string;
@@ -40,6 +46,7 @@ export function StudentAthleteHome() {
   const { colors } = useAppTheme();
   const layout = useResponsiveLayout("dashboard");
   const { role, student } = useRole();
+  const { session } = useAuth();
   const profilePhotoUri = useStudentProfilePhoto(student);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [inbox, setInbox] = useState<AppNotification[]>([]);
@@ -131,6 +138,17 @@ export function StudentAthleteHome() {
   const latestNotification = inbox[0] ?? null;
   const firstName = student?.name?.trim().split(" ")[0] ?? "";
   const todayLabel = capitalize(now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }));
+  const missingProfileFields = useMemo(
+    () => getMissingImportantStudentFields(student ?? {}),
+    [student],
+  );
+  const isNewAccount = isRecentlyCreatedAuthUser(session?.user, now.getTime());
+  const shouldGuideProfile = role === "pending" || isNewAccount || missingProfileFields.length > 0;
+  const profileGuidance = role === "pending"
+    ? "Complete seus dados e encontre sua instituição quando estiver pronto."
+    : missingProfileFields.length > 0
+      ? `Adicione ${formatImportantStudentFields(missingProfileFields)} para concluir seu cadastro.`
+      : "Seu acesso está pronto. Você pode revisar seus dados quando quiser.";
   const openTraining = () => {
     if (!nextTraining) return router.push("/student/agenda");
     router.push({ pathname: "/student-plan", params: { classId: nextTraining.classId, date: nextTraining.startsAt.toISOString().slice(0, 10) } });
@@ -163,6 +181,39 @@ export function StudentAthleteHome() {
                   </Pressable>
                 </View>
               </View>
+
+              {shouldGuideProfile ? (
+                <View
+                  style={{
+                    borderRadius: radius.container,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                    padding: layout.density.cardPadding,
+                    flexDirection: layout.isMobile ? "column" : "row",
+                    alignItems: layout.isMobile ? "stretch" : "center",
+                    gap: spacing.md,
+                  }}
+                >
+                  <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}>
+                    <GoAtletaIcon name="personSolid" size={20} color={colors.success} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+                    <Text style={{ color: colors.text, fontSize: layout.density.cardTitleFontSize, fontWeight: "800" }}>
+                      {isNewAccount || role === "pending" ? "Bem-vindo ao Go Atleta" : "Complete seu perfil"}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontSize: layout.density.bodyFontSize }}>
+                      {profileGuidance}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => router.push("/student/profile")}
+                    style={{ minHeight: 44, borderRadius: radius.internal, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}
+                  >
+                    <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>Completar perfil</Text>
+                  </Pressable>
+                </View>
+              ) : null}
 
               <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 4 }}>
                 {weekDays.map((day) => (

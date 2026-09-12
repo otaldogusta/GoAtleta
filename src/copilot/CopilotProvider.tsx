@@ -28,7 +28,7 @@ import { useAuth } from "../auth/auth";
 import { getClasses } from "../db/seed";
 import { getScopedAssistantPath, isAssistantRoutePath } from "../navigation/profile-routes";
 import { markRender, measureAsync } from "../observability/perf";
-import { useOptionalOrganization } from "../providers/OrganizationProvider";
+import { useOptionalOrganization } from "../providers/organization-context";
 import { useAppTheme } from "../ui/app-theme";
 import { CopilotFab, resolveCopilotFabBottom } from "./components/CopilotFab";
 import { CopilotLessonContext, type RegisteredCopilotLesson } from "./lesson-context";
