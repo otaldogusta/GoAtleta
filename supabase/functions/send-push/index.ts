@@ -1,5 +1,7 @@
 ﻿import { buildCorsHeaders, corsPreflight } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// @deno-types="npm:@types/web-push@3.6.4"
+import webpush from "npm:web-push@3.6.7";
 import {
   validateObjectPayload,
   validateStringField,
@@ -49,6 +51,12 @@ type StoredNotificationRow = {
 type PushDeliveryClaimRow = {
   delivery_id: string | null;
   claim_status: "claimed" | "duplicate" | "rate_limited";
+};
+
+type WebPushSubscriptionRow = {
+  endpoint: string;
+  p256dh: string;
+  auth_key: string;
 };
 
 const createAnonClient = () => {
@@ -444,14 +452,23 @@ Deno.serve(async (request) => {
     );
   }
 
-  const { data: tokenRows, error: tokensError } = await supabase
-    .from("push_tokens")
-    .select("expo_push_token")
-    .eq("organization_id", organizationId)
-    .eq("user_id", targetUserId)
-    .order("updated_at", { ascending: false })
-    .limit(MAX_PUSH_TOKENS_PER_USER);
-  if (tokensError) {
+  const [expoTokensResult, webSubscriptionsResult] = await Promise.all([
+    supabase
+      .from("push_tokens")
+      .select("expo_push_token")
+      .eq("organization_id", organizationId)
+      .eq("user_id", targetUserId)
+      .order("updated_at", { ascending: false })
+      .limit(MAX_PUSH_TOKENS_PER_USER),
+    supabase
+      .from("web_push_subscriptions")
+      .select("endpoint,p256dh,auth_key")
+      .eq("organization_id", organizationId)
+      .eq("user_id", targetUserId)
+      .order("updated_at", { ascending: false })
+      .limit(MAX_PUSH_TOKENS_PER_USER),
+  ]);
+  if (expoTokensResult.error || webSubscriptionsResult.error) {
     await supabase
       .from("push_deliveries")
       .update({ provider_response: { reason: "token_lookup_failed" } })
@@ -465,13 +482,14 @@ Deno.serve(async (request) => {
 
   const tokens = Array.from(
     new Set(
-      (tokenRows ?? [])
+      (expoTokensResult.data ?? [])
         .map((row) => String(row.expo_push_token ?? "").trim())
         .filter(isValidExpoPushToken),
     ),
   );
+  const webSubscriptions = (webSubscriptionsResult.data ?? []) as WebPushSubscriptionRow[];
 
-  if (!tokens.length) {
+  if (!tokens.length && !webSubscriptions.length) {
     await supabase
       .from("push_deliveries")
       .update({
@@ -552,6 +570,49 @@ Deno.serve(async (request) => {
     }
   }
 
+  const invalidWebEndpoints = new Set<string>();
+  const webResults: Array<{ endpoint: string; status: "ok" | "error"; code?: number }> = [];
+  if (webSubscriptions.length) {
+    const vapidSubject = Deno.env.get("WEB_PUSH_VAPID_SUBJECT") ?? "";
+    const vapidPublicKey = Deno.env.get("WEB_PUSH_VAPID_PUBLIC_KEY") ?? "";
+    const vapidPrivateKey = Deno.env.get("WEB_PUSH_VAPID_PRIVATE_KEY") ?? "";
+    if (!vapidSubject || !vapidPublicKey || !vapidPrivateKey) {
+      failed += webSubscriptions.length;
+      webSubscriptions.forEach((subscription) => {
+        webResults.push({ endpoint: subscription.endpoint, status: "error" });
+      });
+    } else {
+      webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+      const webPayload = JSON.stringify({
+        title: deliveryTitle,
+        body: deliveryBody,
+        data: deliveryData ?? { route: "/notifications" },
+      });
+      for (const subscription of webSubscriptions) {
+        try {
+          await webpush.sendNotification({
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.p256dh,
+              auth: subscription.auth_key,
+            },
+          }, webPayload, { TTL: 86_400 });
+          sent += 1;
+          webResults.push({ endpoint: subscription.endpoint, status: "ok" });
+        } catch (error) {
+          failed += 1;
+          const code = Number((error as { statusCode?: unknown })?.statusCode ?? 0);
+          webResults.push({
+            endpoint: subscription.endpoint,
+            status: "error",
+            ...(code ? { code } : {}),
+          });
+          if (code === 404 || code === 410) invalidWebEndpoints.add(subscription.endpoint);
+        }
+      }
+    }
+  }
+
   const invalidTokens = Array.from(invalidTokenSet);
   if (invalidTokens.length) {
     await supabase
@@ -559,6 +620,13 @@ Deno.serve(async (request) => {
       .delete()
       .eq("organization_id", organizationId)
       .in("expo_push_token", invalidTokens);
+  }
+  if (invalidWebEndpoints.size) {
+    await supabase
+      .from("web_push_subscriptions")
+      .delete()
+      .eq("organization_id", organizationId)
+      .in("endpoint", Array.from(invalidWebEndpoints));
   }
 
   const status: "ok" | "partial" | "error" =
@@ -573,6 +641,8 @@ Deno.serve(async (request) => {
         failed,
         invalidTokens: invalidTokens.length,
         tickets: allTickets,
+        web: webResults,
+        invalidWebSubscriptions: invalidWebEndpoints.size,
       },
     })
     .eq("id", deliveryId);

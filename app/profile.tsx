@@ -78,6 +78,13 @@ import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../src/navigation/use-trainer-route-scope";
 import { useOrganization } from "../src/providers/OrganizationProvider";
 import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
+import {
+  disableWebPush,
+  enableWebPush,
+  getWebNotificationPermission,
+  getWebPushStatus,
+  type WebPushStatus,
+} from "../src/push/web-notifications";
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
@@ -161,6 +168,26 @@ const formatStudentPhone = (value?: string | null) => {
   if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
   return value || "Não informado";
+};
+
+const resolvePhoneDraft = (value?: string | null) => {
+  const raw = String(value ?? "").trim();
+  const digits = raw.replace(/\D/g, "");
+  const matchedCountry = raw.startsWith("+")
+    ? [...mobileCountryOptions]
+        .sort((left, right) => right.dialCode.length - left.dialCode.length)
+        .find((country) => digits.startsWith(country.dialCode.replace(/\D/g, "")))
+    : undefined;
+  const country = matchedCountry ?? mobileCountryOptions.find((item) => item.code === "BR")!;
+  const dialDigits = country.dialCode.replace(/\D/g, "");
+  const localDigits = matchedCountry ? digits.slice(dialDigits.length) : digits.replace(/^55(?=\d{10,11}$)/, "");
+  return {
+    countryCode: country.dialCode,
+    countryIso: country.code,
+    phone: localDigits
+      ? (country.code === "BR" ? formatStudentPhone(localDigits) : localDigits)
+      : "",
+  };
 };
 
 const parseStudentBirthDate = (value: string) => {
@@ -555,6 +582,9 @@ export default function ProfileScreen() {
   const [mobileCountryCode, setMobileCountryCode] = useState("+55");
   const [mobileCountryIso, setMobileCountryIso] = useState("BR");
   const [mobileCountrySearch, setMobileCountrySearch] = useState("");
+  const [mobileGuardianCountryCode, setMobileGuardianCountryCode] = useState("+55");
+  const [mobileGuardianCountryIso, setMobileGuardianCountryIso] = useState("BR");
+  const [mobileGuardianCountrySearch, setMobileGuardianCountrySearch] = useState("");
   const [mobileProfileBaseline, setMobileProfileBaseline] = useState({
     name: "",
     birth: "",
@@ -567,9 +597,17 @@ export default function ProfileScreen() {
     guardianPhone: "",
     guardianRelation: "",
     countryCode: "+55",
+    guardianCountryCode: "+55",
   });
   const [mobileCountryMenuOpen, setMobileCountryMenuOpen] = useState(false);
+  const [mobileGuardianCountryMenuOpen, setMobileGuardianCountryMenuOpen] = useState(false);
   const [mobileCountryMenuLayout, setMobileCountryMenuLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [mobileGuardianCountryMenuLayout, setMobileGuardianCountryMenuLayout] = useState<{
     x: number;
     y: number;
     width: number;
@@ -605,6 +643,10 @@ export default function ProfileScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const studentPhotoUri = useStudentProfilePhoto(student);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [webPushStatus, setWebPushStatus] = useState<WebPushStatus>(() => {
+    const permission = Platform.OS === "web" ? getWebNotificationPermission() : "unsupported";
+    return permission === "granted" ? "unsubscribed" : permission;
+  });
   const [updatingBiometrics, setUpdatingBiometrics] = useState(false);
   const [unlinkingGoogle, setUnlinkingGoogle] = useState(false);
   const [googleMenuOpen, setGoogleMenuOpen] = useState(false);
@@ -629,6 +671,7 @@ export default function ProfileScreen() {
   const academicDriveMenuTriggerRef = useRef<View | null>(null);
   const googleMenuTriggerRef = useRef<View | null>(null);
   const mobileCountryTriggerRef = useRef<View | null>(null);
+  const mobileGuardianCountryTriggerRef = useRef<View | null>(null);
   const photoSheetStyle = useModalCardStyle({
     maxHeight: "70%",
     radius: 22,
@@ -742,6 +785,13 @@ export default function ProfileScreen() {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(NOTIFY_SETTINGS_KEY);
+        if (isWeb) {
+          const status = await getWebPushStatus();
+          if (!alive) return;
+          setWebPushStatus(status);
+          setNotificationsEnabled(status === "subscribed");
+          return;
+        }
         if (!raw || !alive) return;
         const data = JSON.parse(raw) as { enabled: boolean };
         setNotificationsEnabled(Boolean(data.enabled));
@@ -752,7 +802,7 @@ export default function ProfileScreen() {
     return () => {
       alive = false;
     };
-  }, [NOTIFY_SETTINGS_KEY]);
+  }, [NOTIFY_SETTINGS_KEY, activeOrganization?.id, isWeb]);
 
   useEffect(() => {
     let alive = true;
@@ -1137,6 +1187,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     const resolvedName = student?.name || currentAccountName;
+    const guardianPhoneDraft = resolvePhoneDraft(student?.guardianPhone);
     const nextValues = {
       name: resolvedName === PROFILE_NAME_FALLBACK ? "" : resolvedName,
       birth: student?.birthDate && formatStudentBirthDate(student.birthDate) !== "Não informada" ? formatStudentBirthDate(student.birthDate) : "",
@@ -1146,9 +1197,10 @@ export default function ProfileScreen() {
       address: student?.address ?? "",
       genderIdentity: student?.genderIdentity ?? "",
       guardianName: student?.guardianName ?? "",
-      guardianPhone: student?.guardianPhone ?? "",
+      guardianPhone: guardianPhoneDraft.phone,
       guardianRelation: student?.guardianRelation ?? "",
       countryCode: "+55",
+      guardianCountryCode: guardianPhoneDraft.countryCode,
     };
     // Reconcile the editable draft when the authenticated profile changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1163,6 +1215,8 @@ export default function ProfileScreen() {
     setMobileGuardianPhoneDraft(nextValues.guardianPhone);
     setMobileGuardianRelationDraft(nextValues.guardianRelation);
     setMobileCountryCode(nextValues.countryCode);
+    setMobileGuardianCountryCode(nextValues.guardianCountryCode);
+    setMobileGuardianCountryIso(guardianPhoneDraft.countryIso);
     setMobileProfileBaseline(nextValues);
   }, [currentAccountName, student]);
 
@@ -1591,9 +1645,46 @@ export default function ProfileScreen() {
 
   const handleToggleNotifications = useCallback(async () => {
     const nextEnabled = !notificationsEnabled;
-    setNotificationsEnabled(nextEnabled);
 
     try {
+      if (isWeb) {
+        if (!activeOrganization?.id) {
+          Alert.alert("Instituição necessária", "Selecione uma instituição antes de ativar o Web Push.");
+          return;
+        }
+        if (nextEnabled) {
+          const status = await enableWebPush(activeOrganization.id);
+          setWebPushStatus(status);
+          if (status !== "subscribed") {
+            const unavailable = status === "unsupported";
+            const unconfigured = status === "unconfigured";
+            Alert.alert(
+              unavailable ? "Recurso indisponível" : unconfigured ? "Web Push em configuração" : "Permissão necessária",
+              unavailable
+                ? "Este navegador não oferece Web Push."
+                : unconfigured
+                  ? "A chave pública do Web Push ainda não foi configurada neste ambiente."
+                  : status === "denied"
+                    ? "Libere as notificações nas configurações deste site no navegador e tente novamente."
+                    : "Autorize as notificações quando o navegador solicitar.",
+            );
+            setNotificationsEnabled(false);
+            await AsyncStorage.setItem(NOTIFY_SETTINGS_KEY, JSON.stringify({ enabled: false }));
+            return;
+          }
+          setNotificationsEnabled(true);
+          await AsyncStorage.setItem(NOTIFY_SETTINGS_KEY, JSON.stringify({ enabled: true }));
+          showSaveToast({ message: "Web Push ativado neste navegador.", variant: "success" });
+        } else {
+          await disableWebPush(activeOrganization.id);
+          setWebPushStatus("unsubscribed");
+          setNotificationsEnabled(false);
+          await AsyncStorage.setItem(NOTIFY_SETTINGS_KEY, JSON.stringify({ enabled: false }));
+        }
+        return;
+      }
+
+      setNotificationsEnabled(nextEnabled);
       await AsyncStorage.setItem(
         NOTIFY_SETTINGS_KEY,
         JSON.stringify({ enabled: nextEnabled })
@@ -1623,7 +1714,7 @@ export default function ProfileScreen() {
       console.error("Failed to toggle notifications", error);
       Alert.alert("Erro", "Não foi possível alterar configurações de notificação.");
     }
-  }, [notificationsEnabled, isWeb, NOTIFY_SETTINGS_KEY]);
+  }, [activeOrganization, notificationsEnabled, isWeb, NOTIFY_SETTINGS_KEY, showSaveToast]);
 
   const handleToggleBiometrics = useCallback(async () => {
     if (updatingBiometrics) return;
@@ -1801,6 +1892,9 @@ export default function ProfileScreen() {
   const mobilePhoneE164 = mobilePhoneDraft.replace(/\D/g, "")
     ? `+${mobileCountryCode.replace(/\D/g, "")}${mobilePhoneDraft.replace(/\D/g, "")}`
     : "";
+  const mobileGuardianPhoneE164 = mobileGuardianPhoneDraft.replace(/\D/g, "")
+    ? `+${mobileGuardianCountryCode.replace(/\D/g, "")}${mobileGuardianPhoneDraft.replace(/\D/g, "")}`
+    : "";
   const verifiedPhoneE164 = session?.user?.phone_confirmed_at ? String(session.user.phone ?? "") : "";
   const mobilePhoneNeedsVerification = Boolean(mobilePhoneE164 && mobilePhoneE164 !== verifiedPhoneE164);
   const phoneVerificationRequested = Boolean(
@@ -1817,7 +1911,8 @@ export default function ProfileScreen() {
       || mobileGuardianNameDraft.trim() !== mobileProfileBaseline.guardianName.trim()
       || mobileGuardianPhoneDraft.trim() !== mobileProfileBaseline.guardianPhone.trim()
       || mobileGuardianRelationDraft.trim() !== mobileProfileBaseline.guardianRelation.trim()
-      || mobileCountryCode !== mobileProfileBaseline.countryCode,
+      || mobileCountryCode !== mobileProfileBaseline.countryCode
+      || mobileGuardianCountryCode !== mobileProfileBaseline.guardianCountryCode,
   );
   const mobileSportsHasChanges = Boolean(
     mobilePositionDraft !== mobileSportsBaseline.position
@@ -1834,19 +1929,6 @@ export default function ProfileScreen() {
         || passwordConfirmation),
   );
   const mobileHasUnsavedChanges = mobileProfileHasChanges || mobileSportsHasChanges || mobileSecurityHasChanges;
-  const previousMobileDirtyRef = useRef(false);
-
-  useEffect(() => {
-    if (mobileHasUnsavedChanges && !previousMobileDirtyRef.current) {
-      showSaveToast({
-        message: "Você tem alterações não salvas.",
-        variant: "warning",
-        durationMs: 6500,
-      });
-    }
-    previousMobileDirtyRef.current = mobileHasUnsavedChanges;
-  }, [mobileHasUnsavedChanges, showSaveToast]);
-
   useEffect(() => {
     if (Platform.OS !== "web" || !mobileHasUnsavedChanges) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -1862,6 +1944,7 @@ export default function ProfileScreen() {
     const normalizedName = mobileNameDraft.trim();
     const birthDate = parseStudentBirthDate(mobileBirthDraft);
     const phoneDigits = mobilePhoneDraft.replace(/\D/g, "");
+    const guardianPhoneDigits = mobileGuardianPhoneDraft.replace(/\D/g, "");
     if (normalizedName.length < 2) {
       Alert.alert("Nome inválido", "Informe o nome completo do atleta.");
       return;
@@ -1872,6 +1955,10 @@ export default function ProfileScreen() {
     }
     if (student && (phoneDigits.length < 10 || phoneDigits.length > 11)) {
       Alert.alert("Celular inválido", "Informe um celular com DDD.");
+      return;
+    }
+    if (guardianPhoneDigits && (guardianPhoneDigits.length < 6 || guardianPhoneDigits.length > 15)) {
+      Alert.alert("Celular do responsável inválido", "Confira o código do país e o número informado.");
       return;
     }
     setSavingMobileProfile(true);
@@ -1892,7 +1979,7 @@ export default function ProfileScreen() {
           address: mobileAddressDraft.trim(),
           genderIdentity: mobileGenderIdentityDraft.trim(),
           guardianName: mobileGuardianNameDraft.trim(),
-          guardianPhone: mobileGuardianPhoneDraft.trim(),
+          guardianPhone: mobileGuardianPhoneE164,
           guardianRelation: mobileGuardianRelationDraft.trim(),
         });
       }
@@ -1910,6 +1997,7 @@ export default function ProfileScreen() {
         guardianPhone: mobileGuardianPhoneDraft.trim(),
         guardianRelation: mobileGuardianRelationDraft.trim(),
         countryCode: mobileCountryCode,
+        guardianCountryCode: mobileGuardianCountryCode,
       });
       Alert.alert("Perfil atualizado", "Seus dados foram salvos.");
     } catch (error) {
@@ -1956,7 +2044,7 @@ export default function ProfileScreen() {
           address: mobileAddressDraft.trim(),
           genderIdentity: mobileGenderIdentityDraft.trim(),
           guardianName: mobileGuardianNameDraft.trim(),
-          guardianPhone: mobileGuardianPhoneDraft.trim(),
+          guardianPhone: mobileGuardianPhoneE164,
           guardianRelation: mobileGuardianRelationDraft.trim(),
         });
       }
@@ -1974,6 +2062,7 @@ export default function ProfileScreen() {
         guardianPhone: mobileGuardianPhoneDraft.trim(),
         guardianRelation: mobileGuardianRelationDraft.trim(),
         countryCode: mobileCountryCode,
+        guardianCountryCode: mobileGuardianCountryCode,
       });
       setPendingPhoneVerification("");
       setPhoneVerificationCode("");
@@ -2061,15 +2150,41 @@ export default function ProfileScreen() {
         || country.dialCode.includes(query);
     }).slice(0, COUNTRY_SEARCH_RESULT_LIMIT);
   })();
+  const visibleMobileGuardianCountries = (() => {
+    const query = mobileGuardianCountrySearch.trim().toLocaleLowerCase("pt-BR");
+    if (!query) return mobileCountryOptions.slice(0, QUICK_COUNTRY_CODES.length);
+    return mobileCountryOptions.filter((country: Country) => {
+      return country.name.toLocaleLowerCase("pt-BR").includes(query)
+        || country.localName.toLocaleLowerCase("pt-BR").includes(query)
+        || country.code.toLocaleLowerCase("pt-BR").includes(query)
+        || country.dialCode.includes(query);
+    }).slice(0, COUNTRY_SEARCH_RESULT_LIMIT);
+  })();
   const mobileProfileCanSave = Boolean(
     mobileProfileHasChanges
       && mobileNameDraft.trim().length >= 2
       && (!student || Boolean(parseStudentBirthDate(mobileBirthDraft)))
       && (!student || mobilePhoneDraft.replace(/\D/g, "").length >= 10)
       && (!student || mobilePhoneDraft.replace(/\D/g, "").length <= 11)
+      && (!mobileGuardianPhoneDraft.replace(/\D/g, "").length
+        || (mobileGuardianPhoneDraft.replace(/\D/g, "").length >= 6
+          && mobileGuardianPhoneDraft.replace(/\D/g, "").length <= 15))
       && !mobilePhoneNeedsVerification
       && !savingMobileProfile,
   );
+  const notificationSettingSubtitle = isWeb
+    ? webPushStatus === "unsupported"
+      ? "Indisponível neste navegador"
+      : webPushStatus === "unconfigured"
+        ? "Web Push aguardando configuração"
+        : webPushStatus === "denied"
+          ? "Libere nas configurações do navegador"
+          : webPushStatus === "subscribed"
+            ? "Ativado neste navegador"
+            : "Desativado neste navegador"
+    : notificationsEnabled
+      ? "Ativadas"
+      : "Desativadas";
   const discardMobileSectionChanges = (section: string) => {
     if (section === "personal") {
       setMobileNameDraft(mobileProfileBaseline.name);
@@ -2083,6 +2198,10 @@ export default function ProfileScreen() {
       setMobileGuardianPhoneDraft(mobileProfileBaseline.guardianPhone);
       setMobileGuardianRelationDraft(mobileProfileBaseline.guardianRelation);
       setMobileCountryCode(mobileProfileBaseline.countryCode);
+      setMobileGuardianCountryCode(mobileProfileBaseline.guardianCountryCode);
+      setMobileGuardianCountryIso(
+        mobileCountryOptions.find((country) => country.dialCode === mobileProfileBaseline.guardianCountryCode)?.code ?? "BR",
+      );
     } else if (section === "sports") {
       setMobilePositionDraft(mobileSportsBaseline.position);
       setMobileHealthIssueDraft(mobileSportsBaseline.healthIssue);
@@ -2511,8 +2630,6 @@ export default function ProfileScreen() {
                       { label: "Endereço", value: mobileAddressDraft, onChangeText: setMobileAddressDraft, placeholder: "Rua, número, bairro e cidade", keyboardType: "default" as const },
                       { label: "Gênero e identidade", value: mobileGenderIdentityDraft, onChangeText: setMobileGenderIdentityDraft, placeholder: "Como você se identifica", keyboardType: "default" as const },
                       { label: "Nome do responsável", value: mobileGuardianNameDraft, onChangeText: setMobileGuardianNameDraft, placeholder: "Nome completo", keyboardType: "default" as const },
-                      { label: "Celular do responsável", value: mobileGuardianPhoneDraft, onChangeText: setMobileGuardianPhoneDraft, placeholder: "(00) 00000-0000", keyboardType: "phone-pad" as const },
-                      { label: "Parentesco", value: mobileGuardianRelationDraft, onChangeText: setMobileGuardianRelationDraft, placeholder: "Ex.: mãe, pai ou responsável", keyboardType: "default" as const },
                     ].map((field) => (
                       <View key={field.label} style={{ gap: 7 }}>
                         <Text style={{ color: colors.muted, fontSize: 13 }}>{field.label}</Text>
@@ -2529,6 +2646,114 @@ export default function ProfileScreen() {
                         </View>
                       </View>
                     ))}
+                    <View style={{ gap: 7 }}>
+                      <Text style={{ color: colors.muted, fontSize: 13 }}>Celular do responsável</Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <View ref={mobileGuardianCountryTriggerRef} collapsable={false}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Selecionar código do país do responsável"
+                            accessibilityState={{ expanded: mobileGuardianCountryMenuOpen }}
+                            onPress={() => {
+                              if (mobileGuardianCountryMenuOpen) {
+                                setMobileGuardianCountryMenuOpen(false);
+                                return;
+                              }
+                              mobileGuardianCountryTriggerRef.current?.measureInWindow((x, y, width, height) => {
+                                setMobileGuardianCountryMenuLayout({ x, y, width, height });
+                                setMobileGuardianCountryMenuOpen(true);
+                              });
+                            }}
+                            style={({ pressed }) => ({ minHeight: 50, minWidth: 104, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.secondaryBg : colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 7 })}
+                          >
+                            <CountryFlagIcon isoCode={mobileGuardianCountryIso} />
+                            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{mobileGuardianCountryCode}</Text>
+                            <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
+                          </Pressable>
+                        </View>
+                        <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
+                          <TextInput
+                            accessibilityLabel="Celular do responsável"
+                            keyboardType="phone-pad"
+                            placeholder="(00) 00000-0000"
+                            placeholderTextColor={colors.muted}
+                            value={mobileGuardianPhoneDraft}
+                            onChangeText={(value) => {
+                              const digits = value.replace(/\D/g, "").slice(0, 15);
+                              setMobileGuardianPhoneDraft(
+                                mobileGuardianCountryIso === "BR" && digits.length <= 11
+                                  ? (digits ? formatStudentPhone(digits) : "")
+                                  : digits,
+                              );
+                            }}
+                            style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
+                          />
+                        </View>
+                      </View>
+                      <AnchoredDropdown
+                        visible={mobileGuardianCountryMenuOpen}
+                        layout={mobileGuardianCountryMenuLayout}
+                        container={null}
+                        animationStyle={{ opacity: 1 }}
+                        zIndex={6100}
+                        maxHeight={344}
+                        nestedScrollEnabled
+                        density="menu"
+                        fitContent
+                        preferredWidth={320}
+                        interactiveRefs={[mobileGuardianCountryTriggerRef]}
+                        onRequestClose={() => setMobileGuardianCountryMenuOpen(false)}
+                      >
+                        <View style={{ paddingHorizontal: 6, paddingTop: 6, paddingBottom: 4 }}>
+                          <View style={{ minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                            <GoAtletaIcon name="search" size={16} color={colors.muted} />
+                            <TextInput
+                              accessibilityLabel="Buscar país ou código do responsável"
+                              placeholder="Buscar país ou código"
+                              placeholderTextColor={colors.muted}
+                              value={mobileGuardianCountrySearch}
+                              onChangeText={setMobileGuardianCountrySearch}
+                              style={{ flex: 1, color: colors.text, fontSize: 14, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
+                            />
+                          </View>
+                        </View>
+                        {visibleMobileGuardianCountries.map((country) => {
+                          const countryName = country.localName || country.name;
+                          return (
+                            <AnchoredDropdownOption
+                              key={`guardian-${country.code}-${country.dialCode}`}
+                              active={mobileGuardianCountryIso === country.code}
+                              density="compact"
+                              onPress={() => {
+                                setMobileGuardianCountryIso(country.code);
+                                setMobileGuardianCountryCode(country.dialCode);
+                                setMobileGuardianCountrySearch("");
+                                setMobileGuardianCountryMenuOpen(false);
+                              }}
+                            >
+                              <View style={{ minHeight: 34, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                <CountryFlagIcon isoCode={country.code} />
+                                <Text style={{ flex: 1, color: mobileGuardianCountryIso === country.code ? colors.primaryText : colors.text, fontSize: 14 }}>{countryName}</Text>
+                                <Text style={{ color: mobileGuardianCountryIso === country.code ? colors.primaryText : colors.muted, fontSize: 13, fontWeight: "700" }}>{country.dialCode}</Text>
+                              </View>
+                            </AnchoredDropdownOption>
+                          );
+                        })}
+                      </AnchoredDropdown>
+                    </View>
+                    <View style={{ gap: 7 }}>
+                      <Text style={{ color: colors.muted, fontSize: 13 }}>Parentesco</Text>
+                      <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
+                        <TextInput
+                          accessibilityLabel="Parentesco"
+                          placeholder="Ex.: mãe, pai ou responsável"
+                          placeholderTextColor={colors.muted}
+                          value={mobileGuardianRelationDraft}
+                          onChangeText={setMobileGuardianRelationDraft}
+                          style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
+                        />
+                      </View>
+                    </View>
                   </View>
                 ) : null}
                 <Button
@@ -2634,8 +2859,8 @@ export default function ProfileScreen() {
                 <SettingsRow
                   icon="notifications"
                   iconBg="transparent"
-                  label="Notificações do app"
-                  subtitle={notificationsEnabled ? "Ativadas" : "Desativadas"}
+                  label={isWeb ? "Notificações do navegador" : "Notificações do app"}
+                  subtitle={notificationSettingSubtitle}
                   onPress={handleToggleNotifications}
                   rightContent={<ProfileToggle enabled={notificationsEnabled} />}
                 />
