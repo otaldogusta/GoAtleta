@@ -24,6 +24,7 @@ export type StudentRelationshipPermissions = {
 };
 
 export type CreateStudentRelationshipInviteInput = {
+  issuer?: "institution" | "guardian";
   organizationId: string;
   studentId: string;
   invitedEmail: string;
@@ -296,6 +297,7 @@ export async function createStudentRelationshipInvite(
     "create-student-relationship-invite",
     {
       organizationId: input.organizationId,
+      issuer: input.issuer ?? "institution",
       studentId: input.studentId,
       invitedEmail: input.invitedEmail,
       relationshipKind: input.relationshipKind,

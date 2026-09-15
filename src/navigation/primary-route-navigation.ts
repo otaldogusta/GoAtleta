@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { requestPendingEditsNavigation } from "./pending-edits-navigation";
 
 import { stripExpoRouterInternalParams } from "./web-route-state";
 
@@ -53,6 +54,10 @@ export function navigateToPrimaryRoute({
   router,
   href,
 }: PrimaryRouteNavigationOptions) {
+  requestPendingEditsNavigation(() => performPrimaryNavigation({ router, href }));
+}
+
+function performPrimaryNavigation({ router, href }: PrimaryRouteNavigationOptions) {
   if (!hasBrowserNavigationState()) {
     router.push(href);
     return;

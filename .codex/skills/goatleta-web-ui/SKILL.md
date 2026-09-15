@@ -1,6 +1,6 @@
 ---
 name: goatleta-web-ui
-description: Criar, revisar ou refatorar interfaces web responsivas do GoAtleta. Usar em telas desktop, grids, layouts responsivos, componentes compartilhados, migração de telas mobile para web e Design QA visual do produto.
+description: Criar, revisar ou refatorar interfaces responsivas do GoAtleta, incluindo formulários, configurações, seletores, feedback de ações e navegação com rascunhos, além de layouts desktop e Design QA.
 ---
 
 # GoAtleta Web UI
@@ -8,7 +8,7 @@ description: Criar, revisar ou refatorar interfaces web responsivas do GoAtleta.
 ## Preparação
 
 1. Ler `docs/ui/README.md` e somente os documentos ligados à tarefa.
-2. Inspecionar a Home do professor como referência visual e uma tela semelhante.
+2. Inspecionar a Home do professor como referência de densidade e hierarquia. Para formulários e configurações, ler `docs/ui/FORM_SETTINGS_PATTERNS.md` e inspecionar `/student/profile` e seus componentes como referência de interação, não como implementação perfeita a copiar.
 3. Ler tokens e primitives existentes antes de criar estilos ou componentes.
 4. Preservar regras de negócio, permissões, rotas e comportamento mobile.
 
@@ -21,10 +21,13 @@ description: Criar, revisar ou refatorar interfaces web responsivas do GoAtleta.
 - Usar tokens de cor, spacing, radius e sombra; não criar equivalentes locais.
 - Manter uma ação primária por região e ocultar ações sem utilidade para o papel atual.
 - Em listas interativas, o estado de hover/foco deve ter respiro próprio: aplicar padding interno, raio coerente com `radius.internal` e pequeno afastamento dos divisores ou itens vizinhos. O fundo de interação não pode ficar colado ao texto, ícone, borda do container ou separador. Preservar alvos de toque de 40–44 px sem transformar cada linha em um card pesado.
+- Listas suspensas curtas devem ajustar a altura ao conteúdo (`fitContent` no `AnchoredDropdown`), sem forçar rolagem quando todas as opções cabem. Limitar a altura ao espaço disponível; se houver overflow real, manter indicador de rolagem fino e visível. Não combinar rolagem forçada com indicador oculto, nem aceitar setas soltas sem barra. Conferir a lista aberta no navegador, inclusive perto da borda inferior.
 - Em listas sanfonadas, animar a revelação e o recolhimento com transições curtas de opacidade e deslocamento (aproximadamente 140–200 ms). Reutilizar `Animated`/`LayoutAnimation`, respeitar preferência por movimento reduzido quando disponível e evitar bibliotecas, medições contínuas ou animações de layout pesadas.
 - Formulários editáveis devem manter um baseline explícito e considerar a tela suja somente quando o valor normalizado divergir desse baseline. Habilitar a ação de salvar apenas nesse estado e restaurar o baseline depois de uma gravação bem-sucedida.
 - Não mostrar toast ou banner apenas porque o formulário ficou sujo. Enquanto a pessoa permanece editando, comunicar o estado pelo botão de salvar habilitado e demais feedbacks locais do formulário.
-- Antes de voltar, trocar de seção, recolher uma sanfona ou sair da página com alterações não salvas, usar o `ConfirmDialog` global para continuar editando ou descartar. No web, também proteger recarregamento/fechamento com `beforeunload`. A confirmação deve limpar o rascunho descartado antes da navegação.
+- Abrir/recolher cards ou trocar seções da mesma tela preserva rascunhos e não pede confirmação. Proteger a saída real da tela (voltar, menu lateral, abas de navegação) e o fechamento/recarregamento web quando houver alterações. Descartar restaura o baseline antes de navegar; continuar editando preserva dados e sinaliza todos os cards alterados.
+- Em formulários com vários cards que compõem um único rascunho, usar uma única `FloatingSaveBar`, visível assim que houver mudanças, independentemente do card aberto. Não duplicar botões de salvar por seção. Operações independentes, como verificar e-mail e alterar senha, mantêm ações próprias.
+- Ações assíncronas aguardam a Promise real, mostram progresso imediato, bloqueiam repetição e preservam contexto em falha. Usar `ConfirmDialog`/`Button` existentes; não capturar erros em alertas invisíveis na web.
 - Não repetir atribuição à IA quando um marcador visual já estabelece o contexto.
 - Manter componentes de domínio sem consultas diretas; receber dados e callbacks por props.
 

@@ -26,6 +26,7 @@ type RelationshipPermissions = {
 };
 
 type CreateInvitePayload = {
+  issuer?: unknown;
   organizationId?: unknown;
   studentId?: unknown;
   invitedEmail?: unknown;
@@ -169,6 +170,12 @@ Deno.serve(async (req) => {
   if (!INVITE_CHANNELS.has(invitedVia)) {
     return errorResponse(req, 400, "INVALID_REQUEST", "Invalid invite channel");
   }
+  if (payload.issuer !== undefined && payload.issuer !== "guardian" && payload.issuer !== "institution") {
+    return errorResponse(req, 400, "INVALID_REQUEST", "Invalid issuer");
+  }
+  if (payload.issuer === "guardian" && (relationshipKind !== "athlete" || invitedVia !== "link")) {
+    return errorResponse(req, 400, "INVALID_REQUEST", "Guardian can only invite their athlete by link");
+  }
 
   const label = validateStringField(payload.relationshipLabel, { maxLength: 80 });
   if (!label.ok) {
@@ -199,7 +206,12 @@ Deno.serve(async (req) => {
     const tokenHash = await hashStudentRelationshipInviteToken(token);
     const canPay = permissions.canPay ?? false;
     const { data, error } = await supabase
-      .rpc("create_student_relationship_invite_v1", {
+      .rpc(payload.issuer === "guardian" ? "create_guardian_athlete_invite" : "create_student_relationship_invite_v1", payload.issuer === "guardian" ? {
+        p_org_id: organization.data,
+        p_student_id: student.data,
+        p_token_hash: tokenHash,
+        p_invited_email: email.data.toLowerCase(),
+      } : {
         p_org_id: organization.data,
         p_student_id: student.data,
         p_token_hash: tokenHash,

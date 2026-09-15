@@ -3,6 +3,8 @@ import { getFriendlyErrorMessage } from "../../ui/error-messages";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AthleteAccessRequestRow } from "./AthleteAccessRequestRow";
+import { correctFamilyRequestKind } from "../../api/family-access-request";
 import {
   Alert,
   Animated,
@@ -44,7 +46,7 @@ import {
   adminReviewOrgAccessRequest,
   type OrganizationAccessRequest,
 } from "../../api/organization-access-requests";
-import { radius } from "../../theme/tokens";
+import { brandPalette, radius } from "../../theme/tokens";
 import { AnchoredDropdown } from "../../ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../../ui/AnchoredDropdownOption";
 import { AppRefreshControl } from "../../ui/AppRefreshControl";
@@ -83,8 +85,6 @@ import {
 import { formatMemberLastAccess } from "./application/member-last-access";
 import { getMemberDisplayLabel } from "./application/member-display-label";
 import {
-  formatInviteValidity,
-  inviteAppearsInPeople,
   inviteNeedsAction,
   INVITE_STATUS_LABELS,
   resolveInviteLifecycleStatus,
@@ -159,6 +159,7 @@ function DropdownButton<T extends string | number>({
   compact,
   density = "default",
   disabled = false,
+  badge = false,
 }: {
   value: T;
   options: { value: T; label: string }[];
@@ -166,6 +167,7 @@ function DropdownButton<T extends string | number>({
   compact?: boolean;
   density?: "default" | "compact";
   disabled?: boolean;
+  badge?: boolean;
 }) {
   const { colors } = useAppTheme();
   const triggerRef = useRef<ViewType | null>(null);
@@ -193,19 +195,22 @@ function DropdownButton<T extends string | number>({
     <>
       <View ref={triggerRef}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={badge ? `Selecionar cargo: ${activeLabel}` : undefined}
+          accessibilityState={{ expanded: open, disabled }}
           disabled={disabled}
           onPress={toggle}
           style={{
-            minWidth: compact ? 0 : 160,
-            width: compact ? "100%" : 176,
+            minWidth: badge ? 0 : compact ? 0 : 160,
+            width: badge ? undefined : compact ? "100%" : 176,
             maxWidth: compact ? undefined : 210,
             flex: compact ? 1 : undefined,
             borderRadius: radius.internal,
-            borderWidth: 1,
+            borderWidth: badge ? 0 : 1,
             borderColor: colors.border,
-            backgroundColor: colors.inputBg,
+            backgroundColor: badge ? colors.secondaryBg : colors.inputBg,
             paddingHorizontal: isDense ? 10 : 12,
-            paddingVertical: isDense ? 7 : 10,
+            paddingVertical: badge ? 6 : isDense ? 7 : 10,
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
@@ -217,8 +222,8 @@ function DropdownButton<T extends string | number>({
             numberOfLines={1}
             style={{
               color: colors.text,
-              flex: 1,
-              fontSize: isDense ? 14 : undefined,
+              flex: badge ? undefined : 1,
+              fontSize: badge ? 12 : isDense ? 14 : undefined,
               fontWeight: isDense ? "600" : undefined,
             }}
           >
@@ -233,16 +238,17 @@ function DropdownButton<T extends string | number>({
       </View>
       <AnchoredDropdown
         visible={open && !disabled}
-        layout={layout}
+        layout={badge && layout ? { ...layout, width: Math.max(190, layout.width) } : layout}
         container={null}
         animationStyle={{}}
         zIndex={4200}
-        maxHeight={dropdownHeight}
+        maxHeight={badge ? 240 : dropdownHeight}
+        fitContent={badge}
         nestedScrollEnabled
         onRequestClose={() => setOpen(false)}
         interactiveRefs={[triggerRef]}
         density={density}
-        showVerticalScrollIndicator={!isDense}
+        showVerticalScrollIndicator={badge || !isDense}
       >
         {options.map((option) => (
           <AnchoredDropdownOption
@@ -614,12 +620,13 @@ export function CoordinationPeopleWorkspace({
   const { colors } = useAppTheme();
   const { session } = useAuth();
   const router = useRouter();
-  const { assistantSection, assistantVisit } = useLocalSearchParams<{ assistantSection?: string; assistantVisit?: string }>();
+  const { assistantSection, assistantVisit, accessRequestId } = useLocalSearchParams<{ assistantSection?: string; assistantVisit?: string; accessRequestId?: string }>();
   const pageScrollRef = useRef<ScrollView | null>(null);
   const sectionNodes = useRef<Partial<Record<SecondaryModuleKey, ViewType | null>>>({});
   const modulesOffset = useRef(0);
   const sectionOffsets = useRef<Partial<Record<SecondaryModuleKey, number>>>({});
-  const requestedSection = assistantSection === "reports" || assistantSection === "attendance" ? assistantSection : null;
+  const requestedSection = accessRequestId ? "access" : assistantSection === "reports" || assistantSection === "attendance" ? assistantSection : null;
+  const [showAccessHistory, setShowAccessHistory] = useState(false);
   const { confirm: confirmUndo } = useConfirmUndo();
   const { showSaveToast } = useSaveToast();
   const { height, width } = useWindowDimensions();
@@ -700,7 +707,7 @@ export function CoordinationPeopleWorkspace({
   const [selectedPermissionsLoading, setSelectedPermissionsLoading] = useState(false);
   const [visibleInvites, setVisibleInvites] = useState(pendingInvites);
   const inviteNowMs = useInviteClock(visibleInvites);
-  const [accessRequestRoles, setAccessRequestRoles] = useState<Record<string, 5 | 10 | 50>>({});
+  const [accessRequestRoles, setAccessRequestRoles] = useState<Record<string, 0 | 5 | 10 | 50>>({});
   const [accessRequestBusyId, setAccessRequestBusyId] = useState<string | null>(null);
   const selectedPermissionRequestRef = useRef(0);
   const editPermissionRequestRef = useRef(0);
@@ -805,15 +812,6 @@ export function CoordinationPeopleWorkspace({
     });
   }, [attendanceByClass, classesByUser, members, peopleSortKey, search]);
 
-  const filteredInvites = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return visibleInvites.filter((invite) => {
-      return (
-        inviteAppearsInPeople(invite, inviteNowMs) &&
-        (!query || (invite.invited_to ?? "convite por link").toLowerCase().includes(query))
-      );
-    });
-  }, [search, visibleInvites, inviteNowMs]);
 
   const selectPeopleSort = useCallback(
     (key: PeopleSortKey) => {
@@ -1274,7 +1272,7 @@ export function CoordinationPeopleWorkspace({
     visibleInvites.filter((invite) => inviteNeedsAction(invite, inviteNowMs)).length + accessRequests.length;
   const moduleMeta: Record<SecondaryModuleKey, { label: string; value: string | number }> = {
     attendance: { label: "Chamadas pendentes", value: pendingAttendance.length },
-    access: { label: "Convites e solicitações", value: pendingAccessCount },
+    access: { label: "Acessos pendentes", value: pendingAccessCount },
     reports: { label: "Relatórios pendentes", value: pendingReports.length },
     activity: { label: "Atividade recente", value: recentActivity.length },
   };
@@ -1335,25 +1333,31 @@ export function CoordinationPeopleWorkspace({
     }
     if (key === "access") {
       return (
-        <ScrollView style={{ maxHeight: listMaxHeight }} showsVerticalScrollIndicator>
-          {accessRequests.length ? (
+        <View>
+          {accessRequests.some((request) => request.requestKind === "athlete" || request.requestKind === "guardian") ? <>
+            <Text style={{ color: colors.muted, padding: 16, fontWeight: "700" }}>Atletas e responsáveis</Text>
+            {accessRequests.filter((request) => request.requestKind === "athlete" || request.requestKind === "guardian").map((request) =>
+              <AthleteAccessRequestRow key={request.id} request={request} onRefresh={onRefresh} createKey={createMemberAccessIdempotencyKey} />)}
+          </> : null}
+          {accessRequests.some((request) => !request.requestKind || request.requestKind === "staff") ? (
             <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }}>
-              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                Solicitações para revisar
+              <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "700" }}>
+                Equipe · {accessRequests.filter((request) => !request.requestKind || request.requestKind === "staff").length}
               </Text>
             </View>
           ) : null}
-          {accessRequests.map((request) => {
-            const requestRole = accessRequestRoles[request.id] ?? 10;
+          {accessRequests.filter((request) => !request.requestKind || request.requestKind === "staff").sort((a, b) => Number(b.id === accessRequestId) - Number(a.id === accessRequestId)).map((request) => {
+            const requestRole = accessRequestRoles[request.id];
             const busy = accessRequestBusyId === request.id;
             const review = async (decision: "approved" | "rejected") => {
               if (accessRequestBusyId) return;
+              if (decision === "approved" && !requestRole) return;
               setAccessRequestBusyId(request.id);
               try {
                 await adminReviewOrgAccessRequest({
                   requestId: request.id,
                   decision,
-                  roleLevel: requestRole,
+                  roleLevel: requestRole || 10,
                   idempotencyKey: createMemberAccessIdempotencyKey(),
                 });
                 showSaveToast({
@@ -1378,59 +1382,79 @@ export function CoordinationPeopleWorkspace({
                   paddingVertical: 11,
                   borderBottomWidth: 1,
                   borderBottomColor: border,
-                  gap: 9,
+                  gap: 12,
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  alignItems: "center",
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, flexGrow: 1, flexBasis: 240, minWidth: 0 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.successBg, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: colors.successText, fontWeight: "800" }}>{initials(request.requesterName)}</Text>
+                  </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700" }}>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                    <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700", flexShrink: 1 }}>
                       {request.requesterName}
                     </Text>
+                    <DropdownButton<0 | 1 | 2 | 5 | 10 | 50>
+                      badge value={requestRole ?? 0} disabled={busy} density="compact"
+                      onChange={(role) => {
+                        if (role === 1 || role === 2) {
+                          if (accessRequestBusyId) return;
+                          setAccessRequestBusyId(request.id);
+                          void correctFamilyRequestKind(request.id, role === 1 ? "athlete" : "guardian")
+                            .then(() => onRefresh()).catch((error) => showSaveToast({ variant: "error", error }))
+                            .finally(() => setAccessRequestBusyId(null));
+                        } else setAccessRequestRoles((current) => ({ ...current, [request.id]: role }));
+                      }}
+                      options={[{ value: 0, label: "Equipe" }, { value: 10, label: "Professor" }, { value: 5, label: "Estagiário" }, { value: 50, label: "Coordenação" }, { value: 1, label: "Corrigir para atleta" }, { value: 2, label: "Corrigir para responsável" }]}
+                    />
+                    </View>
                     <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11 }}>
                       {request.requesterEmail}
                     </Text>
                   </View>
-                  <DropdownButton
-                    value={requestRole}
-                    onChange={(role) =>
-                      setAccessRequestRoles((current) => ({ ...current, [request.id]: role }))
-                    }
-                    disabled={busy}
-                    density="compact"
-                    compact
-                    options={[
-                      { value: 10, label: "Professor" },
-                      { value: 5, label: "Estagiário" },
-                      { value: 50, label: "Coordenação" },
-                    ]}
-                  />
                 </View>
-                <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                   <Pressable
                     disabled={busy}
                     onPress={() => void review("rejected")}
                     style={{
                       borderRadius: radius.internal,
                       borderWidth: 1,
-                      borderColor: border,
+                      borderColor: colors.dangerBorder,
+                      backgroundColor: brandPalette.danger,
+                      minHeight: 44,
+                      minWidth: 104,
+                      alignItems: "center",
+                      justifyContent: "center",
                       paddingHorizontal: 12,
                       paddingVertical: 8,
                       opacity: busy ? 0.55 : 1,
                     }}
                   >
-                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>
+                    <Text style={{ color: brandPalette.white, fontSize: 12, fontWeight: "700" }}>
                       Recusar
                     </Text>
                   </Pressable>
                   <Pressable
-                    disabled={busy}
+                    disabled={busy || !requestRole}
+                    accessibilityRole="button"
+                    accessibilityLabel={requestRole ? "Aprovar acesso" : "Aprovar acesso: selecione um cargo no badge"}
+                    accessibilityState={{ disabled: busy || !requestRole, busy }}
                     onPress={() => void review("approved")}
                     style={{
                       borderRadius: radius.internal,
                       backgroundColor: colors.primaryBg,
+                      minHeight: 44,
+                      minWidth: 144,
+                      alignItems: "center",
+                      justifyContent: "center",
                       paddingHorizontal: 14,
                       paddingVertical: 8,
-                      opacity: busy ? 0.55 : 1,
+                      opacity: busy || !requestRole ? 0.55 : 1,
                     }}
                   >
                     <Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>
@@ -1438,17 +1462,18 @@ export function CoordinationPeopleWorkspace({
                     </Text>
                   </Pressable>
                 </View>
+                </View>
               </View>
             );
           })}
           {visibleInvites.length ? (
             <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }}>
               <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
-                Convites enviados
+                {showAccessHistory ? "Convites enviados · histórico" : "Convites aguardando resposta"}
               </Text>
             </View>
           ) : null}
-          {visibleInvites.map((invite) => {
+          {visibleInvites.filter((invite) => showAccessHistory || inviteNeedsAction(invite, inviteNowMs)).map((invite) => {
             const lifecycleStatus = resolveInviteLifecycleStatus(invite, inviteNowMs);
             const status = INVITE_STATUS_LABELS[lifecycleStatus];
             const statusColor =
@@ -1490,7 +1515,13 @@ export function CoordinationPeopleWorkspace({
               Nenhum acesso aguardando ação.
             </Text>
           ) : null}
-        </ScrollView>
+          <View style={{ alignItems: "flex-end", paddingHorizontal: 16, paddingVertical: 8 }}>
+            <Pressable accessibilityRole="button" onPress={() => setShowAccessHistory(!showAccessHistory)} style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44, paddingHorizontal: 8 }}>
+              <GoAtletaIcon name="time" size={20} color={colors.text} />
+              <Text style={{ color: colors.text, fontSize: 14 }}>{showAccessHistory ? "Ocultar histórico" : "Histórico"}</Text>
+            </Pressable>
+          </View>
+        </View>
       );
     }
     if (key === "reports") {
@@ -1697,7 +1728,7 @@ export function CoordinationPeopleWorkspace({
             >
               <GoAtletaIcon name="align" size={18} color={colors.muted} />
               <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", flex: 1 }}>
-                Pessoas e responsabilidades
+                Equipe
               </Text>
               <GoAtletaIcon
                 name={peopleExpanded ? "chevronUp" : "chevronDown"}
@@ -1980,73 +2011,6 @@ export function CoordinationPeopleWorkspace({
                     );
                   })}
 
-                  {filteredInvites.map((invite) => {
-                    const lifecycleStatus = resolveInviteLifecycleStatus(invite, inviteNowMs);
-                    const statusColor = lifecycleStatus === "sent" ? colors.warningText : colors.dangerText;
-                    return (
-                    <View
-                      key={invite.id}
-                      style={{
-                        marginHorizontal: 12,
-                        paddingHorizontal: 10,
-                        paddingVertical: 10,
-                        borderTopWidth: 1,
-                        borderTopColor: border,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <View
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          flexShrink: 1,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 10,
-                        }}
-                      >
-                        <View
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 16,
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: inner,
-                          }}
-                        >
-                          <GoAtletaIcon name="communications" size={15} color={statusColor} />
-                        </View>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "700" }}>
-                            {invite.invited_to ?? "Convite por link"}
-                          </Text>
-                          <Text style={{ color: colors.muted, fontSize: 10 }}>
-                            {formatInviteValidity(invite, inviteNowMs)}
-                          </Text>
-                        </View>
-                      </View>
-                      <View
-                        style={{
-                          flexShrink: 0,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <Text style={{ color: statusColor, fontSize: 11 }}>
-                          {INVITE_STATUS_LABELS[lifecycleStatus]}
-                        </Text>
-                        <InviteActionMenu
-                          invite={invite}
-                          onCancel={(target) => undoableInviteCancel.deleteOne(target)}
-                        />
-                      </View>
-                    </View>
-                  );
-                  })}
                 </ScrollView>
                 <Text
                   style={{
@@ -2056,7 +2020,7 @@ export function CoordinationPeopleWorkspace({
                     paddingVertical: 10,
                   }}
                 >
-                  {filteredMembers.length + filteredInvites.length} pessoas
+                  {filteredMembers.length} membros
                 </Text>
               </>
             ) : null}
@@ -2096,17 +2060,19 @@ export function CoordinationPeopleWorkspace({
                 >
                   <GoAtletaIcon name="align" size={16} color={colors.muted} />
                   <GoAtletaIcon name={moduleIcon[key]} size={18} color={colors.text} />
-                  <Text style={{ color: colors.text, fontWeight: "700", flex: 1 }}>
+                  <Text style={{ color: colors.text, fontWeight: "700", flex: key === "access" ? undefined : 1 }}>
                     {metadata.label}
                   </Text>
                   <Text
                     style={{
                       color: colors.text,
                       fontWeight: "700",
+                      ...(key === "access" ? { backgroundColor: colors.secondaryBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 } : {}),
                     }}
                   >
                     {metadata.value}
                   </Text>
+                  {key === "access" ? <View style={{ flex: 1 }} /> : null}
                   {organizing ? (
                     <View style={{ flexDirection: "row", gap: 6 }}>
                       <Pressable

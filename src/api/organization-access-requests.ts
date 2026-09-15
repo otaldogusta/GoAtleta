@@ -5,6 +5,9 @@ export type AccessProduct = "goatleta" | "goatleta_pro";
 export type AccessPaymentStatus = "not_started" | "pending" | "paid" | "overdue";
 
 export type OrganizationAccessRequest = {
+  requestKind?: "staff" | "athlete" | "guardian";
+  requestedStudentName?: string | null;
+  requestedRelationshipLabel?: string | null;
   id: string;
   organizationId: string;
   requesterUserId: string;
@@ -21,6 +24,9 @@ export type OrganizationAccessRequest = {
 };
 
 type OrganizationAccessRequestRow = {
+  request_kind?: "staff" | "athlete" | "guardian";
+  requested_student_name?: string | null;
+  requested_relationship_label?: string | null;
   id: string;
   organization_id: string;
   requester_user_id?: string;
@@ -57,6 +63,9 @@ export type OrganizationAccessRequestReviewReceipt = {
 const mapAccessRequest = (
   row: OrganizationAccessRequestRow
 ): OrganizationAccessRequest => ({
+  requestKind: row.request_kind ?? "staff",
+  requestedStudentName: row.requested_student_name,
+  requestedRelationshipLabel: row.requested_relationship_label,
   id: row.id,
   organizationId: row.organization_id,
   requesterUserId: row.requester_user_id ?? "",
@@ -83,20 +92,12 @@ export async function searchAccessRequestOrganizations(
 }
 
 export async function listMyOrganizationAccessRequests(): Promise<OrganizationAccessRequest[]> {
-  const rows = await supabaseRestPost<OrganizationAccessRequestRow[]>(
-    "/rpc/list_my_organization_access_requests",
-    {},
-    "return=representation"
-  );
+  const rows = await listRequests("self");
   return (rows ?? []).map(mapAccessRequest);
 }
 
 export async function platformListAccessRequests(): Promise<OrganizationAccessRequest[]> {
-  const rows = await supabaseRestPost<OrganizationAccessRequestRow[]>(
-    "/rpc/platform_list_access_requests",
-    {},
-    "return=representation"
-  );
+  const rows = await listRequests("platform");
   return (rows ?? []).map(mapAccessRequest);
 }
 
@@ -140,12 +141,23 @@ export async function platformReviewAccessRequest({
 export async function adminListOrgAccessRequests(
   organizationId: string
 ): Promise<OrganizationAccessRequest[]> {
-  const rows = await supabaseRestPost<OrganizationAccessRequestRow[]>(
-    "/rpc/admin_list_org_access_requests",
-    { p_org_id: organizationId },
-    "return=representation"
-  );
+  const rows = await listRequests("coord", organizationId);
   return (rows ?? []).map(mapAccessRequest);
+}
+
+async function listRequests(scope: "self" | "coord" | "platform", organizationId?: string) {
+  try {
+    return await supabaseRestPost<OrganizationAccessRequestRow[]>("/rpc/list_access_requests_v2",
+      { p_scope: scope, ...(organizationId ? { p_org_id: organizationId } : {}) }, "return=representation");
+  } catch (error) {
+    // Staged local rollout only: never hide authorization or network failures.
+    let code: unknown;
+    try { code = JSON.parse(error instanceof Error ? error.message : "").code; } catch { /* not a PostgREST error */ }
+    if (code !== "PGRST202") throw error;
+    const legacy = { self: "list_my_organization_access_requests", coord: "admin_list_org_access_requests", platform: "platform_list_access_requests" };
+    return supabaseRestPost<OrganizationAccessRequestRow[]>(`/rpc/${legacy[scope]}`,
+      scope === "coord" ? { p_org_id: organizationId } : {}, "return=representation");
+  }
 }
 
 export async function adminReviewOrgAccessRequest({

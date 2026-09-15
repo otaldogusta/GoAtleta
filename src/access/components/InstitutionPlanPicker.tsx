@@ -5,6 +5,7 @@ import type { InstitutionAccessPlan } from "../institution-access-plans";
 import { getPlanBillingPreview, type PlanEnrollmentStep, type PlanPaymentPreference } from "../plan-enrollment-flow";
 import { radius, spacing } from "../../theme/tokens";
 import { Button } from "../../ui/Button";
+import { AnimatedFieldDetails } from "../../ui/AnimatedFieldDetails";
 import { Pressable } from "../../ui/Pressable";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon, PixLogoIcon } from "../../ui/icon-registry";
@@ -168,7 +169,7 @@ export function InstitutionPlanPicker({
               </Pressable>
             </View>
 
-            {expanded ? (
+            <AnimatedFieldDetails open={expanded}>
               <View style={{ gap: spacing.sm }}>
                 <View style={{ height: 1, backgroundColor: colors.border }} />
                 <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Cobrança</Text>
@@ -193,7 +194,7 @@ export function InstitutionPlanPicker({
                   <Text style={{ color: colors.text, fontSize: 13, fontWeight: "700" }}>Ler termos</Text>
                 </Pressable>
               </View>
-            ) : null}
+            </AnimatedFieldDetails>
           </View>
         );
       })}

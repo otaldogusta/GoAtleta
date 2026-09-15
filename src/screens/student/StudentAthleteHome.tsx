@@ -1,7 +1,8 @@
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { AppState, ScrollView, Text, View } from "react-native";
+import { ModalSheet } from "../../ui/ModalSheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useRole } from "../../auth/role";
@@ -43,6 +44,22 @@ const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slic
 
 export function StudentAthleteHome() {
   const router = useRouter();
+  const [isFocused, setIsFocused] = useState(false);
+  const [guidanceDismissed, setGuidanceDismissed] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    setIsFocused(true);
+    return () => setIsFocused(false);
+  }, []));
+
+  useEffect(() => {
+    let previous = AppState.currentState;
+    const subscription = AppState.addEventListener("change", (next) => {
+      if (previous === "background" && next === "active") setGuidanceDismissed(false);
+      previous = next;
+    });
+    return () => subscription.remove();
+  }, []);
   const { colors } = useAppTheme();
   const layout = useResponsiveLayout("dashboard");
   const { role, student } = useRole();
@@ -182,38 +199,6 @@ export function StudentAthleteHome() {
                 </View>
               </View>
 
-              {shouldGuideProfile ? (
-                <View
-                  style={{
-                    borderRadius: radius.container,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    padding: layout.density.cardPadding,
-                    flexDirection: layout.isMobile ? "column" : "row",
-                    alignItems: layout.isMobile ? "stretch" : "center",
-                    gap: spacing.md,
-                  }}
-                >
-                  <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}>
-                    <GoAtletaIcon name="personSolid" size={20} color={colors.success} />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-                    <Text style={{ color: colors.text, fontSize: layout.density.cardTitleFontSize, fontWeight: "800" }}>
-                      {isNewAccount || role === "pending" ? "Bem-vindo ao Go Atleta" : "Complete seu perfil"}
-                    </Text>
-                    <Text style={{ color: colors.muted, fontSize: layout.density.bodyFontSize }}>
-                      {profileGuidance}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => router.push("/student/profile")}
-                    style={{ minHeight: 44, borderRadius: radius.internal, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}
-                  >
-                    <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 13 }}>Completar perfil</Text>
-                  </Pressable>
-                </View>
-              ) : null}
 
               <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 4 }}>
                 {weekDays.map((day) => (
@@ -274,6 +259,28 @@ export function StudentAthleteHome() {
           )}
         </ResponsivePage>
       </ScrollView>
+      <ModalSheet
+        visible={!loading && isFocused && shouldGuideProfile && !guidanceDismissed}
+        onClose={() => setGuidanceDismissed(true)}
+        position="center"
+        cardStyle={{ width: "100%", maxWidth: 440, borderRadius: radius.container, padding: spacing.xl, gap: spacing.md }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View style={{ width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: colors.successBg }}>
+            <GoAtletaIcon name="personSolid" size={20} color={colors.success} />
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Fechar boas-vindas" onPress={() => setGuidanceDismissed(true)} style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" }}>
+            <GoAtletaIcon name="close" size={20} color={colors.muted} />
+          </Pressable>
+        </View>
+        <Text accessibilityRole="header" style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
+          {isNewAccount || role === "pending" ? "Bem-vindo ao Go Atleta" : "Complete seu perfil"}
+        </Text>
+        <Text style={{ color: colors.muted, fontSize: 14 }}>{profileGuidance}</Text>
+        <Pressable accessibilityRole="button" onPress={() => { setGuidanceDismissed(true); router.push("/student/profile"); }} style={{ minHeight: 50, borderRadius: radius.internal, paddingHorizontal: spacing.lg, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}>
+          <Text style={{ color: colors.primaryText, fontWeight: "800", fontSize: 14 }}>Completar perfil</Text>
+        </Pressable>
+      </ModalSheet>
     </SafeAreaView>
   );
 }

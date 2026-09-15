@@ -51,6 +51,18 @@ describe("student relationship invite route contract", () => {
     expect(routeSource).toContain("await Promise.all([refreshUser(), refreshRole()])");
   });
 
+  it("recovers an authenticated replay through the idempotent claim endpoint", () => {
+    expect(routeSource).toContain(
+      'getInviteErrorCode(error) === "INVITE_ALREADY_USED"',
+    );
+    expect(routeSource).toContain("const receipt = await claimStudentRelationshipInvite(tokenValue)");
+    expect(routeSource).toContain("await enterClaimedRelationship(receipt)");
+    expect(routeSource).toContain('receipt.status === "already_claimed"');
+    expect(routeSource).toContain("await Promise.allSettled([refreshUser(), refreshRole()])");
+    expect(routeSource).toContain('return "Este convite já foi aceito."');
+    expect(routeSource).not.toContain("já foi usado por outra conta");
+  });
+
   it("claims a pending family relationship immediately after OTP verification", () => {
     const claimIndex = verifyEmailSource.indexOf(
       "claimStudentRelationshipInvite(relationshipToken)",

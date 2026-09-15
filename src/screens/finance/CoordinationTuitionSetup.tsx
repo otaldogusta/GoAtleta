@@ -1,4 +1,8 @@
 import { useFocusEffect, useRouter } from "expo-router";
+import { CLASS_MODALITY_OPTIONS, type ClassModality } from "../../core/class-modality";
+import { PositionPicker } from "../../ui/PositionPicker";
+import { PlanModalityEditor } from "./PlanModalityEditor";
+import { getPlanModalities } from "../../api/athlete-modalities";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Platform,
@@ -198,7 +202,7 @@ function CoordinationTuitionSetupOrganizationScope({
     canManageStudents: memberPermissions.students === true,
     permissionsLoading,
   });
-  const [plans, setPlans] = useState<TuitionPlan[]>([]);
+  const [plans, setPlans] = useState<(TuitionPlan & { modality?: ClassModality | null })[]>([]);
   const [agreements, setAgreements] = useState<TuitionAgreement[]>([]);
   const [loading, setLoading] = useState(Boolean(organizationId));
   const [busy, setBusy] = useState(false);
@@ -208,6 +212,7 @@ function CoordinationTuitionSetupOrganizationScope({
   const [amount, setAmount] = useState("");
   const [dueDay, setDueDay] = useState("10");
   const [description, setDescription] = useState("");
+  const [modality, setModality] = useState<ClassModality[]>([]);
   const requestRef = useRef(0);
   const [dataIdentity, setDataIdentity] =
     useState<OrganizationAsyncIdentity | null>(null);
@@ -238,12 +243,13 @@ function CoordinationTuitionSetupOrganizationScope({
     }
     setLoading(true);
     try {
-      const [nextPlans, nextAgreements] = await measureAsync(
+      const [nextPlans, nextAgreements, modalities] = await measureAsync(
         "screen.coordTuitionSetup.load.plans",
         () =>
           Promise.all([
             listTuitionPlans(organizationId),
             listTuitionAgreements(organizationId),
+            getPlanModalities(organizationId),
           ]),
         { organizationId },
       );
@@ -256,7 +262,7 @@ function CoordinationTuitionSetupOrganizationScope({
       )
         return;
       setDataIdentity(identity);
-      setPlans(nextPlans);
+      setPlans(nextPlans.map((plan) => ({ ...plan, modality: modalities.find((item) => item.id === plan.id)?.modality ?? null })));
       setAgreements(nextAgreements);
     } catch {
       if (
@@ -320,6 +326,7 @@ function CoordinationTuitionSetupOrganizationScope({
       amountCents: parsedAmount,
       dueDay: parsedDay,
       description,
+      modality: modality[0] ?? null,
     };
     setBusy(true);
     setMessage("");
@@ -338,6 +345,7 @@ function CoordinationTuitionSetupOrganizationScope({
       setName("");
       setAmount("");
       setDescription("");
+      setModality([]);
       setMessage("Plano de mensalidade criado.");
       await load();
       if (
@@ -502,6 +510,10 @@ function CoordinationTuitionSetupOrganizationScope({
                 onChangeText={setName}
                 placeholder="Ex.: Mensalidade vôlei"
               />
+              <View style={{ gap: spacing.xs }}>
+                <Text style={{ color: colors.muted }}>Modalidade</Text>
+                <PositionPicker value={modality} options={CLASS_MODALITY_OPTIONS} onChange={setModality} maxSelections={1} searchLabel="Pesquisar modalidade" />
+              </View>
               <CompactInput
                 label="Valor (R$)"
                 value={amount}
@@ -572,6 +584,7 @@ function CoordinationTuitionSetupOrganizationScope({
                       <Text style={styles.rowMeta}>
                         vence no dia {plan.dueDay}
                       </Text>
+                      <PlanModalityEditor key={`${organizationId}:${plan.id}:${plan.modality}`} organizationId={organizationId!} planId={plan.id} initial={plan.modality ?? null} />
                     </View>
                     <Text style={styles.planAmount}>
                       {formatMoneyFromCents(plan.amountCents)}

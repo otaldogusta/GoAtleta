@@ -1,0 +1,45 @@
+begin;
+do $$
+declare u uuid := gen_random_uuid(); result jsonb; i integer;
+begin
+  insert into auth.users(id,email) values (u, 'verification-test@example.invalid');
+  assert not has_function_privilege('authenticated','public.security_contact_verification_service(uuid,text,text,text)','execute');
+  assert not has_function_privilege('anon','public.security_contact_verification_service(uuid,text,text,text)','execute');
+  assert has_function_privilege('service_role','public.security_contact_verification_service(uuid,text,text,text)','execute');
+  result := public.security_contact_verification_service(u,'request','contact@example.invalid',repeat('a',64));
+  assert result->>'email' is null;
+  assert result->>'pendingEmail' = 'contact@example.invalid';
+  result := public.security_contact_verification_service(u,'request','other@example.invalid',repeat('b',64));
+  assert result ? 'error', 'resend cooldown';
+  for i in 1..5 loop
+    result := public.security_contact_verification_service(u,'verify','contact@example.invalid',repeat('b',64));
+    assert result ? 'error';
+  end loop;
+  result := public.security_contact_verification_service(u,'verify','contact@example.invalid',repeat('a',64));
+  assert result ? 'error', 'attempt limit';
+  update private.security_contact_verifications set attempts=0, expires_at=now()-interval '1 second' where user_id=u;
+  result := public.security_contact_verification_service(u,'verify','contact@example.invalid',repeat('a',64));
+  assert result ? 'error', 'expiry';
+  update private.security_contact_verifications set expires_at=now()+interval '10 minutes' where user_id=u;
+  result := public.security_contact_verification_service(u,'verify','wrong@example.invalid',repeat('a',64));
+  assert result ? 'error', 'email binding';
+  result := public.security_contact_verification_service(u,'verify','contact@example.invalid',repeat('a',64));
+  assert result->>'email' = 'contact@example.invalid';
+  assert result->>'verifiedAt' is not null;
+  result := public.security_contact_verification_service(u,'verify','contact@example.invalid',repeat('a',64));
+  assert result ? 'error', 'single use';
+  assert (select email from auth.users where id=u) = 'verification-test@example.invalid', 'login unchanged';
+  update private.security_contact_verifications set sent_at=now()-interval '61 seconds' where user_id=u;
+  result := public.security_contact_verification_service(u,'request','new@example.invalid',repeat('c',64));
+  assert result->>'email' = 'contact@example.invalid', 'preserve verified contact while pending';
+  perform public.security_contact_verification_service(u,'delivery_failed','new@example.invalid',repeat('c',64));
+  result := public.security_contact_verification_service(u,'verify','new@example.invalid',repeat('c',64));
+  assert result ? 'error', 'failed delivery invalidates challenge';
+  update private.security_contact_verifications set sent_at=now()-interval '61 seconds',sends=5 where user_id=u;
+  result := public.security_contact_verification_service(u,'request','new@example.invalid',repeat('d',64));
+  assert result ? 'error', 'hourly quota';
+  result := public.security_contact_verification_service(u,'remove');
+  assert result->>'email' is null;
+  assert result->>'verifiedAt' is null;
+end $$;
+rollback;

@@ -45,8 +45,8 @@ describe("organization access requests api", () => {
       }),
     ]);
     expect(mockSupabaseRestPost).toHaveBeenCalledWith(
-      "/rpc/admin_list_org_access_requests",
-      { p_org_id: "org-1" },
+      "/rpc/list_access_requests_v2",
+      { p_scope: "coord", p_org_id: "org-1" },
       "return=representation"
     );
   });

@@ -6,6 +6,11 @@ A Home do professor define a linguagem: navy como estrutura, superfícies sólid
 bordas discretas, verde apenas para ação principal ou sucesso e densidade de
 produto operacional.
 
+Para formulários e configurações, o perfil do atleta complementa essa referência
+com os padrões de interação de [FORM_SETTINGS_PATTERNS.md](FORM_SETTINGS_PATTERNS.md).
+Aplicar os comportamentos pertinentes, sem copiar regras de domínio ou estilos
+locais indiscriminadamente.
+
 ## Tipografia
 
 A escala base é resolvida por `responsiveLayout.density`; componentes

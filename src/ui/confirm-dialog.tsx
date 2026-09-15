@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
+import { getFriendlyErrorMessage } from "./error-messages";
 import { useAppTheme } from "./app-theme";
 import { ModalSheet } from "./ModalSheet";
 import { Pressable } from "./Pressable";
@@ -9,6 +10,7 @@ export type ConfirmDialogOptions = {
   message: string;
   confirmLabel: string;
   cancelLabel: string;
+  loadingLabel?: string;
   tone?: "default" | "danger";
   onConfirm: () => void | Promise<void>;
 };
@@ -50,6 +52,7 @@ function normalizeConfirmOptions(
         ? options.cancelLabel
         : DEFAULT_CONFIRM_OPTIONS.cancelLabel,
     tone: options.tone === "danger" ? "danger" : "default",
+    loadingLabel: options.loadingLabel,
   };
 }
 
@@ -61,9 +64,14 @@ export function ConfirmDialogProvider({
   const { colors } = useAppTheme();
   const [options, setOptions] = useState<ConfirmDialogOptions | null>(null);
   const [dialogKey, setDialogKey] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
   const pendingResolveRef = useRef<((value: boolean) => void) | null>(null);
 
   const confirm = useCallback((next: ConfirmDialogOptions) => {
+    if (busyRef.current) return Promise.resolve(false);
+    setError(null);
     if (pendingResolveRef.current) {
       pendingResolveRef.current(false);
       pendingResolveRef.current = null;
@@ -75,17 +83,28 @@ export function ConfirmDialogProvider({
     });
   }, []);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
     const current = options;
-    setOptions(null);
-    const resolve = pendingResolveRef.current;
-    pendingResolveRef.current = null;
-    resolve?.(true);
-    if (!current) return;
-    void current.onConfirm();
+    if (!current || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      await current.onConfirm();
+      setOptions(null);
+      const resolve = pendingResolveRef.current;
+      pendingResolveRef.current = null;
+      resolve?.(true);
+    } catch (cause) {
+      setError(getFriendlyErrorMessage(cause, "Não foi possível concluir. Tente novamente."));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   }, [options]);
 
   const handleCancel = useCallback(() => {
+    if (busyRef.current) return;
     setOptions(null);
     const resolve = pendingResolveRef.current;
     pendingResolveRef.current = null;
@@ -101,6 +120,10 @@ export function ConfirmDialogProvider({
 
   const dangerMatch = /(excluir|remover|revogar|apagar|deletar|desvincular)/i;
   const currentOptions = normalizeConfirmOptions(options);
+  const loadingLabel = currentOptions.loadingLabel ||
+    (/remover/i.test(currentOptions.confirmLabel) ? "Removendo…" :
+      /excluir|apagar|deletar/i.test(currentOptions.confirmLabel) ? "Excluindo…" :
+      /salvar/i.test(currentOptions.confirmLabel) ? "Salvando…" : "Processando…");
   const isDanger =
     currentOptions.tone === "danger" ||
     dangerMatch.test(currentOptions.title) ||
@@ -136,14 +159,18 @@ export function ConfirmDialogProvider({
               {currentOptions.message}
             </Text>
           </View>
+          {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerSolidBg }}>{error}</Text> : null}
           <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
             <Pressable
               onPress={handleCancel}
+              accessibilityRole="button"
+              disabled={busy}
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 14,
                 borderRadius: 12,
                 backgroundColor: colors.secondaryBg,
+                opacity: busy ? 0.55 : 1,
               }}
             >
               <Text style={{ color: colors.secondaryText, fontWeight: "700" }}>
@@ -152,20 +179,27 @@ export function ConfirmDialogProvider({
             </Pressable>
             <Pressable
               onPress={handleConfirm}
+              accessibilityRole="button"
+              accessibilityState={{ busy, disabled: busy }}
+              disabled={busy}
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 14,
                 borderRadius: 12,
                 backgroundColor: isDanger ? colors.dangerSolidBg : colors.primaryBg,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
               }}
             >
+              {busy ? <ActivityIndicator size="small" color={isDanger ? colors.dangerSolidText : colors.primaryText} /> : null}
               <Text
                 style={{
                   color: isDanger ? colors.dangerSolidText : colors.primaryText,
                   fontWeight: "700",
                 }}
               >
-                {currentOptions.confirmLabel}
+                {busy ? loadingLabel : currentOptions.confirmLabel}
               </Text>
             </Pressable>
           </View>

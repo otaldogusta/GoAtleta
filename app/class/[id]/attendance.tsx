@@ -54,6 +54,7 @@ import { ScreenLoadingState } from "../../../src/components/ui/ScreenLoadingStat
 import { ResponsivePage } from "../../../src/components/ui/ResponsivePage";
 import { BackTitleHeader } from "../../../src/components/ui/BackTitleHeader";
 import { GoAtletaIcon } from "../../../src/ui/icon-registry";
+import { FloatingSaveBar } from "../../../src/ui/FloatingSaveBar";
 import { usePersistedState } from "../../../src/ui/use-persisted-state";
 import { useIsOnline } from "../../../src/hooks/use-is-online";
 import { getClassPalette } from "../../../src/ui/class-colors";
@@ -1186,13 +1187,15 @@ export default function AttendanceScreen() {
                   </Text>
                   <View style={{ width: 1, height: 28, backgroundColor: colors.borderSubtle }} />
                   <AttendanceAction label="Abrir relatório" onPress={openReport} disabled={!canOpenReport} />
-                  <AttendanceAction
-                    label={isSavingAttendance ? "Salvando..." : "Salvar chamada"}
-                    onPress={handleSave}
-                    disabled={!canSave}
-                    loading={isSavingAttendance}
-                    variant="success"
-                  />
+                  {Platform.OS !== "web" ? (
+                    <AttendanceAction
+                      label={isSavingAttendance ? "Salvando..." : "Salvar chamada"}
+                      onPress={handleSave}
+                      disabled={!canSave}
+                      loading={isSavingAttendance}
+                      variant="success"
+                    />
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -1272,7 +1275,9 @@ export default function AttendanceScreen() {
             data={isClassDay ? items : []}
             keyExtractor={(item) => item.student.id}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: isMobile ? 12 : 20 }}
+            contentContainerStyle={{
+              paddingBottom: Platform.OS === "web" && hasChanges ? 104 : isMobile ? 12 : 20,
+            }}
             renderItem={({ item }) => (
               <View
                 style={{
@@ -1509,7 +1514,7 @@ export default function AttendanceScreen() {
             ListEmptyComponent={attendanceEmptyState}
           />
 
-          {isMobile ? (
+          {isMobile && Platform.OS !== "web" ? (
             <View
               style={{
                 paddingTop: 10,
@@ -1530,6 +1535,15 @@ export default function AttendanceScreen() {
             </View>
           ) : null}
         </ResponsivePage>
+
+        <FloatingSaveBar
+          visible={Platform.OS === "web" && hasChanges}
+          label={isSavingAttendance ? "Salvando chamada..." : "Salvar chamada"}
+          onPress={handleSave}
+          disabled={!canSave}
+          loading={isSavingAttendance}
+          loadingLabel="Salvando chamada..."
+        />
 
         <DatePickerModal
           visible={showCalendar}

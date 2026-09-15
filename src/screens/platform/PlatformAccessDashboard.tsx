@@ -365,7 +365,7 @@ export function PlatformAccessDashboard({
     : requests.filter((request) => request.status === "rejected").length;
 
   const review = async (decision: "approved" | "rejected") => {
-    if (!selected || busy) return;
+    if (!selected || busy || selected.requestKind === "athlete" || selected.requestKind === "guardian") return;
     setBusy(true);
     try {
       if (!demo)
@@ -1090,7 +1090,7 @@ export function PlatformAccessDashboard({
                     </Text>
                   </View>
                 </View>
-                {selected.status === "pending" ? (
+                {selected.status === "pending" && (selected.requestKind === "athlete" || selected.requestKind === "guardian") ? <Text style={{ color: colors.muted }}>Vínculo familiar ou de atleta: revisão pela coordenação da instituição.</Text> : selected.status === "pending" ? (
                   <View style={{ marginTop: 4, gap: 8 }}>
                     <Button
                       label={busy ? "Aprovando..." : "Aprovar acesso"}

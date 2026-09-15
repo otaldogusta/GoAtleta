@@ -12,6 +12,7 @@ import { useAppTheme } from "../../ui/app-theme";
 import { FamilyScreenShell } from "./FamilyScreenShell";
 import { FamilyStudentSwitcher } from "./FamilyStudentSwitcher";
 import { FamilySurface } from "./FamilyUi";
+import { GuardianAthleteInvite } from "./GuardianAthleteInvite";
 
 const roleLabel: Record<SelectableUserRole, string> = {
   trainer: "Área profissional",
@@ -57,6 +58,9 @@ export function FamilyProfileScreen() {
             <Text style={{ color: colors.muted, fontSize: 13 }}>
               {selectedFamilyStudent.relationshipLabel} · {selectedFamilyStudent.organizationName}
             </Text>
+            {selectedFamilyStudent.relationshipType === "guardian" ? <GuardianAthleteInvite
+              key={`${selectedFamilyStudent.organizationId}:${selectedFamilyStudent.studentId}`}
+              organizationId={selectedFamilyStudent.organizationId} studentId={selectedFamilyStudent.studentId} /> : null}
           </FamilySurface>
         ) : null}
         {otherRoles.length ? (
@@ -75,6 +79,11 @@ export function FamilyProfileScreen() {
             </View>
           </FamilySurface>
         ) : null}
+        <Button
+          label="Vincular outro atleta"
+          variant="outline"
+          onPress={() => router.push("/pending" as never)}
+        />
         <Button
           label="Sair da conta"
           variant="danger"

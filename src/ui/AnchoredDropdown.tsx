@@ -37,6 +37,7 @@ type AnchoredDropdownProps = {
   density?: "default" | "compact" | "menu" | "popover";
   fitContent?: boolean;
   preferredWidth?: number;
+  activeItemId?: string;
 };
 
 const DEFAULT_DROPDOWN_MAX_HEIGHT = 126;
@@ -61,9 +62,23 @@ export function AnchoredDropdown({
   density = "default",
   fitContent = false,
   preferredWidth,
+  activeItemId,
 }: AnchoredDropdownProps) {
   const { colors, mode } = useAppTheme();
   const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web" || !visible || !activeItemId) return;
+    const frame = requestAnimationFrame(() => {
+      const viewport = scrollRef.current as unknown as HTMLElement | null;
+      const item = document.getElementById(activeItemId);
+      if (!viewport || !item || !viewport.contains(item)) return;
+      const bounds = viewport.getBoundingClientRect();
+      const row = item.getBoundingClientRect();
+      if (row.top < bounds.top + 8) viewport.scrollTop -= bounds.top + 8 - row.top;
+      else if (row.bottom > bounds.bottom - 8) viewport.scrollTop += row.bottom - bounds.bottom + 8;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeItemId, visible, layout]);
   const panelRef = useRef<View | null>(null);
   const pathname = usePathname();
   const previousPathnameRef = useRef<string | null>(null);

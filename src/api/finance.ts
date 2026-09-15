@@ -1,4 +1,5 @@
 import { supabaseRestPost } from "./rest";
+import type { ClassModality } from "../core/class-modality";
 import { createClientId } from "../core/client-id";
 import type {
   OrganizationProviderReceivable,
@@ -340,9 +341,10 @@ export async function createTuitionPlan(input: {
   dueDay: number;
   description?: string | null;
   idempotencyKey?: string;
+  modality?: ClassModality | null;
 }) {
   const result = await supabaseRestPost<unknown>(
-    "/rpc/create_tuition_plan_v1",
+    input.modality ? "/rpc/create_tuition_plan_v2" : "/rpc/create_tuition_plan_v1",
     {
       p_org_id: input.organizationId,
       p_name: input.name.trim(),
@@ -350,6 +352,7 @@ export async function createTuitionPlan(input: {
       p_billing_day: Math.trunc(input.dueDay),
       p_idempotency_key: input.idempotencyKey ?? createClientId(),
       p_description: input.description?.trim() || null,
+      ...(input.modality ? { p_modality: input.modality } : {}),
     },
   );
   const id = unwrapScalarId(result);

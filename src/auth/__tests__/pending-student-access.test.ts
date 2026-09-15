@@ -4,16 +4,23 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-
 const mockRefresh = jest.fn();
 const mockResend = jest.fn();
 const mockSearchOrganizations = jest.fn();
+const mockListRequests = jest.fn();
+const mockRequestAthlete = jest.fn();
+let mockReturnTo: string | undefined;
 const mockClaimTrainerInvite = jest.fn();
 const mockResumeStaffSignup = jest.fn();
 const mockRouter = { replace: jest.fn(), push: jest.fn() };
 let mockAccessStatus = "review_required";
 let mockStaffSetupRequired = false;
-const getMockSession = () => ({ user: { id: "user", email: "student@example.test", app_metadata: { email_verified_hybrid_at: "verified", staff_invite_setup_required: mockStaffSetupRequired } }, access_token: "token", refresh_token: "refresh", expires_at: 4_000_000_000 });
+const mockSession = { user: { id: "user", email: "student@example.test", app_metadata: { email_verified_hybrid_at: "verified", staff_invite_setup_required: false } }, access_token: "token", refresh_token: "refresh", expires_at: 4_000_000_000 };
+const getMockSession = () => {
+  mockSession.user.app_metadata.staff_invite_setup_required = mockStaffSetupRequired;
+  return mockSession;
+};
 
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => ({ returnTo: mockReturnTo }),
 }));
 jest.mock("react-native-safe-area-context", () => ({
   ...jest.requireActual("react-native-safe-area-context"),
@@ -25,9 +32,10 @@ jest.mock("../../api/student-invite", () => ({ claimStudentInvite: jest.fn() }))
 jest.mock("../../api/staff-invite", () => ({ resumeStaffSignup: (...args: unknown[]) => mockResumeStaffSignup(...args) }));
 jest.mock("../../api/trainer-invite", () => ({ claimTrainerInvite: (...args: unknown[]) => mockClaimTrainerInvite(...args) }));
 jest.mock("../../api/organization-access-requests", () => ({
-  listMyOrganizationAccessRequests: jest.fn().mockResolvedValue([]),
+  listMyOrganizationAccessRequests: (...args: unknown[]) => mockListRequests(...args),
   searchAccessRequestOrganizations: (...args: unknown[]) => mockSearchOrganizations(...args),
 }));
+jest.mock("../../api/family-access-request", () => ({ familyAccessErrorMessage: () => "Não foi possível concluir.", requestFamilyAccess: (...args: unknown[]) => mockRequestAthlete(...args) }));
 jest.mock("../../observability/perf", () => ({ markRender: jest.fn(), measureAsync: (_name: string, work: () => unknown) => work() }));
 jest.mock("../../ui/app-theme", () => ({ useAppTheme: () => ({ colors: { background: "#101827", text: "#ffffff", muted: "#8899bb", border: "#334155", primaryBg: "#2dd482", primaryText: "#101827", card: "#1e293b" } }) }));
 jest.mock("../../ui/icon-registry", () => ({ GoAtletaIcon: () => null, PixLogoIcon: () => null }));
@@ -43,6 +51,10 @@ const mountPending = async () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockReturnTo = undefined;
+  mockAccessStatus = "not_found";
+  mockListRequests.mockResolvedValue([]);
+  mockRequestAthlete.mockResolvedValue("request");
   mockRefresh.mockResolvedValue(undefined);
   mockResend.mockResolvedValue(undefined);
   mockSearchOrganizations.mockResolvedValue([
@@ -52,6 +64,32 @@ beforeEach(() => {
   mockClaimTrainerInvite.mockResolvedValue({ status: "ok" });
   mockResumeStaffSignup.mockResolvedValue({ setup_required: true, organization_id: "org-1" });
   mockStaffSetupRequired = false;
+});
+
+it("submits an athlete link from profile without choosing a staff plan", async () => {
+  mockReturnTo = "/student/profile";
+  mockAccessStatus = "not_found";
+  await mountPending();
+  fireEvent.press(screen.getByText("Sou atleta"));
+  fireEvent.changeText(screen.getByLabelText("Seu nome no cadastro de atleta"), "Ana Teste");
+  fireEvent(screen.getByLabelText("Buscar instituição"), "focus");
+  await waitFor(() => expect(screen.getByLabelText("Selecionar Rede Esportes Pinhais")).toBeTruthy());
+  fireEvent.press(screen.getByLabelText("Selecionar Rede Esportes Pinhais"));
+  await act(async () => { fireEvent.press(screen.getByText("Solicitar vínculo")); });
+  expect(mockRequestAthlete).toHaveBeenCalledWith({ organizationId: "org-1", kind: "athlete", studentName: "Ana Teste", relationshipLabel: "" });
+});
+
+it("offers explicit correction for a legacy staff request from the athlete profile", async () => {
+  mockReturnTo = "/student/profile";
+  mockListRequests.mockResolvedValue([{ id: "r", organizationId: "org-1", organizationName: "Rede", status: "pending", requestKind: "staff" }]);
+  await mountPending();
+  fireEvent.press(screen.getByText("Corrigir vínculo solicitado"));
+  expect(mockRequestAthlete).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByText("Sou responsável"));
+  fireEvent.changeText(screen.getByLabelText("Nome do atleta"), "Ana Teste");
+  fireEvent.changeText(screen.getByLabelText("Parentesco"), "Mãe");
+  await act(async () => { fireEvent.press(screen.getByText("Enviar correção")); });
+  expect(mockRequestAthlete).toHaveBeenCalledWith({ organizationId: "org-1", kind: "guardian", studentName: "Ana Teste", relationshipLabel: "Mãe" });
 });
 
 it.each([
@@ -85,6 +123,7 @@ it("keeps unmatched accounts pending without institution self-service", async ()
   expect(mockClaimTrainerInvite).not.toHaveBeenCalled();
   expect(mockResumeStaffSignup).not.toHaveBeenCalled();
   fireEvent.press(screen.getByLabelText("Fechar convite"));
+  await waitFor(() => expect(screen.queryByLabelText("Link ou código do convite")).toBeNull());
 });
 
 it("opens the institution catalog when the search field receives focus", async () => {
@@ -121,45 +160,22 @@ it("does not open staff setup for an unknown valid-looking code on a flagged acc
   expect(screen.getByText("Tente novamente ou solicite outro convite.")).toBeTruthy();
 });
 
-it("opens the selected institution plans with expandable commercial details", async () => {
+it("requires an explicit guardian and athlete description without commercial enrollment", async () => {
   mockAccessStatus = "not_found";
   await mountPending();
   fireEvent(screen.getByLabelText("Buscar instituição"), "focus");
   await waitFor(() => expect(screen.getByText("Rede Esportes Pinhais")).toBeTruthy());
   fireEvent.press(screen.getByText("Rede Esportes Pinhais"));
-  expect(screen.getByText("Planos")).toBeTruthy();
-  expect(screen.getByText("Plano mensal · 1x por semana")).toBeTruthy();
-  expect(screen.queryByText("Encontre sua instituição")).toBeNull();
-  expect(screen.queryByText("Multa por atraso")).toBeNull();
-  fireEvent.press(screen.getByLabelText("Mostrar detalhes de Plano mensal · 1x por semana"));
-  expect(screen.getByText("Multa por atraso")).toBeTruthy();
-  expect(screen.getByText("2%")).toBeTruthy();
-  fireEvent.press(screen.getByLabelText("Selecionar Plano mensal · 1x por semana"));
-  expect(screen.getByText("Etapa 1 de 3 · Vencimento")).toBeTruthy();
-  expect(screen.getByText("Qual dia fica melhor para o vencimento?")).toBeTruthy();
-  fireEvent.press(screen.getByLabelText("Vencimento dia 15"));
-  expect(screen.getByLabelText("Vencimento dia 15").props.accessibilityState).toEqual({ checked: true });
-  fireEvent.press(screen.getByText("Continuar"));
-  expect(screen.getByText("Etapa 2 de 3 · Matrícula")).toBeTruthy();
-  expect(screen.getByText("Quem vai participar?")).toBeTruthy();
-  fireEvent.press(screen.getByLabelText("Preferir Boleto"));
-  expect(screen.getByLabelText("Preferir Boleto").props.accessibilityState).toEqual({ checked: true });
-  fireEvent.press(screen.getByText("Continuar"));
-  expect(screen.getByText("Etapa 3 de 3 · Revisão")).toBeTruthy();
-  expect(screen.getByText("Revise antes de solicitar")).toBeTruthy();
-  expect(screen.getByLabelText("Li e aceito os termos do plano").props.accessibilityState).toEqual({ checked: false });
-  fireEvent.press(screen.getByLabelText("Ler termos completos"));
-  expect(screen.getByText("Termos do plano")).toBeTruthy();
-  expect(screen.getByText("Valores, pagamento e vencimento")).toBeTruthy();
-  expect(screen.getByText("Cancelamento")).toBeTruthy();
-  fireEvent.press(screen.getByLabelText("Fechar termos"));
-  fireEvent.press(screen.getByLabelText("Li e aceito os termos do plano"));
-  expect(screen.getByLabelText("Li e aceito os termos do plano").props.accessibilityState).toEqual({ checked: true });
-  expect(screen.getByText("Solicitar plano")).toBeTruthy();
-  fireEvent.press(screen.getByLabelText("Voltar uma etapa"));
-  fireEvent.press(screen.getByLabelText("Voltar uma etapa"));
-  fireEvent.press(screen.getByLabelText("Voltar para planos"));
-  expect(screen.getByText("Planos")).toBeTruthy();
+  expect(screen.queryByText("Planos")).toBeNull();
+  fireEvent.press(screen.getByText("Solicitar vínculo"));
+  expect(mockRequestAthlete).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByText("Sou responsável"));
+  fireEvent.changeText(screen.getByLabelText("Nome do atleta"), "Ana Teste");
+  fireEvent.press(screen.getByText("Solicitar vínculo"));
+  expect(mockRequestAthlete).not.toHaveBeenCalled();
+  fireEvent.changeText(screen.getByLabelText("Parentesco"), "Pai");
+  await act(async () => { fireEvent.press(screen.getByText("Solicitar vínculo")); });
+  expect(mockRequestAthlete).toHaveBeenCalledWith({ organizationId: "org-1", kind: "guardian", studentName: "Ana Teste", relationshipLabel: "Pai" });
 });
 
 it("requests the canonical code before opening email verification", async () => {

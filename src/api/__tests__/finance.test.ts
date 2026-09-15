@@ -25,6 +25,15 @@ const postMock = supabaseRestPost as jest.MockedFunction<
 describe("finance API", () => {
   beforeEach(() => postMock.mockReset());
 
+  it("creates a plan with its explicit modality in the atomic v2 endpoint", async () => {
+    postMock.mockResolvedValue("plan-1");
+    await createTuitionPlan({ organizationId: "org-1", name: "Treinos", amountCents: 100, dueDay: 10, modality: "futebol", idempotencyKey: "request-1" });
+    expect(postMock).toHaveBeenCalledWith("/rpc/create_tuition_plan_v2", {
+      p_org_id: "org-1", p_name: "Treinos", p_amount_cents: 100, p_billing_day: 10,
+      p_modality: "futebol", p_idempotency_key: "request-1", p_description: null,
+    });
+  });
+
   it("preserves complete monthly aggregates while requesting a bounded page", async () => {
     postMock.mockResolvedValue({
       connection_id: "production-account-1", items: [], months: ["2026-09", "2026-08"],

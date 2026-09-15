@@ -49,6 +49,10 @@ superfícies automaticamente.
 
 ## Validação de formulários
 
+Para rascunhos entre cards, salvar flutuante, seletores, OTP e agrupamento,
+seguir [Formulários e configurações](FORM_SETTINGS_PATTERNS.md). Abrir ou recolher
+uma seção da mesma tela não é uma saída e não deve pedir descarte.
+
 - Ao salvar, abrir a seção que contém o primeiro erro e mover o foco até o campo.
 - Exibir uma única mensagem operacional junto ao campo; não repetir o mesmo erro
   no rodapé, em alerta genérico e no topo da tela.
@@ -57,6 +61,14 @@ superfícies automaticamente.
   pertencem ao campo que precisa ser corrigido.
 
 ## Feedback transacional obrigatório
+
+- Toda operação assíncrona deve indicar progresso imediatamente (spinner e verbo
+  em andamento, como `Removendo…`), impedir envios repetidos e encerrar o estado
+  de carregamento somente quando a operação terminar. Não fechar a confirmação
+  antes do resultado. `ConfirmDialog` aplica esse padrão ao aguardar `onConfirm`;
+  o callback deve retornar/aguardar a Promise real, nunca dispará-la com `void`.
+  Em falhas, preservar o contexto e permitir tentar novamente. Para ações fora
+  do diálogo, usar `Button` com `loading` e `loadingLabel`.
 
 - Toda ação que cria, salva, altera, duplica, remove ou exclui deve terminar com
   feedback visível de sucesso ou erro; nenhuma mutação pode falhar em silêncio.

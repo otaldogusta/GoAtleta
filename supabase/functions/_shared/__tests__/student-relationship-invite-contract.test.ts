@@ -34,9 +34,8 @@ describe("student relationship invite Edge Function contract", () => {
   test("creates invitations through the caller JWT and the atomic RPC", () => {
     expect(createSource).toContain("await authenticateRequest(req)");
     expect(createSource).toContain("Authorization: `Bearer ${auth.token}`");
-    expect(createSource).toContain(
-      '.rpc("create_student_relationship_invite_v1"',
-    );
+    expect(createSource).toContain('"create_student_relationship_invite_v1"');
+    expect(createSource).toContain('"create_guardian_athlete_invite"');
     expect(createSource).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
     expect(createSource).not.toMatch(/\.from\(["']student_relationship_invites/);
     expect(createSource).toContain(

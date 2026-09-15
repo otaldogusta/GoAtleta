@@ -1,0 +1,55 @@
+import { act, renderHook, waitFor } from "@testing-library/react-native";
+import { useSecurityContactVerification } from "../useSecurityContactVerification";
+import { securityContactVerification } from "../../../api/security-contact-verification";
+jest.mock("../../../api/security-contact-verification", () => ({ securityContactVerification: jest.fn() }));
+jest.mock("../../../ui/save-toast", () => ({ useSaveToast: () => ({ showSaveToast: jest.fn() }) }));
+const api = jest.mocked(securityContactVerification);
+const empty = { email: null, verifiedAt: null, pendingEmail: null, retryAt: null };
+beforeEach(() => { api.mockReset(); api.mockResolvedValue(empty); });
+it("auto-confirms a complete pasted code once and does not loop after errors", async () => {
+  api.mockResolvedValueOnce({ ...empty, pendingEmail: "contact@example.com" });
+  const { result } = renderHook(() => useSecurityContactVerification("u", "login@example.com"));
+  await waitFor(() => expect(result.current.pending).toBe(true));
+  act(() => result.current.completeCode("1234"));
+  expect(api).toHaveBeenCalledTimes(1);
+  api.mockRejectedValueOnce(new Error("Código inválido"));
+  await act(async () => {
+    result.current.completeCode("1234 5678");
+    result.current.completeCode("1234 5678");
+  });
+  expect(api).toHaveBeenLastCalledWith("verify", "contact@example.com", "12345678");
+  expect(api).toHaveBeenCalledTimes(2);
+  act(() => result.current.completeCode("12345678"));
+  expect(api).toHaveBeenCalledTimes(2);
+  api.mockResolvedValueOnce({ ...empty, email: "contact@example.com", verifiedAt: new Date().toISOString() });
+  await act(async () => { result.current.completeCode("12345679"); });
+  expect(result.current.verified).toBe(true);
+});
+it("requires server confirmation and keeps drafts after wrong codes", async () => {
+  const { result } = renderHook(() => useSecurityContactVerification("u", "login@example.com"));
+  await waitFor(() => expect(result.current.status).not.toBeNull());
+  act(() => result.current.setDraft("contact@example.com"));
+  api.mockResolvedValueOnce({ ...empty, pendingEmail: "contact@example.com" });
+  await act(async () => { await result.current.run("request"); });
+  expect(result.current.pending).toBe(true);
+  expect(result.current.verified).toBe(false);
+  act(() => result.current.setCode("12345678"));
+  api.mockRejectedValueOnce(new Error("Código inválido"));
+  await act(async () => { await result.current.run("verify"); });
+  expect(result.current.draft).toBe("contact@example.com");
+  expect(result.current.error).toBe("Código inválido");
+  expect(result.current.verified).toBe(false);
+  api.mockResolvedValueOnce({ ...empty, email: "contact@example.com", verifiedAt: new Date().toISOString() });
+  await act(async () => { await result.current.run("verify"); });
+  expect(result.current.verified).toBe(true);
+  expect(result.current.pending).toBe(false);
+});
+it("rejects malformed or login email before sending", async () => {
+  const { result } = renderHook(() => useSecurityContactVerification("u", "login@example.com"));
+  await waitFor(() => expect(result.current.status).not.toBeNull());
+  act(() => result.current.setDraft("invalid"));
+  await act(async () => { await result.current.run("request"); });
+  expect(api).toHaveBeenCalledTimes(1);
+  act(() => result.current.setDraft("login@example.com"));
+  expect(result.current.canRequest).toBe(false);
+});

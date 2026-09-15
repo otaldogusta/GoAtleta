@@ -3,10 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { InstitutionPlanPicker } from "../src/access/components/InstitutionPlanPicker";
-import { getPreviewAccessOrganizations, getPreviewInstitutionAccessPlans, getPreviewInstitutionModalities, type InstitutionAccessPlan } from "../src/access/institution-access-plans";
 import { getInviteErrorCode } from "../src/api/invite-errors";
-import { requestAccessReview } from "../src/api/access-request";
+import { familyAccessErrorMessage, requestFamilyAccess, type FamilyAccessIntent } from "../src/api/family-access-request";
+import { FamilyAccessIntentFields } from "../src/screens/family/FamilyAccessIntentFields";
 import {
   listMyOrganizationAccessRequests,
   searchAccessRequestOrganizations,
@@ -246,12 +245,19 @@ function PulseRadarBadge({ approved, blocked }: { approved?: boolean; blocked?: 
 
 export default function PendingScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
-  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  // Public self-service is a relationship request, never a staff role inferred from a URL.
+  const [requestIntent, setRequestIntent] = useState<FamilyAccessIntent | null>(null);
+  const [requestedStudentName, setRequestedStudentName] = useState("");
+  const [requestedRelationshipLabel, setRequestedRelationshipLabel] = useState("");
+  const [correctingRequest, setCorrectingRequest] = useState(false);
+  const validRelationshipRequest = Boolean(requestIntent && requestedStudentName.trim()
+    && (requestIntent !== "guardian" || requestedRelationshipLabel.trim()));
+  const { width: viewportWidth } = useWindowDimensions();
   markRender("screen.pending.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
   const { session, signOut, resendSignupCode, loading: authLoading } = useAuth();
-  const { refresh, role, loading: roleLoading, studentAccessResolution } = useRole();
+  const { refresh, role, loading: roleLoading, studentAccessResolution, availableRoles, setActiveRole } = useRole();
   const [inviteBusy, setInviteBusy] = useState(false);
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -268,9 +274,10 @@ export default function PendingScreen() {
   const [organizationPickerOpen, setOrganizationPickerOpen] = useState(false);
   const [organizationCatalogLoading, setOrganizationCatalogLoading] = useState(false);
   const [organizationTriggerLayout, setOrganizationTriggerLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [accessRequest, setAccessRequest] = useState<OrganizationAccessRequest | null>(null);
   const [accessRequestBusy, setAccessRequestBusy] = useState(false);
+  const requestLock = useRef(false);
+  const observedAthletePending = useRef(false);
   const autoClaimedRef = useRef(false);
   const organizationTriggerRef = useRef<View>(null);
   const [textAnim] = useState(() => new Animated.Value(0));
@@ -282,9 +289,14 @@ export default function PendingScreen() {
     if (!session) return;
     try {
       const requests = await listMyOrganizationAccessRequests();
-      setAccessRequest(requests.find((item) => item.status === "pending") ?? requests[0] ?? null);
+      const relevant = requests.filter((item) => item.requestKind === "athlete" || item.requestKind === "guardian");
+      const next = relevant.find((item) => item.status === "pending")
+        ?? requests.find((item) => item.status === "pending" && item.requestKind === "staff")
+        ?? relevant[0] ?? null;
+      if (next?.status === "pending") observedAthletePending.current = true;
+      setAccessRequest(next);
     } catch {
-      // Invite-only deployments can continue to use the existing fallback.
+      setMessage("Não foi possível consultar a solicitação. Tente novamente.");
     }
   }, [session]);
 
@@ -300,13 +312,10 @@ export default function PendingScreen() {
       setOrganizationCatalogLoading(true);
       try {
         const remoteOrganizations = await searchAccessRequestOrganizations(organizationQuery);
-        setOrganizations(
-          remoteOrganizations.length || !__DEV__
-            ? remoteOrganizations
-            : getPreviewAccessOrganizations(organizationQuery)
-        );
+        setOrganizations(remoteOrganizations);
       } catch {
-        setOrganizations(__DEV__ ? getPreviewAccessOrganizations(organizationQuery) : []);
+        setOrganizations([]);
+        setMessage("Não foi possível consultar as instituições. Tente novamente.");
       } finally {
         setOrganizationCatalogLoading(false);
       }
@@ -314,16 +323,21 @@ export default function PendingScreen() {
     return () => clearTimeout(timer);
   }, [accessRequest?.status, organizationQuery, session]);
 
-  const submitAccessRequest = async (plan?: InstitutionAccessPlan) => {
-    if (!selectedOrganization || accessRequestBusy) return;
+  const submitAccessRequest = async (organization = selectedOrganization) => {
+    if (!organization || requestLock.current) return;
+    requestLock.current = true;
     setAccessRequestBusy(true);
     setMessage("");
     try {
-      await requestAccessReview({ organizationId: selectedOrganization.id, requestedProduct: plan?.product ?? "goatleta" });
+      if (!requestIntent || !validRelationshipRequest) throw new Error("Informe seu vínculo e os dados do atleta.");
+      await requestFamilyAccess({ organizationId: organization.id, kind: requestIntent,
+        studentName: requestedStudentName, relationshipLabel: requestedRelationshipLabel });
+      setCorrectingRequest(false);
       await loadAccessRequest();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
+      setMessage(familyAccessErrorMessage(error));
     } finally {
+      requestLock.current = false;
       setAccessRequestBusy(false);
     }
   };
@@ -497,11 +511,18 @@ export default function PendingScreen() {
 
   useEffect(() => {
     if (!session) return;
-    const interval = setInterval(() => {
-      void refresh({ silent: true });
-    }, 12000);
-    return () => clearInterval(interval);
-  }, [refresh, session]);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        if (Platform.OS !== "web" || typeof document === "undefined" || document.visibilityState === "visible") {
+          await Promise.all([refresh({ silent: true }), loadAccessRequest()]);
+        }
+      } finally { if (!cancelled) timer = setTimeout(() => void poll(), 12000); }
+    };
+    timer = setTimeout(() => void poll(), 12000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [refresh, session, loadAccessRequest]);
 
   useEffect(() => {
     let alive = true;
@@ -529,8 +550,12 @@ export default function PendingScreen() {
       }
       if (authLoading) return;
       if (!token && !trainerCode) {
-        if (resolvedRoleHome) {
-          router.replace(resolvedRoleHome);
+        if (resolvedRoleHome && observedAthletePending.current && accessRequest?.status === "approved") {
+          const nextRole = accessRequest.requestKind === "guardian" ? "family" : "student";
+          if (!availableRoles.includes(nextRole)) return;
+          if (role === nextRole || await setActiveRole(nextRole)) {
+            router.replace(nextRole === "family" ? "/family/home" : "/student/home");
+          }
         }
         return;
       }
@@ -549,11 +574,7 @@ export default function PendingScreen() {
     return () => {
       alive = false;
     };
-  }, [authLoading, handleStoredInvite, handleStoredTrainerInvite, resolvedRoleHome, router, session]);
-
-  if (resolvedRoleHome && !storedToken && !storedTrainerCode) {
-    return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} />;
-  }
+  }, [authLoading, handleStoredInvite, handleStoredTrainerInvite, resolvedRoleHome, router, session, accessRequest?.status, accessRequest?.requestKind, availableRoles, role, setActiveRole]);
 
   const pendingViewState = resolvePendingInviteViewState({
     accessApproved,
@@ -568,12 +589,14 @@ export default function PendingScreen() {
         title: "Solicitação enviada",
         subtitle: `A ${accessRequest.organizationName ?? "instituição"} revisará seu acesso.`,
       }
+    : accessRequest?.status === "rejected"
+    ? { title: "Solicitação recusada", subtitle: "Fale com a coordenação ou solicite um novo vínculo." }
     : studentAccessCopy
     ? { ...studentAccessCopy, subtitle: message || studentAccessCopy.subtitle }
     : {
         ...getPendingInviteCopy(pendingViewState),
         title: "Encontre sua instituição",
-        subtitle: "Solicite o vínculo para acessar o ambiente da sua equipe.",
+        subtitle: "Solicite seu vínculo com a instituição.",
       };
   const hasTerminalInviteIssue = isTerminalPendingInviteIssue(pendingViewState);
   const compactContentWidth = Math.min(Math.max(viewportWidth - spacing.lg * 2, 0), 440);
@@ -585,7 +608,6 @@ export default function PendingScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          scrollEnabled={!(planPickerOpen && selectedOrganization)}
           contentContainerStyle={{
             flexGrow: 1,
             justifyContent: "center",
@@ -604,7 +626,7 @@ export default function PendingScreen() {
               gap: spacing.lg,
             }}
           >
-            {!(planPickerOpen && selectedOrganization) ? <>
+            <>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Ir para início"
@@ -653,7 +675,7 @@ export default function PendingScreen() {
                 {pendingCopy.subtitle}
               </Text>
               </Animated.View>
-            </> : null}
+            </>
 
             {Boolean(storedToken || storedTrainerCode) && (
               <View
@@ -742,36 +764,33 @@ export default function PendingScreen() {
                           {accessRequest.organizationName}
                         </Text>
                         <Text style={{ color: colors.muted, fontSize: 13 }}>
-                          GoAtleta · Aguardando aprovação
+                          {accessRequest.requestKind === "athlete" ? "Atleta" : accessRequest.requestKind === "guardian" ? "Responsável" : "Equipe"} · Aguardando aprovação
                         </Text>
                       </View>
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>
-                      Você será avisado assim que a coordenação revisar a solicitação.
+                      {accessRequest.requestKind === "staff"
+                        ? "Esta solicitação foi enviada como acesso da equipe. Você pode corrigir o vínculo solicitado."
+                        : "Você será avisado assim que a coordenação revisar a solicitação."}
                     </Text>
-                    <Pressable onPress={() => void loadAccessRequest()} style={{ alignSelf: "flex-start", paddingVertical: 6 }} suppressWebHoverFeedback>
+                    {accessRequest.requestKind === "staff" && !correctingRequest ? <Button label="Corrigir vínculo solicitado" variant="outline" onPress={() => setCorrectingRequest(true)} /> : null}
+                    {correctingRequest ? <>
+                      <FamilyAccessIntentFields kind={requestIntent} studentName={requestedStudentName} relationshipLabel={requestedRelationshipLabel}
+                        onKind={setRequestIntent} onStudentName={setRequestedStudentName} onRelationshipLabel={setRequestedRelationshipLabel} disabled={accessRequestBusy} />
+                      <Button label="Enviar correção" disabled={!validRelationshipRequest} loading={accessRequestBusy}
+                        onPress={() => void submitAccessRequest({ id: accessRequest.organizationId, name: accessRequest.organizationName ?? "Instituição" })} />
+                    </> : null}
+                    {message ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{message}</Text> : null}
+                    <Pressable onPress={() => void Promise.all([loadAccessRequest(), refresh()])} style={{ alignSelf: "flex-start", paddingVertical: 6 }} suppressWebHoverFeedback>
                       <Text style={{ color: colors.primaryBg, fontSize: 13, fontWeight: "700" }}>
                         Atualizar status
                       </Text>
                     </Pressable>
                   </View>
                 ) : (
-                  planPickerOpen && selectedOrganization ? (
-                    <InstitutionPlanPicker
-                      institutionName={selectedOrganization.name}
-                      athleteName={String(session?.user.user_metadata?.full_name ?? session?.user.email?.split("@")[0] ?? "Atleta")}
-                      plans={getPreviewInstitutionAccessPlans(selectedOrganization.name)}
-                      contentHeight={Math.max(360, viewportHeight - spacing.xl * 2 - spacing.md * 2)}
-                      busy={accessRequestBusy}
-                      onBack={() => {
-                        setPlanPickerOpen(false);
-                        setSelectedOrganization(null);
-                        setOrganizationQuery("");
-                        setOrganizationPickerOpen(true);
-                      }}
-                      onSubmit={(plan) => void submitAccessRequest(plan)}
-                    />
-                  ) : <View style={{ gap: spacing.sm }}>
+                  <View style={{ gap: spacing.sm }}>
+                    <FamilyAccessIntentFields kind={requestIntent} studentName={requestedStudentName} relationshipLabel={requestedRelationshipLabel}
+                      onKind={setRequestIntent} onStudentName={setRequestedStudentName} onRelationshipLabel={setRequestedRelationshipLabel} disabled={accessRequestBusy} />
                     <View ref={organizationTriggerRef} collapsable={false}>
                       <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: organizationPickerOpen ? colors.primaryBg : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10 }}>
                         <GoAtletaIcon name="search" size={18} color={colors.muted} />
@@ -813,7 +832,6 @@ export default function PendingScreen() {
                       {organizationCatalogLoading ? <Text style={{ color: colors.muted, fontSize: 13, padding: spacing.sm }}>Carregando instituições...</Text> : null}
                       {!organizationCatalogLoading && organizations.length === 0 ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19, padding: spacing.sm }}>Nenhuma instituição encontrada.</Text> : null}
                       {!organizationCatalogLoading ? organizations.slice(0, 5).map((organization) => {
-                        const modalityLabel = getPreviewInstitutionModalities(organization.name).join(" · ");
                         return (
                           <Pressable
                             key={organization.id}
@@ -823,25 +841,24 @@ export default function PendingScreen() {
                               setSelectedOrganization(organization);
                               setOrganizationQuery(organization.name);
                               setOrganizationPickerOpen(false);
-                              setPlanPickerOpen(true);
                             }}
                             style={{ minHeight: 54, borderRadius: radius.internal, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10 }}
                           >
                             <GoAtletaIcon name="organization" size={18} color={colors.muted} />
                             <View style={{ flex: 1, gap: 2 }}>
                               <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{organization.name}</Text>
-                              {modalityLabel ? <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 16 }}>{modalityLabel}</Text> : null}
                             </View>
                             <GoAtletaIcon name="chevronForward" size={17} color={colors.muted} />
                           </Pressable>
                         );
                       }) : null}
                     </AnchoredDropdown>
+                    {selectedOrganization ? <Button label="Solicitar vínculo" disabled={!validRelationshipRequest} loading={accessRequestBusy} onPress={() => void submitAccessRequest()} /> : null}
                     {message ? <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: 13 }}>{message}</Text> : null}
                   </View>
                 )}
 
-                {!(planPickerOpen && selectedOrganization) ? <>
+                <>
                   <View style={{ height: 1, backgroundColor: colors.border }} />
                   {!inviteEntryOpen ? (
                   <Pressable
@@ -930,7 +947,7 @@ export default function PendingScreen() {
                     />
                   </Animated.View>
                   )}
-                </> : null}
+                </>
               </View>
             ) : null}
 
@@ -945,26 +962,6 @@ export default function PendingScreen() {
                 </Text>
               </Pressable>
 
-              {__DEV__ && !accessApproved && (
-                <Pressable
-                  onPress={() => setAccessApproved(true)}
-                  style={{
-                    alignSelf: "center",
-                    marginTop: spacing.xs,
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    borderRadius: 999,
-                    backgroundColor: colors.secondaryBg,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  }}
-                  suppressWebHoverFeedback
-                >
-                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>
-                    🧪 Dev: Simular liberação de acesso
-                  </Text>
-                </Pressable>
-              )}
             </View>
           </View>
         </ScrollView>

@@ -24,6 +24,7 @@ import {
 import { canSafelyUnlinkProvider, type LinkedIdentity } from "./identity-linking";
 import { runWithFreshAuthToken } from "./auth-token-retry";
 import { buildOAuthAuthorizeUrl } from "./oauth-url";
+import { getGoogleLinkUrl } from "../api/auth-link-google";
 import { revokeAuthSession } from "./auth-signout";
 import type { AuthSession } from "./session";
 import {
@@ -54,6 +55,7 @@ type AuthContextValue = {
   resendSignupCode: (email: string, redirectPath?: string) => Promise<void>;
   verifySignupCode: (email: string, code: string) => Promise<AuthSession | null>;
   unlinkIdentityProvider: (provider: "google" | "facebook" | "apple") => Promise<void>;
+  linkGoogleIdentity: () => Promise<void>;
   refreshUser: () => Promise<void>;
   updateProfileName: (fullName: string) => Promise<void>;
   updateSecurityContactEmail: (email: string) => Promise<void>;
@@ -760,6 +762,19 @@ export function AuthProvider({
     return null;
   }, [session]);
 
+  const linkGoogleIdentity = useCallback(async () => {
+    const redirectTo = Platform.OS === "web"
+      ? buildWebRedirectUrl("student/profile")
+      : buildRedirectUrl("student/profile");
+    const url = await getGoogleLinkUrl(session?.access_token ?? "", redirectTo);
+    if (Platform.OS === "web") {
+      window.location.assign(url);
+      return;
+    }
+    const result = await WebBrowser.openAuthSessionAsync(url, redirectTo);
+    if (result.type === "success") await refreshUser();
+  }, [session, refreshUser]);
+
   const unlinkIdentityProvider = useCallback(
     async (provider: "google" | "facebook" | "apple") => {
       const token = session?.access_token ?? "";
@@ -833,6 +848,7 @@ export function AuthProvider({
       resendSignupCode,
       verifySignupCode,
       unlinkIdentityProvider,
+      linkGoogleIdentity,
       refreshUser,
       updateProfileName,
       updateSecurityContactEmail,
@@ -858,6 +874,7 @@ export function AuthProvider({
       signOut,
       signUp,
       unlinkIdentityProvider,
+      linkGoogleIdentity,
       updatePassword,
       updateProfileName,
       updateSecurityContactEmail,
@@ -886,6 +903,7 @@ export const useAuth = () => {
       resendSignupCode: async () => {},
       verifySignupCode: async () => null,
       unlinkIdentityProvider: async () => {},
+      linkGoogleIdentity: async () => {},
       refreshUser: async () => {},
       updateProfileName: async () => {},
       updateSecurityContactEmail: async () => {},

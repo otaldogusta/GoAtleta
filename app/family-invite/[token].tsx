@@ -24,6 +24,7 @@ import {
   savePendingRelationshipInvite,
 } from "../../src/auth/pending-invite";
 import { useRole } from "../../src/auth/role";
+import { setActiveRolePreference } from "../../src/auth/active-role";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { markRender, measureAsync } from "../../src/observability/perf";
 import { radius, shadow, spacing } from "../../src/theme/tokens";
@@ -32,6 +33,7 @@ import { Pressable } from "../../src/ui/Pressable";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
+import { FamilyInviteIdentitySummary } from "../../src/screens/family/FamilyInviteIdentitySummary";
 
 type InviteState = "checking" | "valid" | "invalid";
 
@@ -45,11 +47,11 @@ const relationshipLabel = (preview: StudentRelationshipInvitePreview) => {
 
 const inviteErrorMessage = (error: unknown) => {
   const code = getInviteErrorCode(error);
-  if (code === "INVITE_EXPIRED") return "Este convite expirou. Peça um novo link à instituição.";
-  if (code === "INVITE_REVOKED") return "Este convite foi cancelado pela instituição.";
-  if (code === "INVITE_ALREADY_USED") return "Este convite já foi usado por outra conta.";
+  if (code === "INVITE_EXPIRED") return "Este convite expirou. Peça um novo link a quem enviou.";
+  if (code === "INVITE_REVOKED") return "Este convite foi cancelado. Peça um novo link a quem enviou.";
+  if (code === "INVITE_ALREADY_USED") return "Este convite já foi aceito.";
   if (code === "INVITE_EMAIL_MISMATCH") return "Entre com o e-mail que recebeu este convite.";
-  if (code === "STUDENT_ALREADY_LINKED") return "Este atleta já possui uma conta vinculada.";
+  if (code === "STUDENT_ALREADY_LINKED" || code === "RELATIONSHIP_CONFLICT") return "Este cadastro já possui um vínculo. Peça à coordenação para conferir o acesso.";
   if (code === "EMAIL_NOT_VERIFIED") return "Confirme seu e-mail antes de aceitar o convite.";
   if (code === "UNAUTHORIZED" || code === "MISSING_AUTH_TOKEN") {
     return "Sua sessão expirou. Entre novamente.";
@@ -89,6 +91,29 @@ export default function StudentRelationshipInviteScreen() {
     ]).start();
   }, [shakeAnim, useNativeDriver]);
 
+  const enterClaimedRelationship = useCallback(async (
+    receipt: Awaited<ReturnType<typeof claimStudentRelationshipInvite>>,
+  ) => {
+    await clearPendingRelationshipInvite().catch(() => undefined);
+    const destination = receipt.relationshipKind === "athlete" ? "/student/home" : "/family/home";
+    const rolePreference = receipt.relationshipKind === "athlete" ? "student" : "family";
+
+    if (receipt.status === "already_claimed") {
+      if (session?.user.id) {
+        await setActiveRolePreference(session.user.id, rolePreference).catch(() => undefined);
+      }
+      await Promise.allSettled([refreshUser(), refreshRole()]);
+      router.replace(destination);
+      return;
+    }
+
+    if (session?.user.id) {
+      await setActiveRolePreference(session.user.id, rolePreference);
+    }
+    await Promise.all([refreshUser(), refreshRole()]);
+    router.replace(destination);
+  }, [refreshRole, refreshUser, router, session]);
+
   useEffect(() => {
     Animated.spring(enterAnim, {
       toValue: 1,
@@ -123,7 +148,31 @@ export default function StudentRelationshipInviteScreen() {
         setInviteState("valid");
         setMessage("");
       })
-      .catch((error) => {
+      .catch(async (error) => {
+        if (!active) return;
+        if (
+          getInviteErrorCode(error) === "INVITE_ALREADY_USED" &&
+          session &&
+          !sessionNeedsVerification
+        ) {
+          try {
+            const receipt = await claimStudentRelationshipInvite(tokenValue);
+            if (!active) return;
+            await enterClaimedRelationship(receipt);
+            return;
+          } catch (claimError) {
+            const claimCode = getInviteErrorCode(claimError);
+            if (
+              claimCode === "INVITE_ALREADY_USED" ||
+              claimCode === "INVITE_EMAIL_MISMATCH" ||
+              claimCode === "UNAUTHORIZED" ||
+              claimCode === "MISSING_AUTH_TOKEN" ||
+              claimCode === "EMAIL_NOT_VERIFIED"
+            ) {
+              error = claimError;
+            }
+          }
+        }
         if (!active) return;
         setInviteState("invalid");
         setMessage(inviteErrorMessage(error));
@@ -132,7 +181,7 @@ export default function StudentRelationshipInviteScreen() {
     return () => {
       active = false;
     };
-  }, [tokenValue]);
+  }, [enterClaimedRelationship, session, sessionNeedsVerification, tokenValue]);
 
   useEffect(() => {
     if (
@@ -180,11 +229,7 @@ export default function StudentRelationshipInviteScreen() {
         "screen.studentRelationshipInvite.action.claim",
         () => claimStudentRelationshipInvite(tokenValue),
       );
-      await clearPendingRelationshipInvite().catch(() => undefined);
-      await Promise.all([refreshUser(), refreshRole()]);
-      router.replace(
-        receipt.relationshipKind === "athlete" ? "/student/home" : "/family/home",
-      );
+      await enterClaimedRelationship(receipt);
     } catch (error) {
       setMessage(inviteErrorMessage(error));
       runShake();
@@ -192,7 +237,7 @@ export default function StudentRelationshipInviteScreen() {
       claimInFlightRef.current = false;
       setBusy(false);
     }
-  }, [refreshRole, refreshUser, router, runShake, tokenValue]);
+  }, [enterClaimedRelationship, runShake, tokenValue]);
 
   const handleOtherAccount = async () => {
     await signOut();
@@ -343,17 +388,7 @@ export default function StudentRelationshipInviteScreen() {
                 </View>
               ) : (
                 <>
-                  <View style={{ gap: spacing.xs }}>
-                    <Text style={{ color: colors.muted, fontSize: responsive.density.metadataFontSize }}>
-                      {preview.organization.name}
-                    </Text>
-                    <Text style={{ color: colors.text, fontWeight: "900", fontSize: responsive.density.sectionTitleFontSize }}>
-                      {preview.student.name}
-                    </Text>
-                    <Text style={{ color: colors.muted }}>
-                      Acesso como {relationshipLabel(preview)}
-                    </Text>
-                  </View>
+                  <FamilyInviteIdentitySummary organizationName={preview.organization.name} studentName={preview.student.name} relationship={relationshipLabel(preview)} />
                   <View style={{ height: 1, backgroundColor: colors.border }} />
                   {message ? (
                     <View

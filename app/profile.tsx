@@ -2,7 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { canUseProfilePreview } from "../src/dev/profile-preview-access";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { usePathname, useRouter } from "expo-router";
+import { useFocusEffect, usePathname, useRouter } from "expo-router";
+import { registerPendingEditsNavigation } from "../src/navigation/pending-edits-navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import CountryList, { type Country } from "country-list-with-dial-code-and-flag";
@@ -53,7 +54,6 @@ import {
 import { resolveEffectiveProfile } from "../src/core/effective-profile";
 import {
   getPasswordChangeValidationError,
-  getSecurityContactEmailValidationError,
   normalizeSecurityContactEmail,
 } from "../src/core/account-security";
 import {
@@ -88,6 +88,16 @@ import {
 import { useBiometricLock } from "../src/security/biometric-lock";
 import { isBiometricsSupported, promptBiometrics } from "../src/security/biometrics";
 import { useAppTheme } from "../src/ui/app-theme";
+import { FloatingSaveBar } from "../src/ui/FloatingSaveBar";
+import { AnimatedFieldDetails } from "../src/ui/AnimatedFieldDetails";
+import { PostalAddressField } from "../src/ui/PostalAddressField";
+import { maskCpf } from "../src/utils/cpf";
+import { PositionPicker } from "../src/ui/PositionPicker";
+import { CLASS_MODALITY_OPTIONS } from "../src/core/class-modality";
+import { useAthleteModalities } from "../src/screens/student/useAthleteModalities";
+import { useInstitutionClasses } from "../src/screens/student/useInstitutionClasses";
+import { GenderIdentityField } from "../src/screens/student/GenderIdentityField";
+import { formatRg } from "../src/utils/rg";
 import { AppRefreshControl } from "../src/ui/AppRefreshControl";
 import { AnchoredDropdown } from "../src/ui/AnchoredDropdown";
 import { AnchoredDropdownOption } from "../src/ui/AnchoredDropdownOption";
@@ -97,6 +107,8 @@ import { getFriendlyErrorMessage } from "../src/ui/error-messages";
 import { ModalSheet } from "../src/ui/ModalSheet";
 import { Pressable } from "../src/ui/Pressable";
 import { Button } from "../src/ui/Button";
+import { SecurityContactFields } from "../src/screens/student/SecurityContactFields";
+import { useSecurityContactVerification } from "../src/screens/student/useSecurityContactVerification";
 import { SettingsRow } from "../src/ui/SettingsRow";
 import { ScreenLoadingState } from "../src/components/ui/ScreenLoadingState";
 import { useModalCardStyle } from "../src/ui/use-modal-card-style";
@@ -274,6 +286,7 @@ function MobileProfileSection({
   onPress,
   children,
   grouped = false,
+  pendingMessage,
 }: {
   icon: Parameters<typeof GoAtletaIcon>[0]["name"];
   title: string;
@@ -282,6 +295,7 @@ function MobileProfileSection({
   onPress: () => void;
   children: ReactNode;
   grouped?: boolean;
+  pendingMessage?: string;
 }) {
   const { colors } = useAppTheme();
   const [expansionAnim] = useState(() => new Animated.Value(expanded ? 1 : 0));
@@ -313,14 +327,16 @@ function MobileProfileSection({
 
   return (
     <View
+      nativeID={`profile-section-${title}`}
       style={{
-        overflow: "hidden",
+        overflow: pendingMessage ? "visible" : "hidden",
         borderRadius: grouped ? 0 : 14,
         borderWidth: grouped ? 0 : 1,
         borderColor: colors.border,
         backgroundColor: colors.card,
       }}
     >
+      <FloatingFieldError message={pendingMessage ?? null} />
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
@@ -411,6 +427,8 @@ function AccountTextField({
   autoComplete,
   returnKeyType = "next",
   onSubmitEditing,
+  maxLength,
+  keyboardType,
 }: {
   label: string;
   value: string;
@@ -420,7 +438,9 @@ function AccountTextField({
   secureTextEntry?: boolean;
   passwordVisible?: boolean;
   onTogglePassword?: () => void;
-  autoComplete?: "email" | "current-password" | "new-password" | "off";
+  autoComplete?: "email" | "current-password" | "new-password" | "off" | "one-time-code";
+  maxLength?: number;
+  keyboardType?: "default" | "email-address" | "number-pad";
   returnKeyType?: "next" | "done";
   onSubmitEditing?: () => void;
 }) {
@@ -448,7 +468,8 @@ function AccountTextField({
             autoCapitalize="none"
             autoComplete={autoComplete}
             autoCorrect={false}
-            maxLength={secureTextEntry ? 128 : 254}
+            maxLength={maxLength ?? (secureTextEntry ? 128 : 254)}
+            keyboardType={keyboardType}
             placeholder={placeholder}
             placeholderTextColor={colors.muted}
             returnKeyType={returnKeyType}
@@ -507,12 +528,12 @@ export default function ProfileScreen() {
     resendSignupCode,
     signInWithOAuth,
     unlinkIdentityProvider,
+    linkGoogleIdentity,
     requestPhoneChange,
     verifyPhoneChange,
     removeVerifiedPhone,
     updatePassword,
     updateProfileName,
-    updateSecurityContactEmail,
   } = useAuth();
   const {
     role: userRole,
@@ -529,6 +550,11 @@ export default function ProfileScreen() {
     setEnabled: setBiometricsEnabled,
   } = useBiometricLock();
   const router = useRouter();
+  const pendingNavigationHandler = useRef<((navigate: () => void) => void) | null>(null);
+  useFocusEffect(useCallback(() => registerPendingEditsNavigation((navigate) => {
+    if (pendingNavigationHandler.current) pendingNavigationHandler.current(navigate);
+    else navigate();
+  }), []));
   const pathname = usePathname();
   const scopedRoutes = useTrainerRouteScope();
   const LEGACY_PHOTO_STORAGE_KEY = "profile_photo_uri_v1";
@@ -548,10 +574,9 @@ export default function ProfileScreen() {
   const [accountDeletionConfirmation, setAccountDeletionConfirmation] = useState("");
   const [accountDeletionError, setAccountDeletionError] = useState<string | null>(null);
   const [deletingAccount, setDeletingAccount] = useState(false);
-  const [securityContactDraft, setSecurityContactDraft] = useState("");
-  const [securityContactError, setSecurityContactError] = useState<string | null>(null);
-  const [securityContactSuccess, setSecurityContactSuccess] = useState(false);
-  const [savingSecurityContact, setSavingSecurityContact] = useState(false);
+  const securityContact = useSecurityContactVerification(session?.user?.id, session?.user?.email);
+  const { draft: securityContactDraft, setDraft: setSecurityContactDraft,
+    setError: setSecurityContactError, busy: savingSecurityContact } = securityContact;
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
@@ -613,7 +638,6 @@ export default function ProfileScreen() {
     width: number;
     height: number;
   } | null>(null);
-  const [mobileMoreDataExpanded, setMobileMoreDataExpanded] = useState(false);
   const [savingMobileProfile, setSavingMobileProfile] = useState(false);
   const [pendingPhoneVerification, setPendingPhoneVerification] = useState("");
   const [phoneVerificationCode, setPhoneVerificationCode] = useState("");
@@ -621,7 +645,10 @@ export default function ProfileScreen() {
   const [requestingPhoneVerification, setRequestingPhoneVerification] = useState(false);
   const [verifyingPhone, setVerifyingPhone] = useState(false);
   const [removingPhone, setRemovingPhone] = useState(false);
+  const athleteModalities = useAthleteModalities(session?.user?.id);
+  const [pendingProfileNotice, setPendingProfileNotice] = useState<Record<string, { message: string; snapshot: string }> | null>(null);
   const [mobilePositionDraft, setMobilePositionDraft] = useState<AthletePosition>("indefinido");
+  const [mobileSecondaryPositionDraft, setMobileSecondaryPositionDraft] = useState<AthletePosition>("indefinido");
   const [mobileHealthIssueDraft, setMobileHealthIssueDraft] = useState(false);
   const [mobileHealthIssueNotesDraft, setMobileHealthIssueNotesDraft] = useState("");
   const [mobileMedicationUseDraft, setMobileMedicationUseDraft] = useState(false);
@@ -629,6 +656,7 @@ export default function ProfileScreen() {
   const [mobileHealthObservationsDraft, setMobileHealthObservationsDraft] = useState("");
   const [mobileSportsBaseline, setMobileSportsBaseline] = useState({
     position: "indefinido" as AthletePosition,
+    secondaryPosition: "indefinido" as AthletePosition,
     healthIssue: false,
     healthIssueNotes: "",
     medicationUse: false,
@@ -649,6 +677,21 @@ export default function ProfileScreen() {
   });
   const [updatingBiometrics, setUpdatingBiometrics] = useState(false);
   const [unlinkingGoogle, setUnlinkingGoogle] = useState(false);
+  const [linkingGoogle, setLinkingGoogle] = useState(false);
+  const linkingGoogleRef = useRef(false);
+  const handleLinkGoogle = async () => {
+    if (linkingGoogleRef.current) return;
+    linkingGoogleRef.current = true;
+    setLinkingGoogle(true);
+    try {
+      await linkGoogleIdentity();
+    } catch (error) {
+      showSaveToast({ error, variant: "error" });
+    } finally {
+      linkingGoogleRef.current = false;
+      setLinkingGoogle(false);
+    }
+  };
   const [googleMenuOpen, setGoogleMenuOpen] = useState(false);
   const [googleMenuAnchor, setGoogleMenuAnchor] = useState<{
     top: number;
@@ -723,7 +766,7 @@ export default function ProfileScreen() {
 
       alive = false;
     };
-  }, []);
+  }, [setSecurityContactError]);
 
   useEffect(() => {
     let alive = true;
@@ -1103,6 +1146,7 @@ export default function ProfileScreen() {
     if (!student || !student.classId) return null;
     return classes.find((item) => item.id === student.classId) ?? null;
   }, [classes, student]);
+  const institutionClasses = useInstitutionClasses(student?.id, activeOrganization?.id, classes);
 
   const currentAccountName = useMemo(() => {
     const metadata = session?.user?.user_metadata ?? {};
@@ -1187,11 +1231,13 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     const resolvedName = student?.name || currentAccountName;
+    const authenticatedPhone = session?.user?.phone_confirmed_at ? session.user.phone : null;
+    const primaryPhoneDraft = resolvePhoneDraft(student?.phone || authenticatedPhone);
     const guardianPhoneDraft = resolvePhoneDraft(student?.guardianPhone);
     const nextValues = {
       name: resolvedName === PROFILE_NAME_FALLBACK ? "" : resolvedName,
       birth: student?.birthDate && formatStudentBirthDate(student.birthDate) !== "Não informada" ? formatStudentBirthDate(student.birthDate) : "",
-      phone: student?.phone && formatStudentPhone(student.phone) !== "Não informado" ? formatStudentPhone(student.phone) : "",
+      phone: primaryPhoneDraft.phone,
       cpf: student?.cpfMasked ?? "",
       rg: student?.rg ?? "",
       address: student?.address ?? "",
@@ -1199,7 +1245,7 @@ export default function ProfileScreen() {
       guardianName: student?.guardianName ?? "",
       guardianPhone: guardianPhoneDraft.phone,
       guardianRelation: student?.guardianRelation ?? "",
-      countryCode: "+55",
+      countryCode: primaryPhoneDraft.countryCode,
       guardianCountryCode: guardianPhoneDraft.countryCode,
     };
     // Reconcile the editable draft when the authenticated profile changes.
@@ -1215,14 +1261,16 @@ export default function ProfileScreen() {
     setMobileGuardianPhoneDraft(nextValues.guardianPhone);
     setMobileGuardianRelationDraft(nextValues.guardianRelation);
     setMobileCountryCode(nextValues.countryCode);
+    setMobileCountryIso(primaryPhoneDraft.countryIso);
     setMobileGuardianCountryCode(nextValues.guardianCountryCode);
     setMobileGuardianCountryIso(guardianPhoneDraft.countryIso);
     setMobileProfileBaseline(nextValues);
-  }, [currentAccountName, student]);
+  }, [currentAccountName, session?.user?.phone, session?.user?.phone_confirmed_at, student]);
 
   useEffect(() => {
     const nextValues = {
       position: student?.positionPrimary ?? "indefinido",
+      secondaryPosition: student?.positionSecondary ?? "indefinido",
       healthIssue: student?.healthIssue ?? false,
       healthIssueNotes: student?.healthIssueNotes ?? "",
       medicationUse: student?.medicationUse ?? false,
@@ -1232,6 +1280,7 @@ export default function ProfileScreen() {
     // Reconcile the sports draft when a different athlete profile is loaded.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobilePositionDraft(nextValues.position);
+    setMobileSecondaryPositionDraft(nextValues.secondaryPosition);
     setMobileHealthIssueDraft(nextValues.healthIssue);
     setMobileHealthIssueNotesDraft(nextValues.healthIssueNotes);
     setMobileMedicationUseDraft(nextValues.medicationUse);
@@ -1292,10 +1341,7 @@ export default function ProfileScreen() {
       ? Boolean(hybridVerifiedAt)
       : Boolean(confirmedAt || hybridVerifiedAt);
     const accountEmail = String(session?.user?.email ?? "").trim();
-    const securityContactEmail =
-      typeof metadata.security_contact_email === "string"
-        ? normalizeSecurityContactEmail(metadata.security_contact_email)
-        : "";
+    const securityContactEmail = securityContact.status?.email ?? "";
 
     return {
       emailConfirmed,
@@ -1313,7 +1359,7 @@ export default function ProfileScreen() {
           : "Conta em modo híbrido: confirme o e-mail por código para liberar ações sensíveis."
         : "Sua conta usa autenticação por e-mail e senha.",
     };
-  }, [session]);
+  }, [session, securityContact.status?.email]);
 
   const openAccountDeletion = useCallback(() => {
     confirm({
@@ -1377,7 +1423,6 @@ export default function ProfileScreen() {
 
   const resetAccountEditorState = useCallback(() => {
     setSecurityContactError(null);
-    setSecurityContactSuccess(false);
     setCurrentPassword("");
     setNewPassword("");
     setPasswordConfirmation("");
@@ -1388,13 +1433,12 @@ export default function ProfileScreen() {
     setShowCurrentPassword(false);
     setShowNewPassword(false);
     setShowPasswordConfirmation(false);
-  }, []);
+  }, [setSecurityContactError]);
 
   const openAccountEditor = useCallback(() => {
-    setSecurityContactDraft(accountSecurity.securityContactEmail);
     resetAccountEditorState();
     setShowAccountEditor(true);
-  }, [accountSecurity.securityContactEmail, resetAccountEditorState]);
+  }, [resetAccountEditorState]);
 
   const closeAccountEditor = useCallback(() => {
     setShowAccountEditor(false);
@@ -1433,16 +1477,6 @@ export default function ProfileScreen() {
     securityContactDraft,
   ]);
 
-  const securityContactValidationError = getSecurityContactEmailValidationError(
-    securityContactDraft,
-    accountSecurity.accountEmail,
-  );
-  const canSaveSecurityContact = Boolean(
-    !savingSecurityContact
-      && !securityContactValidationError
-      && normalizeSecurityContactEmail(securityContactDraft)
-        !== accountSecurity.securityContactEmail,
-  );
   const passwordValidationError = getPasswordChangeValidationError({
     currentPassword,
     newPassword,
@@ -1455,30 +1489,6 @@ export default function ProfileScreen() {
       && passwordConfirmation,
   );
 
-  const saveSecurityContact = useCallback(async () => {
-    const validationError = getSecurityContactEmailValidationError(
-      securityContactDraft,
-      accountSecurity.accountEmail,
-    );
-    if (validationError) {
-      setSecurityContactError(validationError);
-      return;
-    }
-    setSavingSecurityContact(true);
-    setSecurityContactError(null);
-    setSecurityContactSuccess(false);
-    try {
-      await updateSecurityContactEmail(securityContactDraft);
-      setSecurityContactDraft(normalizeSecurityContactEmail(securityContactDraft));
-      setSecurityContactSuccess(true);
-    } catch (error) {
-      setSecurityContactError(
-        getFriendlyErrorMessage(error, "Não foi possível salvar o e-mail alternativo."),
-      );
-    } finally {
-      setSavingSecurityContact(false);
-    }
-  }, [accountSecurity.accountEmail, securityContactDraft, updateSecurityContactEmail]);
 
   const savePassword = useCallback(async () => {
     const validationError = getPasswordChangeValidationError({
@@ -1605,25 +1615,20 @@ export default function ProfileScreen() {
       message:
         "Isso remove apenas o acesso pelo Google. Sua conta, seus dados e os outros métodos de login serão mantidos.",
       confirmLabel: "Desvincular",
+      loadingLabel: "Desvinculando…",
       cancelLabel: "Cancelar",
       tone: "danger",
       onConfirm: async () => {
         try {
           setUnlinkingGoogle(true);
           await unlinkIdentityProvider("google");
-          Alert.alert("Google", "Conta Google desvinculada com sucesso.");
-        } catch (error) {
-          const detail =
-            error instanceof Error
-              ? error.message
-              : "Não foi possível desvincular agora.";
-          Alert.alert("Google", detail);
+          showSaveToast({ message: "Conta Google desvinculada.", variant: "success" });
         } finally {
           setUnlinkingGoogle(false);
         }
       },
     });
-  }, [accountSecurity.canUnlinkGoogle, confirm, unlinkIdentityProvider]);
+  }, [accountSecurity.canUnlinkGoogle, confirm, unlinkIdentityProvider, showSaveToast]);
 
   const handleOrganizationChange = useCallback(
     async (orgId: string) => {
@@ -1896,6 +1901,10 @@ export default function ProfileScreen() {
     ? `+${mobileGuardianCountryCode.replace(/\D/g, "")}${mobileGuardianPhoneDraft.replace(/\D/g, "")}`
     : "";
   const verifiedPhoneE164 = session?.user?.phone_confirmed_at ? String(session.user.phone ?? "") : "";
+  const isDisplayedPhoneVerified = Boolean(
+    mobilePhoneE164 && verifiedPhoneE164 && mobilePhoneE164 === verifiedPhoneE164,
+  );
+  const phoneVerificationEnabled = false;
   const mobilePhoneNeedsVerification = Boolean(mobilePhoneE164 && mobilePhoneE164 !== verifiedPhoneE164);
   const phoneVerificationRequested = Boolean(
     pendingPhoneVerification && pendingPhoneVerification === mobilePhoneE164,
@@ -1916,6 +1925,7 @@ export default function ProfileScreen() {
   );
   const mobileSportsHasChanges = Boolean(
     mobilePositionDraft !== mobileSportsBaseline.position
+      || mobileSecondaryPositionDraft !== mobileSportsBaseline.secondaryPosition
       || mobileHealthIssueDraft !== mobileSportsBaseline.healthIssue
       || mobileHealthIssueNotesDraft.trim() !== mobileSportsBaseline.healthIssueNotes.trim()
       || mobileMedicationUseDraft !== mobileSportsBaseline.medicationUse
@@ -1928,7 +1938,21 @@ export default function ProfileScreen() {
         || newPassword
         || passwordConfirmation),
   );
-  const mobileHasUnsavedChanges = mobileProfileHasChanges || mobileSportsHasChanges || mobileSecurityHasChanges;
+  const mobileHasUnsavedChanges = mobileProfileHasChanges || mobileSportsHasChanges || mobileSecurityHasChanges || athleteModalities.dirty;
+  const pendingCardFields: Record<string, [string, unknown, unknown][]> = {
+    personal: [
+      ["Nome", mobileNameDraft, mobileProfileBaseline.name], ["Nascimento", mobileBirthDraft, mobileProfileBaseline.birth],
+      ["Celular", mobilePhoneDraft, mobileProfileBaseline.phone], ["Código do país", mobileCountryCode, mobileProfileBaseline.countryCode],
+      ["CPF", mobileCpfDraft, mobileProfileBaseline.cpf], ["RG", mobileRgDraft, mobileProfileBaseline.rg],
+      ["Endereço", mobileAddressDraft, mobileProfileBaseline.address], ["Gênero", mobileGenderIdentityDraft, mobileProfileBaseline.genderIdentity],
+    ],
+    guardian: [["Nome", mobileGuardianNameDraft, mobileProfileBaseline.guardianName], ["Celular", mobileGuardianPhoneDraft, mobileProfileBaseline.guardianPhone], ["Código do país", mobileGuardianCountryCode, mobileProfileBaseline.guardianCountryCode], ["Parentesco", mobileGuardianRelationDraft, mobileProfileBaseline.guardianRelation]],
+    sports: [["Modalidades", athleteModalities.dirty, false], ["Posição", mobilePositionDraft, mobileSportsBaseline.position], ["Posição secundária", mobileSecondaryPositionDraft, mobileSportsBaseline.secondaryPosition]],
+    health: [["Condição de saúde", mobileHealthIssueDraft, mobileSportsBaseline.healthIssue], ["Detalhes da condição", mobileHealthIssueNotesDraft, mobileSportsBaseline.healthIssueNotes], ["Medicamento", mobileMedicationUseDraft, mobileSportsBaseline.medicationUse], ["Detalhes do medicamento", mobileMedicationNotesDraft, mobileSportsBaseline.medicationNotes], ["Observações", mobileHealthObservationsDraft, mobileSportsBaseline.healthObservations]],
+    security: [["E-mail de segurança", securityContactDraft, accountSecurity.securityContactEmail], ["Senha", newPassword, ""], ["Confirmação de senha", passwordConfirmation, ""]],
+  };
+  const pendingCardSnapshot = (section: string) => JSON.stringify([pendingCardFields[section], section === "sports" ? athleteModalities.selected : null]);
+  const pendingNoticeFor = (section: string) => pendingProfileNotice?.[section]?.snapshot === pendingCardSnapshot(section) ? pendingProfileNotice[section].message : undefined;
   useEffect(() => {
     if (Platform.OS !== "web" || !mobileHasUnsavedChanges) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -1941,6 +1965,10 @@ export default function ProfileScreen() {
 
   const saveMobileStudentProfile = async () => {
     if (savingMobileProfile) return;
+    if (!student && (mobileSportsHasChanges || mobileGuardianNameDraft.trim() !== mobileProfileBaseline.guardianName.trim() || mobileGuardianPhoneDraft.trim() !== mobileProfileBaseline.guardianPhone.trim() || mobileGuardianRelationDraft.trim() !== mobileProfileBaseline.guardianRelation.trim())) {
+      Alert.alert("Cadastro de atleta necessário", "Os dados do responsável, posições e saúde precisam de um cadastro de atleta vinculado. Suas alterações continuam nesta tela.");
+      return false;
+    }
     const normalizedName = mobileNameDraft.trim();
     const birthDate = parseStudentBirthDate(mobileBirthDraft);
     const phoneDigits = mobilePhoneDraft.replace(/\D/g, "");
@@ -1953,7 +1981,7 @@ export default function ProfileScreen() {
       Alert.alert("Data inválida", "Use o formato DD/MM/AAAA.");
       return;
     }
-    if (student && (phoneDigits.length < 10 || phoneDigits.length > 11)) {
+    if (phoneDigits && (phoneDigits.length < 6 || phoneDigits.length > 15)) {
       Alert.alert("Celular inválido", "Informe um celular com DDD.");
       return;
     }
@@ -1963,17 +1991,13 @@ export default function ProfileScreen() {
     }
     setSavingMobileProfile(true);
     try {
-      if (mobilePhoneNeedsVerification) {
-        Alert.alert("Confirme o celular", "Toque em Validar e confirme o código recebido por SMS antes de salvar.");
-        return;
-      }
       if (student && birthDate) {
         await updateStudent({
           ...student,
           name: normalizedName,
           birthDate,
           age: ageFromBirthDate(birthDate),
-          phone: `${mobileCountryCode.replace(/\D/g, "")}${phoneDigits}`,
+          phone: phoneDigits ? `${mobileCountryCode.replace(/\D/g, "")}${phoneDigits}` : "",
           cpfMasked: mobileCpfDraft.trim() || null,
           rg: mobileRgDraft.trim() || null,
           address: mobileAddressDraft.trim(),
@@ -1981,6 +2005,13 @@ export default function ProfileScreen() {
           guardianName: mobileGuardianNameDraft.trim(),
           guardianPhone: mobileGuardianPhoneE164,
           guardianRelation: mobileGuardianRelationDraft.trim(),
+          positionPrimary: mobilePositionDraft,
+          positionSecondary: mobileSecondaryPositionDraft,
+          healthIssue: mobileHealthIssueDraft,
+          healthIssueNotes: mobileHealthIssueDraft ? mobileHealthIssueNotesDraft.trim() : "",
+          medicationUse: mobileMedicationUseDraft,
+          medicationNotes: mobileMedicationUseDraft ? mobileMedicationNotesDraft.trim() : "",
+          healthObservations: mobileHealthObservationsDraft.trim(),
         });
       }
       if (normalizedName !== currentAccountName) await updateProfileName(normalizedName);
@@ -1999,7 +2030,8 @@ export default function ProfileScreen() {
         countryCode: mobileCountryCode,
         guardianCountryCode: mobileGuardianCountryCode,
       });
-      Alert.alert("Perfil atualizado", "Seus dados foram salvos.");
+      setMobileSportsBaseline({ position: mobilePositionDraft, secondaryPosition: mobileSecondaryPositionDraft, healthIssue: mobileHealthIssueDraft, healthIssueNotes: mobileHealthIssueDraft ? mobileHealthIssueNotesDraft.trim() : "", medicationUse: mobileMedicationUseDraft, medicationNotes: mobileMedicationUseDraft ? mobileMedicationNotesDraft.trim() : "", healthObservations: mobileHealthObservationsDraft.trim() });
+      return true;
     } catch (error) {
       Alert.alert("Não foi possível salvar", getFriendlyErrorMessage(error));
     } finally {
@@ -2077,9 +2109,9 @@ export default function ProfileScreen() {
   const removeMobilePhone = async () => {
     if (removingPhone) return;
     const approved = await confirm({
-      title: "Remover celular?",
-      message: "O número deixará de ser um contato verificado da sua conta.",
-      confirmLabel: "Remover celular",
+      title: "Remover número de celular?",
+      message: "O número atual será desvinculado da conta. Depois, você poderá cadastrar outro.",
+      confirmLabel: "Remover número",
       cancelLabel: "Cancelar",
       tone: "danger",
       onConfirm: async () => {
@@ -2101,12 +2133,14 @@ export default function ProfileScreen() {
     void approved;
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained for the upcoming unified mobile save action while this release uses the section-level persistence flow.
   const saveMobileSportsProfile = async () => {
     if (!student || savingMobileSports) return;
     setSavingMobileSports(true);
     try {
       const nextValues = {
         position: mobilePositionDraft,
+        secondaryPosition: mobileSecondaryPositionDraft,
         healthIssue: mobileHealthIssueDraft,
         healthIssueNotes: mobileHealthIssueDraft ? mobileHealthIssueNotesDraft.trim() : "",
         medicationUse: mobileMedicationUseDraft,
@@ -2116,6 +2150,7 @@ export default function ProfileScreen() {
       await updateStudent({
         ...student,
         positionPrimary: nextValues.position,
+        positionSecondary: nextValues.secondaryPosition,
         healthIssue: nextValues.healthIssue,
         healthIssueNotes: nextValues.healthIssueNotes,
         medicationUse: nextValues.medicationUse,
@@ -2127,7 +2162,7 @@ export default function ProfileScreen() {
       setMobileMedicationNotesDraft(nextValues.medicationNotes);
       setMobileHealthObservationsDraft(nextValues.healthObservations);
       setMobileSportsBaseline(nextValues);
-      Alert.alert("Perfil esportivo atualizado", "As informações do atleta foram salvas.");
+      showSaveToast({ message: "Informações do atleta salvas.", variant: "success" });
     } catch (error) {
       Alert.alert("Não foi possível salvar", getFriendlyErrorMessage(error));
     } finally {
@@ -2160,23 +2195,22 @@ export default function ProfileScreen() {
         || country.dialCode.includes(query);
     }).slice(0, COUNTRY_SEARCH_RESULT_LIMIT);
   })();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained as the canonical aggregate validity calculation for the pending unified mobile save control.
   const mobileProfileCanSave = Boolean(
     mobileProfileHasChanges
       && mobileNameDraft.trim().length >= 2
       && (!student || Boolean(parseStudentBirthDate(mobileBirthDraft)))
-      && (!student || mobilePhoneDraft.replace(/\D/g, "").length >= 10)
-      && (!student || mobilePhoneDraft.replace(/\D/g, "").length <= 11)
+      && (!mobilePhoneDraft.replace(/\D/g, "").length || (mobilePhoneDraft.replace(/\D/g, "").length >= 6 && mobilePhoneDraft.replace(/\D/g, "").length <= 15))
       && (!mobileGuardianPhoneDraft.replace(/\D/g, "").length
         || (mobileGuardianPhoneDraft.replace(/\D/g, "").length >= 6
           && mobileGuardianPhoneDraft.replace(/\D/g, "").length <= 15))
-      && !mobilePhoneNeedsVerification
       && !savingMobileProfile,
   );
   const notificationSettingSubtitle = isWeb
     ? webPushStatus === "unsupported"
       ? "Indisponível neste navegador"
       : webPushStatus === "unconfigured"
-        ? "Web Push aguardando configuração"
+        ? "Indisponível no momento"
         : webPushStatus === "denied"
           ? "Libere nas configurações do navegador"
           : webPushStatus === "subscribed"
@@ -2185,69 +2219,14 @@ export default function ProfileScreen() {
     : notificationsEnabled
       ? "Ativadas"
       : "Desativadas";
-  const discardMobileSectionChanges = (section: string) => {
-    if (section === "personal") {
-      setMobileNameDraft(mobileProfileBaseline.name);
-      setMobileBirthDraft(mobileProfileBaseline.birth);
-      setMobilePhoneDraft(mobileProfileBaseline.phone);
-      setMobileCpfDraft(mobileProfileBaseline.cpf);
-      setMobileRgDraft(mobileProfileBaseline.rg);
-      setMobileAddressDraft(mobileProfileBaseline.address);
-      setMobileGenderIdentityDraft(mobileProfileBaseline.genderIdentity);
-      setMobileGuardianNameDraft(mobileProfileBaseline.guardianName);
-      setMobileGuardianPhoneDraft(mobileProfileBaseline.guardianPhone);
-      setMobileGuardianRelationDraft(mobileProfileBaseline.guardianRelation);
-      setMobileCountryCode(mobileProfileBaseline.countryCode);
-      setMobileGuardianCountryCode(mobileProfileBaseline.guardianCountryCode);
-      setMobileGuardianCountryIso(
-        mobileCountryOptions.find((country) => country.dialCode === mobileProfileBaseline.guardianCountryCode)?.code ?? "BR",
-      );
-    } else if (section === "sports") {
-      setMobilePositionDraft(mobileSportsBaseline.position);
-      setMobileHealthIssueDraft(mobileSportsBaseline.healthIssue);
-      setMobileHealthIssueNotesDraft(mobileSportsBaseline.healthIssueNotes);
-      setMobileMedicationUseDraft(mobileSportsBaseline.medicationUse);
-      setMobileMedicationNotesDraft(mobileSportsBaseline.medicationNotes);
-      setMobileHealthObservationsDraft(mobileSportsBaseline.healthObservations);
-    } else if (section === "security") {
-      setSecurityContactDraft(accountSecurity.securityContactEmail);
-      resetAccountEditorState();
-    }
-  };
-  const sectionHasUnsavedChanges = (section: string | null) => (
-    section === "personal" ? mobileProfileHasChanges
-      : section === "sports" ? mobileSportsHasChanges
-      : section === "security" ? mobileSecurityHasChanges
-      : false
-  );
-  const toggleMobileSection = async (section: string) => {
-    const currentSection = mobileExpandedSection;
-    if (currentSection && currentSection !== section && sectionHasUnsavedChanges(currentSection)) {
-      const shouldLeave = await confirm({
-        title: "Sair sem salvar?",
-        message: "Você tem alterações não salvas nesta seção.",
-        confirmLabel: "Sair sem salvar",
-        cancelLabel: "Continuar editando",
-        tone: "danger",
-        onConfirm: () => discardMobileSectionChanges(currentSection),
-      });
-      if (!shouldLeave) return;
-    } else if (currentSection === section && sectionHasUnsavedChanges(currentSection)) {
-      const shouldCollapse = await confirm({
-        title: "Fechar sem salvar?",
-        message: "As alterações desta seção serão descartadas.",
-        confirmLabel: "Descartar alterações",
-        cancelLabel: "Continuar editando",
-        tone: "danger",
-        onConfirm: () => discardMobileSectionChanges(currentSection),
-      });
-      if (!shouldCollapse) return;
-    }
+  const toggleMobileSection = (section: string) => {
+    // Cards share the same draft and floating save action; this is not navigation.
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMobileExpandedSection((current) => current === section ? null : section);
   };
-  const leaveMobileProfile = () => {
-    const navigate = () => navigateBackOrReplace({ router, fallback: scopedRoutes.home });
+  const leaveMobileProfile = (destination?: () => void) => {
+    const navigate = destination ?? (() => navigateBackOrReplace({ router, fallback: scopedRoutes.home }));
+    if (savingMobileProfile || athleteModalities.saving || savingSecurityContact) return;
     if (!mobileHasUnsavedChanges) {
       navigate();
       return;
@@ -2255,12 +2234,58 @@ export default function ProfileScreen() {
     void confirm({
       title: "Sair sem salvar?",
       message: "Você tem alterações não salvas no perfil.",
-      confirmLabel: "Sair sem salvar",
+      confirmLabel: "Descartar alterações",
       cancelLabel: "Continuar editando",
       tone: "danger",
-      onConfirm: navigate,
+      onConfirm: () => {
+        setMobileNameDraft(mobileProfileBaseline.name);
+        setMobileBirthDraft(mobileProfileBaseline.birth);
+        setMobilePhoneDraft(mobileProfileBaseline.phone);
+        setMobileCpfDraft(mobileProfileBaseline.cpf);
+        setMobileRgDraft(mobileProfileBaseline.rg);
+        setMobileAddressDraft(mobileProfileBaseline.address);
+        setMobileGenderIdentityDraft(mobileProfileBaseline.genderIdentity);
+        setMobileGuardianNameDraft(mobileProfileBaseline.guardianName);
+        setMobileGuardianPhoneDraft(mobileProfileBaseline.guardianPhone);
+        setMobileGuardianRelationDraft(mobileProfileBaseline.guardianRelation);
+        setMobileCountryCode(mobileProfileBaseline.countryCode);
+        setMobileGuardianCountryCode(mobileProfileBaseline.guardianCountryCode);
+        setMobilePositionDraft(mobileSportsBaseline.position);
+        setMobileSecondaryPositionDraft(mobileSportsBaseline.secondaryPosition);
+        setMobileHealthIssueDraft(mobileSportsBaseline.healthIssue);
+        setMobileHealthIssueNotesDraft(mobileSportsBaseline.healthIssueNotes);
+        setMobileMedicationUseDraft(mobileSportsBaseline.medicationUse);
+        setMobileMedicationNotesDraft(mobileSportsBaseline.medicationNotes);
+        setMobileHealthObservationsDraft(mobileSportsBaseline.healthObservations);
+        athleteModalities.discard();
+        setPendingProfileNotice(null);
+        setSecurityContactDraft(accountSecurity.securityContactEmail);
+        setNewPassword("");
+        setPasswordConfirmation("");
+        navigate();
+      },
+    }).then((left) => {
+      if (left) return;
+      const guardianFields = [
+        mobileGuardianNameDraft.trim() !== mobileProfileBaseline.guardianName.trim() ? "Nome" : "",
+        mobileGuardianPhoneDraft.trim() !== mobileProfileBaseline.guardianPhone.trim() || mobileGuardianCountryCode !== mobileProfileBaseline.guardianCountryCode ? "Celular" : "",
+        mobileGuardianRelationDraft.trim() !== mobileProfileBaseline.guardianRelation.trim() ? "Parentesco" : "",
+      ].filter(Boolean);
+      const section = guardianFields.length ? "guardian" : mobileProfileHasChanges ? "personal" : athleteModalities.dirty || mobilePositionDraft !== mobileSportsBaseline.position || mobileSecondaryPositionDraft !== mobileSportsBaseline.secondaryPosition ? "sports" : mobileSportsHasChanges ? "health" : "security";
+      const title = { guardian: "Responsável", personal: "Dados pessoais", sports: "Modalidade esportiva", health: "Saúde", security: "Conta e segurança" }[section];
+      setMobileExpandedSection(section);
+      const notices: Record<string, { message: string; snapshot: string }> = {};
+      for (const [card, fields] of Object.entries(pendingCardFields)) {
+        const changed = fields.filter(([, draft, saved]) => String(draft ?? "").trim() !== String(saved ?? "").trim()).map(([label]) => label);
+        if (changed.length) notices[card] = { message: `Não salvo: ${changed.join(", ")}.`, snapshot: pendingCardSnapshot(card) };
+      }
+      setPendingProfileNotice(notices);
+      if (Platform.OS === "web") requestAnimationFrame(() => document.getElementById(`profile-section-${title}`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
     });
   };
+
+  // eslint-disable-next-line react-hooks/refs -- navigation guard must always expose the latest draft-aware handler to the focus registration callback.
+  pendingNavigationHandler.current = leaveMobileProfile;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -2273,6 +2298,7 @@ export default function ProfileScreen() {
           paddingBottom: Math.max(
             16,
             insets.bottom + (responsiveLayout.isMobile ? 92 : 16),
+            isStudentMobileProfile && Platform.OS === "web" && mobileProfileHasChanges ? 96 : 0,
           ),
         }}
         refreshControl={
@@ -2355,6 +2381,7 @@ export default function ProfileScreen() {
               <MobileProfileSection
                 icon="personSolid"
                 title="Dados pessoais"
+                pendingMessage={pendingNoticeFor("personal")}
                 subtitle="Seus dados básicos de identificação"
                 expanded={mobileExpandedSection === "personal"}
                 onPress={() => toggleMobileSection("personal")}
@@ -2390,7 +2417,7 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <View style={{ gap: 7 }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Celular</Text>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Celular do atleta</Text>
                   <View style={{ flexDirection: "row", gap: 8 }}>
                     <View ref={mobileCountryTriggerRef} collapsable={false}>
                       <Pressable
@@ -2430,7 +2457,27 @@ export default function ProfileScreen() {
                         }}
                         style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 15, paddingVertical: 0, paddingRight: 8, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }}
                       />
-                      {mobilePhoneNeedsVerification && mobilePhoneDraft.replace(/\D/g, "").length >= 10 ? (
+                      {isDisplayedPhoneVerified ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Remover número de celular"
+                          onPress={() => void removeMobilePhone()}
+                          disabled={removingPhone}
+                          suppressWebHoverFeedback
+                          disableWebPressScale
+                          style={({ pressed }) => ({
+                            width: 38,
+                            height: 38,
+                            borderRadius: 10,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: pressed ? colors.dangerBg : "transparent",
+                            opacity: removingPhone ? 0.55 : 1,
+                          })}
+                        >
+                          <GoAtletaIcon name="trash" size={17} color={colors.dangerText} />
+                        </Pressable>
+                      ) : phoneVerificationEnabled && mobilePhoneNeedsVerification && mobilePhoneDraft.replace(/\D/g, "").length >= 10 ? (
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={phoneVerificationRequested ? "Reenviar código por SMS" : "Validar celular por SMS"}
@@ -2511,7 +2558,7 @@ export default function ProfileScreen() {
                       );
                     })}
                   </AnchoredDropdown>
-                  {phoneVerificationRequested ? (
+                  {phoneVerificationEnabled && phoneVerificationRequested ? (
                     <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.secondaryBg, overflow: "visible" }}>
                       <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Código recebido por SMS</Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -2558,78 +2605,23 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                   ) : null}
-                  <View style={{ minHeight: 28, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <View style={{ minHeight: 28, flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
                       <GoAtletaIcon
-                        name={verifiedPhoneE164 && !mobilePhoneNeedsVerification ? "checkmarkCircle" : "warningCircle"}
+                        name={isDisplayedPhoneVerified ? "checkmarkCircle" : "warningCircle"}
                         size={15}
-                        color={phoneVerificationError ? colors.dangerText : verifiedPhoneE164 && !mobilePhoneNeedsVerification ? colors.primaryBg : colors.muted}
+                        color={isDisplayedPhoneVerified ? colors.primaryBg : colors.muted}
                       />
-                      <Text style={{ color: phoneVerificationError ? colors.dangerText : colors.muted, fontSize: 12, flex: 1 }}>
-                        {phoneVerificationError
-                          ? phoneVerificationError
-                          : verifiedPhoneE164 && !mobilePhoneNeedsVerification
-                          ? "Número verificado"
-                          : mobilePhoneNeedsVerification
-                            ? phoneVerificationRequested
-                              ? "Código enviado; confirme para vincular o número"
-                              : "Valide este número por SMS"
-                            : "Nenhum número verificado"}
+                      <Text style={{ color: colors.muted, fontSize: 12, flex: 1 }}>
+                        {isDisplayedPhoneVerified ? "Número verificado" : "Contato informado pelo usuário"}
                       </Text>
                     </View>
-                    {verifiedPhoneE164 && !mobilePhoneNeedsVerification ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Remover celular verificado"
-                        onPress={() => void removeMobilePhone()}
-                        disabled={removingPhone}
-                        suppressWebHoverFeedback
-                        disableWebPressScale
-                        style={{ minHeight: 36, paddingHorizontal: 8, justifyContent: "center" }}
-                      >
-                        <Text style={{ color: colors.dangerText, fontSize: 12, fontWeight: "700", textDecorationLine: "underline" }}>
-                          {removingPhone ? "Removendo..." : "Remover"}
-                        </Text>
-                      </Pressable>
-                    ) : null}
                   </View>
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ expanded: mobileMoreDataExpanded }}
-                  onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setMobileMoreDataExpanded((current) => !current); }}
-                  suppressWebHoverFeedback
-                  disableWebPressScale
-                  style={(state) => ({
-                    minHeight: 50,
-                    marginHorizontal: -16,
-                    marginBottom: -16,
-                    paddingHorizontal: 16,
-                    borderTopWidth: 1,
-                    borderTopColor: colors.border,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    backgroundColor:
-                      state.pressed || Boolean((state as typeof state & { hovered?: boolean }).hovered)
-                        ? colors.secondaryBg
-                        : "transparent",
-                  })}
-                >
-                  <View style={{ gap: 2 }}>
-                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Mais dados</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>Dados adicionais da conta</Text>
-                  </View>
-                  <GoAtletaIcon name={mobileMoreDataExpanded ? "chevronUp" : "chevronDown"} size={18} color={colors.text} />
-                </Pressable>
-                {mobileMoreDataExpanded ? (
                   <View style={{ gap: 10 }}>
                     {[
-                      { label: "CPF", value: mobileCpfDraft, onChangeText: setMobileCpfDraft, placeholder: "000.000.000-00", keyboardType: "number-pad" as const },
-                      { label: "RG", value: mobileRgDraft, onChangeText: setMobileRgDraft, placeholder: "Informe o RG", keyboardType: "default" as const },
-                      { label: "Endereço", value: mobileAddressDraft, onChangeText: setMobileAddressDraft, placeholder: "Rua, número, bairro e cidade", keyboardType: "default" as const },
-                      { label: "Gênero e identidade", value: mobileGenderIdentityDraft, onChangeText: setMobileGenderIdentityDraft, placeholder: "Como você se identifica", keyboardType: "default" as const },
-                      { label: "Nome do responsável", value: mobileGuardianNameDraft, onChangeText: setMobileGuardianNameDraft, placeholder: "Nome completo", keyboardType: "default" as const },
+                      { label: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const },
+                      { label: "RG", value: mobileRgDraft, onChangeText: (value: string) => setMobileRgDraft(formatRg(value)), placeholder: "RG (opcional)", keyboardType: "default" as const },
                     ].map((field) => (
                       <View key={field.label} style={{ gap: 7 }}>
                         <Text style={{ color: colors.muted, fontSize: 13 }}>{field.label}</Text>
@@ -2646,6 +2638,25 @@ export default function ProfileScreen() {
                         </View>
                       </View>
                     ))}
+                  </View>
+                <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
+                <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} />
+              </MobileProfileSection>
+              <MobileProfileSection
+                icon="personSolid"
+                title="Responsável"
+                pendingMessage={pendingNoticeFor("guardian")}
+                subtitle="Contato dos pais ou responsável"
+                expanded={mobileExpandedSection === "guardian"}
+                onPress={() => toggleMobileSection("guardian")}
+              >
+                <View style={{ gap: 10 }}>
+                  <View style={{ gap: 7 }}>
+                    <Text style={{ color: colors.muted, fontSize: 13 }}>Nome do responsável</Text>
+                    <View style={{ minHeight: 50, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, justifyContent: "center" }}>
+                      <TextInput accessibilityLabel="Nome do responsável" value={mobileGuardianNameDraft} onChangeText={setMobileGuardianNameDraft} placeholder="Nome completo" placeholderTextColor={colors.muted} style={{ color: colors.text, fontSize: 15, borderRadius: 0 }} />
+                    </View>
+                  </View>
                     <View style={{ gap: 7 }}>
                       <Text style={{ color: colors.muted, fontSize: 13 }}>Celular do responsável</Text>
                       <View style={{ flexDirection: "row", gap: 8 }}>
@@ -2755,68 +2766,83 @@ export default function ProfileScreen() {
                       </View>
                     </View>
                   </View>
-                ) : null}
-                <Button
-                  label={savingMobileProfile ? "Salvando..." : "Salvar alterações"}
-                  onPress={() => void saveMobileStudentProfile()}
-                  disabled={!mobileProfileCanSave}
-                />
               </MobileProfileSection>
 
-              <View style={{ overflow: "hidden", borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
               <MobileProfileSection
-                icon="mainActivity"
-                title="Perfil esportivo"
-                subtitle="Posição e informações de saúde"
+                icon="organization"
+                title="Instituição"
+                subtitle={activeOrganization?.name || "Nenhuma instituição vinculada"}
+                expanded={mobileExpandedSection === "organization"}
+                onPress={() => toggleMobileSection("organization")}
+              >
+                {!activeOrganization ? (
+                  <Button label="Encontrar instituição" onPress={() => router.push({ pathname: "/pending", params: { returnTo: "/student/profile" } })} />
+                ) : institutionClasses.loading || loadingClasses ? (
+                  <Text style={{ color: colors.muted }}>Carregando turmas...</Text>
+                ) : institutionClasses.error ? (
+                  <Text style={{ color: colors.muted }}>Não foi possível carregar as turmas.</Text>
+                ) : institutionClasses.groups.length ? (
+                  institutionClasses.groups.map((group) => (
+                    <View key={group.classes[0].unitId || group.name} style={{ gap: 8 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <GoAtletaIcon name="location" size={18} color={colors.muted} />
+                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700", flex: 1 }}>{group.name}</Text>
+                      </View>
+                      {group.classes.map((item) => (
+                        <Text key={item.id} style={{ color: colors.muted, fontSize: 14, marginLeft: 26 }}>{item.name}</Text>
+                      ))}
+                    </View>
+                  ))
+                ) : <Text style={{ color: colors.muted }}>Nenhuma turma vinculada.</Text>}
+              </MobileProfileSection>
+
+              <MobileProfileSection
+                icon="classes"
+                title="Modalidade esportiva"
+                pendingMessage={pendingNoticeFor("sports")}
+                subtitle="Modalidades e posições do atleta"
                 expanded={mobileExpandedSection === "sports"}
                 onPress={() => toggleMobileSection("sports")}
-                grouped
               >
-                <View style={{ gap: 8 }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Posição principal</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                    {ATHLETE_POSITION_OPTIONS.map((option) => {
-                      const selected = mobilePositionDraft === option.value;
-                      return (
-                        <Pressable
-                          key={option.value}
-                          accessibilityRole="radio"
-                          accessibilityState={{ selected }}
-                          onPress={() => setMobilePositionDraft(option.value)}
-                          suppressWebHoverFeedback
-                          style={{
-                            minHeight: 38,
-                            borderRadius: 19,
-                            borderWidth: 1,
-                            borderColor: selected ? colors.primary : colors.border,
-                            backgroundColor: selected ? colors.primaryBg : colors.inputBg,
-                            paddingHorizontal: 14,
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <Text style={{ color: selected ? colors.primaryText : colors.text, fontSize: 13, fontWeight: "700" }}>{option.label}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                <View style={{ gap: 7 }}>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Modalidades</Text>
+                  {athleteModalities.loading ? <Text style={{ color: colors.muted }}>Carregando modalidades...</Text> : athleteModalities.ready ? <PositionPicker value={athleteModalities.selected} lockedValues={athleteModalities.automatic} options={CLASS_MODALITY_OPTIONS} maxSelections={CLASS_MODALITY_OPTIONS.length} searchLabel="Pesquisar modalidades" onChange={athleteModalities.change} /> : null}
+                  {athleteModalities.error ? <Text style={{ color: colors.muted }}>{athleteModalities.error}</Text> : null}
+                  {athleteModalities.error && !athleteModalities.dirty ? <Button label="Tentar novamente" onPress={athleteModalities.reload} /> : null}
                 </View>
+                {athleteModalities.selected.includes("voleibol") ? <><View style={{ gap: 8 }}>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Posições no voleibol</Text>
+                  <PositionPicker value={[mobilePositionDraft, mobileSecondaryPositionDraft].filter((position) => position !== "indefinido")} options={ATHLETE_POSITION_OPTIONS} onChange={(positions) => {
+                    setMobilePositionDraft(positions[0] ?? "indefinido");
+                    setMobileSecondaryPositionDraft(positions[1] ?? "indefinido");
+                  }} />
+                </View>
+                </> : null}
+              </MobileProfileSection>
+              <MobileProfileSection
+                icon="engagement"
+                title="Saúde"
+                pendingMessage={pendingNoticeFor("health")}
+                subtitle="Condições, medicamentos e cuidados"
+                expanded={mobileExpandedSection === "health"}
+                onPress={() => toggleMobileSection("health")}
+              >
                 <SettingsRow
                   icon="engagement"
                   iconBg="transparent"
-                  label="Condição de saúde"
+                  label="Possui algum problema de saúde?"
                   subtitle={mobileHealthIssueDraft ? "Sim" : "Não"}
                   onPress={() => setMobileHealthIssueDraft((value) => !value)}
                   rightContent={<ProfileToggle enabled={mobileHealthIssueDraft} />}
                 />
-                {mobileHealthIssueDraft ? (
+                <AnimatedFieldDetails open={mobileHealthIssueDraft}>
                   <View style={{ gap: 7 }}>
-                    <Text style={{ color: colors.muted, fontSize: 13 }}>Qual condição?</Text>
+                    <Text style={{ color: colors.muted, fontSize: 13 }}>Qual?</Text>
                     <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
-                      <TextInput accessibilityLabel="Condição de saúde" placeholder="Descreva a condição" placeholderTextColor={colors.muted} value={mobileHealthIssueNotesDraft} onChangeText={setMobileHealthIssueNotesDraft} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
+                      <TextInput accessibilityLabel="Qual problema de saúde?" placeholder="Descreva o problema de saúde" placeholderTextColor={colors.muted} value={mobileHealthIssueNotesDraft} onChangeText={setMobileHealthIssueNotesDraft} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
                     </View>
                   </View>
-                ) : null}
+                </AnimatedFieldDetails>
                 <SettingsRow
                   icon="engagement"
                   iconBg="transparent"
@@ -2825,29 +2851,23 @@ export default function ProfileScreen() {
                   onPress={() => setMobileMedicationUseDraft((value) => !value)}
                   rightContent={<ProfileToggle enabled={mobileMedicationUseDraft} />}
                 />
-                {mobileMedicationUseDraft ? (
+                <AnimatedFieldDetails open={mobileMedicationUseDraft}>
                   <View style={{ gap: 7 }}>
                     <Text style={{ color: colors.muted, fontSize: 13 }}>Qual medicamento?</Text>
                     <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
                       <TextInput accessibilityLabel="Medicamento em uso" placeholder="Informe o medicamento" placeholderTextColor={colors.muted} value={mobileMedicationNotesDraft} onChangeText={setMobileMedicationNotesDraft} style={{ color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : {}) }} />
                     </View>
                   </View>
-                ) : null}
+                </AnimatedFieldDetails>
                 <View style={{ gap: 7 }}>
                   <Text style={{ color: colors.muted, fontSize: 13 }}>Observações de saúde</Text>
                   <View style={{ minHeight: 82, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, paddingVertical: 12 }}>
                     <TextInput accessibilityLabel="Observações de saúde" multiline textAlignVertical="top" placeholder="Alergias, restrições ou cuidados importantes" placeholderTextColor={colors.muted} value={mobileHealthObservationsDraft} onChangeText={setMobileHealthObservationsDraft} style={{ minHeight: 56, color: colors.text, fontSize: 15, paddingVertical: 0, borderRadius: 0, ...(Platform.OS === "web" ? ({ outlineStyle: "none", resize: "none" } as any) : {}) }} />
                   </View>
                 </View>
-                <Button
-                  label={savingMobileSports ? "Salvando..." : "Salvar perfil esportivo"}
-                  onPress={() => void saveMobileSportsProfile()}
-                  disabled={!student || !mobileSportsHasChanges || savingMobileSports}
-                />
               </MobileProfileSection>
 
-              <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 14 }} />
-
+              <View style={{ overflow: "hidden", borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
               <MobileProfileSection
                 icon="notifications"
                 title="Notificações"
@@ -2889,7 +2909,7 @@ export default function ProfileScreen() {
                 onPress={() => toggleMobileSection("google")}
                 grouped
               >
-                <SettingsRow icon="google" iconBg="transparent" label="Google" subtitle={accountSecurity.googleLabel} rightContent={<View />} />
+                <SettingsRow icon="google" iconBg="transparent" label="Google" subtitle={linkingGoogle ? "Conectando…" : accountSecurity.googleLabel} onPress={accountSecurity.googleConnected ? undefined : handleLinkGoogle} rightContent={<View />} />
                 {accountSecurity.googleConnected ? (
                   <Button
                     variant="danger"
@@ -2897,47 +2917,20 @@ export default function ProfileScreen() {
                     onPress={handleUnlinkGoogle}
                     disabled={unlinkingGoogle}
                   />
-                ) : accountSecurity.socialLoginEnabled ? (
-                  <Button label="Conectar Google" onPress={() => void signInWithOAuth("google", "profile")} />
                 ) : null}
                 <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>{accountSecurity.providerDescription}</Text>
               </MobileProfileSection>
 
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 14 }} />
 
-              <MobileProfileSection
-                icon="organization"
-                title="Instituição"
-                subtitle={activeOrganization?.name || "Nenhuma instituição vinculada"}
-                expanded={mobileExpandedSection === "organization"}
-                onPress={() => toggleMobileSection("organization")}
-                grouped
-              >
-                <SettingsRow
-                  icon="organization"
-                  iconBg="transparent"
-                  label="Instituição atual"
-                  subtitle={activeOrganization?.name || "Nenhuma instituição vinculada"}
-                  onPress={activeOrganization ? undefined : () => router.push({ pathname: "/pending", params: { returnTo: "/student/profile" } })}
-                  rightContent={activeOrganization ? <View /> : <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primaryBg, alignItems: "center", justifyContent: "center" }}><GoAtletaIcon name="add" size={20} color={colors.primaryText} /></View>}
-                />
-                <SettingsRow icon="organization" iconBg="transparent" label="Turma" subtitle={currentClass?.name || "Nenhuma turma vinculada"} rightContent={<View />} />
-                <SettingsRow icon="location" iconBg="transparent" label="Unidade" subtitle={currentClass?.unit || "Não informada"} rightContent={<View />} />
-                {organizations.length > 1 ? <Text style={{ color: colors.muted, fontSize: 12 }}>{organizations.length} instituições disponíveis nesta conta.</Text> : null}
-              </MobileProfileSection>
-
-              <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 14 }} />
 
               <MobileProfileSection
                 icon="shield"
                 title="Conta e segurança"
+                pendingMessage={pendingNoticeFor("security")}
                 subtitle="Senha, acesso e exclusão de conta"
                 expanded={mobileExpandedSection === "security"}
                 onPress={() => {
-                  if (mobileExpandedSection !== "security") {
-                    setSecurityContactDraft(accountSecurity.securityContactEmail);
-                    resetAccountEditorState();
-                  }
                   toggleMobileSection("security");
                 }}
                 grouped
@@ -2946,21 +2939,12 @@ export default function ProfileScreen() {
                   <Text style={{ color: colors.muted, fontSize: 12 }}>E-mail da conta</Text>
                   <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>{accountSecurity.loginLabel}</Text>
                 </View>
-                <AccountTextField
-                  label="E-mail alternativo"
-                  value={securityContactDraft}
-                  onChangeText={(value) => { setSecurityContactDraft(value); setSecurityContactError(null); setSecurityContactSuccess(false); }}
-                  placeholder="email@exemplo.com"
-                  error={securityContactError}
-                  autoComplete="email"
-                />
-                <Button variant="secondary" label={savingSecurityContact ? "Salvando..." : "Salvar e-mail"} onPress={() => void saveSecurityContact()} disabled={!canSaveSecurityContact} />
+                <SecurityContactFields model={securityContact} Field={AccountTextField} ErrorBalloon={FloatingFieldError} />
                 <View style={{ height: 1, backgroundColor: colors.border }} />
                 <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Alterar senha</Text>
                 <AccountTextField label="Nova senha" value={newPassword} onChangeText={(value) => { setNewPassword(value); setNewPasswordError(null); setPasswordChanged(false); }} placeholder="Mínimo de 8 caracteres" error={newPasswordError} secureTextEntry passwordVisible={showNewPassword} onTogglePassword={() => setShowNewPassword((current) => !current)} autoComplete="new-password" />
                 <AccountTextField label="Confirmar nova senha" value={passwordConfirmation} onChangeText={(value) => { setPasswordConfirmation(value); setPasswordConfirmationError(value && newPassword && value !== newPassword ? "As senhas não conferem." : null); }} placeholder="Repita a nova senha" error={passwordConfirmationError} secureTextEntry passwordVisible={showPasswordConfirmation} onTogglePassword={() => setShowPasswordConfirmation((current) => !current)} autoComplete="new-password" returnKeyType="done" onSubmitEditing={() => { if (canChangePassword) void savePassword(); }} />
                 <Button label={savingPassword ? "Alterando..." : "Alterar senha"} onPress={() => void savePassword()} disabled={!canChangePassword} />
-                {securityContactSuccess ? <Text style={{ color: colors.primaryBg, fontSize: 12 }}>E-mail alternativo atualizado.</Text> : null}
                 {passwordChanged ? <Text style={{ color: colors.primaryBg, fontSize: 12 }}>Senha alterada com sucesso.</Text> : null}
               </MobileProfileSection>
               </View>
@@ -3952,6 +3936,24 @@ export default function ProfileScreen() {
         </ResponsivePage>
         )}
       </ScrollView>
+      <FloatingSaveBar
+        bottom={responsiveLayout.isMobile ? insets.bottom + 104 : 18}
+        visible={Boolean(
+          isStudentMobileProfile
+          && (mobileProfileHasChanges || mobileSportsHasChanges || athleteModalities.dirty)
+        )}
+        label={savingMobileProfile ? "Salvando..." : "Salvar alterações"}
+        onPress={async () => {
+          if (savingMobileProfile || athleteModalities.saving) return;
+          if ((mobileProfileHasChanges || mobileSportsHasChanges) && !(await saveMobileStudentProfile())) return;
+          if (athleteModalities.dirty && !(await athleteModalities.save())) return;
+          setPendingProfileNotice(null);
+          showSaveToast({ message: "Alterações salvas.", variant: "success" });
+        }}
+        disabled={savingMobileProfile || athleteModalities.saving || (athleteModalities.dirty && athleteModalities.loading)}
+        loading={savingMobileProfile || athleteModalities.saving}
+        loadingLabel="Salvando..."
+      />
       <Modal
         visible={googleMenuOpen && Boolean(googleMenuAnchor)}
         animationType="none"
@@ -4389,43 +4391,7 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <AccountTextField
-              label="E-mail alternativo (opcional)"
-              value={securityContactDraft}
-              placeholder="contato@exemplo.com"
-              error={securityContactError}
-              autoComplete="email"
-              returnKeyType="done"
-              onChangeText={(value) => {
-                setSecurityContactDraft(value);
-                if (securityContactError) setSecurityContactError(null);
-                if (securityContactSuccess) setSecurityContactSuccess(false);
-              }}
-              onSubmitEditing={() => {
-                if (canSaveSecurityContact) void saveSecurityContact();
-              }}
-            />
-            {securityContactSuccess ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-                <GoAtletaIcon name="success" size={16} color={colors.successText} />
-                <Text style={{ color: colors.successText, fontSize: 12, fontWeight: "700" }}>
-                  E-mail alternativo salvo.
-                </Text>
-              </View>
-            ) : null}
-            <Button
-              label={
-                securityContactDraft.trim()
-                  ? "Salvar e-mail"
-                  : accountSecurity.securityContactEmail
-                    ? "Remover e-mail"
-                    : "Salvar e-mail"
-              }
-              loading={savingSecurityContact}
-              loadingLabel="Salvando"
-              disabled={!canSaveSecurityContact}
-              onPress={() => void saveSecurityContact()}
-            />
+            <SecurityContactFields model={securityContact} Field={AccountTextField} ErrorBalloon={FloatingFieldError} />
           </View>
 
           <View style={{ height: 1, backgroundColor: colors.border }} />

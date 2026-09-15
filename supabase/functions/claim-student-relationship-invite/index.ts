@@ -32,6 +32,9 @@ const errorResponse = (
 });
 
 const mapClaimError = (message: string) => {
+  if (message.includes("RELATIONSHIP_CONFLICT")) {
+    return { status: 409, code: "RELATIONSHIP_CONFLICT", error: "Peça à coordenação para conferir o vínculo existente." };
+  }
   if (message.includes("ATHLETE_RELATIONSHIP_IMMUTABLE")) {
     return { status: 409, code: "ATHLETE_RELATIONSHIP_IMMUTABLE", error: "Este convite não pode alterar a identidade de atleta desta conta." };
   }
@@ -145,6 +148,9 @@ Deno.serve(async (req) => {
     return errorResponse(req, 500, "SERVER_ERROR", "Failed to claim invite");
   }
 
+  if (data && typeof data === "object" && !Array.isArray(data) && data.status === "conflict") {
+    return errorResponse(req, 409, "STUDENT_ALREADY_LINKED", "A coordenação foi avisada para conferir o vínculo existente.");
+  }
   const receipt = sanitizedReceipt(
     data && typeof data === "object" && !Array.isArray(data)
       ? (data as ClaimReceiptRow)

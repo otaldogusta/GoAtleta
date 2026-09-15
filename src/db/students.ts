@@ -1248,6 +1248,9 @@ export async function saveStudent(student: Student) {
       await supabasePost("/students", [fallbackPayload]);
       return;
     }
+    if (message.includes("students_cpf_athlete_account_excl")) {
+      throw new Error("Não foi possível vincular este CPF à conta. Procure a coordenação.");
+    }
     if (message.includes("students_org_cpf_hmac_uidx")) {
       throw new Error("Já existe um aluno com este CPF nesta organização.");
     }
@@ -1344,6 +1347,9 @@ export async function updateStudent(student: Student) {
         fallbackPayload
       );
       return;
+    }
+    if (message.includes("students_cpf_athlete_account_excl")) {
+      throw new Error("Não foi possível vincular este CPF à conta. Procure a coordenação.");
     }
     if (message.includes("students_org_cpf_hmac_uidx")) {
       throw new Error("Já existe um aluno com este CPF nesta organização.");

@@ -1,0 +1,67 @@
+import { act, renderHook } from "@testing-library/react-native";
+import { useAthleteAccessReview } from "../../coordination/useAthleteAccessReview";
+import { useGuardianAthleteInvite } from "../GuardianAthleteInvite";
+import { listFamilyRequestCandidates, reviewFamilyAccessRequest } from "../../../api/family-access-request";
+import { createStudentRelationshipInvite } from "../../../api/student-relationship-invite";
+jest.mock("../../../api/family-access-request", () => ({ ...jest.requireActual("../../../api/family-access-request"), listFamilyRequestCandidates: jest.fn(), reviewFamilyAccessRequest: jest.fn() }));
+jest.mock("../../../api/student-relationship-invite", () => ({ createStudentRelationshipInvite: jest.fn() }));
+jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn() }));
+const list = listFamilyRequestCandidates as jest.Mock;
+const review = reviewFamilyAccessRequest as jest.Mock;
+const create = createStudentRelationshipInvite as jest.Mock;
+beforeEach(() => jest.clearAllMocks());
+it("never approves until the reviewer selected an athlete", async () => {
+  const { result } = renderHook(() => useAthleteAccessReview("r", jest.fn()));
+  await act(async () => { await result.current.review("approved", () => "key"); });
+  expect(review).not.toHaveBeenCalled();
+  expect(result.current.error).toContain("Selecione");
+});
+it("preserves selection and idempotency key after an uncertain reply", async () => {
+  review.mockRejectedValueOnce(new Error("Rede indisponível")).mockResolvedValueOnce(undefined);
+  const refresh = jest.fn();
+  const { result } = renderHook(() => useAthleteAccessReview("r", refresh));
+  act(() => result.current.setStudentIds(["s"]));
+  await act(async () => { await result.current.review("approved", () => "first"); });
+  expect(result.current.studentIds).toEqual(["s"]);
+  expect(refresh).not.toHaveBeenCalled();
+  await act(async () => { await result.current.review("approved", () => "second"); });
+  expect(review.mock.calls.map(call => call[3])).toEqual(["first", "first"]);
+  expect(refresh).toHaveBeenCalledTimes(1);
+});
+it("blocks repeated clicks while the server is pending", async () => {
+  let finish!: () => void;
+  review.mockImplementation(() => new Promise<void>(resolve => { finish=resolve; }));
+  const { result } = renderHook(() => useAthleteAccessReview("r", jest.fn()));
+  act(() => result.current.setStudentIds(["s"]));
+  let pending!: Promise<void>;
+  act(() => { pending=result.current.review("approved", () => "key"); });
+  expect(result.current.busy).toBe(true);
+  await act(async () => { await result.current.review("approved", () => "duplicate"); });
+  expect(review).toHaveBeenCalledTimes(1);
+  await act(async () => { finish(); await pending; });
+});
+it("removes stale selections when candidates change", async () => {
+  list.mockResolvedValue([]);
+  const { result } = renderHook(() => useAthleteAccessReview("r", jest.fn()));
+  act(() => result.current.setStudentIds(["stale"]));
+  await act(async () => { await result.current.load(); });
+  expect(result.current.studentIds).toEqual([]);
+});
+it("guardian invites only an athlete with fixed issuer and no supplied permissions", async () => {
+  create.mockResolvedValue({ inviteUrl: "https://example.test/family-invite/fixture" });
+  const { result } = renderHook(() => useGuardianAthleteInvite("org", "s"));
+  act(() => result.current.changeEmail(" child@example.com "));
+  await act(async () => { await result.current.create(); });
+  expect(create).toHaveBeenCalledWith({ organizationId: "org", studentId: "s", invitedEmail: "child@example.com", relationshipKind: "athlete", invitedVia: "link", issuer: "guardian" });
+  expect(result.current.url).toContain("family-invite");
+});
+it("preserves the email on failure and clears the error on typing", async () => {
+  create.mockRejectedValue(new Error("Falha de rede"));
+  const { result } = renderHook(() => useGuardianAthleteInvite("org", "s"));
+  act(() => result.current.changeEmail("child@example.com"));
+  await act(async () => { await result.current.create(); });
+  expect(result.current.email).toBe("child@example.com");
+  expect(result.current.error).toBe("Falha de rede");
+  act(() => result.current.changeEmail("other@example.com"));
+  expect(result.current.error).toBe("");
+});

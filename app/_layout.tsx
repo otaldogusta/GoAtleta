@@ -309,7 +309,7 @@ function RootLayoutContent() {
     "/signup",
     "/verify-email",
     "/reset-password",
-    ...(__DEV__ ? ["/admin"] : []),
+    ...(__DEV__ ? ["/admin", "/family-access-preview"] : []),
   ];
   const publicPrefixes = ["/invite", "/family-invite", "/staff-invite"];
   const normalizedPathname =
