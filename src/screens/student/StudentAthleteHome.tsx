@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AppState, ScrollView, Text, View } from "react-native";
+import { AppState, Platform, ScrollView, Text, View } from "react-native";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -20,6 +20,7 @@ import { AppRefreshControl } from "../../ui/AppRefreshControl";
 import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
+import { useNativeSidebarController } from "../../ui/native-sidebar-controller";
 import { useResponsiveLayout } from "../../ui/use-responsive-layout";
 import {
   formatImportantStudentFields,
@@ -62,6 +63,7 @@ export function StudentAthleteHome() {
   }, []);
   const { colors } = useAppTheme();
   const layout = useResponsiveLayout("dashboard");
+  const { openMobileSidebar } = useNativeSidebarController();
   const { role, student } = useRole();
   const { session } = useAuth();
   const profilePhotoUri = useStudentProfilePhoto(student);
@@ -170,6 +172,13 @@ export function StudentAthleteHome() {
     if (!nextTraining) return router.push("/student/agenda");
     router.push({ pathname: "/student-plan", params: { classId: nextTraining.classId, date: nextTraining.startsAt.toISOString().slice(0, 10) } });
   };
+  const openMainMenu = () => {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("goatleta:toggle-sidebar"));
+      return;
+    }
+    openMobileSidebar();
+  };
   const rowBorder = { borderBottomWidth: 1, borderBottomColor: colors.border } as const;
 
   return (
@@ -182,11 +191,32 @@ export function StudentAthleteHome() {
           {loading ? <ScreenLoadingState /> : (
             <>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md }}>
-                <View style={{ minWidth: 0 }}>
-                  <Text style={{ color: colors.text, fontSize: layout.density.pageTitleFontSize, lineHeight: layout.density.pageTitleLineHeight, fontWeight: "800" }}>
-                    Olá{firstName ? `, ${firstName}` : ""}
-                  </Text>
-                  <Text style={{ color: colors.muted, fontSize: layout.density.bodyFontSize, marginTop: 2 }}>{todayLabel}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, minWidth: 0, flex: 1 }}>
+                  {layout.isMobile ? (
+                    <Pressable
+                      accessibilityLabel="Abrir menu principal"
+                      onPress={openMainMenu}
+                      style={({ pressed, hovered }: any) => ({
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        backgroundColor: hovered ? colors.secondaryBg : colors.card,
+                        borderWidth: 1,
+                        borderColor: hovered ? colors.primaryBg : colors.border,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: pressed ? 0.8 : 1,
+                      })}
+                    >
+                      <GoAtletaIcon name="align" size={18} color={colors.text} />
+                    </Pressable>
+                  ) : null}
+                  <View style={{ minWidth: 0, flex: 1 }}>
+                    <Text numberOfLines={1} style={{ color: colors.text, fontSize: layout.density.pageTitleFontSize, lineHeight: layout.density.pageTitleLineHeight, fontWeight: "800" }}>
+                      Olá{firstName ? `, ${firstName}` : ""}
+                    </Text>
+                    <Text numberOfLines={1} style={{ color: colors.muted, fontSize: layout.density.bodyFontSize, marginTop: 2 }}>{todayLabel}</Text>
+                  </View>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
                   <Pressable accessibilityLabel="Abrir notificações" onPress={() => router.push("/communications")} style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}>
