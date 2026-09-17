@@ -1,6 +1,6 @@
 import { CourtTimelineScrubber } from "./CourtTimelineScrubber";
 import { courtRoster } from "../../core/court-roster";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
@@ -10,7 +10,7 @@ import { useAppTheme } from "../../ui/app-theme";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { createWebPortal } from "../../ui/web-portal";
-import { alignSelection, resetStepAnimation, actorPoint, changeDrawings, changeStep, deleteSelection, duplicateSelection, duplicateStep, editorId, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, removeStep, reorderStep, type CourtDrawing, type EditorSnapshot } from "../../core/visual-court-editor";
+import { addBlankStep, alignSelection, resetStepAnimation, actorPoint, changeDrawings, changeStep, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, editorId, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, removeStep, reorderStep, reorderStepToIndex, type CourtDrawing, type CourtSelectionClipboard, type EditorSnapshot } from "../../core/visual-court-editor";
 import type { CourtPoint, CourtVisualActorRole, CourtVisualPayload } from "../../core/visual-court";
 import type { CourtTool } from "./CourtEditorCanvas";
 import { VisualCourtCanvas } from "./VisualCourtCanvas";
@@ -32,6 +32,33 @@ const TOOLS: { id: CourtTool; label: string; icon: CourtActionIcon }[] = [
 const COLORS = ["#19c87b", "#4389ff", "#c5fff0", "#b19cff", "#ff6c71", "#ffdc53", "#ffffff", "#172437"];
 const ROLES: [CourtVisualActorRole, string][] = [["setter", "Levantador"], ["outside", "Ponteiro"], ["middle", "Central"], ["opposite", "Oposto"], ["libero", "Líbero"], ["athlete", "Atleta"]];
 
+function DraggableStepFrame({ index, active, over, onDragState, onMove, children }: { index: number; active: boolean; over: boolean; onDragState: (dragged: number | null | undefined, target?: number | null) => void; onMove: (from: number, to: number) => void; children: ReactNode }) {
+  const ref = useRef<View>(null);
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = ref.current as unknown as HTMLElement | null;
+    if (!node?.addEventListener) return;
+    node.draggable = true;
+    const start = (event: DragEvent) => {
+      event.dataTransfer?.setData("application/x-goatleta-court-step", String(index));
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+      onDragState(index, index);
+    };
+    const enter = (event: DragEvent) => { event.preventDefault(); onDragState(undefined, index); };
+    const dragOver = (event: DragEvent) => { event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = "move"; };
+    const drop = (event: DragEvent) => {
+      event.preventDefault();
+      const from = Number(event.dataTransfer?.getData("application/x-goatleta-court-step"));
+      if (Number.isFinite(from)) onMove(from, index);
+      onDragState(null, null);
+    };
+    const end = () => onDragState(null, null);
+    node.addEventListener("dragstart", start); node.addEventListener("dragenter", enter); node.addEventListener("dragover", dragOver); node.addEventListener("drop", drop); node.addEventListener("dragend", end);
+    return () => { node.draggable = false; node.removeEventListener("dragstart", start); node.removeEventListener("dragenter", enter); node.removeEventListener("dragover", dragOver); node.removeEventListener("drop", drop); node.removeEventListener("dragend", end); };
+  }, [index, onDragState, onMove]);
+  return <View ref={ref} style={[styles.stepCard, over && !active ? { transform: [{ translateY: -4 }], borderColor: "#28d78b" } : null, active ? { opacity: 0.5, transform: [{ scale: 0.96 }] } : null, Platform.OS === "web" ? { cursor: "grab", transition: "transform 160ms ease, opacity 160ms ease, border-color 160ms ease" } as never : null]}>{children}</View>;
+}
+
 export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, onBack }: { classId: string; documentId?: string; lessonDate?: string; planId?: string; onBack: () => void }) {
   const editor = useCourtEditor(classId);
   const { showSaveToast } = useSaveToast();
@@ -43,7 +70,6 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     setError("");
   }, [error, notice, setError, setNotice, showSaveToast]);
   const { payload, stepIndex, commit } = editor;
-  const { selectStep: selectPlaybackStep } = editor;
   const { colors, mode } = useAppTheme();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -77,7 +103,9 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const playhead = useRef(0);
   useEffect(() => { playhead.current = progress ?? 0; }, [progress]);
   const [speed, setSpeed] = useState(1);
-  const [loop, setLoop] = useState(false);
+  const selectionClipboard = useRef<CourtSelectionClipboard | null>(null);
+  const [draggedStep, setDraggedStep] = useState<number | null>(null);
+  const [dragOverStep, setDragOverStep] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [libraryTab, setLibraryTab] = useState<"plays" | "systems" | "details" | "trash">("plays");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
@@ -90,15 +118,21 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
   const landscape = orientation === "auto" ? width > height : orientation === "landscape";
   const compact = width < 700;
   const short = height < 580;
-  const timelineVisible = bottomOpen && panel === null;
+  const timelineVisible = bottomOpen && panel !== "step";
   const [timelineHeight, setTimelineHeight] = useState(240);
-  const historyBottom = insets.bottom + (timelineVisible && width < 1600 ? timelineHeight + 8 : width < 700 ? 0 : 12);
+  const historyBottom = insets.bottom + (compact && timelineVisible ? timelineHeight + 8 : compact ? 0 : 12);
   const toolsTop = insets.top + 70;
-  const toolsSpace = Math.max(44, height - toolsTop - (timelineVisible && width < 1600 ? historyBottom + 56 : insets.bottom + 70));
+  const toolsSpace = Math.max(44, height - toolsTop - insets.bottom - 70);
   const toolsHeight = Math.min(520, toolsSpace);
+  const timelineWidth = compact
+    ? Math.max(280, width - insets.left - insets.right - 16)
+    : Math.min(640, Math.max(360, width - insets.left - insets.right - 620));
+  const stepListRef = useRef<ScrollView>(null);
   const surface = mode === "dark" ? "rgba(10,25,43,0.94)" : "rgba(247,251,255,0.96)";
   const ink = colors.text;
   const step = payload.timeline.steps[stepIndex];
+  const payloadRef = useRef(payload);
+  useEffect(() => { payloadRef.current = payload; }, [payload]);
   const actor = payload.actors.find(a => a.id === selected[0]);
   const object = frameDrawings(payload, stepIndex).find(d => d.id === selected[0]);
   const effectiveTitle = payload.editor!.title;
@@ -117,14 +151,28 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     if (found) void editor.open(found.payload).catch(() => editor.setError("Não foi possível abrir esta versão."));
     else editor.setError("Versão indisponível nesta turma ou para esta conta.");
   }, [documentId, editor]);
-  const stop = useCallback(() => { setPlaying(false); setProgress(0); }, []);
+  const stop = useCallback(() => { setPlaying(false); }, []);
+  const resetPlayback = useCallback(() => { setPlaying(false); setProgress(0); }, []);
   const edit = (update: (p: CourtVisualPayload) => CourtVisualPayload, index?: number) => { stop(); commit(update, index); };
   const metadata = (changes: Partial<NonNullable<CourtVisualPayload["editor"]>>) => edit(p => ({ ...p, editor: { ...p.editor!, ...changes } }));
-  const selectStep = (i: number) => { stop(); setSelected([]); editor.selectStep(i); };
-  const mutateStep = (result: EditorSnapshot) => { stop(); setSelected([]); commit(() => result.payload, result.stepIndex); };
+  const selectStep = (i: number) => { resetPlayback(); setSelected([]); editor.selectStep(i); };
+  const mutateStep = (result: EditorSnapshot) => { resetPlayback(); setSelected([]); commit(() => result.payload, result.stepIndex); };
   const select = (ids: string[]) => { if (ids.length && width >= 768) setPanel("properties"); else if (panel === "properties") setPanel(null); setSelected(ids); };
   const remove = () => { edit(p => deleteSelection(p, stepIndex, selected)); setSelected([]); };
   const duplicate = () => { const result = duplicateSelection(payload, stepIndex, selected); edit(() => result.payload); setSelected(result.selected); };
+  const selectAll = () => setSelected([...(step.visibleActorIds ?? payload.actors.map(a => a.id)), ...frameDrawings(payload, stepIndex).map(d => d.id)]);
+  const copySelection = () => {
+    const ids = selected.length ? selected : [...(step.visibleActorIds ?? payload.actors.map(a => a.id)), ...frameDrawings(payload, stepIndex).map(d => d.id)];
+    selectionClipboard.current = copyStepSelection(payload, stepIndex, ids);
+    editor.setNotice(ids.length ? "Seleção copiada. Abra outra etapa e cole." : "Não há itens para copiar nesta etapa.");
+  };
+  const pasteSelection = () => {
+    if (!selectionClipboard.current) { editor.setNotice("Copie uma seleção antes de colar."); return; }
+    const result = pasteStepSelection(payload, stepIndex, selectionClipboard.current);
+    edit(() => result.payload);
+    setSelected(result.selected);
+    editor.setNotice("Seleção colada nesta etapa.");
+  };
   const move = (ids: string[], delta: CourtPoint, path?: CourtPoint[]) => { edit(p => moveSelection(p, stepIndex, ids, delta, tool === "animate", path)); if (tool === "animate") setProgress(1); };
   const draw = (d: CourtDrawing) => { edit(p => changeDrawings(p, stepIndex, [...frameDrawings(p, stepIndex), d])); setSelected([d.id]); if (["text", "ball", "cone", "target", "ladder"].includes(d.kind)) setTool("select"); };
   const addPlayer = (point: CourtPoint) => {
@@ -144,24 +192,27 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
       const fraction = Math.min(1, (Date.now() - start) / duration);
       setProgress(fraction);
       if (fraction >= 1) {
-        if (loop) { start = Date.now(); playhead.current = 0; setProgress(0); }
-        else if (stepIndex < payload.timeline.steps.length - 1) { selectPlaybackStep(stepIndex + 1); setProgress(0); }
-        else { setPlaying(false); setProgress(1); }
+        setPlaying(false);
+        playhead.current = 1;
+        setProgress(1);
       }
     }, 32);
     return () => clearInterval(timer);
-  }, [playing, step.durationMs, speed, stepIndex, payload.timeline.steps.length, loop, selectPlaybackStep]);
-  const keyboard = useRef({ remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selected, landscape });
-  useEffect(() => { keyboard.current = { remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selected, landscape }; });
+  }, [playing, step.durationMs, speed]);
+  const keyboard = useRef({ remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selectAll, copySelection, pasteSelection, selected, landscape });
+  useEffect(() => { keyboard.current = { remove, move, save: editor.save, undo: editor.undo, redo: editor.redo, stop, selectAll, copySelection, pasteSelection, selected, landscape }; });
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target?.closest?.("input,textarea,[contenteditable=true]")) return;
       if (e.key === "Escape") { setExitOpen(false); setTopPinned(false); setBottomPinned(false); setPanel(null); setTopOpen(false); setBottomOpen(false); keyboard.current.stop(); return; }
-      if ((e.ctrlKey || e.metaKey) && ["s", "z", "y"].includes(e.key.toLowerCase())) {
+      if ((e.ctrlKey || e.metaKey) && ["s", "z", "y", "a", "c", "v"].includes(e.key.toLowerCase())) {
         e.preventDefault(); keyboard.current.stop();
         if (e.key.toLowerCase() === "s") void keyboard.current.save();
+        else if (e.key.toLowerCase() === "a") keyboard.current.selectAll();
+        else if (e.key.toLowerCase() === "c") keyboard.current.copySelection();
+        else if (e.key.toLowerCase() === "v") keyboard.current.pasteSelection();
         else if (e.shiftKey || e.key.toLowerCase() === "y") keyboard.current.redo(); else keyboard.current.undo();
       } else if (["Delete", "Backspace"].includes(e.key) && keyboard.current.selected.length) { e.preventDefault(); keyboard.current.remove(); }
       else if (e.key.startsWith("Arrow") && keyboard.current.selected.length) { e.preventDefault(); const n = e.shiftKey ? 0.03 : 0.01; const dx = e.key === "ArrowLeft" ? -n : e.key === "ArrowRight" ? n : 0, dy = e.key === "ArrowUp" ? -n : e.key === "ArrowDown" ? n : 0; keyboard.current.move(keyboard.current.selected, keyboard.current.landscape ? { x: dy, y: -dx } : { x: dx, y: dy }); }
@@ -170,6 +221,39 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     };
     window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
   }, []);
+  const playCurrentStep = () => {
+    if (playing) { setPlaying(false); return; }
+    if (progress >= 1) { playhead.current = 0; setProgress(0); }
+    setPlaying(true);
+  };
+  const restartCurrentStep = () => {
+    setPlaying(false);
+    playhead.current = 0;
+    setProgress(0);
+  };
+  const openStepEditor = () => {
+    stop();
+    setBottomPinned(false);
+    setBottomOpen(false);
+    setPanel("step");
+  };
+  const moveStepTo = useCallback((from: number, to: number) => {
+    if (from === to) return;
+    const result = reorderStepToIndex(payloadRef.current, from, to);
+    resetPlayback();
+    setSelected([]);
+    commit(() => result.payload, result.stepIndex);
+  }, [commit, resetPlayback]);
+  const updateStepDrag = useCallback((dragged: number | null | undefined, target: number | null = null) => {
+    if (dragged !== undefined) setDraggedStep(dragged);
+    setDragOverStep(target);
+  }, []);
+  const scrollCurrentStep = useCallback((animated = true) => {
+    const cardWidth = short ? 105 : 135;
+    const x = Math.max(0, stepIndex * (cardWidth + 8) - timelineWidth / 2 + cardWidth / 2);
+    stepListRef.current?.scrollTo({ x, y: 0, animated });
+  }, [short, stepIndex, timelineWidth]);
+  useEffect(() => { if (timelineVisible) requestAnimationFrame(() => scrollCurrentStep(false)); }, [scrollCurrentStep, timelineVisible]);
   const action = (label: string, icon: CourtActionIcon, fn: () => void, active = false, disabled = false, text = false, dragKind?: string) => <CourtActionButton key={label} label={label} icon={icon} onPress={fn} active={active} disabled={disabled} text={text} dragKind={dragKind} danger={label === "Excluir etapa"} />;
   const toggle = (label: string, value: boolean, onChange: (value: boolean) => void) => <CourtSwitchRow key={label} label={label} value={value} onChange={onChange} />;
   const toolGrid = (items: [CourtTool, string, CourtActionIcon][]) => <View style={styles.wrap}>{items.map(([id, label, icon]) => <CourtActionButton key={id} label={label} icon={icon} tile onAdd={() => {
@@ -222,7 +306,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
           {action("Exportar", "share", () => setPanel("export"))}
           {action("Salvar versão", "save", () => void editor.save(), true, editor.saving || !editor.dirty, !compact)}
           {action("Recolher cabeçalho", "chevronUp", () => { setTopPinned(false); setTopOpen(false); })}
-        </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar cabeçalho" onPress={() => { setTopPinned(true); setTopOpen(true); }} onHoverIn={() => setTopOpen(true)} style={styles.handle}><GoAtletaIcon name="chevronDown" size={18} color={ink} /></Pressable>}
+        </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar cabeçalho" onPress={() => { setTopPinned(true); setTopOpen(true); }} style={styles.handle}><GoAtletaIcon name="chevronDown" size={18} color={ink} /></Pressable>}
       </View>
 
       <View onPointerEnter={restoreControls} style={[controlFade, styles.tools, { top: toolsTop + (toolsSpace - toolsHeight) / 2, left: insets.left + 10, maxHeight: toolsHeight, backgroundColor: mode === "dark" ? "rgba(9,28,48,0.72)" : "rgba(246,251,255,0.78)" }]}>
@@ -235,32 +319,40 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
       <View onPointerEnter={restoreControls} style={[controlFade, styles.history, { left: insets.left + 12, top: insets.top + (topOpen ? 72 : 14), backgroundColor: surface }]}>
         {action("Desfazer", "restore", () => { stop(); editor.undo(); }, false, !editor.canUndo)}{action("Refazer", "arrowForward", () => { stop(); editor.redo(); }, false, !editor.canRedo)}
       </View>
-      <View onPointerEnter={restoreControls} style={[controlFade, styles.propertyTrigger, { right: insets.right + 12, top: insets.top + (topOpen ? 72 : 14), backgroundColor: surface }]}>{action("Configurações da quadra", "management", () => setPanel(panel === "settings" ? null : "settings"), panel === "settings")}</View>
+      <View onPointerEnter={restoreControls} style={[controlFade, styles.propertyTrigger, { right: insets.right + 12, top: insets.top + 14, backgroundColor: surface }]}>{action("Configurações da quadra", "management", () => setPanel(panel === "settings" ? null : "settings"), panel === "settings")}</View>
 
-      <View onPointerEnter={restoreControls} onPointerDown={() => setBottomPinned(true)} onPointerLeave={e => { if (e.nativeEvent.pointerType === "mouse" && !bottomPinned) setBottomOpen(false); }} style={[controlFade, styles.bottom, { bottom: insets.bottom, backgroundColor: surface, width: timelineVisible ? Math.min(width, 1100) : undefined }]}>
+      <View onPointerEnter={restoreControls} onPointerDown={() => setBottomPinned(true)} onPointerLeave={e => { if (e.nativeEvent.pointerType === "mouse" && !bottomPinned) setBottomOpen(false); }} style={[controlFade, styles.bottom, { bottom: insets.bottom, backgroundColor: surface, width: timelineVisible ? timelineWidth : undefined }]}>
         {timelineVisible ? <View onLayout={event => setTimelineHeight(event.nativeEvent.layout.height)} style={{ gap: 8, padding: 8 }}>
-          <View style={[styles.row, { flexWrap: "wrap" }]}>
-            {action(playing ? "Pausar sequência" : "Reproduzir sequência", playing ? "pause" : "play", () => { setPlaying(!playing); }, playing)}
-            {[0.75, 1, 1.5, 2].map(v => <Pressable key={v} accessibilityRole="button" accessibilityLabel={`Velocidade ${v}x`} onPress={() => setSpeed(v)} style={[styles.speed, { backgroundColor: speed === v ? colors.secondaryBg : "transparent" }]}><Text style={{ color: ink }}>{v}×</Text></Pressable>)}
-            {action(loop ? "Desativar repetição da etapa" : "Repetir etapa", loop ? "repeatOne" : "repeat", () => setLoop(!loop), loop)}{action("Editar etapa", "pencil", () => setPanel("step"), panel === "step")}
-            <View style={{ width: 1, height: 24, marginHorizontal: 4, backgroundColor: colors.border }} />
-            {action("Animar movimento", "compare", () => { stop(); setTool("animate"); setPanel("tools"); }, tool === "animate")}
-            {action("Biblioteca", "exercises", () => { stop(); setPanel("library"); })}
-            <View style={{ flex: 1 }} />{action("Recolher etapas", "chevronDown", () => { setBottomPinned(false); setBottomOpen(false); })}
+          <View style={styles.row}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={styles.row}>
+              {action("Etapa anterior", "skipBack", () => selectStep(stepIndex - 1), false, stepIndex <= 0)}
+              <CourtActionButton label={playing ? "Pausar etapa" : progress >= 1 ? "Reproduzir novamente" : "Reproduzir etapa"} icon={playing ? "pause" : "play"} onPress={playCurrentStep} active={playing} />
+              {action("Próxima etapa", "skipForward", () => selectStep(stepIndex + 1), false, stepIndex >= payload.timeline.steps.length - 1)}
+              {[0.75, 1, 1.5, 2].map(v => <Pressable key={v} accessibilityRole="button" accessibilityLabel={`Velocidade ${v}x`} onPress={() => setSpeed(v)} style={[styles.speed, { backgroundColor: speed === v ? colors.secondaryBg : "transparent" }]}><Text style={{ color: ink }}>{v}×</Text></Pressable>)}
+              <CourtActionButton label="Voltar ao início da etapa" icon="restore" onPress={restartCurrentStep} />
+              {action("Editar etapa", "pencil", openStepEditor)}
+              <View style={{ width: 1, height: 24, marginHorizontal: 4, backgroundColor: colors.border }} />
+              {action("Animar movimento", "compare", () => { stop(); setTool("animate"); setPanel("tools"); }, tool === "animate")}
+              {action("Duplicar etapa", "copy", () => mutateStep(duplicateStep(payload, stepIndex)))}
+              {action("Adicionar quadra vazia", "add", () => mutateStep(addBlankStep(payload, stepIndex)))}
+            </ScrollView>
+            {action("Recolher etapas", "chevronDown", () => { setBottomPinned(false); setBottomOpen(false); })}
           </View>
           <CourtTimelineScrubber progress={progress} durationMs={step.durationMs} onSeek={value => { setPlaying(false); playhead.current = value; setProgress(value); }} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {payload.timeline.steps.map((s, i) => <View key={s.id} style={{ position: "relative" }}><Pressable accessibilityRole="button" accessibilityLabel={`Etapa ${i + 1}: ${s.label}`} accessibilityState={{ selected: i === stepIndex }} onPress={() => selectStep(i)} style={{ width: short ? 105 : 135, padding: 4, borderWidth: 2, borderRadius: 10, borderColor: i === stepIndex ? "#28d78b" : colors.border }}>
-              <View style={{ height: short ? 40 : 60 }}><CourtEditorScene payload={payload} stepIndex={i} landscape progress={0} /></View><Text numberOfLines={1} style={{ color: ink, fontSize: 11, marginTop: 4 }}>{i + 1}. {s.label}</Text>
+          <ScrollView ref={stepListRef} horizontal showsHorizontalScrollIndicator={false} onContentSizeChange={() => scrollCurrentStep(false)} contentContainerStyle={{ gap: 8 }}>
+            {payload.timeline.steps.map((s, i) => <DraggableStepFrame key={s.id} index={i} active={draggedStep === i} over={dragOverStep === i} onDragState={updateStepDrag} onMove={moveStepTo}><Pressable accessibilityRole="button" accessibilityLabel={`Etapa ${i + 1}: ${s.label}. Arraste para reordenar.`} accessibilityState={{ selected: i === stepIndex }} onPress={() => selectStep(i)} style={{ width: short ? 105 : 135, padding: 4, borderWidth: 2, borderRadius: 10, borderColor: i === stepIndex ? "#28d78b" : colors.border }}>
+              <View style={{ height: short ? 40 : 60 }}><CourtEditorScene payload={payload} stepIndex={i} landscape progress={0} /></View><View style={styles.stepLabel}><GoAtletaIcon name="move" size={13} color={colors.muted} /><Text numberOfLines={1} style={{ color: ink, fontSize: 11, flex: 1 }}>{i + 1}. {s.label}</Text></View>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={`Excluir etapa ${i + 1}: ${s.label}`} disabled={payload.timeline.steps.length <= 1}
               onPress={() => { const result = removeStep(payload, i); result.stepIndex = i === stepIndex ? Math.min(i, result.payload.timeline.steps.length - 1) : stepIndex - (i < stepIndex ? 1 : 0); mutateStep(result); }}
               style={{ position: "absolute", right: 3, top: 3, width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: surface, opacity: payload.timeline.steps.length <= 1 ? 0.35 : 1 }}>
               <GoAtletaIcon name="close" size={16} color={ink} />
-            </Pressable></View>)}
-            {action("Adicionar etapa", "add", () => { const result = duplicateStep(payload, stepIndex); result.payload = changeDrawings(result.payload, result.stepIndex, frameDrawings(result.payload, result.stepIndex).map(d => ({ ...d, motion: undefined }))); result.payload = changeStep(result.payload, result.stepIndex, s => ({ ...s, label: `Etapa ${payload.timeline.steps.length + 1}`, trajectories: [], transitions: undefined, baselineActorPositions: { ...s.actorPositions } })); mutateStep(result); }, false, false, true)}
+            </Pressable></DraggableStepFrame>)}
+            {action("Continuar do final", "arrowForward", () => mutateStep(continueStepFromEnd(payload, stepIndex)), false, false, true)}
+            {action("Duplicar com animação", "copy", () => mutateStep(duplicateStep(payload, stepIndex)), false, false, true)}
+            {action("Adicionar quadra vazia", "add", () => mutateStep(addBlankStep(payload, stepIndex)), false, false, true)}
           </ScrollView>
-        </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar etapas" onPress={() => { setPanel(null); setBottomPinned(true); setBottomOpen(true); }} onHoverIn={() => { if (!panel) setBottomOpen(true); }} style={styles.handle}><GoAtletaIcon name="play" size={18} color="#28d78b" /><Text style={{ color: ink, fontWeight: "600", fontSize: 12 }}>Etapas</Text><GoAtletaIcon name="chevronUp" size={18} color={ink} /></Pressable>}
+        </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar etapas" onPress={() => { setPanel(null); setBottomPinned(true); setBottomOpen(true); }} style={styles.handle}><GoAtletaIcon name="play" size={18} color="#28d78b" /><Text style={{ color: ink, fontWeight: "600", fontSize: 12 }}>Etapas</Text><GoAtletaIcon name="chevronUp" size={18} color={ink} /></Pressable>}
       </View>
       <View onPointerEnter={restoreControls} style={[controlFade, styles.history, { right: insets.right + 10, bottom: historyBottom, backgroundColor: surface, maxWidth: !timelineVisible && width < 700 ? Math.max(44, width / 2 - 84 - insets.right) : width - 20, flexWrap: "wrap" }]}>
 
@@ -348,7 +440,9 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
             {field("Notas da etapa", step.note || "", note => edit(p => changeStep(p, stepIndex, s => ({ ...s, note }))), true)}
             {heading("Ordem na sequência")}
             <View style={styles.row}><Text style={{ flex: 1, color: colors.muted, fontSize: 13 }}>Posição {stepIndex + 1} de {payload.timeline.steps.length}</Text>{action("Mover etapa antes", "chevronBack", () => mutateStep(reorderStep(payload, stepIndex, -1)), false, stepIndex === 0)}{action("Mover etapa depois", "chevronForward", () => mutateStep(reorderStep(payload, stepIndex, 1)), false, stepIndex === payload.timeline.steps.length - 1)}</View>
-            {action("Duplicar etapa", "copy", () => mutateStep(duplicateStep(payload, stepIndex)), false, false, true)}
+            {action("Continuar a partir do final", "arrowForward", () => mutateStep(continueStepFromEnd(payload, stepIndex)), false, false, true)}
+            {action("Duplicar com a mesma animação", "copy", () => mutateStep(duplicateStep(payload, stepIndex)), false, false, true)}
+            {action("Adicionar quadra vazia", "add", () => mutateStep(addBlankStep(payload, stepIndex)), false, false, true)}
             {heading("Animação")}
 
             {action("Limpar animação desta etapa", "restore", () => edit(p => resetStepAnimation(p, stepIndex)), false, false, true)}
@@ -445,7 +539,7 @@ const styles = StyleSheet.create({
   topContent: { flexDirection: "row", alignItems: "center", padding: 8, gap: 4, width: "100%" },
   handle: { flexDirection: "row", gap: 10, alignItems: "center", justifyContent: "center", minHeight: 44, paddingHorizontal: 18 },
   action: { minWidth: 44, minHeight: 44, paddingHorizontal: 9, gap: 6, flexDirection: "row", justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1 },
-  tools: { position: "absolute", borderRadius: 16, width: 52, zIndex: 10 },
+  tools: { position: "absolute", borderRadius: 16, width: 52, zIndex: 24 },
   propertyTrigger: { position: "absolute", width: 44, height: 44, borderRadius: 22, overflow: "hidden", zIndex: 21 },
   bottom: { position: "absolute", alignSelf: "center", maxWidth: "100%", borderTopLeftRadius: 18, borderTopRightRadius: 18, zIndex: 22 },
   history: { position: "absolute", flexDirection: "row", gap: 2, borderRadius: 25, zIndex: 10 },
@@ -453,5 +547,7 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
   panel: { position: "absolute", zIndex: 30, padding: 12, gap: 10, borderRadius: 16, borderWidth: 1 },
   speed: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: 8 },
+  stepCard: { position: "relative", borderWidth: 1, borderColor: "transparent", borderRadius: 12 },
+  stepLabel: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   exitOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", zIndex: 80 },
 });

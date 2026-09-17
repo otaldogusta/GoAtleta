@@ -1,5 +1,5 @@
 import { buildRotation5x1Preset, normalizeCourtPayload, parseCourtVisualPayload, serializeCourtVisualPayload } from "../visual-court";
-import { actorPoint, changeDrawings, deleteSelection, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pointAlong, motionTrail, snapCourtPoint, resetStepAnimation, removeStep, reorderStep, upgradeCourtEditor } from "../visual-court-editor";
+import { addBlankStep, actorPoint, changeDrawings, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, pointAlong, motionTrail, snapCourtPoint, resetStepAnimation, removeStep, reorderStep, reorderStepToIndex, upgradeCourtEditor } from "../visual-court-editor";
 
 describe("court editor document commands", () => {
   it("snaps both axes to the same half-metre spacing", () => {
@@ -103,14 +103,25 @@ describe("court editor document commands", () => {
     expect(next.timeline.steps[0].trajectories).toHaveLength(0);
     expect(next.timeline.steps[0].baselineActorPositions?.[id]).toEqual(actorPoint(next, 0, id));
   });
-  it("retains the trajectory start while editing its destination", () => {
+  it("starts a replacement trajectory at the actor current final position", () => {
     const p = newCourtBoard(), id = p.actors[0].id;
     const first = moveSelection(p, 0, [id], { x: 0.1, y: 0 }, true);
     const next = moveSelection(first, 0, [id], { x: 0.1, y: 0.02 }, true);
     expect(next.timeline.steps[0].trajectories).toHaveLength(1);
-    expect(next.timeline.steps[0].trajectories?.[0].points[0]).toEqual(actorPoint(p, 0, id));
+    expect(next.timeline.steps[0].trajectories?.[0].points[0]).toEqual(actorPoint(first, 0, id));
     expect(next.timeline.steps[0].trajectories?.[0].points[1]).toEqual(actorPoint(next, 0, id));
     expect(pointAlong(next.timeline.steps[0].trajectories![0].points, 1)).toEqual(actorPoint(next, 0, id));
+  });
+  it("replaces only the moved actor trajectory and keeps the other paths", () => {
+    const p = newCourtBoard(), firstId = p.actors[0].id, secondId = p.actors[1].id;
+    const firstMove = moveSelection(p, 0, [firstId], { x: 0.08, y: 0.01 }, true);
+    const secondMove = moveSelection(firstMove, 0, [secondId], { x: -0.05, y: 0.04 }, true);
+    const replaced = moveSelection(secondMove, 0, [firstId], { x: 0.03, y: -0.02 }, true);
+    const firstTrajectory = replaced.timeline.steps[0].trajectories?.find(item => item.actorId === firstId);
+    const secondTrajectory = replaced.timeline.steps[0].trajectories?.find(item => item.actorId === secondId);
+    expect(firstTrajectory?.points[0]).toEqual(actorPoint(secondMove, 0, firstId));
+    expect(firstTrajectory?.points[1]).toEqual(actorPoint(replaced, 0, firstId));
+    expect(secondTrajectory).toEqual(secondMove.timeline.steps[0].trajectories?.find(item => item.actorId === secondId));
   });
   it("never moves or deletes a locked actor", () => {
     const p = newCourtBoard(), id = p.actors[0].id;
@@ -140,6 +151,42 @@ describe("court editor document commands", () => {
     expect(frameDrawings(reordered.payload, 0)).toEqual(frameDrawings(result.payload, 1));
     expect(removeStep(reordered.payload, 0).payload.timeline.steps).toHaveLength(1);
     expect(removeStep(p, 0).payload.timeline.steps).toHaveLength(1);
+  });
+  it("continues from the visible end state without replaying the previous movement", () => {
+    let p = newCourtBoard();
+    const actorId = p.actors[0].id;
+    p = moveSelection(p, 0, [actorId], { x: 0.12, y: -0.08 }, true);
+    p = changeDrawings(p, 0, [{ id: "ball", kind: "ball", points: [{ x: 0.5, y: 0.5 }], motion: [{ x: 0.2, y: 0.4 }, { x: 0.6, y: 0.3 }], size: 28, rotation: 0, color: "#ffffff" }]);
+    const result = continueStepFromEnd(p, 0);
+    const continued = result.payload.timeline.steps[1];
+    expect(continued.actorPositions[actorId]).toEqual(p.timeline.steps[0].actorPositions[actorId]);
+    expect(continued.baselineActorPositions?.[actorId]).toEqual(continued.actorPositions[actorId]);
+    expect(continued.trajectories).toEqual([]);
+    expect(frameDrawings(result.payload, 1)[0].points).toEqual([{ x: 0.6, y: 0.3 }]);
+    expect(frameDrawings(result.payload, 1)[0].motion).toBeUndefined();
+  });
+  it("adds a genuinely blank court and can move a step to any position", () => {
+    const p = duplicateStep(duplicateStep(newCourtBoard(), 0).payload, 1).payload;
+    const blank = addBlankStep(p, 1);
+    expect(blank.payload.timeline.steps[2].visibleActorIds).toEqual([]);
+    expect(blank.payload.timeline.steps[2].actorPositions).toEqual({});
+    expect(frameDrawings(blank.payload, 2)).toEqual([]);
+    const moved = reorderStepToIndex(blank.payload, 2, 0);
+    expect(moved.payload.timeline.steps[0].id).toBe(blank.payload.timeline.steps[2].id);
+    expect(moved.stepIndex).toBe(0);
+  });
+  it("copies selected court content into another step without creating duplicate athletes", () => {
+    let p = newCourtBoard();
+    const actorId = p.actors[0].id;
+    p = changeDrawings(p, 0, [{ id: "cone", kind: "cone", points: [{ x: 0.4, y: 0.5 }], size: 24, rotation: 0, color: "#ffdc53" }]);
+    const clipboard = copyStepSelection(p, 0, [actorId, "cone"]);
+    const blank = addBlankStep(p, 0);
+    const pasted = pasteStepSelection(blank.payload, 1, clipboard);
+    expect(pasted.payload.actors).toHaveLength(p.actors.length);
+    expect(pasted.payload.timeline.steps[1].visibleActorIds).toContain(actorId);
+    expect(pasted.payload.timeline.steps[1].actorPositions[actorId]).toEqual(actorPoint(p, 0, actorId));
+    expect(frameDrawings(pasted.payload, 1)).toHaveLength(1);
+    expect(frameDrawings(pasted.payload, 1)[0].id).not.toBe("cone");
   });
   it("round-trips a bounded editable document and strips account links", () => {
     const p = newCourtBoard(); p.editor!.actorMeta[p.actors[0].id].studentId = "private-student";

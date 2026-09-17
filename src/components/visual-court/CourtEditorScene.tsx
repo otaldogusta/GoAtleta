@@ -102,7 +102,7 @@ export function CourtEditorScene({ payload: p, stepIndex, landscape, selected = 
         <DrawObject drawing={draft} landscape={landscape} />
       </G> : null}
     </> : null}
-    {(previewIds ? previewMotion : progress !== 0) && !hide.includes("movements") ? (step.trajectories ?? step.transitions)?.filter(t => !previewIds || previewIds.includes(t.actorId)).map(t => <DrawObject key={t.id} landscape={landscape} drawing={{ id: t.id, kind: "arrow", points: motionTrail(t.points, previewIds?.includes(t.actorId) ? 1 : progress ?? 1, 55), color: t.color ?? "#fff", dashed: true, size: 28, rotation: 0 }} />) : null}
+    {!hide.includes("movements") ? (step.trajectories ?? step.transitions)?.filter(t => previewIds?.includes(t.actorId) ? previewMotion : progress !== 0).map(t => <DrawObject key={t.id} landscape={landscape} drawing={{ id: t.id, kind: "arrow", points: motionTrail(t.points, previewIds?.includes(t.actorId) ? 1 : progress ?? 1, 55), color: t.color ?? "#fff", dashed: true, size: 28, rotation: 0 }} />) : null}
     {!hide.includes("actors") ? displayActors(p, stepIndex, progress).map(a => {
       const pt = scenePoint(previewIds?.includes(a.id) ? actorPoint(p, stepIndex, a.id) : a.point, landscape);
       return <G key={a.id}>
