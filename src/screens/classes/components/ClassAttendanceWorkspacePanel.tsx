@@ -83,6 +83,7 @@ type ClassAttendanceWorkspacePanelProps = {
   onSetStatus: (studentId: string, status: "presente" | "faltou") => void;
   onSetDetails: (studentId: string, details: EmbeddedAttendanceDetails) => void;
   onSave: () => void;
+  floatingSave?: boolean;
   onBindStudentNfc?: (student: Student) => void;
   nfcBindingStudentId?: string | null;
 };
@@ -130,7 +131,7 @@ function StudentAvatar({ student, colors, dense = false, onOpenPhoto }: { studen
   );
 }
 
-export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, dateLabel, students, statusById, detailsById, markedCount, hasChanges, isLoading, isSaving, loadFailed = false, error, onRetry, onPrevious, onNext, onOpenCalendar, onOpenReport, onSetStatus, onSetDetails, onSave, onBindStudentNfc, nfcBindingStudentId = null }: ClassAttendanceWorkspacePanelProps) {
+export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, dateLabel, students, statusById, detailsById, markedCount, hasChanges, isLoading, isSaving, loadFailed = false, error, onRetry, onPrevious, onNext, onOpenCalendar, onOpenReport, onSetStatus, onSetDetails, onSave, floatingSave = true, onBindStudentNfc, nfcBindingStudentId = null }: ClassAttendanceWorkspacePanelProps) {
   const { containerRef, onLayout, width } = useContainerResponsiveLayout("content");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [photoPreviewStudent, setPhotoPreviewStudent] = useState<Student | null>(null);
@@ -228,7 +229,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
               <GoAtletaIcon name="document" size={16} color={colors.text} />
               <Text style={[styles.reportButtonLabel, mobile || densePanel ? styles.reportButtonLabelDense : null, { color: colors.text }]}>Abrir relatório</Text>
             </Pressable>
-            <Pressable
+            {!floatingSave ? <Pressable
               onPress={onSave}
               disabled={!hasChanges || attendanceLocked}
               accessibilityRole="button"
@@ -247,7 +248,7 @@ export function ClassAttendanceWorkspacePanel({ colors, compact, mobile, dense, 
               <Text style={[styles.saveButtonLabel, densePanel || mobile ? styles.saveButtonLabelDense : null, { color: colors.primaryText }]}>
                 {isSaving ? "Salvando..." : "Salvar chamada"}
               </Text>
-            </Pressable>
+            </Pressable> : null}
           </View>
         </View>
       </View>

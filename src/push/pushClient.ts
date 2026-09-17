@@ -5,6 +5,7 @@ import { Platform } from "react-native";
 
 import { upsertMyPushToken } from "../api/push-tokens";
 import { getNotificationsModule, isExpoGo } from "./notificationRuntime";
+import { requestInitialNotificationPermission } from "./native-permission";
 
 export type PushRoutePayload = {
   route: string;
@@ -56,11 +57,7 @@ export const ensurePushPermissions = async (): Promise<boolean> => {
       addPushBreadcrumb("push.permission.granted", { source: "current" });
       return true;
     }
-    const requested = await Notifications.requestPermissionsAsync();
-    const granted = Boolean(
-      requested.granted ||
-        requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
-    );
+    const granted = await requestInitialNotificationPermission();
     addPushBreadcrumb(granted ? "push.permission.granted" : "push.permission.denied", {
       source: "request",
     });
@@ -157,7 +154,9 @@ export async function ensurePushTokenRegistered(params: {
 
   const task = (async () => {
     const token = await getExpoPushTokenSafe();
-    if (!token) return;
+    // Do not mark registration complete when permission/token is unavailable.
+    // Returning from device Settings must be allowed to retry registration.
+    if (!token) throw new Error("Push registration unavailable");
 
     const cacheKey = `${TOKEN_CACHE_PREFIX}${organizationId}`;
     const lastRegistered = await AsyncStorage.getItem(cacheKey);

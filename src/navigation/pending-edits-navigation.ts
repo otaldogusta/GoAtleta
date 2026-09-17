@@ -1,4 +1,4 @@
-type NavigationGuard = (navigate: () => void) => void;
+type NavigationGuard = (navigate: () => void, reason?: "refresh") => void;
 
 let activeGuard: NavigationGuard | null = null;
 
@@ -8,7 +8,7 @@ export function registerPendingEditsNavigation(guard: NavigationGuard) {
   return () => { if (activeGuard === guard) activeGuard = null; };
 }
 
-export function requestPendingEditsNavigation(navigate: () => void) {
-  if (activeGuard) activeGuard(navigate);
+export function requestPendingEditsNavigation(navigate: () => void, reason?: "refresh") {
+  if (activeGuard) activeGuard(navigate, reason);
   else navigate();
 }

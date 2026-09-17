@@ -10,7 +10,7 @@ import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
 import { useAppTheme } from "../../ui/app-theme";
 import { claimActivityNotice } from "../../core/activity-notice";
-import { radius, shadow, spacing } from "../../theme/tokens";
+import { radius, spacing } from "../../theme/tokens";
 
 export function ActivityReviewSuggestion({ organizationId, userId, classes, today, onPresence, onSaved, onAvailable, openRequest = 0 }: {
   organizationId: string; userId: string; onAvailable?: (count: number) => void; openRequest?: number; classes: ClassGroup[]; today: string;
@@ -85,7 +85,7 @@ export function ActivityReviewSuggestion({ organizationId, userId, classes, toda
   </>;
 }
 const styles=StyleSheet.create({
-  notice:{position:'absolute',bottom:spacing.lg,left:spacing.md,right:spacing.md,maxWidth:440,padding:spacing.md,gap:spacing.sm,borderWidth:1,borderRadius:radius.container,...shadow.elevated},
+  notice:{width:'100%',padding:spacing.md,gap:spacing.sm,borderWidth:1,borderRadius:radius.container},
   panel:{width:'100%',maxWidth:520,maxHeight:'90%',padding:spacing.lg,gap:spacing.sm,borderWidth:1,borderRadius:radius.container},
   row:{flexDirection:'row',alignItems:'center',gap:spacing.sm},grow:{flex:1,minWidth:0},title:{fontSize:18,fontWeight:'700'},
   close:{width:38,height:38,borderRadius:19,alignItems:'center',justifyContent:'center'},actions:{flexDirection:'row',justifyContent:'flex-end'},

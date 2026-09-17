@@ -45,6 +45,9 @@ try {
   await db.exec(foundation.slice(coreStart,coreEnd));
   await db.exec(await sql('20260914025117_athlete_access_requests.sql'));
   await db.exec(await sql('20260914051017_family_access_requests.sql'));
+  await db.exec('alter table students add column age integer, add column phone text, add column createdat timestamptz');
+  await db.exec(await sql('20260916131459_approve_family_registration.sql'));
+  await db.exec(await sql('20260916134009_fix_family_registration_required_fields.sql'));
   await db.exec('begin');
   await actor(parent);
   const request=async (kind='guardian',name='Lucas') => (await db.query('select request_family_access($1,$2,$3,$4) id',[org,kind,name,'Pai'])).rows[0].id;
@@ -132,6 +135,24 @@ try {
   assert.deepEqual(foreignCandidates.map(row=>row.id),['foreign']);
   await db.query('select review_family_access_request($1,$2,$3,$4)',[foreignRequest,'approved','foreign','30000000-0000-0000-0000-000000000004']);
   assert.equal((await db.query("select count(distinct organization_id)::int n from student_relationships where user_id=$1",[parent])).rows[0].n,2);
+  // Direct admission supports athlete and guardian, without enrollment or staff grants.
+  for (const [index, kind] of ['athlete', 'guardian'].entries()) {
+    const requester = `10000000-0000-0000-0000-00000000000${index + 5}`;
+    const admissionKey = `30000000-0000-0000-0000-00000000000${index + 5}`;
+    await db.query('insert into auth.users(id,email) values($1,$2)', [requester, `${kind}@example.invalid`]);
+    await actor(requester);
+    const admission = await request(kind, `New ${kind}`);
+    await rejects(() => db.query('select approve_family_registration($1,$2)', [admission, admissionKey]), /Not authorized/);
+    await actor(admin);
+    assert.equal((await db.query('select approve_family_registration($1,$2) changed', [admission, admissionKey])).rows[0].changed, true);
+    assert.equal((await db.query('select approve_family_registration($1,$2) changed', [admission, admissionKey])).rows[0].changed, false);
+    const registration = (await db.query('select s.* from students s join student_relationships r on r.student_id=s.id where r.user_id=$1', [requester])).rows[0];
+    assert.equal(registration.classid, null);
+    assert.equal(registration.age, 0);
+    assert.equal(registration.phone, '');
+    assert.ok(registration.createdat);
+    assert.equal((await db.query('select count(*)::int n from organization_members where user_id=$1', [requester])).rows[0].n, 0);
+  }
   await db.exec('rollback');
   assert.equal((await db.query('select count(*)::int n from student_relationships')).rows[0].n,0);
   console.log('Family requests SQL passed: org scope, no staff grants, siblings, multiple guardians/institutions, identity, expiry, revocation, role grants, replay and rollback (isolated PostgreSQL).');

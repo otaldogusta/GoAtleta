@@ -249,7 +249,7 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(onOpenReport).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps one mobile save action beside the report action", () => {
+  it("leaves saving to the floating action outside the attendance panel", () => {
     const onOpenReport = jest.fn();
     const onSave = jest.fn();
     const screen = render(
@@ -277,8 +277,7 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
       }),
     );
 
-    expect(screen.getAllByLabelText("Salvar chamada")).toHaveLength(1);
-    expect(screen.getByText("Salvar chamada")).toBeTruthy();
+    expect(screen.queryByLabelText("Salvar chamada")).toBeNull();
     expect(screen.queryByText("save")).toBeNull();
     expect(screen.queryByLabelText("Alterações da chamada pendentes")).toBeNull();
     fireEvent(screen.getByTestId("embedded-attendance-section"), "layout", {
@@ -290,10 +289,9 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
       flexBasis: "auto",
     });
     fireEvent.press(screen.getByLabelText("Abrir relatório"));
-    fireEvent.press(screen.getByLabelText("Salvar chamada"));
 
     expect(onOpenReport).toHaveBeenCalledTimes(1);
-    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it("uses the overview date navigator proportions in embedded attendance", () => {

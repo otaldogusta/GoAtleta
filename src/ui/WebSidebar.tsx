@@ -48,7 +48,7 @@ const SIDEBAR_COMPACT_WIDTH = 88;
 const SIDEBAR_EXPANDED_WIDTH = 292;
 const SIDEBAR_FINANCE_WIDTH = 220;
 const SIDEBAR_EXPANSION_DISTANCE = SIDEBAR_EXPANDED_WIDTH - SIDEBAR_COMPACT_WIDTH;
-const SIDEBAR_EXPANDED_STORAGE_KEY = "goatleta:web-sidebar-expanded";
+const SIDEBAR_EXPANDED_STORAGE_KEY = "goatleta:web-sidebar-expanded-v2";
 
 const roleSubtitle: Record<AppRole, string> = {
   prof: "Painel do professor",

@@ -10,8 +10,10 @@ import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
 import { createAbsenceNotice } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { DateInput } from "../src/ui/DateInput";
+import { AppShell } from "../src/ui/AppShell";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
+import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 
 const reasons = ["Doença", "Compromisso", "Lesão", "Outro"];
 
@@ -22,9 +24,10 @@ const formatIsoDate = (value: Date) => {
   return `${y}-${m}-${d}`;
 };
 
-export default function AbsenceReportScreen() {
+function AbsenceReportScreenContent() {
   markRender("screen.absenceReport.render.root");
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout("dashboard");
   const { student } = useRole();
   const router = useRouter();
   const [date, setDate] = useState(formatIsoDate(new Date()));
@@ -53,7 +56,7 @@ export default function AbsenceReportScreen() {
         status: "pending",
       });
       Alert.alert("Aviso enviado", "O treinador recebeu seu aviso.");
-      navigateBackOrReplace({ router, fallback: "/prof/home" });
+      navigateBackOrReplace({ router, fallback: "/student/home" });
     } catch {
       Alert.alert("Não foi possível enviar o aviso.");
     } finally {
@@ -65,11 +68,12 @@ export default function AbsenceReportScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScreenPageHeader
         title="Avisar ausência"
-        onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+        onBack={() => navigateBackOrReplace({ router, fallback: "/student/home" })}
+        contentStyle={{ width: "100%", maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter }}
       />
       <ScrollView
         style={{ backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: 16, paddingTop: 2, gap: 12 }}
+        contentContainerStyle={{ width: "100%", maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter, paddingBottom: 16, paddingTop: 2, gap: 12 }}
       >
         <View
           style={{
@@ -152,4 +156,8 @@ export default function AbsenceReportScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function AbsenceReportScreen() {
+  return <AppShell role="student"><AbsenceReportScreenContent /></AppShell>;
 }

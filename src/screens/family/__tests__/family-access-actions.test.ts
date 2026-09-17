@@ -1,20 +1,23 @@
 import { act, renderHook } from "@testing-library/react-native";
 import { useAthleteAccessReview } from "../../coordination/useAthleteAccessReview";
 import { useGuardianAthleteInvite } from "../GuardianAthleteInvite";
-import { listFamilyRequestCandidates, reviewFamilyAccessRequest } from "../../../api/family-access-request";
+import { approveFamilyRegistration, listFamilyRequestCandidates, reviewFamilyAccessRequest } from "../../../api/family-access-request";
 import { createStudentRelationshipInvite } from "../../../api/student-relationship-invite";
-jest.mock("../../../api/family-access-request", () => ({ ...jest.requireActual("../../../api/family-access-request"), listFamilyRequestCandidates: jest.fn(), reviewFamilyAccessRequest: jest.fn() }));
+jest.mock("../../../api/family-access-request", () => ({ ...jest.requireActual("../../../api/family-access-request"), approveFamilyRegistration: jest.fn(), listFamilyRequestCandidates: jest.fn(), reviewFamilyAccessRequest: jest.fn() }));
 jest.mock("../../../api/student-relationship-invite", () => ({ createStudentRelationshipInvite: jest.fn() }));
 jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn() }));
 const list = listFamilyRequestCandidates as jest.Mock;
 const review = reviewFamilyAccessRequest as jest.Mock;
 const create = createStudentRelationshipInvite as jest.Mock;
 beforeEach(() => jest.clearAllMocks());
-it("never approves until the reviewer selected an athlete", async () => {
-  const { result } = renderHook(() => useAthleteAccessReview("r", jest.fn()));
+it("approves a new registration without requiring an existing athlete", async () => {
+  const refresh = jest.fn();
+  const { result } = renderHook(() => useAthleteAccessReview("r", refresh));
   await act(async () => { await result.current.review("approved", () => "key"); });
   expect(review).not.toHaveBeenCalled();
-  expect(result.current.error).toContain("Selecione");
+  expect(approveFamilyRegistration).toHaveBeenCalledWith("r", "key");
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(result.current.error).toBe("");
 });
 it("preserves selection and idempotency key after an uncertain reply", async () => {
   review.mockRejectedValueOnce(new Error("Rede indisponível")).mockResolvedValueOnce(undefined);

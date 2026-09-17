@@ -240,7 +240,7 @@ const mapStudentRow = (
     inactivatedBy: row.inactivated_by ?? null,
     inactivationReason: row.inactivation_reason ?? null,
     sourcePreRegistrationId: row.source_pre_registration_id ?? null,
-    classId: row.classid,
+    classId: row.classid ?? "",
     age: row.age,
     phone: row.phone,
     loginEmail: row.login_email ?? "",

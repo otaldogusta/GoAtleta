@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 
 // perf-check: ignore-render -- this release only updates the visible brand name in the ICS metadata.
 // perf-check: ignore-measure -- no screen loading or data-fetching path changed in this release.
@@ -19,9 +19,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
 import type { ClassGroup } from "../../src/core/models";
-import { getClasses } from "../../src/db/seed";
+import { getClasses, getClassById } from "../../src/db/seed";
+import { useRole } from "../../src/auth/role";
+import { useOptionalOrganization } from "../../src/providers/organization-context";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { Button } from "../../src/ui/Button";
+import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { ScreenPageHeader } from "../../src/components/ui/ScreenPageHeader";
 import { useAppTheme } from "../../src/ui/app-theme";
 import { getSectionCardStyle } from "../../src/ui/section-styles";
@@ -98,8 +101,17 @@ const isClassDay = (date: Date, classes: ClassGroup[]) => {
 
 export default function AgendaScreen() {
   const router = useRouter();
+  const pathname = usePathname();
+  const { role, student } = useRole();
+  const organization = useOptionalOrganization();
+  const isStudentAgenda = pathname.startsWith("/student/") || role === "student";
+  const classId = student?.classId;
+  const organizationId = isStudentAgenda ? student?.organizationId : organization?.activeOrganization?.id;
+  const scopeKey = JSON.stringify([isStudentAgenda, organizationId, isStudentAgenda ? classId : null]);
   const { colors } = useAppTheme();
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [loaded, setLoaded] = useState<{ scopeKey: string; classes: ClassGroup[] } | null>(null);
+  const [failedScope, setFailedScope] = useState<string | null>(null);
+  const classes = useMemo(() => loaded?.scopeKey === scopeKey ? loaded.classes : [], [loaded, scopeKey]);
   const [month, setMonth] = useState(new Date());
   const [selected, setSelected] = useState(formatDate(new Date()));
   const [icsPreview, setIcsPreview] = useState("");
@@ -111,13 +123,27 @@ export default function AgendaScreen() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const data = await getClasses();
-      if (alive) setClasses(data);
-    })();
+      if (!organizationId || (isStudentAgenda && !classId)) {
+        if (alive) setLoaded({ scopeKey, classes: [] });
+        return;
+      }
+      const data = isStudentAgenda
+        ? await getClassById(classId!, { organizationId }).then((group) => group ? [group] : [])
+        : await getClasses({ organizationId });
+      if (alive) {
+        setLoaded({ scopeKey, classes: data });
+        setFailedScope(null);
+      }
+    })().catch(() => {
+      if (alive) {
+        setLoaded({ scopeKey, classes: [] });
+        setFailedScope(scopeKey);
+      }
+    });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [classId, isStudentAgenda, organizationId, scopeKey]);
 
   const grid = useMemo(
     () => getMonthGrid(month.getFullYear(), month.getMonth()),
@@ -209,8 +235,8 @@ export default function AgendaScreen() {
       >
         <ScreenPageHeader
           title="Agenda mensal"
-          subtitle="Dias por unidade e turmas"
-          onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
+          subtitle={isStudentAgenda ? "Seus treinos" : "Dias por unidade e turmas"}
+          onBack={() => navigateBackOrReplace({ router, fallback: isStudentAgenda ? "/student/home" : "/prof/home" })}
           style={{ marginHorizontal: -16, marginBottom: 12 }}
         />
 
@@ -232,9 +258,11 @@ export default function AgendaScreen() {
               onPress={() =>
                 setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
               }
-              style={{ padding: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Mês anterior"
+              style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg }}
             >
-              <Text style={{ fontSize: 18 }}>{"<"}</Text>
+              <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
             </Pressable>
           ) : (
             <Pressable
@@ -245,9 +273,11 @@ export default function AgendaScreen() {
                   setYearPageStart((prev) => prev - 12);
                 }
               }}
-              style={{ padding: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={viewMode === "month" ? "Ano anterior" : "Anos anteriores"}
+              style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg }}
             >
-              <Text style={{ fontSize: 18 }}>{"<"}</Text>
+              <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
             </Pressable>
           )}
           <Pressable
@@ -256,9 +286,11 @@ export default function AgendaScreen() {
                 prev === "day" ? "month" : prev === "month" ? "year" : "month"
               );
             }}
-            style={{ paddingVertical: 4, paddingHorizontal: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={viewMode === "month" ? "Selecionar ano" : "Selecionar mês"}
+            style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderRadius: 12 }}
           >
-            <Text style={{ fontSize: 16, fontWeight: "700" }}>
+            <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
               {viewMode === "year"
                  ? `${yearPageStart} - ${yearPageStart + 11}`
                 : `${monthNames[month.getMonth()]} ${month.getFullYear()}`}
@@ -269,9 +301,11 @@ export default function AgendaScreen() {
               onPress={() =>
                 setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))
               }
-              style={{ padding: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Próximo mês"
+              style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg }}
             >
-              <Text style={{ fontSize: 18 }}>{">"}</Text>
+              <GoAtletaIcon name="chevronForward" size={20} color={colors.text} />
             </Pressable>
           ) : (
             <Pressable
@@ -282,9 +316,11 @@ export default function AgendaScreen() {
                   setYearPageStart((prev) => prev + 12);
                 }
               }}
-              style={{ padding: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={viewMode === "month" ? "Próximo ano" : "Próximos anos"}
+              style={{ width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg }}
             >
-              <Text style={{ fontSize: 18 }}>{">"}</Text>
+              <GoAtletaIcon name="chevronForward" size={20} color={colors.text} />
             </Pressable>
           )}
         </View>
@@ -427,7 +463,10 @@ export default function AgendaScreen() {
           renderItem={({ item: event }) => (
             <Pressable
               onPress={() => {
-                console.log("Agenda - Event clicked, event.id:", event.id, "typeof:", typeof event.id);
+                if (isStudentAgenda) {
+                  router.push({ pathname: "/student-plan", params: { classId: event.id, date: selected } });
+                  return;
+                }
                 router.push({
                   pathname: "/class/[id]/attendance",
                   params: { id: String(event.id) }
@@ -454,12 +493,12 @@ export default function AgendaScreen() {
               </View>
             </Pressable>
           )}
-          ListEmptyComponent={<Text style={{ color: colors.muted }}>Nenhuma aula neste dia</Text>}
+          ListEmptyComponent={<Text style={{ color: colors.muted }}>{failedScope === scopeKey ? "Não foi possível carregar seus treinos." : loaded?.scopeKey !== scopeKey ? "Carregando treinos…" : "Nenhuma aula neste dia"}</Text>}
         />
       </View>
 
       <View style={{ marginTop: 8 }}>
-        <Button label="Exportar Google Calendar (.ics)" onPress={exportIcs} />
+        <Button label="Exportar Google Calendar (.ics)" onPress={exportIcs} disabled={!classes.length} />
       </View>
 
       { icsPreview ? (

@@ -56,7 +56,8 @@ export function ScreenTopChrome({
   return (
     <View
       style={[
-        { backgroundColor: colors.background, zIndex: 100, elevation: 8 },
+        // Keep the header above content without Android's raised-card shadow.
+        { backgroundColor: colors.background, zIndex: 100, elevation: 0 },
         stickyStyle,
         webFullBleedStyle,
         bleedStyle,

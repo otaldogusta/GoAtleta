@@ -8,9 +8,9 @@ import { ModalSheet } from "../../ui/ModalSheet";
 import { useAppTheme } from "../../ui/app-theme";
 import { radius, shadow, spacing } from "../../theme/tokens";
 
-export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], saving, error, onSave }: {
+export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], saving, error, onSave, bottomOffset = spacing.lg }: {
   holiday: string; date: string; classes: ClassGroup[]; pausedIds?: string[];
-  saving: boolean; error: string; onSave: (ids: string[]) => Promise<void>;
+  saving: boolean; error: string; onSave: (ids: string[]) => Promise<void>; bottomOffset?: number;
 }) {
   const { colors } = useAppTheme();
   const { width, height } = useWindowDimensions();
@@ -22,7 +22,7 @@ export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], 
   const closePanel = () => { if (!saving) setSelection(null); };
   if (dismissed) return null;
   return <>
-    {selection === null ? <View style={[styles.floating, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    {selection === null ? <View style={[styles.floating, { bottom: bottomOffset, backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.heading}>
         <GoAtletaIcon name="assistant" size={24} color={colors.successText} />
         <View style={styles.copy}>
@@ -86,7 +86,7 @@ export function HolidayRecommendation({ holiday, date, classes, pausedIds = [], 
   </>;
 }
 const styles = StyleSheet.create({
-  floating: { position: "absolute", bottom: spacing.lg, right: spacing.md, left: spacing.md, maxWidth: 440, borderWidth: 1, borderRadius: radius.container, padding: spacing.md, gap: spacing.md, ...shadow.elevated },
+  floating: { position: "absolute", right: spacing.md, left: spacing.md, maxWidth: 440, borderWidth: 1, borderRadius: radius.container, padding: spacing.md, gap: spacing.md, ...shadow.elevated },
   heading: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   copy: { flex: 1, minWidth: 0, gap: 4 }, close: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   title: { fontSize: 16, fontWeight: "700" }, panelTitle: { fontSize: 20, fontWeight: "700" }, caption: { fontSize: 13, lineHeight: 19 },

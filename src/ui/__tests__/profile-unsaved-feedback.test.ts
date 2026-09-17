@@ -34,6 +34,8 @@ describe("profile unsaved feedback", () => {
     expect(source).toContain('setMobileGuardianNameDraft(mobileProfileBaseline.guardianName)');
     expect(source).toContain('setMobileHealthObservationsDraft(mobileSportsBaseline.healthObservations)');
     expect(source).toContain('athleteModalities.discard()');
+    expect(source).toContain('onBack={() => leaveMobileProfile()}');
+    expect(source).not.toContain('onBack={leaveMobileProfile}');
   });
 
   it("reveals the unsaved guardian card after continuing and clears its hint on edits", () => {

@@ -1,8 +1,21 @@
-import { requestFamilyAccess, listFamilyRequestCandidates, reviewFamilyAccessRequest, familyAccessErrorMessage } from "../family-access-request";
+import { approveFamilyRegistration, requestFamilyAccess, listFamilyRequestCandidates, reviewFamilyAccessRequest, familyAccessErrorMessage } from "../family-access-request";
 import { supabaseRestPost } from "../rest";
 jest.mock("../rest", () => ({ supabaseRestPost: jest.fn() }));
 const post = supabaseRestPost as jest.Mock;
 beforeEach(() => post.mockReset());
+it("approves a new family registration without choosing another athlete", async () => {
+  post.mockResolvedValue(true);
+  await approveFamilyRegistration("request", "stable-key");
+  expect(post).toHaveBeenCalledWith("/rpc/approve_family_registration", {
+    p_request_id: "request", p_idempotency_key: "stable-key",
+  });
+});
+it("accepts an idempotent replay but rejects an unconfirmed approval", async () => {
+  post.mockResolvedValue(false);
+  await expect(approveFamilyRegistration("request", "key")).resolves.toBeUndefined();
+  post.mockResolvedValue(null);
+  await expect(approveFamilyRegistration("request", "key")).rejects.toThrow();
+});
 it.each(['{"message":42}', 'null', '{"message":{}}'])("keeps malformed error payloads safe: %s", (payload) => {
   expect(familyAccessErrorMessage(new Error(payload))).toContain("os dados preenchidos foram mantidos");
 });

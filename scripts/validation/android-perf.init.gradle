@@ -1,0 +1,18 @@
+// Local-only release-like APK. Invoke with -I; never changes production variants.
+gradle.afterProject { project ->
+    if (project.path == ':app' && project.plugins.hasPlugin('com.android.application')) {
+        def android = project.extensions.getByName('android')
+        android.buildTypes.create('perf') {
+            initWith android.buildTypes.release
+            applicationIdSuffix '.perf'
+            versionNameSuffix '-perf'
+            debuggable false
+            signingConfig android.signingConfigs.debug
+            matchingFallbacks = ['release']
+        }
+        android.sourceSets.getByName('perf').manifest.srcFile(
+            new File(project.rootDir.parentFile, 'scripts/validation/android-perf/AndroidManifest.xml'))
+        android.sourceSets.getByName('perf').res.srcDir(
+            new File(project.rootDir.parentFile, 'scripts/validation/android-perf/res'))
+    }
+}

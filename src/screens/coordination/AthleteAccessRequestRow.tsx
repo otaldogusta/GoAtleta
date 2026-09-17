@@ -51,10 +51,14 @@ export function AthleteAccessRequestView({ request, state, createKey }: {
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
         <Button label="Recusar" variant="danger" disabled={state.busy} loading={state.action === "rejected"}
           loadingLabel="Recusando…" onPress={() => void state.review("rejected", createKey)} />
-        <Button label="Aprovar vínculo" disabled={!state.studentIds.length || state.busy} loading={state.action === "approved"}
+        <Button label="Aprovar acesso" disabled={state.busy} loading={state.action === "approved"}
           loadingLabel="Aprovando…" onPress={() => void state.review("approved", createKey)} />
       </View>
     </View>
+    <Text style={{ color: colors.muted, fontSize: 12 }}>
+      {state.studentIds.length ? "Cadastro existente selecionado. A aprovação libera o vínculo com esse atleta." : "A aprovação cria o cadastro sem turma. Turmas e cobranças são definidas depois."}
+    </Text>
+    <Button label="Já possui cadastro? Conferir vínculo" variant="ghost" disabled={state.busy} onPress={openDetails} />
     <ModalSheet visible={detailsOpen} onClose={() => setDetailsOpen(false)} position="center" cardStyle={{ width: "100%", maxWidth: 440, padding: spacing.md, gap: spacing.md, backgroundColor: colors.card, borderRadius: radius.container }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         {identity(true)}
@@ -80,11 +84,12 @@ export function AthleteAccessRequestView({ request, state, createKey }: {
         <PositionPicker value={draftStudentIds} onChange={setDraftStudentIds} maxSelections={1}
           searchLabel="Selecionar atleta da instituição"
           options={state.candidates.map((student) => ({ value: student.id, label: `${student.name} · ${familyCandidateSchedule(student)}` }))} />
-      </View> : <Text style={{ color: colors.muted }}>Nenhum cadastro disponível. Cadastre o atleta na instituição e atualize esta lista.</Text>}
+      </View> : <Text style={{ color: colors.muted }}>Nenhum cadastro existente. Volte e aprove o acesso para criar o cadastro.</Text>}
     </> : null}
       {state.action === "loading" ? <Text style={{ color: colors.muted }}>Buscando cadastros…</Text> : null}
       {state.error ? <><Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{state.error}</Text><Button label="Tentar novamente" variant="ghost" disabled={state.busy} onPress={() => void state.load()} /></> : null}
       <Button label="Usar este cadastro" disabled={(!suggestion && !selectedDraft) || state.busy} onPress={() => { const candidate = suggestion ?? selectedDraft; if (!candidate) return; state.setStudentIds([candidate.id]); setDetailsOpen(false); }} />
+      <Button label="Continuar com novo cadastro" variant="ghost" disabled={state.busy} onPress={() => { state.setStudentIds([]); setDraftStudentIds([]); setDetailsOpen(false); }} />
     </ModalSheet>
     {state.error && !detailsOpen ? <Text accessibilityRole="alert" style={{ color: colors.dangerText }}>{state.error}</Text> : null}
   </View>;

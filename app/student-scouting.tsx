@@ -15,7 +15,9 @@ import {
 import { getClasses, getStudentScoutingByDate, saveStudentScoutingLog } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
+import { AppShell } from "../src/ui/AppShell";
 import { useAppTheme } from "../src/ui/app-theme";
+import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 
 const formatIsoDate = (value: Date) => {
   const y = value.getFullYear();
@@ -31,9 +33,10 @@ const parseTime = (value: string) => {
   return { hour: Number(match[1]), minute: Number(match[2]) };
 };
 
-export default function StudentScouting() {
+function StudentScoutingContent() {
   markRender("screen.studentScouting.render.root");
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout("dashboard");
   const router = useRouter();
   const { student } = useRole();
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -149,8 +152,9 @@ export default function StudentScouting() {
       <ScreenPageHeader
         title="Meu scouting"
         onBack={() => navigateBackOrReplace({ router, fallback: "/student/home" })}
+        contentStyle={{ width: "100%", maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter }}
       />
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, gap: 16 }}>
+      <ScrollView contentContainerStyle={{ width: "100%", maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter, paddingTop: 2, paddingBottom: 16, gap: 16 }}>
 
         <View style={{ padding: 16, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, gap: 6 }}>
           <Text style={{ color: colors.text, fontWeight: "700" }}>Turma</Text>
@@ -247,4 +251,8 @@ export default function StudentScouting() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function StudentScouting() {
+  return <AppShell role="student"><StudentScoutingContent /></AppShell>;
 }

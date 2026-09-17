@@ -25,8 +25,10 @@ import {
 
 import {
     Animated,
+    AppState,
 
     FlatList,
+    Modal,
     PanResponder,
 
     Platform,
@@ -110,6 +112,7 @@ import { TodayScheduleRail } from "./components/TodayScheduleRail";
 import { WeekDaySelector } from "./components/WeekDaySelector";
 import type { HomeScheduleItem } from "./components/homeScheduleTypes";
 import { buildClassAttendanceWorkspaceHref } from "../classes/class-workspace-route";
+import { resolveHomeFloatingNoticeBottom } from "./home-floating-notice-layout";
 const HomeProfessorBelowFold = lazy(() =>
   import("./HomeProfessorBelowFold").then((module) => ({
     default: module.HomeProfessorBelowFold,
@@ -176,6 +179,10 @@ export function HomeProfessorScreen({
   // Glass overlay function no longer needed - using native component styling instead
 
   const insets = useSafeAreaInsets();
+  const floatingNoticeBottom = resolveHomeFloatingNoticeBottom({
+    isMobile: responsiveLayout.isMobile,
+    safeAreaBottom: insets.bottom,
+  });
 
   const { session, loading: authLoading } = useAuth();
 
@@ -319,13 +326,22 @@ export function HomeProfessorScreen({
 
 
 
-  useEffect(() => {
-
-    const interval = setInterval(() => setNow(new Date()), 60000);
-
-    return () => clearInterval(interval);
-
-  }, []);
+  useFocusEffect(useCallback(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const updateClock = (state: string) => {
+      if (interval) clearInterval(interval);
+      interval = undefined;
+      if (state !== "active") return;
+      setNow(new Date());
+      interval = setInterval(() => setNow(new Date()), 60000);
+    };
+    updateClock(AppState.currentState);
+    const subscription = AppState.addEventListener("change", updateClock);
+    return () => {
+      if (interval) clearInterval(interval);
+      subscription.remove();
+    };
+  }, []));
 
   useEffect(() => {
     return () => {
@@ -393,7 +409,7 @@ export function HomeProfessorScreen({
     await seedIfEmpty();
     hasSeededRef.current = true;
   }, []);
-  const loadHomeSchedule = useCallback(async () => {
+  const loadHomeSchedule = useCallback(async (requireFresh = false) => {
     const userId = session?.user?.id;
     if (!userId || role !== "trainer") {
       return { classes: [] as ClassGroup[], events: [] as EventListItem[] };
@@ -413,6 +429,10 @@ export function HomeProfessorScreen({
         : Promise.resolve([] as EventListItem[]),
     ]);
 
+    if (requireFresh) {
+      if (classListResult.status === "rejected") throw classListResult.reason;
+      if (eventsListResult.status === "rejected") throw eventsListResult.reason;
+    }
     return {
       classes: classListResult.status === "fulfilled" ? classListResult.value : [],
       events: eventsListResult.status === "fulfilled" ? eventsListResult.value : [],
@@ -1361,35 +1381,34 @@ export function HomeProfessorScreen({
 
     const tasks: Promise<unknown>[] = [
       loadInbox(),
+      holidayCalendar.refresh(),
     ];
 
     tasks.push(
-      loadProfilePhoto()
+      loadProfilePhoto(true)
         .then(setProfilePhotoUri)
         .catch(() => setProfilePhotoUri(null))
     );
 
     if (scheduleRequestKey) {
       tasks.push(
-        loadHomeSchedule()
+        loadHomeSchedule(true)
           .then((result) => {
             setClasses(result.classes);
             setUpcomingEvents(result.events);
             setResolvedScheduleRequestKey(scheduleRequestKey);
           })
-          .catch(() => {
-            setClasses([]);
-            setUpcomingEvents([]);
-            setResolvedScheduleRequestKey(scheduleRequestKey);
-          })
       );
     }
 
-    await measureAsync("screen.home.load.refresh", () => Promise.allSettled(tasks), {
+    const results = await measureAsync("screen.home.load.refresh", () => Promise.allSettled(tasks), {
       screen: "home",
       hasSession: Boolean(session),
       hasOrganization: Boolean(activeOrganization?.id),
     });
+
+    const failure = results.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
 
     setNow(new Date());
 
@@ -2459,6 +2478,10 @@ export function HomeProfessorScreen({
 
       </View>
 
+      {isAdminDashboardContext && isOrgAdmin && activeOrganization?.id ? <ActivityReviewSuggestion
+        key={`${activeOrganization.id}:${session?.user?.id}`} organizationId={activeOrganization.id} userId={session?.user?.id ?? ""} classes={classes}
+        onAvailable={setActivityReviewCount} openRequest={activityReviewRequest}
+        today={holidayCalendar.date} onPresence={setActivityReviewVisible} onSaved={holidayCalendar.refresh} /> : null}
       </ScrollView>
 
 
@@ -2476,7 +2499,7 @@ export function HomeProfessorScreen({
         />
       )}
       { showInbox ? (
-
+        <Modal visible transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={closeInbox}>
         <View
 
           style={{
@@ -2516,11 +2539,11 @@ export function HomeProfessorScreen({
 
               position: "absolute",
 
-              top: insets.top,
+              top: 0,
 
               right: 0,
 
-              bottom: insets.bottom,
+              bottom: 0,
 
               width: panelWidth,
 
@@ -2865,20 +2888,16 @@ export function HomeProfessorScreen({
           </Animated.View>
 
         </View>
-
+        </Modal>
       ) : null}
 
       {!activityReviewVisible && holidayCalendar.visible && (classesByWeekday[new Date(holidayCalendar.date + "T12:00:00").getDay()] ?? []).length > 0 ? (
         <HolidayRecommendation key={`${activeOrganization?.id}:${holidayCalendar.date}`} holiday={holidayCalendar.holiday!} date={holidayCalendar.date}
           pausedIds={holidayCalendar.pauses.filter(pause => pause.date === holidayCalendar.date).map(pause => pause.class_id)}
           classes={classesByWeekday[new Date(holidayCalendar.date + "T12:00:00").getDay()] ?? []}
-          saving={holidayCalendar.saving} error={holidayCalendar.error} onSave={holidayCalendar.save} />
+          saving={holidayCalendar.saving} error={holidayCalendar.error} onSave={holidayCalendar.save} bottomOffset={floatingNoticeBottom} />
       ) : null}
 
-      {isAdminDashboardContext && isOrgAdmin && activeOrganization?.id ? <ActivityReviewSuggestion
-        key={`${activeOrganization.id}:${session?.user?.id}`} organizationId={activeOrganization.id} userId={session?.user?.id ?? ""} classes={classes}
-        onAvailable={setActivityReviewCount} openRequest={activityReviewRequest}
-        today={holidayCalendar.date} onPresence={setActivityReviewVisible} onSaved={holidayCalendar.refresh} /> : null}
     </SafeAreaView>
 
   );

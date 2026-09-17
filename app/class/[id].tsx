@@ -35,6 +35,7 @@ import { getClassScheduleOverlapDays } from "../../src/screens/classes/applicati
 import { ClassContextStrip, ClassOperationsWorkspace, type ClassOperationalStatus, type ClassRecentTrainingSummary, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { useCopilotLesson } from "../../src/copilot/lesson-context";
 import { ClassAttendanceWorkspacePanel } from "../../src/screens/classes/components/ClassAttendanceWorkspacePanel";
+import { FloatingSaveBar } from "../../src/ui/FloatingSaveBar";
 import { useEmbeddedClassAttendance } from "../../src/screens/attendance/use-embedded-class-attendance";
 import { useStudentNfcBinding } from "../../src/screens/attendance/use-student-nfc-binding";
 import { parseClassWorkspaceRouteDate, resolveClassWorkspaceLessonDate, resolveClassWorkspaceRouteSection } from "../../src/screens/classes/class-workspace-route";
@@ -2314,6 +2315,16 @@ export default function ClassDetails() {
           onOpenWhatsApp={handleWhatsAppGroup}
         />
       </ScrollView>
+
+        <FloatingSaveBar
+          visible={workspaceSection === "attendance" && embeddedAttendance.hasChanges}
+          label="Salvar chamada"
+          loading={embeddedAttendance.isSaving}
+          loadingLabel="Salvando chamada..."
+          disabled={embeddedAttendance.isLoading || embeddedAttendance.isSaving || embeddedAttendance.loadFailed}
+          onPress={() => void handleSaveEmbeddedAttendance()}
+          bottom={insets.bottom + 18}
+        />
 
         {compactClassWorkspace && !classNavigationOpen ? (
           <ClassNavigationFab

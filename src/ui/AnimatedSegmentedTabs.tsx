@@ -70,7 +70,8 @@ export function AnimatedSegmentedTabs<T extends string>({
           itemPaddingVertical={itemPaddingVertical}
           itemFontSize={itemFontSize}
         />
-      ))}    </View>
+      ))}
+    </View>
   );
 }
 

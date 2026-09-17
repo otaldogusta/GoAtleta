@@ -62,7 +62,7 @@ type StudentRow = {
   name: string;
   organization_id?: string | null;
   photo_url?: string | null;
-  classid: string;
+  classid: string | null;
   age: number;
   phone: string;
   login_email: string | null;
@@ -91,7 +91,7 @@ const mapStudent = (row: StudentRow): Student => ({
   name: row.name,
   organizationId: row.organization_id ?? "",
   photoUrl: row.photo_url ?? undefined,
-  classId: row.classid,
+  classId: row.classid ?? "",
   age: row.age,
   phone: row.phone,
   loginEmail: row.login_email ?? "",

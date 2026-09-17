@@ -3,10 +3,12 @@
 import { usePathname } from "expo-router";
 
 import { NotificationsCenterScreen } from "./absence-notices";
+import { AppShell } from "../src/ui/AppShell";
 
 export default function CommunicationsScreen() {
   const pathname = usePathname();
   const fallbackRoute = pathname.startsWith("/coord") ? "/coord/dashboard" : "/student/home";
 
-  return <NotificationsCenterScreen fallbackRoute={fallbackRoute} />;
+  const screen = <NotificationsCenterScreen fallbackRoute={fallbackRoute} />;
+  return pathname.startsWith("/coord/") ? screen : <AppShell role="student">{screen}</AppShell>;
 }

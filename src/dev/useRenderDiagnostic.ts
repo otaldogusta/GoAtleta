@@ -13,7 +13,7 @@
 
 import { useEffect, useRef } from "react";
 
-const RENDER_DIAGNOSTICS_ENABLED = true;
+const RENDER_DIAGNOSTICS_ENABLED = false;
 
 export function useRenderDiagnostic(
   name: string,

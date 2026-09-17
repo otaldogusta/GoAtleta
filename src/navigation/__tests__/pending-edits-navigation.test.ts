@@ -1,6 +1,17 @@
 import { registerPendingEditsNavigation, requestPendingEditsNavigation } from "../pending-edits-navigation";
 
 describe("pending edits navigation", () => {
+  it("blocks refresh until the focused draft guard releases it", () => {
+    const refresh = jest.fn();
+    const guard = jest.fn();
+    const cleanup = registerPendingEditsNavigation(guard);
+    requestPendingEditsNavigation(refresh, "refresh");
+    expect(refresh).not.toHaveBeenCalled();
+    expect(guard).toHaveBeenCalledWith(refresh, "refresh");
+    guard.mock.calls[0][0]();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    cleanup();
+  });
   it("does not change tabs before the focused screen releases navigation", () => {
     const navigate = jest.fn();
     let release: (() => void) | undefined;

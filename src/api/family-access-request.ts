@@ -7,13 +7,19 @@ export function familyAccessErrorMessage(error: unknown) {
     const parsed: unknown = JSON.parse(message);
     if (parsed && typeof parsed === "object" && "message" in parsed && typeof parsed.message === "string") message = parsed.message;
   } catch { /* plain error */ }
-  const allowed = ["Já existe um pedido", "Selecione um cadastro", "Este atleta já", "Esta conta já", "Existe um vínculo", "Solicitação já revisada", "Selecione o cadastro", "Informe", "O servidor não confirmou"];
+  const allowed = ["Já existe um pedido", "Já existe um cadastro possível", "Selecione um cadastro", "Este atleta já", "Esta conta já", "Existe um vínculo", "Solicitação já revisada", "Selecione o cadastro", "Informe", "O servidor não confirmou"];
   if (allowed.some(prefix => message.startsWith(prefix))) return message;
   if (/authorized|AUTHENTICATION_REQUIRED|auth token/i.test(message)) return "Não foi possível autorizar esta ação. Confira sua sessão e o vínculo com a instituição.";
   return "Não foi possível concluir. Tente novamente; os dados preenchidos foram mantidos.";
 }
 
 export type FamilyAccessIntent = "athlete" | "guardian";
+export async function approveFamilyRegistration(requestId: string, key: string) {
+  const receipt = await supabaseRestPost<boolean>("/rpc/approve_family_registration", {
+    p_request_id: requestId, p_idempotency_key: key,
+  });
+  if (typeof receipt !== "boolean") throw new Error("O servidor não confirmou a aprovação.");
+}
 export async function correctFamilyRequestKind(requestId: string, kind: FamilyAccessIntent) {
   const receipt = await supabaseRestPost<boolean>("/rpc/correct_family_request_kind", { p_request_id: requestId, p_kind: kind });
   if (typeof receipt !== "boolean") throw new Error("O servidor não confirmou a correção.");

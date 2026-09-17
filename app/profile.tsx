@@ -11,6 +11,7 @@ import CountryList, { type Country } from "country-list-with-dial-code-and-flag"
 // perf-check: ignore-inline-row-style - compact mapped form controls require live theme and selection colors; lists are bounded and non-virtualized.
 import {
   Alert,
+  AppState,
   Animated,
   LayoutAnimation,
   Modal,
@@ -34,6 +35,7 @@ import { ResponsiveGrid } from "../src/components/ui/ResponsiveGrid";
 import { ResponsivePage } from "../src/components/ui/ResponsivePage";
 
 import { useRole } from "../src/auth/role";
+import { resolveProfileInstitution } from "../src/screens/student/profile-institution";
 
 import { ENABLE_SOCIAL_LOGIN } from "../src/api/config";
 import { getMyProfilePhoto, setMyProfilePhoto } from "../src/api/profile-photo";
@@ -77,7 +79,7 @@ import {
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../src/navigation/use-trainer-route-scope";
 import { useOrganization } from "../src/providers/organization-context";
-import { getNotificationsModule, isExpoGo } from "../src/push/notificationRuntime";
+import { changeNativeNotificationPermission, readNativeNotificationPermission } from "../src/push/native-permission";
 import {
   disableWebPush,
   enableWebPush,
@@ -539,6 +541,7 @@ export default function ProfileScreen() {
     role: userRole,
     availableRoles,
     student,
+    familyContexts,
     refresh: refreshRole,
     setActiveRole,
   } = useRole();
@@ -551,7 +554,9 @@ export default function ProfileScreen() {
   } = useBiometricLock();
   const router = useRouter();
   const pendingNavigationHandler = useRef<((navigate: () => void) => void) | null>(null);
-  useFocusEffect(useCallback(() => registerPendingEditsNavigation((navigate) => {
+  const pendingRefreshHandler = useRef<((refresh: () => void) => void) | null>(null);
+  useFocusEffect(useCallback(() => registerPendingEditsNavigation((navigate, reason) => {
+    if (reason === "refresh" && pendingRefreshHandler.current) { pendingRefreshHandler.current(navigate); return; }
     if (pendingNavigationHandler.current) pendingNavigationHandler.current(navigate);
     else navigate();
   }), []));
@@ -751,12 +756,16 @@ export default function ProfileScreen() {
   const selectedProfilePreview: ProfilePreviewId =
     routeProfilePreview ?? (devProfilePreview === "auto" ? defaultProfilePreview : devProfilePreview);
 
+  const profileClassesOrganizationId = student?.organizationId || activeOrganization?.id;
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const data = await getClasses();
+        const data = profileClassesOrganizationId
+          ? await getClasses({ organizationId: profileClassesOrganizationId }) : [];
         if (alive) setClasses(data);
+      } catch {
+        if (alive) setClasses([]);
       } finally {
         if (alive) setLoadingClasses(false);
       }
@@ -766,7 +775,7 @@ export default function ProfileScreen() {
 
       alive = false;
     };
-  }, [setSecurityContactError]);
+  }, [profileClassesOrganizationId]);
 
   useEffect(() => {
     let alive = true;
@@ -827,7 +836,6 @@ export default function ProfileScreen() {
     let alive = true;
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(NOTIFY_SETTINGS_KEY);
         if (isWeb) {
           const status = await getWebPushStatus();
           if (!alive) return;
@@ -835,9 +843,8 @@ export default function ProfileScreen() {
           setNotificationsEnabled(status === "subscribed");
           return;
         }
-        if (!raw || !alive) return;
-        const data = JSON.parse(raw) as { enabled: boolean };
-        setNotificationsEnabled(Boolean(data.enabled));
+        const enabled = await readNativeNotificationPermission();
+        if (alive) setNotificationsEnabled(enabled);
       } catch (error) {
         console.error("Failed to load notification settings", error);
       }
@@ -846,6 +853,17 @@ export default function ProfileScreen() {
       alive = false;
     };
   }, [NOTIFY_SETTINGS_KEY, activeOrganization?.id, isWeb]);
+
+  useFocusEffect(useCallback(() => {
+    if (isWeb) return;
+    let alive = true;
+    const sync = () => { void readNativeNotificationPermission().then(value => {
+      if (alive) setNotificationsEnabled(value);
+    }).catch(() => undefined); };
+    sync();
+    const subscription = AppState.addEventListener("change", state => { if (state === "active") sync(); });
+    return () => { alive = false; subscription.remove(); };
+  }, [isWeb]));
 
   useEffect(() => {
     let alive = true;
@@ -1146,7 +1164,8 @@ export default function ProfileScreen() {
     if (!student || !student.classId) return null;
     return classes.find((item) => item.id === student.classId) ?? null;
   }, [classes, student]);
-  const institutionClasses = useInstitutionClasses(student?.id, activeOrganization?.id, classes);
+  const profileInstitution = resolveProfileInstitution(student, familyContexts, activeOrganization);
+  const institutionClasses = useInstitutionClasses(student?.id, profileInstitution?.id, classes);
 
   const currentAccountName = useMemo(() => {
     const metadata = session?.user?.user_metadata ?? {};
@@ -1689,32 +1708,7 @@ export default function ProfileScreen() {
         return;
       }
 
-      setNotificationsEnabled(nextEnabled);
-      await AsyncStorage.setItem(
-        NOTIFY_SETTINGS_KEY,
-        JSON.stringify({ enabled: nextEnabled })
-      );
-
-      if (nextEnabled && !isWeb && !isExpoGo) {
-        const Notifications = getNotificationsModule();
-        if (!Notifications) return;
-        const { status } = await Notifications.getPermissionsAsync();
-        if (status !== "granted") {
-          const result = await Notifications.requestPermissionsAsync();
-          if (result.status !== "granted") {
-            Alert.alert("Permissão negada", "Ative notificações nas configurações do dispositivo.");
-            setNotificationsEnabled(false);
-            await AsyncStorage.setItem(
-              NOTIFY_SETTINGS_KEY,
-              JSON.stringify({ enabled: false })
-            );
-          }
-        }
-      } else if (!nextEnabled && !isWeb && !isExpoGo) {
-        const Notifications = getNotificationsModule();
-        if (!Notifications) return;
-        await Notifications.cancelAllScheduledNotificationsAsync();
-      }
+      setNotificationsEnabled(await changeNativeNotificationPermission());
     } catch (error) {
       console.error("Failed to toggle notifications", error);
       Alert.alert("Erro", "Não foi possível alterar configurações de notificação.");
@@ -2286,6 +2280,30 @@ export default function ProfileScreen() {
 
   // eslint-disable-next-line react-hooks/refs -- navigation guard must always expose the latest draft-aware handler to the focus registration callback.
   pendingNavigationHandler.current = leaveMobileProfile;
+  // eslint-disable-next-line react-hooks/refs -- expose the current draft to the focused-screen guard.
+  pendingRefreshHandler.current = (refresh) => {
+    if (savingMobileProfile || athleteModalities.saving || savingSecurityContact) return;
+    if (!mobileHasUnsavedChanges) { refresh(); return; }
+    void confirm({
+      title: "Alterações não salvas",
+      message: mobileSecurityHasChanges
+        ? "Conclua as alterações de segurança antes de atualizar a tela."
+        : "Deseja salvar suas alterações antes de atualizar?",
+      confirmLabel: mobileSecurityHasChanges ? "Continuar editando" : "Salvar e atualizar",
+      cancelLabel: "Cancelar",
+      loadingLabel: "Salvando...",
+      onConfirm: async () => {
+        if (mobileSecurityHasChanges) return;
+        if ((mobileProfileHasChanges || mobileSportsHasChanges) && !(await saveMobileStudentProfile())) {
+          throw new Error("As alterações não foram salvas. Revise os campos.");
+        }
+        if (athleteModalities.dirty && !(await athleteModalities.save())) {
+          throw new Error("Não foi possível salvar as modalidades.");
+        }
+        refresh();
+      },
+    });
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -2307,9 +2325,12 @@ export default function ProfileScreen() {
             onRefresh={async () => {
               setRefreshing(true);
               try {
-                await refreshRole();
-                const data = await getClasses();
+                await Promise.all([refreshRole(), institutionClasses.refresh()]);
+                const data = profileClassesOrganizationId
+                  ? await getClasses({ organizationId: profileClassesOrganizationId }) : [];
                 setClasses(data);
+              } catch {
+                Alert.alert("Não foi possível atualizar", "Confira sua conexão e tente novamente.");
               } finally {
                 setRefreshing(false);
               }
@@ -2324,7 +2345,7 @@ export default function ProfileScreen() {
           <ResponsivePage variant="dashboard" gap={8} style={{ width: "100%", maxWidth: responsiveLayout.isMobile ? undefined : 760, alignSelf: "center", paddingBottom: 18 }}>
             <BackTitleHeader
               title="Configurações"
-              onBack={leaveMobileProfile}
+              onBack={() => leaveMobileProfile()}
             />
 
             <View style={{ alignItems: "center", gap: 5, paddingTop: 0, paddingBottom: 2 }}>
@@ -2771,11 +2792,11 @@ export default function ProfileScreen() {
               <MobileProfileSection
                 icon="organization"
                 title="Instituição"
-                subtitle={activeOrganization?.name || "Nenhuma instituição vinculada"}
+                subtitle={profileInstitution?.name || "Nenhuma instituição vinculada"}
                 expanded={mobileExpandedSection === "organization"}
                 onPress={() => toggleMobileSection("organization")}
               >
-                {!activeOrganization ? (
+                {!profileInstitution ? (
                   <Button label="Encontrar instituição" onPress={() => router.push({ pathname: "/pending", params: { returnTo: "/student/profile" } })} />
                 ) : institutionClasses.loading || loadingClasses ? (
                   <Text style={{ color: colors.muted }}>Carregando turmas...</Text>

@@ -138,7 +138,7 @@ export type StudentRow = {
   inactivation_reason?: string | null;
   source_pre_registration_id?: string | null;
   guardian_cpf_hmac?: string | null;
-  classid: string;
+  classid: string | null;
   age: number;
   phone: string;
   login_email?: string | null;

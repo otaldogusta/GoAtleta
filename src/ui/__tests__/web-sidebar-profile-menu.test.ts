@@ -253,6 +253,7 @@ describe("WebSidebar profile menu", () => {
   });
 
   it("opens from the compact avatar trigger", () => {
+    (window.localStorage.getItem as jest.Mock).mockReturnValue("compact");
     const screen = render(
       React.createElement(WebSidebar, {
         role: "prof",
@@ -286,6 +287,7 @@ describe("WebSidebar profile menu", () => {
   });
 
   it("keeps a single profile surface while the sidebar is expanded", () => {
+    (window.localStorage.getItem as jest.Mock).mockReturnValue("compact");
     const screen = render(
       React.createElement(WebSidebar, {
         role: "prof",
@@ -298,7 +300,7 @@ describe("WebSidebar profile menu", () => {
     fireEvent.press(screen.getByLabelText("Expandir menu"));
 
     expect(window.localStorage.setItem).toHaveBeenCalledWith(
-      "goatleta:web-sidebar-expanded",
+      "goatleta:web-sidebar-expanded-v2",
       "expanded"
     );
 
@@ -343,7 +345,7 @@ describe("WebSidebar profile menu", () => {
     expect(screen.getByLabelText("Navegação principal compacta")).toBeTruthy();
     expect(screen.getByLabelText("Expandir menu")).toBeTruthy();
     expect(window.localStorage.setItem).toHaveBeenLastCalledWith(
-      "goatleta:web-sidebar-expanded",
+      "goatleta:web-sidebar-expanded-v2",
       "compact"
     );
 
@@ -351,7 +353,7 @@ describe("WebSidebar profile menu", () => {
 
     expect(screen.getByLabelText("Recolher menu")).toBeTruthy();
     expect(window.localStorage.setItem).toHaveBeenLastCalledWith(
-      "goatleta:web-sidebar-expanded",
+      "goatleta:web-sidebar-expanded-v2",
       "expanded"
     );
   });

@@ -66,6 +66,7 @@ import {
   attachPushListeners,
   ensurePushTokenRegistered,
 } from "../src/push/pushClient";
+import { requestInitialNotificationPermission } from "../src/push/native-permission";
 import {
   BiometricLockProvider,
   useBiometricLock,
@@ -76,6 +77,7 @@ import { ConfirmUndoProvider } from "../src/ui/confirm-undo";
 import { GuidanceProvider } from "../src/ui/guidance";
 import { RootWebShell } from "../src/ui/RootWebShell";
 import { SaveToastProvider } from "../src/ui/save-toast";
+import { RefreshFeedbackProvider } from "../src/ui/RefreshFeedbackProvider";
 import { WhatsAppSettingsProvider } from "../src/ui/whatsapp-settings-context";
 import { ptBR } from "../src/constants/copy/pt-br";
 import { requiresFirstAccessProfile } from "../src/core/profile-name";
@@ -531,6 +533,11 @@ function RootLayoutContent() {
     selectedFamilyStudent?.organizationId,
     student?.organizationId,
   ]);
+
+  useEffect(() => {
+    if (!session?.user?.id || Platform.OS === "web") return;
+    void requestInitialNotificationPermission().catch(() => undefined);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     const detach = attachPushListeners({
@@ -1353,11 +1360,13 @@ function BiometricAuthBoundary() {
               <ConfirmDialogProvider>
                 <ConfirmUndoProvider>
                   <SaveToastProvider>
+                    <RefreshFeedbackProvider>
                     <GuidanceProvider>
                       <CopilotProvider>
                         <RootLayoutContent />
                       </CopilotProvider>
                     </GuidanceProvider>
+                    </RefreshFeedbackProvider>
                   </SaveToastProvider>
                 </ConfirmUndoProvider>
               </ConfirmDialogProvider>

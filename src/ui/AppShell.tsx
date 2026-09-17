@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Animated, BackHandler, Easing, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Animated, BackHandler, Easing, Modal, Platform, Pressable, StyleSheet, View } from "react-native";
+import { webShellTokens } from "./web-shell-tokens";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import type { AppRole } from "../components/navigation/tab-config";
@@ -96,6 +97,7 @@ export function AppShell({ role, children }: AppShellProps) {
           {children}
         </View>
         {isNativeMobile ? (
+          <Modal visible={mobileSidebarOpen} transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={closeMobileSidebar}>
           <View
             accessibilityViewIsModal
             accessibilityElementsHidden={!mobileSidebarOpen}
@@ -127,7 +129,7 @@ export function AppShell({ role, children }: AppShellProps) {
                 style={{
                   width: NATIVE_SIDEBAR_EXPANDED_WIDTH,
                   height: "100%",
-                  backgroundColor: colors.background,
+                  backgroundColor: webShellTokens.sidebar,
                 }}
               >
                 <NativeSidebar
@@ -142,6 +144,7 @@ export function AppShell({ role, children }: AppShellProps) {
               </SafeAreaView>
             </Animated.View>
           </View>
+          </Modal>
         ) : null}
       </View>
     </NativeSidebarControllerContext.Provider>

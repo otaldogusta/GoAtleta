@@ -11,7 +11,9 @@ import type { TrainingPlan } from "../src/core/models";
 import { getLatestTrainingPlanByClass, getTrainingPlans } from "../src/db/seed";
 import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
+import { AppShell } from "../src/ui/AppShell";
 import { useAppTheme } from "../src/ui/app-theme";
+import { useResponsiveLayout } from "../src/ui/use-responsive-layout";
 
 const isIsoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
@@ -25,9 +27,10 @@ const formatFullDate = (isoDate: string) => {
   });
 };
 
-export default function StudentPlanScreen() {
+function StudentPlanScreenContent() {
   markRender("screen.studentPlan.render.root");
   const { colors } = useAppTheme();
+  const responsiveLayout = useResponsiveLayout("dashboard");
   const { student } = useRole();
   const router = useRouter();
   const params = useLocalSearchParams<{ classId?: string; date?: string }>();
@@ -81,7 +84,7 @@ export default function StudentPlanScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         style={{ backgroundColor: colors.background }}
-        contentContainerStyle={{ padding: 16, gap: 12 }}
+        contentContainerStyle={{ width: "100%", maxWidth: responsiveLayout.maxContentWidth + responsiveLayout.gutter * 2, alignSelf: "center", paddingHorizontal: responsiveLayout.gutter, paddingVertical: 16, gap: 12 }}
         stickyHeaderIndices={[0]}
       >
         <ScreenPageHeader
@@ -214,4 +217,8 @@ export default function StudentPlanScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function StudentPlanScreen() {
+  return <AppShell role="student"><StudentPlanScreenContent /></AppShell>;
 }

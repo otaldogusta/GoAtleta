@@ -51,12 +51,12 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
   const pathname = usePathname();
   useRenderDiagnostic("AnimatedBottomTabs", { role, pathname, "colors.background": colors.background });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [barHeight, setBarHeight] = useState(74);
   const iconAnim = useSharedValue(0);
   const hideNavigation =
     /\/(assistant)(\/|$)/.test(pathname) ||
     /^\/(prof|coord)\/students(\/|$)/.test(pathname) ||
     /^\/students(\/|$)/.test(pathname) ||
-    /^\/(prof|coord)\/planning(\/|$)/.test(pathname) ||
     /^\/(prof|coord)\/periodization(\/|$)/.test(pathname) ||
     /^\/periodization(\/|$)/.test(pathname);
   const hideForWorkspaceShell = usesWorkspaceShell;
@@ -137,6 +137,11 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
   }
 
   return (
+    <>
+    <View
+      pointerEvents="none"
+      style={{ height: barHeight + bottom + 12, flexShrink: 0, backgroundColor: colors.background }}
+    />
     <View
       pointerEvents="box-none"
       style={[
@@ -190,6 +195,10 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
       {/* 2. Barra inferior e FAB posicionados na base (acima do backdrop) */}
       <View
         accessibilityLabel="Navegação inferior"
+        onLayout={({ nativeEvent }) => {
+          const height = Math.ceil(nativeEvent.layout.height);
+          if (height > 0) setBarHeight((current) => current === height ? current : height);
+        }}
         pointerEvents="box-none"
         style={{
           position: "absolute",
@@ -349,5 +358,6 @@ export const AnimatedBottomTabs = memo(function AnimatedBottomTabs({
       </View>
     </View>
   </View>
+  </>
   );
 });
