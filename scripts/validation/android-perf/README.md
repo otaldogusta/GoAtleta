@@ -3,7 +3,11 @@
 Variante opt-in `perf`, baseada em release, não depurável e profileable por shell.
 Pacote `com.otaldogusta.goatleta.perf`, nome `GoAtleta Perf`, assinatura debug
 local: **não distribuir como produção**. Não substitui `.dev` nem produção.
-OTA e backup ficam desativados. Não registra links HTTPS do app principal.
+Backup continua desativado. OTA fica habilitado no canal `perf`, apontado para
+o mesmo branch de updates do canal `production`. Assim, cada update publicado
+pela `main` chega também ao Perf quando o runtime nativo for compatível. O app
+consulta ao abrir, baixa em segundo plano e aplica na abertura seguinte.
+Não registra links HTTPS do app principal.
 Registra o esquema `goatleta` para o retorno OAuth existente, sem mudar a
 allowlist remota. No seletor Android, escolher **GoAtleta Perf → Só uma vez**.
 Não selecionar Sempre: o esquema é compartilhado com os outros builds locais.
@@ -26,6 +30,9 @@ Saída esperada: `android/app/build/outputs/apk/perf/app-perf.apk`.
 Antes de instalar, verificar package id e flags no manifesto compilado.
 O primeiro acesso é separado: usar conta e massa fictícias, sem copiar tokens
 dos outros aplicativos. Não automatizar criação ou edição de dados reais.
+
+Alterações apenas em JavaScript/assets chegam por OTA. Mudanças nativas,
+dependências nativas ou nova `runtimeVersion` ainda exigem outro APK.
 
 Medição: separar startup da Activity de conteúdo pronto; estabilizar a tela,
 zerar gfxinfo, executar roteiro idêntico e recolher gfxinfo/meminfo. Repetir

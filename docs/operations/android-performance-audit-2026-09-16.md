@@ -78,10 +78,17 @@ Referências: [React Native — debugging e limitações de desenvolvimento](htt
 - Criada variante opt-in `perf` via `scripts/validation/android-perf.init.gradle`, com instruções em `scripts/validation/android-perf/README.md`.
 - Build concluído com sucesso: 1.150 tarefas, 1.085 executadas. A primeira tentativa falhou por SDK não localizado; o caminho foi fornecido somente no processo seguinte.
 - Artefato: `android/app/build/outputs/apk/perf/app-perf.apk`, 99.537.432 bytes (~94,9 MiB), apenas arm64-v8a. A redução frente ao debug não é medida de otimização: arquitetura e modo de build diferem.
-- Verificado no APK: `com.otaldogusta.goatleta.perf`, `1.0.2-perf`, assinatura válida, ausência de flag DEBUGGABLE, profileable por shell, OTA desativado e bundle embarcado de 14.700.500 bytes.
+- Evidência histórica do primeiro APK: `com.otaldogusta.goatleta.perf`, `1.0.2-perf`, assinatura válida, ausência de flag DEBUGGABLE, profileable por shell, OTA desativado e bundle embarcado de 14.700.500 bytes. A configuração posterior habilita OTA no canal `perf`; registrar o update ID ao comparar medições.
 - Instalação ADB no usuário 0: `Success`. Início da Activity: `Status: ok`. Pacotes de desenvolvimento e produção preservados.
 - O aparelho estava em Dozing durante o primeiro lançamento. Essa abertura não é benchmark válido de startup. Login com conta fictícia e aparelho desbloqueado ainda pendentes; não foi feita medição autenticada de Home em release.
 - O nome no launcher é **GoAtleta Perf**. O pacote separado não altera o backend configurado; usar dados fictícios. Não houve push, deploy ou publicação.
+
+## Atualização automática posterior
+
+- Gerado novo APK `1.0.3-perf` com runtime `1.0.3`, OTA habilitado e cabeçalho `expo-channel-name=perf` confirmados no manifesto compilado.
+- O canal EAS `perf` aponta para o branch de updates `production`, portanto acompanha as publicações automáticas da `main` sem duplicar o upload do bundle.
+- O app verifica ao abrir, baixa o pacote compatível em segundo plano e o aplica na próxima abertura. Alterações nativas ou mudança de runtime ainda exigem novo APK.
+- A reinstalação preservando dados ficou pendente porque o aparelho deixou de aparecer no ADB durante a validação.
 
 A variante segue o mecanismo de [build types/applicationIdSuffix do Android](https://developer.android.com/build/build-variants) e [profiling em release](https://developer.android.com/studio/profile/build-run-manually).
 

@@ -8,7 +8,7 @@ Publicação em main autorizada pelo usuário nesta sessão. O status efetivo do
 - Aprovação de atleta/responsável pode criar cadastro sem turma. Migrações `20260916131459` e `20260916134009` já foram aplicadas na sessão de aprovação; conferir histórico remoto antes de qualquer nova aplicação. Não remover RLS nem criar membership administrativo para atleta.
 - Perfil resolve instituição pelo vínculo do atleta. Refresh reconsulta vínculos e turmas no escopo da instituição, preservando confirmação para rascunhos pendentes. Gesto Android usa feedback global acima do cabeçalho.
 - Permissão nativa de notificações solicitada depois de autenticar; toggle reflete o sistema e sincroniza no retorno das configurações. Entrega remota do push de aprovação continua pendente: permissão concedida não prova registro de token nem envio.
-- Variante **GoAtleta Perf** isolada: instruções em `scripts/validation/android-perf/README.md`. Usa bundle embarcado, OTA desativado, login separado e o backend configurado (não é sandbox de dados). Alterações posteriores exigem novo APK; push no GitHub não atualiza essa instalação.
+- Variante **GoAtleta Perf** isolada: instruções em `scripts/validation/android-perf/README.md`. Usa bundle embarcado, login separado e o backend configurado (não é sandbox de dados). OTA usa o canal `perf`, mapeado ao branch de updates `production`; mudanças nativas ou de runtime ainda exigem novo APK.
 - Auditoria e limitações: `android-performance-audit-2026-09-16.md`. Screenshots, APKs, logs, credenciais e resultados de teste locais não devem acompanhar o commit.
 
 Na outra máquina: `git switch main`, `git pull --ff-only origin main`, `npm run dev:setup`, configurar `.env.local` por canal privado, `npm run dev:doctor`, `npm run dev:web`. Não aplicar migrações nem publicar durante o setup. Preservar alterações locais antes do pull; não usar reset/force-push.
@@ -18,7 +18,8 @@ Na outra máquina: `git switch main`, `git pull --ff-only origin main`, `npm run
 - Jest completo: 478 suítes / 2651 testes passaram; seis suítes PostgreSQL isoladas passaram.
 - Typecheck, lint (zero avisos/erros), escopo da organização, arquitetura estrita, performance de release, diff e build web passaram. Exportação limitada a dois workers por memória disponível na máquina.
 - Smoke autenticado do build exportado em localhost:8081: painel da coordenação, abertura do perfil e retorno ao painel. A sessão web é de coordenação; não certifica a turma do atleta no Android.
-- Pendentes: reconstruir/instalar o APK Perf sem apagar os dados, validar o gesto físico e a atualização da turma com a conta fictícia, e testar entrega remota de notificações. O APK anteriormente instalado não contém o último patch de refresh.
+- APK Perf `1.0.3-perf` reconstruído com runtime `1.0.3`, OTA habilitado e canal `perf` verificados no manifesto compilado. Instalação `adb install -r` continua pendente porque o aparelho desconectou do ADB; o APK anteriormente instalado ainda não contém o patch nem o bootstrap OTA.
+- Depois da instalação, validar o gesto físico e a atualização da turma com a conta fictícia, além da entrega remota de notificações.
 - Histórico Supabase remoto conferido: ambas as migrações de aprovação já alinhadas; nenhuma reaplicação necessária.
 
 ## Histórico — estado publicado em 08/09/2026

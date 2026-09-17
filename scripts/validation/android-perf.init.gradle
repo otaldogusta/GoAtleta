@@ -2,10 +2,18 @@
 gradle.afterProject { project ->
     if (project.path == ':app' && project.plugins.hasPlugin('com.android.application')) {
         def android = project.extensions.getByName('android')
+        def appConfigText = new File(project.rootDir.parentFile, 'app.config.js').text
+        def appVersionMatch = appConfigText =~ /\bversion:\s*"([^"]+)"/
+        if (!appVersionMatch.find()) {
+            throw new GradleException('Could not resolve expo.version from app.config.js')
+        }
+        def appVersion = appVersionMatch.group(1)
+        android.defaultConfig.versionName = appVersion
         android.buildTypes.create('perf') {
             initWith android.buildTypes.release
             applicationIdSuffix '.perf'
             versionNameSuffix '-perf'
+            resValue 'string', 'expo_runtime_version', appVersion
             debuggable false
             signingConfig android.signingConfigs.debug
             matchingFallbacks = ['release']
