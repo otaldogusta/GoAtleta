@@ -595,7 +595,8 @@ describe("visual-court", () => {
       ) as keyof typeof expectedBrazilian5x1Lineup;
       const legalByZone = actorIdByZone(steps[0].legalPositions ?? {});
       expect(steps.map((step) => step.id.replace(`${prefix}_`, ""))).toEqual(situationIds);
-      expect(steps[0].label).toBe(`${setterPosition} - antes do saque`);
+      expect(steps[0].label).toBe(`${setterPosition} · Organização da recepção`);
+      expect(steps[1].label).toBe(`${setterPosition} · Após o saque`);
       expect(legalByZone).toEqual(expectedBrazilian5x1Lineup[setterPosition]);
       expect(resolveCourtZone(steps[0].legalPositions?.lev ?? { x: 0, y: 0 })).toBe(setterZone);
       if (setterPosition === "P1") {
@@ -632,13 +633,21 @@ describe("visual-court", () => {
         expect(steps[0].actorPositions[actorId]).toEqual(point);
       });
       expect(steps[0].markerIds).toBeUndefined();
-      expect(steps[0].trajectories).toBeUndefined();
-      expect(steps[0].transitions).toBeUndefined();
+      expect(steps[0].trajectories?.length).toBeGreaterThanOrEqual(4);
+      expect(steps[0].transitions).toEqual(steps[0].trajectories);
       expect(steps[0].arrows).toBeUndefined();
       expect(steps[0].highlights).toBeUndefined();
       expect(steps[0].visibleLayerIds).not.toContain("arrows");
       expect(steps[0].visibleLayerIds).not.toContain("markers");
-      expect(steps[0].visibleLayerIds).not.toContain("trajectories");
+      expect(steps[0].visibleLayerIds).toContain("trajectories");
+      expect(Object.keys(steps[0].baselineActorPositions ?? {}).sort()).toEqual(
+        [...steps[0].visibleActorIds!].sort()
+      );
+      steps[0].trajectories?.forEach((trajectory) => {
+        expect(trajectory.points[0]).toEqual(
+          steps[0].baselineActorPositions?.[trajectory.actorId]
+        );
+      });
       expect(steps[0].legalPositions?.lev).not.toEqual(steps[0].actorPositions.lev);
       expect(steps[1].legalPositions?.lev).not.toEqual(steps[1].tacticalPositions?.lev);
       expect(steps[1].transitions?.some((transition) => transition.actorId === "lev")).toBe(true);
@@ -685,7 +694,7 @@ describe("visual-court", () => {
     expect(next.timeline.steps[0].trajectories).toContainEqual({
       id: "manual-move-p1",
       actorId: "p1",
-      points: [preset.timeline.steps[0].actorPositions.p1, { x: 1.3, y: -0.2 }],
+      points: [preset.timeline.steps[0].baselineActorPositions!.p1, { x: 1.3, y: -0.2 }],
       color: "#60A5FA",
     });
     expect(next.timeline.steps[0].visibleLayerIds).toContain("trajectories");
@@ -714,7 +723,7 @@ describe("visual-court", () => {
     expect(secondMove.timeline.steps[0].trajectories).toContainEqual({
       id: "manual-move-p1",
       actorId: "p1",
-      points: [preset.timeline.steps[0].actorPositions.p1, { x: 0.64, y: 0.58 }],
+      points: [preset.timeline.steps[0].baselineActorPositions!.p1, { x: 0.64, y: 0.58 }],
       color: "#60A5FA",
     });
   });

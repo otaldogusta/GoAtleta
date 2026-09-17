@@ -19,6 +19,7 @@ import { resolveAIPeriodizationContext } from "../_shared/ai-periodization-conte
 import { estimateAssistantCost, requestAssistantCompletion } from "./model-policy.ts";
 import { lessonConversationPrompt } from "./lesson-conversation.ts";
 import { loadPreviousLessonPlans } from "./lesson-history.ts";
+import { VOLLEYBALL_5X1_RECEPTION_CONTEXT } from "./volleyball-tactical-context.ts";
 import {
   buildSystemAIDocumentContextPrompt,
   resolveAIDocumentContext,
@@ -612,6 +613,7 @@ const systemPrompt = [
   "Simple greetings and simple questions need a short natural answer, not a report template. For detailed plans preserve necessary detail but separate sections. Do not dump all context or list unrelated missing data; mention a missing fact only when it prevents answering the current question.",
   "All training alterations or pedagogical suggestions MUST be detailed in the pedagogicalDecisions field of the response.",
   "Avalie o histórico de aceitação e feedbacks do treinador em FACTS_MEMORY. Se o histórico indicar rejeições ou alterações frequentes de certas dinâmicas, adapte as próximas decisões pedagógicas para respeitar as preferências do treinador.",
+  VOLLEYBALL_5X1_RECEPTION_CONTEXT,
 ].join(" ");
 
 const proactiveSystemPrompt = [

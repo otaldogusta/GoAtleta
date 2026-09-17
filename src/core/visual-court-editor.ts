@@ -1,4 +1,4 @@
-import { buildRotation5x1Preset, type CourtPoint, type CourtVisualPayload, type CourtVisualStep } from "./visual-court";
+import { buildRotation5x1Preset, normalizeReceive5x1Timeline, type CourtPoint, type CourtVisualPayload, type CourtVisualStep } from "./visual-court";
 
 export type DrawingKind = "arrow" | "curve" | "pen" | "area" | "text" | "ball" | "cone" | "target" | "ladder";
 export type CourtDrawing = { id: string; kind: DrawingKind; points: CourtPoint[]; color: string; text?: string; dashed?: boolean; size: number; rotation: number; locked?: boolean; motion?: CourtPoint[] };
@@ -28,6 +28,7 @@ export const snapCourtPoint = (p: CourtPoint): CourtPoint => ({ x: Math.round(p.
 
 /** Convert legacy didactic/official positions once. View rotation never changes the document. */
 export function upgradeCourtEditor(payload: CourtVisualPayload, title: string): CourtVisualPayload {
+  payload = normalizeReceive5x1Timeline(payload);
   const repairedSteps = payload.timeline.steps.map(s => {
     if (s.formationKind !== "5x1_receive_3" || !s.legalPositions || s.legalPositions.lib || !s.visibleActorIds?.includes("lib")) return s;
     const replaced = ["c1", "c2"].find(id => !s.visibleActorIds!.includes(id) && s.legalPositions![id]);

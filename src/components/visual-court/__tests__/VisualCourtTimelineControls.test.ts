@@ -60,8 +60,8 @@ describe("VisualCourtTimelineControls", () => {
     });
 
     const text = collectRenderedTextAndLabels(tree!.root).join(" ").replace(/\s+/g, " ");
-    expect(text).toContain("P1 - antes do saque");
-    expect(text).toContain("P1 - Antes do saque");
+    expect(text).toContain("P1 · Organização da recepção");
+    expect(text).toContain("P1 - Organizar recepção");
     expect(text).toContain("Posição do levantador");
     expect(text).not.toContain("Momento");
     expect(text).not.toContain("Após o saque");

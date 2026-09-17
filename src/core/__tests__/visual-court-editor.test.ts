@@ -90,6 +90,30 @@ describe("court editor document commands", () => {
     expect(normalizeCourtPayload(p).editor).toEqual(p.editor);
     expect(p.timeline.steps.length).toBe(source.timeline.steps.length);
   });
+  it("repairs legacy reception labels and phases without changing authored paths", () => {
+    const p = upgradeCourtEditor(buildRotation5x1Preset(), "Recepção");
+    const first = p.timeline.steps[0];
+    const second = p.timeline.steps[1];
+    first.label = "P1 - antes do saque · cópia";
+    second.label = "P1 - antes do saque · cópia";
+    second.phase = "receive_legal";
+    const authoredPath = [
+      { x: 0.2, y: 0.7 },
+      { x: 0.3, y: 0.62 },
+      { x: 0.4, y: 0.58 },
+    ];
+    second.trajectories = [{ id: "author-path", actorId: "p1", points: authoredPath }];
+
+    const repaired = upgradeCourtEditor(p, "Recepção");
+
+    expect(repaired.timeline.steps[0].label).toBe("P1 · Organização da recepção");
+    expect(repaired.timeline.steps[1].label).toBe("P1 · Após o saque");
+    expect(repaired.timeline.steps[1].phase).toBe("receive_release");
+    expect(repaired.timeline.steps[1].baselineActorPositions).toEqual(
+      repaired.timeline.steps[0].actorPositions
+    );
+    expect(repaired.timeline.steps[1].trajectories?.[0].points).toEqual(authoredPath);
+  });
   it("starts with two independent teams and twelve actors", () => {
     const p = newCourtBoard();
     expect(p.actors).toHaveLength(12);

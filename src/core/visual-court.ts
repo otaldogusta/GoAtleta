@@ -165,6 +165,76 @@ export type CourtVisualDocument = {
   updatedAt: string;
 };
 
+const RECEIVE_5X1_PHASE_COPY = {
+  receive_legal: {
+    label: "Organização da recepção",
+    note: "Da posição regulamentar à formação de recepção.",
+  },
+  receive_release: {
+    label: "Após o saque",
+    note: "Passe, infiltração do levantador e transição para o ataque.",
+  },
+} as const;
+
+const getReceive5x1StepLabel = (
+  setterPosition: Brazilian5x1SetterPosition,
+  phase: "receive_legal" | "receive_release"
+) => `${setterPosition} · ${RECEIVE_5X1_PHASE_COPY[phase].label}`;
+
+const isLegacyReceive5x1Label = (label: string) =>
+  /^P(?:1|2|3|4|5|6)\s*-\s*(?:antes|ap[oó]s) do saque(?:\s*·\s*(?:c[oó]pia|continua[cç][aã]o))*$/i.test(
+    label.trim()
+  );
+
+/**
+ * Repairs only legacy 5x1 reception pairs. User-authored positions and paths are
+ * intentionally preserved; this function only restores phase semantics and the
+ * baseline shared by the second frame of each rotation.
+ */
+export const normalizeReceive5x1Timeline = (
+  payload: CourtVisualPayload
+): CourtVisualPayload => {
+  const receiveStepsByRotation = new Map<number, number[]>();
+  payload.timeline.steps.forEach((step, index) => {
+    if (step.formationKind !== "5x1_receive_3" || !step.rotationIndex) return;
+    const indexes = receiveStepsByRotation.get(step.rotationIndex) ?? [];
+    indexes.push(index);
+    receiveStepsByRotation.set(step.rotationIndex, indexes);
+  });
+
+  let changed = false;
+  const nextSteps = [...payload.timeline.steps];
+  receiveStepsByRotation.forEach((indexes, rotationIndex) => {
+    if (indexes.length !== 2) return;
+    const first = nextSteps[indexes[0]];
+    const second = nextSteps[indexes[1]];
+    if (!isLegacyReceive5x1Label(first.label) && !isLegacyReceive5x1Label(second.label)) {
+      return;
+    }
+    const setterPosition = getSetterPositionLabel(
+      rotationIndex as CourtVisualRotationIndex
+    );
+    nextSteps[indexes[0]] = {
+      ...first,
+      label: getReceive5x1StepLabel(setterPosition, "receive_legal"),
+      note: RECEIVE_5X1_PHASE_COPY.receive_legal.note,
+      phase: "receive_legal",
+    };
+    nextSteps[indexes[1]] = {
+      ...second,
+      label: getReceive5x1StepLabel(setterPosition, "receive_release"),
+      note: RECEIVE_5X1_PHASE_COPY.receive_release.note,
+      phase: "receive_release",
+      baselineActorPositions: { ...first.actorPositions },
+    };
+    changed = true;
+  });
+
+  return changed
+    ? { ...payload, timeline: { ...payload.timeline, steps: nextSteps } }
+    : payload;
+};
+
 export const clampCourtUnit = (value: number) => {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
@@ -1293,6 +1363,19 @@ const buildReceive3RotationSteps = (
       };
     })
     .filter((item): item is CourtVisualTrajectory => item !== null);
+  const organizationTrajectories: CourtVisualTrajectory[] = receive.visibleActorIds
+    .map<CourtVisualTrajectory | null>((actorId) => {
+      const from = receive.positions[actorId];
+      const to = receivePositions[actorId] ?? from;
+      if (!from || !to || getPointDistance(from, to) <= 0.015) return null;
+      return {
+        id: `${prefix}-organization-${actorId}`,
+        actorId,
+        points: [from, to],
+        color: getActorBaseColor(actorId),
+      };
+    })
+    .filter((item): item is CourtVisualTrajectory => item !== null);
   const passerHighlights = passers.map((actorId, index) => ({
     id: `${prefix}-passer-${actorId}`,
     zone: resolveCourtZone(releaseBasePositions[actorId] ?? receive.positions[actorId]),
@@ -1303,11 +1386,15 @@ const buildReceive3RotationSteps = (
   return [
     {
       id: `${prefix}_receive_legal`,
-      label: `${setterPositionLabel} - antes do saque`,
+      label: getReceive5x1StepLabel(setterPositionLabel, "receive_legal"),
       durationMs: 2200,
-      note: "Formação legal antes do saque adversário.",
+      note: RECEIVE_5X1_PHASE_COPY.receive_legal.note,
       actorPositions: receivePositions,
-      baselineActorPositions: receivePositions,
+      baselineActorPositions: pickVisiblePositions(
+        receive.positions,
+        receive.positions,
+        receive.visibleActorIds
+      ),
       legalPositions: legal.positions,
       tacticalPositions: receivePositions,
       rotationIndex: rotationNumber as CourtVisualRotationIndex,
@@ -1316,14 +1403,17 @@ const buildReceive3RotationSteps = (
       visibleActorIds: receive.visibleActorIds,
       passers,
       setterTarget,
-      visibleLayerIds: ["zones", "actors"],
+      transitions: organizationTrajectories,
+      trajectories: organizationTrajectories,
+      visibleLayerIds: ["zones", "actors", "trajectories"],
     },
     {
       id: `${prefix}_receive_release`,
-      label: `${setterPositionLabel} - após o saque`,
+      label: getReceive5x1StepLabel(setterPositionLabel, "receive_release"),
       durationMs: 2200,
-      note: "Passe para o alvo e infiltração do levantador.",
+      note: RECEIVE_5X1_PHASE_COPY.receive_release.note,
       actorPositions: releasePositions,
+      baselineActorPositions: receivePositions,
       legalPositions: legal.positions,
       tacticalPositions: releasePositions,
       transitions: releaseTrajectories,

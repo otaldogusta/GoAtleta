@@ -38,7 +38,7 @@ const phaseOrder: CourtVisualPhase[] = [
   "serve_after_hit",
 ];
 const phaseLabel: Record<CourtVisualPhase, string> = {
-  receive_legal: "Antes do saque",
+  receive_legal: "Organizar recepção",
   serve_base: "Antes do saque",
   receive_release: "Após o saque",
   serve_after_hit: "Após o saque",
