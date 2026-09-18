@@ -1,4 +1,4 @@
-import { buildRotation5x1Preset, normalizeCourtPayload, parseCourtVisualPayload, serializeCourtVisualPayload } from "../visual-court";
+import { buildEditable5x1ReceptionPreset, buildRotation5x1Preset, normalizeCourtPayload, parseCourtVisualPayload, serializeCourtVisualPayload } from "../visual-court";
 import { addBlankStep, actorPoint, changeDrawings, continueStepFromEnd, copyStepSelection, deleteSelection, duplicateSelection, duplicateStep, frameDrawings, moveSelection, newCourtBoard, parseEditorImport, pasteStepSelection, pointAlong, motionTrail, snapCourtPoint, resetStepAnimation, removeStep, reorderStep, reorderStepToIndex, upgradeCourtEditor } from "../visual-court-editor";
 
 describe("court editor document commands", () => {
@@ -219,6 +219,16 @@ describe("court editor document commands", () => {
     expect(imported.editor!.actorMeta[p.actors[6].id].team).toBe("B");
     expect(JSON.stringify(imported)).not.toContain("private-student");
     expect(JSON.stringify(imported)).not.toContain("other-org");
+  });
+  it("preserves the canonical 5x1 phases and hand-authored motion paths on import", () => {
+    const source = buildEditable5x1ReceptionPreset();
+    const imported = parseEditorImport(JSON.stringify({ format: "goatleta-court", version: 1, payload: source }));
+    expect(imported.court).toEqual(source.court);
+    expect(imported.timeline.steps.map(step => [step.id, step.rotationIndex, step.phase, step.formationKind])).toEqual(
+      source.timeline.steps.map(step => [step.id, step.rotationIndex, step.phase, step.formationKind])
+    );
+    expect(imported.timeline.steps[11].trajectories?.find(trajectory => trajectory.actorId === "op")?.points).toHaveLength(157);
+    expect(imported.timeline.steps[1].baselineActorPositions).toEqual(source.timeline.steps[1].baselineActorPositions);
   });
   it("animates a ball from its first point and static movement clears its path", () => {
     let p = changeDrawings(newCourtBoard(), 0, [{ id: "ball", kind: "ball", points: [{ x: 0.4, y: 0.6 }], size: 32, rotation: 0, color: "#ffffff" }]);

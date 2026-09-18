@@ -1,3 +1,5 @@
+import canonical5x1Reception from "./presets/5x1-reception.goatleta.json";
+
 export type CourtVisualSourceKind = "rotation" | "lesson" | "scouting" | "free";
 
 export type CourtVisualSport = "volleyball_indoor";
@@ -1320,7 +1322,8 @@ const DEFENSE_BASE_6_BACK_BY_SETTER_POSITION: Record<
 
 
 
-const buildReceive3RotationSteps = (
+/** @deprecated Prefer buildEditable5x1ReceptionPreset, sourced from the canonical coach-authored document. */
+export const buildReceive3RotationSteps = (
   rotationNumber: number,
   setterZone: CourtZone
 ): CourtVisualStep[] => {
@@ -1434,41 +1437,51 @@ const buildReceive3RotationSteps = (
   ];
 };
 
-export const build5x1Receive3Preset = (): CourtVisualPayload => {
-  const rotationSteps = SETTER_ROTATION_ZONES_5X1.flatMap((setterZone, index) =>
-    buildReceive3RotationSteps(index + 1, setterZone)
-  );
+/** Exact editable board authored by the coach and used by the visual editor. */
+export const buildEditable5x1ReceptionPreset = (): CourtVisualPayload => {
+  const payload = canonical5x1Reception.payload as unknown as CourtVisualPayload;
+  return JSON.parse(JSON.stringify(payload)) as CourtVisualPayload;
+};
 
+const fromEditorRegulationPoint = (point: CourtPoint): CourtPoint => ({
+  x: point.x,
+  y: point.y <= 2 / 3
+    ? (point.y - 0.5) * 3
+    : 0.5 + (point.y - 2 / 3) * 1.5,
+});
+
+const mapPointRecord = (positions?: Record<string, CourtPoint>) => positions
+  ? Object.fromEntries(Object.entries(positions).map(([id, point]) => [id, fromEditorRegulationPoint(point)]))
+  : undefined;
+
+/**
+ * Tactical consumers use team-half coordinates; the editor uses regulation/full-court
+ * coordinates. Both are derived from the same coach-authored canonical document.
+ */
+export const build5x1Receive3Preset = (): CourtVisualPayload => {
+  const source = buildEditable5x1ReceptionPreset();
   return normalizeCourtPayload({
-    version: 1,
-    sport: "volleyball_indoor",
-    court: {
-      orientation: "vertical",
-      showZones: true,
-      layoutMode: "official_volleyball_zones",
-      labelMode: "official_zones",
-      courtView: "team_half",
-      renderStyle: "coach_board",
-    },
-    actors: tacticalActors,
-    markers: [
-      {
-        id: "serve-ball",
-        type: "ball",
-        label: "Bola",
-        position: offsetPoint(getOfficialZoneCenter(1), { x: 0.08, y: 0.14 }),
-        color: "#F2A03D",
-      },
-      {
-        id: "receive-target",
-        type: "target",
-        position: SETTER_RECEIVE_TARGET,
-        color: "#3DDC84",
-      },
-    ],
-    layers: defaultCourtVisualLayers,
+    ...source,
+    editor: undefined,
+    court: { ...source.court, courtView: "team_half" },
+    actors: source.actors.map(actor => ({ ...actor, initialPosition: fromEditorRegulationPoint(actor.initialPosition) })),
+    markers: source.markers.map(marker => ({ ...marker, position: fromEditorRegulationPoint(marker.position) })),
     timeline: {
-      steps: rotationSteps,
+      steps: source.timeline.steps.map(step => ({
+        ...step,
+        actorPositions: mapPointRecord(step.actorPositions)!,
+        baselineActorPositions: mapPointRecord(step.baselineActorPositions),
+        legalPositions: (() => {
+          const legal = mapPointRecord(step.legalPositions);
+          if (legal) delete legal.lib;
+          return legal;
+        })(),
+        tacticalPositions: mapPointRecord(step.tacticalPositions),
+        setterTarget: step.setterTarget ? fromEditorRegulationPoint(step.setterTarget) : undefined,
+        arrows: step.arrows?.map(arrow => ({ ...arrow, from: fromEditorRegulationPoint(arrow.from), to: fromEditorRegulationPoint(arrow.to) })),
+        trajectories: step.trajectories?.map(trajectory => ({ ...trajectory, points: trajectory.points.map(fromEditorRegulationPoint) })),
+        transitions: (step.transitions ?? step.trajectories)?.map(transition => ({ ...transition, points: transition.points.map(fromEditorRegulationPoint) })),
+      })),
     },
   });
 };

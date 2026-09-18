@@ -148,7 +148,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     if (editor.loading || !documentId || linkedOpened.current) return;
     const found = editor.documents.find(d => d.id === documentId);
     linkedOpened.current = true;
-    if (found) void editor.open(found.payload).catch(() => editor.setError("Não foi possível abrir esta versão."));
+    if (found) void editor.open(found.payload, found.id).catch(() => editor.setError("Não foi possível abrir esta versão."));
     else editor.setError("Versão indisponível nesta turma ou para esta conta.");
   }, [documentId, editor]);
   const stop = useCallback(() => { setPlaying(false); }, []);
@@ -267,8 +267,8 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
     }} dragKind={["ball", "cone", "target", "ladder"].includes(id) ? id : undefined} active={tool === id} onPress={() => { stop(); setTool(id); }} />)}</View>;
   const field = (label: string, value: string, onChange: (value: string) => void, multiline = false) => <View style={{ gap: 6 }}><Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text><View style={{ backgroundColor: colors.inputBg, borderRadius: 12, minHeight: 50, paddingHorizontal: 14 }}><TextInput accessibilityLabel={label} value={value} onChangeText={onChange} multiline={multiline} style={{ color: ink, minHeight: multiline ? 70 : 50, borderRadius: 0, fontSize: 14 }} /></View></View>;
   const heading = (label: string) => <Text style={{ color: ink, fontWeight: "700", fontSize: 15, marginTop: 10 }}>{label}</Text>;
-  const openPayload = async (p: CourtVisualPayload) => { try { stop(); await editor.open(p); setSelected([]); setPanel(null); } catch { editor.setError("Não foi possível guardar a cópia local. Exporte antes de trocar."); } };
-  const runExport = async (kind: "png" | "pdf" | "json") => { stop(); setBusy(true); try { await exportCourt(payload, stepIndex, kind); editor.setNotice("Exportação concluída."); } catch (e) { editor.setError(e instanceof Error ? e.message : "Falha ao exportar."); } finally { setBusy(false); } };
+  const openPayload = async (p: CourtVisualPayload, documentId?: string | null) => { try { stop(); await editor.open(p, documentId); setSelected([]); setPanel(null); } catch { editor.setError("Não foi possível guardar a cópia local. Exporte antes de trocar."); } };
+  const runExport = async (kind: "png" | "gif" | "pdf" | "json") => { stop(); setBusy(true); try { await exportCourt(payload, stepIndex, kind); editor.setNotice("Exportação concluída."); } catch (e) { editor.setError(e instanceof Error ? e.message : "Falha ao exportar."); } finally { setBusy(false); } };
   const importFile = async () => { try {
     const r = await DocumentPicker.getDocumentAsync({ type: "application/json", copyToCacheDirectory: true });
     if (r.canceled) return;
@@ -352,7 +352,16 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
             {action("Duplicar com animação", "copy", () => mutateStep(duplicateStep(payload, stepIndex)), false, false, true)}
             {action("Adicionar quadra vazia", "add", () => mutateStep(addBlankStep(payload, stepIndex)), false, false, true)}
           </ScrollView>
-        </View> : <Pressable accessibilityRole="button" accessibilityLabel="Mostrar etapas" onPress={() => { setPanel(null); setBottomPinned(true); setBottomOpen(true); }} style={styles.handle}><GoAtletaIcon name="play" size={18} color="#28d78b" /><Text style={{ color: ink, fontWeight: "600", fontSize: 12 }}>Etapas</Text><GoAtletaIcon name="chevronUp" size={18} color={ink} /></Pressable>}
+        </View> : <View style={[styles.handle, styles.collapsedHandle]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={playing ? "Pausar etapa" : progress >= 1 ? "Reproduzir novamente" : "Reproduzir etapa"} accessibilityState={{ selected: playing }} onPress={playCurrentStep}
+            style={({ hovered, pressed }) => [styles.collapsedPlay, { backgroundColor: playing || hovered || pressed ? colors.secondaryBg : "transparent" }]}>
+            <GoAtletaIcon name={playing ? "pause" : "play"} size={18} color="#28d78b" />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Mostrar etapas" accessibilityState={{ expanded: false }} onPress={() => { setPanel(null); setBottomPinned(true); setBottomOpen(true); }}
+            style={({ hovered, pressed }) => [styles.collapsedTimeline, { backgroundColor: hovered || pressed ? colors.secondaryBg : "transparent" }]}>
+            <Text style={{ color: ink, fontWeight: "600", fontSize: 12 }}>Etapas</Text><GoAtletaIcon name="chevronUp" size={18} color={ink} />
+          </Pressable>
+        </View>}
       </View>
       <View onPointerEnter={restoreControls} style={[controlFade, styles.history, { right: insets.right + 10, bottom: historyBottom, backgroundColor: surface, maxWidth: !timelineVisible && width < 700 ? Math.max(44, width / 2 - 84 - insets.right) : width - 20, flexWrap: "wrap" }]}>
 
@@ -508,7 +517,7 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
                 });
                 return items.length ? items.map(d => <View key={d.id} style={{ borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 8, gap: 4 }}>
                   <View style={styles.row}>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Abrir ${d.title}`} onPress={() => void openPayload(d.payload)} style={{ flex: 1, gap: 5, minHeight: 48, justifyContent: "center" }}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Abrir ${d.title}`} onPress={() => void openPayload(d.payload, d.id)} style={{ flex: 1, gap: 5, minHeight: 48, justifyContent: "center" }}>
                       <Text style={{ color: ink, fontWeight: "600" }}>{d.title}</Text>
                       <Text style={{ color: colors.muted, fontSize: 11 }}>{d.id.startsWith('template_') ? 'Modelo' : d.id.startsWith('local_') ? 'Neste dispositivo' : 'Versão da turma'} · {d.payload.timeline.steps.length} etapas</Text>
                     </Pressable>
@@ -521,7 +530,9 @@ export function CourtEditorWorkspace({ classId, documentId, lessonDate, planId, 
           </> : null}
           {panel === "export" ? <>
             <Text style={{ color: colors.muted, fontSize: 13 }}>A exportação inclui os rótulos e as notas visíveis da jogada.</Text>
-            {Platform.OS === "web" ? <>{action("Imagem PNG da etapa", "gallery", () => void runExport("png"), false, busy, true)}{action("PDF da sequência", "document", () => void runExport("pdf"), false, busy, true)}</> : null}
+            {Platform.OS === "web" ? <Text style={{ color: colors.muted, fontSize: 12 }}>O GIF reproduz a etapa atual em loop e respeita sua duração.</Text> : null}
+            {Platform.OS === "web" ? <Text style={{ color: colors.muted, fontSize: 12 }}>O PDF usa meia quadra vertical e compara a posição de saque com a posição final.</Text> : null}
+            {Platform.OS === "web" ? <>{action("GIF animado da etapa", "play", () => void runExport("gif"), false, busy, true)}{action("Imagem PNG da etapa", "gallery", () => void runExport("png"), false, busy, true)}{action("PDF da sequência", "document", () => void runExport("pdf"), false, busy, true)}</> : null}
             {action("Cópia editável JSON", "download", () => void runExport("json"), false, busy, true)}
             {busy ? <ActivityIndicator color={ink} /> : null}
           </> : null}
@@ -538,6 +549,9 @@ const styles = StyleSheet.create({
   top: { position: "absolute", alignSelf: "center", maxWidth: "100%", borderBottomLeftRadius: 18, borderBottomRightRadius: 18, zIndex: 20 },
   topContent: { flexDirection: "row", alignItems: "center", padding: 8, gap: 4, width: "100%" },
   handle: { flexDirection: "row", gap: 10, alignItems: "center", justifyContent: "center", minHeight: 44, paddingHorizontal: 18 },
+  collapsedHandle: { gap: 2, paddingHorizontal: 4 },
+  collapsedPlay: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  collapsedTimeline: { minHeight: 44, paddingHorizontal: 8, borderRadius: 12, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
   action: { minWidth: 44, minHeight: 44, paddingHorizontal: 9, gap: 6, flexDirection: "row", justifyContent: "center", alignItems: "center", borderRadius: 10, borderWidth: 1 },
   tools: { position: "absolute", borderRadius: 16, width: 52, zIndex: 24 },
   propertyTrigger: { position: "absolute", width: 44, height: 44, borderRadius: 22, overflow: "hidden", zIndex: 21 },

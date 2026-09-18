@@ -9,6 +9,7 @@ import {
   deleteCourtVisualStepActor,
   duplicateCourtVisualStepActor,
   buildDidacticRotationGridPreset,
+  buildEditable5x1ReceptionPreset,
   buildRotation5x1Preset,
   ensureCourtVisualPayloadBaselines,
   getNextOfficialRotationZone,
@@ -263,6 +264,29 @@ describe("visual-court", () => {
     });
     expect(preset.timeline.steps).toHaveLength(12);
     expect(isOfficialRotation5x1Preset(preset)).toBe(true);
+  });
+
+  it("uses the coach-authored reception board as the canonical editable 5x1 sequence", () => {
+    const preset = buildEditable5x1ReceptionPreset();
+    expect(preset.editor?.title).toBe("5×1 · Recepção");
+    expect(preset.timeline.steps.map(step => [step.id, step.label, step.phase])).toEqual([
+      ["r1_receive_legal", "P1 · Organização da recepção", "receive_legal"],
+      ["r1_receive_release", "P1 · Após o saque", "receive_release"],
+      ["r2_receive_legal", "P6 · Organização da recepção", "receive_legal"],
+      ["r2_receive_release", "P6 · Após o saque", "receive_release"],
+      ["r3_receive_legal", "P5 · Organização da recepção", "receive_legal"],
+      ["r3_receive_release", "P5 · Após o saque", "receive_release"],
+      ["r4_receive_legal", "P4 · Organização da recepção", "receive_legal"],
+      ["r4_receive_release", "P4 · Após o saque", "receive_release"],
+      ["r5_receive_legal", "P3 · Organização da recepção", "receive_legal"],
+      ["r5_receive_release", "P3 · Após o saque", "receive_release"],
+      ["r6_receive_legal", "P2 · Organização da recepção", "receive_legal"],
+      ["r6_receive_release", "P2 · Após o saque", "receive_release"],
+    ]);
+    expect(preset.timeline.steps.flatMap(step => step.trajectories ?? []).reduce((total, trajectory) => total + trajectory.points.length, 0)).toBe(2239);
+    const second = buildEditable5x1ReceptionPreset();
+    preset.timeline.steps[0].label = "alterado";
+    expect(second.timeline.steps[0].label).toBe("P1 · Organização da recepção");
   });
 
   it("maps internal rotation indexes to Brazilian setter-position labels", () => {
@@ -650,8 +674,10 @@ describe("visual-court", () => {
       });
       expect(steps[0].legalPositions?.lev).not.toEqual(steps[0].actorPositions.lev);
       expect(steps[1].legalPositions?.lev).not.toEqual(steps[1].tacticalPositions?.lev);
-      expect(steps[1].transitions?.some((transition) => transition.actorId === "lev")).toBe(true);
       expect(steps[1].transitions?.length).toBeGreaterThanOrEqual(4);
+      steps[1].transitions?.forEach(transition => {
+        expect(transition.points.at(-1)).toEqual(steps[1].actorPositions[transition.actorId]);
+      });
       expect(steps[1].arrows?.length ?? 0).toBeLessThanOrEqual(1);
       expect(steps[1].setterTarget).toEqual({ x: 0.64, y: 0.18 });
       steps[1].visibleActorIds?.forEach((actorId) => {

@@ -86,7 +86,7 @@ describe("visual court workspace persistence and history", () => {
     act(() => editor!.undo()); expect(actorPoint(editor!.payload, 0, id)).toEqual(before); expect(editor!.canUndo).toBe(false);
     act(() => editor!.redo()); expect(actorPoint(editor!.payload, 0, id)).toEqual(moved);
   });
-  it("saves the latest same-tick edit as a new immutable revision", async () => {
+  it("creates the canonical 5x1 document once and updates the same document afterwards", async () => {
     await mount(); const id = editor!.payload.actors[0].id;
     const original = editor!.payload;
     await act(async () => {
@@ -96,8 +96,15 @@ describe("visual court workspace persistence and history", () => {
     expect(mockSave).toHaveBeenCalledTimes(1);
     const input = mockSave.mock.calls[0][0];
     expect(input.id).toBeUndefined(); expect(input.organizationId).toBe("org_1");
-    expect(input.sourceId).toBeTruthy(); expect(input.payload).toEqual(editor!.payload);
+    expect(input.sourceId).toBe("goatleta:5x1-reception"); expect(input.payload).toEqual(editor!.payload);
     expect(input.payload).not.toEqual(original); expect(editor!.dirty).toBe(false);
+    await act(async () => {
+      editor!.commit(p => ({ ...p, editor: { ...p.editor!, title: "5×1 ajustado" } }));
+      await editor!.save();
+    });
+    expect(mockSave).toHaveBeenCalledTimes(2);
+    expect(mockSave.mock.calls[1][0].id).toBe("saved_1");
+    expect(mockSave.mock.calls[1][0].sourceId).toBe("goatleta:5x1-reception");
   });
   it("prevents concurrent duplicate saves", async () => {
     await mount(); act(() => editor!.commit(p => ({ ...p, editor: { ...p.editor!, title: "Teste" } })));

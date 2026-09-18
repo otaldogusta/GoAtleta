@@ -306,13 +306,86 @@ export function parseEditorImport(raw: string): CourtVisualPayload {
   const text = (v: unknown, max = 120) => typeof v === "string" ? v.slice(0, max) : "";
   const point = (v: unknown) => { const pt = v as CourtPoint; if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) throw new Error("Coordenada inválida."); return limitPoint(pt); };
   const color = (v: unknown) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : "#19c87b";
-  const actors = p.actors.map((a: { id: string; label: string; number: number; color: string; role: string; initialPosition: CourtPoint }) => ({ id: text(a.id), label: text(a.label, 24), number: Math.min(99, Math.max(0, Number(a.number) || 0)), color: color(a.color), role: ["setter", "outside", "middle", "opposite", "libero", "athlete", "coach"].includes(a.role) ? a.role : "athlete", initialPosition: point(a.initialPosition) }));
+  const optionalColor = (v: unknown) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : undefined;
+  const roles = ["setter", "outside", "middle", "opposite", "libero", "athlete", "coach"];
+  const actors = p.actors.map((a: { id: string; label: string; number?: number; color?: string; baseColor?: string; role: string; initialPosition: CourtPoint; currentZone?: number; rotationOrder?: number; isBackRow?: boolean; isFrontRow?: boolean }) => ({
+    id: text(a.id),
+    label: text(a.label, 24),
+    ...(Number.isFinite(a.number) ? { number: Math.min(99, Math.max(0, Number(a.number))) } : {}),
+    ...(optionalColor(a.color) ? { color: optionalColor(a.color) } : {}),
+    ...(optionalColor(a.baseColor) ? { baseColor: optionalColor(a.baseColor) } : {}),
+    role: roles.includes(a.role) ? a.role : "athlete",
+    initialPosition: point(a.initialPosition),
+    ...([1, 2, 3, 4, 5, 6].includes(Number(a.currentZone)) ? { currentZone: Number(a.currentZone) } : {}),
+    ...(Number.isInteger(a.rotationOrder) ? { rotationOrder: Number(a.rotationOrder) } : {}),
+    ...(typeof a.isBackRow === "boolean" ? { isBackRow: a.isBackRow } : {}),
+    ...(typeof a.isFrontRow === "boolean" ? { isFrontRow: a.isFrontRow } : {}),
+  }));
   if (new Set(actors.map((a: {id: string}) => a.id)).size !== actors.length) throw new Error("Jogadores duplicados no arquivo.");
-  const steps = p.timeline.steps.map((s: CourtVisualStep) => ({ id: text(s.id), label: text(s.label), note: text(s.note, 1000), durationMs: Math.max(450, Math.min(30000, Number(s.durationMs) || 1600)), actorPositions: Object.fromEntries(actors.map((a: {id: string; initialPosition: CourtPoint}) => [a.id, point(s.actorPositions?.[a.id] ?? a.initialPosition)])), visibleActorIds: actors.filter((a: {id: string}) => !s.visibleActorIds || s.visibleActorIds.includes(a.id)).map((a: {id: string}) => a.id), trajectories: (Array.isArray(s.trajectories) ? s.trajectories : []).slice(0, 100).map(t => ({ id: text(t.id), actorId: text(t.actorId), color: color(t.color), points: t.points.slice(0, 300).map(point) })) }));
+  const actorIds = new Set(actors.map((a: { id: string }) => a.id));
+  const positions = (v: unknown, fallback?: Record<string, CourtPoint>) => {
+    if (!v || typeof v !== "object") return fallback;
+    return Object.fromEntries(actors.flatMap((a: { id: string; initialPosition: CourtPoint }) => {
+      const rawPoint = (v as Record<string, CourtPoint>)[a.id];
+      return rawPoint ? [[a.id, point(rawPoint)]] : fallback?.[a.id] ? [[a.id, fallback[a.id]]] : [];
+    }));
+  };
+  const trajectories = (v: unknown) => (Array.isArray(v) ? v : []).slice(0, 100).flatMap(t => {
+    const actorId = text(t?.actorId);
+    if (!actorIds.has(actorId) || !Array.isArray(t?.points) || t.points.length < 2) return [];
+    return [{ id: text(t.id), actorId, ...(optionalColor(t.color) ? { color: optionalColor(t.color) } : {}), points: t.points.slice(0, 300).map(point) }];
+  });
+  const phases = ["receive_legal", "receive_release", "attack_shape", "defense_shape", "serve_base", "serve_after_hit"];
+  const formations = ["didactic_grid", "5x1_receive_3", "5x1_serving", "defense_base_6_back"];
+  const steps = p.timeline.steps.map((s: CourtVisualStep) => {
+    const actorPositions = positions(s.actorPositions) ?? Object.fromEntries(actors.map((a: { id: string; initialPosition: CourtPoint }) => [a.id, a.initialPosition]));
+    const visibleActorIds = actors.filter((a: { id: string }) => !s.visibleActorIds || s.visibleActorIds.includes(a.id)).map((a: { id: string }) => a.id);
+    const rotationIndex = Number(s.rotationIndex);
+    return {
+      id: text(s.id), label: text(s.label), note: text(s.note, 1000), durationMs: Math.max(450, Math.min(30000, Number(s.durationMs) || 1600)), actorPositions, visibleActorIds,
+      ...(positions(s.baselineActorPositions) ? { baselineActorPositions: positions(s.baselineActorPositions) } : {}),
+      ...(positions(s.legalPositions) ? { legalPositions: positions(s.legalPositions) } : {}),
+      ...(positions(s.tacticalPositions) ? { tacticalPositions: positions(s.tacticalPositions) } : {}),
+      ...([1, 2, 3, 4, 5, 6].includes(rotationIndex) ? { rotationIndex } : {}),
+      ...(phases.includes(String(s.phase)) ? { phase: s.phase } : {}),
+      ...(formations.includes(String(s.formationKind)) ? { formationKind: s.formationKind } : {}),
+      ...(Array.isArray(s.passers) ? { passers: s.passers.filter(id => actorIds.has(id)).slice(0, 6) } : {}),
+      ...(s.setterTarget ? { setterTarget: point(s.setterTarget) } : {}),
+      ...(Array.isArray(s.attackOptions) ? { attackOptions: s.attackOptions.map(id => text(id)).filter(id => actorIds.has(id)).slice(0, 6) } : {}),
+      ...(Array.isArray(s.markerIds) ? { markerIds: s.markerIds.map(id => text(id)).slice(0, 100) } : {}),
+      ...(Array.isArray(s.visibleLayerIds) ? { visibleLayerIds: s.visibleLayerIds.map(id => text(id)).slice(0, 20) } : {}),
+      trajectories: trajectories(s.trajectories),
+      ...(Array.isArray(s.transitions) ? { transitions: trajectories(s.transitions) } : {}),
+      ...(Array.isArray(s.highlights) ? { highlights: s.highlights.slice(0, 50).map(h => ({ id: text(h.id), ...([1, 2, 3, 4, 5, 6].includes(Number(h.zone)) ? { zone: Number(h.zone) } : {}), ...([1, 2, 3, 4, 5, 6].includes(Number(h.slot)) ? { slot: Number(h.slot) } : {}), label: text(h.label), ...(optionalColor(h.color) ? { color: optionalColor(h.color) } : {}) })) } : {}),
+    };
+  });
   if (new Set(steps.map((s: CourtVisualStep) => s.id)).size !== steps.length) throw new Error("Etapas duplicadas no arquivo.");
   const drawings = Object.fromEntries(steps.map((s: CourtVisualStep) => [s.id, (Array.isArray(p.editor.drawings?.[s.id]) ? p.editor.drawings[s.id] : []).slice(0, 200).map((d: CourtDrawing) => {
     if (!["arrow", "curve", "pen", "area", "text", "ball", "cone", "target", "ladder"].includes(d.kind) || !Array.isArray(d.points) || !d.points.length) throw new Error("Objeto inválido.");
     return { id: text(d.id), kind: d.kind, points: d.points.slice(0, 500).map(point), text: text(d.text, 200), color: color(d.color), dashed: Boolean(d.dashed), size: Math.max(12, Math.min(80, Number(d.size) || 28)), rotation: Number(d.rotation) % 360 || 0, locked: Boolean(d.locked), motion: d.kind === "ball" && Array.isArray(d.motion) ? d.motion.slice(0, 300).map(point) : undefined };
   })]));
-  return { ...newCourtBoard(), actors, markers: [], timeline: { steps }, editor: { version: 1, coordinates: "regulation", title: text(p.editor.title) || "Jogada importada", folder: text(p.editor.folder), tags: text(p.editor.tags), favorite: false, actorMeta: Object.fromEntries(actors.map((a: { id: string }) => [a.id, { team: p.editor.actorMeta?.[a.id]?.team === "B" ? "B" : "A", locked: Boolean(p.editor.actorMeta?.[a.id]?.locked) }])), hiddenLayers: [], drawings } } as CourtVisualPayload;
+  const layouts = ["didactic_slots", "official_volleyball_zones", "official_zones"];
+  const labels = ["slots", "official_zones"];
+  const views = ["full_court", "team_half"];
+  const renderStyles = ["standard", "coach_board"];
+  const layerKinds = ["zones", "actors", "markers", "arrows", "trajectories", "highlights"];
+  const layers = (Array.isArray(p.layers) ? p.layers : []).slice(0, 20).flatMap((layer: { id?: unknown; label?: unknown; kind?: unknown; visibleByDefault?: unknown }) => layerKinds.includes(String(layer.kind)) ? [{ id: text(layer.id), label: text(layer.label, 40), kind: layer.kind, visibleByDefault: Boolean(layer.visibleByDefault) }] : []);
+  const markers = (Array.isArray(p.markers) ? p.markers : []).slice(0, 100).flatMap((marker: { id?: unknown; type?: unknown; label?: unknown; position?: unknown; color?: unknown }) => ["cone", "ball", "target"].includes(String(marker.type)) ? [{ id: text(marker.id), type: marker.type, label: text(marker.label, 40), position: point(marker.position), ...(optionalColor(marker.color) ? { color: optionalColor(marker.color) } : {}) }] : []);
+  return {
+    version: 1,
+    sport: "volleyball_indoor",
+    court: {
+      orientation: "vertical",
+      showZones: Boolean(p.court?.showZones),
+      layoutMode: layouts.includes(p.court?.layoutMode) ? p.court.layoutMode : "official_volleyball_zones",
+      labelMode: labels.includes(p.court?.labelMode) ? p.court.labelMode : "official_zones",
+      courtView: views.includes(p.court?.courtView) ? p.court.courtView : "full_court",
+      renderStyle: renderStyles.includes(p.court?.renderStyle) ? p.court.renderStyle : "coach_board",
+    },
+    actors,
+    markers,
+    layers: layers.length ? layers : newCourtBoard().layers,
+    timeline: { steps },
+    editor: { version: 1, coordinates: "regulation", title: text(p.editor.title) || "Jogada importada", folder: text(p.editor.folder), tags: text(p.editor.tags), favorite: false, actorMeta: Object.fromEntries(actors.map((a: { id: string }) => [a.id, { team: p.editor.actorMeta?.[a.id]?.team === "B" ? "B" : "A", locked: Boolean(p.editor.actorMeta?.[a.id]?.locked) }])), hiddenLayers: Array.isArray(p.editor.hiddenLayers) ? p.editor.hiddenLayers.map((id: unknown) => text(id)).slice(0, 20) : [], drawings },
+  } as CourtVisualPayload;
 }
