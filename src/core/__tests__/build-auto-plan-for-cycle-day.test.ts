@@ -958,7 +958,7 @@ describe("buildAutoPlanForCycleDay", () => {
       ],
     });
 
-    expect(result.decisionTrace.schemaVersion).toBe(1);
+    expect(result.decisionTrace.schemaVersion).toBe(2);
     expect(result.decisionTrace.source).toMatchObject({
       classId: "class_1",
       sessionDate: "2026-04-10",

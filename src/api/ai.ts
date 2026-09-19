@@ -13,6 +13,7 @@ type AssistantMessage = {
 
 export type AssistantConversationRequest = {
   onReply?: (text: string) => void;
+  onStatus?: (status: string) => void;
   modelPreference?: AssistantModelChoice;
   accessToken?: string;
   messages: AssistantMessage[];
@@ -538,7 +539,7 @@ export async function requestAssistantConversation(
   }
 
   const data = response.headers?.get("content-type")?.includes("application/x-ndjson")
-    ? await readAssistantStream(response, payload.onReply) as Record<string, any>
+    ? await readAssistantStream(response, payload.onReply, payload.onStatus) as Record<string, any>
     : JSON.parse(await response.text());
   if (payload.modelPreference && payload.modelPreference !== "auto" &&
       (data.modelSelection?.requested !== payload.modelPreference || data.modelSelection?.selected !== payload.modelPreference)) {

@@ -1,5 +1,9 @@
 /** Text is provisional; only a terminal done event can authorize the final result. */
-export async function readAssistantStream(response: Response, onReply?: (text: string) => void): Promise<unknown> {
+export async function readAssistantStream(
+  response: Response,
+  onReply?: (text: string) => void,
+  onStatus?: (status: string) => void,
+): Promise<unknown> {
   let final: unknown;
   let complete = false;
   const consume = (line: string) => {
@@ -7,6 +11,7 @@ export async function readAssistantStream(response: Response, onReply?: (text: s
     if (complete) throw new Error("Resposta inválida após conclusão.");
     const event = JSON.parse(line);
     if (event.type === "reply" && typeof event.text === "string") onReply?.(event.text);
+    else if (event.type === "status" && typeof event.status === "string") onStatus?.(event.status);
     else if (event.type === "done") { final = event.data; complete = true; }
     else if (event.type === "error") throw new Error("A resposta foi interrompida. Tente novamente.");
     else throw new Error("Resposta incompleta. Tente novamente.");

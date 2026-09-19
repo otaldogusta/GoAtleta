@@ -22,7 +22,7 @@ export type PedagogicalIntent =
 export type WeeklyLoadIntent = "baixo" | "moderado" | "alto";
 
 export type SessionDecisionTrace = {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   source: {
     classId: string;
     sessionDate: string;
@@ -97,6 +97,18 @@ export type SessionDecisionTrace = {
       planningSourceTitle?: string;
       sourceScopes: string[];
       actionDate?: string;
+      warnings: string[];
+      readOnly: true;
+    };
+    scientificEvidence?: {
+      used: boolean;
+      trigger?: "explicit" | "internal_gap" | "stale" | "conflict" | "high_impact";
+      providers: Array<"internal" | "consensus" | "pubmed">;
+      searchId?: string;
+      candidateCount: number;
+      acceptedSourceIds: string[];
+      conflictingEvidence: boolean;
+      status: "not_needed" | "cache" | "searched" | "fallback" | "quota_exceeded";
       warnings: string[];
       readOnly: true;
     };

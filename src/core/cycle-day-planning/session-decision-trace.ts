@@ -86,6 +86,7 @@ export const buildSessionDecisionTrace = (params: {
   dailyPlanAnchor?: SessionPlanningDailyPlanAnchor | null;
   ageSanitizer: AgeSanitizerDiagnostics;
   pedagogyEnvelope: SessionPedagogyEnvelopeDiagnostics;
+  scientificEvidence?: SessionDecisionTrace["influences"]["scientificEvidence"];
 }): SessionDecisionTrace => {
   const scoutingSampleSize =
     params.scoutingSignal?.sampleSize ??
@@ -113,7 +114,7 @@ export const buildSessionDecisionTrace = (params: {
   );
 
   const traceWithoutSummary: Omit<SessionDecisionTrace, "teacherFacingSummary"> = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     source: {
       classId: params.cycleContext.classId,
       sessionDate: params.cycleContext.sessionDate,
@@ -195,6 +196,7 @@ export const buildSessionDecisionTrace = (params: {
         warnings: cleanList(documentSupport?.warnings ?? []),
         readOnly: true,
       },
+      scientificEvidence: params.scientificEvidence,
     },
     safeguards: {
       repetitionAdjusted: params.repetitionAdjustment.detected,

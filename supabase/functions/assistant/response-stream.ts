@@ -44,7 +44,11 @@ export async function readProviderStream(response: Response, onReply: (text: str
 }
 
 export function streamAssistantResponse(
-  generate: (onReply: (text: string) => void, signal: AbortSignal) => Promise<Response>,
+  generate: (
+    onReply: (text: string) => void,
+    signal: AbortSignal,
+    onStatus: (status: string) => void,
+  ) => Promise<Response>,
   flush: () => Promise<void>,
 ) {
   const abort = new AbortController();
@@ -55,7 +59,11 @@ export function streamAssistantResponse(
       const emit = (event: unknown) => { if (!closed) controller.enqueue(encoder.encode(JSON.stringify(event) + "\n")); };
       const task = (async () => {
         try {
-          const result = await generate(text => emit({ type: "reply", text }), abort.signal);
+          const result = await generate(
+            text => emit({ type: "reply", text }),
+            abort.signal,
+            status => emit({ type: "status", status }),
+          );
           if (!result.ok) throw new Error("Generation failed");
           emit({ type: "done", data: await result.json() });
         } catch {

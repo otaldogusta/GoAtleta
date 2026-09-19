@@ -52,8 +52,8 @@ type UseSessionPlanGenerationParams = {
 type PlanGenerationPhase = "idle" | "generating" | "saving" | "settling";
 
 const assertGeneratedDecisionTrace = (autoPlanResult: AutoPlanForCycleDayResult) => {
-  if (autoPlanResult.decisionTrace?.schemaVersion === 1) return;
-  throw new Error("Generated session plan is missing decisionTrace schemaVersion 1.");
+  if ([1, 2].includes(autoPlanResult.decisionTrace?.schemaVersion ?? 0)) return;
+  throw new Error("Generated session plan is missing a supported decisionTrace schemaVersion.");
 };
 
 export function useSessionPlanGeneration({

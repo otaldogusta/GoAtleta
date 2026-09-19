@@ -4,6 +4,7 @@ import { AssistantPending } from "../../src/assistant/components/AssistantPendin
 import { AssistantWelcome } from "../../src/assistant/components/AssistantWelcome";
 import { AssistantComposer } from "../../src/assistant/components/AssistantComposer";
 import { AssistantMessages } from "../../src/assistant/components/AssistantMessages";
+import { ScientificEvidencePanel, type ScientificReference } from "../../src/assistant/components/ScientificEvidencePanel";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Keyboard, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -24,6 +25,7 @@ import type { ClassGroup, EvolutionSimulationResult, TrainingPlan } from "../../
 
 import { listAssistantMemories, pruneExpiredAssistantMemories, saveAssistantMemoryEntry } from "../../src/db/ai-foundation";
 import { clearPendingWritesDeadLetterCandidates, getClasses, reprocessPendingWritesNetworkFailures, saveTrainingPlan } from "../../src/db/seed";
+import { getSessionLogByDate, saveSessionLog } from "../../src/db/session";
 import { getScopedPlanningPath } from "../../src/navigation/profile-routes";
 import { notifyTrainingCreated, notifyTrainingSaved } from "../../src/notifications";
 import { useEffectiveProfile } from "../../src/hooks/use-effective-profile";
@@ -46,6 +48,15 @@ type AssistantSource = {
   title: string;
   author: string;
   url: string;
+  scientificMetadata?: {
+    doi: string;
+    pmid: string;
+    year: number | null;
+    method: string;
+    population: string;
+    supportingExcerpt: string;
+    limitations: string[];
+  };
 };
 
 type DraftTraining = {
@@ -67,23 +78,35 @@ type AssistantResponse = {
   citations?: { sourceTitle: string; evidence: string }[];
   assumptions?: string[];
   missingData?: string[];
+  reportProposal?: AssistantReportProposal | null;
+  scientificEvidence?: {
+    status: "not_needed" | "cache" | "searched" | "fallback" | "quota_exceeded";
+    providers: Array<"internal" | "consensus" | "pubmed">;
+    candidateCount: number;
+    warnings: string[];
+  };
+};
+
+type AssistantReportProposal = {
+  proposalId: string;
+  classId: string;
+  className: string;
+  sessionDate: string;
+  activity: string;
+  conclusion: string;
+  participantsCount: number | null;
+  pse: number | null;
+  technique: "boa" | "ok" | "ruim" | "nenhum" | null;
+  attendance: number | null;
+  painScore: number | null;
+  confidence: "high" | "medium" | "low";
+  reason: string;
+  warnings: string[];
 };
 
 type AssistantErrorPayload = {
   error?: string;
   message?: string;
-};
-
-type ScientificReference = {
-  id: string;
-  title: string;
-  author: string;
-  url: string;
-  doi: string;
-  pmid: string;
-  year: string;
-  sourceLabel: string;
-  evidence: string;
 };
 
 const ASSISTANT_CONTEXT_MESSAGES = 24;
@@ -273,12 +296,6 @@ const extractYear = (value: string) => {
   return match ? match[0] : "";
 };
 
-const extractSourceLabel = (evidence: string, fallback: string) => {
-  const match = String(evidence ?? "").match(/fonte:\s*([^.;\n]+)/i);
-  if (match?.[1]) return match[1].trim();
-  return fallback || "Fonte não informada";
-};
-
 const buildDoiUrl = (doi: string) => (doi ? `https://doi.org/${encodeURIComponent(doi)}` : "");
 
 const DEFAULT_WARMUP_TIME = "10 minutos";
@@ -458,11 +475,15 @@ export default function AssistantScreen() {
   useEffect(() => () => { activeReplyRequest.current?.abort(); }, [activeOrganization?.id, classId]);
   const [partialReply, setPartialReply] = useState("");
   const [loading, setLoading] = useState(false);
+  const [assistantStatus, setAssistantStatus] = useState("");
   const [draft, setDraft] = useState<DraftTraining | null>(null);
   const [sources, setSources] = useState<AssistantSource[]>([]);
   const [showSavedLink, setShowSavedLink] = useState(false);
   const [, setConfidence] = useState<number | null>(null);
   const [citations, setCitations] = useState<{ sourceTitle: string; evidence: string }[]>([]);
+  const [scientificEvidence, setScientificEvidence] = useState<AssistantResponse["scientificEvidence"]>();
+  const [reportProposal, setReportProposal] = useState<AssistantReportProposal | null>(null);
+  const [savingReport, setSavingReport] = useState(false);
   const [, setMissingData] = useState<string[]>([]);
   const [, setAssumptions] = useState<string[]>([]);
   const [autoFixSuggestions, setAutoFixSuggestions] = useState<AutoFixSuggestion[]>([]);
@@ -557,12 +578,11 @@ export default function AssistantScreen() {
     const refs = sources.map((source, index) => {
       const citationEvidence = citations[index]?.evidence ?? "";
       const mergedText = `${source.title} ${source.author} ${source.url} ${citationEvidence}`;
-      const doi = extractDoi(mergedText);
-      const pmid = extractPmid(mergedText);
-      const year = extractYear(mergedText);
+      const doi = source.scientificMetadata?.doi || extractDoi(mergedText);
+      const pmid = source.scientificMetadata?.pmid || extractPmid(mergedText);
+      const year = source.scientificMetadata?.year ? String(source.scientificMetadata.year) : extractYear(mergedText);
       const fallbackUrl = extractFirstUrl(citationEvidence);
       const officialUrl = source.url || fallbackUrl || buildDoiUrl(doi);
-      const sourceLabel = extractSourceLabel(citationEvidence, source.author || "");
 
       return {
         id: `${source.title}-${source.url}-${index}`,
@@ -572,8 +592,10 @@ export default function AssistantScreen() {
         doi,
         pmid,
         year,
-        sourceLabel,
-        evidence: citationEvidence,
+        method: source.scientificMetadata?.method ?? "",
+        population: source.scientificMetadata?.population ?? "",
+        supportingExcerpt: source.scientificMetadata?.supportingExcerpt || citationEvidence,
+        limitations: source.scientificMetadata?.limitations ?? [],
       };
     });
 
@@ -922,11 +944,14 @@ export default function AssistantScreen() {
     setMessages(nextMessages);
     setInput("");
     setLoading(true);
+    setAssistantStatus("");
     setPartialReply("");
     setDraft(null);
     setSources([]);
     setConfidence(null);
     setCitations([]);
+    setScientificEvidence(undefined);
+    setReportProposal(null);
     setMissingData([]);
     setAssumptions([]);
     setAutoFixSuggestions([]);
@@ -968,6 +993,10 @@ export default function AssistantScreen() {
       const data = await requestAssistantConversation({
         signal: controller.signal,
         onReply: text => { if (!controller.signal.aborted) setPartialReply(text); },
+        onStatus: status => {
+          if (controller.signal.aborted) return;
+          setAssistantStatus(status === "scientific_search" ? "Consultando referências científicas" : "");
+        },
         modelPreference,
         accessToken,
         messages: requestMessages.map((message) => ({
@@ -1004,6 +1033,7 @@ export default function AssistantScreen() {
         : rawReply;
 
       setLoading(false);
+      setAssistantStatus("");
       setPartialReply("");
       showAssistantReply(reply);
       setSources(responseError ? [] : Array.isArray((data as AssistantResponse).sources) ? (data as AssistantResponse).sources : []);
@@ -1015,6 +1045,8 @@ export default function AssistantScreen() {
           : null
       );
       setCitations(responseError ? [] : Array.isArray((data as AssistantResponse).citations) ? ((data as AssistantResponse).citations ?? []) : []);
+      setScientificEvidence(responseError ? undefined : (data as AssistantResponse).scientificEvidence);
+      setReportProposal(responseError ? null : (data as AssistantResponse).reportProposal ?? null);
       setMissingData(responseError ? [] : Array.isArray((data as AssistantResponse).missingData) ? ((data as AssistantResponse).missingData ?? []) : []);
       setAssumptions(responseError ? [] : Array.isArray((data as AssistantResponse).assumptions) ? ((data as AssistantResponse).assumptions ?? []) : []);
       setDraft(nextDraft);
@@ -1074,8 +1106,67 @@ export default function AssistantScreen() {
     } finally {
       setLoading(false);
       setPartialReply("");
+      setAssistantStatus("");
     }
   }, [activeOrganization, classId, input, loading, messages, modelPreference, notificationInboxScope, optionalCopilot, selectedClass, session, showAssistantReply]);
+
+  const saveReportProposal = useCallback(() => {
+    if (!reportProposal || !activeOrganization?.id || !session?.user?.id || savingReport) return;
+    const proposal = reportProposal;
+    confirmDialog({
+      title: `Salvar relatório da ${proposal.className}?`,
+      message: `Data: ${proposal.sessionDate}. O conteúdo revisado abaixo será salvo no relatório da turma.`,
+      confirmLabel: "Salvar relatório",
+      cancelLabel: "Continuar revisando",
+      loadingLabel: "Salvando relatório",
+      onConfirm: async () => {
+        setSavingReport(true);
+        try {
+          const existing = await getSessionLogByDate(proposal.classId, proposal.sessionDate, {
+            organizationId: activeOrganization.id,
+          });
+          if (existing) {
+            Alert.alert(
+              "Relatório já existente",
+              "Essa turma já possui um relatório nessa data. Abra o relatório atual para revisar antes de alterar."
+            );
+            return;
+          }
+          const createdAt = `${proposal.sessionDate}T12:00:00.000Z`;
+          await saveSessionLog({
+            id: `assistant_report_${proposal.proposalId}`,
+            clientId: `assistant_report_${proposal.proposalId}`,
+            classId: proposal.classId,
+            PSE: proposal.pse ?? 0,
+            technique: proposal.technique ?? "nenhum",
+            attendance: proposal.attendance ?? 0,
+            activity: proposal.activity,
+            conclusion: proposal.conclusion,
+            participantsCount: proposal.participantsCount ?? undefined,
+            photos: "",
+            painScore: proposal.painScore ?? undefined,
+            createdAt,
+          }, {
+            allowQueue: false,
+            organizationId: activeOrganization.id,
+            origin: { userId: session.user.id, organizationId: activeOrganization.id },
+          });
+          setReportProposal(null);
+          setMessages((previous) => [
+            ...previous,
+            { role: "assistant", content: `Relatório da **${proposal.className}** salvo em ${proposal.sessionDate}.` },
+          ]);
+        } catch (error) {
+          Alert.alert(
+            "Não foi possível salvar",
+            error instanceof Error ? error.message : "Revise os dados e tente novamente."
+          );
+        } finally {
+          setSavingReport(false);
+        }
+      },
+    });
+  }, [activeOrganization?.id, confirmDialog, reportProposal, savingReport, session?.user?.id]);
 
   const saveDraft = async () => {
     if (!draft || !classId) return;
@@ -1341,7 +1432,9 @@ export default function AssistantScreen() {
 
             {messageBubbles}
 
-            {loading && !partialReply ? <AssistantPending label="Preparando resposta" compact /> : null}
+            {loading && !partialReply ? (
+              <AssistantPending label={assistantStatus || "Preparando resposta"} compact={!assistantStatus} />
+            ) : null}
 
             { draft ? (
               <View
@@ -1475,7 +1568,7 @@ export default function AssistantScreen() {
               </View>
             ) : null}
 
-            { scientificReferences.length > 0 ? (
+            {reportProposal ? (
               <View
                 style={{
                   padding: 14,
@@ -1483,61 +1576,75 @@ export default function AssistantScreen() {
                   backgroundColor: colors.background,
                   borderWidth: 1,
                   borderColor: colors.border,
-                  gap: 8,
+                  gap: 10,
                 }}
               >
-                <Text style={{ fontWeight: "700", color: colors.text }}>
-                  Referências científicas
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={{ fontWeight: "700", color: colors.text }}>Relatório sugerido</Text>
+                    <Text style={{ color: colors.muted, fontSize: 13 }}>
+                      {reportProposal.className} · {reportProposal.sessionDate}
+                    </Text>
+                  </View>
+                  <View style={{ borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: colors.secondaryBg }}>
+                    <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>
+                      {reportProposal.confidence === "high" ? "Alta confiança" : reportProposal.confidence === "medium" ? "Revisar" : "Baixa confiança"}
+                    </Text>
+                  </View>
+                </View>
+
+                {reportProposal.activity ? (
+                  <View style={{ gap: 4 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Atividade</Text>
+                    <Text style={{ color: colors.text }}>{reportProposal.activity}</Text>
+                  </View>
+                ) : null}
+                {reportProposal.conclusion ? (
+                  <View style={{ gap: 4 }}>
+                    <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Conclusão</Text>
+                    <Text style={{ color: colors.text }}>{reportProposal.conclusion}</Text>
+                  </View>
+                ) : null}
+
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                  {reportProposal.participantsCount != null ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{reportProposal.participantsCount} participantes</Text>
+                  ) : null}
+                  {reportProposal.pse != null ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>PSE {reportProposal.pse}/10</Text>
+                  ) : null}
+                  {reportProposal.technique ? (
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>Técnica: {reportProposal.technique}</Text>
+                  ) : null}
+                </View>
+
+                {[...reportProposal.warnings, "Nada será salvo sem sua confirmação."].map((warning) => (
+                  <Text key={warning} style={{ color: colors.muted, fontSize: 12 }}>• {warning}</Text>
+                ))}
+
                 <View style={{ gap: 8 }}>
-                  {scientificReferences.map((reference) => (
-                    <Pressable
-                      key={reference.id}
-                      onPress={() => {
-                        void openReferenceLink(reference.url);
-                      }}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.card,
-                        borderRadius: 14,
-                        padding: 10,
-                        gap: 4,
-                      }}
-                    >
-                      <Text style={{ color: colors.text, fontWeight: "700" }}>
-                        {reference.title}
-                      </Text>
-                      <Text style={{ color: colors.muted }}>
-                        {reference.author}
-                      </Text>
-                      <Text style={{ color: colors.muted }}>
-                        {reference.sourceLabel}
-                        {reference.year ? ` . ${reference.year}` : ""}
-                      </Text>
-                      {reference.doi ? (
-                        <Text style={{ color: colors.text }}>
-                          DOI: {reference.doi}
-                        </Text>
-                      ) : null}
-                      {reference.pmid ? (
-                        <Text style={{ color: colors.text }}>
-                          PMID: {reference.pmid}
-                        </Text>
-                      ) : null}
-                      <Text style={{ color: colors.primaryBg, textDecorationLine: "underline" }}>
-                        Link oficial: {reference.url || "indisponível"}
-                      </Text>
-                      {reference.evidence ? (
-                        <Text style={{ color: colors.muted }} numberOfLines={2}>
-                          Evidência: {reference.evidence}
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  ))}
+                  <Button
+                    label="Salvar relatório"
+                    loading={savingReport}
+                    loadingLabel="Salvando relatório"
+                    disabled={savingReport}
+                    onPress={saveReportProposal}
+                  />
+                  <Button
+                    label="Ignorar sugestão"
+                    variant="ghost"
+                    disabled={savingReport}
+                    onPress={() => setReportProposal(null)}
+                  />
                 </View>
               </View>
             ) : null}
+
+            <ScientificEvidencePanel
+              references={scientificReferences}
+              status={scientificEvidence?.status}
+              onOpenReference={openReferenceLink}
+            />
 
             {autoFixSuggestions.length > 0 ? (
               <View
