@@ -26,12 +26,17 @@ test("truncated provider response never becomes a completed answer", async () =>
 });
 test("application stream releases only final validated data and converts errors to a safe event", async () => {
   const flush = jest.fn().mockResolvedValue(undefined);
-  const response = streamAssistantResponse(async emit => {
+  const response = streamAssistantResponse(async (emit, _signal, status) => {
+    status("context_ready");
     emit("Olá");
     return Response.json({ reply: "Olá", draftTraining: null });
   }, flush);
   const events = (await response.text()).trim().split("\n").map(x => JSON.parse(x));
-  expect(events).toEqual([{ type: "reply", text: "Olá" }, { type: "done", data: { reply: "Olá", draftTraining: null } }]);
+  expect(events).toEqual([
+    { type: "status", status: "context_ready" },
+    { type: "reply", text: "Olá" },
+    { type: "done", data: { reply: "Olá", draftTraining: null } },
+  ]);
   const failed = streamAssistantResponse(async () => { throw new Error("private provider details"); }, flush);
   const error = await failed.text();
   expect(error).toContain('"type":"error"');

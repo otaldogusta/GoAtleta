@@ -27,6 +27,14 @@ export type AssistantConversationRequest = {
   signal?: AbortSignal;
 };
 
+export type SaveAssistantClassRuleRequest = {
+  organizationId: string;
+  classId: string;
+  proposalId: string;
+  summary: string;
+  accessToken?: string;
+};
+
 type AssistantSource = {
   title: string;
   author: string;
@@ -546,6 +554,31 @@ export async function requestAssistantConversation(
     throw new Error("A troca de modelo ainda não está disponível no servidor. Use Automático por enquanto.");
   }
   return data as unknown;
+}
+
+export async function saveAssistantClassRule(payload: SaveAssistantClassRuleRequest) {
+  const accessToken = payload.accessToken ?? await getValidAccessToken();
+  if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
+  const response = await fetch(assistantUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({
+      mode: "save_class_rule",
+      organizationId: payload.organizationId,
+      classId: payload.classId,
+      messages: [],
+      memoryAction: { proposalId: payload.proposalId, summary: payload.summary },
+    }),
+  });
+  if (!response.ok) {
+    const detail = extractAssistantApiError(await response.text());
+    throw new Error(detail || "Não foi possível salvar a regra da turma.");
+  }
+  return JSON.parse(await response.text()) as { saved: boolean; classId: string; summary: string };
 }
 
 const buildStructuredPrompt = (task: string, context: unknown, schemaHint: string) => {

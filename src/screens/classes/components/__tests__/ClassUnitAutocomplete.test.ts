@@ -130,4 +130,48 @@ describe("ClassUnitAutocomplete", () => {
     act(() => option.props.onPress());
     expect(onChangeText).toHaveBeenLastCalledWith("Rede Esperança");
   });
+
+  it("keeps a typed training space editable until it is explicitly confirmed", () => {
+    const onChangeText = jest.fn();
+    let renderer: TestRenderer.ReactTestRenderer;
+
+    act(() => {
+      renderer = TestRenderer.create(
+        React.createElement(ClassUnitAutocomplete, {
+          colors,
+          value: "",
+          units: ["Quadra 1"],
+          onChangeText,
+          label: "Quadra / espaço",
+          showValueAsBadge: true,
+        })
+      );
+    });
+
+    const input = renderer!.root.findByType(TextInput);
+    act(() => input.props.onChangeText("s"));
+    act(() => {
+      renderer!.update(
+        React.createElement(ClassUnitAutocomplete, {
+          colors,
+          value: "s",
+          units: ["Quadra 1"],
+          onChangeText,
+          label: "Quadra / espaço",
+          showValueAsBadge: true,
+        })
+      );
+    });
+
+    expect(renderer!.root.findByType(TextInput)).toBeTruthy();
+    expect(onChangeText).toHaveBeenLastCalledWith("s");
+
+    const createOption = renderer!.root.findByProps({
+      accessibilityLabel: "Cadastrar quadra / espaço s",
+    });
+    act(() => createOption.props.onPress());
+
+    expect(renderer!.root.findAllByType(TextInput)).toHaveLength(0);
+    expect(renderer!.root.findByProps({ children: "s" })).toBeTruthy();
+  });
 });

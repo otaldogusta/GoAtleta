@@ -307,21 +307,27 @@ export default function PendingScreen() {
   }, [loadAccessRequest]);
 
   useEffect(() => {
-    if (!session || accessRequest?.status === "pending") return;
+    if (!session || accessRequest?.status === "pending" || !organizationPickerOpen) return;
+    let cancelled = false;
     const timer = setTimeout(async () => {
-      setOrganizationCatalogLoading(true);
+      if (!cancelled) setOrganizationCatalogLoading(true);
       try {
         const remoteOrganizations = await searchAccessRequestOrganizations(organizationQuery);
-        setOrganizations(remoteOrganizations);
+        if (!cancelled) setOrganizations(remoteOrganizations);
       } catch {
-        setOrganizations([]);
-        setMessage("Não foi possível consultar as instituições. Tente novamente.");
+        if (!cancelled) {
+          setOrganizations([]);
+          setMessage("Não foi possível consultar as instituições. Tente novamente.");
+        }
       } finally {
-        setOrganizationCatalogLoading(false);
+        if (!cancelled) setOrganizationCatalogLoading(false);
       }
     }, 240);
-    return () => clearTimeout(timer);
-  }, [accessRequest?.status, organizationQuery, session]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [accessRequest?.status, organizationPickerOpen, organizationQuery, session]);
 
   const submitAccessRequest = async (organization = selectedOrganization) => {
     if (!organization || requestLock.current) return;
@@ -498,15 +504,14 @@ export default function PendingScreen() {
 
   const closeInviteEntry = () => {
     setInviteEntryError("");
+    setInviteEntryOpen(false);
+    setInviteEntry("");
     Animated.timing(inviteEntryAnim, {
       toValue: 0,
       duration: 160,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: Platform.OS !== "web",
-    }).start(() => {
-      setInviteEntryOpen(false);
-      setInviteEntry("");
-    });
+    }).start();
   };
 
   useEffect(() => {

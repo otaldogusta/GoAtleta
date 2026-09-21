@@ -8,6 +8,8 @@ import { ClassContextStrip, ClassOperationsWorkspace, resolveDenseClassWorkspace
 import { ClassAttendanceWorkspacePanel, resolveStackedAttendancePanel } from "../ClassAttendanceWorkspacePanel";
 import { isTodayLessonDateLabel } from "../ClassLessonDateNavigator";
 
+const mockConfirmDialog = jest.fn();
+
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: jest.requireActual<typeof import("react-native")>("react-native").View,
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -30,8 +32,14 @@ jest.mock("../../../../ui/ModalSheet", () => {
   };
 });
 
+jest.mock("../../../../ui/confirm-dialog", () => ({
+  useConfirmDialog: () => ({ confirm: mockConfirmDialog }),
+}));
+
 beforeEach(() => {
   jest.useFakeTimers();
+  mockConfirmDialog.mockReset();
+  mockConfirmDialog.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -292,6 +300,56 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
 
     expect(onOpenReport).toHaveBeenCalledTimes(1);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("asks before changing a saved attendance record", () => {
+    const onSetStatus = jest.fn();
+    const screen = render(
+      React.createElement(ClassAttendanceWorkspacePanel, {
+        colors,
+        compact: true,
+        mobile: true,
+        dense: false,
+        dateLabel: "27/08/2026",
+        students: [{ id: "student-1", name: "Alexsandra Pinheiro", photoUrl: null }],
+        statusById: { "student-1": "presente" },
+        detailsById: { "student-1": { note: "", painScore: 0 } },
+        markedCount: 1,
+        hasPersistedAttendance: true,
+        hasChanges: false,
+        isLoading: false,
+        isSaving: false,
+        error: null,
+        onPrevious: jest.fn(),
+        onNext: jest.fn(),
+        onOpenCalendar: jest.fn(),
+        onOpenReport: jest.fn(),
+        onSetStatus,
+        onSetDetails: jest.fn(),
+        onSave: jest.fn(),
+      }),
+    );
+
+    expect(screen.getByTestId("attendance-student-list")).toHaveStyle({
+      opacity: 0.5,
+      backgroundColor: colors.secondaryBg,
+    });
+    fireEvent.press(screen.getByText("Faltou"));
+
+    expect(onSetStatus).not.toHaveBeenCalled();
+    expect(mockConfirmDialog).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Editar chamada salva?" })
+    );
+
+    act(() => {
+      mockConfirmDialog.mock.calls[0][0].onConfirm();
+    });
+
+    expect(onSetStatus).toHaveBeenCalledWith("student-1", "faltou");
+    expect(screen.getByTestId("attendance-student-list")).toHaveStyle({
+      opacity: 1,
+      backgroundColor: "transparent",
+    });
   });
 
   it("uses the overview date navigator proportions in embedded attendance", () => {

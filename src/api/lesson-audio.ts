@@ -27,7 +27,7 @@ export async function transcribeLessonAudio(uri: string, scope: { organizationId
   const form = new FormData();
   if (Platform.OS === "web") {
     const blob = await (await fetch(uri, { signal })).blob();
-    if (blob.size > 8 * 1024 * 1024) throw new Error("Gravação muito longa. Grave até um minuto.");
+    if (blob.size > 8 * 1024 * 1024) throw new Error("A gravação excedeu 8 MB. Envie um trecho menor.");
     form.append("file", blob, blob.type.includes("mp4") ? "lesson.m4a" : "lesson.webm");
   } else {
     form.append("file", { uri, type: "audio/m4a", name: "lesson.m4a" } as unknown as Blob);

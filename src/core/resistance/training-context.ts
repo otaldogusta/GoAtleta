@@ -14,6 +14,7 @@ import type {
     ResistanceTrainingProfile,
     TeamTrainingContext,
 } from "../models";
+import { isVolleyballClassModality } from "../class-modality";
 
 export type ResistanceEligibilityMode =
   | "none"
@@ -99,7 +100,7 @@ export function resolveResistanceEligibilityMode(params: {
   }
 
   const lowerAgeBound = getAgeBandLowerBound(classGroup.ageBand);
-  const isVolleyball = classGroup.modality === "voleibol";
+  const isVolleyball = isVolleyballClassModality(classGroup.modality);
   const isBeginnerClass =
     classGroup.level === 1 || isBeginnerMvLevel(classGroup.mvLevel);
   const isYoungGroup = lowerAgeBound !== null && lowerAgeBound <= 9;

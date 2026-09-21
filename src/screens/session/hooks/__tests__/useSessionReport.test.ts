@@ -178,4 +178,37 @@ describe("useSessionReport draft recovery", () => {
     );
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();
   });
+
+  it("uses the present attendance count as the report participant total", async () => {
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    const setSessionLog = jest.fn();
+    let latest: HookSnapshot | null = null;
+
+    function Harness() {
+      latest = useSessionReport({
+        ...scope,
+        sessionLog: null,
+        setSessionLog,
+        attendancePercent: 75,
+        attendancePresentCount: 12,
+      });
+      return null;
+    }
+
+    await act(async () => {
+      TestRenderer.create(React.createElement(Harness));
+    });
+    await flushPromises();
+
+    expect(latest?.participantsCount).toBe("12");
+    expect(latest?.reportHasChanges).toBe(true);
+
+    await act(async () => {
+      await latest!.saveReport();
+    });
+
+    expect(saveSessionLog).toHaveBeenCalledWith(
+      expect.objectContaining({ participantsCount: 12 })
+    );
+  });
 });

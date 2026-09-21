@@ -1,5 +1,17 @@
 # Continuidade — 16/09/2026
 
+## Publicação de turmas e assistente — 21/09/2026
+
+Pacote autorizado para `main`, com o editor moderno de turma compartilhado entre detalhe e listagem, correções de presença/relatório de aula e evolução do assistente. Os arquivos locais de QA em `artifacts/` e `test-results/` não fazem parte da publicação.
+
+- A equipe da turma ganhou vínculos temporais, substituições agendadas, retorno, autoria, resumos de transição baseados em evidências e correções versionadas. `class_staff` permanece como projeção compatível; as alterações do editor usam a RPC versionada e idempotente quando o histórico está disponível.
+- O editor preserva estagiários e pré-cadastros, confirma a troca de responsável, usa busca/badge para unidade e quadra, distingue vôlei de quadra e de areia e só alerta ao fechar quando o estado normalizado realmente mudou.
+- O assistente ganhou ranking determinístico de faltas por chamadas efetivamente realizadas, fontes confiáveis, progresso e propostas de memória de turma limitadas por organização e turma.
+- Migrações remotas necessárias: `20260920213000`, `20260920220833` e `20260921114136`. A função Edge `assistant` deve acompanhar o mesmo pacote. Conferir o histórico remoto antes de reaplicar.
+- Na outra máquina: `git switch main`, `git pull --ff-only origin main`, `npm run dev:setup`, configurar `.env.local` por canal privado, `npm run dev:doctor` e `npm run dev:web`. Não copiar `node_modules`, `.git`, screenshots, resultados de teste nem credenciais.
+
+Validação e publicação efetivas devem ser confirmadas no fechamento desta sessão e pelo status do commit no GitHub/Vercel; este registro não substitui a conferência do deploy.
+
 ## Pacote de continuidade — 16/09/2026
 
 Publicação em main autorizada pelo usuário nesta sessão. O status efetivo do push/deploy deve ser conferido no GitHub/Vercel; este registro não certifica produção.

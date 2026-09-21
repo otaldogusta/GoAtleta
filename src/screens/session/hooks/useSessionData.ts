@@ -99,6 +99,7 @@ export function useSessionData({
   const [scoutingLog, setScoutingLog] = useState<ScoutingLog | null>(null);
   const [scoutingSignal, setScoutingSignal] = useState<ScoutingPlanningSignal | null>(null);
   const [attendancePercent, setAttendancePercent] = useState<number | null>(null);
+  const [attendancePresentCount, setAttendancePresentCount] = useState<number | null>(null);
   const [currentClassPlan, setCurrentClassPlan] = useState<ClassPlan | null>(null);
   const [currentDailyLessonPlan, setCurrentDailyLessonPlan] =
     useState<DailyLessonPlan | null>(null);
@@ -367,13 +368,19 @@ export function useSessionData({
           const total = attendanceRecords.length;
           const percent = total > 0 ? Math.round((present / total) * 100) : 0;
           setAttendancePercent(percent);
+          setAttendancePresentCount(present);
         } else if (sessionStudents.length > 0) {
           setAttendancePercent(0);
+          setAttendancePresentCount(null);
         } else {
           setAttendancePercent(null);
+          setAttendancePresentCount(null);
         }
       } catch {
-        if (alive) setAttendancePercent(null);
+        if (alive) {
+          setAttendancePercent(null);
+          setAttendancePresentCount(null);
+        }
       } finally {
         if (alive) setIsLoadingSessionExtras(false);
       }
@@ -403,6 +410,7 @@ export function useSessionData({
     setScoutingLog,
     scoutingSignal,
     attendancePercent,
+    attendancePresentCount,
     currentClassPlan,
     currentDailyLessonPlan,
     setCurrentDailyLessonPlan,

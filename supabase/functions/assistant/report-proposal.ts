@@ -33,6 +33,7 @@ export function resolveReportProposal(input: {
   classes: ReportClass[];
   fallbackDate: string;
   proposalId: string;
+  sourceText?: string;
 }): { proposal: AssistantReportProposal | null; missing: string | null } {
   const { draft } = input;
   if (!draft || typeof draft !== "object") return { proposal: null, missing: null };
@@ -50,6 +51,8 @@ export function resolveReportProposal(input: {
   }
 
   const requestedDate = String(draft.sessionDate ?? "");
+  const dateWasExplicit = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate);
+  const sourceSaysToday = /\bhoje\b/i.test(String(input.sourceText ?? ""));
   const technique = String(draft.technique ?? "");
   const confidence = String(draft.confidence ?? "");
   return {
@@ -57,7 +60,7 @@ export function resolveReportProposal(input: {
       proposalId: input.proposalId,
       classId: matchedClass.id,
       className: matchedClass.name,
-      sessionDate: /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : input.fallbackDate,
+      sessionDate: dateWasExplicit ? requestedDate : input.fallbackDate,
       activity,
       conclusion,
       participantsCount: integerOrNull(draft.participantsCount, 0),
@@ -72,7 +75,11 @@ export function resolveReportProposal(input: {
         : "low",
       reason: String(draft.reason ?? "Relato da aula enviado ao Assistente.").trim().slice(0, 500),
       warnings: Array.isArray(draft.warnings)
-        ? draft.warnings.map((item) => String(item).trim()).filter(Boolean).slice(0, 5)
+        ? draft.warnings
+          .map((item) => String(item).trim())
+          .filter(Boolean)
+          .filter((item) => !(sourceSaysToday && /data.+(?:n[aã]o|sem).+inform/i.test(item)))
+          .slice(0, 5)
         : [],
     },
     missing: null,

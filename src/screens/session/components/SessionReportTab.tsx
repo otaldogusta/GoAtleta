@@ -60,6 +60,7 @@ type SessionReportTabProps = {
   pse: number;
   technique: ReportTechnique;
   participantsCount: string;
+  participantsCountFromAttendance?: boolean;
   activity: string;
   conclusion: string;
   autoActivity: string;
@@ -119,6 +120,7 @@ export function SessionReportTab({
   pse,
   technique,
   participantsCount,
+  participantsCountFromAttendance = false,
   activity,
   conclusion,
   autoActivity,
@@ -185,13 +187,18 @@ export function SessionReportTab({
         gap: 8,
       }}
     >
-      <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
-        {ptBR.session.report.title}
-      </Text>
-      <Text style={{ color: colors.muted }}>{sessionDateLabel}</Text>
-      {reportDraftStatus === "restored" ||
-      reportDraftStatus === "saving" ||
-      reportDraftStatus === "saved" ? (
+      {!embedded ? (
+        <>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+            {ptBR.session.report.title}
+          </Text>
+          <Text style={{ color: colors.muted }}>{sessionDateLabel}</Text>
+        </>
+      ) : null}
+      {!embedded &&
+      (reportDraftStatus === "restored" ||
+        reportDraftStatus === "saving" ||
+        reportDraftStatus === "saved") ? (
         <View
           style={{
             alignSelf: "flex-start",
@@ -221,22 +228,6 @@ export function SessionReportTab({
       ) : null}
       {!hasExistingReport ? (
         <Text style={{ color: colors.muted }}>{ptBR.session.report.noReportYet}</Text>
-      ) : null}
-      {hasExistingReport ? (
-        <View
-          style={{
-            alignSelf: "flex-start",
-            paddingVertical: 4,
-            paddingHorizontal: 8,
-            borderRadius: 10,
-            backgroundColor: colors.successBg,
-            marginTop: 4,
-          }}
-        >
-          <Text style={{ color: colors.successText, fontSize: 11, fontWeight: "700" }}>
-            {ptBR.session.report.editingExisting}
-          </Text>
-        </View>
       ) : null}
 
       <View style={{ gap: 12, marginTop: 12 }}>
@@ -312,12 +303,21 @@ export function SessionReportTab({
               {ptBR.session.report.participants}
             </Text>
             <TextInput
+              accessibilityLabel={ptBR.session.report.participants}
+              accessibilityHint={
+                participantsCountFromAttendance
+                  ? "Preenchido automaticamente com os alunos presentes na chamada"
+                  : undefined
+              }
               placeholder={ptBR.session.report.participantsPlaceholder}
               value={participantsCount}
               onChangeText={onChangeParticipantsCount}
-              onFocus={(event) =>
-                onFieldFocus?.(event.nativeEvent.target, "participants")
-              }
+              onFocus={(event) => {
+                if (!participantsCountFromAttendance) {
+                  onFieldFocus?.(event.nativeEvent.target, "participants");
+                }
+              }}
+              editable={!participantsCountFromAttendance}
               keyboardType="numeric"
               placeholderTextColor={colors.placeholder}
               style={{
@@ -327,8 +327,15 @@ export function SessionReportTab({
                 borderRadius: 12,
                 backgroundColor: colors.inputBg,
                 color: colors.inputText,
+                opacity: participantsCountFromAttendance ? 0.72 : 1,
               }}
             />
+            {participantsCountFromAttendance ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Preenchido pela chamada: {participantsCount}{" "}
+                {Number(participantsCount) === 1 ? "presente" : "presentes"}.
+              </Text>
+            ) : null}
           </View>
 
           <View style={{ flex: compactFields ? undefined : 1, minWidth: 0, gap: 6 }}>

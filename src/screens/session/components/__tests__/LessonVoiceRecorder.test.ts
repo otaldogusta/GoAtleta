@@ -21,10 +21,18 @@ test("unavailable backend shows its cause and does not start recording", async (
 test("recording displays waves and elapsed time; cancelling never transcribes", async () => {
   (useAudioRecorderState as jest.Mock).mockReturnValue({ isRecording: true, durationMillis: 5000 });
   const screen = render(React.createElement(Recorder, { organizationId: "o", classId: "c", disabled: false, onText: jest.fn() }));
-  expect(screen.getByLabelText("Nível do áudio")).toBeTruthy();
+  expect(screen.getByLabelText("Gravação em andamento")).toBeTruthy();
   expect(screen.getByText("0:05")).toBeTruthy();
   await act(async () => { fireEvent.press(screen.getByLabelText("Cancelar gravação")); });
   expect(mockRecorder.stop).toHaveBeenCalled();
   expect(transcribeLessonAudio).not.toHaveBeenCalled();
+  screen.unmount();
+});
+
+test("does not stop a long recording without the professor action", () => {
+  (useAudioRecorderState as jest.Mock).mockReturnValue({ isRecording: true, durationMillis: 120_000 });
+  const screen = render(React.createElement(Recorder, { organizationId: "o", classId: "c", disabled: false, onText: jest.fn() }));
+  expect(screen.getByText("2:00")).toBeTruthy();
+  expect(mockRecorder.stop).not.toHaveBeenCalled();
   screen.unmount();
 });

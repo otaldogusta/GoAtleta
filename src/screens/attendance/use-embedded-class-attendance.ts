@@ -124,6 +124,7 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
     () => countMarkedAttendanceStudents(students, statusById),
     [statusById, students],
   );
+  const hasPersistedAttendance = Object.keys(recordByStudentId).length > 0;
 
   const setStudentStatus = useCallback((studentId: string, status: Exclude<EmbeddedAttendanceStatus, undefined>) => {
     setStatusById((current) => ({
@@ -194,6 +195,7 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
     statusById,
     detailsById,
     markedCount,
+    hasPersistedAttendance,
     hasChanges,
     isLoading,
     isSaving,

@@ -1,5 +1,6 @@
 export type ClassModality =
   | "voleibol"
+  | "voleibol_areia"
   | "futsal"
   | "futebol"
   | "basquete"
@@ -11,7 +12,8 @@ type ModalityOption = {
 };
 
 const MODALITY_OPTIONS: ModalityOption[] = [
-  { value: "voleibol", label: "Voleibol" },
+  { value: "voleibol", label: "Vôlei de quadra" },
+  { value: "voleibol_areia", label: "Vôlei de areia" },
   { value: "futsal", label: "Futsal" },
   { value: "futebol", label: "Futebol" },
   { value: "basquete", label: "Basquete" },
@@ -20,14 +22,16 @@ const MODALITY_OPTIONS: ModalityOption[] = [
 
 const MODALITY_ORDER: Record<ClassModality, number> = {
   voleibol: 0,
-  futsal: 1,
-  futebol: 2,
-  basquete: 3,
-  fitness: 4,
+  voleibol_areia: 1,
+  futsal: 2,
+  futebol: 3,
+  basquete: 4,
+  fitness: 5,
 };
 
 const MODALITY_KEYWORDS: Record<ClassModality, string[]> = {
   voleibol: ["volei", "voleibol", "volleyball"],
+  voleibol_areia: ["volei de areia", "voleibol de areia", "beach volleyball"],
   futsal: ["futsal"],
   futebol: ["futebol", "football", "soccer"],
   basquete: ["basquete", "basketball"],
@@ -70,12 +74,23 @@ export const resolveClassModality = (value: string | null | undefined): ClassMod
   if (!normalized) return null;
   const match = MODALITY_OPTIONS.find((item) => item.value === normalized);
   if (match) return match.value;
+  if (
+    (normalized.includes("areia") || normalized.includes("beach")) &&
+    (normalized.includes("volei") || normalized.includes("voleibol") || normalized.includes("volleyball"))
+  ) {
+    return "voleibol_areia";
+  }
   for (const option of MODALITY_OPTIONS) {
     if (MODALITY_KEYWORDS[option.value].some((keyword) => normalized.includes(keyword))) {
       return option.value;
     }
   }
   return null;
+};
+
+export const isVolleyballClassModality = (value: string | null | undefined) => {
+  const modality = resolveClassModality(value);
+  return modality === "voleibol" || modality === "voleibol_areia";
 };
 
 export const matchesClassModalityText = (

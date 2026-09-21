@@ -1799,6 +1799,7 @@ export function SessionScreen({
     scoutingLog,
     scoutingSignal,
     attendancePercent,
+    attendancePresentCount,
     currentClassPlan,
     currentDailyLessonPlan,
     calendarExceptions,
@@ -1856,6 +1857,7 @@ export function SessionScreen({
     sessionLog,
     setSessionLog,
     attendancePercent,
+    attendancePresentCount,
   });
   const hasUsableCurrentClassPlan = useMemo(
     () => hasUsablePeriodization(currentClassPlan),
@@ -1965,10 +1967,37 @@ export function SessionScreen({
     });
   }, [id, sessionDate]);
 
-  const togglePicker = (target: "pse" | "technique") => {
-    setShowPsePicker((prev) => (target === "pse" ? !prev : false));
-    setShowTechniquePicker((prev) => (target === "technique" ? !prev : false));
-  };
+  const togglePicker = useCallback(
+    (target: "pse" | "technique") => {
+      const isTargetOpen = target === "pse" ? showPsePicker : showTechniquePicker;
+      if (isTargetOpen) {
+        setShowPsePicker(false);
+        setShowTechniquePicker(false);
+        return;
+      }
+
+      setShowPsePicker(false);
+      setShowTechniquePicker(false);
+      const triggerRef = target === "pse" ? pseTriggerRef : techniqueTriggerRef;
+
+      requestAnimationFrame(() => {
+        triggerRef.current?.measureInWindow((x, y, width, height) => {
+          const nextLayout = { x, y, width, height };
+          if (target === "pse") {
+            setPseTriggerLayout(nextLayout);
+            setShowPsePicker(true);
+          } else {
+            setTechniqueTriggerLayout(nextLayout);
+            setShowTechniquePicker(true);
+          }
+        });
+        containerRef.current?.measureInWindow((x, y) => {
+          setContainerWindow({ x, y });
+        });
+      });
+    },
+    [showPsePicker, showTechniquePicker]
+  );
 
   const closePickers = () => {
     setShowPsePicker(false);
@@ -3516,6 +3545,7 @@ export function SessionScreen({
       pse={PSE}
       technique={technique}
       participantsCount={participantsCount}
+      participantsCountFromAttendance={attendancePresentCount !== null}
       activity={activity}
       conclusion={conclusion}
       autoActivity={autoActivity}
@@ -3625,9 +3655,39 @@ export function SessionScreen({
             <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800" }}>
               Relatório da aula
             </Text>
-            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
-              {cls.name} · {sessionDate.split("-").reverse().join("/")}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
+                {cls.name} · {sessionDate.split("-").reverse().join("/")}
+              </Text>
+              {reportDraftStatus === "restored" ||
+              reportDraftStatus === "saving" ||
+              reportDraftStatus === "saved" ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 5,
+                    paddingVertical: 3,
+                    paddingHorizontal: 7,
+                    borderRadius: 9,
+                    backgroundColor: colors.successBg,
+                  }}
+                >
+                  <GoAtletaIcon
+                    name={reportDraftStatus === "saving" ? "ellipsisHorizontal" : "cloudDone"}
+                    size={12}
+                    color={colors.successText}
+                  />
+                  <Text style={{ color: colors.successText, fontSize: 10, fontWeight: "700" }}>
+                    {reportDraftStatus === "restored"
+                      ? ptBR.session.report.draftRestored
+                      : reportDraftStatus === "saving"
+                        ? ptBR.session.report.draftSaving
+                        : ptBR.session.report.draftSaved}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
           <Pressable
             onPress={onCloseEmbeddedReport}

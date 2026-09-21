@@ -1,14 +1,19 @@
 import {
   listClassHeadsByClassIds,
   listClassStaffIdentitiesByClassIds,
+  replaceClassStaffAssignments,
 } from "../class-responsibles";
 
 const mockRestPost = jest.fn();
 const mockRestGet = jest.fn();
+const mockRestDelete = jest.fn();
+const mockRestPatch = jest.fn();
 
 jest.mock("../rest", () => ({
   supabaseRestPost: (...args: unknown[]) => mockRestPost(...args),
   supabaseRestGet: (...args: unknown[]) => mockRestGet(...args),
+  supabaseRestDelete: (...args: unknown[]) => mockRestDelete(...args),
+  supabaseRestPatch: (...args: unknown[]) => mockRestPatch(...args),
 }));
 
 describe("class responsibles api", () => {
@@ -92,6 +97,8 @@ describe("class responsibles api", () => {
       {
         classId: "class-1",
         userId: "user-1",
+        staffProfileId: null,
+        isPlaceholder: false,
         staffRole: "head",
         displayName: "Gustavo Ribeiro",
         photoUrl: "https://example.com/gustavo.jpg",
@@ -99,6 +106,8 @@ describe("class responsibles api", () => {
       {
         classId: "class-1",
         userId: "user-2",
+        staffProfileId: null,
+        isPlaceholder: false,
         staffRole: "intern",
         displayName: "Ana Júlia",
         photoUrl: null,
@@ -129,10 +138,99 @@ describe("class responsibles api", () => {
       {
         classId: "class-1",
         userId: "user-2",
+        staffProfileId: null,
+        isPlaceholder: false,
         staffRole: "assistant",
         displayName: null,
         photoUrl: null,
       },
     ]);
+  });
+
+  test("keeps legacy class staff visible before the placeholder migration is applied", async () => {
+    mockRestPost.mockRejectedValue(new Error('{"code":"PGRST202","message":"missing rpc"}'));
+    mockRestGet
+      .mockRejectedValueOnce(new Error('{"code":"42703","message":"column class_staff.staff_profile_id does not exist"}'))
+      .mockResolvedValueOnce([
+        { class_id: "class-1", user_id: "user-2", staff_role: "intern" },
+      ]);
+
+    await expect(listClassStaffIdentitiesByClassIds({ organizationId: "org-1", classIds: ["class-1"] }))
+      .resolves.toEqual([expect.objectContaining({ userId: "user-2", staffRole: "intern" })]);
+    expect(mockRestGet).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("select=class_id,user_id,staff_role")
+    );
+  });
+
+  test("replaces the full class team through the atomic admin rpc", async () => {
+    mockRestPost.mockResolvedValue(null);
+
+    await replaceClassStaffAssignments({
+      organizationId: " org-1 ",
+      classId: " class-1 ",
+      assignments: [
+        { userId: " user-1 ", staffRole: "head" },
+        { userId: "user-2", staffRole: "intern" },
+      ],
+    });
+
+    expect(mockRestPost).toHaveBeenCalledWith(
+      "/rpc/admin_replace_class_staff_assignments",
+      {
+        p_org_id: "org-1",
+        p_class_id: "class-1",
+        p_assignments: [
+          { user_id: "user-1", staff_profile_id: null, display_name: null, staff_role: "head" },
+          { user_id: "user-2", staff_profile_id: null, display_name: null, staff_role: "intern" },
+        ],
+      },
+      "return=minimal"
+    );
+    expect(mockRestDelete).not.toHaveBeenCalled();
+  });
+
+  test("rejects more than one responsible professor before writing", async () => {
+    await expect(replaceClassStaffAssignments({
+      organizationId: "org-1",
+      classId: "class-1",
+      assignments: [
+        { userId: "user-1", staffRole: "head" },
+        { userId: "user-2", staffRole: "head" },
+      ],
+    })).rejects.toThrow("apenas um professor responsável");
+
+    expect(mockRestPost).not.toHaveBeenCalled();
+  });
+
+  test("sends a name-only staff profile without granting app access", async () => {
+    mockRestPost.mockResolvedValue(null);
+
+    await replaceClassStaffAssignments({
+      organizationId: "org-1",
+      classId: "class-1",
+      assignments: [{
+        userId: "draft-staff:andre",
+        staffProfileId: null,
+        isPlaceholder: true,
+        displayName: "Andre Muniz",
+        staffRole: "assistant",
+      }],
+    });
+
+    expect(mockRestPost).toHaveBeenCalledWith(
+      "/rpc/admin_replace_class_staff_assignments",
+      {
+        p_org_id: "org-1",
+        p_class_id: "class-1",
+        p_assignments: [{
+          user_id: null,
+          staff_profile_id: null,
+          display_name: "Andre Muniz",
+          staff_role: "assistant",
+        }],
+      },
+      "return=minimal"
+    );
   });
 });

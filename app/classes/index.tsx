@@ -5,7 +5,7 @@ import {
     Easing,
     KeyboardAvoidingView,
     Platform,
-
+    ScrollView,
     Text,
     TextInput,
     Vibration,
@@ -23,9 +23,15 @@ import { listUpcomingClassSessionCoverages } from "../../src/api/class-session-c
 import {
   listClassHeadsByClassIds,
   listClassStaffIdentitiesByClassIds,
+  replaceClassStaffAssignments,
   type ClassResponsible,
   type ClassStaffAssignment,
 } from "../../src/api/class-responsibles";
+import {
+  applyClassStaffAssignmentsWithHistory,
+  getClassStaffVersion,
+  isClassStaffHistoryUnavailable,
+} from "../../src/api/class-staff-history";
 import { adminListOrgMembers, type OrgMember } from "../../src/api/members";
 import {
   getStudentPhotoAccessUrl,
@@ -82,6 +88,7 @@ import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
+import { ModalSheet } from "../../src/ui/ModalSheet";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
 import { useOrganization } from "../../src/providers/organization-context";
 import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
@@ -93,7 +100,7 @@ import { StudentsImportModal } from "../../src/screens/students/modals/StudentsI
 
 const ClassEditModalBody = lazy(() =>
   import("../../src/screens/classes/components/ClassEditModalBody").then((module) => ({
-    default: module.ClassEditModalBody,
+    default: module.ModernClassEditModalBody,
   }))
 );
 
@@ -104,6 +111,24 @@ const AttendanceExportModal = lazy(() =>
 );
 
 type SelectOptionValue = string | number;
+
+type ClassEditSnapshot = {
+  name: string;
+  unit: string;
+  trainingSpace: string;
+  colorKey: string | null;
+  modality: string;
+  ageBand: string;
+  gender: string;
+  goal: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  days: string;
+  mvLevel: string;
+  cycleStartDate: string;
+  cycleLengthWeeks: number;
+};
 
 function SelectOption({
   label,
@@ -330,6 +355,7 @@ export default function ClassesScreen() {
   const [integrationRules, setIntegrationRules] = useState<TrainingSessionIntegrationRule[]>([]);
   const [classHeadsById, setClassHeadsById] = useState<Record<string, ClassResponsible>>({});
   const [classStaffById, setClassStaffById] = useState<Record<string, ClassStaffAssignment[]>>({});
+  const [organizationMembers, setOrganizationMembers] = useState<OrgMember[]>([]);
   const [classCoverageSummariesByClassId, setClassCoverageSummariesByClassId] = useState<
     Record<string, ReturnType<typeof getCoverageSummary> | null>
   >({});
@@ -427,6 +453,7 @@ export default function ClassesScreen() {
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [showEditActionsMenu, setShowEditActionsMenu] = useState(false);
   const [handledEditId, setHandledEditId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -445,6 +472,11 @@ export default function ClassesScreen() {
   const [editCycleStartDate, setEditCycleStartDate] = useState("");
   const [editCycleLengthWeeks, setEditCycleLengthWeeks] = useState(DEFAULT_CLASS_CYCLE_LENGTH_WEEKS);
   const [editColorKey, setEditColorKey] = useState<string | null>(null);
+  const [editStaff, setEditStaff] = useState<ClassStaffAssignment[]>([]);
+  const [editStaffBaseline, setEditStaffBaseline] = useState<ClassStaffAssignment[]>([]);
+  const [editStaffHistoryAvailable, setEditStaffHistoryAvailable] = useState(true);
+  const [editStaffVersion, setEditStaffVersion] = useState(0);
+  const [editBaselineSnapshot, setEditBaselineSnapshot] = useState<ClassEditSnapshot | null>(null);
 
   const [mainTab, setMainTab] = useState<"lista" | "criar">("lista");
   const [showCreateTabConfirm, setShowCreateTabConfirm] = useState(false);
@@ -1127,11 +1159,12 @@ void Promise.all(
       ]);
       let classHeads: ClassResponsible[] = [];
       let classStaff: ClassStaffAssignment[] = [];
+      let loadedOrganizationMembers: OrgMember[] = [];
       let classCoverageSummariesByClassId: Record<string, ReturnType<typeof getCoverageSummary> | null> = {};
       const organizationId = data.find((item) => item.organizationId)?.organizationId ?? "";
       if (organizationId && data.length > 0) {
         const classIds = data.map((item) => item.id);
-        const [loadedClassHeads, loadedClassStaff, organizationMembers] = await Promise.all([
+        const [loadedClassHeads, loadedClassStaff, organizationMembersResult] = await Promise.all([
           listClassHeadsByClassIds({
             organizationId,
             classIds,
@@ -1153,13 +1186,14 @@ void Promise.all(
               })
             : Promise.resolve([] as OrgMember[]),
         ]);
+        loadedOrganizationMembers = organizationMembersResult;
         classHeads = applyMemberNamesToClassResponsibles(
           loadedClassHeads,
-          organizationMembers
+          loadedOrganizationMembers
         );
         classStaff = applyMemberIdentitiesToClassStaff({
           assignments: loadedClassStaff,
-          members: organizationMembers,
+          members: loadedOrganizationMembers,
           responsibles: classHeads,
         });
         try {
@@ -1188,6 +1222,7 @@ void Promise.all(
       if (isAlive()) setIntegrationRules(rules);
       if (isAlive()) setStudents(studentList);
       if (isAlive()) {
+        setOrganizationMembers(loadedOrganizationMembers);
         setClassHeadsById(
           Object.fromEntries(classHeads.map((responsible) => [responsible.classId, responsible]))
         );
@@ -1306,6 +1341,7 @@ void Promise.all(
   const closeEditModal = () => {
     setShowEditModal(false);
     setShowEditCloseConfirm(false);
+    setShowEditActionsMenu(false);
     setEditingClass(null);
   };
 
@@ -1412,6 +1448,10 @@ void Promise.all(
     const goalValue = item.goal ?? "Fundamentos";
     const isAgeBandCustom = nextAgeBand.trim().length > 0 && !ageBandOptions.includes(nextAgeBand);
     const isGoalInList = goalOptions.includes(goalValue);
+    const nextStartTime = item.startTime ?? "14:00";
+    const nextStoredDuration = item.durationMinutes ?? 60;
+    const nextEndTime = item.endTime ?? computeEndTimeFromDuration(nextStartTime, nextStoredDuration);
+    const nextCycleLength = parseCycleLength(item.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS;
     setEditingClass(item);
     setEditName(item.name ?? "");
     setEditUnit(item.unit ?? "");
@@ -1425,20 +1465,51 @@ void Promise.all(
     setEditGoal(isGoalInList ? goalValue : "Fundamentos");
     setEditShowCustomGoal(!isGoalInList && Boolean(goalValue));
     setEditCustomGoal(!isGoalInList ? goalValue : "");
-    setEditStartTime(item.startTime ?? "14:00");
-    setEditEndTime(
-      item.endTime ?? computeEndTimeFromDuration(item.startTime ?? "14:00", item.durationMinutes ?? 60)
-    );
-    setEditDuration(String(item.durationMinutes ?? 60));
+    setEditStartTime(nextStartTime);
+    setEditEndTime(nextEndTime);
+    setEditDuration(String(parseDurationFromTimeRange(nextStartTime, nextEndTime) ?? nextStoredDuration));
     setEditDays(item.daysOfWeek ?? []);
     setEditMvLevel(item.mvLevel ?? "MV1");
     setEditCycleStartDate(item.cycleStartDate ?? "");
-    setEditCycleLengthWeeks(
-      parseCycleLength(item.cycleLengthWeeks ?? Number.NaN) ?? DEFAULT_CLASS_CYCLE_LENGTH_WEEKS
-    );
+    setEditCycleLengthWeeks(nextCycleLength);
+    const listedStaff = classStaffById[item.id] ?? [];
+    const currentHead = classHeadsById[item.id];
+    const currentStaff = currentHead && !listedStaff.some((member) => member.userId === currentHead.userId)
+      ? [{ classId: item.id, userId: currentHead.userId, staffRole: "head" as const, displayName: currentHead.displayName, photoUrl: currentHead.photoUrl }, ...listedStaff]
+      : listedStaff;
+    setEditStaff(currentStaff);
+    setEditStaffBaseline(currentStaff);
+    setEditStaffHistoryAvailable(true);
+    setEditStaffVersion(0);
+    const organizationId = item.organizationId || activeOrganization?.id || "";
+    if (organizationId) {
+      void getClassStaffVersion(organizationId, item.id)
+        .then(setEditStaffVersion)
+        .catch((error) => {
+          if (isClassStaffHistoryUnavailable(error)) setEditStaffHistoryAvailable(false);
+          else setEditFormError("Não foi possível carregar a versão atual da equipe.");
+        });
+    }
+    setEditBaselineSnapshot({
+      name: (item.name ?? "").trim(),
+      unit: (item.unit ?? "").trim(),
+      trainingSpace: (item.trainingSpace ?? "").trim(),
+      colorKey: item.colorKey ?? null,
+      modality: item.modality ?? "voleibol",
+      ageBand: nextAgeBand.trim(),
+      gender: item.gender ?? "misto",
+      goal: goalValue.trim(),
+      startTime: nextStartTime.trim(),
+      endTime: nextEndTime.trim(),
+      duration: String(parseDurationFromTimeRange(nextStartTime, nextEndTime) ?? nextStoredDuration),
+      days: [...(item.daysOfWeek ?? [])].sort((a, b) => a - b).join(","),
+      mvLevel: item.mvLevel ?? "MV1",
+      cycleStartDate: item.cycleStartDate ?? "",
+      cycleLengthWeeks: nextCycleLength,
+    });
     setEditFormError("");
     setShowEditModal(true);
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, computeEndTimeFromDuration, goalOptions]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, activeOrganization?.id, ageBandOptions, classHeadsById, classStaffById, computeEndTimeFromDuration, goalOptions, parseDurationFromTimeRange]);
 
   useEffect(() => {
     if (tabParam !== "criar") return;
@@ -1473,33 +1544,6 @@ void Promise.all(
     }
   }, [editParam, handledEditId, classes, showEditModal, openEditModal]);
 
-  const editBaselineSnapshot = useMemo(() => {
-    if (!editingClass) return null;
-    const startTime = editingClass.startTime ?? "14:00";
-    const storedDuration = editingClass.durationMinutes ?? 60;
-    const endTime =
-      editingClass.endTime ?? computeEndTimeFromDuration(startTime, storedDuration);
-    return {
-      name: (editingClass.name ?? "").trim(),
-      unit: (editingClass.unit ?? "").trim(),
-      trainingSpace: (editingClass.trainingSpace ?? "").trim(),
-      colorKey: editingClass.colorKey ?? null,
-      modality: editingClass.modality ?? "voleibol",
-      ageBand: (editingClass.ageBand ?? "08-09").trim(),
-      gender: editingClass.gender ?? "misto",
-      goal: (editingClass.goal ?? "Fundamentos").trim(),
-      startTime: startTime.trim(),
-      endTime: endTime.trim(),
-      duration: String(parseDurationFromTimeRange(startTime, endTime) ?? storedDuration),
-      days: [...(editingClass.daysOfWeek ?? [])].sort((a, b) => a - b).join(","),
-      mvLevel: editingClass.mvLevel ?? "MV1",
-      cycleStartDate: editingClass.cycleStartDate ?? "",
-      cycleLengthWeeks:
-        parseCycleLength(editingClass.cycleLengthWeeks ?? Number.NaN) ??
-        DEFAULT_CLASS_CYCLE_LENGTH_WEEKS,
-    };
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, computeEndTimeFromDuration, editingClass, parseDurationFromTimeRange]);
-
   const editCurrentSnapshot = useMemo(
     () => ({
       name: editName.trim(),
@@ -1525,8 +1569,56 @@ void Promise.all(
 
   const isEditDirty = (() => {
     if (!editBaselineSnapshot) return false;
-    return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot);
+    const normalizeStaff = (value: ClassStaffAssignment[]) => value.map((member) => `${member.userId}:${member.staffRole}`).sort().join("|");
+    return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot)
+      || normalizeStaff(editStaffBaseline) !== normalizeStaff(editStaff);
   })();
+
+  const addEditStaff = useCallback((member: OrgMember) => {
+    setEditStaff((current) => current.some((assignment) => assignment.userId === member.userId) ? current : [...current, { classId: editingClass?.id ?? "", userId: member.userId, staffRole: "intern", displayName: member.displayName, photoUrl: null }]);
+  }, [editingClass?.id]);
+
+  const removeEditStaff = useCallback((userId: string) => {
+    setEditStaff((current) => current.filter((assignment) => assignment.userId !== userId));
+  }, []);
+
+  const addPlaceholderEditStaff = useCallback((displayName: string, staffRole: ClassStaffAssignment["staffRole"]) => {
+    const normalizedName = displayName.trim();
+    if (!normalizedName) return;
+    const apply = () => setEditStaff((current) => [
+      ...current.map((assignment) => staffRole === "head" && assignment.staffRole === "head" ? { ...assignment, staffRole: "assistant" as const } : assignment),
+      { classId: editingClass?.id ?? "", userId: `draft-staff:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`, staffProfileId: null, isPlaceholder: true, staffRole, displayName: normalizedName, photoUrl: null },
+    ]);
+    const currentHead = editStaff.find((assignment) => assignment.staffRole === "head");
+    if (staffRole !== "head" || !currentHead) return apply();
+    void confirmDialog({
+      title: "Trocar professor responsável?",
+      message: `${currentHead.displayName || "O responsável atual"} passará para Auxiliar e ${normalizedName} será o novo professor responsável.`,
+      confirmLabel: "Confirmar troca",
+      cancelLabel: "Cancelar",
+      tone: "default",
+      onConfirm: apply,
+    });
+  }, [confirmDialog, editStaff, editingClass?.id]);
+
+  const changeEditStaffRole = useCallback((userId: string, role: ClassStaffAssignment["staffRole"]) => {
+    const apply = () => setEditStaff((current) => current.map((assignment) => {
+      if (assignment.userId === userId) return { ...assignment, staffRole: role };
+      if (role === "head" && assignment.staffRole === "head") return { ...assignment, staffRole: "assistant" };
+      return assignment;
+    }));
+    const promoted = editStaff.find((assignment) => assignment.userId === userId);
+    const currentHead = editStaff.find((assignment) => assignment.staffRole === "head" && assignment.userId !== userId);
+    if (role !== "head" || !currentHead) return apply();
+    void confirmDialog({
+      title: "Trocar professor responsável?",
+      message: `${currentHead.displayName || "O responsável atual"} passará para Auxiliar e ${promoted?.displayName || "o profissional selecionado"} assumirá como responsável.`,
+      confirmLabel: "Confirmar troca",
+      cancelLabel: "Cancelar",
+      tone: "default",
+      onConfirm: apply,
+    });
+  }, [confirmDialog, editStaff]);
 
   const toggleEditDay = (value: number) => {
     setEditDays((prev) =>
@@ -1640,6 +1732,25 @@ void Promise.all(
         cycleStartDate: editCycleStartDate || undefined,
         cycleLengthWeeks: cycleValue,
       });
+      const organizationId = editingClass.organizationId || activeOrganization?.id || "";
+      const assignments = editStaff.map((member) => ({ userId: member.userId, staffProfileId: member.staffProfileId, isPlaceholder: member.isPlaceholder, displayName: member.displayName, staffRole: member.staffRole }));
+      if (editStaffHistoryAvailable) {
+        try {
+          const receipt = await applyClassStaffAssignmentsWithHistory({
+            organizationId,
+            classId: editingClass.id,
+            assignments,
+            expectedVersion: editStaffVersion,
+          });
+          setEditStaffVersion(receipt.version);
+        } catch (error) {
+          if (!isClassStaffHistoryUnavailable(error)) throw error;
+          setEditStaffHistoryAvailable(false);
+          await replaceClassStaffAssignments({ organizationId, classId: editingClass.id, assignments });
+        }
+      } else {
+        await replaceClassStaffAssignments({ organizationId, classId: editingClass.id, assignments });
+      }
       await loadClasses();
       setShowEditModal(false);
       setEditingClass(null);
@@ -2680,46 +2791,23 @@ void Promise.all(
         </Suspense>
       ) : null}
 
-      <ModalDialogFrame
-        visible={showEditModal}
-        onClose={requestCloseEditModal}
-        cardStyle={[
-          editModalCardStyle,
-          {
-            paddingBottom: 0,
-            maxHeight: "92%",
-            height: "92%",
-            minHeight: 0,
-            overflow: "hidden",
-          },
-        ]}
-        position="center"
-        colors={colors}
-        title="Editar turma"
-        subtitle={editingClass?.name ? editingClass.name : "Ajuste os dados, agenda e perfil da turma."}
-      footer={
-        <View style={{ flexDirection: "row", gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <Button
-                label={editSaving ? "Salvando..." : "Salvar alterações"}
-                onPress={saveEditClass}
-                disabled={editSaving || !editName.trim() || !isEditDirty}
-                loading={editSaving}
-              />
+      <ModalSheet visible={showEditModal} onClose={requestCloseEditModal} position="center" cardStyle={[editModalCardStyle, { height: Platform.OS === "web" ? "92%" : "96%" }]}>
+        <View ref={editContainerRef} style={{ flex: 1, minHeight: 0, gap: 12, position: "relative" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 20 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+              <Text style={{ fontSize: 28, fontWeight: "800", color: colors.text }}>Editar turma</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>{`${editingClass?.name || "Turma"}${editingClass?.unit ? ` · ${editingClass.unit}` : ""}`}</Text>
+                {editGender ? <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.secondaryBg }}><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{editGender === "feminino" ? "Feminino" : editGender === "masculino" ? "Masculino" : "Misto"}</Text></View> : null}
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Button
-                label="Excluir turma vazia"
-                variant="danger"
-                onPress={handleDeleteClass}
-                disabled={editSaving}
-                loading={false}
-              />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Mais ações da turma" onPress={() => setShowEditActionsMenu((current) => !current)} style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}><GoAtletaIcon name="ellipsisHorizontal" size={19} color={colors.text} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Fechar edição da turma" onPress={requestCloseEditModal} style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}><GoAtletaIcon name="close" size={20} color={colors.text} /></Pressable>
             </View>
+            {showEditActionsMenu ? <View style={{ position: "absolute", right: 46, top: 44, minWidth: 170, padding: 6, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, zIndex: 30, shadowColor: "#000", shadowOpacity: 0.14, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 10 }}><Pressable accessibilityRole="button" onPress={() => { setShowEditActionsMenu(false); void handleDeleteClass(); }} style={{ minHeight: 44, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 9 }}><GoAtletaIcon name="trash" size={18} color={colors.dangerText} /><Text style={{ color: colors.dangerText, fontSize: 13, fontWeight: "700" }}>Excluir turma</Text></Pressable></View> : null}
           </View>
-        }
-        contentContainerStyle={{ gap: 12, paddingBottom: 24, paddingHorizontal: 12, paddingTop: 12 }}
-      >
+          <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: 12, paddingBottom: 24, paddingRight: 8 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
         <Suspense
           fallback={
             <View style={{ gap: 10, paddingHorizontal: 12, paddingTop: 16, paddingBottom: 24 }}>
@@ -2803,6 +2891,9 @@ void Promise.all(
               editFormError,
               editSaving,
               isEditDirty,
+              editStaff,
+              editStaffCandidates: organizationMembers,
+              editStaffLoading: false,
             }}
             options={{
               dayNames,
@@ -2813,6 +2904,8 @@ void Promise.all(
               mvLevelOptions,
               goalOptions,
               trainingSpaceOptions: editTrainingSpaceOptions,
+              classNameOptions: classes.map((item) => item.name),
+              unitOptions: existingUnitOptions,
               customOptionLabel,
             }}
             actions={{
@@ -2827,10 +2920,20 @@ void Promise.all(
               saveEditClass,
               handleDeleteClass,
               setShowEditCycleCalendar,
+              addEditStaff,
+              addPlaceholderEditStaff,
+              removeEditStaff,
+              changeEditStaffRole,
             }}
           />
         </Suspense>
-      </ModalDialogFrame>
+          </ScrollView>
+          <View style={{ paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <Pressable accessibilityRole="button" onPress={closeEditModal} disabled={editSaving || !isEditDirty} style={{ minHeight: 44, paddingHorizontal: 6, justifyContent: "center", opacity: isEditDirty ? 1 : 0.45 }}><Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600", textDecorationLine: "underline" }}>Descartar alterações</Text></Pressable>
+            <View style={{ width: 264, maxWidth: "55%" }}><Button label={editSaving ? "Salvando..." : "Salvar alterações"} onPress={saveEditClass} disabled={editSaving || !editName.trim() || !isEditDirty} loading={editSaving} /></View>
+          </View>
+        </View>
+      </ModalSheet>
       <ConfirmCloseOverlay
         visible={showEditCloseConfirm}
         onCancel={() => setShowEditCloseConfirm(false)}

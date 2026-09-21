@@ -18,3 +18,23 @@ test.each([
 test("buffered native response finishes without a second request", async () => {
   await expect(readAssistantStream({ text: async () => '{"type":"done","data":{"reply":"fim"}}\n' } as Response)).resolves.toEqual({ reply: "fim" });
 });
+
+test("forwards ordered backend status events without treating them as reply text", async () => {
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(
+        '{"type":"status","status":"context_ready"}\n' +
+        '{"type":"status","status":"drafting_response"}\n' +
+        '{"type":"done","data":{"reply":"fim"}}\n'
+      ));
+      controller.close();
+    },
+  });
+  const onReply = jest.fn();
+  const onStatus = jest.fn();
+
+  await readAssistantStream({ body } as unknown as Response, onReply, onStatus);
+
+  expect(onReply).not.toHaveBeenCalled();
+  expect(onStatus.mock.calls.map(([status]) => status)).toEqual(["context_ready", "drafting_response"]);
+});

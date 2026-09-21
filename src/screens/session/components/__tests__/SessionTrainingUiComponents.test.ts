@@ -399,7 +399,7 @@ describe("session training UI components", () => {
 
     expect(text).toContain("Relatório da aula");
     expect(text).toContain("06/06/2026");
-    expect(text).toContain("Editando relatório existente");
+    expect(text).not.toContain("Editando relatório existente");
     expect(text).toContain("PSE (0-10)");
     expect(text).toContain("Técnica geral");
     expect(text).toContain("Número de participantes");

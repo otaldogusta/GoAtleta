@@ -1,19 +1,21 @@
-import { getConversationSuggestions } from "../../src/assistant/conversation-suggestions";
 import { AssistantConversationScroll } from "../../src/assistant/components/AssistantConversationScroll";
-import { AssistantPending } from "../../src/assistant/components/AssistantPending";
 import { AssistantWelcome } from "../../src/assistant/components/AssistantWelcome";
+import { AssistantProgress } from "../../src/assistant/components/AssistantProgress";
+import { appendAssistantProgress, type AssistantProgressCode } from "../../src/assistant/progress";
 import { AssistantComposer } from "../../src/assistant/components/AssistantComposer";
-import { AssistantMessages } from "../../src/assistant/components/AssistantMessages";
+import { AssistantClassSelector } from "../../src/assistant/components/AssistantClassSelector";
+import { AssistantMessages, type AssistantMessageReportLink } from "../../src/assistant/components/AssistantMessages";
+import { buildAssistantReportIdentity, collapseLatestStructuredProposalReply, resolveStructuredProposalReply } from "../../src/assistant/report-ui";
 import { ScientificEvidencePanel, type ScientificReference } from "../../src/assistant/components/ScientificEvidencePanel";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Keyboard, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Alert, Keyboard, Linking, Platform, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Pressable } from "../../src/ui/Pressable";
 
 import { AssistantModelSelector } from "../../src/assistant/components/AssistantModelSelector";
 import type { AssistantModelChoice } from "../../src/assistant/model-choice";
-import { requestAssistantConversation } from "../../src/api/ai";
+import { requestAssistantConversation, saveAssistantClassRule } from "../../src/api/ai";
 import { useAuth } from "../../src/auth/auth";
 import { getValidAccessToken } from "../../src/auth/session";
 import { useOptionalCopilot } from "../../src/copilot/CopilotProvider";
@@ -38,10 +40,12 @@ import { ClassGenderBadge } from "../../src/ui/ClassGenderBadge";
 import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../src/ui/icon-registry";
 import { useResponsiveLayout } from "../../src/ui/use-responsive-layout";
+import { formatIsoDateToPtBr } from "../../src/utils/date-time";
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  reportLink?: AssistantMessageReportLink;
 };
 
 type AssistantSource = {
@@ -79,9 +83,10 @@ type AssistantResponse = {
   assumptions?: string[];
   missingData?: string[];
   reportProposal?: AssistantReportProposal | null;
+  classMemoryProposal?: AssistantClassMemoryProposal | null;
   scientificEvidence?: {
     status: "not_needed" | "cache" | "searched" | "fallback" | "quota_exceeded";
-    providers: Array<"internal" | "consensus" | "pubmed">;
+    providers: ("internal" | "consensus" | "pubmed")[];
     candidateCount: number;
     warnings: string[];
   };
@@ -99,6 +104,16 @@ type AssistantReportProposal = {
   technique: "boa" | "ok" | "ruim" | "nenhum" | null;
   attendance: number | null;
   painScore: number | null;
+  confidence: "high" | "medium" | "low";
+  reason: string;
+  warnings: string[];
+};
+
+type AssistantClassMemoryProposal = {
+  proposalId: string;
+  classId: string;
+  className: string;
+  summary: string;
   confidence: "high" | "medium" | "low";
   reason: string;
   warnings: string[];
@@ -136,21 +151,17 @@ type QuickPromptGridProps = {
 };
 
 const quickPromptGridStyles = StyleSheet.create({
-  grid: { width: "100%", flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  grid: { width: "100%", maxWidth: 720, alignSelf: "center", flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card: {
     flexGrow: 1,
-    minHeight: 102,
-    borderRadius: 12,
+    minHeight: 58,
+    borderRadius: 14,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  cardHeader: {
+    paddingHorizontal: 11,
+    paddingVertical: 9,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+    gap: 10,
   },
   iconWrap: {
     width: 30,
@@ -160,16 +171,9 @@ const quickPromptGridStyles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
   },
-  contextChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    maxWidth: "75%",
-  },
-  contextText: { fontSize: 11, fontWeight: "700" },
-  title: { fontWeight: "700", fontSize: 15 },
-  description: { fontSize: 12, lineHeight: 16 },
+  copy: { flex: 1, minWidth: 0, gap: 2 },
+  title: { fontWeight: "700", fontSize: 13 },
+  description: { fontSize: 11, lineHeight: 14 },
 });
 
 // perf-check: ignore-inline-row-style -- quick prompt grid uses dynamic palette and responsive basis.
@@ -196,44 +200,24 @@ const MemoQuickPromptGrid = memo(function QuickPromptGrid({
           style={[
             quickPromptGridStyles.card,
             {
-              flexBasis: supportsSplitLayout ? "31.9%" : isCompactMobile ? "100%" : "48.5%",
+              flexBasis: isCompactMobile ? "100%" : "48.5%",
               borderColor,
               backgroundColor: inputBg,
             },
           ]}
         >
-          <View style={quickPromptGridStyles.cardHeader}>
-            <View
-              style={[
-                quickPromptGridStyles.iconWrap,
-                {
-                  backgroundColor: cardBg,
-                  borderColor,
-                },
-              ]}
-            >
-              <GoAtletaIcon name={item.icon} size={16} color={mode === "dark" ? "#FFFFFF" : item.tint} />
-            </View>
-            <View
-              style={[
-                quickPromptGridStyles.contextChip,
-                {
-                  borderColor,
-                  backgroundColor: secondaryBg,
-                },
-              ]}
-            >
-              <Text numberOfLines={1} style={[quickPromptGridStyles.contextText, { color: mutedText }]}>
-                {item.contextLabel}
-              </Text>
-            </View>
+          <View
+            style={[
+              quickPromptGridStyles.iconWrap,
+              { backgroundColor: cardBg, borderColor },
+            ]}
+          >
+            <GoAtletaIcon name={item.icon} size={16} color={mode === "dark" ? "#FFFFFF" : item.tint} />
           </View>
-          <Text numberOfLines={1} style={[quickPromptGridStyles.title, { color: primaryText }]}>
-            {item.title}
-          </Text>
-          <Text numberOfLines={2} style={[quickPromptGridStyles.description, { color: mutedText }]}>
-            {item.description}
-          </Text>
+          <View style={quickPromptGridStyles.copy}>
+            <Text numberOfLines={1} style={[quickPromptGridStyles.title, { color: primaryText }]}>{item.title}</Text>
+            <Text numberOfLines={1} style={[quickPromptGridStyles.description, { color: mutedText }]}>{item.description}</Text>
+          </View>
         </Pressable>
       ))}
     </View>
@@ -300,15 +284,6 @@ const buildDoiUrl = (doi: string) => (doi ? `https://doi.org/${encodeURIComponen
 
 const DEFAULT_WARMUP_TIME = "10 minutos";
 const DEFAULT_COOLDOWN_TIME = "5 minutos";
-const MAX_STRATEGIC_BULLETS = 3;
-const MAX_BULLET_LINE_LENGTH = 88;
-
-const clampBulletLine = (value: string) => {
-  const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
-  if (!normalized) return "";
-  if (normalized.length <= MAX_BULLET_LINE_LENGTH) return normalized;
-  return `${normalized.slice(0, MAX_BULLET_LINE_LENGTH - 1).trimEnd()}⬦`;
-};
 
 const normalizeDraftTraining = (draft: DraftTraining): DraftTraining => ({
   ...draft,
@@ -475,7 +450,7 @@ export default function AssistantScreen() {
   useEffect(() => () => { activeReplyRequest.current?.abort(); }, [activeOrganization?.id, classId]);
   const [partialReply, setPartialReply] = useState("");
   const [loading, setLoading] = useState(false);
-  const [assistantStatus, setAssistantStatus] = useState("");
+  const [assistantProgress, setAssistantProgress] = useState<AssistantProgressCode[]>([]);
   const [draft, setDraft] = useState<DraftTraining | null>(null);
   const [sources, setSources] = useState<AssistantSource[]>([]);
   const [showSavedLink, setShowSavedLink] = useState(false);
@@ -484,6 +459,8 @@ export default function AssistantScreen() {
   const [scientificEvidence, setScientificEvidence] = useState<AssistantResponse["scientificEvidence"]>();
   const [reportProposal, setReportProposal] = useState<AssistantReportProposal | null>(null);
   const [savingReport, setSavingReport] = useState(false);
+  const [classMemoryProposal, setClassMemoryProposal] = useState<AssistantClassMemoryProposal | null>(null);
+  const [savingClassMemory, setSavingClassMemory] = useState(false);
   const [, setMissingData] = useState<string[]>([]);
   const [, setAssumptions] = useState<string[]>([]);
   const [autoFixSuggestions, setAutoFixSuggestions] = useState<AutoFixSuggestion[]>([]);
@@ -493,7 +470,6 @@ export default function AssistantScreen() {
   const [composerHeight, setComposerHeight] = useState(0);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const scopedPlanningPath = useMemo(() => getScopedPlanningPath(pathname), [pathname]);
 
   const appliedPromptRef = useRef("");
@@ -549,14 +525,6 @@ export default function AssistantScreen() {
       hideSub.remove();
     };
   }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNowMs(Date.now());
-    }, 60_000);
-    return () => clearInterval(timer);
-  }, []);
-
 
   const selectedClass = useMemo(
     () => classes.find((item) => item.id === classId) ?? null,
@@ -822,7 +790,7 @@ export default function AssistantScreen() {
     ordered.forEach((item) => {
       if (!dedup.has(item.id)) dedup.set(item.id, item);
     });
-    return Array.from(dedup.values()).slice(0, 6);
+    return Array.from(dedup.values()).slice(0, 4);
   }, [
     classNameById,
     assistantScopeLabel,
@@ -844,77 +812,6 @@ export default function AssistantScreen() {
     if (hour < 18) return `Boa tarde, ${userDisplayName}.`;
     return `Boa noite, ${userDisplayName}.`;
   }, [userDisplayName]);
-
-  const localDayScheduleStatus = useMemo<"no_classes" | "in_progress" | "concluded">(() => {
-    const now = new Date(nowMs);
-    const weekday = now.getDay();
-    const todayClasses = classes.filter((item) => (item.daysOfWeek ?? []).includes(weekday));
-    if (!todayClasses.length) return "no_classes";
-
-    const hasPendingWindow = todayClasses.some((item) => {
-      const match = String(item.startTime ?? "").match(/^(\d{1,2}):(\d{2})$/);
-      if (!match) return false;
-      const hour = Number(match[1]);
-      const minute = Number(match[2]);
-      if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false;
-      if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return false;
-
-      const startAt = new Date(now);
-      startAt.setHours(hour, minute, 0, 0);
-      const durationMinutes = Number.isFinite(item.durationMinutes)
-        ? Math.max(15, Number(item.durationMinutes))
-        : 60;
-      const endWithGraceMs = startAt.getTime() + durationMinutes * 60_000 + 60 * 60_000;
-      return nowMs < endWithGraceMs;
-    });
-
-    return hasPendingWindow ? "in_progress" : "concluded";
-  }, [classes, nowMs]);
-
-  const dayScheduleStatus =
-    optionalCopilot?.appSnapshot?.dayScheduleStatus ?? localDayScheduleStatus;
-
-  const strategicBullets = useMemo(() => {
-    const bullets: string[] = [];
-    const snapshot = optionalCopilot?.appSnapshot;
-    const signals = snapshot?.signalsTop ?? [];
-    const regulationContext = snapshot?.regulationContext;
-
-    if (signals.length > 0) {
-      bullets.push(`${signals.length} ponto${signals.length === 1 ? "" : "s"} de atenção em foco.`);
-    }
-
-    if ((regulationContext?.latestChangedTopics?.length ?? 0) > 0) {
-      bullets.push(
-        `Regulamento: ${regulationContext?.latestChangedTopics
-          .slice(0, 2)
-          .join(", ")}.`
-      );
-    }
-
-    if ((snapshot?.recentActions?.length ?? 0) > 0) {
-      bullets.push(`Ação recente: ${snapshot?.recentActions[0]?.actionTitle}.`);
-    }
-
-    if (dayScheduleStatus === "concluded" && bullets.length < MAX_STRATEGIC_BULLETS) {
-      bullets.push("Dia concluído: não há mais turmas pendentes hoje.");
-    }
-
-    if (bullets.length === 0) {
-      if (dayScheduleStatus === "no_classes") {
-        bullets.push("Sem turmas agendadas para hoje.");
-      } else if (dayScheduleStatus === "concluded") {
-        bullets.push("Dia concluído: não há mais turmas pendentes hoje.");
-      } else {
-        bullets.push("Nenhum alerta urgente no momento.");
-      }
-    }
-
-    return bullets
-      .map(clampBulletLine)
-      .filter(Boolean)
-      .slice(0, MAX_STRATEGIC_BULLETS);
-  }, [dayScheduleStatus, optionalCopilot?.appSnapshot]);
 
   const pushAssistantMessage = useCallback((content: string) => {
     setMessages((prev) => [...prev, { role: "assistant", content }]);
@@ -944,7 +841,7 @@ export default function AssistantScreen() {
     setMessages(nextMessages);
     setInput("");
     setLoading(true);
-    setAssistantStatus("");
+    setAssistantProgress(["preparing_context"]);
     setPartialReply("");
     setDraft(null);
     setSources([]);
@@ -952,6 +849,7 @@ export default function AssistantScreen() {
     setCitations([]);
     setScientificEvidence(undefined);
     setReportProposal(null);
+    setClassMemoryProposal(null);
     setMissingData([]);
     setAssumptions([]);
     setAutoFixSuggestions([]);
@@ -992,10 +890,14 @@ export default function AssistantScreen() {
 
       const data = await requestAssistantConversation({
         signal: controller.signal,
-        onReply: text => { if (!controller.signal.aborted) setPartialReply(text); },
+        onReply: text => {
+          if (controller.signal.aborted) return;
+          setAssistantProgress(current => appendAssistantProgress(current, "writing_response"));
+          setPartialReply(text);
+        },
         onStatus: status => {
           if (controller.signal.aborted) return;
-          setAssistantStatus(status === "scientific_search" ? "Consultando referências científicas" : "");
+          setAssistantProgress(current => appendAssistantProgress(current, status));
         },
         modelPreference,
         accessToken,
@@ -1026,14 +928,20 @@ export default function AssistantScreen() {
         : (data as AssistantResponse).draftTraining
         ? normalizeDraftTraining((data as AssistantResponse).draftTraining!)
         : draftFromReply;
+      const nextReportProposal = responseError ? null : (data as AssistantResponse).reportProposal ?? null;
+      const nextClassMemoryProposal = responseError ? null : (data as AssistantResponse).classMemoryProposal ?? null;
       const reply = responseError
         ? toFriendlyAssistantError(responseError)
         : nextDraft
         ? "Montei um planejamento para você. Revise os blocos abaixo e ajuste se necessário."
-        : rawReply;
+        : resolveStructuredProposalReply({
+            rawReply,
+            hasReportProposal: Boolean(nextReportProposal),
+            hasClassMemoryProposal: Boolean(nextClassMemoryProposal),
+          });
 
       setLoading(false);
-      setAssistantStatus("");
+      setAssistantProgress([]);
       setPartialReply("");
       showAssistantReply(reply);
       setSources(responseError ? [] : Array.isArray((data as AssistantResponse).sources) ? (data as AssistantResponse).sources : []);
@@ -1046,7 +954,8 @@ export default function AssistantScreen() {
       );
       setCitations(responseError ? [] : Array.isArray((data as AssistantResponse).citations) ? ((data as AssistantResponse).citations ?? []) : []);
       setScientificEvidence(responseError ? undefined : (data as AssistantResponse).scientificEvidence);
-      setReportProposal(responseError ? null : (data as AssistantResponse).reportProposal ?? null);
+      setReportProposal(nextReportProposal);
+      setClassMemoryProposal(nextClassMemoryProposal);
       setMissingData(responseError ? [] : Array.isArray((data as AssistantResponse).missingData) ? ((data as AssistantResponse).missingData ?? []) : []);
       setAssumptions(responseError ? [] : Array.isArray((data as AssistantResponse).assumptions) ? ((data as AssistantResponse).assumptions ?? []) : []);
       setDraft(nextDraft);
@@ -1106,7 +1015,7 @@ export default function AssistantScreen() {
     } finally {
       setLoading(false);
       setPartialReply("");
-      setAssistantStatus("");
+      setAssistantProgress([]);
     }
   }, [activeOrganization, classId, input, loading, messages, modelPreference, notificationInboxScope, optionalCopilot, selectedClass, session, showAssistantReply]);
 
@@ -1115,7 +1024,7 @@ export default function AssistantScreen() {
     const proposal = reportProposal;
     confirmDialog({
       title: `Salvar relatório da ${proposal.className}?`,
-      message: `Data: ${proposal.sessionDate}. O conteúdo revisado abaixo será salvo no relatório da turma.`,
+      message: `Data: ${formatIsoDateToPtBr(proposal.sessionDate)}. O conteúdo revisado abaixo será salvo no relatório da turma.`,
       confirmLabel: "Salvar relatório",
       cancelLabel: "Continuar revisando",
       loadingLabel: "Salvando relatório",
@@ -1126,16 +1035,30 @@ export default function AssistantScreen() {
             organizationId: activeOrganization.id,
           });
           if (existing) {
-            Alert.alert(
-              "Relatório já existente",
-              "Essa turma já possui um relatório nessa data. Abra o relatório atual para revisar antes de alterar."
-            );
+            setReportProposal(null);
+            const formattedDate = formatIsoDateToPtBr(proposal.sessionDate);
+            setMessages((previous) => [...previous, {
+              role: "assistant",
+              content: `O relatório da **${proposal.className}** em ${formattedDate} já existe. Abra para revisar.`,
+              reportLink: {
+                classId: proposal.classId,
+                className: proposal.className,
+                sessionDate: proposal.sessionDate,
+                leadingText: "O relatório da ",
+                trailingText: ` em ${formattedDate} já existe. Abra para revisar.`,
+              },
+            }]);
             return;
           }
           const createdAt = `${proposal.sessionDate}T12:00:00.000Z`;
+          const reportIdentity = buildAssistantReportIdentity({
+            organizationId: activeOrganization.id,
+            classId: proposal.classId,
+            sessionDate: proposal.sessionDate,
+          });
           await saveSessionLog({
-            id: `assistant_report_${proposal.proposalId}`,
-            clientId: `assistant_report_${proposal.proposalId}`,
+            id: reportIdentity,
+            clientId: reportIdentity,
             classId: proposal.classId,
             PSE: proposal.pse ?? 0,
             technique: proposal.technique ?? "nenhum",
@@ -1154,7 +1077,15 @@ export default function AssistantScreen() {
           setReportProposal(null);
           setMessages((previous) => [
             ...previous,
-            { role: "assistant", content: `Relatório da **${proposal.className}** salvo em ${proposal.sessionDate}.` },
+            {
+              role: "assistant",
+              content: `Relatório da **${proposal.className}** salvo em ${formatIsoDateToPtBr(proposal.sessionDate)}.`,
+              reportLink: {
+                classId: proposal.classId,
+                className: proposal.className,
+                sessionDate: proposal.sessionDate,
+              },
+            },
           ]);
         } catch (error) {
           Alert.alert(
@@ -1166,7 +1097,39 @@ export default function AssistantScreen() {
         }
       },
     });
-  }, [activeOrganization?.id, confirmDialog, reportProposal, savingReport, session?.user?.id]);
+  }, [activeOrganization, confirmDialog, reportProposal, savingReport, session]);
+
+  const saveClassMemoryProposal = useCallback(() => {
+    if (!classMemoryProposal || !activeOrganization?.id || savingClassMemory) return;
+    const proposal = classMemoryProposal;
+    confirmDialog({
+      title: `Salvar regra da ${proposal.className}?`,
+      message: `${proposal.summary}\n\nEla será usada apenas no contexto desta turma e poderá orientar os próximos planejamentos.`,
+      confirmLabel: "Salvar regra",
+      cancelLabel: "Continuar revisando",
+      loadingLabel: "Salvando regra",
+      onConfirm: async () => {
+        setSavingClassMemory(true);
+        try {
+          await saveAssistantClassRule({
+            organizationId: activeOrganization.id,
+            classId: proposal.classId,
+            proposalId: proposal.proposalId,
+            summary: proposal.summary,
+          });
+          setClassMemoryProposal(null);
+          setMessages((previous) => [...previous, {
+            role: "assistant",
+            content: `Regra salva para a **${proposal.className}**: ${proposal.summary}`,
+          }]);
+        } catch (error) {
+          Alert.alert("Não foi possível salvar", error instanceof Error ? error.message : "Tente novamente.");
+        } finally {
+          setSavingClassMemory(false);
+        }
+      },
+    });
+  }, [activeOrganization, classMemoryProposal, confirmDialog, savingClassMemory]);
 
   const saveDraft = async () => {
     if (!draft || !classId) return;
@@ -1280,7 +1243,46 @@ export default function AssistantScreen() {
     };
   }, [composerFocused, sendMessage]);
 
-  const messageBubbles = <AssistantMessages messages={partialReply ? [...messages, { role: "assistant", content: partialReply }] : messages} />;
+  const openSavedReport = useCallback((report: AssistantMessageReportLink) => {
+    router.push({
+      pathname: "/class/[id]/session",
+      params: {
+        id: report.classId,
+        date: report.sessionDate,
+        tab: "relatório",
+      },
+    });
+  }, [router]);
+
+  const resolveSavedReportLink = useCallback((content: string): AssistantMessageReportLink | undefined => {
+    const match = content.match(/^Relatório da \*\*(.+?)\*\* salvo em (\d{2})\/(\d{2})\/(\d{4})\.$/);
+    if (!match) return undefined;
+    const className = match[1]?.trim() ?? "";
+    const targetClass = classes.find((item) => normalizeClassNameLabel(item.name) === normalizeClassNameLabel(className));
+    if (!targetClass) return undefined;
+    return {
+      classId: targetClass.id,
+      className,
+      sessionDate: `${match[4]}-${match[3]}-${match[2]}`,
+    };
+  }, [classes]);
+
+  const visibleMessages = useMemo(() => collapseLatestStructuredProposalReply({
+    messages,
+    hasReportProposal: Boolean(reportProposal),
+    hasClassMemoryProposal: Boolean(classMemoryProposal),
+  }), [classMemoryProposal, messages, reportProposal]);
+
+  const messageBubbles = (
+    <AssistantMessages
+      messages={visibleMessages}
+      onOpenReport={openSavedReport}
+      resolveReportLink={resolveSavedReportLink}
+    />
+  );
+  const partialReplyBubble = partialReply
+    ? <AssistantMessages messages={[{ role: "assistant", content: partialReply }]} />
+    : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1330,12 +1332,6 @@ export default function AssistantScreen() {
             >
               <GoAtletaIcon name="chevronBack" size={20} color={colors.text} />
             </Pressable>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <AssistantModelSelector value={modelPreference} onChange={setModelPreference} disabled={loading} />
-              <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>
-                {assistantScopeLabel}
-              </Text>
-            </View>
           </View>
           <AssistantConversationScroll contentContainerStyle={{ gap: 10, paddingBottom: 12 }}>
             {messages.length === 0 ? (
@@ -1346,72 +1342,31 @@ export default function AssistantScreen() {
                   alignSelf: "center",
                   minHeight:
                     Platform.OS === "web"
-                      ? Math.max(360, Math.round(height * 0.42))
+                      ? Math.max(
+                          360,
+                          Math.round(height - composerHeight - (supportsSplitLayout ? 180 : 150))
+                        )
                       : undefined,
+                  justifyContent: "center",
                   paddingHorizontal: supportsSplitLayout ? 20 : 6,
-                  paddingTop: supportsSplitLayout ? 34 : 18,
-                  paddingBottom: 8,
+                  paddingVertical: supportsSplitLayout ? 24 : 18,
                   gap: 18,
                 }}
               >
                 <View style={{ alignItems: "center", gap: 10 }}>
-                  <AssistantWelcome heading={greetingLine} compact={isCompactMobile} suggestions={getConversationSuggestions("", Boolean(classId))} onSuggestion={prompt => { setInput(prompt); composerInputRef.current?.focus(); }} />
-                  {classes.length > 1 ? (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{ gap: 8, paddingTop: 4 }}
-                    >
-                      {classes.slice(0, 8).map((item) => {
-                        const optionLabel = normalizeClassNameLabel(item.name) || item.name;
-                        const selected = item.id === classId;
-                        return (
-                          <Pressable
-                            key={`context-class-${item.id}`}
-                            onPress={() => setClassId(item.id)}
-                            style={{
-                              borderRadius: 999,
-                              borderWidth: 1,
-                              borderColor: selected ? colors.primaryBg : colors.border,
-                              backgroundColor: selected ? colors.primaryBg : colors.inputBg,
-                              paddingHorizontal: 10,
-                              paddingVertical: 6,
-                            }}
-                          >
-                            <Text
-                              style={{
-                                color: selected ? colors.primaryText : colors.text,
-                                fontSize: 12,
-                                fontWeight: "700",
-                              }}
-                            >
-                              {optionLabel}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-                  ) : null}
-                </View>
-
-                <View
-                  style={{
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.secondaryBg,
-                    padding: 12,
-                    gap: 8,
-                  }}
-                >
-                  {strategicBullets.map((bullet) => (
-                    <View key={bullet} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <GoAtletaIcon name="ellipse" size={8} color={colors.primaryBg} />
-                      <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "600", flex: 1 }}>
-                        {bullet}
-                      </Text>
-                    </View>
-                  ))}
+                  <AssistantWelcome
+                    heading={greetingLine}
+                    compact={isCompactMobile}
+                    subtitle={classes.length > 0 ? (
+                      <AssistantClassSelector
+                        classes={classes}
+                        value={classId}
+                        onChange={setClassId}
+                        normalizeLabel={normalizeClassNameLabel}
+                        inlinePrompt
+                      />
+                    ) : undefined}
+                  />
                 </View>
 
                 <MemoQuickPromptGrid
@@ -1432,9 +1387,9 @@ export default function AssistantScreen() {
 
             {messageBubbles}
 
-            {loading && !partialReply ? (
-              <AssistantPending label={assistantStatus || "Preparando resposta"} compact={!assistantStatus} />
-            ) : null}
+            {loading ? <AssistantProgress steps={assistantProgress} /> : null}
+
+            {partialReplyBubble}
 
             { draft ? (
               <View
@@ -1583,7 +1538,7 @@ export default function AssistantScreen() {
                   <View style={{ flex: 1, gap: 3 }}>
                     <Text style={{ fontWeight: "700", color: colors.text }}>Relatório sugerido</Text>
                     <Text style={{ color: colors.muted, fontSize: 13 }}>
-                      {reportProposal.className} · {reportProposal.sessionDate}
+                      {reportProposal.className} · {formatIsoDateToPtBr(reportProposal.sessionDate)}
                     </Text>
                   </View>
                   <View style={{ borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: colors.secondaryBg }}>
@@ -1636,6 +1591,33 @@ export default function AssistantScreen() {
                     disabled={savingReport}
                     onPress={() => setReportProposal(null)}
                   />
+                </View>
+              </View>
+            ) : null}
+
+            {classMemoryProposal ? (
+              <View style={{
+                padding: 14,
+                borderRadius: 18,
+                backgroundColor: colors.background,
+                borderWidth: 1,
+                borderColor: colors.border,
+                gap: 10,
+              }}>
+                <View style={{ gap: 3 }}>
+                  <Text style={{ fontWeight: "700", color: colors.text }}>Regra da turma sugerida</Text>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>{classMemoryProposal.className}</Text>
+                </View>
+                <Text style={{ color: colors.text }}>{classMemoryProposal.summary}</Text>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Será usada somente nesta turma. Nada será salvo sem sua confirmação.
+                </Text>
+                {classMemoryProposal.warnings.map((warning) => (
+                  <Text key={warning} style={{ color: colors.muted, fontSize: 12 }}>• {warning}</Text>
+                ))}
+                <View style={{ gap: 8 }}>
+                  <Button label="Salvar regra da turma" loading={savingClassMemory} loadingLabel="Salvando regra" disabled={savingClassMemory} onPress={saveClassMemoryProposal} />
+                  <Button label="Ignorar sugestão" variant="ghost" disabled={savingClassMemory} onPress={() => setClassMemoryProposal(null)} />
                 </View>
               </View>
             ) : null}
@@ -1808,6 +1790,7 @@ export default function AssistantScreen() {
               busy={loading} inputRef={composerInputRef}
               onFocus={() => setComposerFocused(true)} onBlur={() => setComposerFocused(false)}
               onKeyPress={handleComposerKeyPress}
+              trailingControl={<AssistantModelSelector value={modelPreference} onChange={setModelPreference} disabled={loading} compact />}
               voiceScope={activeOrganization && activeOrganization.role_level >= 10 ? { organizationId: activeOrganization.id, classId: classId || undefined } : undefined} />
           </View>
         </View>

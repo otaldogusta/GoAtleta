@@ -36,6 +36,7 @@ jest.mock("../../../../api/events", () => ({
 type HookSnapshot = {
   cls: ClassGroup | null;
   attendancePercent: number | null;
+  attendancePresentCount: number | null;
   isLoadingSession: boolean;
   isLoadingSessionExtras: boolean;
   sessionDataStatus: SessionDataStatus;
@@ -65,6 +66,7 @@ function renderUseSessionData(classId: string, onSnapshot: (snapshot: HookSnapsh
     onSnapshot({
       cls: snapshot.cls,
       attendancePercent: snapshot.attendancePercent,
+      attendancePresentCount: snapshot.attendancePresentCount,
       isLoadingSession: snapshot.isLoadingSession,
       isLoadingSessionExtras: snapshot.isLoadingSessionExtras,
       sessionDataStatus: snapshot.sessionDataStatus,
@@ -140,10 +142,38 @@ describe("useSessionData", () => {
     expect(latest).toMatchObject({
       cls,
       attendancePercent: null,
+      attendancePresentCount: null,
       isLoadingSession: false,
       isLoadingSessionExtras: false,
       sessionDataStatus: "ready",
       sessionDataError: null,
+    });
+  });
+
+  it("derives the report participant count from present attendance records", async () => {
+    const cls = {
+      id: "class-1",
+      name: "Turma Teste",
+      organizationId: "org-1",
+    } as ClassGroup;
+    (getClassById as jest.Mock).mockResolvedValue(cls);
+    (getAttendanceByDate as jest.Mock).mockResolvedValue([
+      { studentId: "student-1", status: "presente" },
+      { studentId: "student-2", status: "ausente" },
+      { studentId: "student-3", status: "presente" },
+    ]);
+    let latest: HookSnapshot | null = null;
+
+    await act(async () => {
+      renderUseSessionData("class-1", (snapshot) => {
+        latest = snapshot;
+      });
+    });
+    await flushPromises();
+
+    expect(latest).toMatchObject({
+      attendancePercent: 67,
+      attendancePresentCount: 2,
     });
   });
 

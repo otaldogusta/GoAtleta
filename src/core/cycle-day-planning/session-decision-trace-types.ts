@@ -103,7 +103,7 @@ export type SessionDecisionTrace = {
     scientificEvidence?: {
       used: boolean;
       trigger?: "explicit" | "internal_gap" | "stale" | "conflict" | "high_impact";
-      providers: Array<"internal" | "consensus" | "pubmed">;
+      providers: ("internal" | "consensus" | "pubmed")[];
       searchId?: string;
       candidateCount: number;
       acceptedSourceIds: string[];

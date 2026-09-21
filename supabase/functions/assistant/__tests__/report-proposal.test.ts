@@ -64,4 +64,21 @@ describe("resolveReportProposal", () => {
     expect(bounded.proposal?.pse).toBe(10);
     expect(bounded.proposal?.painScore).toBe(0);
   });
+
+  it("accepts hoje as the fallback date without a contradictory warning", () => {
+    const result = resolveReportProposal({
+      draft: {
+        className: "Vôlei Mirim",
+        sessionDate: "",
+        activity: "Jogo 4x4.",
+        warnings: ["A data da aula não foi informada."],
+      },
+      classes,
+      fallbackDate: "2026-09-19",
+      proposalId: "proposal-today",
+      sourceText: "Hoje a turma fez jogo 4x4.",
+    });
+    expect(result.proposal?.sessionDate).toBe("2026-09-19");
+    expect(result.proposal?.warnings).toEqual([]);
+  });
 });

@@ -32,7 +32,7 @@ describe("athlete-intake", () => {
     expect(detected).toHaveLength(2);
     expect(detected[0]).toMatchObject({
       normalized: "voleibol",
-      label: "Voleibol",
+      label: "Vôlei de quadra",
       count: 2,
       isVolleyball: true,
     });

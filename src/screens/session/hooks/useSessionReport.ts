@@ -44,6 +44,7 @@ type UseSessionReportParams = {
   sessionLog: SessionLog | null;
   setSessionLog: (log: SessionLog | null) => void;
   attendancePercent: number | null;
+  attendancePresentCount?: number | null;
 };
 
 const emptyReportBaseline = (): ReportBaseline => ({
@@ -78,6 +79,7 @@ export function useSessionReport({
   sessionLog,
   setSessionLog,
   attendancePercent,
+  attendancePresentCount = null,
 }: UseSessionReportParams) {
   const incomingBaseline = useMemo(() => sessionLog
     ? buildReportStateFromSessionLog(sessionLog) : emptyReportBaseline(), [sessionLog]);
@@ -93,6 +95,10 @@ export function useSessionReport({
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
   const [reportDraftStatus, setReportDraftStatus] =
     useState<SessionReportDraftStatus>("loading");
+  const resolvedParticipantsCount =
+    typeof attendancePresentCount === "number"
+      ? String(Math.max(0, Math.round(attendancePresentCount)))
+      : participantsCount;
   const hydrationRunRef = useRef(0);
   const hydrationPendingRef = useRef(false);
   const editedDuringHydrationRef = useRef(false);
@@ -252,7 +258,7 @@ export function useSessionReport({
         (dateValue
           ? new Date(`${dateValue}T12:00:00`).toISOString()
           : new Date().toISOString());
-      const participantsRaw = participantsCount.trim();
+      const participantsRaw = resolvedParticipantsCount.trim();
       const participantsValue = participantsRaw ? Number(participantsRaw) : Number.NaN;
       const parsedParticipants =
         Number.isFinite(participantsValue) && participantsValue >= 0
@@ -308,7 +314,7 @@ export function useSessionReport({
       classId,
       conclusion,
       draftKey,
-      participantsCount,
+      resolvedParticipantsCount,
       photos,
       sessionDate,
       sessionLog?.clientId,
@@ -325,9 +331,9 @@ export function useSessionReport({
       technique !== reportBaseline.technique ||
       activity.trim() !== reportBaseline.activity.trim() ||
       conclusion.trim() !== reportBaseline.conclusion.trim() ||
-      participantsCount.trim() !== reportBaseline.participantsCount.trim() ||
+      resolvedParticipantsCount.trim() !== reportBaseline.participantsCount.trim() ||
       photos.trim() !== reportBaseline.photos.trim(),
-    [PSE, activity, conclusion, participantsCount, photos, reportBaseline, technique]
+    [PSE, activity, conclusion, photos, reportBaseline, resolvedParticipantsCount, technique]
   );
 
   const reportDraftValues = useMemo<SessionReportDraftValues>(
@@ -336,10 +342,10 @@ export function useSessionReport({
       technique,
       activity,
       conclusion,
-      participantsCount,
+      participantsCount: resolvedParticipantsCount,
       photos,
     }),
-    [PSE, activity, conclusion, participantsCount, photos, technique]
+    [PSE, activity, conclusion, photos, resolvedParticipantsCount, technique]
   );
   const reportDraftSignature = useMemo(
     () => serializeSessionReportDraftValues(reportDraftValues),
@@ -458,7 +464,7 @@ export function useSessionReport({
     setActivity: setDraftActivity,
     conclusion,
     setConclusion: setDraftConclusion,
-    participantsCount,
+    participantsCount: resolvedParticipantsCount,
     setParticipantsCount: setDraftParticipantsCount,
     photos,
     setPhotos: setDraftPhotos,

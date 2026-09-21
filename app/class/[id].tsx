@@ -30,7 +30,8 @@ import { markRender, measure, measureAsync } from "../../src/observability/perf"
 import { ClassRosterDocument } from "../../src/pdf/class-roster-document";
 import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 import { classRosterHtml } from "../../src/pdf/templates/class-roster";
-import { ClassEditModalBody, ClassEditModalPickers } from "../../src/screens/classes/components/ClassEditModalBody";
+import { ClassEditModalPickers, ModernClassEditModalBody } from "../../src/screens/classes/components/ClassEditModalBody";
+import { ClassStaffHistoryPanel } from "../../src/screens/classes/components/ClassStaffHistoryPanel";
 import { getClassScheduleOverlapDays } from "../../src/screens/classes/application/class-schedule-conflicts";
 import { ClassContextStrip, ClassOperationsWorkspace, type ClassOperationalStatus, type ClassRecentTrainingSummary, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { useCopilotLesson } from "../../src/copilot/lesson-context";
@@ -57,6 +58,22 @@ import { useCollapsibleAnimation } from "../../src/ui/use-collapsible";
 import { useModalCardStyle } from "../../src/ui/use-modal-card-style";
 import { useWhatsAppSettings } from "../../src/ui/whatsapp-settings-context";
 import { useOrganization } from "../../src/providers/organization-context";
+import { listClassStaffIdentitiesByClassIds, replaceClassStaffAssignments, type ClassStaffAssignment } from "../../src/api/class-responsibles";
+import {
+  applyClassStaffAssignmentsWithHistory,
+  cancelClassStaffSubstitution,
+  correctClassStaffTenureDates,
+  getClassStaffVersion,
+  isClassStaffHistoryUnavailable,
+  listClassStaffTimeline,
+  registerClassStaffReturn,
+  reviseClassTransitionSummary,
+  scheduleClassStaffSubstitution,
+  type ClassStaffSubstitution,
+  type ClassStaffTenure,
+  type ClassTransitionSummary,
+} from "../../src/api/class-staff-history";
+import { adminListOrgMembers, type OrgMember } from "../../src/api/members";
 import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
 import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
 import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
@@ -182,7 +199,7 @@ export default function ClassDetails() {
   const { activeOrganization } = useOrganization();
   const { showSaveToast } = useSaveToast();
   const insets = useSafeAreaInsets();
-  useConfirmDialog();
+  const { confirm: confirmDialog } = useConfirmDialog();
   const { confirm } = useConfirmUndo();
   const { defaultMessageEnabled, setDefaultMessageEnabled, coachName, coachNameByClass, setCoachNameForClass, groupInviteLinks } = useWhatsAppSettings();
   const whatsappModalCardStyle = useModalCardStyle({
@@ -198,7 +215,7 @@ export default function ClassDetails() {
   const rosterModalHeight = Platform.OS === "web" ? "82%" : "90%";
   const rosterColumnsHeaderWidth = Math.min(260, Math.max(170, windowWidth * 0.34));
   const stackRosterExportActions = windowWidth < 620;
-  const isCompactEditModal = Platform.OS !== "web" && windowWidth <= 760;
+  const isCompactEditModal = windowWidth <= 760;
   const editModalCardStyle = useModalCardStyle({
     maxHeight: Platform.OS === "web" ? "92%" : "96%",
     maxWidth: isCompactEditModal ? 700 : 960,
@@ -287,6 +304,17 @@ export default function ClassDetails() {
   const [recentSessionLogs, setRecentSessionLogs] = useState<SessionLog[] | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditActionsMenu, setShowEditActionsMenu] = useState(false);
+  const [editStaff, setEditStaff] = useState<ClassStaffAssignment[]>([]);
+  const [editStaffBaseline, setEditStaffBaseline] = useState<ClassStaffAssignment[]>([]);
+  const [editStaffCandidates, setEditStaffCandidates] = useState<OrgMember[]>([]);
+  const [editStaffLoading, setEditStaffLoading] = useState(false);
+  const [editStaffHistoryLoading, setEditStaffHistoryLoading] = useState(false);
+  const [editStaffHistoryAvailable, setEditStaffHistoryAvailable] = useState(true);
+  const [editStaffVersion, setEditStaffVersion] = useState(0);
+  const [editStaffTenures, setEditStaffTenures] = useState<ClassStaffTenure[]>([]);
+  const [editStaffSubstitutions, setEditStaffSubstitutions] = useState<ClassStaffSubstitution[]>([]);
+  const [editTransitionSummaries, setEditTransitionSummaries] = useState<ClassTransitionSummary[]>([]);
   const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [showEditCycleLengthPicker, setShowEditCycleLengthPicker] = useState(false);
   const [showEditMvLevelPicker, setShowEditMvLevelPicker] = useState(false);
@@ -1088,25 +1116,77 @@ export default function ClassDetails() {
     };
   }, [id, selectedLessonDateKey, selectedLessonWeekday]);
 
+  const reloadClassStaffHistory = useCallback(async () => {
+    const organizationId = cls?.organizationId || activeOrganization?.id || "";
+    if (!organizationId || !cls?.id) return;
+    setEditStaffHistoryLoading(true);
+    try {
+      const [timeline, version] = await Promise.all([
+        listClassStaffTimeline(organizationId, cls.id),
+        getClassStaffVersion(organizationId, cls.id),
+      ]);
+      setEditStaffTenures(timeline.tenures);
+      setEditStaffSubstitutions(timeline.substitutions);
+      setEditTransitionSummaries(timeline.summaries);
+      setEditStaffVersion(version);
+      setEditStaffHistoryAvailable(true);
+    } catch (error) {
+      if (!isClassStaffHistoryUnavailable(error)) throw error;
+      setEditStaffHistoryAvailable(false);
+      setEditStaffTenures([]);
+      setEditStaffSubstitutions([]);
+      setEditTransitionSummaries([]);
+    } finally {
+      setEditStaffHistoryLoading(false);
+    }
+  }, [activeOrganization, cls, setEditStaffHistoryAvailable, setEditStaffHistoryLoading, setEditStaffSubstitutions, setEditStaffTenures, setEditStaffVersion, setEditTransitionSummaries]);
+
   useEffect(() => {
     if (!showEditModal) return;
     let alive = true;
+    Promise.resolve().then(() => {
+      if (alive) setEditStaffLoading(true);
+    });
     (async () => {
       try {
-        const list = await getClasses();
+        const organizationId = cls?.organizationId || activeOrganization?.id || "";
+        const [list, staff, members] = await Promise.all([
+          getClasses(),
+          organizationId && cls?.id
+            ? listClassStaffIdentitiesByClassIds({ organizationId, classIds: [cls.id] })
+            : Promise.resolve([] as ClassStaffAssignment[]),
+          organizationId ? adminListOrgMembers(organizationId).catch(() => [] as OrgMember[]) : Promise.resolve([] as OrgMember[]),
+        ]);
         if (alive) {
+          const membersById = new Map(members.map((member) => [member.userId, member]));
+          const hydratedStaff = staff.map((assignment) => {
+            const member = membersById.get(assignment.userId);
+            return {
+              ...assignment,
+              displayName: assignment.displayName?.trim() || member?.displayName || assignment.displayName,
+            };
+          });
           setAllClasses(list);
+          setEditStaff(hydratedStaff);
+          setEditStaffBaseline(hydratedStaff);
+          setEditStaffCandidates(members.filter((member) => member.roleLevel >= 10));
         }
+        await reloadClassStaffHistory().catch(() => undefined);
       } catch {
         if (alive) {
           setAllClasses([]);
+          setEditStaff([]);
+          setEditStaffBaseline([]);
+          setEditStaffCandidates([]);
         }
+      } finally {
+        if (alive) setEditStaffLoading(false);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [showEditModal]);
+  }, [activeOrganization, cls, reloadClassStaffHistory, showEditModal]);
 
   useEffect(() => {
     if (!showRosterExportModal || !cls) return;
@@ -1157,8 +1237,9 @@ export default function ClassDetails() {
     setGoal(nextGoal);
     setEditCustomGoal(customGoalSelected ? nextGoal : "");
     setShowEditCustomGoal(customGoalSelected);
+    setEditStaff(editStaffBaseline);
     setFormError("");
-  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, classCoachName, cls, goalOptions, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, setName, setCoachNameOverride, setUnit, setTrainingSpace, setModality, setAgeBand, setGender, setStartTime, setEndTime, setDuration, setDaysOfWeek, setMvLevel, setCycleStartDate, setCycleLengthWeeks, setEditCustomAgeBand, setShowEditCustomAgeBand, setGoal, setEditCustomGoal, setShowEditCustomGoal, setFormError]);
+  }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, classCoachName, cls, editStaffBaseline, goalOptions, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, setName, setCoachNameOverride, setUnit, setTrainingSpace, setModality, setAgeBand, setGender, setStartTime, setEndTime, setDuration, setDaysOfWeek, setMvLevel, setCycleStartDate, setCycleLengthWeeks, setEditCustomAgeBand, setShowEditCustomAgeBand, setGoal, setEditCustomGoal, setShowEditCustomGoal, setFormError, setEditStaff]);
 
   const closeEditPickers = useCallback(() => {
     setShowEditCycleLengthPicker(false);
@@ -1299,8 +1380,76 @@ export default function ClassDetails() {
 
   const isEditDirty = useMemo(() => {
     if (!editBaselineSnapshot) return false;
-    return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot);
-  }, [editBaselineSnapshot, editCurrentSnapshot]);
+    const normalizeStaff = (value: ClassStaffAssignment[]) => value
+      .map((member) => `${member.userId}:${member.staffRole}`)
+      .sort()
+      .join("|");
+    return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot)
+      || normalizeStaff(editStaffBaseline) !== normalizeStaff(editStaff);
+  }, [editBaselineSnapshot, editCurrentSnapshot, editStaff, editStaffBaseline]);
+
+  const addEditStaff = useCallback((member: OrgMember) => {
+    setEditStaff((current) => current.some((assignment) => assignment.userId === member.userId) ? current : [...current, {
+      classId: cls?.id ?? id,
+      userId: member.userId,
+      staffRole: "intern",
+      displayName: member.displayName,
+      photoUrl: null,
+    }]);
+  }, [cls, id, setEditStaff]);
+
+  const addPlaceholderEditStaff = useCallback((displayName: string, staffRole: ClassStaffAssignment["staffRole"]) => {
+    const normalizedName = displayName.trim();
+    if (!normalizedName) return;
+    const apply = () => setEditStaff((current) => [
+      ...current.map((assignment) => staffRole === "head" && assignment.staffRole === "head" ? { ...assignment, staffRole: "assistant" as const } : assignment),
+      {
+        classId: cls?.id ?? id,
+        userId: `draft-staff:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+        staffProfileId: null,
+        isPlaceholder: true,
+        staffRole,
+        displayName: normalizedName,
+        photoUrl: null,
+      },
+    ]);
+    const currentHead = editStaff.find((assignment) => assignment.staffRole === "head");
+    if (staffRole !== "head" || !currentHead) return apply();
+    void confirmDialog({ title: "Trocar professor responsável?", message: `${currentHead.displayName || "O responsável atual"} passará para Auxiliar e ${normalizedName} será o novo professor responsável.`, confirmLabel: "Confirmar troca", cancelLabel: "Cancelar", tone: "default", onConfirm: apply });
+  }, [cls, confirmDialog, editStaff, id, setEditStaff]);
+
+  const removeEditStaff = useCallback((userId: string) => {
+    const member = editStaff.find((assignment) => assignment.userId === userId);
+    if (!member) return;
+    const displayName = member.displayName?.trim() || "este profissional";
+    const roleLabel = member.staffRole === "head"
+      ? "professor responsável"
+      : member.staffRole === "assistant"
+        ? "auxiliar"
+        : "estagiário(a)";
+    void confirmDialog({
+      title: `Encerrar vínculo de ${displayName}?`,
+      message: `${displayName} deixará de constar como ${roleLabel} atual. O período anterior será preservado no histórico quando você salvar.`,
+      confirmLabel: "Encerrar vínculo",
+      cancelLabel: "Cancelar",
+      tone: "danger",
+      onConfirm: () => {
+        setEditStaff((current) => current.filter((assignment) => assignment.userId !== userId));
+      },
+    });
+  }, [confirmDialog, editStaff, setEditStaff]);
+
+  const changeEditStaffRole = useCallback((userId: string, role: ClassStaffAssignment["staffRole"]) => {
+    const apply = () => setEditStaff((current) => current.map((assignment) => {
+      if (assignment.userId === userId) return { ...assignment, staffRole: role };
+      if (role === "head" && assignment.staffRole === "head") return { ...assignment, staffRole: "assistant" };
+      return assignment;
+    }));
+    const promoted = editStaff.find((assignment) => assignment.userId === userId);
+    const currentHead = editStaff.find((assignment) => assignment.staffRole === "head" && assignment.userId !== userId);
+    if (role !== "head" || !currentHead) return apply();
+    void confirmDialog({ title: "Trocar professor responsável?", message: `${currentHead.displayName || "O responsável atual"} passará para Auxiliar e ${promoted?.displayName || "o profissional selecionado"} assumirá como responsável.`, confirmLabel: "Confirmar troca", cancelLabel: "Cancelar", tone: "default", onConfirm: apply });
+  }, [confirmDialog, editStaff, setEditStaff]);
 
   useEffect(() => {
     if (!showEditModal) return;
@@ -1455,19 +1604,52 @@ export default function ClassDetails() {
         cycleStartDate: cycleStartDate || undefined,
         cycleLengthWeeks: cycleValue,
       });
+      const organizationId = cls.organizationId || activeOrganization?.id || "";
+      const assignments = editStaff.map((member) => ({
+        userId: member.userId,
+        staffProfileId: member.staffProfileId,
+        isPlaceholder: member.isPlaceholder,
+        displayName: member.displayName,
+        staffRole: member.staffRole,
+      }));
+      if (editStaffHistoryAvailable) {
+        try {
+          const receipt = await applyClassStaffAssignmentsWithHistory({
+            organizationId,
+            classId: cls.id,
+            assignments,
+            expectedVersion: editStaffVersion,
+          });
+          setEditStaffVersion(receipt.version);
+        } catch (error) {
+          if (!isClassStaffHistoryUnavailable(error)) throw error;
+          setEditStaffHistoryAvailable(false);
+          await replaceClassStaffAssignments({ organizationId, classId: cls.id, assignments });
+        }
+      } else {
+        await replaceClassStaffAssignments({ organizationId, classId: cls.id, assignments });
+      }
+      const savedStaff = await listClassStaffIdentitiesByClassIds({
+        organizationId: cls.organizationId || activeOrganization?.id || "",
+        classIds: [cls.id],
+      });
       await setCoachNameForClass(cls.id, coachNameOverride);
       Vibration.vibrate(60);
       const fresh = await getClassById(cls.id);
       setCls(fresh);
       setClassColorKey(fresh?.colorKey ?? null);
+      setEditStaff(savedStaff);
+      setEditStaffBaseline(savedStaff);
+      if (editStaffHistoryAvailable) await reloadClassStaffHistory();
       return true;
     } finally {
       setSaving(false);
     }
-  }, [ageBand, cls, coachNameOverride, cycleLengthWeeks, cycleStartDate, daysOfWeek, editCustomAgeBand, editCustomGoal, endTime, gender, goal, isValidTime, modality, mvLevel, name, parseCycleLength, parseDurationFromTimeRange, setCoachNameForClass, showEditCustomAgeBand, showEditCustomGoal, startTime, trainingSpace, unit]);
+  }, [activeOrganization?.id, ageBand, cls, coachNameOverride, cycleLengthWeeks, cycleStartDate, daysOfWeek, editCustomAgeBand, editCustomGoal, editStaff, editStaffHistoryAvailable, editStaffVersion, endTime, gender, goal, isValidTime, modality, mvLevel, name, parseCycleLength, parseDurationFromTimeRange, reloadClassStaffHistory, setCoachNameForClass, showEditCustomAgeBand, showEditCustomGoal, startTime, trainingSpace, unit]);
 
   const closeEditModal = useCallback(() => {
     setShowEditModal(false);
+    setShowEditActionsMenu(false);
     setShowEditCloseConfirm(false);
     closeEditPickers();
     setShowEditCycleCalendar(false);
@@ -1476,7 +1658,7 @@ export default function ClassDetails() {
     setShowEditCustomGoal(false);
     setEditCustomGoal("");
     resetEditFields();
-  }, [closeEditPickers, resetEditFields, setShowEditModal, setShowEditCloseConfirm, setShowEditCycleCalendar, setShowEditCustomAgeBand, setEditCustomAgeBand, setShowEditCustomGoal, setEditCustomGoal]);
+  }, [closeEditPickers, resetEditFields, setShowEditModal, setShowEditActionsMenu, setShowEditCloseConfirm, setShowEditCycleCalendar, setShowEditCustomAgeBand, setEditCustomAgeBand, setShowEditCustomGoal, setEditCustomGoal]);
 
   const requestCloseEditModal = useCallback(() => {
     if (isEditDirty) {
@@ -1487,11 +1669,64 @@ export default function ClassDetails() {
   }, [closeEditModal, isEditDirty, setShowEditCloseConfirm]);
 
   const handleSaveEdit = useCallback(async () => {
-    const saved = await saveUnit();
-    if (saved) {
-      setShowEditModal(false);
+    try {
+      const saved = await saveUnit();
+      if (saved) {
+        setShowEditModal(false);
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Não foi possível salvar as alterações da turma.");
     }
-  }, [saveUnit, setShowEditModal]);
+  }, [saveUnit, setFormError, setShowEditModal]);
+
+  const handleScheduleStaffSubstitution = useCallback(async (input: {
+    absentTenureId: string;
+    replacementUserId: string;
+    startsOn: string;
+    endsOn: string;
+    reason: string;
+    notes: string;
+  }) => {
+    const organizationId = cls?.organizationId || activeOrganization?.id || "";
+    if (!organizationId || !cls?.id) throw new Error("Turma ou organização inválida.");
+    await scheduleClassStaffSubstitution({
+      organizationId,
+      classId: cls.id,
+      absentTenureId: input.absentTenureId,
+      replacementUserId: input.replacementUserId,
+      startsOn: input.startsOn,
+      endsOn: input.endsOn,
+      reason: input.reason,
+      notes: input.notes,
+    });
+    await reloadClassStaffHistory();
+  }, [activeOrganization, cls, reloadClassStaffHistory]);
+
+  const handleRegisterStaffReturn = useCallback(async (substitutionId: string) => {
+    const organizationId = cls?.organizationId || activeOrganization?.id || "";
+    if (!organizationId) return;
+    await registerClassStaffReturn({ organizationId, substitutionId });
+    await reloadClassStaffHistory();
+  }, [activeOrganization, cls, reloadClassStaffHistory]);
+
+  const handleCancelStaffSubstitution = useCallback(async (substitutionId: string, reason: string) => {
+    const organizationId = cls?.organizationId || activeOrganization?.id || "";
+    if (!organizationId) return;
+    await cancelClassStaffSubstitution({ organizationId, substitutionId, reason });
+    await reloadClassStaffHistory();
+  }, [activeOrganization, cls, reloadClassStaffHistory]);
+
+  const handleReviseTransitionSummary = useCallback(async (summaryId: string, revisedSummary: string, reason: string) => {
+    await reviseClassTransitionSummary({ summaryId, revisedSummary, reason });
+    await reloadClassStaffHistory();
+  }, [reloadClassStaffHistory]);
+
+  const handleCorrectStaffTenureDates = useCallback(async (tenureId: string, startsOn: string, endsOn: string | null, reason: string) => {
+    const organizationId = cls?.organizationId || activeOrganization?.id || "";
+    if (!organizationId) return;
+    await correctClassStaffTenureDates({ organizationId, tenureId, startsOn, endsOn, datePrecision: "exact", reason });
+    await reloadClassStaffHistory();
+  }, [activeOrganization, cls, reloadClassStaffHistory]);
 
   const toggleRosterBooleanOption = useCallback((key: "includeAttendance" | "includeBirthDate" | "includeCourse" | "includeContact") => {
       setRosterExportOptions((prev) => ({
@@ -2245,6 +2480,8 @@ export default function ClassDetails() {
           onBack={() => requestAttendanceAction(() => navigateBackOrReplace({ router, fallback: scopedRoutes.classes }))}
           right={
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Editar turma"
               onPress={() => {
                 resetEditFields();
                 setShowEditModal(true);
@@ -2289,7 +2526,7 @@ export default function ClassDetails() {
           showCompactNavigationFab={false}
           activeSection={workspaceSection}
           onSelectSection={handleSelectWorkspaceSection}
-            attendanceContent={({ dense }) => <ClassAttendanceWorkspacePanel colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} dense={dense} dateLabel={lessonDateLabel} students={embeddedAttendance.students} statusById={embeddedAttendance.statusById} detailsById={embeddedAttendance.detailsById} markedCount={embeddedAttendance.markedCount} hasChanges={embeddedAttendance.hasChanges} isLoading={embeddedAttendance.isLoading} isSaving={embeddedAttendance.isSaving} loadFailed={embeddedAttendance.loadFailed} error={embeddedAttendance.error} onRetry={embeddedAttendance.loadFailed ? () => void embeddedAttendance.reload() : undefined} onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)} onOpenCalendar={() => setShowLessonDatePicker(true)} onOpenReport={handleOpenReport} onSetStatus={embeddedAttendance.setStudentStatus} onSetDetails={embeddedAttendance.setStudentDetails} onSave={() => void handleSaveEmbeddedAttendance()} onBindStudentNfc={canManageStudentNfc ? studentNfcBinding.bindStudentTag : undefined} nfcBindingStudentId={studentNfcBinding.scanningStudentId} />}
+            attendanceContent={({ dense }) => <ClassAttendanceWorkspacePanel colors={colors} compact={compactClassWorkspace} mobile={mobileClassWorkspace} dense={dense} dateLabel={lessonDateLabel} students={embeddedAttendance.students} statusById={embeddedAttendance.statusById} detailsById={embeddedAttendance.detailsById} markedCount={embeddedAttendance.markedCount} hasPersistedAttendance={embeddedAttendance.hasPersistedAttendance} hasChanges={embeddedAttendance.hasChanges} isLoading={embeddedAttendance.isLoading} isSaving={embeddedAttendance.isSaving} loadFailed={embeddedAttendance.loadFailed} error={embeddedAttendance.error} onRetry={embeddedAttendance.loadFailed ? () => void embeddedAttendance.reload() : undefined} onPrevious={() => handleShiftLessonDate(-1)} onNext={() => handleShiftLessonDate(1)} onOpenCalendar={() => setShowLessonDatePicker(true)} onOpenReport={handleOpenReport} onSetStatus={embeddedAttendance.setStudentStatus} onSetDetails={embeddedAttendance.setStudentDetails} onSave={() => void handleSaveEmbeddedAttendance()} onBindStudentNfc={canManageStudentNfc ? studentNfcBinding.bindStudentTag : undefined} nfcBindingStudentId={studentNfcBinding.scanningStudentId} />}
           scheduleLabel={scheduleLabel}
           lessonDateLabel={lessonDateLabel}
           appliedPlan={appliedPlan}
@@ -2326,7 +2563,7 @@ export default function ClassDetails() {
           bottom={insets.bottom + 18}
         />
 
-        {compactClassWorkspace && !classNavigationOpen ? (
+        {compactClassWorkspace && !classNavigationOpen && !showReportModal && !showEditModal ? (
           <ClassNavigationFab
             colors={colors}
             bottom={resolveCopilotCompanionFabBottom(insets.bottom)}
@@ -2460,32 +2697,30 @@ export default function ClassDetails() {
           style={{ flex: 1, minHeight: 0, gap: 12, position: "relative" }}
         >
           <ConfirmCloseOverlay visible={showEditCloseConfirm} onCancel={() => setShowEditCloseConfirm(false)} onConfirm={closeEditModal} />
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 20 }}>
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-              <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>Editar turma</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>{cls?.name ? cls.name : "Ajuste os dados, agenda e perfil da turma."}</Text>
+              <Text style={{ fontSize: isCompactEditModal ? 22 : 28, fontWeight: "800", color: colors.text }}>Editar turma</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>{`${cls?.name || "Turma"}${cls?.unit ? ` · ${cls.unit}` : ""}`}</Text>
+                {gender ? <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.secondaryBg }}><Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{gender === "feminino" ? "Feminino" : gender === "masculino" ? "Masculino" : "Misto"}</Text></View> : null}
+              </View>
             </View>
-            <Pressable
-              onPress={requestCloseEditModal}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.secondaryBg,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <GoAtletaIcon name="close" size={18} color={colors.text} />
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Mais ações da turma" onPress={() => setShowEditActionsMenu((current) => !current)} style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+                <GoAtletaIcon name="ellipsisHorizontal" size={19} color={colors.text} />
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Fechar edição da turma" onPress={requestCloseEditModal} style={{ width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.secondaryBg, borderWidth: 1, borderColor: colors.border }}>
+                <GoAtletaIcon name="close" size={20} color={colors.text} />
+              </Pressable>
+            </View>
+            {showEditActionsMenu ? (
+              <View style={{ position: "absolute", right: 46, top: 44, minWidth: 170, padding: 6, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, zIndex: 30, shadowColor: "#000", shadowOpacity: 0.14, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 10 }}>
+                <Pressable accessibilityRole="button" onPress={() => { setShowEditActionsMenu(false); void onDelete(); }} style={{ minHeight: 44, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 9 }}>
+                  <GoAtletaIcon name="trash" size={18} color={colors.dangerText} />
+                  <Text style={{ color: colors.dangerText, fontSize: 13, fontWeight: "700" }}>Excluir turma</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
 
           <View style={{ flex: 1, minHeight: 0, position: "relative" }}>
@@ -2511,8 +2746,22 @@ export default function ClassDetails() {
               onScrollBeginDrag={closeEditPickers}
               showsVerticalScrollIndicator
             >
-              <ClassEditModalBody
+              <ModernClassEditModalBody
                 renderPickers={false}
+                leftColumnFooter={editStaffHistoryAvailable ? (
+                  <ClassStaffHistoryPanel
+                    loading={editStaffHistoryLoading}
+                    tenures={editStaffTenures}
+                    substitutions={editStaffSubstitutions}
+                    summaries={editTransitionSummaries}
+                    candidates={editStaffCandidates}
+                    onSchedule={handleScheduleStaffSubstitution}
+                    onReturn={handleRegisterStaffReturn}
+                    onCancel={handleCancelStaffSubstitution}
+                    onReviseSummary={handleReviseTransitionSummary}
+                    onCorrectDates={handleCorrectStaffTenureDates}
+                  />
+                ) : null}
               editContainerRef={editContainerRef}
               editCycleLengthTriggerRef={editCycleLengthTriggerRef}
               editMvLevelTriggerRef={editMvLevelTriggerRef}
@@ -2586,6 +2835,9 @@ export default function ClassDetails() {
                 editFormError: formError,
                 editSaving: saving,
                 isEditDirty,
+                editStaff,
+                editStaffCandidates,
+                editStaffLoading,
                 editShowCustomGoal: showEditCustomGoal,
               }}
               options={{
@@ -2599,6 +2851,9 @@ export default function ClassDetails() {
                 modalityOptions,
                 mvLevelOptions,
                 goalOptions,
+                classNameOptions: allClasses.filter((item) => item.id !== cls?.id).map((item) => item.name),
+                unitOptions: allClasses.map((item) => item.unit),
+                trainingSpaceOptions: allClasses.map((item) => item.trainingSpace ?? ""),
                   customOptionLabel: "Personalizar",
               }}
               actions={{
@@ -2623,6 +2878,10 @@ export default function ClassDetails() {
                   closeEditPickers();
                 },
                 handleEditSelectModality,
+                addEditStaff,
+                addPlaceholderEditStaff,
+                removeEditStaff,
+                changeEditStaffRole,
                 handleEditSelectGoal: (value) => {
                   const selected = String(value);
                   if (selected === "Personalizar") {
@@ -2643,22 +2902,12 @@ export default function ClassDetails() {
             </ScrollView>
           </View>
 
-          <View
-            style={{
-              gap: 10,
-              paddingTop: 12,
-              paddingBottom: 12,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-            }}
-          >
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Button label={saving ? "Salvando..." : "Salvar alterações"} onPress={handleSaveEdit} disabled={saving || !name.trim() || !isEditDirty} loading={saving} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button label="Excluir turma vazia" variant="danger" onPress={() => void onDelete()} disabled={saving} loading={false} />
-              </View>
+          <View style={{ paddingTop: 12, paddingBottom: 4, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: isCompactEditModal ? "column-reverse" : "row", alignItems: isCompactEditModal ? "stretch" : "center", justifyContent: "space-between", gap: 10 }}>
+            <Pressable accessibilityRole="button" onPress={resetEditFields} disabled={!isEditDirty || saving} style={{ minHeight: 42, justifyContent: "center", paddingHorizontal: 6, opacity: isEditDirty && !saving ? 1 : 0.45 }}>
+              <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "600", textDecorationLine: "underline" }}>Descartar alterações</Text>
+            </Pressable>
+            <View style={{ width: isCompactEditModal ? "100%" : 250 }}>
+              <Button label={saving ? "Salvando..." : "Salvar alterações"} onPress={handleSaveEdit} disabled={saving || !name.trim() || !isEditDirty} loading={saving} />
             </View>
           </View>
 
@@ -2736,6 +2985,9 @@ export default function ClassDetails() {
               editFormError: formError,
               editSaving: saving,
               isEditDirty,
+              editStaff,
+              editStaffCandidates,
+              editStaffLoading,
               editShowCustomGoal: showEditCustomGoal,
             }}
             options={{
@@ -2749,6 +3001,7 @@ export default function ClassDetails() {
               modalityOptions,
               mvLevelOptions,
               goalOptions,
+              trainingSpaceOptions: allClasses.map((item) => item.trainingSpace ?? ""),
               customOptionLabel: "Personalizar",
             }}
             actions={{
@@ -2773,7 +3026,11 @@ export default function ClassDetails() {
                 closeEditPickers();
               },
               handleEditSelectModality,
-                handleEditSelectGoal: (value) => {
+              addEditStaff,
+              addPlaceholderEditStaff,
+              removeEditStaff,
+              changeEditStaffRole,
+              handleEditSelectGoal: (value) => {
                 const selected = String(value);
                 if (selected === "Personalizar") {
                   setShowEditCustomGoal(true);

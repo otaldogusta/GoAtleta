@@ -1,4 +1,5 @@
 import type { ClassGroup } from "./models";
+import { isVolleyballClassModality } from "./class-modality";
 
 export type MVLevel = "MV1" | "MV2" | "MV3";
 
@@ -139,7 +140,7 @@ const includesGoal = (goal: string, target: string) =>
   (goal ?? "").toLowerCase().includes(target.toLowerCase());
 
 const shouldUseVolleyball = (cls: ClassGroup) => {
-  if (cls.modality === "voleibol") return true;
+  if (isVolleyballClassModality(cls.modality)) return true;
   if (cls.modality === "fitness") return false;
   const goal = cls.goal ?? "";
   const unit = cls.unit ?? "";

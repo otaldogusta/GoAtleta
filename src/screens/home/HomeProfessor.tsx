@@ -409,7 +409,10 @@ export function HomeProfessorScreen({
     await seedIfEmpty();
     hasSeededRef.current = true;
   }, []);
-  const loadHomeSchedule = useCallback(async (requireFresh = false) => {
+  const loadHomeSchedule = useCallback(async (
+    requireFresh = false,
+    onClassesResolved?: (nextClasses: ClassGroup[]) => void,
+  ) => {
     const userId = session?.user?.id;
     if (!userId || role !== "trainer") {
       return { classes: [] as ClassGroup[], events: [] as EventListItem[] };
@@ -418,16 +421,25 @@ export function HomeProfessorScreen({
     if (!adminMode) await ensureSeedData();
 
     const organizationId = activeOrganization?.id ?? null;
-    const [classListResult, eventsListResult] = await Promise.allSettled([
-      getClasses({ organizationId }),
-      organizationId
-        ? listUpcomingEvents({
-            organizationId,
-            userId,
-            days: upcomingWindowDays,
-          })
-        : Promise.resolve([] as EventListItem[]),
-    ]);
+    const classListPromise = getClasses({ organizationId });
+    const eventsListPromise = organizationId
+      ? listUpcomingEvents({
+          organizationId,
+          userId,
+          days: upcomingWindowDays,
+        })
+      : Promise.resolve([] as EventListItem[]);
+    const classListResult = await Promise.resolve(classListPromise).then(
+      (value) => ({ status: "fulfilled", value }) as const,
+      (reason: unknown) => ({ status: "rejected", reason }) as const,
+    );
+    if (classListResult.status === "fulfilled") {
+      onClassesResolved?.(classListResult.value);
+    }
+    const eventsListResult = await Promise.resolve(eventsListPromise).then(
+      (value) => ({ status: "fulfilled", value }) as const,
+      (reason: unknown) => ({ status: "rejected", reason }) as const,
+    );
 
     if (requireFresh) {
       if (classListResult.status === "rejected") throw classListResult.reason;
@@ -496,7 +508,12 @@ export function HomeProfessorScreen({
         await measureAsync(
           "screen.home.load.schedule",
           async () => {
-            const result = await loadHomeSchedule();
+            const result = await loadHomeSchedule(false, (nextClasses) => {
+              if (!alive) return;
+              setClasses(nextClasses);
+              setResolvedScheduleRequestKey(scheduleRequestKey);
+              setAgendaRefreshToken((value) => value + 1);
+            });
 
             if (alive) {
               setClasses(result.classes);

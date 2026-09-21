@@ -1,6 +1,6 @@
 import { parseAgeBandRange } from "./age-band";
 import { inferSkillsFromText, progressionPlanToDraft, volleyballLessonPlanToDraft } from "./ai-operations";
-import { resolveClassModality } from "./class-modality";
+import { isVolleyballClassModality } from "./class-modality";
 import type { ClassGroup, Student, VolleyballSkill } from "./models";
 import type { SessionPlanningContext } from "./session-planning-context";
 import {
@@ -501,14 +501,13 @@ const resolvePlanningFocusSkills = (input: PlanningInput, objectiveText: string)
 };
 
 const buildBasePlan = (input: PlanningInput, analysis: PlanningAnalysis): BasePlanDraft => {
-  const classModality = resolveClassModality(input.classGroup.modality);
   const objectiveText = [input.objective, input.classGroup.goal, ...(input.students ?? []).map((student) => student.healthObservations)]
     .filter(Boolean)
     .join(" ");
   const focusSkills = resolvePlanningFocusSkills(input, objectiveText);
   const syntheticSnapshot = buildSyntheticSnapshot(input, analysis);
 
-  if (classModality === "voleibol") {
+  if (isVolleyballClassModality(input.classGroup.modality)) {
     const raw = buildNextVolleyballLessonPlan({
       classId: input.classGroup.id,
       unitId: input.classGroup.unitId,

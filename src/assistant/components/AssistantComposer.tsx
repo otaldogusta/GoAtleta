@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Platform, StyleSheet, TextInput, View, type TextInputProps } from "react-native";
 import { Pressable } from "../../ui/Pressable";
 import { GoAtletaIcon } from "../../ui/icon-registry";
@@ -11,6 +11,7 @@ type Props = {
   onFocus?: TextInputProps["onFocus"]; onBlur?: TextInputProps["onBlur"];
   onKeyPress?: TextInputProps["onKeyPress"];
   voiceScope: { organizationId: string; classId?: string } | undefined;
+  trailingControl?: ReactNode;
 };
 export function AssistantComposer(props: Props) {
   return <ScopedAssistantComposer key={`${props.voiceScope?.organizationId}:${props.voiceScope?.classId}`} {...props} />;
@@ -41,6 +42,7 @@ function ScopedAssistantComposer(props: Props) {
       onContentSizeChange={event => setInputHeight(Math.max(40, Math.min(maxHeight, Math.ceil(event.nativeEvent.contentSize.height))))}
       multiline scrollEnabled={inputHeight >= maxHeight} returnKeyType="send"
       style={[styles.input, voiceActive && styles.hidden, { height: props.value ? inputHeight : 40, color: colors.inputText }]} />
+    {!voiceActive ? props.trailingControl : null}
     {props.voiceScope ? <LessonVoiceInput key={`${props.voiceScope.organizationId}:${props.voiceScope.classId}`} {...props.voiceScope} disabled={Boolean(props.busy)} onActiveChange={setVoiceActive}
       onText={text => props.onChangeText(latestValue.current ? `${latestValue.current}\n${text}` : text)} /> : null}
     {!voiceActive ? <Pressable accessibilityRole="button" accessibilityLabel="Enviar mensagem" onPress={props.onSend} disabled={!canSend}
