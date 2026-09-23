@@ -288,7 +288,7 @@ export default function ClassDetails() {
   const [planPreviewMode, setPlanPreviewMode] = useState<"preview" | "edit">("preview");
   const [showReportModal, setShowReportModal] = useState(false);
   const requestedWorkspaceSection = resolveClassWorkspaceRouteSection(section);
-  const requestedLessonDate = parseClassWorkspaceRouteDate(date);
+  const requestedLessonDate = useMemo(() => parseClassWorkspaceRouteDate(date), [date]);
   const [workspaceSection, setWorkspaceSection] = useState<ClassWorkspaceSection>(() => requestedWorkspaceSection);
   const [classNavigationOpen, setClassNavigationOpen] = useState(false);
   const [showAttendanceCloseConfirm, setShowAttendanceCloseConfirm] = useState(false);
@@ -709,7 +709,10 @@ export default function ClassDetails() {
   const scheduleDayLabels = classDays.map((day) => dayNames[day]).filter(Boolean);
   const scheduleDaysLabel = scheduleDayLabels.length <= 1 ? (scheduleDayLabels[0] ?? "Sem dias definidos") : `${scheduleDayLabels.slice(0, -1).join(", ")} e ${scheduleDayLabels.at(-1)}`;
   const scheduleLabel = `${scheduleDaysLabel} · ${classStartTime}`;
-  const nextClassDate = calculateCurrentOrNextClassDate(classDays, classStartTime, classDuration);
+  const nextClassDate = useMemo(
+    () => calculateCurrentOrNextClassDate(classDays, classStartTime, classDuration),
+    [classDays, classDuration, classStartTime],
+  );
   const nextClassLabel = nextClassDate ? formatNextClassDate(nextClassDate) : "Não definida";
   const selectedLessonDate = resolveClassWorkspaceLessonDate(lessonDate, requestedLessonDate, nextClassDate);
   const selectedLessonDateKey = selectedLessonDate ? `${selectedLessonDate.getFullYear()}-${String(selectedLessonDate.getMonth() + 1).padStart(2, "0")}-${String(selectedLessonDate.getDate()).padStart(2, "0")}` : "";
