@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Animated, Platform } from "react-native";
 
 type CollapsibleOptions = {
@@ -15,7 +15,9 @@ export function useCollapsibleAnimation(
   const [anim] = useState(() => new Animated.Value(open ? 1 : 0));
   const [isMountedVisible, setIsMountedVisible] = useState(open);
 
-  useEffect(() => {
+  // Reset before the browser paints: a reopened list still holds opacity 1
+  // from its previous animation and would otherwise flash before fading in.
+  useLayoutEffect(() => {
     const isNativeAnimation = Platform.OS === "ios" || Platform.OS === "android";
     if (open) {
       anim.setValue(0);
@@ -24,7 +26,7 @@ export function useCollapsibleAnimation(
         duration: durationIn,
         useNativeDriver: isNativeAnimation,
       }).start();
-      return;
+      return () => anim.stopAnimation();
     }
     if (!isMountedVisible) return;
     Animated.timing(anim, {
@@ -34,6 +36,7 @@ export function useCollapsibleAnimation(
     }).start(({ finished }) => {
       if (finished) setIsMountedVisible(false);
     });
+    return () => anim.stopAnimation();
   }, [isMountedVisible, open, anim, durationIn, durationOut]);
 
   const animatedStyle = {

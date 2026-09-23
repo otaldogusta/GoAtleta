@@ -17,6 +17,7 @@ import {
   type FamilyStudentContext,
 } from "../api/family-access";
 import type { Student } from "../core/models";
+import type { StudentRow } from "../db/row-types";
 import {
   getDevProfilePreview,
   type DevProfilePreview,
@@ -36,6 +37,7 @@ import {
 } from "./role-resolution";
 import { getSessionUserId, getValidAccessToken } from "./session";
 import { reconcileMyStudentAccess, type StudentAccessResolution } from "./student-access-reconciliation";
+import { mapStudentSelfProfile } from "./student-self-profile";
 
 export type { UserRole } from "./role-types";
 
@@ -56,70 +58,6 @@ type RoleState = {
 };
 
 const RoleContext = createContext<RoleState | null>(null);
-
-type StudentRow = {
-  id: string;
-  name: string;
-  organization_id?: string | null;
-  photo_url?: string | null;
-  classid: string | null;
-  age: number;
-  phone: string;
-  login_email: string | null;
-  guardian_name: string | null;
-  guardian_phone: string | null;
-  guardian_relation: string | null;
-  health_issue?: boolean | null;
-  health_issue_notes?: string | null;
-  medication_use?: boolean | null;
-  medication_notes?: string | null;
-  health_observations?: string | null;
-  position_primary?: string | null;
-  position_secondary?: string | null;
-  athlete_objective?: string | null;
-  learning_style?: string | null;
-  birthdate: string | null;
-  membership_status?: string | null;
-  inactivated_at?: string | null;
-  inactivated_by?: string | null;
-  inactivation_reason?: string | null;
-  createdat: string;
-};
-
-const mapStudent = (row: StudentRow): Student => ({
-  id: row.id,
-  name: row.name,
-  organizationId: row.organization_id ?? "",
-  photoUrl: row.photo_url ?? undefined,
-  classId: row.classid ?? "",
-  age: row.age,
-  phone: row.phone,
-  loginEmail: row.login_email ?? "",
-  guardianName: row.guardian_name ?? "",
-  guardianPhone: row.guardian_phone ?? "",
-  guardianRelation: row.guardian_relation ?? "",
-  healthIssue: row.health_issue ?? false,
-  healthIssueNotes: row.health_issue_notes ?? "",
-  medicationUse: row.medication_use ?? false,
-  medicationNotes: row.medication_notes ?? "",
-  healthObservations: row.health_observations ?? "",
-  positionPrimary:
-    (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
-  positionSecondary:
-    (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
-  athleteObjective:
-    (row.athlete_objective as Student["athleteObjective"]) ?? "base",
-  learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
-  birthDate: row.birthdate ?? "",
-  membershipStatus:
-    row.membership_status === "inactive" ? "inactive" : "active",
-  // Student self/role resolution never loads protected financial data.
-  financialStatus: "unknown",
-  inactivatedAt: row.inactivated_at ?? null,
-  inactivatedBy: row.inactivated_by ?? null,
-  inactivationReason: row.inactivation_reason ?? null,
-  createdAt: row.createdat,
-});
 
 class RoleRequestError extends Error {
   status: number;
@@ -206,7 +144,7 @@ const fetchStudentSelf = async (token: string, userId: string) => {
   }
   const rows = text ? (JSON.parse(text) as StudentRow[]) : [];
   if (!rows.length) return null;
-  return mapStudent(rows[0]);
+  return mapStudentSelfProfile(rows[0]);
 };
 
 const fetchFamilyContexts = async (token: string) => {

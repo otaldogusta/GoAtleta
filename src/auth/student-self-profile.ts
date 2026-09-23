@@ -1,0 +1,48 @@
+import type { Student } from "../core/models";
+import type { StudentRow } from "../db/row-types";
+
+export function mapStudentSelfProfile(row: StudentRow): Student {
+  return {
+    id: row.id,
+    name: row.name,
+    organizationId: row.organization_id ?? "",
+    studentUserId: row.student_user_id ?? null,
+    photoUrl: row.photo_url ?? undefined,
+    ra: row.ra ?? null,
+    raStartYear: row.ra_start_year ?? null,
+    externalId: row.external_id ?? null,
+    cpfMasked: row.cpf_masked ?? null,
+    cpfHmac: row.cpf_hmac ?? null,
+    rg: row.rg ?? null,
+    rgNormalized: row.rg_normalized ?? null,
+    collegeCourse: row.college_course ?? null,
+    isExperimental: Boolean(row.is_experimental),
+    membershipStatus: row.membership_status === "inactive" ? "inactive" : "active",
+    // The self profile never hydrates the protected financial table.
+    financialStatus: "unknown",
+    inactivatedAt: row.inactivated_at ?? null,
+    inactivatedBy: row.inactivated_by ?? null,
+    inactivationReason: row.inactivation_reason ?? null,
+    sourcePreRegistrationId: row.source_pre_registration_id ?? null,
+    classId: row.classid ?? "",
+    age: row.age,
+    phone: row.phone,
+    loginEmail: row.login_email ?? "",
+    guardianName: row.guardian_name ?? "",
+    guardianPhone: row.guardian_phone ?? "",
+    guardianRelation: row.guardian_relation ?? "",
+    address: row.address ?? "",
+    genderIdentity: row.gender_identity ?? "",
+    healthIssue: row.health_issue ?? false,
+    healthIssueNotes: row.health_issue_notes ?? "",
+    medicationUse: row.medication_use ?? false,
+    medicationNotes: row.medication_notes ?? "",
+    healthObservations: row.health_observations ?? "",
+    positionPrimary: (row.position_primary as Student["positionPrimary"]) ?? "indefinido",
+    positionSecondary: (row.position_secondary as Student["positionSecondary"]) ?? "indefinido",
+    athleteObjective: (row.athlete_objective as Student["athleteObjective"]) ?? "base",
+    learningStyle: (row.learning_style as Student["learningStyle"]) ?? "misto",
+    birthDate: row.birthdate ?? "",
+    createdAt: row.createdat,
+  };
+}

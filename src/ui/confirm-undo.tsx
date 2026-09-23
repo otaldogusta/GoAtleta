@@ -229,6 +229,7 @@ export function ConfirmUndoProvider({
       </ModalSheet>
       {pending ? (
         <View
+          pointerEvents="box-none"
           style={{
             position: "absolute",
             left: 0,
@@ -240,6 +241,7 @@ export function ConfirmUndoProvider({
           }}
         >
           <View
+            pointerEvents="auto"
             onLayout={(event) => {
               const nextWidth = event.nativeEvent.layout.width;
               if (Math.abs(nextWidth - bannerWidth) > 1) {

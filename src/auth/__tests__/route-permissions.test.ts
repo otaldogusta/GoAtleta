@@ -1,5 +1,6 @@
 import {
   getTrainerPermissionKey,
+  hasOrganizationAdminAccess,
   isRolePathBlocked,
   isTrainerPathAllowed,
 } from "../route-permissions";
@@ -35,6 +36,21 @@ describe("trainer route permissions", () => {
     expect(
       isTrainerPathAllowed("/prof/calendar", { calendar: false }, true)
     ).toBe(true);
+  });
+
+  it("keeps real organization admin access while previewing the professor workspace", () => {
+    expect(
+      hasOrganizationAdminAccess("org-a", [
+        { id: "org-a", role_level: 50 },
+        { id: "org-b", role_level: 10 },
+      ]),
+    ).toBe(true);
+    expect(
+      hasOrganizationAdminAccess("org-b", [
+        { id: "org-a", role_level: 50 },
+        { id: "org-b", role_level: 10 },
+      ]),
+    ).toBe(false);
   });
 
   it("keeps trainer, student and family routes isolated", () => {

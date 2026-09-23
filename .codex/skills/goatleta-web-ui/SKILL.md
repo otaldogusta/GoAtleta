@@ -33,8 +33,10 @@ description: Criar, revisar ou refatorar interfaces responsivas do GoAtleta, inc
 
 ## Validação
 
-1. Rodar testes focados, `typecheck:app`, perf-hygiene estrito e diff check.
-2. Validar 390×844, 834×1194 e 1440×1024 no navegador local.
-3. Conferir temas claro/escuro, foco, URLs longas, modal e ausência de overflow horizontal.
-4. Comparar a implementação com a Home no mesmo viewport.
-5. Corrigir todo P0, P1 ou P2 antes do handoff.
+1. Classificar a alteração pela escada canônica em `docs/operations/validation-ladder.md` antes de executar comandos.
+2. Para microajuste visual, usar o ciclo rápido: inspeção do diff, teste focado quando existir e uma verificação direta do comportamento afetado. Não rodar automaticamente build, org-scope, perf-hygiene ou matriz completa de viewports.
+3. Rodar `typecheck:app`, perf-hygiene, org-scope, build e smoke ampliado somente quando o nível de risco ou a etapa de entrega da escada exigir.
+4. Validar 390×844, 834×1194 e 1440×1024 quando houver mudança responsiva, estrutural, de modal/layout compartilhado ou fechamento de pacote; não para toda troca local de texto, cor, espaçamento ou seletor já padronizado.
+5. Conferir temas claro/escuro, foco, URLs longas, modal e ausência de overflow horizontal apenas nas dimensões realmente afetadas pela mudança.
+6. Comparar a implementação com a Home quando a tarefa alterar hierarquia, densidade ou estrutura da página.
+7. Corrigir todo P0 ou P1 relacionado à mudança. Corrigir P2 no mesmo turno somente se foi introduzido pela alteração ou impede o fluxo solicitado; não ampliar silenciosamente um microajuste para uma revisão geral.

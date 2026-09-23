@@ -12,7 +12,9 @@
 - Use `http://localhost:8081` as the first UI/UX validation loop. Do not use a Vercel preview as the first place to decide whether an interface is correct.
 - Keep changes local when the user asks for an "ajuste local". Commit, push, pull requests, previews, merges, promotions, and production deploys require the scope requested in the current task.
 - Prefer a Vercel preview for remote validation. Never deploy or promote to production, merge a release-triggering change, or run a production release command without explicit user authorization in the current task.
-- Before publishing, run checks proportional to the change. The normal baseline is focused tests, `npm run typecheck:app`, `npm run check:org-scope`, `git diff --check`, `npm run build`, and an authenticated smoke test of the affected flow on `localhost:8081`.
+- Classify every change with the validation ladder in `docs/operations/validation-ladder.md` before running checks. A micro UI/copy/style adjustment uses the fast loop only; do not automatically run build, organization-scope, performance, the complete viewport matrix, or a broad browser smoke for it.
+- Keep a micro-adjustment validation pass within roughly 2–5 minutes when the local environment is healthy. If an unexpected issue would exceed that budget, report it before broadening the task. Fix an adjacent issue immediately only when the current change caused it or it blocks the requested behavior; otherwise record it separately.
+- Before publishing, use the release level of the ladder. The normal release baseline is focused tests, `npm run typecheck:app`, `npm run check:org-scope`, `git diff --check`, `npm run build`, and an authenticated smoke test of the affected flow on `localhost:8081`.
 - Treat a successful build or preview as a validation gate, not as proof that production is complete. Report the deployment target, URL, status, commit, and any pending production gate.
 
 ## Production and data safety

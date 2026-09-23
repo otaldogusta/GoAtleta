@@ -93,7 +93,7 @@ import { useAppTheme } from "../src/ui/app-theme";
 import { FloatingSaveBar } from "../src/ui/FloatingSaveBar";
 import { AnimatedFieldDetails } from "../src/ui/AnimatedFieldDetails";
 import { PostalAddressField } from "../src/ui/PostalAddressField";
-import { maskCpf } from "../src/utils/cpf";
+import { maskCpf, validateCpf } from "../src/utils/cpf";
 import { PositionPicker } from "../src/ui/PositionPicker";
 import { CLASS_MODALITY_OPTIONS } from "../src/core/class-modality";
 import { useAthleteModalities } from "../src/screens/student/useAthleteModalities";
@@ -599,6 +599,7 @@ export default function ProfileScreen() {
   const [workspaceExpanded, setWorkspaceExpanded] = useState(false);
   const [dangerZoneExpanded, setDangerZoneExpanded] = useState(false);
   const [mobileExpandedSection, setMobileExpandedSection] = useState<string | null>("personal");
+  const [professionalExpandedSection, setProfessionalExpandedSection] = useState<string | null>("professional");
   const [mobileNameDraft, setMobileNameDraft] = useState("");
   const [mobileBirthDraft, setMobileBirthDraft] = useState("");
   const [mobilePhoneDraft, setMobilePhoneDraft] = useState("");
@@ -644,6 +645,7 @@ export default function ProfileScreen() {
     height: number;
   } | null>(null);
   const [savingMobileProfile, setSavingMobileProfile] = useState(false);
+  const [mobileRequiredValidationAttempted, setMobileRequiredValidationAttempted] = useState(false);
   const [pendingPhoneVerification, setPendingPhoneVerification] = useState("");
   const [phoneVerificationCode, setPhoneVerificationCode] = useState("");
   const [phoneVerificationError, setPhoneVerificationError] = useState<string | null>(null);
@@ -1164,6 +1166,17 @@ export default function ProfileScreen() {
     if (!student || !student.classId) return null;
     return classes.find((item) => item.id === student.classId) ?? null;
   }, [classes, student]);
+  const professionalClasses = useMemo(() => {
+    const organizationId = activeOrganization?.id;
+    return organizationId
+      ? classes.filter((item) => !item.organizationId || item.organizationId === organizationId)
+      : classes;
+  }, [activeOrganization?.id, classes]);
+  const professionalUnits = useMemo(
+    () => Array.from(new Set(professionalClasses.map((item) => item.unit?.trim()).filter(Boolean) as string[]))
+      .sort((left, right) => left.localeCompare(right, "pt-BR")),
+    [professionalClasses],
+  );
   const profileInstitution = resolveProfileInstitution(student, familyContexts, activeOrganization);
   const institutionClasses = useInstitutionClasses(student?.id, profileInstitution?.id, classes);
 
@@ -1903,6 +1916,21 @@ export default function ProfileScreen() {
   const phoneVerificationRequested = Boolean(
     pendingPhoneVerification && pendingPhoneVerification === mobilePhoneE164,
   );
+  const mobileRequiredFieldErrors = {
+    name: mobileNameDraft.trim().length < 2 ? "Informe o nome completo." : null,
+    birthDate: parseStudentBirthDate(mobileBirthDraft) ? null : "Informe uma data válida.",
+    phone: (() => {
+      const digits = mobilePhoneDraft.replace(/\D/g, "");
+      if (!digits) return "Informe o celular.";
+      return digits.length < 6 || digits.length > 15 ? "Confira o número informado." : null;
+    })(),
+    cpf: !mobileCpfDraft.trim()
+      ? "Informe o CPF."
+      : validateCpf(mobileCpfDraft)
+        ? null
+        : "Confira o CPF informado.",
+  };
+  const mobileProfileHasRequiredErrors = Object.values(mobileRequiredFieldErrors).some(Boolean);
   const mobileProfileHasChanges = Boolean(
     mobileNameDraft.trim() !== mobileProfileBaseline.name.trim()
       || mobileBirthDraft.trim() !== mobileProfileBaseline.birth.trim()
@@ -1960,28 +1988,28 @@ export default function ProfileScreen() {
   const saveMobileStudentProfile = async () => {
     if (savingMobileProfile) return;
     if (!student && (mobileSportsHasChanges || mobileGuardianNameDraft.trim() !== mobileProfileBaseline.guardianName.trim() || mobileGuardianPhoneDraft.trim() !== mobileProfileBaseline.guardianPhone.trim() || mobileGuardianRelationDraft.trim() !== mobileProfileBaseline.guardianRelation.trim())) {
-      Alert.alert("Cadastro de atleta necessário", "Os dados do responsável, posições e saúde precisam de um cadastro de atleta vinculado. Suas alterações continuam nesta tela.");
+      showSaveToast({
+        message: "Vincule um cadastro de atleta antes de salvar responsável, posições ou saúde.",
+        variant: "error",
+      });
       return false;
     }
     const normalizedName = mobileNameDraft.trim();
     const birthDate = parseStudentBirthDate(mobileBirthDraft);
     const phoneDigits = mobilePhoneDraft.replace(/\D/g, "");
     const guardianPhoneDigits = mobileGuardianPhoneDraft.replace(/\D/g, "");
-    if (normalizedName.length < 2) {
-      Alert.alert("Nome inválido", "Informe o nome completo do atleta.");
-      return;
-    }
-    if (student && !birthDate) {
-      Alert.alert("Data inválida", "Use o formato DD/MM/AAAA.");
-      return;
-    }
-    if (phoneDigits && (phoneDigits.length < 6 || phoneDigits.length > 15)) {
-      Alert.alert("Celular inválido", "Informe um celular com DDD.");
-      return;
+    setMobileRequiredValidationAttempted(true);
+    if (mobileProfileHasRequiredErrors) {
+      setMobileExpandedSection("personal");
+      showSaveToast({
+        message: "Revise os campos obrigatórios destacados.",
+        variant: "error",
+      });
+      return false;
     }
     if (guardianPhoneDigits && (guardianPhoneDigits.length < 6 || guardianPhoneDigits.length > 15)) {
-      Alert.alert("Celular do responsável inválido", "Confira o código do país e o número informado.");
-      return;
+      showSaveToast({ message: "Confira o celular do responsável.", variant: "error" });
+      return false;
     }
     setSavingMobileProfile(true);
     try {
@@ -2025,9 +2053,11 @@ export default function ProfileScreen() {
         guardianCountryCode: mobileGuardianCountryCode,
       });
       setMobileSportsBaseline({ position: mobilePositionDraft, secondaryPosition: mobileSecondaryPositionDraft, healthIssue: mobileHealthIssueDraft, healthIssueNotes: mobileHealthIssueDraft ? mobileHealthIssueNotesDraft.trim() : "", medicationUse: mobileMedicationUseDraft, medicationNotes: mobileMedicationUseDraft ? mobileMedicationNotesDraft.trim() : "", healthObservations: mobileHealthObservationsDraft.trim() });
+      setMobileRequiredValidationAttempted(false);
       return true;
     } catch (error) {
-      Alert.alert("Não foi possível salvar", getFriendlyErrorMessage(error));
+      showSaveToast({ error, variant: "error" });
+      return false;
     } finally {
       setSavingMobileProfile(false);
     }
@@ -2189,17 +2219,6 @@ export default function ProfileScreen() {
         || country.dialCode.includes(query);
     }).slice(0, COUNTRY_SEARCH_RESULT_LIMIT);
   })();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained as the canonical aggregate validity calculation for the pending unified mobile save control.
-  const mobileProfileCanSave = Boolean(
-    mobileProfileHasChanges
-      && mobileNameDraft.trim().length >= 2
-      && (!student || Boolean(parseStudentBirthDate(mobileBirthDraft)))
-      && (!mobilePhoneDraft.replace(/\D/g, "").length || (mobilePhoneDraft.replace(/\D/g, "").length >= 6 && mobilePhoneDraft.replace(/\D/g, "").length <= 15))
-      && (!mobileGuardianPhoneDraft.replace(/\D/g, "").length
-        || (mobileGuardianPhoneDraft.replace(/\D/g, "").length >= 6
-          && mobileGuardianPhoneDraft.replace(/\D/g, "").length <= 15))
-      && !savingMobileProfile,
-  );
   const notificationSettingSubtitle = isWeb
     ? webPushStatus === "unsupported"
       ? "Indisponível neste navegador"
@@ -2342,22 +2361,38 @@ export default function ProfileScreen() {
       >
 
         {isStudentMobileProfile ? (
-          <ResponsivePage variant="dashboard" gap={8} style={{ width: "100%", maxWidth: responsiveLayout.isMobile ? undefined : 760, alignSelf: "center", paddingBottom: 18 }}>
+          <ResponsivePage variant="dashboard" gap={20} style={{ width: "100%", paddingBottom: 18 }}>
             <BackTitleHeader
               title="Configurações"
               onBack={() => leaveMobileProfile()}
             />
 
-            <View style={{ alignItems: "center", gap: 5, paddingTop: 0, paddingBottom: 2 }}>
+            <ResponsiveGrid columns={{ compact: "1", split: "4/8" }} gap={24}>
+            <View
+              key="student-identity"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: responsiveLayout.isMobile ? 16 : 24,
+                paddingLeft: responsiveLayout.supportsSplitView ? 8 : undefined,
+                borderRadius: responsiveLayout.supportsSplitView ? 0 : radius.container,
+                borderWidth: responsiveLayout.supportsSplitView ? 0 : 1,
+                borderRightWidth: responsiveLayout.supportsSplitView ? 1 : undefined,
+                borderColor: colors.border,
+                backgroundColor: responsiveLayout.supportsSplitView ? "transparent" : colors.card,
+                alignItems: "center",
+                gap: 14,
+              }}
+            >
               <View style={{ position: "relative" }}>
                 <Pressable
                   accessibilityLabel="Visualizar foto de perfil"
                   accessibilityRole="button"
                   onPress={() => setShowPhotoViewer(true)}
                   style={{
-                    width: 88,
-                    height: 88,
-                    borderRadius: 44,
+                    width: responsiveLayout.isMobile ? 88 : 132,
+                    height: responsiveLayout.isMobile ? 88 : 132,
+                    borderRadius: responsiveLayout.isMobile ? 44 : 66,
                     backgroundColor: colors.secondaryBg,
                     borderWidth: 1,
                     borderColor: colors.border,
@@ -2367,9 +2402,17 @@ export default function ProfileScreen() {
                   }}
                 >
                   {photoUri ? (
-                    <Image source={{ uri: photoUri }} style={{ width: 84, height: 84, borderRadius: 42 }} contentFit="cover" />
+                    <Image
+                      source={{ uri: photoUri }}
+                      style={{
+                        width: responsiveLayout.isMobile ? 84 : 120,
+                        height: responsiveLayout.isMobile ? 84 : 120,
+                        borderRadius: responsiveLayout.isMobile ? 42 : 60,
+                      }}
+                      contentFit="cover"
+                    />
                   ) : (
-                    <GoAtletaIcon name="personSolid" size={42} color={colors.primaryBg} />
+                    <GoAtletaIcon name="personSolid" size={responsiveLayout.isMobile ? 42 : 46} color={colors.primaryBg} />
                   )}
                 </Pressable>
                 <Pressable
@@ -2396,9 +2439,15 @@ export default function ProfileScreen() {
               <Text style={{ color: colors.text, fontSize: 20, lineHeight: 25, fontWeight: "800", textAlign: "center" }}>
                 {displayName}
               </Text>
+              <View style={{ alignItems: "center", gap: 3 }}>
+                <Text style={{ color: colors.primaryBg, fontSize: 13, fontWeight: "800" }}>Atleta</Text>
+                <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center" }} numberOfLines={2}>
+                  {currentClass?.name || profileInstitution?.name || "Perfil esportivo"}
+                </Text>
+              </View>
             </View>
 
-            <View style={{ gap: 10 }}>
+            <View key="student-settings" style={{ minWidth: 0, gap: 10 }}>
               <MobileProfileSection
                 icon="personSolid"
                 title="Dados pessoais"
@@ -2407,9 +2456,13 @@ export default function ProfileScreen() {
                 expanded={mobileExpandedSection === "personal"}
                 onPress={() => toggleMobileSection("personal")}
               >
+                <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+                  Nome, celular, data de nascimento e CPF são obrigatórios. Os demais dados são opcionais.
+                </Text>
                 <View style={{ gap: 7 }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo</Text>
-                  <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Nome completo (obrigatório)</Text>
+                  <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.name ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
+                    <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.name : null} />
                     <TextInput
                       accessibilityLabel="Nome completo"
                       autoCapitalize="words"
@@ -2420,8 +2473,9 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <View style={{ gap: 7 }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Data de nascimento</Text>
-                  <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Data de nascimento (obrigatória)</Text>
+                  <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.birthDate ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", position: "relative", overflow: "visible" }}>
+                    <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.birthDate : null} />
                     <NativeDateInput
                       accessibilityLabel="Data de nascimento"
                       value={Platform.OS === "web" ? (parseStudentBirthDate(mobileBirthDraft) ?? "") : mobileBirthDraft}
@@ -2438,7 +2492,7 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <View style={{ gap: 7 }}>
-                  <Text style={{ color: colors.muted, fontSize: 13 }}>Celular do atleta</Text>
+                  <Text style={{ color: colors.muted, fontSize: 13 }}>Celular do atleta (obrigatório)</Text>
                   <View style={{ flexDirection: "row", gap: 8 }}>
                     <View ref={mobileCountryTriggerRef} collapsable={false}>
                       <Pressable
@@ -2462,7 +2516,8 @@ export default function ProfileScreen() {
                         <GoAtletaIcon name="chevronDown" size={14} color={colors.muted} />
                       </Pressable>
                     </View>
-                    <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: mobilePhoneNeedsVerification ? 6 : 14, flexDirection: "row", alignItems: "center" }}>
+                    <View style={{ minHeight: 50, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: mobileRequiredValidationAttempted && mobileRequiredFieldErrors.phone ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingLeft: 14, paddingRight: mobilePhoneNeedsVerification ? 6 : 14, flexDirection: "row", alignItems: "center", position: "relative", overflow: "visible" }}>
+                      <FloatingFieldError message={mobileRequiredValidationAttempted ? mobileRequiredFieldErrors.phone : null} />
                       <TextInput
                         accessibilityLabel="Celular"
                         keyboardType="phone-pad"
@@ -2641,14 +2696,19 @@ export default function ProfileScreen() {
                 </View>
                   <View style={{ gap: 10 }}>
                     {[
-                      { label: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const },
-                      { label: "RG", value: mobileRgDraft, onChangeText: (value: string) => setMobileRgDraft(formatRg(value)), placeholder: "RG (opcional)", keyboardType: "default" as const },
-                    ].map((field) => (
+                      { label: "CPF (obrigatório)", accessibilityLabel: "CPF", value: mobileCpfDraft, onChangeText: (value: string) => setMobileCpfDraft(maskCpf(value)), placeholder: "000.000.000-00", keyboardType: "number-pad" as const },
+                      { label: "RG (opcional)", accessibilityLabel: "RG", value: mobileRgDraft, onChangeText: (value: string) => setMobileRgDraft(formatRg(value)), placeholder: "RG", keyboardType: "default" as const },
+                    ].map((field) => {
+                      const fieldError = field.accessibilityLabel === "CPF" && mobileRequiredValidationAttempted
+                        ? mobileRequiredFieldErrors.cpf
+                        : null;
+                      return (
                       <View key={field.label} style={{ gap: 7 }}>
                         <Text style={{ color: colors.muted, fontSize: 13 }}>{field.label}</Text>
-                        <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center" }}>
+                        <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: fieldError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
+                          <FloatingFieldError message={fieldError} />
                           <TextInput
-                            accessibilityLabel={field.label}
+                            accessibilityLabel={field.accessibilityLabel}
                             keyboardType={field.keyboardType}
                             placeholder={field.placeholder}
                             placeholderTextColor={colors.muted}
@@ -2658,7 +2718,8 @@ export default function ProfileScreen() {
                           />
                         </View>
                       </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 <GenderIdentityField value={mobileGenderIdentityDraft} onChange={setMobileGenderIdentityDraft} />
                 <PostalAddressField value={mobileAddressDraft} onChange={setMobileAddressDraft} />
@@ -3019,6 +3080,7 @@ export default function ProfileScreen() {
                 ) : null}
               </View>
             </View>
+            </ResponsiveGrid>
           </ResponsivePage>
         ) : (
         <ResponsivePage variant="dashboard" gap={20} style={{ paddingBottom: 32 }}>
@@ -3384,40 +3446,54 @@ export default function ProfileScreen() {
               ) : null}
             </View>
 
-            <View key="settings" style={{ minWidth: 0, gap: 24 }}>
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-                Preferências
-              </Text>
+            <View key="settings" style={{ minWidth: 0, gap: 12 }}>
+            <MobileProfileSection
+              icon="coordination"
+              title="Perfil profissional"
+              subtitle={`${profileDisplay.label} · ${activeOrganization?.name || "Sem instituição ativa"}`}
+              expanded={professionalExpandedSection === "professional"}
+              onPress={() => setProfessionalExpandedSection((current) => current === "professional" ? null : "professional")}
+            >
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                {[
+                  { label: "Função", value: profileDisplay.label },
+                  { label: "Instituição", value: activeOrganization?.name || "Não vinculada" },
+                  { label: "Turmas acessíveis", value: String(professionalClasses.length) },
+                  { label: "Unidades", value: String(professionalUnits.length) },
+                ].map((item) => (
+                  <View key={item.label} style={{ flexGrow: 1, flexBasis: responsiveLayout.isMobile ? "100%" : 210, minWidth: 0, minHeight: 70, paddingHorizontal: 14, paddingVertical: 11, borderRadius: radius.internal, backgroundColor: colors.secondaryBg, gap: 4 }}>
+                    <Text style={{ color: colors.muted, fontSize: 12 }}>{item.label}</Text>
+                    <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }} numberOfLines={2}>{item.value}</Text>
+                  </View>
+                ))}
+              </View>
+              <View style={{ gap: 8 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Unidades disponíveis</Text>
+                {professionalUnits.length ? (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                    {professionalUnits.map((unit) => (
+                      <View key={unit} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card }}>
+                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{unit}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : <Text style={{ color: colors.muted, fontSize: 13 }}>Nenhuma unidade disponível neste perfil.</Text>}
+              </View>
+            </MobileProfileSection>
+
+            <MobileProfileSection
+              icon="management"
+              title="Preferências"
+              subtitle="Notificações, aparência e acesso rápido"
+              expanded={professionalExpandedSection === "preferences"}
+              onPress={() => setProfessionalExpandedSection((current) => current === "preferences" ? null : "preferences")}
+            >
               <SettingsRow
                 icon="notifications"
                 iconBg="rgba(135, 120, 255, 0.14)"
                 label="Notificações"
                 onPress={handleToggleNotifications}
-                rightContent={
-                  <View
-                    style={{
-                      width: 42,
-                      height: 24,
-                      borderRadius: 999,
-                      backgroundColor: notificationsEnabled ? colors.primaryBg : colors.secondaryBg,
-                      alignItems: notificationsEnabled ? "flex-end" : "flex-start",
-                      justifyContent: "center",
-                      paddingHorizontal: 3,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: 8,
-                        backgroundColor: colors.card,
-                      }}
-                    />
-                  </View>
-                }
+                rightContent={<ProfileToggle enabled={notificationsEnabled} />}
               />
               {Platform.OS !== "web" ? (
                 <SettingsRow
@@ -3427,28 +3503,7 @@ export default function ProfileScreen() {
                   onPress={() => {
                     void handleToggleBiometrics();
                   }}
-                  rightContent={
-                    <View
-                      style={{
-                        paddingVertical: 5,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: biometricsEnabled ? colors.primaryBg : colors.secondaryBg,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: biometricsEnabled ? colors.primaryText : colors.text,
-                          fontWeight: "700",
-                          fontSize: 12,
-                        }}
-                      >
-                        {updatingBiometrics ? "..." : biometricsEnabled ? "Ligado" : "Desligado"}
-                      </Text>
-                    </View>
-                  }
+                  rightContent={updatingBiometrics ? <Text style={{ color: colors.muted, fontSize: 12 }}>Atualizando…</Text> : <ProfileToggle enabled={biometricsEnabled} />}
                 />
               ) : null}
               {!student && Platform.OS !== "web" ? (
@@ -3466,71 +3521,35 @@ export default function ProfileScreen() {
                 iconBg="rgba(96, 187, 255, 0.16)"
                 label="Modo escuro"
                 onPress={toggleMode}
-                rightContent={
-                  <View
-                    style={{
-                      width: 42,
-                      height: 24,
-                      borderRadius: 999,
-                      backgroundColor: mode === "dark" ? colors.primaryBg : colors.secondaryBg,
-                      alignItems: mode === "dark" ? "flex-end" : "flex-start",
-                      justifyContent: "center",
-                      paddingHorizontal: 3,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 16,
-                        height: 16,
-                        borderRadius: 8,
-                        backgroundColor: colors.card,
-                      }}
-                    />
-                  </View>
-                }
+                rightContent={<ProfileToggle enabled={mode === "dark"} />}
               />
-            </View>
+            </MobileProfileSection>
 
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>Conta</Text>
-              <Pressable
-                accessibilityLabel="Abrir conta e segurança"
-                accessibilityRole="button"
+            <MobileProfileSection
+              icon="shield"
+              title="Conta e segurança"
+              subtitle={accountSecurity.loginLabel}
+              expanded={professionalExpandedSection === "account"}
+              onPress={() => setProfessionalExpandedSection((current) => current === "account" ? null : "account")}
+            >
+              <SettingsRow
+                icon="shield"
+                iconBg="transparent"
+                label={accountSecurity.loginLabel}
+                subtitle="E-mail, contato de segurança e senha"
                 onPress={openAccountEditor}
-                style={({ pressed }) => ({
-                  borderRadius: radius.card,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  backgroundColor: pressed ? colors.secondaryBg : colors.card,
-                  paddingHorizontal: 12,
-                  paddingVertical: 11,
-                  minHeight: 62,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                })}
-              >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>E-mail</Text>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
-                    {accountSecurity.loginLabel}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>E-mail e senha</Text>
-                  <GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />
-                </View>
-              </Pressable>
+                rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
+              />
 
-            </View>
+            </MobileProfileSection>
 
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 15, fontWeight: "700" }}>
-                Integrações
-              </Text>
+            <MobileProfileSection
+              icon="google"
+              title="Integrações"
+              subtitle="Google e base acadêmica"
+              expanded={professionalExpandedSection === "integrations"}
+              onPress={() => setProfessionalExpandedSection((current) => current === "integrations" ? null : "integrations")}
+            >
 
               {!student &&
               Platform.OS === "web" &&
@@ -3866,7 +3885,7 @@ export default function ProfileScreen() {
                   </Pressable>
                 </View>
               ) : null}
-            </View>
+            </MobileProfileSection>
             <SettingsRow
               icon="logout"
               iconBg="rgba(255, 130, 130, 0.16)"
@@ -3963,7 +3982,11 @@ export default function ProfileScreen() {
           isStudentMobileProfile
           && (mobileProfileHasChanges || mobileSportsHasChanges || athleteModalities.dirty)
         )}
-        label={savingMobileProfile ? "Salvando..." : "Salvar alterações"}
+        label={savingMobileProfile
+          ? "Salvando..."
+          : mobileRequiredValidationAttempted && mobileProfileHasRequiredErrors
+            ? "Preencha os dados obrigatórios"
+            : "Salvar alterações"}
         onPress={async () => {
           if (savingMobileProfile || athleteModalities.saving) return;
           if ((mobileProfileHasChanges || mobileSportsHasChanges) && !(await saveMobileStudentProfile())) return;
@@ -3971,7 +3994,7 @@ export default function ProfileScreen() {
           setPendingProfileNotice(null);
           showSaveToast({ message: "Alterações salvas.", variant: "success" });
         }}
-        disabled={savingMobileProfile || athleteModalities.saving || (athleteModalities.dirty && athleteModalities.loading)}
+        disabled={savingMobileProfile || athleteModalities.saving || (athleteModalities.dirty && athleteModalities.loading) || (mobileRequiredValidationAttempted && mobileProfileHasRequiredErrors)}
         loading={savingMobileProfile || athleteModalities.saving}
         loadingLabel="Salvando..."
       />

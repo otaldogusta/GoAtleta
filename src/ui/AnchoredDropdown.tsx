@@ -147,6 +147,9 @@ export function AnchoredDropdown({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       onRequestClose?.();
     };
 
@@ -157,7 +160,7 @@ export function AnchoredDropdown({
     document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("scroll", handlePageScroll, true);
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
       window.removeEventListener("blur", handleVisibilityOrBlur);
@@ -167,7 +170,7 @@ export function AnchoredDropdown({
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("scroll", handlePageScroll, true);
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [interactiveRefs, layout, onRequestClose, visible]);
 

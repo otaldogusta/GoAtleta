@@ -175,7 +175,7 @@ export function StudentAthleteHome() {
     [student],
   );
   const isNewAccount = isRecentlyCreatedAuthUser(session?.user, now.getTime());
-  const shouldGuideProfile = role === "pending" || isNewAccount || missingProfileFields.length > 0;
+  const shouldGuideProfile = role === "pending" || missingProfileFields.length > 0;
   const profileGuidance = role === "pending"
     ? "Complete seus dados e encontre sua instituição quando estiver pronto."
     : missingProfileFields.length > 0

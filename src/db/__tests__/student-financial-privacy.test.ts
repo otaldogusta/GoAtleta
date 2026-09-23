@@ -17,6 +17,7 @@ const lifecycleMigrationSource = readFileSync(
 );
 const studentsSource = readFileSync(resolve(__dirname, "../students.ts"), "utf8");
 const roleSource = readFileSync(resolve(__dirname, "../../auth/role.tsx"), "utf8");
+const selfProfileSource = readFileSync(resolve(__dirname, "../../auth/student-self-profile.ts"), "utf8");
 
 describe("student financial privacy contract", () => {
   test("casts legacy text timestamps before lifecycle and financial backfills", () => {
@@ -75,7 +76,8 @@ describe("student financial privacy contract", () => {
       "payload.financial_status = patch.financialStatus"
     );
     expect(studentsSource).toContain('financial_status: "unknown"');
-    expect(roleSource).toContain('financialStatus: "unknown"');
+    expect(roleSource).toContain("mapStudentSelfProfile");
+    expect(selfProfileSource).toContain('financialStatus: "unknown"');
   });
 
   test("never persists hydrated financial values in the shared students cache", () => {

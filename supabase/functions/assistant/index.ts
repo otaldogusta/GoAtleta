@@ -1245,6 +1245,7 @@ Deno.serve(createEdgeFunction({
           supabase,
           organizationId,
           classId,
+          requesterUserId: currentUser.id,
           message: latestOperationalMessage,
         });
         if (attendanceRanking) {

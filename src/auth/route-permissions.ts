@@ -64,6 +64,19 @@ export const isTrainerPathAllowed = (
   return permissionKey === null || memberPermissions[permissionKey] === true;
 };
 
+export const hasOrganizationAdminAccess = (
+  activeOrganizationId: string | null | undefined,
+  organizations: readonly {
+    id: string;
+    role_level?: number | null;
+  }[],
+) =>
+  Boolean(
+    activeOrganizationId &&
+      (organizations.find((organization) => organization.id === activeOrganizationId)
+        ?.role_level ?? 0) >= 50,
+  );
+
 export const studentOnlyRoutes = [
   "/absence-report",
   "/communications",

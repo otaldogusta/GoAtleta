@@ -6,6 +6,17 @@ jest.mock("../ModalSheet", () => ({ ModalSheet: ({ children }: { children: unkno
 let dialog: ReturnType<typeof useConfirmDialog>;
 // eslint-disable-next-line react-hooks/globals -- test harness captures the provider API for imperative assertions.
 function Consumer() { dialog = useConfirmDialog(); return null; }
+it("runs the explicit secondary action without confirming", async () => {
+  const ui = render(createElement(ConfirmDialogProvider, null, createElement(Consumer)));
+  const onCancel = jest.fn();
+  const onConfirm = jest.fn();
+  let answer!: Promise<boolean>;
+  act(() => { answer = dialog.confirm({ title: "Outra data", message: "Teste", confirmLabel: "Continuar", cancelLabel: "Ir para hoje", onConfirm, onCancel }); });
+  await act(async () => { fireEvent.press(ui.getByText("Ir para hoje")); await answer; });
+  expect(onCancel).toHaveBeenCalledTimes(1);
+  expect(onConfirm).not.toHaveBeenCalled();
+  expect(await answer).toBe(false);
+});
 it("waits for removal, blocks duplicate clicks, and closes after completion", async () => {
   const ui = render(createElement(ConfirmDialogProvider, null, createElement(Consumer)));
   let finish!: () => void;

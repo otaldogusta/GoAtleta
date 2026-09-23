@@ -12,6 +12,7 @@ A Home do professor é a referência de densidade, navegação e hierarquia.
 | Primitives e componentes | [COMPONENT_LIBRARY.md](COMPONENT_LIBRARY.md) |
 | Formulários e configurações (referência: perfil) | [FORM_SETTINGS_PATTERNS.md](FORM_SETTINGS_PATTERNS.md) |
 | Decisões assistidas | [AI_DECISION_EXPLAINABILITY.md](AI_DECISION_EXPLAINABILITY.md) |
+| Validação proporcional e ciclo rápido | [validation-ladder.md](../operations/validation-ladder.md) |
 
 ## Regra central
 

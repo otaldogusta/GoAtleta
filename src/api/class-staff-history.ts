@@ -125,7 +125,14 @@ const mapSummary = (row: SummaryRow): ClassTransitionSummary => ({
 
 export const isClassStaffHistoryUnavailable = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.includes("PGRST202") || message.includes("42P01") || message.includes("class_staff_tenures");
+  return (
+    message.includes("PGRST202") ||
+    message.includes("PGRST205") ||
+    message.includes("42P01") ||
+    message.includes("class_staff_tenures") ||
+    message.includes("class_staff_versions") ||
+    message.includes("admin_apply_class_staff_assignments_v2")
+  );
 };
 
 export async function getClassStaffVersion(organizationId: string, classId: string): Promise<number> {
@@ -142,22 +149,36 @@ export async function applyClassStaffAssignmentsWithHistory(input: {
   expectedVersion: number;
   idempotencyKey?: string;
 }): Promise<{ classId: string; version: number; appliedAt: string }> {
-  const result = await supabaseRestPost<{ class_id: string; version: number; applied_at: string }>(
-    "/rpc/admin_apply_class_staff_assignments_v2",
-    {
-      p_org_id: input.organizationId,
-      p_class_id: input.classId,
-      p_assignments: input.assignments.map((assignment) => ({
-        user_id: assignment.isPlaceholder ? null : assignment.userId,
-        staff_profile_id: assignment.staffProfileId ?? null,
-        display_name: assignment.isPlaceholder ? assignment.displayName?.trim() || null : null,
-        staff_role: assignment.staffRole,
-      })),
-      p_expected_version: input.expectedVersion,
-      p_idempotency_key: input.idempotencyKey ?? createClientId(),
-    },
-    "return=representation"
-  );
+  const idempotencyKey = input.idempotencyKey ?? createClientId();
+  const payload = {
+    p_org_id: input.organizationId,
+    p_class_id: input.classId,
+    p_assignments: input.assignments.map((assignment) => ({
+      user_id: assignment.isPlaceholder ? null : assignment.userId,
+      staff_profile_id: assignment.staffProfileId ?? null,
+      display_name: assignment.isPlaceholder ? assignment.displayName?.trim() || null : null,
+      staff_role: assignment.staffRole,
+    })),
+    p_expected_version: input.expectedVersion,
+    p_idempotency_key: idempotencyKey,
+  };
+  let result: { class_id: string; version: number; applied_at: string } | null = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      result = await supabaseRestPost<{ class_id: string; version: number; applied_at: string }>(
+        "/rpc/admin_apply_class_staff_assignments_v2",
+        payload,
+        "return=representation"
+      );
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error ?? "");
+      const transient = /failed to fetch|network request failed|fetch failed|networkerror|timed out|timeout/i.test(message);
+      if (!transient || attempt === 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  if (!result) throw new Error("Não foi possível atualizar a equipe da turma.");
   return {
     classId: result.class_id,
     version: Number(result.version),

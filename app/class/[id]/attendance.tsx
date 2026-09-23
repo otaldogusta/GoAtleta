@@ -66,6 +66,7 @@ import {
   type AttendanceSavePhase,
 } from "../../../src/screens/attendance/attendance-save-feedback";
 import { resolveInitialAttendanceDate } from "../../../src/screens/attendance/resolve-initial-attendance-date";
+import { useAttendanceDateGuard } from "../../../src/screens/attendance/use-attendance-date-guard";
 import {
   mergeAttendanceRecordsPreservingOpaque,
   resolveAttendanceStudentsForDate,
@@ -953,6 +954,8 @@ export default function AttendanceScreen() {
     isOnline,
   });
 
+  const guardAttendanceDate = useAttendanceDateGuard(String(id ?? ""), date, true, handleDateChange);
+
   if (!cls) {
     return <ScreenLoadingState />;
   }
@@ -987,13 +990,13 @@ export default function AttendanceScreen() {
     handleDateChange(shiftIsoDate(date, amount));
   };
 
-  const toggleStatus = (studentId: string, status: "presente" | "faltou") => {
+  const toggleStatus = (studentId: string, status: "presente" | "faltou") => { void guardAttendanceDate(() => {
     resetContextDecision(studentId);
     setStatusById((current) => ({
       ...current,
       [studentId]: current[studentId] === status ? undefined : status,
     }));
-  };
+  }); };
 
   const attendanceEmptyState = !isClassDay ? (
     <View

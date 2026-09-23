@@ -1,4 +1,4 @@
-import { isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
+import { getFriendlyErrorMessage, isAuthSessionError, isRequestCancellationError } from "../../src/ui/error-messages";
 import { trainingHistoryTitle } from "../../src/core/training-history-title";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -20,6 +20,7 @@ import { CLASS_MODALITY_OPTIONS } from "../../src/core/class-modality";
 import { CLASS_DEVELOPMENT_LEVEL_OPTIONS } from "../../src/core/class-development-level";
 import type { ClassGroup, SessionLog, TrainingPlan } from "../../src/core/models";
 import { annualCycleOptions } from "../../src/core/periodization-basics";
+import { normalizeUnitKey } from "../../src/core/unit-key";
 import { createTrainingPlanVersion } from "../../src/core/training-plan-factory";
 import { ROSTER_FUNDAMENTALS, buildRosterFundamentalsByDay, buildRosterMonthEntries, getBlockForToday, getSuggestedFundamentalsForClass, type RosterFundamental } from "../../src/core/periodization";
 import { deleteClassCascade, deleteTrainingPlan, deleteTrainingPlansByClassAndDate, getAttendanceByClass, getAttendanceByDate, getClassById, getClassCalendarExceptions, getClassPlansByClass, getClasses, getDailyLessonPlanByWeekAndDate, getLatestTrainingPlanByClass, getSessionLogByDate, getSessionLogsByClass, getStudentsByClass, getTrainingPlans, saveTrainingPlan, updateClass, updateClassColor } from "../../src/db/seed";
@@ -32,6 +33,8 @@ import { exportPdf, safeFileName } from "../../src/pdf/export-pdf";
 import { classRosterHtml } from "../../src/pdf/templates/class-roster";
 import { ClassEditModalPickers, ModernClassEditModalBody } from "../../src/screens/classes/components/ClassEditModalBody";
 import { ClassStaffHistoryPanel } from "../../src/screens/classes/components/ClassStaffHistoryPanel";
+import { getClassEditChangeSet } from "../../src/screens/classes/application/class-edit-change-set";
+import { planClassStaffRoleTransition } from "../../src/screens/classes/application/class-staff-role-transition";
 import { getClassScheduleOverlapDays } from "../../src/screens/classes/application/class-schedule-conflicts";
 import { ClassContextStrip, ClassOperationsWorkspace, type ClassOperationalStatus, type ClassRecentTrainingSummary, type ClassWorkspaceSection } from "../../src/screens/classes/components/ClassOperationsWorkspace";
 import { useCopilotLesson } from "../../src/copilot/lesson-context";
@@ -73,7 +76,7 @@ import {
   type ClassStaffTenure,
   type ClassTransitionSummary,
 } from "../../src/api/class-staff-history";
-import { adminListOrgMembers, type OrgMember } from "../../src/api/members";
+import { listOrgStaffCandidates, mergeOrgStaffCandidates, type OrgMember } from "../../src/api/members";
 import { exportWorkbookXlsx, slugify } from "../../src/utils/export-xlsx";
 import { buildWaMeLink, getContactPhone, getDefaultMessage, openWhatsApp } from "../../src/utils/whatsapp";
 import { WHATSAPP_TEMPLATES, WhatsAppTemplateId, calculateAdjacentClassDate, calculateCurrentOrNextClassDate, calculateNextClassDate, formatNextClassDate, getSuggestedTemplate, renderTemplate } from "../../src/utils/whatsapp-templates";
@@ -189,7 +192,7 @@ const WhatsAppContactRow = memo(function WhatsAppContactRow({ contact, index, is
 export default function ClassDetails() {
   markRender("screen.classDetails.render.root");
 
-  const { id, section, date } = useLocalSearchParams<{ id: string; section?: string; date?: string }>();
+  const { id, section, date, settings } = useLocalSearchParams<{ id: string; section?: string; date?: string; settings?: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const scopedRoutes = useTrainerRouteScope();
@@ -304,6 +307,7 @@ export default function ClassDetails() {
   const [recentSessionLogs, setRecentSessionLogs] = useState<SessionLog[] | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const autoOpenedSettingsForClassRef = useRef<string | null>(null);
   const [showEditActionsMenu, setShowEditActionsMenu] = useState(false);
   const [editStaff, setEditStaff] = useState<ClassStaffAssignment[]>([]);
   const [editStaffBaseline, setEditStaffBaseline] = useState<ClassStaffAssignment[]>([]);
@@ -812,6 +816,7 @@ export default function ClassDetails() {
     classId: cls?.id ?? String(id ?? ""),
     date: selectedLessonDateKey,
     enabled: workspaceSection === "attendance",
+    onGoToday: (value) => handleLessonDateChange(value),
   });
   const canManageStudentNfc = (activeOrganization?.role_level ?? 0) >= 50;
   const studentNfcBinding = useStudentNfcBinding({
@@ -1150,13 +1155,15 @@ export default function ClassDetails() {
     (async () => {
       try {
         const organizationId = cls?.organizationId || activeOrganization?.id || "";
-        const [list, staff, members] = await Promise.all([
-          getClasses(),
+        const list = await getClasses();
+        const [organizationStaff, directoryMembers] = await Promise.all([
           organizationId && cls?.id
-            ? listClassStaffIdentitiesByClassIds({ organizationId, classIds: [cls.id] })
+            ? listClassStaffIdentitiesByClassIds({ organizationId, classIds: list.filter((item) => item.organizationId === organizationId).map((item) => item.id) })
             : Promise.resolve([] as ClassStaffAssignment[]),
-          organizationId ? adminListOrgMembers(organizationId).catch(() => [] as OrgMember[]) : Promise.resolve([] as OrgMember[]),
+          organizationId ? listOrgStaffCandidates(organizationId) : Promise.resolve([] as OrgMember[]),
         ]);
+        const staff = organizationStaff.filter((assignment) => assignment.classId === cls?.id);
+        const members = mergeOrgStaffCandidates(organizationId, directoryMembers, organizationStaff);
         if (alive) {
           const membersById = new Map(members.map((member) => [member.userId, member]));
           const hydratedStaff = staff.map((assignment) => {
@@ -1240,6 +1247,13 @@ export default function ClassDetails() {
     setEditStaff(editStaffBaseline);
     setFormError("");
   }, [DEFAULT_CLASS_CYCLE_LENGTH_WEEKS, ageBandOptions, classCoachName, cls, editStaffBaseline, goalOptions, parseCycleLength, parseDurationFromTimeRange, resolveEndTime, setName, setCoachNameOverride, setUnit, setTrainingSpace, setModality, setAgeBand, setGender, setStartTime, setEndTime, setDuration, setDaysOfWeek, setMvLevel, setCycleStartDate, setCycleLengthWeeks, setEditCustomAgeBand, setShowEditCustomAgeBand, setGoal, setEditCustomGoal, setShowEditCustomGoal, setFormError, setEditStaff]);
+
+  useEffect(() => {
+    if (!cls || settings !== "1" || autoOpenedSettingsForClassRef.current === cls.id) return;
+    autoOpenedSettingsForClassRef.current = cls.id;
+    resetEditFields();
+    setShowEditModal(true);
+  }, [cls, resetEditFields, settings]);
 
   const closeEditPickers = useCallback(() => {
     setShowEditCycleLengthPicker(false);
@@ -1378,20 +1392,20 @@ export default function ClassDetails() {
     [ageBand, coachNameOverride, cycleLengthWeeks, cycleStartDate, daysOfWeek, duration, editCustomAgeBand, editCustomGoal, endTime, gender, goal, modality, mvLevel, name, showEditCustomAgeBand, showEditCustomGoal, startTime, trainingSpace, unit],
   );
 
-  const isEditDirty = useMemo(() => {
-    if (!editBaselineSnapshot) return false;
-    const normalizeStaff = (value: ClassStaffAssignment[]) => value
-      .map((member) => `${member.userId}:${member.staffRole}`)
-      .sort()
-      .join("|");
-    return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot)
-      || normalizeStaff(editStaffBaseline) !== normalizeStaff(editStaff);
-  }, [editBaselineSnapshot, editCurrentSnapshot, editStaff, editStaffBaseline]);
+  const editChangeSet = useMemo(() => getClassEditChangeSet({
+    baseline: editBaselineSnapshot,
+    current: editCurrentSnapshot,
+    baselineStaff: editStaffBaseline,
+    currentStaff: editStaff,
+  }), [editBaselineSnapshot, editCurrentSnapshot, editStaff, editStaffBaseline]);
+  const isEditDirty = editChangeSet.dirty;
 
   const addEditStaff = useCallback((member: OrgMember) => {
     setEditStaff((current) => current.some((assignment) => assignment.userId === member.userId) ? current : [...current, {
       classId: cls?.id ?? id,
       userId: member.userId,
+      staffProfileId: member.staffProfileId,
+      isPlaceholder: member.isPlaceholder,
       staffRole: "intern",
       displayName: member.displayName,
       photoUrl: null,
@@ -1440,15 +1454,11 @@ export default function ClassDetails() {
   }, [confirmDialog, editStaff, setEditStaff]);
 
   const changeEditStaffRole = useCallback((userId: string, role: ClassStaffAssignment["staffRole"]) => {
-    const apply = () => setEditStaff((current) => current.map((assignment) => {
-      if (assignment.userId === userId) return { ...assignment, staffRole: role };
-      if (role === "head" && assignment.staffRole === "head") return { ...assignment, staffRole: "assistant" };
-      return assignment;
-    }));
-    const promoted = editStaff.find((assignment) => assignment.userId === userId);
-    const currentHead = editStaff.find((assignment) => assignment.staffRole === "head" && assignment.userId !== userId);
-    if (role !== "head" || !currentHead) return apply();
-    void confirmDialog({ title: "Trocar professor responsável?", message: `${currentHead.displayName || "O responsável atual"} passará para Auxiliar e ${promoted?.displayName || "o profissional selecionado"} assumirá como responsável.`, confirmLabel: "Confirmar troca", cancelLabel: "Cancelar", tone: "default", onConfirm: apply });
+    const transition = planClassStaffRoleTransition({ assignments: editStaff, userId, nextRole: role });
+    if (!transition.changed) return;
+    const apply = () => setEditStaff(transition.nextAssignments);
+    if (!transition.requiresConfirmation) return apply();
+    void confirmDialog({ title: transition.confirmationTitle, message: transition.confirmationMessage, confirmLabel: "Confirmar troca", cancelLabel: "Cancelar", tone: "default", onConfirm: apply });
   }, [confirmDialog, editStaff, setEditStaff]);
 
   useEffect(() => {
@@ -1589,21 +1599,24 @@ export default function ClassDetails() {
     setFormError("");
     setSaving(true);
     try {
-      await updateClass(cls.id, {
-        name: name.trim() || cls.name,
-        unit: unit.trim() || "Rede Esperança",
-        trainingSpace: trainingSpace.trim(),
-        modality,
-        daysOfWeek,
-        goal: showEditCustomGoal ? editCustomGoal.trim() || goal : goal,
-        ageBand: (showEditCustomAgeBand ? editCustomAgeBand.trim() || ageBand : ageBand).trim() || cls.ageBand,
-        gender,
-        startTime: timeValue,
-        durationMinutes: durationValue,
-        mvLevel,
-        cycleStartDate: cycleStartDate || undefined,
-        cycleLengthWeeks: cycleValue,
-      });
+      if (editChangeSet.detailsChanged) {
+        await updateClass(cls.id, {
+          name: name.trim() || cls.name,
+          unit: unit.trim() || "Rede Esperança",
+          unitId: normalizeUnitKey(unit) === normalizeUnitKey(cls.unit) ? cls.unitId : undefined,
+          trainingSpace: trainingSpace.trim(),
+          modality,
+          daysOfWeek,
+          goal: showEditCustomGoal ? editCustomGoal.trim() || goal : goal,
+          ageBand: (showEditCustomAgeBand ? editCustomAgeBand.trim() || ageBand : ageBand).trim() || cls.ageBand,
+          gender,
+          startTime: timeValue,
+          durationMinutes: durationValue,
+          mvLevel,
+          cycleStartDate: cycleStartDate || undefined,
+          cycleLengthWeeks: cycleValue,
+        });
+      }
       const organizationId = cls.organizationId || activeOrganization?.id || "";
       const assignments = editStaff.map((member) => ({
         userId: member.userId,
@@ -1612,7 +1625,7 @@ export default function ClassDetails() {
         displayName: member.displayName,
         staffRole: member.staffRole,
       }));
-      if (editStaffHistoryAvailable) {
+      if (editChangeSet.staffChanged && editStaffHistoryAvailable) {
         try {
           const receipt = await applyClassStaffAssignmentsWithHistory({
             organizationId,
@@ -1626,26 +1639,39 @@ export default function ClassDetails() {
           setEditStaffHistoryAvailable(false);
           await replaceClassStaffAssignments({ organizationId, classId: cls.id, assignments });
         }
-      } else {
+      } else if (editChangeSet.staffChanged) {
         await replaceClassStaffAssignments({ organizationId, classId: cls.id, assignments });
       }
-      const savedStaff = await listClassStaffIdentitiesByClassIds({
-        organizationId: cls.organizationId || activeOrganization?.id || "",
-        classIds: [cls.id],
-      });
-      await setCoachNameForClass(cls.id, coachNameOverride);
+      let savedStaff = editStaff;
+      if (editChangeSet.staffChanged) {
+        try {
+          savedStaff = await listClassStaffIdentitiesByClassIds({
+            organizationId,
+            classIds: [cls.id],
+          });
+        } catch (error) {
+          console.warn("[ClassDetails] Equipe salva, mas não foi possível recarregá-la agora.", error);
+        }
+      }
+      if (editChangeSet.detailsChanged) await setCoachNameForClass(cls.id, coachNameOverride);
       Vibration.vibrate(60);
-      const fresh = await getClassById(cls.id);
+      const fresh = editChangeSet.detailsChanged ? await getClassById(cls.id) : cls;
       setCls(fresh);
       setClassColorKey(fresh?.colorKey ?? null);
       setEditStaff(savedStaff);
       setEditStaffBaseline(savedStaff);
-      if (editStaffHistoryAvailable) await reloadClassStaffHistory();
+      if (editChangeSet.staffChanged && editStaffHistoryAvailable) {
+        try {
+          await reloadClassStaffHistory();
+        } catch (error) {
+          console.warn("[ClassDetails] Histórico salvo, mas não foi possível recarregá-lo agora.", error);
+        }
+      }
       return true;
     } finally {
       setSaving(false);
     }
-  }, [activeOrganization?.id, ageBand, cls, coachNameOverride, cycleLengthWeeks, cycleStartDate, daysOfWeek, editCustomAgeBand, editCustomGoal, editStaff, editStaffHistoryAvailable, editStaffVersion, endTime, gender, goal, isValidTime, modality, mvLevel, name, parseCycleLength, parseDurationFromTimeRange, reloadClassStaffHistory, setCoachNameForClass, showEditCustomAgeBand, showEditCustomGoal, startTime, trainingSpace, unit]);
+  }, [activeOrganization?.id, ageBand, cls, coachNameOverride, cycleLengthWeeks, cycleStartDate, daysOfWeek, editChangeSet.detailsChanged, editChangeSet.staffChanged, editCustomAgeBand, editCustomGoal, editStaff, editStaffHistoryAvailable, editStaffVersion, endTime, gender, goal, isValidTime, modality, mvLevel, name, parseCycleLength, parseDurationFromTimeRange, reloadClassStaffHistory, setCoachNameForClass, showEditCustomAgeBand, showEditCustomGoal, startTime, trainingSpace, unit]);
 
   const closeEditModal = useCallback(() => {
     setShowEditModal(false);
@@ -1675,7 +1701,7 @@ export default function ClassDetails() {
         setShowEditModal(false);
       }
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Não foi possível salvar as alterações da turma.");
+      setFormError(getFriendlyErrorMessage(error, "Não foi possível salvar as alterações da turma."));
     }
   }, [saveUnit, setFormError, setShowEditModal]);
 
@@ -2538,6 +2564,7 @@ export default function ClassDetails() {
           onGeneratePlan={handleGeneratePlan}
           isGeneratingPlan={isGeneratingPlan}
           attendanceStatus={attendanceOperationalStatus}
+          hasActiveStudents={currentLessonOperationalSnapshot?.activeStudentCount !== 0}
           reportStatus={reportOperationalStatus}
           recentTrainings={recentTrainingSummaries}
           onOpenSession={handleOpenSession}
@@ -2836,6 +2863,7 @@ export default function ClassDetails() {
                 editSaving: saving,
                 isEditDirty,
                 editStaff,
+                editStaffBaseline,
                 editStaffCandidates,
                 editStaffLoading,
                 editShowCustomGoal: showEditCustomGoal,
@@ -2986,6 +3014,7 @@ export default function ClassDetails() {
               editSaving: saving,
               isEditDirty,
               editStaff,
+              editStaffBaseline,
               editStaffCandidates,
               editStaffLoading,
               editShowCustomGoal: showEditCustomGoal,

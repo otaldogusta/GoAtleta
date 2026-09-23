@@ -122,6 +122,11 @@ describe("ConfirmUndoProvider on native", () => {
       (node) => node.props.style?.position === "absolute" && node.props.style?.zIndex === 9999
     );
     expect(undoBanner.map((node) => node.props.style.top)).toContain(36);
+    expect(undoBanner[0].props.pointerEvents).toBe("box-none");
+    const interactiveBannerCards = undoBanner[0].findAll(
+      (node) => node.props.pointerEvents === "auto"
+    );
+    expect(interactiveBannerCards.length).toBeGreaterThan(0);
 
     await act(async () => {
       await undoActions[0].props.onPress();

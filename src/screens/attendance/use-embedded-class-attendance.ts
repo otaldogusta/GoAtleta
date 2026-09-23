@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getStudentPhotoAccessUrl } from "../../api/student-photo-storage";
 import type { AttendanceRecord, Student } from "../../core/models";
+import { useAttendanceDateGuard } from "./use-attendance-date-guard";
 import { getAttendanceByDate, getStudentsByClass, saveAttendanceRecords } from "../../db/seed";
 import {
   countMarkedAttendanceStudents,
@@ -16,6 +17,7 @@ type UseEmbeddedClassAttendanceParams = {
   classId: string;
   date: string;
   enabled: boolean;
+  onGoToday?: (date: string) => void;
 };
 
 const emptyStatusMap = (students: Student[]) => Object.fromEntries(students.map((student) => [student.id, undefined])) as Record<string, EmbeddedAttendanceStatus>;
@@ -56,7 +58,8 @@ const sameDetailsMap = (left: Record<string, EmbeddedAttendanceDetails>, right: 
   return true;
 };
 
-export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbeddedClassAttendanceParams) {
+export function useEmbeddedClassAttendance({ classId, date, enabled, onGoToday }: UseEmbeddedClassAttendanceParams) {
+  const guardDate = useAttendanceDateGuard(classId, date, enabled, onGoToday);
   const loadRequestId = useRef(0);
   const [students, setStudents] = useState<Student[]>([]);
   const [statusById, setStatusById] = useState<Record<string, EmbeddedAttendanceStatus>>({});
@@ -201,8 +204,8 @@ export function useEmbeddedClassAttendance({ classId, date, enabled }: UseEmbedd
     isSaving,
     loadFailed,
     error,
-    setStudentStatus,
-    setStudentDetails,
+    setStudentStatus: (studentId: string, status: Exclude<EmbeddedAttendanceStatus, undefined>) => { void guardDate(() => setStudentStatus(studentId, status)); },
+    setStudentDetails: (studentId: string, details: EmbeddedAttendanceDetails) => { void guardDate(() => setStudentDetails(studentId, details)); },
     discardChanges,
     save,
     reload: load,

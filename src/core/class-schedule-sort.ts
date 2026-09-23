@@ -1,6 +1,7 @@
 export type ScheduleSortable = {
   daysOfWeek: number[] | null;
   startTime: string | null;
+  trainingSpace?: string | null;
   name: string | null;
 };
 
@@ -27,11 +28,22 @@ const getTimeRank = (startTime: string | null) => {
   return hour * 60 + minute;
 };
 
+const compareOptionalLabelsNaturally = (a: string | null | undefined, b: string | null | undefined) => {
+  const labelA = (a ?? "").trim();
+  const labelB = (b ?? "").trim();
+  if (!labelA && !labelB) return 0;
+  if (!labelA) return 1;
+  if (!labelB) return -1;
+  return labelA.localeCompare(labelB, "pt-BR", { numeric: true, sensitivity: "base" });
+};
+
 export const compareClassesBySchedule = (a: ScheduleSortable, b: ScheduleSortable) => {
   const dayDiff = getDayRank(a.daysOfWeek) - getDayRank(b.daysOfWeek);
   if (dayDiff !== 0) return dayDiff;
   const timeDiff = getTimeRank(a.startTime) - getTimeRank(b.startTime);
   if (timeDiff !== 0) return timeDiff;
+  const trainingSpaceDiff = compareOptionalLabelsNaturally(a.trainingSpace, b.trainingSpace);
+  if (trainingSpaceDiff !== 0) return trainingSpaceDiff;
   const nameA = (a.name ?? "").trim();
   const nameB = (b.name ?? "").trim();
   if (!nameA && !nameB) return 0;

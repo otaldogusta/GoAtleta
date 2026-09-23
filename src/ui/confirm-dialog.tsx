@@ -13,6 +13,7 @@ export type ConfirmDialogOptions = {
   loadingLabel?: string;
   tone?: "default" | "danger";
   onConfirm: () => void | Promise<void>;
+  onCancel?: () => void;
 };
 
 type ConfirmDialogContextValue = {
@@ -162,7 +163,11 @@ export function ConfirmDialogProvider({
           {error ? <Text accessibilityRole="alert" style={{ color: colors.dangerSolidBg }}>{error}</Text> : null}
           <View style={{ flexDirection: "row", gap: 10, justifyContent: "flex-end" }}>
             <Pressable
-              onPress={handleCancel}
+              onPress={() => {
+                if (busyRef.current) return;
+                handleCancel();
+                options?.onCancel?.();
+              }}
               accessibilityRole="button"
               disabled={busy}
               style={{

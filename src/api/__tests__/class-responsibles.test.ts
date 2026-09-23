@@ -115,6 +115,23 @@ describe("class responsibles api", () => {
     ]);
   });
 
+  test("does not present a role fallback as if it were a person's name", async () => {
+    mockRestPost.mockResolvedValue([{
+      class_id: "class-1",
+      user_id: "user-1",
+      staff_role: "head",
+      display_name: "Professor responsável",
+      photo_url: null,
+    }]);
+
+    await expect(listClassStaffIdentitiesByClassIds({
+      organizationId: "org-1",
+      classIds: ["class-1"],
+    })).resolves.toEqual([
+      expect.objectContaining({ displayName: "Nome não informado", staffRole: "head" }),
+    ]);
+  });
+
   test("falls back to scoped class_staff rows while the identity RPC is unavailable", async () => {
     mockRestPost.mockRejectedValue(
       new Error(
@@ -141,7 +158,7 @@ describe("class responsibles api", () => {
         staffProfileId: null,
         isPlaceholder: false,
         staffRole: "assistant",
-        displayName: null,
+        displayName: "Nome não informado",
         photoUrl: null,
       },
     ]);

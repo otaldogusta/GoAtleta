@@ -1,5 +1,6 @@
 import {
   applyClassStaffAssignmentsWithHistory,
+  isClassStaffHistoryUnavailable,
   listClassStaffTimeline,
   registerClassStaffReturn,
   scheduleClassStaffSubstitution,
@@ -28,6 +29,29 @@ describe("class staff history api", () => {
       p_idempotency_key: "idem-1",
       p_assignments: [{ user_id: null, staff_profile_id: null, display_name: "André", staff_role: "head" }],
     }), "return=representation");
+  });
+
+  test("retries a transient failure with the same idempotency key", async () => {
+    mockRestPost
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce({ class_id: "class-1", version: 2, applied_at: "2026-09-21T10:00:00Z" });
+
+    await expect(applyClassStaffAssignmentsWithHistory({
+      organizationId: "org-1",
+      classId: "class-1",
+      expectedVersion: 1,
+      assignments: [{ userId: "andre", staffRole: "head" }],
+    })).resolves.toMatchObject({ classId: "class-1", version: 2 });
+
+    expect(mockRestPost).toHaveBeenCalledTimes(2);
+    expect(mockRestPost.mock.calls[0]?.[1]).toMatchObject({ p_idempotency_key: "idem-1" });
+    expect(mockRestPost.mock.calls[1]?.[1]).toMatchObject({ p_idempotency_key: "idem-1" });
+  });
+
+  test("recognizes every missing history dependency used by class duplication", () => {
+    expect(isClassStaffHistoryUnavailable(new Error("PGRST205 class_staff_versions"))).toBe(true);
+    expect(isClassStaffHistoryUnavailable(new Error("PGRST202 admin_apply_class_staff_assignments_v2"))).toBe(true);
+    expect(isClassStaffHistoryUnavailable(new Error("permission denied"))).toBe(false);
   });
 
   test("maps the three timeline collections", async () => {

@@ -60,6 +60,7 @@ type ClassOperationsWorkspaceProps = {
   activeSection?: ClassWorkspaceSection;
   onSelectSection?: (section: ClassWorkspaceSection) => void;
   attendanceStatus: ClassOperationalStatus;
+  hasActiveStudents?: boolean;
   reportStatus: ClassOperationalStatus;
   recentTrainings: ClassRecentTrainingSummary[] | null;
   onOpenSession: () => void;
@@ -368,6 +369,7 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
   activeSection = "overview",
   onSelectSection,
   attendanceStatus,
+  hasActiveStudents = true,
   reportStatus,
   recentTrainings,
   onOpenSession,
@@ -664,22 +666,22 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           </Animated.View>
         )}
       </View>
-      <View style={[styles.operationalSummary, { borderColor: colors.border }]}>
+      {(hasActiveStudents || reportStatus.state === "completed" || Boolean(recentTrainings?.length)) && <View style={[styles.operationalSummary, { borderColor: colors.border }]}>
         <Text style={[styles.operationalSummaryTitle, { color: colors.text }]}>Operação da aula</Text>
-        <OperationalStatusRow
+        {hasActiveStudents && <OperationalStatusRow
           title="Chamada"
           status={attendanceStatus}
           colors={colors}
           onPress={actions.attendance.onPress}
-        />
-        <OperationalStatusRow
+        />}
+        {(hasActiveStudents || reportStatus.state === "completed") && <OperationalStatusRow
           title="Relatório"
           status={reportStatus}
           colors={colors}
           onPress={actions.report.onPress}
-        />
+        />}
 
-        <View style={[styles.recentTrainings, { borderTopColor: colors.border }]}>
+        {(recentTrainings === null || recentTrainings.length > 0) && <View style={[styles.recentTrainings, { borderTopColor: colors.border }]}>
           <Text style={[styles.recentTrainingsTitle, { color: colors.text }]}>Últimos treinos</Text>
           {recentTrainings === null ? (
             <View style={styles.recentTrainingsLoading} accessibilityLiveRegion="polite">
@@ -708,8 +710,8 @@ export const ClassOperationsWorkspace = memo(function ClassOperationsWorkspace({
           ) : (
             <Text style={[styles.recentTrainingEmpty, { color: colors.muted }]}>Nenhum treino registrado.</Text>
           )}
-        </View>
-      </View>
+        </View>}
+      </View>}
     </View>
   );
 

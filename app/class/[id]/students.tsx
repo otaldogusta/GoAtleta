@@ -1325,8 +1325,10 @@ void Promise.all(
     clearCreateValidationError();
 
     const missingImportantFields = getMissingImportantStudentFields({
+      name: createName,
       birthDate: birthIso,
       phone: createPhone,
+      cpfMasked: createCpf,
     });
     if (missingImportantFields.length) {
       const confirmed = await confirmDialog({

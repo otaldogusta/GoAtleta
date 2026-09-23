@@ -1,21 +1,27 @@
-export type ImportantStudentProfileField = "birthDate" | "phone";
+export type ImportantStudentProfileField = "name" | "phone" | "birthDate" | "cpf";
 
 export type ImportantStudentProfileInput = {
+  name?: string | null;
   birthDate?: string | null;
   phone?: string | null;
+  cpfMasked?: string | null;
 };
 
 const importantFieldLabels: Record<ImportantStudentProfileField, string> = {
+  name: "nome completo",
+  phone: "celular",
   birthDate: "data de nascimento",
-  phone: "telefone de contato",
+  cpf: "CPF",
 };
 
 export function getMissingImportantStudentFields(
   student: ImportantStudentProfileInput
 ): ImportantStudentProfileField[] {
   const missing: ImportantStudentProfileField[] = [];
-  if (!String(student.birthDate ?? "").trim()) missing.push("birthDate");
+  if (String(student.name ?? "").trim().length < 2) missing.push("name");
   if (!String(student.phone ?? "").replace(/\D/g, "")) missing.push("phone");
+  if (!String(student.birthDate ?? "").trim()) missing.push("birthDate");
+  if (!String(student.cpfMasked ?? "").trim()) missing.push("cpf");
   return missing;
 }
 

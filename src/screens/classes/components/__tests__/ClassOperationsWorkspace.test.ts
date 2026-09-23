@@ -64,6 +64,13 @@ const colors = {
   dangerBorder: "#7F1D1D",
 } as any;
 
+it("hides empty operations and training history for a class without athletes", () => {
+  const { screen } = renderWorkspace(false, null, { hasActiveStudents: false, recentTrainings: [] });
+  expect(screen.queryByText("Operação da aula")).toBeNull();
+  expect(screen.queryByText("Últimos treinos")).toBeNull();
+  expect(screen.queryByText("Pendente")).toBeNull();
+});
+
 function renderWorkspace(compact: boolean, appliedPlan: any = null, overrides: Record<string, unknown> = {}) {
   const onOpenPlanning = jest.fn();
   const onOpenLessonCalendar = jest.fn();
@@ -175,13 +182,13 @@ describe("ClassOperationsWorkspace responsive navigation", () => {
     expect(screen.queryByLabelText("Chamada NFC")).toBeNull();
   });
 
-  it("shows objective pending states and an honest empty training history", () => {
+  it("shows objective pending states and hides an empty training history", () => {
     const { screen, onOpenReport } = renderWorkspace(true);
 
     expect(screen.getByLabelText("Abrir chamada: Pendente")).toBeTruthy();
     expect(screen.getByLabelText("Abrir relatório: Pendente")).toBeTruthy();
     expect(screen.getByText("3 atletas ainda estão sem registro.")).toBeTruthy();
-    expect(screen.getByText("Nenhum treino registrado.")).toBeTruthy();
+    expect(screen.queryByText("Nenhum treino registrado.")).toBeNull();
 
     fireEvent.press(screen.getByLabelText("Abrir relatório: Pendente"));
     expect(onOpenReport).toHaveBeenCalledTimes(1);

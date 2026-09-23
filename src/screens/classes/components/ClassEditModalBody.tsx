@@ -1,4 +1,4 @@
-import { memo, type ReactNode, type RefObject, useRef, useState } from "react";
+import { memo, type ReactNode, type RefObject, useId, useRef, useState } from "react";
 
 import { ActivityIndicator, Image, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
 
@@ -117,6 +117,7 @@ type ClassEditModalBodyProps = {
     editSaving: boolean;
     isEditDirty: boolean;
     editStaff?: ClassStaffAssignment[];
+    editStaffBaseline?: ClassStaffAssignment[];
     editStaffCandidates?: OrgMember[];
     editStaffLoading?: boolean;
   };
@@ -826,13 +827,20 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
   const { width } = useWindowDimensions();
   const stacked = width < 820;
   const { fields, options, actions, pickers } = props;
+  const staffSearchListId = useId();
   const [staffSearch, setStaffSearch] = useState("");
+  const [showStaffSearchResults, setShowStaffSearchResults] = useState(false);
+  const [activeStaffCandidateIndex, setActiveStaffCandidateIndex] = useState(0);
+  const [staffSearchLayout, setStaffSearchLayout] = useState<PickerLayout | null>(null);
+  const staffSearchTriggerRef = useRef<View | null>(null);
   const [roleMenuUserId, setRoleMenuUserId] = useState<string | null>(null);
   const [roleMenuLayout, setRoleMenuLayout] = useState<PickerLayout | null>(null);
   const roleTriggerRefs = useRef(new Map<string, View | null>());
   const [showPlaceholderStaffForm, setShowPlaceholderStaffForm] = useState(false);
   const [placeholderStaffRole, setPlaceholderStaffRole] = useState<ClassStaffAssignment["staffRole"]>("assistant");
   const [showPlaceholderRoleOptions, setShowPlaceholderRoleOptions] = useState(false);
+  const [placeholderRoleMenuLayout, setPlaceholderRoleMenuLayout] = useState<PickerLayout | null>(null);
+  const placeholderRoleTriggerRef = useRef<View | null>(null);
   const [showColorOptions, setShowColorOptions] = useState(false);
   const [colorMenuLayout, setColorMenuLayout] = useState<PickerLayout | null>(null);
   const colorTriggerRef = useRef<View | null>(null);
@@ -844,12 +852,28 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
   const staff = [...(fields.editStaff ?? [])].sort(
     (left, right) => ["head", "assistant", "intern"].indexOf(left.staffRole) - ["head", "assistant", "intern"].indexOf(right.staffRole)
   );
+  const baselineHead = fields.editStaffBaseline?.find((member) => member.staffRole === "head");
+  const draftHead = staff.find((member) => member.staffRole === "head");
+  const hasPendingHeadTransition = baselineHead?.userId !== draftHead?.userId;
   const staffUserIds = new Set(staff.map((member) => member.userId));
   const normalizedStaffSearch = staffSearch.trim().toLocaleLowerCase("pt-BR");
   const staffCandidates = (fields.editStaffCandidates ?? [])
     .filter((member) => !staffUserIds.has(member.userId))
     .filter((member) => !normalizedStaffSearch || `${member.displayName} ${member.email ?? ""}`.toLocaleLowerCase("pt-BR").includes(normalizedStaffSearch))
     .slice(0, 6);
+  const openStaffSearchResults = () => {
+    staffSearchTriggerRef.current?.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0) return;
+      setStaffSearchLayout({ x, y, width, height });
+      setShowStaffSearchResults(true);
+    });
+  };
+  const selectStaffCandidate = (candidate: NonNullable<typeof staffCandidates[number]>) => {
+    actions.addEditStaff?.(candidate);
+    setStaffSearch("");
+    setShowStaffSearchResults(false);
+    setActiveStaffCandidateIndex(0);
+  };
   const selectedColorOption = fields.editColorOptions.find((option) => {
     const value = option.key === "default" ? null : option.key;
     return (fields.editColorKey ?? null) === value;
@@ -879,6 +903,18 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
       if (measuredWidth <= 0 || measuredHeight <= 0) return;
       setRoleMenuLayout({ x, y, width: measuredWidth, height: measuredHeight });
       setRoleMenuUserId(userId);
+    });
+  };
+  const togglePlaceholderRoleMenu = () => {
+    if (showPlaceholderRoleOptions) {
+      setShowPlaceholderRoleOptions(false);
+      setPlaceholderRoleMenuLayout(null);
+      return;
+    }
+    placeholderRoleTriggerRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      if (measuredWidth <= 0 || measuredHeight <= 0) return;
+      setPlaceholderRoleMenuLayout({ x, y, width: measuredWidth, height: measuredHeight });
+      setShowPlaceholderRoleOptions(true);
     });
   };
   const fieldStyle = {
@@ -1014,51 +1050,124 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
             <View style={{ gap: 8 }}>
               <Text style={[labelStyle, { color: colors.text, fontSize: 13, fontWeight: "700" }]}>Equipe responsável</Text>
               <View style={{ position: "relative" }}>
-                <View style={[selectStyle, { justifyContent: "flex-start" }]}>
+                <View ref={staffSearchTriggerRef} style={[selectStyle, { justifyContent: "flex-start" }]}>
                   <GoAtletaIcon name="search" size={18} color={colors.muted} />
-                  <TextInput accessibilityLabel="Buscar pessoa para adicionar" value={staffSearch} onChangeText={setStaffSearch} placeholder="Buscar pessoa para adicionar..." placeholderTextColor={colors.placeholder} style={{ flex: 1, minWidth: 0, color: colors.inputText, fontSize: 13, paddingVertical: 0 }} />
+                  <TextInput
+                    accessibilityLabel="Buscar pessoa para adicionar"
+                    value={staffSearch}
+                    onFocus={() => { if (staffSearch.trim()) openStaffSearchResults(); }}
+                    onChangeText={(value) => {
+                      setStaffSearch(value);
+                      setActiveStaffCandidateIndex(0);
+                      if (value.trim()) requestAnimationFrame(openStaffSearchResults);
+                      else setShowStaffSearchResults(false);
+                    }}
+                    onKeyPress={(event) => {
+                      const key = event.nativeEvent.key;
+                      if (key === "Escape") {
+                        setShowStaffSearchResults(false);
+                        return;
+                      }
+                      if (key === "ArrowDown" || key === "ArrowUp") {
+                        event.preventDefault();
+                        if (!showStaffSearchResults) {
+                          setActiveStaffCandidateIndex(0);
+                          openStaffSearchResults();
+                        } else if (staffCandidates.length) {
+                          setActiveStaffCandidateIndex((index) => Math.max(0, Math.min(staffCandidates.length - 1, index + (key === "ArrowDown" ? 1 : -1))));
+                        }
+                        return;
+                      }
+                      const shiftKey = (event.nativeEvent as unknown as { shiftKey?: boolean }).shiftKey;
+                      const activeCandidate = staffCandidates[activeStaffCandidateIndex];
+                      if (showStaffSearchResults && activeCandidate && key === "Enter") {
+                        event.preventDefault();
+                        selectStaffCandidate(activeCandidate);
+                        return;
+                      }
+                      if (key === "Tab") {
+                        if (!shiftKey && showStaffSearchResults && staffSearch.trim() && staffCandidates.length === 1) {
+                          event.preventDefault();
+                          selectStaffCandidate(staffCandidates[0]);
+                        } else {
+                          setShowStaffSearchResults(false);
+                        }
+                      }
+                    }}
+                    placeholder="Buscar pessoa para adicionar..."
+                    placeholderTextColor={colors.placeholder}
+                    style={{ flex: 1, minWidth: 0, color: colors.inputText, fontSize: 13, paddingVertical: 0 }}
+                  />
                 </View>
-                {staffSearch.trim() ? (
-                  <View style={{ marginTop: 6, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, padding: 5, gap: 3 }}>
-                    {staffCandidates.length ? staffCandidates.map((candidate) => (
-                      <Pressable key={candidate.userId} accessibilityRole="button" onPress={() => { actions.addEditStaff?.(candidate); setStaffSearch(""); }} style={{ minHeight: 42, borderRadius: 9, paddingHorizontal: 10, justifyContent: "center" }}>
-                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{candidate.displayName}</Text>
-                        {candidate.email ? <Text style={{ color: colors.muted, fontSize: 10 }}>{candidate.email}</Text> : null}
-                      </Pressable>
+                <AnchoredDropdown activeItemId={staffCandidates[activeStaffCandidateIndex] ? `${staffSearchListId}-${staffCandidates[activeStaffCandidateIndex].userId}` : undefined} visible={showStaffSearchResults && Boolean(staffSearch.trim())} layout={staffSearchLayout} container={null} animationStyle={{ opacity: 1 }} zIndex={9800} maxHeight={300} nestedScrollEnabled portalToBodyOnWeb fitContent preferredWidth={staffSearchLayout?.width} density="menu" onRequestClose={() => setShowStaffSearchResults(false)} interactiveRefs={[staffSearchTriggerRef]}>
+                  <View style={{ gap: 3 }}>
+                    {staffCandidates.length ? staffCandidates.map((candidate, index) => (
+                      <View key={candidate.userId} nativeID={`${staffSearchListId}-${candidate.userId}`}>
+                      <AnchoredDropdownOption active={index === activeStaffCandidateIndex} density="compact" onPress={() => selectStaffCandidate(candidate)}>
+                        <Text style={{ color: index === activeStaffCandidateIndex ? colors.primaryText : colors.text, fontSize: 12, fontWeight: "700" }}>{candidate.displayName}</Text>
+                        {candidate.email ? <Text style={{ color: index === activeStaffCandidateIndex ? colors.primaryText : colors.muted, fontSize: 10 }}>{candidate.email}</Text> : null}
+                      </AnchoredDropdownOption>
+                      </View>
                     )) : (
                       <View style={{ padding: 6, gap: 8 }}>
                         <Text style={{ color: colors.muted, fontSize: 11, paddingHorizontal: 4 }}>Nenhuma pessoa cadastrada com esse nome.</Text>
-                        <Pressable accessibilityRole="button" accessibilityLabel={`Pré-cadastrar ${staffSearch.trim()} sem e-mail`} onPress={() => setShowPlaceholderStaffForm(true)} style={{ minHeight: 42, borderRadius: 9, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.secondaryBg }}>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Pré-cadastrar ${staffSearch.trim()} sem e-mail`} onPress={() => { setShowStaffSearchResults(false); setShowPlaceholderStaffForm(true); }} style={{ minHeight: 42, borderRadius: 9, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.secondaryBg }}>
                           <GoAtletaIcon name="add" size={17} color={colors.text} />
                           <Text style={{ flex: 1, color: colors.text, fontSize: 12, fontWeight: "700" }}>Pré-cadastrar “{staffSearch.trim()}”</Text>
                         </Pressable>
                       </View>
                     )}
                   </View>
-                ) : null}
+                </AnchoredDropdown>
                 {showPlaceholderStaffForm && staffSearch.trim() ? (
                   <View style={{ marginTop: 8, padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.card, gap: 8 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: "700" }}>{staffSearch.trim()}</Text>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`Função: ${staffRoleLabel[placeholderStaffRole]}`} accessibilityState={{ expanded: showPlaceholderRoleOptions }} onPress={() => setShowPlaceholderRoleOptions((current) => !current)} style={{ minHeight: 34, borderRadius: 999, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.secondaryBg }}>
-                        <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{staffRoleLabel[placeholderStaffRole]}</Text>
-                        <GoAtletaIcon name="chevronDown" size={13} color={colors.muted} style={{ transform: [{ rotate: showPlaceholderRoleOptions ? "180deg" : "0deg" }] }} />
-                      </Pressable>
+                      <View ref={placeholderRoleTriggerRef}>
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Função: ${staffRoleLabel[placeholderStaffRole]}`} accessibilityState={{ expanded: showPlaceholderRoleOptions }} onPress={togglePlaceholderRoleMenu} style={{ minHeight: 34, borderRadius: 999, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.secondaryBg }}>
+                          <Text style={{ color: colors.text, fontSize: 11, fontWeight: "700" }}>{staffRoleLabel[placeholderStaffRole]}</Text>
+                          <GoAtletaIcon name="chevronDown" size={13} color={colors.muted} style={{ transform: [{ rotate: showPlaceholderRoleOptions ? "180deg" : "0deg" }] }} />
+                        </Pressable>
+                      </View>
                     </View>
                     <Text style={{ color: colors.muted, fontSize: 10 }}>Sem conta e sem acesso ao aplicativo.</Text>
-                    {showPlaceholderRoleOptions ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                      {(["head", "assistant", "intern"] as const).map((role) => {
-                        const active = placeholderStaffRole === role;
-                        return <Pressable key={role} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => { setPlaceholderStaffRole(role); setShowPlaceholderRoleOptions(false); }} style={[getChipStyle(active, colors), { borderRadius: 999 }]}><Text style={getChipTextStyle(active, colors)}>{staffRoleLabel[role]}</Text></Pressable>;
-                      })}
-                    </View> : null}
                     {placeholderStaffRole === "head" && staff.some((member) => member.staffRole === "head") ? <Text style={{ color: colors.warningText ?? colors.text, fontSize: 10, fontWeight: "600" }}>O responsável atual passará para Auxiliar após sua confirmação.</Text> : null}
                     <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
-                      <Pressable accessibilityRole="button" onPress={() => { setShowPlaceholderStaffForm(false); setShowPlaceholderRoleOptions(false); }} style={{ minHeight: 40, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" }}><Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>Cancelar</Text></Pressable>
-                      <Pressable accessibilityRole="button" accessibilityLabel="Adicionar profissional sem e-mail" onPress={() => { actions.addPlaceholderEditStaff?.(staffSearch.trim(), placeholderStaffRole); setStaffSearch(""); setShowPlaceholderStaffForm(false); setShowPlaceholderRoleOptions(false); setPlaceholderStaffRole("assistant"); }} style={{ minHeight: 40, borderRadius: 10, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}><Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>Adicionar</Text></Pressable>
+                      <Pressable accessibilityRole="button" onPress={() => { setShowPlaceholderStaffForm(false); setShowPlaceholderRoleOptions(false); setPlaceholderRoleMenuLayout(null); }} style={{ minHeight: 40, paddingHorizontal: 12, alignItems: "center", justifyContent: "center" }}><Text style={{ color: colors.muted, fontSize: 12, fontWeight: "600" }}>Cancelar</Text></Pressable>
+                      <Pressable accessibilityRole="button" accessibilityLabel="Adicionar profissional sem e-mail" onPress={() => { actions.addPlaceholderEditStaff?.(staffSearch.trim(), placeholderStaffRole); setStaffSearch(""); setShowPlaceholderStaffForm(false); setShowPlaceholderRoleOptions(false); setPlaceholderRoleMenuLayout(null); setPlaceholderStaffRole("assistant"); }} style={{ minHeight: 40, borderRadius: 10, paddingHorizontal: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryBg }}><Text style={{ color: colors.primaryText, fontSize: 12, fontWeight: "800" }}>Adicionar</Text></Pressable>
                     </View>
                   </View>
                 ) : null}
+                <AnchoredDropdown
+                  visible={showPlaceholderRoleOptions && Boolean(placeholderRoleMenuLayout)}
+                  layout={placeholderRoleMenuLayout}
+                  container={null}
+                  animationStyle={{ opacity: 1 }}
+                  zIndex={9900}
+                  maxHeight={180}
+                  nestedScrollEnabled
+                  portalToBodyOnWeb
+                  fitContent
+                  preferredWidth={220}
+                  density="menu"
+                  onRequestClose={() => { setShowPlaceholderRoleOptions(false); setPlaceholderRoleMenuLayout(null); }}
+                  interactiveRefs={[placeholderRoleTriggerRef]}
+                >
+                  {(["head", "assistant", "intern"] as const).map((role) => (
+                    <AnchoredDropdownOption
+                      key={role}
+                      active={placeholderStaffRole === role}
+                      density="compact"
+                      onPress={() => {
+                        setPlaceholderStaffRole(role);
+                        setShowPlaceholderRoleOptions(false);
+                        setPlaceholderRoleMenuLayout(null);
+                      }}
+                    >
+                      <Text style={{ flex: 1, color: placeholderStaffRole === role ? colors.primaryText : colors.text, fontSize: 12, fontWeight: placeholderStaffRole === role ? "700" : "500" }}>{staffRoleLabel[role]}</Text>
+                    </AnchoredDropdownOption>
+                  ))}
+                </AnchoredDropdown>
               </View>
               {fields.editStaffLoading ? (
                 <View style={{ minHeight: 74, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.text} /></View>
@@ -1085,6 +1194,14 @@ function ModernClassEditModalBodyBase(props: ClassEditModalBodyProps) {
                   </View>
                 );
               }) : <Text style={{ color: colors.muted, fontSize: 12 }}>Nenhum profissional vinculado.</Text>}
+              {hasPendingHeadTransition ? (
+                <View style={{ borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: colors.secondaryBg, gap: 2 }}>
+                  <Text style={{ color: colors.text, fontSize: 11, fontWeight: "800" }}>Troca de responsável pendente</Text>
+                  <Text style={{ color: colors.muted, fontSize: 10, lineHeight: 15 }}>
+                    {baselineHead?.displayName?.trim() || "Sem responsável"} → {draftHead?.displayName?.trim() || "Sem responsável"} · o histórico será atualizado ao salvar.
+                  </Text>
+                </View>
+              ) : null}
               <AnchoredDropdown
                 visible={Boolean(activeRoleMember && roleMenuLayout)}
                 layout={roleMenuLayout}

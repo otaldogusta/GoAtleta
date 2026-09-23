@@ -1,6 +1,7 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+    ActivityIndicator,
     Animated,
     Easing,
     KeyboardAvoidingView,
@@ -32,7 +33,7 @@ import {
   getClassStaffVersion,
   isClassStaffHistoryUnavailable,
 } from "../../src/api/class-staff-history";
-import { adminListOrgMembers, type OrgMember } from "../../src/api/members";
+import { listOrgStaffCandidates, mergeOrgStaffCandidates, type OrgMember } from "../../src/api/members";
 import {
   getStudentPhotoAccessUrl,
   getStudentPhotoObjectPath,
@@ -46,12 +47,12 @@ import { annualCycleOptions } from "../../src/core/periodization-basics";
 import { normalizeUnitKey } from "../../src/core/unit-key";
 import {
     deleteClassCascade,
-    duplicateClass,
     getClasses,
     getTrainingIntegrationRules,
     saveClass,
     updateClass,
 } from "../../src/db/seed";
+import { duplicateClassWithCurrentStaff } from "../../src/services/class-duplication-service";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { getStudents } from "../../src/db/students";
@@ -64,7 +65,10 @@ import {
 import {
   applyMemberIdentitiesToClassStaff,
   applyMemberNamesToClassResponsibles,
+  reconcileClassResponsiblesWithStaff,
 } from "../../src/screens/classes/application/class-responsible-identity";
+import { getClassEditChangeSet } from "../../src/screens/classes/application/class-edit-change-set";
+import { planClassStaffRoleTransition } from "../../src/screens/classes/application/class-staff-role-transition";
 import {
   getClassScheduleOverlapDays,
   trainingSpacesMayOverlap,
@@ -87,6 +91,7 @@ import { useConfirmDialog } from "../../src/ui/confirm-dialog";
 import { useConfirmUndo } from "../../src/ui/confirm-undo";
 import { ConfirmCloseOverlay } from "../../src/ui/ConfirmCloseOverlay";
 import { DatePickerModal } from "../../src/ui/DatePickerModal";
+import { getFriendlyErrorMessage } from "../../src/ui/error-messages";
 import { ModalDialogFrame } from "../../src/ui/ModalDialogFrame";
 import { ModalSheet } from "../../src/ui/ModalSheet";
 import { GoAtletaIcon } from "../../src/ui/icon-registry";
@@ -457,6 +462,8 @@ export default function ClassesScreen() {
   const [handledEditId, setHandledEditId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [duplicatingClassName, setDuplicatingClassName] = useState<string | null>(null);
+  const duplicationInFlightRef = useRef(false);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("");
   const [editTrainingSpace, setEditTrainingSpace] = useState("");
@@ -1180,13 +1187,13 @@ void Promise.all(
             return [] as ClassStaffAssignment[];
           }),
           isCoordinationScope
-            ? adminListOrgMembers(organizationId).catch((error) => {
+            ? listOrgStaffCandidates(organizationId).catch((error) => {
                 console.warn("[ClassesScreen] Failed to load member identities", error);
                 return [] as OrgMember[];
               })
             : Promise.resolve([] as OrgMember[]),
         ]);
-        loadedOrganizationMembers = organizationMembersResult;
+        loadedOrganizationMembers = mergeOrgStaffCandidates(organizationId, organizationMembersResult, loadedClassStaff);
         classHeads = applyMemberNamesToClassResponsibles(
           loadedClassHeads,
           loadedOrganizationMembers
@@ -1195,6 +1202,11 @@ void Promise.all(
           assignments: loadedClassStaff,
           members: loadedOrganizationMembers,
           responsibles: classHeads,
+        });
+        classHeads = reconcileClassResponsiblesWithStaff({
+          responsibles: classHeads,
+          assignments: classStaff,
+          classes: data,
         });
         try {
           const upcomingCoverages = await listUpcomingClassSessionCoverages(
@@ -1567,15 +1579,16 @@ void Promise.all(
     [editAgeBand, editColorKey, editCustomAgeBand, editCustomGoal, editCycleLengthWeeks, editCycleStartDate, editDays, editDuration, editEndTime, editGender, editGoal, editModality, editMvLevel, editName, editShowCustomAgeBand, editShowCustomGoal, editStartTime, editTrainingSpace, editUnit, parseDurationFromTimeRange]
   );
 
-  const isEditDirty = (() => {
-    if (!editBaselineSnapshot) return false;
-    const normalizeStaff = (value: ClassStaffAssignment[]) => value.map((member) => `${member.userId}:${member.staffRole}`).sort().join("|");
-    return JSON.stringify(editBaselineSnapshot) !== JSON.stringify(editCurrentSnapshot)
-      || normalizeStaff(editStaffBaseline) !== normalizeStaff(editStaff);
-  })();
+  const editChangeSet = useMemo(() => getClassEditChangeSet({
+    baseline: editBaselineSnapshot,
+    current: editCurrentSnapshot,
+    baselineStaff: editStaffBaseline,
+    currentStaff: editStaff,
+  }), [editBaselineSnapshot, editCurrentSnapshot, editStaff, editStaffBaseline]);
+  const isEditDirty = editChangeSet.dirty;
 
   const addEditStaff = useCallback((member: OrgMember) => {
-    setEditStaff((current) => current.some((assignment) => assignment.userId === member.userId) ? current : [...current, { classId: editingClass?.id ?? "", userId: member.userId, staffRole: "intern", displayName: member.displayName, photoUrl: null }]);
+    setEditStaff((current) => current.some((assignment) => assignment.userId === member.userId) ? current : [...current, { classId: editingClass?.id ?? "", userId: member.userId, staffProfileId: member.staffProfileId, isPlaceholder: member.isPlaceholder, staffRole: "intern", displayName: member.displayName, photoUrl: null }]);
   }, [editingClass?.id]);
 
   const removeEditStaff = useCallback((userId: string) => {
@@ -1602,17 +1615,13 @@ void Promise.all(
   }, [confirmDialog, editStaff, editingClass?.id]);
 
   const changeEditStaffRole = useCallback((userId: string, role: ClassStaffAssignment["staffRole"]) => {
-    const apply = () => setEditStaff((current) => current.map((assignment) => {
-      if (assignment.userId === userId) return { ...assignment, staffRole: role };
-      if (role === "head" && assignment.staffRole === "head") return { ...assignment, staffRole: "assistant" };
-      return assignment;
-    }));
-    const promoted = editStaff.find((assignment) => assignment.userId === userId);
-    const currentHead = editStaff.find((assignment) => assignment.staffRole === "head" && assignment.userId !== userId);
-    if (role !== "head" || !currentHead) return apply();
+    const transition = planClassStaffRoleTransition({ assignments: editStaff, userId, nextRole: role });
+    if (!transition.changed) return;
+    const apply = () => setEditStaff(transition.nextAssignments);
+    if (!transition.requiresConfirmation) return apply();
     void confirmDialog({
-      title: "Trocar professor responsável?",
-      message: `${currentHead.displayName || "O responsável atual"} passará para Auxiliar e ${promoted?.displayName || "o profissional selecionado"} assumirá como responsável.`,
+      title: transition.confirmationTitle,
+      message: transition.confirmationMessage,
       confirmLabel: "Confirmar troca",
       cancelLabel: "Cancelar",
       tone: "default",
@@ -1708,33 +1717,36 @@ void Promise.all(
     setEditFormError("");
     setEditSaving(true);
     try {
-      const integrationCandidates = findIntegrationCandidates(
+      const integrationCandidates = editChangeSet.detailsChanged ? findIntegrationCandidates(
         editingClass.id,
         editUnit.trim() || "Sem unidade",
         editTrainingSpace.trim(),
         editModality,
         timeValue,
         editDays
-      );
-      await updateClass(editingClass.id, {
-        name: editName.trim(),
-        unit: editUnit.trim() || "Sem unidade",
-        trainingSpace: editTrainingSpace.trim(),
-        colorKey: editColorKey ?? null,
-        ageBand: ageBandValue || editAgeBand,
-        gender: editGender,
-        modality: editModality ?? undefined,
-        daysOfWeek: editDays,
-        goal: goalValue,
-        startTime: timeValue,
-        durationMinutes: durationValue,
-        mvLevel: editMvLevel,
-        cycleStartDate: editCycleStartDate || undefined,
-        cycleLengthWeeks: cycleValue,
-      });
+      ) : [];
+      if (editChangeSet.detailsChanged) {
+        await updateClass(editingClass.id, {
+          name: editName.trim(),
+          unit: editUnit.trim() || "Sem unidade",
+          unitId: normalizeUnitKey(editUnit) === normalizeUnitKey(editingClass.unit) ? editingClass.unitId : undefined,
+          trainingSpace: editTrainingSpace.trim(),
+          colorKey: editColorKey ?? null,
+          ageBand: ageBandValue || editAgeBand,
+          gender: editGender,
+          modality: editModality ?? undefined,
+          daysOfWeek: editDays,
+          goal: goalValue,
+          startTime: timeValue,
+          durationMinutes: durationValue,
+          mvLevel: editMvLevel,
+          cycleStartDate: editCycleStartDate || undefined,
+          cycleLengthWeeks: cycleValue,
+        });
+      }
       const organizationId = editingClass.organizationId || activeOrganization?.id || "";
       const assignments = editStaff.map((member) => ({ userId: member.userId, staffProfileId: member.staffProfileId, isPlaceholder: member.isPlaceholder, displayName: member.displayName, staffRole: member.staffRole }));
-      if (editStaffHistoryAvailable) {
+      if (editChangeSet.staffChanged && editStaffHistoryAvailable) {
         try {
           const receipt = await applyClassStaffAssignmentsWithHistory({
             organizationId,
@@ -1748,7 +1760,7 @@ void Promise.all(
           setEditStaffHistoryAvailable(false);
           await replaceClassStaffAssignments({ organizationId, classId: editingClass.id, assignments });
         }
-      } else {
+      } else if (editChangeSet.staffChanged) {
         await replaceClassStaffAssignments({ organizationId, classId: editingClass.id, assignments });
       }
       await loadClasses();
@@ -1777,6 +1789,9 @@ void Promise.all(
           },
         });
       }
+    } catch (error) {
+      setEditFormError(getFriendlyErrorMessage(error, "Não foi possível salvar as alterações da turma."));
+      Vibration.vibrate(40);
     } finally {
       setEditSaving(false);
     }
@@ -2116,23 +2131,41 @@ void Promise.all(
 
   const handleDuplicateClassFromCard = useCallback(
     async (item: ClassGroup) => {
-      if (item.id.startsWith("preview_")) return;
-      const duplicatedClassId = await measure("duplicateClass", () => duplicateClass(item));
-      logAction("Duplicar turma", { classId: item.id });
-      await loadClasses();
-      confirmDialog({
-        title: "Turma duplicada",
-        message: `Criamos uma cópia de ${item.name}.`,
-        confirmLabel: "Ver cópia",
-        cancelLabel: "Ficar na lista",
-        tone: "default",
-        onConfirm: () => {
-          router.push({
-            pathname: "/class/[id]",
-            params: { id: duplicatedClassId },
-          });
-        },
-      });
+      if (item.id.startsWith("preview_") || duplicationInFlightRef.current) return;
+      duplicationInFlightRef.current = true;
+      setDuplicatingClassName(item.name);
+
+      try {
+        const duplicatedClassId = await measure("duplicateClass", () => duplicateClassWithCurrentStaff(item));
+        logAction("Duplicar turma", { classId: item.id });
+        await loadClasses().catch(() => undefined);
+        setDuplicatingClassName(null);
+        duplicationInFlightRef.current = false;
+        confirmDialog({
+          title: "Turma duplicada",
+          message: `Criamos uma cópia de ${item.name} com a mesma configuração e equipe atual.`,
+          confirmLabel: "Ver cópia",
+          cancelLabel: "Ficar na lista",
+          tone: "default",
+          onConfirm: () => {
+            router.push({
+              pathname: "/class/[id]",
+              params: { id: duplicatedClassId, settings: "1" },
+            });
+          },
+        });
+      } catch (error) {
+        setDuplicatingClassName(null);
+        duplicationInFlightRef.current = false;
+        confirmDialog({
+          title: "Não foi possível duplicar",
+          message: getFriendlyErrorMessage(error, "Tente novamente em alguns instantes."),
+          confirmLabel: "Entendi",
+          cancelLabel: "Fechar",
+          tone: "danger",
+          onConfirm: () => undefined,
+        });
+      }
     },
     [confirmDialog, loadClasses, router]
   );
@@ -2253,6 +2286,34 @@ void Promise.all(
             />
           </View>
         </View>
+
+        <ModalSheet
+          visible={Boolean(duplicatingClassName)}
+          onClose={() => undefined}
+          position="center"
+          cardStyle={{
+            width: "100%",
+            maxWidth: 360,
+            paddingHorizontal: 24,
+            paddingVertical: 22,
+            alignItems: "center",
+            gap: 12,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderWidth: 1,
+            borderRadius: 18,
+          }}
+        >
+          <ActivityIndicator size="small" color={colors.primaryBg} />
+          <View style={{ alignItems: "center", gap: 4 }}>
+            <Text accessibilityLiveRegion="polite" style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+              Duplicando turma…
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 13, textAlign: "center" }}>
+              Copiando configurações e equipe de {duplicatingClassName ?? "turma"}.
+            </Text>
+          </View>
+        </ModalSheet>
 
         <ModalDialogFrame
           visible={mainTab === "criar"}
@@ -2818,6 +2879,7 @@ void Promise.all(
           }
         >
           <ClassEditModalBody
+            renderPickers
             editContainerRef={editContainerRef}
             editCycleLengthTriggerRef={editCycleLengthTriggerRef}
             editMvLevelTriggerRef={editMvLevelTriggerRef}
@@ -2892,6 +2954,7 @@ void Promise.all(
               editSaving,
               isEditDirty,
               editStaff,
+              editStaffBaseline,
               editStaffCandidates: organizationMembers,
               editStaffLoading: false,
             }}

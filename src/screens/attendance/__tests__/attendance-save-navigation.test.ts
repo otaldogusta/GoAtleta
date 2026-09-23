@@ -9,6 +9,13 @@ const mockGetStudentsByClass = jest.fn();
 const mockGetAttendanceByDate = jest.fn();
 const mockSaveAttendanceRecords = jest.fn();
 const mockShowSaveToast = jest.fn();
+// These tests exercise navigation after the user has consented to the selected date.
+jest.mock("../../../ui/confirm-dialog", () => ({
+  useConfirmDialog: () => ({ confirm: async (options: { onConfirm: () => void }) => {
+    options.onConfirm();
+    return true;
+  } }),
+}));
 let mockRouteParams = { id: "class-1", date: "2026-09-01" };
 type BeforeRemoveEvent = { preventDefault: () => void; data: { action: { type: string } } };
 const mockBeforeRemoveListeners = new Set<(event: BeforeRemoveEvent) => void>();

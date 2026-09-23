@@ -7,6 +7,7 @@ import { canUseProfilePreview } from "../dev/profile-preview-access";
 import { useRole, type UserRole } from "../auth/role";
 import {
   getTrainerPermissionKey,
+  hasOrganizationAdminAccess,
   isTrainerPathAllowed,
 } from "../auth/route-permissions";
 import { ROLE_TABS, type AppRole } from "../components/navigation/tab-config";
@@ -346,9 +347,10 @@ export function WebSidebar({
   const setDevProfilePreview = organizationContext?.setDevProfilePreview;
   const memberPermissions = organizationContext?.memberPermissions ?? {};
   const permissionsLoading = organizationContext?.permissionsLoading ?? true;
-  const isOrgAdmin = (organizationContext?.organizations?.find(
-    (org) => org.id === organizationContext.activeOrganization?.id,
-  )?.role_level ?? 0) >= 50;
+  const isOrgAdmin = hasOrganizationAdminAccess(
+    organizationContext?.activeOrganizationId,
+    organizationContext?.organizations ?? [],
+  );
   const hasTrainerRole = availableRoles.includes("trainer");
   const hasStudentRole = availableRoles.includes("student");
   const hasFamilyRole = availableRoles.includes("family");

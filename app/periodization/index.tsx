@@ -110,7 +110,6 @@ import {
   deleteClassCalendarException,
   deleteClassCompetitiveProfile,
   deleteClassPlansByClass,
-  duplicateClass,
   getClassCalendarExceptions,
   getClassCompetitiveProfile,
   getClasses,
@@ -125,6 +124,7 @@ import {
   updateClass,
   updateClassAcwrLimits,
 } from "../../src/db/seed";
+import { duplicateClassWithCurrentStaff } from "../../src/services/class-duplication-service";
 import { navigateBackOrReplace } from "../../src/navigation/safe-router";
 import { useTrainerRouteScope } from "../../src/navigation/use-trainer-route-scope";
 import { useOptionalOrganization } from "../../src/providers/organization-context";
@@ -3695,12 +3695,12 @@ export default function PeriodizationScreen() {
     confirmDialog({
       title: "Duplicar em uma nova turma?",
       message:
-        "Será criada uma nova turma com os mesmos parâmetros de agenda e periodização. Planos personalizados e histórico de aulas não serão copiados.",
+        "Será criada uma nova turma com os mesmos parâmetros de agenda, periodização e equipe atual. Planos personalizados e histórico de aulas não serão copiados.",
       confirmLabel: "Criar nova turma",
       cancelLabel: "Cancelar",
       onConfirm: async () => {
         try {
-          const duplicatedClassId = await duplicateClass(selectedClass);
+          const duplicatedClassId = await duplicateClassWithCurrentStaff(selectedClass);
           const refreshedClasses = await getClasses();
           setClasses(refreshedClasses);
           Alert.alert(

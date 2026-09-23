@@ -52,7 +52,8 @@ describe("profile unsaved feedback", () => {
     expect(source).toContain('Platform.OS === "web"');
     expect(source).toContain('mobileExpandedSection === "personal"');
     expect(source).toContain('(mobileProfileHasChanges || mobileSportsHasChanges || athleteModalities.dirty)');
-    expect(source).toContain('label={savingMobileProfile ? "Salvando..." : "Salvar alterações"}');
+    expect(source).toContain('? "Preencha os dados obrigatórios"');
+    expect(source).toContain(': "Salvar alterações"}');
   });
 
   it("keeps verified phone state tied to the visible value and removes it inside the field", () => {
@@ -61,5 +62,39 @@ describe("profile unsaved feedback", () => {
     expect(source).toContain('accessibilityLabel="Remover número de celular"');
     expect(source).toContain('<GoAtletaIcon name="trash"');
     expect(source).toContain('"O número atual será desvinculado da conta. Depois, você poderá cadastrar outro."');
+  });
+
+  it("uses the shared responsive profile sections for the professional profile", () => {
+    expect(source).toContain('title="Perfil profissional"');
+    expect(source).toContain('title="Preferências"');
+    expect(source).toContain('title="Conta e segurança"');
+    expect(source).toContain('title="Integrações"');
+    expect(source).toContain('label: "Turmas acessíveis"');
+    expect(source).toContain("professionalUnits.map");
+    expect(source).toContain('<ProfileToggle enabled={notificationsEnabled} />');
+    expect(source).toContain('<ProfileToggle enabled={mode === "dark"} />');
+  });
+
+  it("uses the professional responsive grid for the student profile", () => {
+    const studentProfile = source.slice(
+      source.indexOf("{isStudentMobileProfile ? ("),
+      source.indexOf('title="Perfil"', source.indexOf("{isStudentMobileProfile ? (")),
+    );
+
+    expect(studentProfile).toContain('<ResponsiveGrid columns={{ compact: "1", split: "4/8" }} gap={24}>');
+    expect(studentProfile).toContain('key="student-identity"');
+    expect(studentProfile).toContain('key="student-settings"');
+    expect(studentProfile).not.toContain("maxWidth: responsiveLayout.isMobile ? undefined : 760");
+  });
+
+  it("makes the student completion requirements explicit before saving", () => {
+    expect(source).toContain("Nome, celular, data de nascimento e CPF são obrigatórios. Os demais dados são opcionais.");
+    expect(source).toContain('message: "Revise os campos obrigatórios destacados."');
+    expect(source).toContain("mobileRequiredValidationAttempted && mobileProfileHasRequiredErrors");
+    expect(source).toContain('"Preencha os dados obrigatórios"');
+    expect(source).toContain("validateCpf(mobileCpfDraft)");
+    expect(source).toContain("<FloatingFieldError message={fieldError} />");
+    expect(source).toContain("setMobileExpandedSection(\"personal\")");
+    expect(source).not.toContain('Alert.alert(\n        "Complete os dados obrigatórios"');
   });
 });

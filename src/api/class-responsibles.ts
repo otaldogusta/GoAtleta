@@ -1,4 +1,5 @@
 import { supabaseRestDelete, supabaseRestGet, supabaseRestPatch, supabaseRestPost } from "./rest";
+import { PROFILE_NAME_FALLBACK, normalizeProfileName } from "../core/profile-name";
 
 type ClassHeadRow = {
   class_id: string;
@@ -49,12 +50,27 @@ type OrganizationCoordinatorRow = {
   user_id: string;
 };
 
+const GENERIC_STAFF_IDENTITY_LABELS = new Set([
+  "professor responsável",
+  "auxiliar",
+  "estagiário(a)",
+  "profissional",
+]);
+
+export const resolveClassStaffIdentityLabel = (value: unknown) => {
+  const label = normalizeProfileName(value);
+  if (!label || GENERIC_STAFF_IDENTITY_LABELS.has(label.toLocaleLowerCase("pt-BR"))) {
+    return PROFILE_NAME_FALLBACK;
+  }
+  return label;
+};
+
 const mapClassHead = (row: ClassHeadRow): ClassResponsible => ({
   classId: row.class_id,
   userId: row.user_id,
   className: row.class_name,
   unit: row.unit,
-  displayName: row.display_name || row.email || row.user_id,
+  displayName: resolveClassStaffIdentityLabel(row.display_name || row.email || row.user_id),
   email: row.email ?? null,
   photoUrl: row.photo_url ?? null,
 });
@@ -115,7 +131,7 @@ export async function listClassStaffByClassIds(params: {
       staffProfileId: row.staff_profile_id ?? null,
       isPlaceholder: !row.user_id,
       staffRole: row.staff_role,
-      displayName: row.display_name ?? null,
+      displayName: resolveClassStaffIdentityLabel(row.display_name),
       photoUrl: row.photo_url ?? null,
     }));
 }
@@ -153,7 +169,7 @@ export async function listClassStaffIdentitiesByClassIds(params: {
       staffProfileId: row.staff_profile_id ?? null,
       isPlaceholder: !row.user_id,
       staffRole: row.staff_role,
-      displayName: row.display_name ?? null,
+      displayName: resolveClassStaffIdentityLabel(row.display_name),
       photoUrl: row.photo_url ?? null,
     }));
   } catch (error) {

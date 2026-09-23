@@ -33,6 +33,7 @@ import {
 import { RoleProvider, useRole } from "../src/auth/role";
 import {
   getTrainerPermissionKey,
+  hasOrganizationAdminAccess,
   hybridVerificationRestrictedPrefixes,
   isRolePathBlocked,
 } from "../src/auth/route-permissions";
@@ -238,11 +239,15 @@ function RootLayoutContent() {
   const effectiveProfile = useEffectiveProfile();
   const organization = useOptionalOrganization();
   const {
+    organizations,
+    activeOrganizationId,
     activeOrganization,
     memberPermissions,
     permissionsLoading,
     isLoading: organizationLoading,
   } = organization ?? {
+    organizations: [],
+    activeOrganizationId: null,
     activeOrganization: null,
     memberPermissions: {},
     permissionsLoading: false,
@@ -277,6 +282,10 @@ function RootLayoutContent() {
   const navReady = Boolean(rootState?.key);
   const isAdminProfile =
     role === "trainer" && (activeOrganization?.role_level ?? 0) >= 50;
+  const hasOrgAdminAccess = hasOrganizationAdminAccess(
+    activeOrganizationId,
+    organizations,
+  );
   const appHomeHref =
     role === "student" || role === "pending"
       ? "/student/home"
@@ -771,7 +780,7 @@ function RootLayoutContent() {
       router.replace("/prof/home");
       return;
     }
-    if (session && role === "trainer" && !isAdminProfile) {
+    if (session && role === "trainer" && !hasOrgAdminAccess) {
       const permissionKey = getTrainerPermissionKey(normalizedPathname);
       if (permissionKey && memberPermissions[permissionKey] !== true) {
         router.replace(appHomeHref);
@@ -816,6 +825,7 @@ function RootLayoutContent() {
     role,
     roleLoading,
     session,
+    hasOrgAdminAccess,
     isAdminProfile,
     appHomeHref,
     organizationLoading,
