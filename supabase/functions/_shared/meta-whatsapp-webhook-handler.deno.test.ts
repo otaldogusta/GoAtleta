@@ -2,7 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1";
 import {
   createMetaWhatsAppWebhookHandler,
   createMetaWebhookTestSignature,
-} from "../meta-whatsapp-webhook-handler.ts";
+} from "./meta-whatsapp-webhook-handler.ts";
 
 Deno.test("confirms Meta webhook challenge with the configured token", async () => {
   const handler = createMetaWhatsAppWebhookHandler({ verifyToken: "verify-me", appSecret: "secret" });
