@@ -28,6 +28,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import type { AthletePosition, ClassGroup } from "../src/core/models";
 
 import { useAuth } from "../src/auth/auth";
+import { getConfirmedPhone } from "../src/auth/phone-verification";
 import { canSafelyUnlinkProvider } from "../src/auth/identity-linking";
 import { saveSession } from "../src/auth/session";
 import { BackTitleHeader } from "../src/components/ui/BackTitleHeader";
@@ -1263,7 +1264,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     const resolvedName = student?.name || currentAccountName;
-    const authenticatedPhone = session?.user?.phone_confirmed_at ? session.user.phone : null;
+    const authenticatedPhone = getConfirmedPhone(session?.user);
     const primaryPhoneDraft = resolvePhoneDraft(student?.phone || authenticatedPhone);
     const guardianPhoneDraft = resolvePhoneDraft(student?.guardianPhone);
     const nextValues = {
@@ -1297,7 +1298,7 @@ export default function ProfileScreen() {
     setMobileGuardianCountryCode(nextValues.guardianCountryCode);
     setMobileGuardianCountryIso(guardianPhoneDraft.countryIso);
     setMobileProfileBaseline(nextValues);
-  }, [currentAccountName, session?.user?.phone, session?.user?.phone_confirmed_at, student]);
+  }, [currentAccountName, session?.user, student]);
 
   useEffect(() => {
     const nextValues = {
@@ -1907,7 +1908,7 @@ export default function ProfileScreen() {
   const mobileGuardianPhoneE164 = mobileGuardianPhoneDraft.replace(/\D/g, "")
     ? `+${mobileGuardianCountryCode.replace(/\D/g, "")}${mobileGuardianPhoneDraft.replace(/\D/g, "")}`
     : "";
-  const verifiedPhoneE164 = session?.user?.phone_confirmed_at ? String(session.user.phone ?? "") : "";
+  const verifiedPhoneE164 = getConfirmedPhone(session?.user);
   const isDisplayedPhoneVerified = Boolean(
     mobilePhoneE164 && verifiedPhoneE164 && mobilePhoneE164 === verifiedPhoneE164,
   );
