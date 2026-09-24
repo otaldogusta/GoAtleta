@@ -1,6 +1,7 @@
 import {
   buildWhatsAppAuthMessage,
   readWhatsAppAuthConfig,
+  resolveWhatsAppAuthDestination,
   sendWhatsAppAuthCode,
   type WhatsAppAuthConfig,
 } from "../whatsapp-auth-provider";
@@ -14,6 +15,17 @@ const config: WhatsAppAuthConfig = {
 };
 
 describe("WhatsApp authentication provider", () => {
+  it("uses the pending phone during a phone-change verification", () => {
+    expect(resolveWhatsAppAuthDestination({
+      phone: "",
+      phone_change: "+5541933008130",
+    })).toBe("+5541933008130");
+    expect(resolveWhatsAppAuthDestination({
+      phone: "+5541999999999",
+      phone_change: "",
+    })).toBe("+5541999999999");
+  });
+
   it("builds the Meta authentication template with the same OTP in body and copy button", () => {
     expect(buildWhatsAppAuthMessage("+55 (41) 99999-9999", "482931", config)).toEqual({
       messaging_product: "whatsapp",

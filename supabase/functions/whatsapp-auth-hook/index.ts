@@ -1,6 +1,7 @@
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
 import {
   readWhatsAppAuthConfig,
+  resolveWhatsAppAuthDestination,
   sendWhatsAppAuthCode,
 } from "../_shared/whatsapp-auth-provider.ts";
 
@@ -20,10 +21,10 @@ Deno.serve(async (request) => {
     if (body.length > 64_000) return json(413, { error: { http_code: 413, message: "Solicitação inválida." } });
     const verifier = new Webhook(rawSecret.replace(/^v1,whsec_/, ""));
     const event = verifier.verify(body, Object.fromEntries(request.headers)) as {
-      user?: { phone?: unknown };
+      user?: { phone?: unknown; phone_change?: unknown };
       sms?: { otp?: unknown };
     };
-    const phone = typeof event.user?.phone === "string" ? event.user.phone : "";
+    const phone = resolveWhatsAppAuthDestination(event.user);
     const otp = typeof event.sms?.otp === "string" ? event.sms.otp : "";
     await sendWhatsAppAuthCode(phone, otp, readWhatsAppAuthConfig());
     return json(200, {});

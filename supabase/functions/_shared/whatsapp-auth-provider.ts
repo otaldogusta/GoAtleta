@@ -10,6 +10,11 @@ export type WhatsAppAuthDelivery = {
   messageId: string;
 };
 
+export type WhatsAppAuthUser = {
+  phone?: unknown;
+  phone_change?: unknown;
+};
+
 const ENV_KEYS = {
   accessToken: "META_WHATSAPP_ACCESS_TOKEN",
   phoneNumberId: "META_WHATSAPP_PHONE_NUMBER_ID",
@@ -17,6 +22,12 @@ const ENV_KEYS = {
   templateName: "META_WHATSAPP_AUTH_TEMPLATE_NAME",
   templateLanguage: "META_WHATSAPP_AUTH_TEMPLATE_LANGUAGE",
 } as const;
+
+export const resolveWhatsAppAuthDestination = (user: WhatsAppAuthUser | undefined) => {
+  const pendingPhone = typeof user?.phone_change === "string" ? user.phone_change.trim() : "";
+  if (pendingPhone) return pendingPhone;
+  return typeof user?.phone === "string" ? user.phone.trim() : "";
+};
 
 export const readWhatsAppAuthConfig = (
   readEnv: (key: string) => string | undefined = (key) => Deno.env.get(key),
