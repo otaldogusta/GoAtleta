@@ -1,6 +1,10 @@
 import { LegalDocumentScreen } from "../src/components/legal/LegalDocumentScreen";
+import { markRender } from "../src/observability/perf";
+
+// perf-check: ignore-measure -- static legal content performs no asynchronous loading.
 
 export default function TermsScreen() {
+  markRender("screen.terms.render.root");
   return (
     <LegalDocumentScreen
       title="Termos de Uso"
