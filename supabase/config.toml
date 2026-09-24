@@ -127,3 +127,11 @@ verify_jwt = false
 verify_jwt = false
 [functions.security-contact-verification]
 verify_jwt = true
+
+# Supabase Auth calls this hook without a user JWT. The Standard Webhooks
+# signature is verified inside the function before any OTP is delivered.
+[functions.whatsapp-auth-hook]
+verify_jwt = false
+
+[functions.meta-whatsapp-webhook]
+verify_jwt = false

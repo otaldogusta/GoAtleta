@@ -1,6 +1,7 @@
 import { markRender } from "../src/observability/perf";
 // perf-check: ignore-measure -- preference loading belongs to the instrumented WhatsAppSettingsProvider.
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenPageHeader } from "../src/components/ui/ScreenPageHeader";
@@ -8,12 +9,32 @@ import { navigateBackOrReplace } from "../src/navigation/safe-router";
 import { Pressable } from "../src/ui/Pressable";
 import { useAppTheme } from "../src/ui/app-theme";
 import { useWhatsAppSettings } from "../src/ui/whatsapp-settings-context";
+import {
+  hasWhatsAppEmbeddedSignupParams,
+  parseWhatsAppEmbeddedSignupResult,
+} from "../src/integrations/whatsapp/embedded-signup-result";
 
 export default function WhatsAppSettingsScreen() {
   markRender("screen.whatsappSettings.render.root");
   const { colors } = useAppTheme();
   const router = useRouter();
+  const callbackParams = useLocalSearchParams<{
+    code?: string | string[];
+    error?: string | string[];
+    error_code?: string | string[];
+    error_reason?: string | string[];
+    error_description?: string | string[];
+  }>();
+  const [embeddedSignupResult] = useState(
+    () => parseWhatsAppEmbeddedSignupResult(callbackParams),
+  );
   const { defaultMessageEnabled, setDefaultMessageEnabled, loading } = useWhatsAppSettings();
+
+  useEffect(() => {
+    if (!hasWhatsAppEmbeddedSignupParams(callbackParams)) return;
+    // Authorization codes and provider errors must not remain in browser history.
+    router.replace("/whatsapp-settings");
+  }, [callbackParams, router]);
 
   if (loading) {
     return (
@@ -30,6 +51,45 @@ export default function WhatsAppSettingsScreen() {
           title="Configurações WhatsApp"
           onBack={() => navigateBackOrReplace({ router, fallback: "/prof/home" })}
         />
+
+        {embeddedSignupResult.kind !== "idle" ? (
+          <View
+            style={{
+              borderRadius: 12,
+              padding: 12,
+              backgroundColor: embeddedSignupResult.kind === "returned" ? "#E8F5E9" : "#FFF3E0",
+              borderWidth: 1,
+              borderColor: embeddedSignupResult.kind === "returned" ? "#A5D6A7" : "#FFCC80",
+              gap: 4,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                color: embeddedSignupResult.kind === "returned" ? "#2E7D32" : "#E65100",
+              }}
+            >
+              {embeddedSignupResult.kind === "returned"
+                ? "Retorno da Meta recebido"
+                : embeddedSignupResult.kind === "cancelled"
+                  ? "Conexão cancelada"
+                  : "Conexão não concluída"}
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: embeddedSignupResult.kind === "returned" ? "#2E7D32" : "#E65100",
+              }}
+            >
+              {embeddedSignupResult.kind === "returned"
+                ? "A conexão só será ativada após a confirmação segura no servidor."
+                : embeddedSignupResult.kind === "cancelled"
+                  ? "Nenhuma alteração foi feita no seu WhatsApp."
+                  : embeddedSignupResult.message}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Toggle Card */}
         <View

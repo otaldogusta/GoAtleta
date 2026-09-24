@@ -53,6 +53,8 @@ const intentionallyPublic = [
   "document-drive-oauth",
 ];
 
+const signedWebhookFunctions = ["whatsapp-auth-hook"];
+
 const selfAuthenticated = [
   { name: "claim-trainer-invite", strategy: "direct" },
   { name: "create-trainer-invite", strategy: "direct" },
@@ -103,6 +105,22 @@ for (const fnName of intentionallyPublic) {
     errors.push(
       `[functions.${fnName}] expected verify_jwt = false (public endpoint by design)`
     );
+  }
+}
+
+for (const fnName of signedWebhookFunctions) {
+  if (!Object.prototype.hasOwnProperty.call(functions, fnName)) {
+    errors.push(`Missing section [functions.${fnName}]`);
+    continue;
+  }
+  if (functions[fnName].verify_jwt !== false) {
+    errors.push(`[functions.${fnName}] must disable JWT verification for the Supabase Auth hook`);
+    continue;
+  }
+  const functionPath = path.resolve(process.cwd(), "supabase", "functions", fnName, "index.ts");
+  const functionSource = fs.existsSync(functionPath) ? fs.readFileSync(functionPath, "utf8") : "";
+  if (!/standardwebhooks/.test(functionSource) || !/verifier\.verify\(body/.test(functionSource)) {
+    errors.push(`[functions.${fnName}] must verify the Standard Webhooks signature`);
   }
 }
 

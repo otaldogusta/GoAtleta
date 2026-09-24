@@ -15,6 +15,10 @@ import { Pressable } from "../src/ui/Pressable";
 
 import * as Sentry from "@sentry/react-native";
 import { AuthProvider, useAuth } from "../src/auth/auth";
+import {
+  hasVerifiedEmailAccess,
+  shouldRestrictToEmailVerification,
+} from "../src/auth/email-verification-state";
 import { FirstAccessProfileGate } from "../src/auth/FirstAccessProfileGate";
 import { resolveOAuthEntryTarget } from "../src/auth/oauth-post-login";
 import {
@@ -34,7 +38,6 @@ import { RoleProvider, useRole } from "../src/auth/role";
 import {
   getTrainerPermissionKey,
   hasOrganizationAdminAccess,
-  hybridVerificationRestrictedPrefixes,
   isRolePathBlocked,
 } from "../src/auth/route-permissions";
 import {
@@ -320,6 +323,9 @@ function RootLayoutContent() {
     "/signup",
     "/verify-email",
     "/reset-password",
+    "/privacy",
+    "/terms",
+    "/data-deletion",
     ...(__DEV__ ? ["/admin", "/family-access-preview"] : []),
   ];
   const publicPrefixes = ["/invite", "/family-invite", "/staff-invite"];
@@ -354,28 +360,8 @@ function RootLayoutContent() {
     normalizedPathname.startsWith("/invite/") ||
     normalizedPathname === "/family-invite" ||
     normalizedPathname.startsWith("/family-invite/");
-  const emailConfirmedAt =
-    session?.user?.email_confirmed_at ?? session?.user?.confirmed_at ?? null;
-  const userMetadata = session?.user?.user_metadata ?? {};
-  const hybridVerifiedAt =
-    typeof session?.user?.app_metadata?.email_verified_hybrid_at === "string"
-      ? session.user.app_metadata.email_verified_hybrid_at
-      : null;
-  const requiresHybridVerification =
-    userMetadata.requires_email_hybrid_verification === true;
-  const providerValues = [
-    ...(session?.user?.app_metadata?.providers ?? []),
-    ...(session?.user?.identities?.map((item) => item.provider ?? "") ?? []),
-    session?.user?.app_metadata?.provider ?? "",
-  ]
-    .map((item) => String(item).toLowerCase().trim())
-    .filter(Boolean);
-  const usesGoogleAuth = providerValues.includes("google");
-  const isHybridEmailVerified = requiresHybridVerification
-    ? Boolean(hybridVerifiedAt)
-    : Boolean(emailConfirmedAt || hybridVerifiedAt);
-  const needsHybridEmailVerification =
-    Boolean(session) && !usesGoogleAuth && !isHybridEmailVerified;
+  const isEmailAccessVerified = hasVerifiedEmailAccess(session?.user);
+  const needsHybridEmailVerification = Boolean(session) && !isEmailAccessVerified;
   const isPublicRoute =
     isDevPlatformAccessPreview ||
     isDevPlatformDashboardPreview ||
@@ -467,7 +453,7 @@ function RootLayoutContent() {
     Promise.resolve().then(() => {
       setEmailBannerDismissed(false);
     });
-  }, [session?.user?.id, emailConfirmedAt]);
+  }, [session?.user?.id, isEmailAccessVerified]);
 
   useEffect(() => {
     LogBox.ignoreLogs([
@@ -674,6 +660,16 @@ function RootLayoutContent() {
     // Do not redirect users away from reset-password screen during password recovery
     if (normalizedPathname === "/reset-password") return;
 
+    if (shouldRestrictToEmailVerification({
+      user: session?.user,
+      pathname: normalizedPathname,
+      isInviteRoute,
+    })) {
+      const email = encodeURIComponent(session?.user?.email ?? "");
+      router.replace(`/verify-email?email=${email}`);
+      return;
+    }
+
     let redirectTo: string | null = null;
     const trainerInviteCode = resolveAuthenticatedTrainerInviteEntry({
       hasSession: Boolean(session),
@@ -788,23 +784,6 @@ function RootLayoutContent() {
       }
     }
 
-    if (
-      session &&
-      (role === "trainer" || role === "family") &&
-      needsHybridEmailVerification &&
-      normalizedPathname !== "/verify-email"
-    ) {
-      const blockedByHybrid = hybridVerificationRestrictedPrefixes.some(
-        (prefix) =>
-          normalizedPathname === prefix ||
-          normalizedPathname.startsWith(`${prefix}/`),
-      );
-      if (blockedByHybrid) {
-        const email = encodeURIComponent(session.user?.email ?? "");
-        router.replace(`/verify-email?email=${email}`);
-        return;
-      }
-    }
   }, [
     biometricsEnabled,
     isInviteRoute,

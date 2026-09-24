@@ -3546,10 +3546,21 @@ export default function ProfileScreen() {
             <MobileProfileSection
               icon="google"
               title="Integrações"
-              subtitle="Google e base acadêmica"
+              subtitle="WhatsApp, Google e base acadêmica"
               expanded={professionalExpandedSection === "integrations"}
               onPress={() => setProfessionalExpandedSection((current) => current === "integrations" ? null : "integrations")}
             >
+
+              {!student && isOrgAdmin ? (
+                <SettingsRow
+                  icon="communications"
+                  iconBg="rgba(37, 211, 102, 0.14)"
+                  label="WhatsApp"
+                  subtitle="Mensagens padrão e conexão oficial"
+                  onPress={() => router.push("/whatsapp-settings")}
+                  rightContent={<GoAtletaIcon name="chevronForward" size={16} color={colors.muted} />}
+                />
+              ) : null}
 
               {!student &&
               Platform.OS === "web" &&
