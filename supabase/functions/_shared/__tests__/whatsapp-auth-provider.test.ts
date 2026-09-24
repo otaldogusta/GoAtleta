@@ -21,6 +21,13 @@ describe("WhatsApp authentication provider", () => {
       phone_change: "+5541933008130",
     })).toBe("+5541933008130");
     expect(resolveWhatsAppAuthDestination({
+      phone: "",
+      new_phone: "+5541933008130",
+    })).toBe("+5541933008130");
+    expect(resolveWhatsAppAuthDestination({ phone: "" }, {
+      phone: "+5541933008130",
+    })).toBe("+5541933008130");
+    expect(resolveWhatsAppAuthDestination({
       phone: "+5541999999999",
       phone_change: "",
     })).toBe("+5541999999999");

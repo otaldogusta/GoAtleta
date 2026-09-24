@@ -13,6 +13,11 @@ export type WhatsAppAuthDelivery = {
 export type WhatsAppAuthUser = {
   phone?: unknown;
   phone_change?: unknown;
+  new_phone?: unknown;
+};
+
+export type WhatsAppAuthSms = {
+  phone?: unknown;
 };
 
 const ENV_KEYS = {
@@ -23,7 +28,14 @@ const ENV_KEYS = {
   templateLanguage: "META_WHATSAPP_AUTH_TEMPLATE_LANGUAGE",
 } as const;
 
-export const resolveWhatsAppAuthDestination = (user: WhatsAppAuthUser | undefined) => {
+export const resolveWhatsAppAuthDestination = (
+  user: WhatsAppAuthUser | undefined,
+  sms?: WhatsAppAuthSms,
+) => {
+  const smsPhone = typeof sms?.phone === "string" ? sms.phone.trim() : "";
+  if (smsPhone) return smsPhone;
+  const newPhone = typeof user?.new_phone === "string" ? user.new_phone.trim() : "";
+  if (newPhone) return newPhone;
   const pendingPhone = typeof user?.phone_change === "string" ? user.phone_change.trim() : "";
   if (pendingPhone) return pendingPhone;
   return typeof user?.phone === "string" ? user.phone.trim() : "";
