@@ -3,7 +3,7 @@ import { getConfirmedPhone, hasConfirmedPhone } from "../phone-verification";
 describe("phone verification", () => {
   it("accepts the phone promoted by Supabase after the phone-change OTP", () => {
     const user = {
-      phone: "+5541933008130",
+      phone: "5541933008130",
       app_metadata: { providers: ["email", "phone"] },
     };
 

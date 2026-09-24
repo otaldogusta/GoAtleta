@@ -9,7 +9,8 @@ type PhoneVerificationUser = {
 export const getConfirmedPhone = (
   user: PhoneVerificationUser | null | undefined,
 ) => {
-  const phone = typeof user?.phone === "string" ? user.phone : "";
+  const phoneDigits = typeof user?.phone === "string" ? user.phone.replace(/\D/g, "") : "";
+  const phone = phoneDigits ? `+${phoneDigits}` : "";
   const hasPhoneProvider = user?.app_metadata?.providers?.includes("phone") ?? false;
   return phone && (Boolean(user?.phone_confirmed_at) || hasPhoneProvider) ? phone : "";
 };
