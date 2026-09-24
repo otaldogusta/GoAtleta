@@ -43,7 +43,7 @@ export default function TermsScreen() {
         {
           title: "Contato",
           paragraphs: [
-            "Dúvidas sobre estes termos podem ser enviadas para gusantinho753@gmail.com. Responsável: Gustavo Ribeiro dos Santos, CNPJ 64.773.775/0001-82.",
+            "Dúvidas sobre estes termos podem ser enviadas para uniquexperieence@gmail.com. Responsável: Gustavo Ribeiro dos Santos, CNPJ 64.773.775/0001-82.",
           ],
         },
       ]}

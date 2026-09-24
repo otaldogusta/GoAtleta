@@ -13,7 +13,7 @@ export default function DataDeletionScreen() {
         {
           title: "Como solicitar",
           paragraphs: [
-            "Envie um e-mail para gusantinho753@gmail.com com o assunto “Exclusão de dados Go Atleta”, usando o endereço associado à conta. Informe apenas o nome e o e-mail da conta; nunca envie senha ou código de verificação.",
+            "Envie um e-mail para uniquexperieence@gmail.com com o assunto “Exclusão de dados Go Atleta”, usando o endereço associado à conta. Informe apenas o nome e o e-mail da conta; nunca envie senha ou código de verificação.",
           ],
         },
         {

@@ -6,7 +6,7 @@ describe("development profile access", () => {
     expect(canUseProfilePreview(null, true)).toBe(false);
   });
   it("retains only the existing development-account exception, never in production", () => {
-    expect(canUseProfilePreview("gusantinho753@gmail.com", true)).toBe(true);
-    expect(canUseProfilePreview("gusantinho753@gmail.com", false)).toBe(false);
+    expect(canUseProfilePreview("uniquexperieence@gmail.com", true)).toBe(true);
+    expect(canUseProfilePreview("uniquexperieence@gmail.com", false)).toBe(false);
   });
 });

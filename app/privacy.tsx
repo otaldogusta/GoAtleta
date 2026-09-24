@@ -13,7 +13,7 @@ export default function PrivacyPolicyScreen() {
         {
           title: "Responsável pelo tratamento",
           paragraphs: [
-            "Go Atleta, operado por Gustavo Ribeiro dos Santos, CNPJ 64.773.775/0001-82. Contato de privacidade: gusantinho753@gmail.com.",
+            "Go Atleta, operado por Gustavo Ribeiro dos Santos, CNPJ 64.773.775/0001-82. Contato de privacidade: uniquexperieence@gmail.com.",
           ],
         },
         {
