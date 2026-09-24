@@ -64,6 +64,14 @@ describe("profile unsaved feedback", () => {
     expect(source).toContain('"O número atual será desvinculado da conta. Depois, você poderá cadastrar outro."');
   });
 
+  it("enables phone verification through WhatsApp without presenting it as SMS", () => {
+    expect(source).toContain("const phoneVerificationEnabled = true;");
+    expect(source).toContain('message: "Código enviado pelo WhatsApp."');
+    expect(source).toContain('"Validar celular pelo WhatsApp"');
+    expect(source).toContain("Código recebido pelo WhatsApp");
+    expect(source).not.toContain("Código enviado por SMS.");
+  });
+
   it("uses the shared responsive profile sections for the professional profile", () => {
     expect(source).toContain('title="Perfil profissional"');
     expect(source).toContain('title="Preferências"');

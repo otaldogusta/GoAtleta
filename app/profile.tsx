@@ -1911,7 +1911,7 @@ export default function ProfileScreen() {
   const isDisplayedPhoneVerified = Boolean(
     mobilePhoneE164 && verifiedPhoneE164 && mobilePhoneE164 === verifiedPhoneE164,
   );
-  const phoneVerificationEnabled = false;
+  const phoneVerificationEnabled = true;
   const mobilePhoneNeedsVerification = Boolean(mobilePhoneE164 && mobilePhoneE164 !== verifiedPhoneE164);
   const phoneVerificationRequested = Boolean(
     pendingPhoneVerification && pendingPhoneVerification === mobilePhoneE164,
@@ -2073,7 +2073,7 @@ export default function ProfileScreen() {
       await requestPhoneChange(mobilePhoneE164);
       setPendingPhoneVerification(mobilePhoneE164);
       setPhoneVerificationCode("");
-      showSaveToast({ message: "Código enviado por SMS.", variant: "info" });
+      showSaveToast({ message: "Código enviado pelo WhatsApp.", variant: "info" });
     } catch (error) {
       setPhoneVerificationError(getFriendlyErrorMessage(error, "Não foi possível enviar o código."));
     } finally {
@@ -2556,7 +2556,7 @@ export default function ProfileScreen() {
                       ) : phoneVerificationEnabled && mobilePhoneNeedsVerification && mobilePhoneDraft.replace(/\D/g, "").length >= 10 ? (
                         <Pressable
                           accessibilityRole="button"
-                          accessibilityLabel={phoneVerificationRequested ? "Reenviar código por SMS" : "Validar celular por SMS"}
+                          accessibilityLabel={phoneVerificationRequested ? "Reenviar código pelo WhatsApp" : "Validar celular pelo WhatsApp"}
                           onPress={() => void requestMobilePhoneVerification()}
                           disabled={requestingPhoneVerification}
                           disableWebPressScale
@@ -2636,7 +2636,7 @@ export default function ProfileScreen() {
                   </AnchoredDropdown>
                   {phoneVerificationEnabled && phoneVerificationRequested ? (
                     <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.secondaryBg, overflow: "visible" }}>
-                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Código recebido por SMS</Text>
+                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Código recebido pelo WhatsApp</Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                         <View style={{ minHeight: 46, flex: 1, borderRadius: 12, borderWidth: 1, borderColor: phoneVerificationError ? colors.dangerBorder : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, justifyContent: "center", position: "relative", overflow: "visible" }}>
                           <FloatingFieldError message={phoneVerificationError} />
