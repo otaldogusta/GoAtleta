@@ -652,7 +652,7 @@ export function AuthProvider({
     const accessToken = await getValidAccessToken();
     if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
     const user = await fetchUser(accessToken);
-    if (!hasConfirmedPhone(user, normalizedPhone)) {
+    if (!user || !hasConfirmedPhone(user, normalizedPhone)) {
       throw new Error("O Supabase não confirmou este telefone.");
     }
     const activeSession = (await loadSession()) ?? session;
