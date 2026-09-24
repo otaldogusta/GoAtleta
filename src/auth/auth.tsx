@@ -23,6 +23,7 @@ import {
 } from "../core/account-security";
 import { canSafelyUnlinkProvider, type LinkedIdentity } from "./identity-linking";
 import { runWithFreshAuthToken } from "./auth-token-retry";
+import { hasConfirmedPhone } from "./phone-verification";
 import { buildOAuthAuthorizeUrl } from "./oauth-url";
 import { getGoogleLinkUrl } from "../api/auth-link-google";
 import { revokeAuthSession } from "./auth-signout";
@@ -651,7 +652,7 @@ export function AuthProvider({
     const accessToken = await getValidAccessToken();
     if (!accessToken) throw new Error("Sessão expirada. Entre novamente.");
     const user = await fetchUser(accessToken);
-    if (!user || user.phone !== normalizedPhone || !user.phone_confirmed_at) {
+    if (!hasConfirmedPhone(user, normalizedPhone)) {
       throw new Error("O Supabase não confirmou este telefone.");
     }
     const activeSession = (await loadSession()) ?? session;
