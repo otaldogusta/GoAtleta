@@ -5,6 +5,7 @@ import { validateStringField } from "../_shared/input-validation.ts";
 import { hasTrustedInviteIdentity } from "../_shared/invite-email-verification.ts";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+const DEFAULT_PLATFORM_ALERT_EMAIL = "uniquexperieence@gmail.com";
 const makeHeaders = (request: Request) => ({
   ...buildCorsHeaders(request),
   "Content-Type": "application/json",
@@ -30,6 +31,72 @@ const createServiceClient = () => {
   return url && key
     ? createClient(url, key, { auth: { persistSession: false } })
     : null;
+};
+
+const escapeHtml = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[character] ?? character,
+  );
+
+const sendPlatformAccessAlert = async ({
+  organizationName,
+  requesterEmail,
+  requesterName,
+  requestedProduct,
+}: {
+  organizationName: string;
+  requesterEmail: string;
+  requesterName: string;
+  requestedProduct: "goatleta" | "goatleta_pro";
+}) => {
+  const apiKey = (Deno.env.get("RESEND_API_KEY") ?? "").trim();
+  if (!apiKey) return false;
+
+  const recipient =
+    (Deno.env.get("PLATFORM_ALERT_EMAIL") ?? "").trim().toLowerCase() ||
+    DEFAULT_PLATFORM_ALERT_EMAIL;
+  const from =
+    (Deno.env.get("INVITE_EMAIL_FROM") ?? "").trim() ||
+    "Go Atleta <nao-responda@auth.goatleta.com>";
+  const productLabel =
+    requestedProduct === "goatleta_pro" ? "GoAtleta Pro" : "GoAtleta";
+
+  try {
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      signal: AbortSignal.timeout(15000),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [recipient],
+        subject: `Nova solicitação no Go Atleta — ${organizationName}`,
+        html: `
+          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#102038">
+            <h1 style="font-size:22px">Nova solicitação de acesso</h1>
+            <p><strong>Instituição:</strong> ${escapeHtml(organizationName)}</p>
+            <p><strong>Responsável:</strong> ${escapeHtml(requesterName)}</p>
+            <p><strong>E-mail:</strong> ${escapeHtml(requesterEmail)}</p>
+            <p><strong>Produto:</strong> ${escapeHtml(productLabel)}</p>
+            <p><a href="https://goatleta.com/platform/accesses" style="display:inline-block;padding:12px 18px;background:#41d984;color:#07111f;text-decoration:none;border-radius:8px;font-weight:700">Abrir painel SaaS</a></p>
+          </div>
+        `,
+      }),
+    });
+    return emailResponse.ok;
+  } catch {
+    return false;
+  }
 };
 
 Deno.serve(async (request) => {
@@ -134,6 +201,7 @@ Deno.serve(async (request) => {
     "Novo usuário";
   const title = "Nova solicitação de acesso";
   const bodyText = `${requesterName} (${requesterEmail}) aguarda definição de função.`;
+  const alertedRequestIds = new Set<string>();
 
   for (const membership of coordinatorMemberships) {
     const organizationId = String(membership.organization_id);
@@ -152,6 +220,7 @@ Deno.serve(async (request) => {
     }
 
     let accessRequestId = String(existingRequest?.id ?? "");
+    let createdNewRequest = false;
     if (!accessRequestId) {
       const { data: createdRequest, error: requestInsertError } = await service
         .from("organization_access_requests")
@@ -182,7 +251,23 @@ Deno.serve(async (request) => {
         }
       } else {
         accessRequestId = String(createdRequest.id);
+        createdNewRequest = true;
       }
+    }
+
+    if (createdNewRequest && !alertedRequestIds.has(accessRequestId)) {
+      alertedRequestIds.add(accessRequestId);
+      const { data: organization } = await service
+        .from("organizations")
+        .select("name")
+        .eq("id", organizationId)
+        .maybeSingle();
+      await sendPlatformAccessAlert({
+        organizationName: String(organization?.name ?? "Instituição"),
+        requesterEmail,
+        requesterName,
+        requestedProduct,
+      });
     }
 
     if (!coordinatorUserId) continue;

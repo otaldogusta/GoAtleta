@@ -13,6 +13,7 @@ import {
   type OrganizationAccessRequest,
 } from "../src/api/organization-access-requests";
 import { claimStudentInvite } from "../src/api/student-invite";
+import { requestAccessReview } from "../src/api/access-request";
 import { resumeStaffSignup } from "../src/api/staff-invite";
 import { claimTrainerInvite } from "../src/api/trainer-invite";
 import { useAuth } from "../src/auth/auth";
@@ -247,6 +248,8 @@ export default function PendingScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   // Public self-service is a relationship request, never a staff role inferred from a URL.
   const [requestIntent, setRequestIntent] = useState<FamilyAccessIntent | null>(null);
+  const [requestMode, setRequestMode] = useState<"family" | "staff">("family");
+  const [requestedProduct, setRequestedProduct] = useState<"goatleta" | "goatleta_pro">("goatleta");
   const [requestedStudentName, setRequestedStudentName] = useState("");
   const [requestedRelationshipLabel, setRequestedRelationshipLabel] = useState("");
   const [correctingRequest, setCorrectingRequest] = useState(false);
@@ -342,6 +345,29 @@ export default function PendingScreen() {
       await loadAccessRequest();
     } catch (error) {
       setMessage(familyAccessErrorMessage(error));
+    } finally {
+      requestLock.current = false;
+      setAccessRequestBusy(false);
+    }
+  };
+
+  const submitStaffAccessRequest = async () => {
+    if (!selectedOrganization || requestLock.current) return;
+    requestLock.current = true;
+    setAccessRequestBusy(true);
+    setMessage("");
+    try {
+      await requestAccessReview({
+        organizationId: selectedOrganization.id,
+        requestedProduct,
+      });
+      await loadAccessRequest();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível enviar a solicitação.",
+      );
     } finally {
       requestLock.current = false;
       setAccessRequestBusy(false);
@@ -794,8 +820,84 @@ export default function PendingScreen() {
                   </View>
                 ) : (
                   <View style={{ gap: spacing.sm }}>
-                    <FamilyAccessIntentFields kind={requestIntent} studentName={requestedStudentName} relationshipLabel={requestedRelationshipLabel}
-                      onKind={setRequestIntent} onStudentName={setRequestedStudentName} onRelationshipLabel={setRequestedRelationshipLabel} disabled={accessRequestBusy} />
+                    <View style={{ flexDirection: "row", gap: spacing.xs }}>
+                      {([
+                        ["family", "Atleta ou responsável"],
+                        ["staff", "Equipe da instituição"],
+                      ] as const).map(([value, label]) => (
+                        <Pressable
+                          key={value}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: requestMode === value }}
+                          onPress={() => {
+                            setRequestMode(value);
+                            setMessage("");
+                          }}
+                          style={{
+                            flex: 1,
+                            minHeight: 42,
+                            borderRadius: radius.internal,
+                            borderWidth: 1,
+                            borderColor:
+                              requestMode === value
+                                ? colors.primaryBg
+                                : colors.border,
+                            backgroundColor:
+                              requestMode === value
+                                ? colors.successBg
+                                : colors.secondaryBg,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            paddingHorizontal: spacing.xs,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: colors.text,
+                              fontSize: 12,
+                              fontWeight: "800",
+                              textAlign: "center",
+                            }}
+                          >
+                            {label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    {requestMode === "family" ? (
+                      <FamilyAccessIntentFields kind={requestIntent} studentName={requestedStudentName} relationshipLabel={requestedRelationshipLabel}
+                        onKind={setRequestIntent} onStudentName={setRequestedStudentName} onRelationshipLabel={setRequestedRelationshipLabel} disabled={accessRequestBusy} />
+                    ) : (
+                      <View style={{ gap: spacing.xs }}>
+                        <Text style={{ color: colors.muted, fontSize: 13 }}>
+                          Plano de interesse
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: spacing.xs }}>
+                          {(["goatleta", "goatleta_pro"] as const).map((product) => (
+                            <Pressable
+                              key={product}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: requestedProduct === product }}
+                              onPress={() => setRequestedProduct(product)}
+                              style={{
+                                flex: 1,
+                                minHeight: 42,
+                                borderRadius: radius.internal,
+                                borderWidth: 1,
+                                borderColor: requestedProduct === product ? colors.primaryBg : colors.border,
+                                backgroundColor: requestedProduct === product ? colors.successBg : colors.secondaryBg,
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Text style={{ color: colors.text, fontSize: 12, fontWeight: "800" }}>
+                                {product === "goatleta_pro" ? "GoAtleta Pro" : "GoAtleta"}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    )}
                     <View ref={organizationTriggerRef} collapsable={false}>
                       <View style={{ minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: organizationPickerOpen ? colors.primaryBg : colors.border, backgroundColor: colors.inputBg, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 10 }}>
                         <GoAtletaIcon name="search" size={18} color={colors.muted} />
@@ -858,7 +960,18 @@ export default function PendingScreen() {
                         );
                       }) : null}
                     </AnchoredDropdown>
-                    {selectedOrganization ? <Button label="Solicitar vínculo" disabled={!validRelationshipRequest} loading={accessRequestBusy} onPress={() => void submitAccessRequest()} /> : null}
+                    {selectedOrganization ? (
+                      <Button
+                        label={requestMode === "staff" ? "Solicitar acesso profissional" : "Solicitar vínculo"}
+                        disabled={requestMode === "family" && !validRelationshipRequest}
+                        loading={accessRequestBusy}
+                        onPress={() =>
+                          requestMode === "staff"
+                            ? void submitStaffAccessRequest()
+                            : void submitAccessRequest()
+                        }
+                      />
+                    ) : null}
                     {message ? <Text accessibilityRole="alert" style={{ color: colors.dangerText, fontSize: 13 }}>{message}</Text> : null}
                   </View>
                 )}

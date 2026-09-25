@@ -16,6 +16,7 @@ import { ScreenPageHeader } from "../../components/ui/ScreenPageHeader";
 import { radius, spacing } from "../../theme/tokens";
 import { useAppTheme } from "../../ui/app-theme";
 import { Button } from "../../ui/Button";
+import { useConfirmDialog } from "../../ui/confirm-dialog";
 import { GoAtletaIcon, type GoAtletaIconName } from "../../ui/icon-registry";
 import { Pressable } from "../../ui/Pressable";
 import { useSaveToast } from "../../ui/save-toast";
@@ -27,7 +28,7 @@ import {
   type PlatformProduct,
 } from "../../api/platform-institutions";
 
-type InstitutionStatus = "evaluation" | "active" | "paused";
+type InstitutionStatus = "evaluation" | "active" | "paused" | "cancelled";
 type Institution = {
   id: string;
   name: string;
@@ -102,6 +103,7 @@ const labels = {
   evaluation: "Em avaliação",
   active: "Ativa",
   paused: "Pausada",
+  cancelled: "Removida",
 } as const;
 const productLabels = {
   goatleta: "GoAtleta",
@@ -124,8 +126,7 @@ const mapPlatformInstitution = (item: PlatformInstitution): Institution => ({
       : item.renewsAt
         ? `Renova em ${formatDate(item.renewsAt)}`
         : "Sem renovação definida",
-  status:
-    item.lifecycleStatus === "cancelled" ? "paused" : item.lifecycleStatus,
+  status: item.lifecycleStatus,
   users: item.usersCount,
   note: item.commercialNote,
 });
@@ -167,6 +168,7 @@ export function PlatformDashboard() {
   const { colors } = useAppTheme();
   const router = useRouter();
   const { showSaveToast } = useSaveToast();
+  const { confirm } = useConfirmDialog();
   const { width } = useWindowDimensions();
   const wide = width >= 1200;
   const [query, setQuery] = useState("");
@@ -213,7 +215,9 @@ export function PlatformDashboard() {
     () =>
       items.filter(
         (item) =>
-          (filter === "all" || item.status === filter) &&
+          (filter === "all"
+            ? item.status !== "cancelled"
+            : item.status === filter) &&
           `${item.name} ${item.responsible} ${productLabels[item.product]}`
             .toLowerCase()
             .includes(query.trim().toLowerCase()),
@@ -282,6 +286,49 @@ export function PlatformDashboard() {
     } finally {
       setBusy(false);
     }
+  };
+  const removeInstitution = async () => {
+    if (!selected || busy || selected.status === "cancelled") return;
+
+    await confirm({
+      title: "Remover instituição do SaaS?",
+      message:
+        "A instituição sairá da operação normal. Usuários, histórico e dados esportivos serão preservados, e ela poderá ser restaurada depois.",
+      confirmLabel: "Remover instituição",
+      cancelLabel: "Cancelar",
+      loadingLabel: "Removendo…",
+      tone: "danger",
+      onConfirm: async () => {
+        if (!selectedSource) {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === selected.id ? { ...item, status: "cancelled" } : item,
+            ),
+          );
+        } else {
+          await platformUpdateInstitutionAccount({
+            organizationId: selected.id,
+            product: selectedSource.product,
+            lifecycleStatus: "cancelled",
+            commercialStatus: selectedSource.commercialStatus,
+            evaluationEndsAt: selectedSource.evaluationEndsAt,
+            activatedAt: selectedSource.activatedAt,
+            renewsAt: selectedSource.renewsAt,
+            commercialNote: selectedSource.commercialNote,
+            idempotencyKey: createIdempotencyKey(),
+          });
+          await load();
+        }
+
+        setEditing(false);
+        setFilter("all");
+        setSelectedId("");
+        showSaveToast({
+          variant: "success",
+          message: "Instituição removida da operação.",
+        });
+      },
+    });
   };
   const metrics: [GoAtletaIconName, string, string, string][] = [
     [
@@ -468,39 +515,43 @@ export function PlatformDashboard() {
                   <View
                     style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}
                   >
-                    {(["all", "evaluation", "active", "paused"] as const).map(
-                      (value) => (
-                        <Pressable
-                          key={value}
-                          onPress={() => setFilter(value)}
+                    {(
+                      [
+                        "all",
+                        "evaluation",
+                        "active",
+                        "paused",
+                        "cancelled",
+                      ] as const
+                    ).map((value) => (
+                      <Pressable
+                        key={value}
+                        onPress={() => setFilter(value)}
+                        style={{
+                          minHeight: 40,
+                          paddingHorizontal: 12,
+                          borderRadius: radius.internal,
+                          borderWidth: 1,
+                          borderColor:
+                            filter === value ? colors.primaryBg : colors.border,
+                          backgroundColor:
+                            filter === value
+                              ? colors.successBg
+                              : colors.secondaryBg,
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text
                           style={{
-                            minHeight: 40,
-                            paddingHorizontal: 12,
-                            borderRadius: radius.internal,
-                            borderWidth: 1,
-                            borderColor:
-                              filter === value
-                                ? colors.primaryBg
-                                : colors.border,
-                            backgroundColor:
-                              filter === value
-                                ? colors.successBg
-                                : colors.secondaryBg,
-                            justifyContent: "center",
+                            color: colors.text,
+                            fontSize: 12,
+                            fontWeight: "800",
                           }}
                         >
-                          <Text
-                            style={{
-                              color: colors.text,
-                              fontSize: 12,
-                              fontWeight: "800",
-                            }}
-                          >
-                            {value === "all" ? "Todas" : labels[value]}
-                          </Text>
-                        </Pressable>
-                      ),
-                    )}
+                          {value === "all" ? "Todas" : labels[value]}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
                   <View
                     style={{
@@ -1018,6 +1069,26 @@ export function PlatformDashboard() {
               ) : (
                 <Button label="Gerenciar instituição" onPress={startEditing} />
               )}
+              {!editing && selected.status !== "cancelled" ? (
+                <Pressable
+                  onPress={() => void removeInstitution()}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remover ${selected.name} do SaaS`}
+                  style={{
+                    minHeight: 44,
+                    borderRadius: radius.internal,
+                    borderWidth: 1,
+                    borderColor: colors.dangerBorder,
+                    backgroundColor: colors.dangerBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: colors.dangerText, fontWeight: "800" }}>
+                    Remover do SaaS
+                  </Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={() =>
                   router.push({
